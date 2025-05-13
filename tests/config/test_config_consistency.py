@@ -167,3 +167,60 @@ class TestConfigConsistency:
             jsonschema.validate(instance=example_config, schema=schema)
         except jsonschema.ValidationError as e:
             pytest.fail(f"Example config {EXAMPLE_CONFIG_PATH} failed validation: {e}")
+
+    @pytest.mark.skipif(not CONFIG_PATH.exists(), reason=f"{CONFIG_PATH} not found")
+    @pytest.mark.skipif(not EXAMPLE_CONFIG_PATH.exists(), reason=f"{EXAMPLE_CONFIG_PATH} not found")
+    def test_config_and_example_have_same_keys(self) -> None:
+        """Verify that config.toml and config.example.toml have the same keys."""
+        actual_keys = get_yaml_keys(CONFIG_PATH)
+        example_keys = get_yaml_keys(EXAMPLE_CONFIG_PATH)
+
+        assert actual_keys == example_keys, (
+            f"Mismatch between {CONFIG_PATH} and {EXAMPLE_CONFIG_PATH}. \
+            Missing in example: {actual_keys - example_keys}. \
+            Extra in example: {example_keys - actual_keys}"
+        )
+
+    @pytest.mark.skipif(not CONFIG_PATH.exists(), reason=f"{CONFIG_PATH} not found")
+    @pytest.mark.skipif(not EXAMPLE_SCRIPT_PATH.exists(), reason=f"{EXAMPLE_SCRIPT_PATH} not found")
+    def test_config_matches_example_script_exchanges(self) -> None:
+        """Verify that config.toml has the exchanges mentioned in example_script.py."""
+        actual_keys = get_yaml_keys(CONFIG_PATH)
+        script_exchanges = get_yaml_keys_from_string(
+            extract_config_content_variable(EXAMPLE_SCRIPT_PATH)
+        )
+
+        assert actual_keys == script_exchanges, "Config exchanges differ from example script."
+
+    @pytest.mark.skipif(not EXAMPLE_CONFIG_PATH.exists(), reason=f"{EXAMPLE_CONFIG_PATH} not found")
+    @pytest.mark.skipif(not SCHEMA_PATH.exists(), reason=f"{SCHEMA_PATH} not found")
+    def test_example_config_matches_schema(self) -> None:
+        """Verify that config.example.toml matches the schema definition."""
+        # Load schema
+        try:
+            with open(SCHEMA_PATH) as f:
+                schema = json.load(f)
+        except Exception as e:
+            pytest.fail(f"Failed to load schema {SCHEMA_PATH}: {e}")
+
+        # Load example config
+        try:
+            with open(EXAMPLE_CONFIG_PATH) as f:
+                example_config = yaml.safe_load(f)
+            if example_config is None:
+                example_config = {}
+        except Exception as e:
+            pytest.fail(f"Failed to load example config {EXAMPLE_CONFIG_PATH}: {e}")
+
+        # Ensure example_config is a dict before validation
+        if not isinstance(example_config, dict):
+            pytest.fail(
+                f"Example config {EXAMPLE_CONFIG_PATH} did not load as a dictionary "
+                f"(loaded type: {type(example_config)}). Cannot validate."
+            )
+
+        # Validate example against schema
+        try:
+            jsonschema.validate(instance=example_config, schema=schema)
+        except jsonschema.ValidationError as e:
+            pytest.fail(f"Example config {EXAMPLE_CONFIG_PATH} failed validation: {e}")

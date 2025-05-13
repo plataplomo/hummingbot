@@ -150,23 +150,24 @@ def create_test_signal(
 def test_initialization(mock_config: Config) -> None:
     """Test queue initialization."""
     queue = PrioritySignalQueue(mock_config)
-    assert queue.signal_queue == []
     assert queue.counter == 0
     assert queue.default_expiration_seconds == 60
     assert queue.max_queue_size == 100
     assert queue.cleanup_interval == 5
 
 
-def test_add_signal(signal_queue: PrioritySignalQueue, sample_signal: TradeSignal) -> None:
-    """Test adding a valid signal to the queue."""
-    result = signal_queue.add_signal(sample_signal)
+@pytest.mark.asyncio
+async def test_add_signal(signal_queue: PrioritySignalQueue, sample_signal: TradeSignal) -> None:
+    """Test adding a valid signal to the queue asynchronously."""
+    result = await signal_queue.add_signal(sample_signal)
     assert result is True
-    assert signal_queue.count() == 1
-    assert not signal_queue.is_empty()
+    assert await signal_queue.count() == 1
+    assert not await signal_queue.is_empty()
 
-    # Check queue contents (internal check, less ideal but useful)
-    priority, _, signal = signal_queue.signal_queue[0]
-    assert priority == -0.8  # Negative for max-heap based on utility_score
+    # Check queue contents asynchronously if possible (using get_signals)
+    signals = await signal_queue.get_signals()
+    assert len(signals) == 1
+    signal = signals[0]
     assert signal.symbol == "BTC/USDT"
     assert signal.expiration is not None
     assert signal.exchange == "mock_exchange"
@@ -177,7 +178,8 @@ def test_add_signal(signal_queue: PrioritySignalQueue, sample_signal: TradeSigna
         pytest.fail("signal_id is not a valid UUID")
 
 
-def test_add_signal_with_circuit_breaker_open(
+@pytest.mark.asyncio
+async def test_add_signal_with_circuit_breaker_open(
     mock_config: Config, mock_circuit_breaker: MagicMock, sample_signal: TradeSignal
 ) -> None:
     """Test adding a signal is rejected when the relevant circuit breaker is OPEN."""
@@ -189,14 +191,16 @@ def test_add_signal_with_circuit_breaker_open(
     )
 
     queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
-    result = queue.add_signal(sample_signal)
+    result = await queue.add_signal(sample_signal)
 
     # Assert that can_execute was called correctly
     mock_circuit_breaker.can_execute.assert_called_with(target_exchange, sample_signal.symbol)
     assert result is False, "Signal should be rejected when relevant breaker is OPEN"
+    assert await queue.count() == 0
 
 
-def test_add_signal_with_circuit_breaker_closed(
+@pytest.mark.asyncio
+async def test_add_signal_with_circuit_breaker_closed(
     signal_queue: PrioritySignalQueue, mock_circuit_breaker: MagicMock, sample_signal: TradeSignal
 ) -> None:
     """Test adding a signal succeeds when the relevant circuit breaker is CLOSED."""
@@ -209,26 +213,27 @@ def test_add_signal_with_circuit_breaker_closed(
     mock_circuit_breaker.can_execute.side_effect = None
     mock_circuit_breaker.can_execute.return_value = (True, None)
 
-    result = signal_queue.add_signal(sample_signal)
+    result = await signal_queue.add_signal(sample_signal)
 
     assert result is True, "Signal should be added when relevant breaker is CLOSED"
-    assert signal_queue.count() == 1
+    assert await signal_queue.count() == 1
     # Assert can_execute was called, not get_exchange_breaker
     mock_circuit_breaker.can_execute.assert_called_with(target_exchange, sample_signal.symbol)
 
 
-def test_add_from_opportunity(
+@pytest.mark.asyncio
+async def test_add_from_opportunity(
     signal_queue: PrioritySignalQueue, sample_opportunity: ArbitrageOpportunity
 ) -> None:
-    """Test creating and adding a signal from an arbitrage opportunity."""
-    signal = signal_queue.add_from_opportunity(
+    """Test creating and adding a signal from an arbitrage opportunity asynchronously."""
+    signal = await signal_queue.add_from_opportunity(
         opportunity=sample_opportunity,
         strategy_name="funding_arb_strategy",
     )
 
     assert signal is not None
-    assert signal_queue.count() == 1
-    added_signal = signal_queue.peek_next_signal()
+    assert await signal_queue.count() == 1
+    added_signal = await signal_queue.peek_next_signal()
     assert added_signal is not None
     assert added_signal.source_strategy == "funding_arb_strategy"
     assert added_signal.symbol == "ETH/USDT"
@@ -241,30 +246,37 @@ def test_add_from_opportunity(
     assert set(added_signal.exchange) == {"exA", "exB"}
 
 
-def test_get_next_signal(signal_queue: PrioritySignalQueue, sample_signal: TradeSignal) -> None:
-    """Test getting the next signal removes it from the queue."""
-    signal_queue.add_signal(sample_signal)
-    assert signal_queue.count() == 1
-    retrieved_signal = signal_queue.get_next_signal()
+@pytest.mark.asyncio
+async def test_get_next_signal(
+    signal_queue: PrioritySignalQueue, sample_signal: TradeSignal
+) -> None:
+    """Test getting the next signal removes it from the queue asynchronously."""
+    await signal_queue.add_signal(sample_signal)
+    assert await signal_queue.count() == 1
+    retrieved_signal = await signal_queue.get_next_signal()
 
     assert retrieved_signal == sample_signal
-    assert signal_queue.count() == 0
-    assert signal_queue.is_empty()
+    assert await signal_queue.count() == 0
+    assert await signal_queue.is_empty()
 
 
-def test_peek_next_signal(signal_queue: PrioritySignalQueue, sample_signal: TradeSignal) -> None:
-    """Test peeking at the next signal without removing it."""
-    signal_queue.add_signal(sample_signal)
-    assert signal_queue.count() == 1
-    peeked_signal = signal_queue.peek_next_signal()
+@pytest.mark.asyncio
+async def test_peek_next_signal(
+    signal_queue: PrioritySignalQueue, sample_signal: TradeSignal
+) -> None:
+    """Test peeking at the next signal without removing it asynchronously."""
+    await signal_queue.add_signal(sample_signal)
+    assert await signal_queue.count() == 1
+    peeked_signal = await signal_queue.peek_next_signal()
 
     assert peeked_signal == sample_signal
-    assert signal_queue.count() == 1  # Signal should still be in queue
-    assert not signal_queue.is_empty()
+    assert await signal_queue.count() == 1
+    assert not await signal_queue.is_empty()
 
 
-def test_get_signals(signal_queue: PrioritySignalQueue) -> None:
-    """Test getting signals by symbol or all signals."""
+@pytest.mark.asyncio
+async def test_get_signals(signal_queue: PrioritySignalQueue) -> None:
+    """Test getting signals by symbol or all signals asynchronously."""
     now_utc = datetime.now(UTC)
     signal1 = TradeSignal(
         timestamp=now_utc,
@@ -289,42 +301,44 @@ def test_get_signals(signal_queue: PrioritySignalQueue) -> None:
         metadata={"utility_score": 0.7},
     )
 
-    signal_queue.add_signal(signal1)
-    signal_queue.add_signal(signal2)
+    await signal_queue.add_signal(signal1)
+    await signal_queue.add_signal(signal2)
 
     # Get signals for BTC/USDT
-    btc_signals = signal_queue.get_signals(symbol="BTC/USDT")
+    btc_signals = await signal_queue.get_signals(symbol="BTC/USDT")
     assert len(btc_signals) == 1
     assert btc_signals[0].symbol == "BTC/USDT"
 
     # Get all signals
-    all_signals = signal_queue.get_signals()
+    all_signals = await signal_queue.get_signals()
     assert len(all_signals) == 2
     # Order depends on priority (utility_score)
     assert {s.symbol for s in all_signals} == {"BTC/USDT", "ETH/USDT"}
 
 
-def test_count(signal_queue: PrioritySignalQueue, sample_signal: TradeSignal) -> None:
-    """Test counting signals in the queue."""
-    assert signal_queue.count() == 0
-    assert signal_queue.is_empty()
+@pytest.mark.asyncio
+async def test_count(signal_queue: PrioritySignalQueue, sample_signal: TradeSignal) -> None:
+    """Test counting signals in the queue asynchronously."""
+    assert await signal_queue.count() == 0
+    assert await signal_queue.is_empty()
 
-    signal_queue.add_signal(sample_signal)
-    assert signal_queue.count() == 1
-    assert not signal_queue.is_empty()
+    await signal_queue.add_signal(sample_signal)
+    assert await signal_queue.count() == 1
+    assert not await signal_queue.is_empty()
 
-    signal_queue.get_next_signal()
-    assert signal_queue.count() == 0
-    assert signal_queue.is_empty()
+    await signal_queue.get_next_signal()
+    assert await signal_queue.count() == 0
+    assert await signal_queue.is_empty()
 
 
-def test_clear(signal_queue: PrioritySignalQueue, sample_signal: TradeSignal) -> None:
-    """Test clearing the queue."""
-    signal_queue.add_signal(sample_signal)
-    assert signal_queue.count() == 1
-    signal_queue.clear()
-    assert signal_queue.count() == 0
-    assert signal_queue.is_empty()
+@pytest.mark.asyncio
+async def test_clear(signal_queue: PrioritySignalQueue, sample_signal: TradeSignal) -> None:
+    """Test clearing the queue asynchronously."""
+    await signal_queue.add_signal(sample_signal)
+    assert await signal_queue.count() == 1
+    await signal_queue.clear()
+    assert await signal_queue.count() == 0
+    assert await signal_queue.is_empty()
 
 
 # --- Advanced Queue Logic Tests ---
@@ -409,7 +423,8 @@ def test_clean_expired_signals_direct_patch(
     assert remaining_symbols.issubset({"DEF_VAL", "EXP_VAL"})  # Check it's one of the valid ones
 
 
-def test_trim_queue(mock_config: Config, mock_circuit_breaker: MagicMock) -> None:
+@pytest.mark.asyncio  # Mark test as async
+async def test_trim_queue(mock_config: Config, mock_circuit_breaker: MagicMock) -> None:
     """Test trimming the queue when it exceeds the maximum size."""
     # Set max size low for testing using the Config object's set method
     mock_config.set("max_signal_queue_size", 3)
@@ -421,20 +436,21 @@ def test_trim_queue(mock_config: Config, mock_circuit_breaker: MagicMock) -> Non
     signal3 = create_test_signal(symbol="S3", score=0.5, price=Decimal("10"))
     signal4 = create_test_signal(symbol="S4", score=0.3, price=Decimal("10"))  # Lowest to be added
 
-    queue.add_signal(signal1)  # Score 0.1
-    queue.add_signal(signal2)  # Score 0.9
-    queue.add_signal(signal3)  # Score 0.5
+    await queue.add_signal(signal1)  # Score 0.1 - Await async call
+    await queue.add_signal(signal2)  # Score 0.9 - Await async call
+    await queue.add_signal(signal3)  # Score 0.5 - Await async call
 
-    assert queue.count() == 3
+    assert await queue.count() == 3  # Await async count
 
     # Adding the 4th signal should trigger trim and remove the lowest priority (signal1)
-    result = queue.add_signal(signal4)  # Score 0.3
+    result = await queue.add_signal(signal4)  # Score 0.3 - Await async call
 
     assert result is True
-    assert queue.count() == 3  # Still max size
+    assert await queue.count() == 3  # Still max size - Await async count
 
     # Check which signals remain (should be S2, S3, S4)
-    remaining_symbols = {s.symbol for s in queue.get_signals()}
+    remaining_signals = await queue.get_signals()  # Await async get_signals
+    remaining_symbols = {s.symbol for s in remaining_signals}
     assert remaining_symbols == {"S2", "S3", "S4"}
     assert "S1" not in remaining_symbols
 

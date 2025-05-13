@@ -771,6 +771,7 @@ async def test_api_error_during_placement(
 ) -> None:
     """Tests that an APIError during order placement is handled."""
     # ... (Setup similar to happy path)
+    assert False, "Test implementation pending"
 
 
 # --- test_insufficient_balance needs rework ---
@@ -788,6 +789,7 @@ async def test_insufficient_balance(
 ) -> None:
     """Tests behavior when there isn't enough balance for the trade."""
     # ... (Setup similar, but mock low balances)
+    assert False, "Test implementation pending"
 
 
 @pytest.mark.asyncio

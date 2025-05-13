@@ -3,7 +3,6 @@ from __future__ import annotations  # Enable postponed evaluation
 import asyncio
 import heapq
 import logging
-import threading
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, TypeVar
@@ -63,7 +62,6 @@ class PrioritySignalQueue:
         # The class supports both synchronous and asynchronous operations
         # _sync_lock: For synchronous methods (thread-safety in non-async contexts)
         # lock: For asynchronous methods (when used with 'async with')
-        self._sync_lock = threading.Lock()
         self.lock = asyncio.Lock()  # For async methods
         self.new_signal_event = asyncio.Event()  # For async signaling
 
@@ -108,9 +106,9 @@ class PrioritySignalQueue:
 
         self.logger.info("Initialized priority signal queue")
 
-    def add_signal(self, signal: TradeSignal) -> bool:
+    async def add_signal(self, signal: TradeSignal) -> bool:
         """
-        Add a signal to the priority queue.
+        Add a signal to the priority queue asynchronously.
 
         Args:
             signal: Trade signal to add
@@ -152,16 +150,18 @@ class PrioritySignalQueue:
             # Logging moved inside _check_circuit_breakers_pre_add for context
             return False
 
-        # Clean expired signals periodically (use sync lock for thread safety)
-        # Avoid cleaning within the async lock if possible
-        with self._sync_lock:
-            now = datetime.now(UTC)
-            if (now - self.last_cleanup).total_seconds() > self.cleanup_interval:
-                self._clean_expired_signals()  # This modifies self.signal_queue
-                self.last_cleanup = now
+        # Clean expired signals periodically
+        # Run cleanup *before* acquiring the main lock to avoid holding it during potentially longer cleanup
+        now = datetime.now(UTC)
+        if (now - self.last_cleanup).total_seconds() > self.cleanup_interval:
+            async with self.lock:  # Acquire lock specifically for cleanup
+                # Double check condition inside lock
+                if (now - self.last_cleanup).total_seconds() > self.cleanup_interval:
+                    self._clean_expired_signals()  # This modifies self.signal_queue
+                    self.last_cleanup = now
 
-        # Add signal using the synchronous lock for basic thread safety
-        with self._sync_lock:
+        # Use asyncio.Lock for adding the signal
+        async with self.lock:  # Changed to async with self.lock
             # Check if we need to trim the queue (re-check length inside lock)
             if len(self.signal_queue) >= self.max_queue_size:
                 if len(self.signal_queue) > 0:
@@ -191,21 +191,12 @@ class PrioritySignalQueue:
             self.logger.debug(
                 f"Added signal for {signal.symbol} to queue with score {utility_score}"
             )
-            # Signal the async wait event (if used)
-            # This part is tricky in sync context, might need run_coroutine_threadsafe if loop exists
-            try:
-                loop = asyncio.get_running_loop()
-                loop.call_soon_threadsafe(self.new_signal_event.set)
-            except RuntimeError:
-                # No loop running, cannot reliably signal async waiters from sync call
-                self.logger.debug(
-                    "No running event loop to signal async waiters from sync add_signal."
-                )
-                pass  # Proceed without signaling
+            # Signal the async wait event
+            self.new_signal_event.set()  # Directly set event in async context
 
-            return True  # Indicate successful addition (to the sync queue at least)
+            return True  # Indicate successful addition
 
-    def add_from_opportunity(
+    async def add_from_opportunity(
         self, opportunity: ArbitrageOpportunity, strategy_name: str
     ) -> TradeSignal | None:
         """
@@ -278,18 +269,17 @@ class PrioritySignalQueue:
             metadata=metadata,
         )
 
-        # Add to queue
-        if self.add_signal(signal):
+        # Use the async add_signal method
+        if await self.add_signal(signal):
             return signal
-
         return None
 
-    def get_next_signal(self) -> TradeSignal | None:
+    async def get_next_signal(self) -> TradeSignal | None:
         """
-        Get highest priority unexpired signal.
+        Get the highest priority unexpired signal and remove it from the queue.
 
         Returns:
-            Highest priority trade signal or None if queue is empty
+            Highest priority valid trade signal or None if queue is empty/all expired
         """
         # Clean expired signals
         self._clean_expired_signals()
@@ -339,179 +329,169 @@ class PrioritySignalQueue:
             self.logger.error(f"Error in get_next_signal: {e}")
             return None
 
-    def peek_next_signal(self) -> TradeSignal | None:
+    async def peek_next_signal(self) -> TradeSignal | None:
         """
-        Peek at highest priority unexpired signal without removing it.
+        Peek at the highest priority unexpired signal without removing it from the queue.
 
         Returns:
-            Highest priority trade signal or None if queue is empty
+            Highest priority valid trade signal or None if queue is empty/all expired
         """
-        # Clean expired signals
-        self._clean_expired_signals()
+        async with self.lock:  # Use async lock
+            # Clean expired signals first
+            now = datetime.now(UTC)
+            if (now - self.last_cleanup).total_seconds() > self.cleanup_interval:
+                self._clean_expired_signals()  # Clean within lock
+                self.last_cleanup = now
 
-        # Check if queue is empty
-        if not self.signal_queue:
-            return None
+            if not self.signal_queue:
+                self.logger.debug("Peek: Queue is empty.")
+                return None
 
-        # Get copy of highest priority signal without removing
-        _, _, signal = self.signal_queue[0]
+            # Peek at the highest priority signal (lowest neg score)
+            _priority, _counter, signal = self.signal_queue[0]  # Smallest item is root of min-heap
 
-        # Verify signal is still valid (expiration)
-        if signal.is_valid():
-            # Also check circuit breaker status without removing
-            if self.circuit_breaker_system and not self._check_circuit_breakers_post_get(signal):
+            # Post-get circuit breaker check for peeking
+            if self._check_circuit_breakers_post_get(signal):
+                self.logger.debug(f"Peeked signal: {signal.symbol}")
+                return signal
+            else:
+                # If breaker check fails for peeked signal, it might be good to log
+                # but we don't remove it on peek.
                 self.logger.warning(
-                    f"Peek: Signal for {signal.symbol} would be blocked by circuit breaker."
+                    f"Peek: Circuit breaker check failed for signal {signal.signal_id}. "
+                    f"Signal remains in queue but would be rejected on get."
                 )
-                # Technically, the signal is still in the queue, but won't be returned by get_next
-                # Returning None might be confusing, let's return the signal but log the CB status
-                return signal  # Return signal but warn
-            return signal
+                # Depending on desired behavior, we could return None here too.
+                # For now, return the signal but note it would be blocked.
+                return signal  # Or None, if strict rejection on peek is desired
 
-        # Invalid signal (expired), clean and try again
-        # Note: This doesn't guarantee the *next* peek will be valid
-        self._clean_expired_signals()
-        return self.peek_next_signal() if self.signal_queue else None
+    async def get_signals(
+        self, max_count: int = 10, symbol: str | None = None
+    ) -> list[TradeSignal]:
+        """Get a list of signals, optionally filtered by symbol. Asynchronous version."""
+        signals_with_priority: list[tuple[float, int, TradeSignal]] = []
+        # Acquire lock to safely access queue state
+        async with self.lock:  # Acquire lock before accessing signal_queue
+            # Perform cleanup first if needed
+            now = datetime.now(UTC)
+            if (now - self.last_cleanup).total_seconds() > self.cleanup_interval:
+                self._clean_expired_signals()  # Clean within lock
+                self.last_cleanup = now
 
-    def get_signals(self, max_count: int = 10, symbol: str | None = None) -> list[TradeSignal]:
-        """
-        Get multiple signals in priority order.
+            # Copy the current queue state within the lock
+            signals_with_priority = self.signal_queue.copy()
 
-        Args:
-            max_count: Maximum number of signals to return.
-            symbol: Optional symbol to filter by.
+        # Extract just the TradeSignal objects after releasing the lock
+        all_signals: list[TradeSignal] = [item[2] for item in signals_with_priority]
 
-        Returns:
-            List of signals in priority order.
-        """
-        # TODO: This method currently returns potentially expired signals.
-        # It should likely behave similarly to get_next_signal and filter expired.
-        # Consider using heapq.nsmallest after cleaning expired signals.
+        # Filter signals after releasing the lock
+        if symbol:
+            signals_to_sort = [s for s in all_signals if s.symbol == symbol]
+        else:
+            signals_to_sort = all_signals
 
-        result: list[TradeSignal] = []
-        temp_queue: list[tuple[float, int, TradeSignal]] = self.signal_queue.copy()
+        # Sort by priority (descending utility score) before returning
+        # Ensure metadata and utility_score exist before sorting
+        def get_score(s: TradeSignal) -> float:
+            if s.metadata and "utility_score" in s.metadata:
+                try:
+                    return float(s.metadata["utility_score"])
+                except (ValueError, TypeError):
+                    return 0.0
+            return 0.0
 
-        # Clean expired signals
-        self._clean_expired_signals()
+        signals_to_sort.sort(key=get_score, reverse=True)
 
-        # Get signals
-        while temp_queue and len(result) < max_count:
-            _, _, signal = heapq.heappop(temp_queue)  # Pop highest priority
-            # Filter by symbol if provided
-            if symbol is None or signal.symbol == symbol:
-                result.append(signal)
+        return signals_to_sort[:max_count]
 
-        return result
+    async def count(self) -> int:
+        """Return the number of signals currently in the queue. Asynchronous version."""
+        # Acquire lock for safe access
+        async with self.lock:  # Acquire lock
+            return len(self.signal_queue)
 
-    def count(self) -> int:
-        """
-        Get count of unexpired signals in queue.
-
-        Returns:
-            Number of valid signals
-        """
-        # Clean expired signals
-        self._clean_expired_signals()
-        return len(self.signal_queue)
-
-    def clear(self) -> None:
-        """Clear all signals from the queue."""
-        self.signal_queue = []
-        self.logger.info("Signal queue cleared")
+    async def clear(self) -> None:
+        """Remove all signals from the queue. Asynchronous version."""
+        # Acquire lock for modification
+        async with self.lock:  # Acquire lock
+            self.signal_queue.clear()
+        self.logger.info("Cleared all signals from the queue.")
 
     def _clean_expired_signals(self) -> int:
         """
         Remove expired signals from the queue.
 
+        This method MUST be called within a lock context (sync or async)
+        that protects self.signal_queue.
+
         Returns:
-            Number of signals removed
+            Number of signals removed.
         """
-        original_count = len(self.signal_queue)
-        valid_signals: list[tuple[float, int, TradeSignal]] = []
-        for score, count, signal in self.signal_queue:
-            try:
-                if signal.is_valid():
-                    valid_signals.append((score, count, signal))
-                else:
-                    self.logger.debug(f"Removed expired signal for {signal.symbol} during cleanup")
-            except Exception as e:
-                self.logger.warning(
-                    f"Error checking validity of signal for {signal.symbol}: {e}. "
-                    f"Keeping signal in queue."
+        now = datetime.now(UTC)
+        initial_count = len(self.signal_queue)
+        # Create a list of signals that are NOT expired
+        # Need to iterate over a copy or build a new list if modifying during iteration
+        valid_signals_temp: list[tuple[float, int, TradeSignal]] = []
+        expired_count = 0
+
+        # Iterate through the original queue items
+        for item in self.signal_queue:
+            _priority, unique_id, signal = item  # Assign priority to _priority
+            signal = self._calculate_expiration(signal)  # Ensure expiration is calculated
+            if signal.expiration is not None and signal.expiration < now:
+                self.logger.debug(
+                    f"Removing expired signal {unique_id} for {signal.symbol} "
+                    f"(expired at {signal.expiration})"
                 )
-                valid_signals.append((score, count, signal))
-        if len(valid_signals) < original_count:
-            self.signal_queue = valid_signals
-            heapq.heapify(self.signal_queue)
-            removed = original_count - len(valid_signals)
-            self.logger.debug(f"Removed {removed} expired signals")
-            return removed
-        return 0
+                expired_count += 1
+            else:
+                # Keep valid signals
+                valid_signals_temp.append(item)
+
+        if expired_count > 0:
+            # Rebuild the heap efficiently from the valid signals
+            self.signal_queue = valid_signals_temp
+            heapq.heapify(self.signal_queue)  # Re-heapify after removal
+            removed_count = initial_count - len(self.signal_queue)  # Should match expired_count
+            self.logger.info(f"Cleaned {removed_count} expired signals.")
+            return removed_count
+        else:
+            self.logger.debug("No expired signals found during cleanup.")
+            return 0  # No signals removed
 
     def _trim_queue(self) -> bool:
         """
-        Trim queue to max size by removing lowest priority signals.
+        Remove the lowest priority signal if the queue exceeds max size.
+
+        This method MUST be called within a lock context (sync or async)
+        that protects self.signal_queue.
 
         Returns:
-            True if a signal was removed, False otherwise
+            True if trimming occurred or wasn't needed, False on error.
         """
-        # This method modifies shared state (self.signal_queue)
-        # and should be protected if called from contexts where add_signal's lock
-        # is not already held, or for general robustness.
-        with self._sync_lock:
-            # Ensure max_queue_size is usable (cast during init)
-            current_size = len(self.signal_queue)
-            if current_size <= self.max_queue_size:
-                return False  # Nothing to trim
+        if not self.signal_queue:
+            self.logger.warning("_trim_queue called on an empty queue.")
+            return True  # Nothing to trim
 
-            # Determine how many items to remove
-            num_to_remove = current_size - self.max_queue_size
-            if num_to_remove <= 0:  # Should not happen if logic above is correct, but defensive
-                self.logger.warning("_trim_queue called when num_to_remove is not positive.")
-                return False
-
+        if len(self.signal_queue) > self.max_queue_size:
             try:
-                # Get the `num_to_remove` lowest priority items using nlargest on the negative score
-                # This is more efficient than popping one by one if num_to_remove > 1
-                # Need to ensure signal_queue is not empty before calling nlargest if num_to_remove > 0
-                if not self.signal_queue:
-                    self.logger.warning("_trim_queue called with empty signal_queue.")
-                    return False
-
-                lowest_items = heapq.nlargest(num_to_remove, self.signal_queue, key=lambda x: x[0])
-
-                # Log removals before modifying the heap
-                for _score, _uid, low_signal in lowest_items:
-                    utility = -_score  # Convert back to positive
-                    self.logger.debug(
-                        f"Trimming signal for {low_signal.symbol} with score {utility} "
-                        f"from queue (size {current_size} > max {self.max_queue_size})"
-                    )
-
-                # Efficiently remove the lowest priority items
-                # Convert heap to list, filter out lowest items, then heapify again
-                lowest_items_set = set(lowest_items)  # For efficient lookup
-                self.signal_queue = [
-                    item for item in self.signal_queue if item not in lowest_items_set
-                ]
-                heapq.heapify(self.signal_queue)
-
-                self.logger.debug(
-                    f"Trimmed signal queue to {len(self.signal_queue)} items "
-                    f"(max {self.max_queue_size})"
+                # heapq implementation is a min-heap based on the tuple's first element.
+                # Since we store (-utility_score, counter, signal), the "smallest"
+                # item in the heap corresponds to the *highest* negative score,
+                # which is the *lowest* actual utility score.
+                # heappop removes the smallest item.
+                popped_priority, popped_counter, popped_signal = heapq.heappop(self.signal_queue)
+                self.logger.info(
+                    f"Queue trimmed. Removed signal for {popped_signal.symbol} "
+                    f"with score {-popped_priority}. New size: {len(self.signal_queue)}"
                 )
                 return True
-            except (
-                IndexError
-            ) as e:  # Should not happen if queue is not empty and num_to_remove is valid
+            except IndexError:
                 self.logger.error(
-                    f"IndexError during _trim_queue (likely empty queue or bad num_to_remove): {e}",
-                    exc_info=True,
+                    "Error popping from heap during trim, queue might be inconsistent."
                 )
-                return False
-            except Exception as e:  # Catch any other unexpected errors
-                self.logger.error(f"Unexpected error during _trim_queue: {e}", exc_info=True)
-                return False
+                return False  # Indicate failure
+        return True  # Trimming not needed or successful
 
     def _calculate_expiration(self, signal: TradeSignal) -> TradeSignal:
         """Calculate and set default expiration if needed. Modifies signal in place."""
@@ -709,10 +689,10 @@ class PrioritySignalQueue:
         self.logger.debug(f"Could not infer exchange from symbol: {symbol}")
         return None
 
-    def get_pending_signals(self) -> list[TradeSignal]:
+    async def get_pending_signals(self) -> list[TradeSignal]:
         """Get a list of all signals currently pending in the queue."""
-        # Use the threading Lock for synchronous code
-        with self._sync_lock:
+        # Use the asyncio Lock for asynchronous code
+        async with self.lock:
             # Create a sorted list for a snapshot view
             # Type result explicitly
             pending_signals: list[TradeSignal] = [
@@ -748,67 +728,50 @@ class PrioritySignalQueue:
             # The `if True:` block was likely placeholder/dead code.
 
     def _add_signal(self, signal: TradeSignal, priority_score: float) -> None:
-        """Adds a signal to the internal queue with appropriate priority."""
-        # Use a counter to maintain FIFO for signals with the same priority/timestamp
-        current_count = self.counter
+        """Internal method to add a signal with a calculated priority score."""
+        # Assume lock is already held if called internally from an async method
+        # If called synchronously, it would need its own lock acquisition
+        # (using _sync_lock if that was kept, or potentially blocking async lock)
+
+        # Check circuit breakers before adding
+        if self.circuit_breaker_system and not self._check_circuit_breakers_pre_add(signal):
+            # Log rejection details within _check_circuit_breakers_pre_add
+            return  # Do not add if breaker tripped
+
+        # Check queue size and trim if necessary (assuming lock is held)
+        if len(self.signal_queue) >= self.max_queue_size:
+            # Find minimum utility score (maximum negative score) in the heap
+            if not self.signal_queue:
+                self.logger.error("Queue became empty unexpectedly before trimming check.")
+                return  # Should not happen if len check passed
+
+            min_score_in_queue = self.signal_queue[0][0]  # Smallest item is root of min-heap
+            new_signal_score_neg = -priority_score
+
+            if new_signal_score_neg >= min_score_in_queue:
+                # New signal has lower or equal priority than the worst in queue
+                self.logger.debug(
+                    f"Rejected signal for {signal.symbol} with score "
+                    f"{priority_score} (lower than min {-min_score_in_queue}) - Queue full."
+                )
+                return  # Do not add
+
+            # New signal is better than the worst; trim the queue
+            if not self._trim_queue():  # Assumes lock is held
+                self.logger.error("Failed to trim queue, cannot add new signal.")
+                return  # Do not add
+
+        # Add to priority queue
         self.counter += 1
-        timestamp = signal.timestamp or datetime.now(UTC)
+        # Use negative score for max-heap behavior with heapq (min-heap)
+        heapq.heappush(self.signal_queue, (-priority_score, self.counter, signal))
 
-        # Create a new TradeSignal instance with direct parameter passing
-        # instead of using dictionary unpacking which causes type issues
-        # Remove redundant None checks as price/quantity are Decimals
-        price_decimal = signal.price
-        quantity_decimal = signal.quantity
-        source_strategy = getattr(signal, "source_strategy", None)
-        stop_loss = getattr(signal, "stop_loss", None)
-        take_profit = getattr(signal, "take_profit", None)
-        expiration = getattr(signal, "expiration", None)
-        metadata_dict = getattr(signal, "metadata", None)
-        # Extract exchange from the original signal, ensuring it's a string
-        exchange_name_raw = getattr(signal, "exchange", None)
-        if not isinstance(exchange_name_raw, str):
-            # Handle missing or invalid exchange - perhaps log and skip?
-            # For now, defaulting to an empty string or raising might be options.
-            # Let's log a warning and potentially skip or use a default.
-            self.logger.warning(
-                f"Signal missing or invalid exchange: {signal}. Defaulting to 'unknown'."
-            )
-            exchange_name = "unknown"  # Default or raise error
-        else:
-            exchange_name = exchange_name_raw
+        self.logger.debug(f"Added signal for {signal.symbol} to queue with score {priority_score}")
 
-        new_signal = TradeSignal(
-            symbol=signal.symbol,
-            signal_type=signal.signal_type,
-            side=signal.side,
-            price=price_decimal,
-            quantity=quantity_decimal,
-            timestamp=timestamp,
-            exchange=exchange_name,  # Add missing exchange
-            confidence=signal.confidence,
-            source_strategy=source_strategy,
-            stop_loss=stop_loss,
-            take_profit=take_profit,
-            expiration=expiration,
-            metadata=metadata_dict,
-        )
+        # Signal the async wait event
+        self.new_signal_event.set()
 
-        # Priority: Lower score means higher priority
-        # Timestamp: Earlier timestamp means higher priority (for same score)
-        # Count: Ensures FIFO for exact same score/timestamp
-        heap_item = (-priority_score, timestamp, current_count, new_signal)
-
-        # Ensure the signal_heap attribute exists before using it
-        if not hasattr(self, "signal_heap"):
-            self.signal_heap = []
-
-        heapq.heappush(self.signal_heap, heap_item)
-        self.logger.debug(
-            f"Added signal to queue: symbol={new_signal.symbol}, "
-            f"type={new_signal.signal_type.name}, priority={priority_score}"
-        )
-
-    def wait_for_signals(
+    async def wait_for_signals(
         self, timeout: float | None = None, max_signals: int = 1
     ) -> list[TradeSignal]:
         """
@@ -838,68 +801,61 @@ class PrioritySignalQueue:
             self.logger.debug("Cannot wait for signals in synchronous context")
             return []
 
-    def pop_signals(self, max_signals: int = 1) -> list[TradeSignal]:
-        """
-        Removes and returns up to max_signals highest priority signals from the queue.
+    async def pop_signals(self, max_signals: int = 1) -> list[TradeSignal]:
+        """Atomically pop the highest priority signals from the queue."""
+        signals: list[TradeSignal] = []  # Explicitly type the list
+        async with self.lock:
+            # Perform cleanup first if needed
+            now = datetime.now(UTC)
+            if (now - self.last_cleanup).total_seconds() > self.cleanup_interval:
+                self._clean_expired_signals()  # Clean within lock
+                self.last_cleanup = now
 
-        Args:
-            max_signals: Maximum number of signals to remove and return
+            count = 0
+            while count < max_signals and self.signal_queue:
+                try:
+                    # Pop highest priority signal (lowest neg score)
+                    _priority, _counter, signal = heapq.heappop(self.signal_queue)
 
-        Returns:
-            List of TradeSignal objects ordered by priority
-        """
-        self._clean_expired_signals()
+                    # Post-get circuit breaker check
+                    if self._check_circuit_breakers_post_get(signal):
+                        signals.append(signal)  # Append to correctly typed list
+                        count += 1
+                    else:
+                        # Log rejection and continue to next signal
+                        continue
 
-        result: list[TradeSignal] = []
-
-        # Use the threading Lock for synchronous code
-        with self._sync_lock:
-            # Return empty list if no signals
-            if not self.signal_heap:
-                self.logger.debug("No signals available in queue to pop")
-                return []
-
-            # Pop up to max_signals from the heap
-            remaining = min(max_signals, len(self.signal_heap))
-
-            for _ in range(remaining):
-                if not self.signal_heap:
+                except IndexError:
+                    # Should not happen if self.signal_queue check passes, but defensive
                     break
+        return signals  # Return the correctly typed list
 
-                _priority, _timestamp, _count, popped_signal = heapq.heappop(self.signal_heap)
-                # The check is redundant as self.signal_heap contains TradeSignals
-                result.append(popped_signal)
+    async def get_next_signals(self, max_count: int = 1) -> list[TradeSignal]:
+        """Get the next highest priority signals without removing them."""
+        signals = []
+        async with self.lock:
+            # Perform cleanup first if needed
+            now = datetime.now(UTC)
+            if (now - self.last_cleanup).total_seconds() > self.cleanup_interval:
+                self._clean_expired_signals()  # Clean within lock
+                self.last_cleanup = now
 
-            # If we emptied the heap, clear the event
-            if not self.signal_heap:
-                self.new_signal_event.clear()
+            # Get up to max_count highest priority items using nsmallest on negative score
+            # Equivalent to nlargest on positive utility score
+            # heapq.nsmallest returns a list sorted from smallest to largest
+            potential_signals = heapq.nsmallest(max_count, self.signal_queue)
 
-        if result:
-            self.logger.info(f"Popped {len(result)} signals from queue")
-
-        return result
-
-    def get_next_signals(self, max_count: int = 1) -> list[TradeSignal]:
-        """
-        Get multiple highest priority unexpired signals and remove them from the queue.
-
-        Args:
-            max_count: Maximum number of signals to return
-
-        Returns:
-            List of valid trade signals in priority order
-        """
-        result: list[TradeSignal] = []
-
-        # Clean expired signals before processing
-        self._clean_expired_signals()
-
-        while self.signal_queue and len(result) < max_count:
-            signal = self.get_next_signal()
-            if signal is not None:
-                result.append(signal)
-
-        return result
+            # Post-get circuit breaker check for peeking signals
+            for _priority, _counter, signal in potential_signals:
+                if self._check_circuit_breakers_post_get(signal):
+                    signals.append(signal)
+                else:
+                    # Log rejection
+                    self.logger.debug(
+                        f"Circuit breaker tripped for {signal.exchange} / {signal.symbol}, "
+                        f"skipping peeked signal {signal.signal_id}."
+                    )
+        return signals  # Already sorted by priority due to nsmallest
 
     def _check_circuit_breakers(self, signal: TradeSignal) -> bool:
         """
@@ -992,16 +948,18 @@ class PrioritySignalQueue:
         )
         return True
 
-    def is_empty(self) -> bool:
-        """
-        Check if the queue is empty.
-
-        Returns:
-            True if the queue is empty, False otherwise
-        """
-        # Clean expired signals first
-        self._clean_expired_signals()
-        return len(self.signal_queue) == 0
+    async def is_empty(self) -> bool:
+        """Check if the queue is empty asynchronously."""
+        async with self.lock:
+            # Optionally clean expired signals before checking
+            # This depends on whether "is_empty" should reflect only valid signals
+            # If cleanup is desired here, uncomment:
+            # now = datetime.now(UTC)
+            # if (now - self.last_cleanup).total_seconds() > self.cleanup_interval:
+            #     self._clean_expired_signals()
+            #     self.last_cleanup = now
+            is_currently_empty = not self.signal_queue
+        return is_currently_empty  # Return the boolean value
 
     async def enqueue_signal(self, signal: TradeSignal) -> None:
         """
