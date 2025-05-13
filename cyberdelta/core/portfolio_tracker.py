@@ -2,12 +2,13 @@ from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
 from builtins import BaseException
-from collections.abc import Awaitable
+from collections import defaultdict
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, TypeAlias
 
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.core.models import (
@@ -16,12 +17,33 @@ from cyberdelta.core.models import (
     OrderSide,
     OrderStatus,
     SpotBalance,
+    Ticker,
     Trade,
+)
+from cyberdelta.core.models.enums import (
+    OrderSide,
+    OrderStatus,
 )
 from cyberdelta.utils.config import Config
 from cyberdelta.utils.logging_config import get_logger
+from cyberdelta.utils.parsing import parse_datetime_utc
 
 logger = get_logger(__name__)
+
+# Default timeout for how long balance/position data is considered fresh
+DEFAULT_DATA_FRESHNESS_SECONDS = 60
+
+# Temporarily define ExchangeId, ExchangeType, Symbol as str TypeAlias to unblock linter
+# TODO: Find or create the canonical definitions for these types
+Symbol: TypeAlias = str
+ExchangeId: TypeAlias = str
+ExchangeType: TypeAlias = str
+
+
+class PortfolioTrackerConfig(BaseModel):
+    data_freshness_seconds: int = Field(DEFAULT_DATA_FRESHNESS_SECONDS, gt=0)
+    initial_balances: dict[ExchangeId, dict[str, str]] = Field(default_factory=dict)
+    initial_positions: list[DerivativePosition] = Field(default_factory=list)
 
 
 class PortfolioTracker:
@@ -37,36 +59,93 @@ class PortfolioTracker:
     - Performing reconciliation with exchange data
     """
 
-    def __init__(self, config: Config) -> None:
+    def __init__(
+        self,
+        config: Config,
+        api_clients: dict[str, ExchangeAPI] | None = None,
+        exchange_factories: dict[ExchangeType, Callable[..., ExchangeAPI]] | None = None,
+    ):
         """
         Initialize the portfolio tracker.
 
         Args:
             config: Application configuration
+            api_clients: Dictionary of exchange API clients
+            exchange_factories: Dictionary of exchange API factory functions
         """
         self.config: Config = config
-        self.api_clients: dict[str, ExchangeAPI] = {}
+        self.api_clients: dict[str, ExchangeAPI] = api_clients or {}
+        self.exchange_factories = exchange_factories or {}
+        self._lock = asyncio.Lock()
 
-        # Balance tracking (Store as Decimal)
-        self._balances: dict[
-            str, dict[str, SpotBalance]
-        ] = {}  # exchange -> asset -> SpotBalance object
+        # Internal state
+        # Balances: dict[exchange_id, dict[asset_symbol, SpotBalance]]
+        self._balances: defaultdict[str, defaultdict[str, SpotBalance]] = defaultdict(
+            lambda: defaultdict(
+                # Ensure a default SpotBalance that makes sense if an asset is queried before it's set
+                lambda: SpotBalance(
+                    exchange="",  # Should be overridden or considered invalid
+                    asset="",  # Should be overridden or considered invalid
+                    total_quantity=Decimal(0),
+                    available_quantity=Decimal(0),
+                    timestamp=datetime.min.replace(tzinfo=UTC),  # Clearly old timestamp
+                )
+            )
+        )
+        # Positions: dict[exchange_id, dict[symbol, DerivativePosition]]
+        self._positions: defaultdict[str, defaultdict[str, DerivativePosition]] = defaultdict(
+            lambda: defaultdict(
+                # Placeholder for a non-existent position
+                lambda: DerivativePosition(
+                    exchange="",
+                    symbol="",
+                    side=OrderSide.BUY,  # Default for a zero-size position; arbitrary
+                    size=Decimal(0),
+                    entry_price=None,  # Must be None if size is 0
+                    timestamp=datetime.min.replace(tzinfo=UTC),
+                )
+            )
+        )
+        self._orders: defaultdict[str, dict[str, Order]] = defaultdict(
+            dict
+        )  # client_order_id -> Order
 
-        # Position tracking
-        self._positions: dict[
-            str, dict[str, DerivativePosition]
-        ] = {}  # exchange -> position_key -> DerivativePosition
+        # Initialize last update times
+        # Consolidate individual last update times
+        self._last_update_time: defaultdict[str, datetime] = defaultdict(
+            lambda: datetime.min.replace(tzinfo=UTC)
+        )
+        self._last_reconciliation_time: defaultdict[str, datetime] = defaultdict(
+            lambda: datetime.min.replace(tzinfo=UTC)
+        )
+        # Removed individual _last_balance_update_times, _last_position_update_times, etc.
 
-        # Order tracking
-        self._orders: dict[str, dict[str, Order]] = {}  # exchange -> order_id -> Order
+        self._tickers: dict[str, Ticker] = {}
 
-        # Timestamp of last update
-        self._last_update_time: dict[str, datetime] = {}  # exchange -> last update time
+        pt_config_dict_raw = self.config.get("portfolio_tracker")
+        # Ensure pt_config_dict is dict[str, Any]
+        temp_pt_config_dict: dict[str, Any] = {}
+        if isinstance(pt_config_dict_raw, dict):
+            for k, v in pt_config_dict_raw.items():
+                temp_pt_config_dict[str(k)] = v
+        pt_config_dict = temp_pt_config_dict
 
-        # Timestamp of last reconciliation
-        self._last_reconciliation_time: dict[
-            str, datetime
-        ] = {}  # exchange -> last reconciliation time
+        # Ensure data_freshness_seconds has a default if not in pt_config_dict
+        # or if its value is not what PortfolioTrackerConfig expects.
+        # PortfolioTrackerConfig will validate its type.
+        if "data_freshness_seconds" not in pt_config_dict:
+            pt_config_dict["data_freshness_seconds"] = DEFAULT_DATA_FRESHNESS_SECONDS
+
+        try:
+            self.pt_config = PortfolioTrackerConfig(**pt_config_dict)
+        except ValidationError as e:
+            logger.error(f"Invalid portfolio_tracker config: {e}. Using defaults.")
+            # Fallback to default config if validation fails
+            self.pt_config = PortfolioTrackerConfig(
+                data_freshness_seconds=DEFAULT_DATA_FRESHNESS_SECONDS
+            )
+
+        self._initialize_from_config()
 
         # Reconciliation interval (5 minutes by default)
         interval = config.get("portfolio.reconciliation_interval", 300)
@@ -94,17 +173,22 @@ class PortfolioTracker:
         """Initialize data structures for all configured exchanges."""
         exchanges_raw = self.config.get("exchanges", {})
         exchanges: dict[str, Any] = exchanges_raw if isinstance(exchanges_raw, dict) else {}
-        for exchange_id in [str(k) for k in exchanges.keys()]:
+        for exchange_id_str in [str(k) for k in exchanges.keys()]:
+            exchange_id = exchange_id_str  # ensure it's a string
             if not self.config.get(f"exchanges.{exchange_id}.enabled", False):
                 continue
 
-            # Initialize dictionaries for this exchange
-            self._balances[exchange_id] = {}
-            self._positions[exchange_id] = {}
-            self._orders[exchange_id] = {}
-            # Default to a timezone-aware past date
-            self._last_update_time[exchange_id] = datetime.min.replace(tzinfo=UTC)
-            self._last_reconciliation_time[exchange_id] = datetime.min.replace(tzinfo=UTC)
+            # Defaultdicts automatically create entries on first access,
+            # so explicit initialization with {} is not needed here
+            # and would override the defaultdict behavior.
+            # self._balances[exchange_id] = {} # Removed
+            # self._positions[exchange_id] = {} # Removed
+            # self._orders[exchange_id] = {} # Removed
+
+            # Ensure last_update_time and last_reconciliation_time have initial entries
+            # if not already set by defaultdict lambda (which they are)
+            _ = self._last_update_time[exchange_id]
+            _ = self._last_reconciliation_time[exchange_id]
 
     def register_api_client(self, exchange_id: str, client: ExchangeAPI) -> None:
         """
@@ -205,31 +289,73 @@ class PortfolioTracker:
                 logger.info(
                     f"[FETCH_BALANCES:{exchange_id}] API call returned None. No balances to update."
                 )
+                # Assuming "zero balances" for now as it's safer for risk.
+                async with self._lock:
+                    if exchange_id in self._balances:  # Check if exchange_id itself exists
+                        self._balances[exchange_id].clear()  # Clear assets for this exchange
+                        logger.info(
+                            f"[FETCH_BALANCES:{exchange_id}] Cleared existing balance entries "
+                            f"as API returned None."
+                        )
+                        self._last_update_time[exchange_id] = datetime.now(UTC)  # Mark as updated
                 return True
 
             elif isinstance(balances_data_raw, list):
                 balances_list: list[SpotBalance] = balances_data_raw
+                processed_new_balance = False
                 for item in balances_list:
+                    # Re-instating isinstance check as linter struggles with item type
                     if not isinstance(item, SpotBalance):
                         logger.warning(
                             f"[{exchange_id}] Skipping non-SpotBalance item in balances list: {item}"
                         )
                         continue
+
                     if item.exchange == exchange_id:
                         updated_balances[item.asset] = item
+                        processed_new_balance = True
                     else:
                         logger.warning(
                             f"[{exchange_id}] Skipping balance for asset {item.asset} "
                             f"due to mismatched exchange ID ({item.exchange}) "
                             f"in received SpotBalance object."
                         )
-            elif isinstance(
-                balances_data_raw, dict
-            ):  # Linter might still say this is unnecessary if it thinks it can only be dict here
+                if not processed_new_balance and not balances_list:  # Empty list received
+                    logger.info(
+                        f"[FETCH_BALANCES:{exchange_id}] API returned an empty list of balances."
+                    )
+                    async with self._lock:
+                        if exchange_id in self._balances:
+                            self._balances[exchange_id].clear()
+                            logger.info(
+                                f"[FETCH_BALANCES:{exchange_id}] Cleared existing balance entries "
+                                f"as API returned an empty list."
+                            )
+                            self._last_update_time[exchange_id] = datetime.now(UTC)
+
+            elif isinstance(balances_data_raw, dict):
                 balances_dict: dict[str, SpotBalance] = balances_data_raw
+                if not balances_dict:  # Empty dict received
+                    logger.info(
+                        f"[FETCH_BALANCES:{exchange_id}] API returned an empty dictionary of balances."
+                    )
+                    async with self._lock:
+                        if exchange_id in self._balances:
+                            self._balances[exchange_id].clear()
+                            logger.info(
+                                f"[FETCH_BALANCES:{exchange_id}] Cleared existing balance entries "
+                                f"as API returned an empty dict."
+                            )
+                            self._last_update_time[exchange_id] = datetime.now(UTC)
+
                 for asset, balance_obj in balances_dict.items():
-                    # Assuming if it's a dict, structure is dict[str, SpotBalance] as per type hint
-                    # Runtime isinstance check for balance_obj removed based on linter feedback for this path
+                    # Re-instating isinstance check as linter might get confused
+                    if not isinstance(balance_obj, SpotBalance):
+                        logger.warning(
+                            f"[{exchange_id}] Skipping non-SpotBalance value for asset {asset} in balances dict: {balance_obj}"
+                        )
+                        continue
+
                     if balance_obj.exchange == exchange_id:
                         updated_balances[asset] = balance_obj
                     else:
@@ -238,31 +364,54 @@ class PortfolioTracker:
                             f"due to mismatched exchange ID ({balance_obj.exchange}) "
                             f"in received SpotBalance object (from dict)."
                         )
-            else:
+            else:  # This branch should ideally be unreachable if type hints are exhaustive
                 logger.error(
                     f"[{exchange_id}] Unexpected type for balances_data_raw: {type(balances_data_raw)}"
                 )
-                return False
+                return False  # Indicate failure due to unexpected data type
 
-            if updated_balances:
-                self._balances[exchange_id] = updated_balances
-                self._last_update_time[exchange_id] = datetime.now(UTC)
+            # Update internal state if new valid balances were found or if an empty list/dict signified clearing
+            if (
+                updated_balances
+                or isinstance(balances_data_raw, (list, dict))
+                and not balances_data_raw
+            ):
+                async with self._lock:
+                    current_assets_for_exchange = set(self._balances[exchange_id].keys())
+                    newly_updated_asset_symbols = set(updated_balances.keys())
+
+                    assets_to_remove = current_assets_for_exchange - newly_updated_asset_symbols
+                    for asset_to_remove in assets_to_remove:
+                        # Ensure asset actually exists before trying to delete to avoid KeyError if logic is imperfect
+                        # Check against the inner dict for the specific exchange_id
+                        if asset_to_remove in self._balances[exchange_id]:
+                            del self._balances[exchange_id][asset_to_remove]
+                            logger.debug(
+                                f"[{exchange_id}] Removed stale balance for asset {asset_to_remove}."
+                            )
+
+                    # Now, add/update balances from updated_balances
+                    for asset, balance in updated_balances.items():
+                        self._balances[exchange_id][asset] = balance  # Corrected access
+                    self._last_update_time[exchange_id] = datetime.now(UTC)
                 logger.info(
-                    f"[FETCH_BALANCES:{exchange_id}] Successfully processed and updated "
-                    f"{len(updated_balances)} balances."
+                    f"[FETCH_BALANCES:{exchange_id}] Balances updated successfully with {len(updated_balances)} items. "
+                    f"Assets removed: {len(assets_to_remove)}."
                 )
-                return True
-            else:
-                logger.info(
-                    f"[FETCH_BALANCES:{exchange_id}] API call successful, but no balances "
-                    "were updated or parsed from the received data."
+            elif not updated_balances:
+                # This implies that balances_data_raw was not None, and if it was a list or dict, it was empty,
+                # and no balances were processed into updated_balances.
+                # If balances_data_raw was some other unexpected type, it would have been caught by an earlier `else`
+                # or the initial type hint for `client.get_balances()` would be violated.
+                logger.warning(
+                    f"[FETCH_BALANCES:{exchange_id}] No valid balances processed or API returned empty data. Type: {type(balances_data_raw)}"
                 )
-                return True  # Successful call, but data didn't lead to updates.
+                # Not returning False here, as an empty (but valid) response is not an error.
+
+            return True
 
         except Exception as e:
-            logger.exception(
-                f"[FETCH_BALANCES:{exchange_id}] Unexpected error fetching balances: {e}"
-            )
+            logger.exception(f"[FETCH_BALANCES:{exchange_id}] Error during balance fetch: {e}")
             return False
 
     def _parse_balance_info(
@@ -359,7 +508,18 @@ class PortfolioTracker:
                         f"{exchange_id}: {position_info}"
                     )
 
-            self._positions[exchange_id] = updated_positions
+            # This completely replaces the inner dict for the exchange_id
+            self._positions[exchange_id] = defaultdict(
+                lambda: DerivativePosition(
+                    exchange="",
+                    symbol="",
+                    side=OrderSide.BUY,
+                    size=Decimal(0),
+                    entry_price=None,
+                    timestamp=datetime.min.replace(tzinfo=UTC),
+                ),
+                updated_positions,
+            )
             self._last_update_time[exchange_id] = datetime.now(UTC)
             logger.debug(
                 f"Successfully updated positions for {exchange_id}. Count: {len(updated_positions)}"
@@ -410,7 +570,7 @@ class PortfolioTracker:
                             )
                             order_instance.status = OrderStatus.UNKNOWN
                     updated_orders[str(order_id)] = order_instance
-            self._orders[exchange_id] = updated_orders
+            self._orders[exchange_id] = updated_orders  # This replaces the inner dict
             self._last_update_time[exchange_id] = datetime.now(UTC)
             logger.debug(
                 f"Successfully updated open orders for {exchange_id}. Count: {len(updated_orders)}"
@@ -466,14 +626,14 @@ class PortfolioTracker:
             exchange_id: Exchange identifier
             order: Order object with updated information
         """
-        if exchange_id not in self._orders:
-            self._orders[exchange_id] = {}
-            logger.warning(f"Initialized order tracking for {exchange_id} during update_order.")
-        if not order.client_order_id:  # Use .client_order_id
+        # _orders is defaultdict(dict), so exchange_id will be auto-created if missing
+        if not order.client_order_id:
             logger.error(f"Received order update without client_order_id on {exchange_id}: {order}")
             return
-        order_id_str = str(order.client_order_id)  # Use .client_order_id, ensure key is string
+        order_id_str = str(order.client_order_id)
         self._orders[exchange_id][order_id_str] = order
+        self._last_update_time[exchange_id] = datetime.now(UTC)  # Mark update for this exchange
+
         # Handle order state transitions
         # In particular, we want to detect when an order reaches FILLED or PARTIALLY_FILLED
         # and generate a corresponding trade for the position tracker
@@ -494,13 +654,8 @@ class PortfolioTracker:
             exchange_id: Exchange identifier
             position: DerivativePosition object with updated information
         """
-        if exchange_id not in self._positions:
-            self._positions[exchange_id] = {}
-            logger.warning(
-                f"Initialized position tracking for {exchange_id} during update_position."
-            )
-
-        pos_key = position.symbol  # Use symbol as key
+        # _positions is defaultdict(defaultdict), so exchange_id will be auto-created
+        pos_key = position.symbol
         if not pos_key:
             logger.error(f"Received position update without symbol on {exchange_id}: {position}")
             return
@@ -535,12 +690,15 @@ class PortfolioTracker:
         position_key = base_symbol
         # -----------------------------------------
 
-        current_position = self._positions.get(exchange_id, {}).get(position_key)
+        exchange_positions = self._positions[
+            exchange_id
+        ]  # This is defaultdict[str, DerivativePosition]
+        current_position = exchange_positions.get(position_key)  # DerivativePosition | None
 
-        if current_position:
-            logger.debug(
-                f"Updating existing position for {base_symbol} on {exchange_id}"
-            )  # Use base_symbol
+        # The check for `current_position.size != Decimal(0)` or `is_active()` is good.
+        # The placeholder has size=0 and entry_price=None.
+        if current_position and current_position.is_active():  # is_active() checks size != 0
+            logger.debug(f"Updating existing position for {base_symbol} on {exchange_id}")
             original_size = current_position.size
             original_entry = current_position.entry_price or Decimal("0")  # Handle potential None
             trade_effect = trade.quantity if trade.side == OrderSide.BUY else -trade.quantity
@@ -597,12 +755,11 @@ class PortfolioTracker:
                 entry_price=trade.price,  # Assume trade price is valid entry > 0
                 timestamp=trade.executed_at,  # Use executed_at
                 mark_price=trade.price,  # Initial mark price
+                liquidation_price=None,
                 unrealized_pnl=Decimal("0.0"),
                 realized_pnl=Decimal("0.0"),
-                # hl_details=None, # Details would need separate fetching/update
-                # bp_details=None,
             )
-            self._positions.setdefault(exchange_id, {})[position_key] = new_position
+            self._positions[exchange_id][position_key] = new_position
 
         # Update Balances (Simplified - full logic depends on asset details)
         self._update_balances_from_trade(exchange_id, trade)
@@ -625,34 +782,46 @@ class PortfolioTracker:
     # --- Position Access Methods ---
     def get_position(self, exchange_id: str, symbol: str) -> DerivativePosition | None:
         """Returns the position for a specific symbol on a specific exchange."""
-        return self._positions.get(exchange_id, {}).get(symbol)
+        position = self._positions[exchange_id].get(symbol)  # Direct access to inner dict
+        # Return None if it's the placeholder (size 0 and default timestamp)
+        if (
+            position
+            and position.size == Decimal(0)
+            and position.timestamp == datetime.min.replace(tzinfo=UTC)
+        ):
+            return None
+        return position
 
     def get_positions_by_symbol(self, exchange_id: str, symbol: str) -> list[DerivativePosition]:
         """Retrieve all positions for a specific symbol on a given exchange."""
         if exchange_id not in self._positions:
             return []
-        exchange_positions = self._positions.get(exchange_id, {})
+        exchange_positions = self._positions[exchange_id]  # Direct access to inner dict
         # Iterate over values() as key is unused
         return [pos for pos in exchange_positions.values() if pos.symbol == symbol]
 
     def get_all_positions(self) -> list[DerivativePosition]:
         """Returns a list of all derivative positions across all exchanges."""
         all_positions: list[DerivativePosition] = []
-        for _exchange_id, positions in self._positions.items():  # Use _exchange_id if var unused
-            for position in positions.values():
-                all_positions.append(position)
+        for exchange_id, positions_on_exchange in self._positions.items():
+            for symbol, position in positions_on_exchange.items():
+                if position.size != Decimal(0):  # Exclude placeholders
+                    all_positions.append(position)
         return all_positions
 
     def get_positions_by_exchange(self, exchange_id: str) -> list[DerivativePosition]:
-        """Get all positions for a specific exchange."""  # Simplified docstring
+        """Get all positions for a specific exchange."""
         if exchange_id not in self._positions:
             logger.warning(f"Attempted to get positions for unknown exchange: {exchange_id}")
             return []
-        return list(self._positions[exchange_id].values())
+        # Filter out placeholders
+        return [pos for pos in self._positions[exchange_id].values() if pos.size != Decimal(0)]
 
     @property
-    def positions(self) -> dict[str, dict[str, DerivativePosition]]:
-        """Public read-only accessor for all tracked positions."""  # Simplified docstring
+    def positions(
+        self,
+    ) -> defaultdict[str, defaultdict[str, DerivativePosition]]:  # Corrected return type
+        """Public read-only accessor for all tracked positions."""
         return self._positions
 
     @property
@@ -716,7 +885,7 @@ class PortfolioTracker:
         """Calculate the total market exposure for a given exchange in a valuation asset."""
         logger.debug(f"Calculating exposure for {exchange_id} in {valuation_asset}...")
         exchange_exposure = Decimal("0.0")
-        positions = self._positions.get(exchange_id, {})
+        positions = self._positions[exchange_id]  # Direct access to inner dict
 
         for position_key, position in positions.items():
             # Defensive checks (is None checks removed as size/symbol are not Optional)
@@ -971,12 +1140,21 @@ class PortfolioTracker:
 
         Note: Returns dict containing Pydantic models. Serialization handled by encoder.
         """
+        # Convert defaultdicts to dict for serialization if necessary,
+        # though Pydantic's default_encoders might handle it.
+        # For explicit control:
+        balances_dict = {ex: dict(assets) for ex, assets in self._balances.items()}
+        positions_dict = {ex: dict(syms) for ex, syms in self._positions.items()}
+        orders_dict = {ex: dict(ords) for ex, ords in self._orders.items()}
+        last_update_dict = dict(self._last_update_time)
+        last_reconciliation_dict = dict(self._last_reconciliation_time)
+
         return {
-            "balances": self._balances,
-            "positions": self._positions,
-            "orders": self._orders,
-            "last_update_time": self._last_update_time,
-            "last_reconciliation_time": self._last_reconciliation_time,
+            "balances": balances_dict,
+            "positions": positions_dict,
+            "orders": orders_dict,
+            "last_update_time": last_update_dict,
+            "last_reconciliation_time": last_reconciliation_dict,
             "high_watermark": self._high_watermark,
             "realized_pnl": self._realized_pnl,
             # Active symbols and watchlist could be added if needed for persistence
@@ -987,29 +1165,90 @@ class PortfolioTracker:
     @classmethod
     def from_dict(cls, data: dict[str, Any], config: Config) -> PortfolioTracker:
         """Deserialize the portfolio state from a dictionary."""
-        # This requires careful handling of object reconstruction
-        tracker = cls(config)  # Initialize with config
-        tracker._balances = data.get("balances", {})
-        tracker._positions = data.get("positions", {})
-        tracker._orders = data.get("orders", {})
-        tracker._last_update_time = data.get("last_update_time", {})
-        tracker._last_reconciliation_time = data.get("last_reconciliation_time", {})
+        tracker = cls(config)
+
+        balances_data = data.get("balances", {})
+        if isinstance(balances_data, dict):
+            for ex_id, assets in balances_data.items():
+                if isinstance(assets, dict):
+                    for asset, bal_data in assets.items():
+                        if isinstance(bal_data, dict):
+                            try:
+                                tracker._balances[ex_id][asset] = SpotBalance.model_validate(
+                                    bal_data
+                                )
+                            except ValidationError as e:
+                                logger.error(
+                                    f"Error validating SpotBalance for {asset} on {ex_id}: {e}"
+                                )
+                        elif isinstance(bal_data, SpotBalance):  # If already an object
+                            tracker._balances[ex_id][asset] = bal_data
+
+        positions_data = data.get("positions", {})
+        if isinstance(positions_data, dict):
+            for ex_id, syms in positions_data.items():
+                if isinstance(syms, dict):
+                    for sym, pos_data in syms.items():
+                        if isinstance(pos_data, dict):
+                            try:
+                                tracker._positions[ex_id][sym] = DerivativePosition.model_validate(
+                                    pos_data
+                                )
+                            except ValidationError as e:
+                                logger.error(
+                                    f"Error validating DerivativePosition for {sym} on {ex_id}: {e}"
+                                )
+                        elif isinstance(pos_data, DerivativePosition):
+                            tracker._positions[ex_id][sym] = pos_data
+
+        orders_data = data.get("orders", {})
+        if isinstance(orders_data, dict):
+            for ex_id, ords in orders_data.items():
+                if isinstance(ords, dict):
+                    for ord_id, order_data in ords.items():
+                        if isinstance(order_data, dict):
+                            try:
+                                tracker._orders[ex_id][ord_id] = Order.model_validate(order_data)
+                            except ValidationError as e:
+                                logger.error(f"Error validating Order for {ord_id} on {ex_id}: {e}")
+                        elif isinstance(order_data, Order):
+                            tracker._orders[ex_id][ord_id] = order_data
+
+        last_update_data = data.get("last_update_time", {})
+        if isinstance(last_update_data, dict):
+            for ex_id, ts_data in last_update_data.items():
+                # Assuming ts_data is already datetime or a parsable string/timestamp
+                try:
+                    if isinstance(ts_data, datetime):
+                        tracker._last_update_time[ex_id] = ts_data
+                    else:  # Attempt parsing
+                        parsed_ts = parse_datetime_utc(
+                            ts_data, field_name=f"last_update_time.{ex_id}"
+                        )
+                        if parsed_ts:
+                            tracker._last_update_time[ex_id] = parsed_ts
+                except Exception as e:
+                    logger.error(f"Error deserializing last_update_time for {ex_id}: {e}")
+
+        last_reconciliation_data = data.get("last_reconciliation_time", {})
+        if isinstance(last_reconciliation_data, dict):
+            for ex_id, ts_data in last_reconciliation_data.items():
+                try:
+                    if isinstance(ts_data, datetime):
+                        tracker._last_reconciliation_time[ex_id] = ts_data
+                    else:
+                        parsed_ts = parse_datetime_utc(
+                            ts_data, field_name=f"last_reconciliation_time.{ex_id}"
+                        )
+                        if parsed_ts:
+                            tracker._last_reconciliation_time[ex_id] = parsed_ts
+                except Exception as e:
+                    logger.error(f"Error deserializing last_reconciliation_time for {ex_id}: {e}")
+
         tracker._high_watermark = Decimal(str(data.get("high_watermark", "0.0")))
         tracker._realized_pnl = Decimal(str(data.get("realized_pnl", "0.0")))
 
-        # TODO: Convert nested dicts back into SpotBalance, Position, Order objects
-        # This is crucial for the tracker to function correctly after loading state.
-        # Example (needs iteration and error handling):
-        # for ex_id, bals in tracker._balances.items():
-        #     for asset, bal_data in bals.items():
-        #         if isinstance(bal_data, dict):
-        #             tracker._balances[ex_id][asset] = SpotBalance(**bal_data) # Assuming keys match
-        #             # __init__
-        # Similar loops for positions and orders...
-        logger.warning(
-            "PortfolioTracker.from_dict needs implementation for object deserialization."
-        )
-
+        logger.info("PortfolioTracker state loaded from dict (object deserialization attempted).")
         return tracker
 
     # --- Watchlist/Active Symbols ---
@@ -1063,7 +1302,7 @@ class PortfolioTracker:
     def _update_balance(self, exchange_id: str, balance: SpotBalance | None) -> None:
         if balance is None:
             return
-        self._balances.setdefault(exchange_id, {})[balance.asset] = balance
+        self._balances[exchange_id][balance.asset] = balance
 
     def _parse_positions(
         self, exchange_id: str, positions_data: list[DerivativePosition] | dict[str, Any]
@@ -1104,8 +1343,8 @@ class PortfolioTracker:
         self._balances.clear()
         self._positions.clear()
         self._orders.clear()
-        self._last_update_time.clear()
-        self._last_reconciliation_time.clear()
+        self._last_update_time.clear()  # Consolidated
+        self._last_reconciliation_time.clear()  # Consolidated
         self._high_watermark = Decimal("0.0")
         self._realized_pnl = Decimal("0.0")
         self._active_symbols.clear()
@@ -1221,10 +1460,40 @@ class PortfolioTracker:
         """Retrieve the SpotBalance for a specific asset on a specific exchange."""
         # --- BEGIN ADDED LOGGING ---
         logger.info(f"[PT_GET_EX_BAL_START] Called for exchange='{exchange_id}', asset='{asset}'")
-        exchange_balances = self._balances.get(exchange_id, {})
-        balance_obj = exchange_balances.get(asset)
+        exchange_balances = self._balances.get(exchange_id)  # Get the inner dict for the exchange
+        if exchange_balances is None:  # Exchange itself might not exist yet
+            logger.info(f"[PT_GET_EX_BAL_RESULT] No balances found for exchange '{exchange_id}'.")
+            return None
+        balance_obj = exchange_balances.get(asset)  # Get balance from inner dict
         logger.info(
             f"[PT_GET_EX_BAL_RESULT] Found balance object for {asset} on {exchange_id}: {balance_obj}"
         )
         # --- END ADDED LOGGING ---
         return balance_obj
+
+    def _initialize_from_config(self) -> None:
+        logger.info("Initializing PortfolioTracker from config...")
+        # Initialize balances
+        for exchange_id, balances in self.pt_config.initial_balances.items():
+            for asset, quantity_str in balances.items():
+                try:
+                    quantity = Decimal(quantity_str)
+                    self._balances[exchange_id][asset] = SpotBalance(
+                        exchange=exchange_id,
+                        asset=asset,
+                        total_quantity=quantity,
+                        available_quantity=quantity,  # Assume all available initially
+                        timestamp=datetime.now(UTC),
+                    )
+                    logger.info(f"Initialized balance for {asset} on {exchange_id}: {quantity}")
+                except InvalidOperation:
+                    logger.error(
+                        f"Invalid decimal value for initial balance of {asset} on {exchange_id}: {quantity_str}"
+                    )
+        # Initialize positions
+        for pos in self.pt_config.initial_positions:
+            self._positions[pos.exchange][pos.symbol] = pos  # Corrected access
+            logger.info(
+                f"Initialized position: {pos.symbol} on {pos.exchange}, Side: {pos.side}, Size: {pos.size}"
+            )
+        logger.info("PortfolioTracker initialized.")
