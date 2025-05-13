@@ -96,8 +96,6 @@ def extract_config_content_variable(script_path: Path) -> str | None:
 class TestConfigConsistency:
     """Verify that configuration example files match the main configuration."""
 
-    @pytest.mark.skipif(not CONFIG_PATH.exists(), reason=f"{CONFIG_PATH} not found")
-    @pytest.mark.skipif(not EXAMPLE_CONFIG_PATH.exists(), reason=f"{EXAMPLE_CONFIG_PATH} not found")
     def test_config_and_example_match(self) -> None:
         """Ensure config.yaml and config.yaml.example have the same keys."""
         actual_keys = get_yaml_keys(CONFIG_PATH)
@@ -109,8 +107,6 @@ class TestConfigConsistency:
             Extra in example: {example_keys - actual_keys}"
         )
 
-    @pytest.mark.skipif(not CONFIG_PATH.exists(), reason=f"{CONFIG_PATH} not found")
-    @pytest.mark.skipif(not EXAMPLE_SCRIPT_PATH.exists(), reason=f"{EXAMPLE_SCRIPT_PATH} not found")
     def test_example_script_content_matches(self) -> None:
         """Ensure config_content in examples/config_example.py matches config.yaml."""
         actual_keys = get_yaml_keys(CONFIG_PATH)
@@ -135,8 +131,6 @@ class TestConfigConsistency:
             Extra in script: {script_keys - actual_keys}"
         )
 
-    @pytest.mark.skipif(not EXAMPLE_CONFIG_PATH.exists(), reason=f"{EXAMPLE_CONFIG_PATH} not found")
-    @pytest.mark.skipif(not SCHEMA_PATH.exists(), reason=f"{SCHEMA_PATH} not found")
     def test_example_config_validates_against_schema(self) -> None:
         """Ensure config.yaml.example validates against the schema."""
         # Load schema
@@ -168,8 +162,6 @@ class TestConfigConsistency:
         except jsonschema.ValidationError as e:
             pytest.fail(f"Example config {EXAMPLE_CONFIG_PATH} failed validation: {e}")
 
-    @pytest.mark.skipif(not CONFIG_PATH.exists(), reason=f"{CONFIG_PATH} not found")
-    @pytest.mark.skipif(not EXAMPLE_CONFIG_PATH.exists(), reason=f"{EXAMPLE_CONFIG_PATH} not found")
     def test_config_and_example_have_same_keys(self) -> None:
         """Verify that config.toml and config.example.toml have the same keys."""
         actual_keys = get_yaml_keys(CONFIG_PATH)
@@ -181,19 +173,19 @@ class TestConfigConsistency:
             Extra in example: {example_keys - actual_keys}"
         )
 
-    @pytest.mark.skipif(not CONFIG_PATH.exists(), reason=f"{CONFIG_PATH} not found")
-    @pytest.mark.skipif(not EXAMPLE_SCRIPT_PATH.exists(), reason=f"{EXAMPLE_SCRIPT_PATH} not found")
     def test_config_matches_example_script_exchanges(self) -> None:
         """Verify that config.toml has the exchanges mentioned in example_script.py."""
         actual_keys = get_yaml_keys(CONFIG_PATH)
-        script_exchanges = get_yaml_keys_from_string(
-            extract_config_content_variable(EXAMPLE_SCRIPT_PATH)
-        )
+        config_content_str = extract_config_content_variable(EXAMPLE_SCRIPT_PATH)
+        if config_content_str is None:
+            pytest.fail(
+                f"Failed to extract config_content variable from {EXAMPLE_SCRIPT_PATH}. "
+                f"Cannot compare keys."
+            )
+        script_exchanges = get_yaml_keys_from_string(config_content_str)
 
         assert actual_keys == script_exchanges, "Config exchanges differ from example script."
 
-    @pytest.mark.skipif(not EXAMPLE_CONFIG_PATH.exists(), reason=f"{EXAMPLE_CONFIG_PATH} not found")
-    @pytest.mark.skipif(not SCHEMA_PATH.exists(), reason=f"{SCHEMA_PATH} not found")
     def test_example_config_matches_schema(self) -> None:
         """Verify that config.example.toml matches the schema definition."""
         # Load schema

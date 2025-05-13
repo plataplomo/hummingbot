@@ -601,7 +601,6 @@ def test_hl_raw_user_fill_extra_field(valid_user_fill_data: dict[str, Any]) -> N
     assert "Extra inputs are not permitted" in str(exc_info.value)
 
 
-@pytest.mark.xfail(reason="Validation issues")
 class TestHyperliquidRawUserFill:
     """Test suite for the HyperliquidRawUserFill Pydantic model."""
 
@@ -610,6 +609,6 @@ class TestHyperliquidRawUserFill:
         data = valid_user_fill()  # Start with valid data
         data["side"] = "InvalidSide"  # Set an invalid side
         with pytest.raises(ValidationError):
-            fill = HyperliquidRawUserFill.model_validate(data)  # Add assignment
+            HyperliquidRawUserFill.model_validate(data)  # Removed assignment to unused 'fill'
             # Optional: Check error message details
             # assert "side" in str(exc_info.value)

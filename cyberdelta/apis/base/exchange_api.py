@@ -427,16 +427,24 @@ class ExchangeAPI(ABC):
         )
 
     async def close(self) -> None:
-        """Close all connections, including HTTP client and WebSocket manager."""
-        logger.info(f"[{self.exchange_name}] Initiating shutdown sequence...")
-
+        logger.info(f"Closing ExchangeAPI for {self.exchange_name}")
         if self._http_client:
             await self._http_client.close_session()
-            logger.info(f"[{self.exchange_name}] HTTP client session closed.")
+            logger.info(f"HTTP client for {self.exchange_name} closed.")
+        else:
+            logger.info(
+                f"HTTP client for {self.exchange_name} was not initialized or already closed."
+            )
 
         if self._ws_manager:
             await self._ws_manager.close()
-            logger.info(f"[{self.exchange_name}] WebSocket manager closed.")
+            logger.info(f"WebSocket manager for {self.exchange_name} closed.")
+        else:
+            logger.info(
+                f"WebSocket manager for {self.exchange_name} was not initialized or already closed."
+            )
+
+        logger.info(f"ExchangeAPI for {self.exchange_name} closed successfully.")
 
     # --- Abstract Methods for Exchange API Implementation --- #
 

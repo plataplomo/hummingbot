@@ -514,9 +514,6 @@ class TestWebSocketManager:
     @patch("aiohttp.ClientSession.ws_connect")
     @patch("cyberdelta.apis.connectivity.ws_manager.asyncio.create_task")
     @patch("asyncio.sleep", new_callable=AsyncMock)
-    @pytest.mark.skip(
-        reason="Test logic for awaiting chained reconnects is too complex and unreliable currently."
-    )
     async def test_listen_loop_processes_message_and_reconnects_on_close(
         self,
         mock_sleep: AsyncMock,

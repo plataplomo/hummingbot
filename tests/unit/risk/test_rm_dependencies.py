@@ -72,9 +72,6 @@ class TestRiskManagerDependencyFailures:
                 assert sized_opp is None
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(
-        reason="RiskManager.size_opportunity does not correctly handle _check_portfolio_constraints returning False."
-    )
     async def test_size_opportunity_constraint_check_fail(
         self,
         risk_manager: RiskManager,
@@ -255,9 +252,6 @@ class TestRiskManagerDependencyFailures:
     # --- FundingRateValidator Failures ---
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(
-        reason="RiskManager._size_simple does not correctly check min_validation_factor."
-    )
     async def test_size_opportunity_low_funding_validation(
         self,
         risk_manager: RiskManager,
@@ -310,9 +304,6 @@ class TestRiskManagerDependencyFailures:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("bad_metrics_return", [None, Exception("Simulated FV Error")])
-    @pytest.mark.xfail(
-        reason="RiskManager._size_simple does not correctly handle None/exceptions from _get_validation_metrics."
-    )
     async def test_size_opportunity_funding_validation_error_or_none(
         self,
         risk_manager: RiskManager,

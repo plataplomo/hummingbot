@@ -115,6 +115,10 @@ class TestDataHandler:
                 assert "hyperliquid" in data_handler.ws_tasks
                 mock_collect.assert_any_call("backpack", ["BTCUSDC", "ETHUSDC"])
                 mock_collect.assert_any_call("backpack", ["BTCUSDC", "ETHUSDC"])
+                assert "hyperliquid" in data_handler.last_update_time
+                assert "BTC" in data_handler.last_update_time["hyperliquid"]
+                assert isinstance(data_handler.last_update_time["hyperliquid"]["BTC"], datetime)
+                assert data_handler.last_update_time["hyperliquid"]["BTC"].tzinfo is not None
 
     @pytest.mark.skip(
         reason="DataHandler._collect_initial_data seems to have been removed or refactored."

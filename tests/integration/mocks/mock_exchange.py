@@ -923,3 +923,25 @@ class MockExchangeAPI(ExchangeAPI):
         return results
 
     # --- END OF ADDED PLACEHOLDERS ---
+
+    async def close(self) -> None:
+        """Closes any resources held by the mock API (e.g., WebSocket connection)."""
+        logger.info(f"MockExchangeAPI for {self.exchange_name} is being closed.")
+        # In a real scenario, you might close mock WebSocket connections or clean up resources.
+        # For this mock, we primarily log. If specific mock resources were created (e.g.,
+        # a mock WebSocket server task), they would be cleaned up here.
+        # Since _http_client and _ws_manager are managed by the parent ExchangeAPI,
+        # their closure is handled there if they were internally created.
+        # If they were patched out (as in the conftest.py fixtures), then this close
+        # might not do much for them directly, but it's good practice to call super().close()
+        # if the parent has a meaningful close.
+
+        # Call super().close() if ExchangeAPI.close() does something meaningful.
+        await super().close()
+
+        # For now, this mock's close is mostly a placeholder for testability.
+        # pass # This line will be removed
+
+    def set_order_book_behavior(self, behavior: str, data: Any | None = None) -> None:
+        """Configures the behavior of get_order_book."""
+        # ... existing code ...

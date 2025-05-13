@@ -548,8 +548,3 @@ def test_trade_enrichment_invalid_details() -> None:
             quantity=Decimal("1.0"),
             bp_details=BackpackTradeDetails(system_order_type="a" * 33),
         )
-
-
-@pytest.mark.xfail(reason="Detail model issues")
-class TestTradeModel:
-    """Test suite for the Trade Pydantic model."""

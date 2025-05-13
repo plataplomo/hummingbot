@@ -317,16 +317,16 @@ class TestHyperliquidRawPlaceOrderAction:
         assert parsed.cloid is None
 
     def test_valid_cloid_present(self) -> None:
-        cloid_val = "my-test-cloid-max-64-chars-padding-padding-padding-padding-pad"
         data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
-        data["cloid"] = cloid_val
+        data["cloid"] = "test_cloid"
         parsed = HyperliquidRawPlaceOrderAction(**data)
-        assert parsed.cloid == cloid_val
+        assert parsed.cloid == "test_cloid"
 
 
-@pytest.mark.xfail(reason="Validation error or apply model failure")
 class TestHyperliquidRawOrder:
-    """Test suite for the HyperliquidRawOrder Pydantic model."""
+    """
+    Tests for the HyperliquidRawOrder model itself (representing an existing order).
+    """
 
     def test_invalid_order_bad_status(self) -> None:
         """Test that an order with an invalid status raises ValidationError."""

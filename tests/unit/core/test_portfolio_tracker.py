@@ -576,9 +576,6 @@ class TestPortfolioTracker:
             "backpack"
         ] < timedelta(seconds=10)
 
-    @pytest.mark.skip(
-        reason="Test attempts to call non-existent private method _update_order or has model instantiation issues"
-    )
     def test_update_order(
         self,
         portfolio_tracker: PortfolioTracker,
@@ -609,9 +606,6 @@ class TestPortfolioTracker:
         assert updated_order.average_fill_price == Decimal("49500.0")
         assert updated_order.updated_at == now
 
-    @pytest.mark.skip(
-        reason="Test attempts to call non-existent private method _update_position or has model instantiation issues"
-    )
     def test_update_position(
         self,
         portfolio_tracker: PortfolioTracker,
@@ -642,9 +636,6 @@ class TestPortfolioTracker:
         assert updated_position.mark_price == Decimal("51000")
         assert updated_position.unrealized_pnl == Decimal("1500.0")
 
-    @pytest.mark.skip(
-        reason="Public update_balance method does not exist or test has model instantiation issues."
-    )
     def test_update_balance(
         self,
         portfolio_tracker: PortfolioTracker,
@@ -934,7 +925,6 @@ class TestPortfolioTracker:
         portfolio_tracker._orders = {}  # noqa: SLF001
         assert not portfolio_tracker._orders  # noqa: SLF001
 
-    @pytest.mark.skip(reason="Test has model instantiation issues")
     def test_calculate_pnl(
         self, portfolio_tracker: PortfolioTracker, sample_positions: ExchangePositions
     ) -> None:

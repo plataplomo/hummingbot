@@ -207,7 +207,7 @@ def mock_config() -> MagicMock:
     """Create a mock Config object with test settings."""
     config_data = {
         "exchanges": {
-            "mock_hl": {
+            "hyperliquid": {
                 "enabled": True,
                 "symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP"},
                 "websocket": {
@@ -217,7 +217,7 @@ def mock_config() -> MagicMock:
                 },
                 "risk_modifier": 0.9,
             },
-            "mock_bp": {
+            "backpack": {
                 "enabled": True,
                 "symbols": {"BTC": "BTCUSDC", "ETH": "ETHUSDC"},
                 "websocket": {
@@ -602,9 +602,9 @@ def create_mock_response(
 ) -> MockResponse:
     # Simplified mock logic
     mock_resp = MockResponse(json_data, status, headers, "application/json")
-    # Assign AsyncMock instances directly to the methods
-    mock_resp.text = AsyncMock(return_value=text_data if text_data is not None else "")  # noqa: ANN401 - Mock text can be Any
-    mock_resp.raise_for_status = MagicMock()  # raise_for_status is sync
+    # Assign AsyncMock instances directly to the attributes
+    mock_resp.text = AsyncMock(return_value=text_data if text_data is not None else "")
+    mock_resp.raise_for_status = MagicMock()  # Assign MagicMock to the attribute
     if status >= 400:
         # Configure the mock to raise if needed
         mock_resp.raise_for_status.side_effect = aiohttp.ClientResponseError(
@@ -627,12 +627,12 @@ async def mock_request(
     # Simplified mock logic
     text_data = str(json) if json else ""  # Define text_data based on json
     mock_resp = MockResponse(json, status_code, headers, "application/json")  # Use status_code
-    # Assign AsyncMock instances directly to the methods
-    mock_resp.text = AsyncMock(return_value=text_data if text_data is not None else "")  # noqa: ANN401 - Mock text can be Any
-    mock_resp.raise_for_status = MagicMock()  # raise_for_status is sync
+    # Assign AsyncMock instances directly to the attributes
+    mock_resp.text = AsyncMock(return_value=text_data)
+    mock_resp.raise_for_status = MagicMock()  # Assign MagicMock to the attribute
     if status_code >= 400:  # Use status_code
         # Configure the mock to raise if needed
         mock_resp.raise_for_status.side_effect = aiohttp.ClientResponseError(
             MagicMock(), (), status=status_code
-        )  # Use status_code
+        )
     return mock_resp

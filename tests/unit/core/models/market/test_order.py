@@ -533,11 +533,10 @@ def test_bp_details_extra_fields_ignored(valid_bp_order_details_data: dict[str, 
 class TestOrderModel:
     """Test suite for the Order Pydantic model."""
 
-    @pytest.mark.xfail(reason="Validation issues with Detail models")
     def test_update_order_status(self) -> None:
         """Test updating the order status."""
         # Use the base_order_data fixture or a minimal valid dict
-        order_data = {
+        order_data: dict[str, Any] = {
             "exchange": "test_exchange",
             "symbol": "BTC-PERP",
             "side": OrderSide.BUY,

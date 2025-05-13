@@ -88,7 +88,6 @@ class TestRiskManagerSizingSimple:
     @pytest.mark.asyncio
     async def test_size_opportunity_simple_path_fixed_fraction(
         self,
-        mock_config: Config,
         mock_config_dict: dict[str, Any],
         mock_portfolio_tracker: MagicMock,
         mock_circuit_breaker: MagicMock,
@@ -107,19 +106,8 @@ class TestRiskManagerSizingSimple:
             **test_risk_overrides,
         }
 
-        def config_get_side_effect(key: str, default: object | None = None) -> Any:
-            keys = key.split(".")
-            value = current_test_config_dict
-            for k_part in keys:
-                if isinstance(value, dict) and k_part in value:
-                    value = value[k_part]
-                else:
-                    # Fallback: Create a temporary unpatched Config instance with the original base config
-                    # to avoid recursion and accessing protected members.
-                    # mock_config_dict is available from the test method's scope.
-                    unpatched_config_for_fallback = Config(config_path_or_data=mock_config_dict)
-                    return unpatched_config_for_fallback.get(key, default)
-            return value
+        # Create a Config instance directly for this test's specific configuration
+        test_specific_config = Config(config_path_or_data=current_test_config_dict)
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -134,14 +122,14 @@ class TestRiskManagerSizingSimple:
             return_value={"rmse": 0.0, "bias": 0.0}
         )
 
-        with patch.object(mock_config, "get", side_effect=config_get_side_effect):
-            risk_manager = RiskManager(
-                mock_config,
-                mock_portfolio_tracker,
-                mock_circuit_breaker,
-                mock_funding_validator,
-            )
-            sized_opp = await risk_manager.size_opportunity(sample_opportunity)
+        # Instantiate RiskManager with the test-specific config, no patching needed
+        risk_manager = RiskManager(
+            test_specific_config,
+            mock_portfolio_tracker,
+            mock_circuit_breaker,
+            mock_funding_validator,
+        )
+        sized_opp = await risk_manager.size_opportunity(sample_opportunity)
 
         assert isinstance(sized_opp, SizedOpportunity)
         assert sized_opp.long_size == Decimal("10000.0")
@@ -150,7 +138,6 @@ class TestRiskManagerSizingSimple:
     @pytest.mark.asyncio
     async def test_size_opportunity_simple_path_fixed_fraction_capped(
         self,
-        mock_config: Config,
         mock_config_dict: dict[str, Any],
         mock_portfolio_tracker: MagicMock,
         mock_circuit_breaker: MagicMock,
@@ -169,16 +156,7 @@ class TestRiskManagerSizingSimple:
             **test_risk_overrides,
         }
 
-        def config_get_side_effect(key: str, default: object | None = None) -> Any:
-            keys = key.split(".")
-            value = current_test_config_dict
-            for k_part in keys:
-                if isinstance(value, dict) and k_part in value:
-                    value = value[k_part]
-                else:
-                    unpatched_config_for_fallback = Config(config_path_or_data=mock_config_dict)
-                    return unpatched_config_for_fallback.get(key, default)
-            return value
+        test_specific_config = Config(config_path_or_data=current_test_config_dict)
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -193,14 +171,13 @@ class TestRiskManagerSizingSimple:
             return_value={"rmse": 0.0, "bias": 0.0}
         )
 
-        with patch.object(mock_config, "get", side_effect=config_get_side_effect):
-            risk_manager = RiskManager(
-                mock_config,
-                mock_portfolio_tracker,
-                mock_circuit_breaker,
-                mock_funding_validator,
-            )
-            sized_opp = await risk_manager.size_opportunity(sample_opportunity)
+        risk_manager = RiskManager(
+            test_specific_config,
+            mock_portfolio_tracker,
+            mock_circuit_breaker,
+            mock_funding_validator,
+        )
+        sized_opp = await risk_manager.size_opportunity(sample_opportunity)
 
         assert isinstance(sized_opp, SizedOpportunity)
         assert sized_opp.long_size == Decimal("5000.0")  # Capped
@@ -209,7 +186,6 @@ class TestRiskManagerSizingSimple:
     @pytest.mark.asyncio
     async def test_size_opportunity_simple_path_fixed_usd(
         self,
-        mock_config: Config,
         mock_config_dict: dict[str, Any],
         mock_portfolio_tracker: MagicMock,
         mock_circuit_breaker: MagicMock,
@@ -228,16 +204,7 @@ class TestRiskManagerSizingSimple:
             **test_risk_overrides,
         }
 
-        def config_get_side_effect(key: str, default: object | None = None) -> Any:
-            keys = key.split(".")
-            value = current_test_config_dict
-            for k_part in keys:
-                if isinstance(value, dict) and k_part in value:
-                    value = value[k_part]
-                else:
-                    unpatched_config_for_fallback = Config(config_path_or_data=mock_config_dict)
-                    return unpatched_config_for_fallback.get(key, default)
-            return value
+        test_specific_config = Config(config_path_or_data=current_test_config_dict)
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -252,14 +219,13 @@ class TestRiskManagerSizingSimple:
             return_value={"rmse": 0.0, "bias": 0.0}
         )
 
-        with patch.object(mock_config, "get", side_effect=config_get_side_effect):
-            risk_manager = RiskManager(
-                mock_config,
-                mock_portfolio_tracker,
-                mock_circuit_breaker,
-                mock_funding_validator,
-            )
-            sized_opp = await risk_manager.size_opportunity(sample_opportunity)
+        risk_manager = RiskManager(
+            test_specific_config,
+            mock_portfolio_tracker,
+            mock_circuit_breaker,
+            mock_funding_validator,
+        )
+        sized_opp = await risk_manager.size_opportunity(sample_opportunity)
 
         assert isinstance(sized_opp, SizedOpportunity)
         assert sized_opp.long_size == Decimal("7500.0")
@@ -268,7 +234,6 @@ class TestRiskManagerSizingSimple:
     @pytest.mark.asyncio
     async def test_size_opportunity_simple_path_fixed_usd_capped(
         self,
-        mock_config: Config,
         mock_config_dict: dict[str, Any],
         mock_portfolio_tracker: MagicMock,
         mock_circuit_breaker: MagicMock,
@@ -287,16 +252,7 @@ class TestRiskManagerSizingSimple:
             **test_risk_overrides,
         }
 
-        def config_get_side_effect(key: str, default: object | None = None) -> Any:
-            keys = key.split(".")
-            value = current_test_config_dict
-            for k_part in keys:
-                if isinstance(value, dict) and k_part in value:
-                    value = value[k_part]
-                else:
-                    unpatched_config_for_fallback = Config(config_path_or_data=mock_config_dict)
-                    return unpatched_config_for_fallback.get(key, default)
-            return value
+        test_specific_config = Config(config_path_or_data=current_test_config_dict)
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -311,14 +267,13 @@ class TestRiskManagerSizingSimple:
             return_value={"rmse": 0.0, "bias": 0.0}
         )
 
-        with patch.object(mock_config, "get", side_effect=config_get_side_effect):
-            risk_manager = RiskManager(
-                mock_config,
-                mock_portfolio_tracker,
-                mock_circuit_breaker,
-                mock_funding_validator,
-            )
-            sized_opp = await risk_manager.size_opportunity(sample_opportunity)
+        risk_manager = RiskManager(
+            test_specific_config,
+            mock_portfolio_tracker,
+            mock_circuit_breaker,
+            mock_funding_validator,
+        )
+        sized_opp = await risk_manager.size_opportunity(sample_opportunity)
 
         assert isinstance(sized_opp, SizedOpportunity)
         assert sized_opp.long_size == Decimal("3000.0")  # Capped
@@ -383,9 +338,6 @@ class TestRiskManagerSizingSimple:
         assert sized_opp is None
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(
-        reason="RiskManager does not correctly reject opportunity based on total exposure limit."
-    )
     async def test_size_opportunity_total_exposure_limit(
         self,
         mock_config: Config,
@@ -512,7 +464,6 @@ class TestRiskManagerSizingSimple:
     @pytest.mark.asyncio
     async def test_size_opportunity_config_change_enforcement(
         self,
-        mock_config: Config,
         mock_config_dict: dict[str, Any],
         mock_portfolio_tracker: MagicMock,
         mock_circuit_breaker: MagicMock,
@@ -529,18 +480,30 @@ class TestRiskManagerSizingSimple:
         live_test_config_data["risk"] = {**live_test_config_data["risk"], **base_risk_config}
 
         # The side_effect will now close over live_test_config_data
+        # For this test, dynamic config changes are key.
+        # We will create a test_specific_config and then patch its 'get' method.
+        test_specific_config = Config(config_path_or_data=live_test_config_data)
+
         def dynamic_config_get(key: str, default: object | None = None) -> Any:
             keys = key.split(".")
-            # Use live_test_config_data for lookups
+            # Use live_test_config_data for lookups (closed over)
             value_source = live_test_config_data
             for k_part in keys:
                 if isinstance(value_source, dict) and k_part in value_source:
                     value_source = value_source[k_part]
                 else:
-                    # Fallback: Create a temporary unpatched Config instance with the original base config
-                    # mock_config_dict is available from the test method's scope (enclosing function).
-                    unpatched_config_for_fallback = Config(config_path_or_data=mock_config_dict)
-                    return unpatched_config_for_fallback.get(key, default)
+                    # Fallback to a new Config instance using the *original* minimal config
+                    # to avoid infinite recursion if a key is truly missing.
+                    # This part of the original side_effect might need careful thought
+                    # if the dynamic changes are supposed to affect keys not initially present.
+                    # For now, assume dynamic changes only affect existing keys in live_test_config_data.
+                    # If a key is not in live_test_config_data, it will use the initial state of test_specific_config
+                    # which was derived from live_test_config_data's initial state.
+                    # To be robust, we might need to re-create a Config from the original mock_config_dict
+                    # if a key isn't found in live_test_config_data.
+                    # However, the test modifies existing keys, so this should be okay.
+                    temp_config_for_default = Config(config_path_or_data=mock_config_dict)
+                    return temp_config_for_default.get(key, default)
             return value_source
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
@@ -557,9 +520,10 @@ class TestRiskManagerSizingSimple:
             return_value={"rmse": 0.0, "bias": 0.0}
         )
 
-        with patch.object(mock_config, "get", side_effect=dynamic_config_get):
+        # Patch the 'get' method of the test_specific_config instance
+        with patch.object(test_specific_config, "get", side_effect=dynamic_config_get):
             risk_manager = RiskManager(
-                mock_config,
+                test_specific_config,  # Pass the config instance whose 'get' is now patched
                 mock_portfolio_tracker,
                 mock_circuit_breaker,
                 mock_funding_validator,
@@ -578,12 +542,8 @@ class TestRiskManagerSizingSimple:
             assert sized_opp2.long_size == Decimal("100.0")
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(
-        reason="RiskManager._size_simple does not correctly apply validation_factor."
-    )
     async def test_size_opportunity_validation_factor_happy_path(
         self,
-        mock_config: Config,
         mock_config_dict: dict[str, Any],
         mock_portfolio_tracker: MagicMock,
         mock_circuit_breaker: MagicMock,
@@ -603,16 +563,7 @@ class TestRiskManagerSizingSimple:
             **test_risk_overrides,
         }
 
-        def config_get_side_effect(key: str, default: object | None = None) -> Any:
-            keys = key.split(".")
-            value = current_test_config_dict
-            for k_part in keys:
-                if isinstance(value, dict) and k_part in value:
-                    value = value[k_part]
-                else:
-                    unpatched_config_for_fallback = Config(config_path_or_data=mock_config_dict)
-                    return unpatched_config_for_fallback.get(key, default)
-            return value
+        test_specific_config = Config(config_path_or_data=current_test_config_dict)
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -623,29 +574,23 @@ class TestRiskManagerSizingSimple:
             total_quantity=Decimal("50000"),
             available_quantity=Decimal("50000"),
         )
-        # Simulate perfect validation metrics, so factor should be 1.0
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
 
-        with patch.object(mock_config, "get", side_effect=config_get_side_effect):
-            risk_manager = RiskManager(
-                mock_config,
-                mock_portfolio_tracker,
-                mock_circuit_breaker,
-                mock_funding_validator,
-            )
-            sized_opp = await risk_manager.size_opportunity(sample_opportunity)
+        risk_manager = RiskManager(
+            test_specific_config,
+            mock_portfolio_tracker,
+            mock_circuit_breaker,
+            mock_funding_validator,
+        )
+        sized_opp = await risk_manager.size_opportunity(sample_opportunity)
 
         assert isinstance(sized_opp, SizedOpportunity)
         assert sized_opp.long_size == Decimal("5000.0")  # Base size * 1.0 factor
         # assert sized_opp.validation_factor == Decimal("1.0") # Removed due to SizedOpportunity not having this field
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(
-        reason="RiskManager._size_simple does not correctly apply validation_factor."
-    )
     async def test_size_opportunity_validation_factor_safety_path(
         self,
-        mock_config: Config,
         mock_config_dict: dict[str, Any],
         mock_portfolio_tracker: MagicMock,
         mock_circuit_breaker: MagicMock,
@@ -665,16 +610,7 @@ class TestRiskManagerSizingSimple:
             **test_risk_overrides,
         }
 
-        def config_get_side_effect(key: str, default: object | None = None) -> Any:
-            keys = key.split(".")
-            value = current_test_config_dict
-            for k_part in keys:
-                if isinstance(value, dict) and k_part in value:
-                    value = value[k_part]
-                else:
-                    unpatched_config_for_fallback = Config(config_path_or_data=mock_config_dict)
-                    return unpatched_config_for_fallback.get(key, default)
-            return value
+        test_specific_config = Config(config_path_or_data=current_test_config_dict)
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -685,21 +621,18 @@ class TestRiskManagerSizingSimple:
             total_quantity=Decimal("50000"),
             available_quantity=Decimal("50000"),
         )
-        # Simulate poor validation metrics that would result in a factor < min_validation_factor
-        # e.g., rmse that would lead to a very small factor, which then gets floored to 0.2
         mock_funding_validator.get_symbol_metrics.return_value = {
             "rmse": 1.0,
             "bias": 0.5,
         }  # High RMSE, high bias
 
-        with patch.object(mock_config, "get", side_effect=config_get_side_effect):
-            risk_manager = RiskManager(
-                mock_config,
-                mock_portfolio_tracker,
-                mock_circuit_breaker,
-                mock_funding_validator,
-            )
-            sized_opp = await risk_manager.size_opportunity(sample_opportunity)
+        risk_manager = RiskManager(
+            test_specific_config,
+            mock_portfolio_tracker,
+            mock_circuit_breaker,
+            mock_funding_validator,
+        )
+        sized_opp = await risk_manager.size_opportunity(sample_opportunity)
 
         assert isinstance(sized_opp, SizedOpportunity)
         # Base size (5000) * validation_factor (0.2) = 1000

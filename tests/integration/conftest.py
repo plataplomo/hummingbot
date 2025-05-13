@@ -54,8 +54,8 @@ def basic_opportunity() -> ArbitrageOpportunity:
     # Ensure all required fields are present.
     opp = ArbitrageOpportunity(
         symbol="BTC",
-        long_exchange="mock_bp",
-        short_exchange="mock_hl",
+        long_exchange="backpack",
+        short_exchange="hyperliquid",
         long_price=Decimal("30001"),  # Already correct
         short_price=Decimal("30010"),  # Already correct
         long_funding_rate=Decimal("0.0001"),  # Already correct
@@ -83,17 +83,17 @@ def real_portfolio_tracker(mock_config: Config) -> PortfolioTracker:
 
 # Define needed secrets locally for integration tests
 @pytest.fixture
-def mock_secrets() -> dict[str, dict[str, str]]:
+def mock_secrets() -> dict[str, dict[str, str | None]]:
     """Provides dummy secrets needed by integration mock APIs."""
     return {
-        "mock_hl": {"api_key": "integ_hl_key", "api_secret": "integ_hl_secret"},
-        "mock_bp": {"api_key": "integ_bp_key", "api_secret": "integ_bp_secret"},
+        "hyperliquid": {"api_key": "integ_hl_key", "api_secret": "integ_hl_secret"},
+        "backpack": {"api_key": "integ_bp_key", "api_secret": "integ_bp_secret"},
     }
 
 
 @pytest_asyncio.fixture(scope="function")
 async def mock_hl_api(
-    mock_config: Config, mock_secrets: dict[str, dict[str, str]]
+    mock_config: Config, mock_secrets: dict[str, dict[str, str | None]]
 ) -> AsyncGenerator[MockExchangeAPI]:
     """Function-scoped mock HyperLiquid API with patched clients."""
     exchange_name = "hyperliquid"
@@ -102,41 +102,25 @@ async def mock_hl_api(
 
     with (
         patch("cyberdelta.apis.connectivity.http_client.HttpClient.__init__", return_value=None),
-        patch("cyberdelta.apis.connectivity.ws_manager.WsManager.__init__", return_value=None),
+        patch(
+            "cyberdelta.apis.connectivity.ws_manager.WebSocketManager.__init__", return_value=None
+        ),
     ):
         api = MockExchangeAPI(
             exchange_name=exchange_name,
             config=exchange_config_dict,
-            secrets=exchange_secrets,  # type: ignore # Dict[str, str|None] vs Dict[str, str]
-            config_obj=mock_config,  # Pass the full config object here
+            secrets=exchange_secrets,
+            config_obj=mock_config,
         )
         try:
             yield api
         finally:
-            # Attempt to clean up, nullifying if attributes look unclosable
-            if hasattr(api, "ws_manager") and api.ws_manager:  # type: ignore[attr-defined]
-                if not (
-                    hasattr(api.ws_manager, "_ws_connection")
-                    and hasattr(api.ws_manager._ws_connection, "_closed")
-                ):  # type: ignore[attr-defined]
-                    api.ws_manager = None  # type: ignore[attr-defined]
-            else:  # If ws_manager doesn't exist or is None initially
-                api.ws_manager = None  # type: ignore[attr-defined]
-
-            if hasattr(api, "http_client") and api.http_client:  # type: ignore[attr-defined]
-                if not (
-                    hasattr(api.http_client, "_session")
-                    and hasattr(api.http_client._session, "_closed")
-                ):  # type: ignore[attr-defined]
-                    api.http_client = None  # type: ignore[attr-defined]
-            else:  # If http_client doesn't exist or is None initially
-                api.http_client = None  # type: ignore[attr-defined]
             await api.close()
 
 
 @pytest_asyncio.fixture(scope="function")
 async def mock_bp_api(
-    mock_config: Config, mock_secrets: dict[str, dict[str, str]]
+    mock_config: Config, mock_secrets: dict[str, dict[str, str | None]]
 ) -> AsyncGenerator[MockExchangeAPI]:
     """Function-scoped mock Backpack API with patched clients."""
     exchange_name = "backpack"
@@ -144,36 +128,24 @@ async def mock_bp_api(
     exchange_secrets = mock_secrets[exchange_name]
 
     with (
-        patch("cyberdelta.apis.connectivity.http_client.HttpClient.__init__", return_value=None),
-        patch("cyberdelta.apis.connectivity.ws_manager.WsManager.__init__", return_value=None),
+        patch(
+            "cyberdelta.apis.connectivity.http_client.HttpClient.__init__",
+            return_value=None,
+        ),
+        patch(
+            "cyberdelta.apis.connectivity.ws_manager.WebSocketManager.__init__",
+            return_value=None,
+        ),
     ):
         api = MockExchangeAPI(
             exchange_name=exchange_name,
             config=exchange_config_dict,
-            secrets=exchange_secrets,  # type: ignore # Dict[str, str|None] vs Dict[str, str]
-            config_obj=mock_config,  # Pass the full config object here
+            secrets=exchange_secrets,
+            config_obj=mock_config,
         )
         try:
             yield api
         finally:
-            # Attempt to clean up, nullifying if attributes look unclosable
-            if hasattr(api, "ws_manager") and api.ws_manager:  # type: ignore[attr-defined]
-                if not (
-                    hasattr(api.ws_manager, "_ws_connection")
-                    and hasattr(api.ws_manager._ws_connection, "_closed")
-                ):  # type: ignore[attr-defined]
-                    api.ws_manager = None  # type: ignore[attr-defined]
-            else:  # If ws_manager doesn't exist or is None initially
-                api.ws_manager = None  # type: ignore[attr-defined]
-
-            if hasattr(api, "http_client") and api.http_client:  # type: ignore[attr-defined]
-                if not (
-                    hasattr(api.http_client, "_session")
-                    and hasattr(api.http_client._session, "_closed")
-                ):  # type: ignore[attr-defined]
-                    api.http_client = None  # type: ignore[attr-defined]
-            else:  # If http_client doesn't exist or is None initially
-                api.http_client = None  # type: ignore[attr-defined]
             await api.close()
 
 
@@ -189,8 +161,8 @@ def data_handler(
 ) -> DataHandler:
     """Data Handler instance with mock APIs registered."""
     dh = DataHandler(mock_config, symbol_mapper)
-    dh.register_api_client("mock_hl", mock_hl_api)
-    dh.register_api_client("mock_bp", mock_bp_api)
+    dh.register_api_client("hyperliquid", mock_hl_api)
+    dh.register_api_client("backpack", mock_bp_api)
     return dh
 
 
@@ -262,8 +234,8 @@ def execution_handler(
         symbol_mapper=symbol_mapper,
         circuit_breaker_system=circuit_breaker_system,
     )
-    eh.register_api_client("mock_hl", mock_hl_api)
-    eh.register_api_client("mock_bp", mock_bp_api)
+    eh.register_api_client("hyperliquid", mock_hl_api)
+    eh.register_api_client("backpack", mock_bp_api)
     return eh
 
 
@@ -290,10 +262,10 @@ def position_reconciler(
     """Provides a PositionReconciliationSystem instance using the shared mock_config."""
     from cyberdelta.validation.position_reconciliation import PositionReconciliationSystem
 
-    if "mock_hl" not in real_portfolio_tracker.api_clients:
-        real_portfolio_tracker.register_api_client("mock_hl", mock_hl_api)
-    if "mock_bp" not in real_portfolio_tracker.api_clients:
-        real_portfolio_tracker.register_api_client("mock_bp", mock_bp_api)
+    if "hyperliquid" not in real_portfolio_tracker.api_clients:
+        real_portfolio_tracker.register_api_client("hyperliquid", mock_hl_api)
+    if "backpack" not in real_portfolio_tracker.api_clients:
+        real_portfolio_tracker.register_api_client("backpack", mock_bp_api)
     reconciler = PositionReconciliationSystem(mock_config, real_portfolio_tracker)
     return reconciler
 
@@ -311,8 +283,8 @@ def circuit_breaker_system(mock_config: Config) -> CircuitBreakerSystem:
 def mock_opportunity() -> ArbitrageOpportunity:
     return ArbitrageOpportunity(
         symbol="BTC-PERP",
-        long_exchange="mock_hl",
-        short_exchange="mock_bp",
+        long_exchange="hyperliquid",
+        short_exchange="backpack",
         long_price=Decimal("30000"),  # Already correct
         short_price=Decimal("30050"),  # Already correct
         long_funding_rate=Decimal("0.0001"),  # Already correct

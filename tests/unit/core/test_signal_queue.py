@@ -380,7 +380,6 @@ async def test_clear(signal_queue: PrioritySignalQueue, sample_signal: TradeSign
 # Note: The test `test_clean_expired_signals` below uses direct datetime patching.
 # It's kept for reference but can be tricky.
 # `test_signal_expiration_logic` and `test_clean_expired_signals_with_helper` are preferred.
-@pytest.mark.xfail(reason="Patching datetime can be complex and lead to subtle issues.")
 @pytest.mark.asyncio  # Mark as async
 async def test_clean_expired_signals_direct_patch(
     mock_config: MagicMock,

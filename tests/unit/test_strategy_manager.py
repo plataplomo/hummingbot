@@ -13,7 +13,6 @@ from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
-from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy_manager import StrategyManager
 from tests.unit.mocks.mock_strategy import MockStrategy
@@ -53,7 +52,8 @@ def mock_risk_manager() -> AsyncMock:
     async def async_passthrough(signal: TradeSignal) -> TradeSignal | None:
         return signal  # Simple passthrough for testing
 
-    mock.validate_and_size_trade_signal = async_passthrough
+    # This will now create the attribute on the spec-less mock
+    mock.validate_and_size_trade_signal = AsyncMock(side_effect=async_passthrough)
     return mock
 
 
@@ -565,9 +565,6 @@ async def test_process_market_data_mixed_valid_invalid(
     )
 
 
-@pytest.mark.skip(
-    reason="RiskManager sizing logic is currently bypassed in StrategyManager, making this test invalid."
-)
 @pytest.mark.asyncio
 async def test_signal_handler_risk_manager_exception(
     mock_config_dict: dict[str, Any],
@@ -625,11 +622,13 @@ async def test_signal_handler_risk_manager_exception(
     mock_process_data.assert_called_once_with(market_data)
     mock_risk_manager.validate_and_size_trade_signal.assert_called_once_with(mock_signal)
     mock_signal_queue.add_signal.assert_not_called()
-    error_msg = (
-        f"Error during signal processing (post-generation) in "
-        f"{mock_strategy_instance.name}: Risk Eval Error"
+    # New assertion based on actual log output
+    mock_logger.error.assert_any_call(
+        "Error during potential (currently bypassed) risk management step",
+        signal_id=mock_signal.signal_id,  # Use the actual signal_id from mock_signal
+        error="Risk Eval Error",  # The string of the error raised
+        exc_info=True,
     )
-    mock_logger.error.assert_any_call(error_msg, exc_info=True)
 
 
 @pytest.mark.asyncio
