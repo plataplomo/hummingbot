@@ -114,13 +114,11 @@ class TestRiskManagerSizingSimple:
                 if isinstance(value, dict) and k_part in value:
                     value = value[k_part]
                 else:
-                    # If key not found in our test-specific dict, try the original mock_config's get
-                    # This simulates the Config class's behavior of falling back to defaults if any.
-                    # Accessing a private member _config of mock_config might be problematic.
-                    # Let's assume mock_config.get handles the fallback logic internally if available.
-                    # If mock_config.get is patched for tests, it must handle this.
-                    # Reverting to original mock_config.get call if `value` is not a dict or key not found.
-                    return mock_config.get(key, default)
+                    # Fallback: Create a temporary unpatched Config instance with the original base config
+                    # to avoid recursion and accessing protected members.
+                    # mock_config_dict is available from the test method's scope.
+                    unpatched_config_for_fallback = Config(config_path_or_data=mock_config_dict)
+                    return unpatched_config_for_fallback.get(key, default)
             return value
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
@@ -178,7 +176,8 @@ class TestRiskManagerSizingSimple:
                 if isinstance(value, dict) and k_part in value:
                     value = value[k_part]
                 else:
-                    return mock_config.get(key, default)
+                    unpatched_config_for_fallback = Config(config_path_or_data=mock_config_dict)
+                    return unpatched_config_for_fallback.get(key, default)
             return value
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
@@ -236,7 +235,8 @@ class TestRiskManagerSizingSimple:
                 if isinstance(value, dict) and k_part in value:
                     value = value[k_part]
                 else:
-                    return mock_config.get(key, default)
+                    unpatched_config_for_fallback = Config(config_path_or_data=mock_config_dict)
+                    return unpatched_config_for_fallback.get(key, default)
             return value
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
@@ -294,7 +294,8 @@ class TestRiskManagerSizingSimple:
                 if isinstance(value, dict) and k_part in value:
                     value = value[k_part]
                 else:
-                    return mock_config.get(key, default)
+                    unpatched_config_for_fallback = Config(config_path_or_data=mock_config_dict)
+                    return unpatched_config_for_fallback.get(key, default)
             return value
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
@@ -351,7 +352,8 @@ class TestRiskManagerSizingSimple:
                 if isinstance(value, dict) and k_part in value:
                     value = value[k_part]
                 else:
-                    return mock_config.get(key, default)
+                    unpatched_config_for_fallback = Config(config_path_or_data=mock_config_dict)
+                    return unpatched_config_for_fallback.get(key, default)
             return value
 
         low_nfd_opportunity = sample_opportunity.model_copy(
@@ -412,7 +414,8 @@ class TestRiskManagerSizingSimple:
                 if isinstance(value, dict) and k_part in value:
                     value = value[k_part]
                 else:
-                    return mock_config.get(key, default)
+                    unpatched_config_for_fallback = Config(config_path_or_data=mock_config_dict)
+                    return unpatched_config_for_fallback.get(key, default)
             return value
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("1000.0"))
@@ -468,7 +471,8 @@ class TestRiskManagerSizingSimple:
                 if isinstance(value, dict) and k_part in value:
                     value = value[k_part]
                 else:
-                    return mock_config.get(key, default)
+                    unpatched_config_for_fallback = Config(config_path_or_data=mock_config_dict)
+                    return unpatched_config_for_fallback.get(key, default)
             return value
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(
@@ -533,10 +537,10 @@ class TestRiskManagerSizingSimple:
                 if isinstance(value_source, dict) and k_part in value_source:
                     value_source = value_source[k_part]
                 else:
-                    # Fallback to the original config's internal dict if key not in live_test_config_data
-                    # This needs to be careful not to cause infinite recursion if mock_config.get is also patched.
-                    # Assuming here that mock_config.get will correctly access its underlying data.
-                    return mock_config.get(key, default)
+                    # Fallback: Create a temporary unpatched Config instance with the original base config
+                    # mock_config_dict is available from the test method's scope (enclosing function).
+                    unpatched_config_for_fallback = Config(config_path_or_data=mock_config_dict)
+                    return unpatched_config_for_fallback.get(key, default)
             return value_source
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
@@ -606,7 +610,8 @@ class TestRiskManagerSizingSimple:
                 if isinstance(value, dict) and k_part in value:
                     value = value[k_part]
                 else:
-                    return mock_config.get(key, default)
+                    unpatched_config_for_fallback = Config(config_path_or_data=mock_config_dict)
+                    return unpatched_config_for_fallback.get(key, default)
             return value
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
@@ -667,7 +672,8 @@ class TestRiskManagerSizingSimple:
                 if isinstance(value, dict) and k_part in value:
                     value = value[k_part]
                 else:
-                    return mock_config.get(key, default)
+                    unpatched_config_for_fallback = Config(config_path_or_data=mock_config_dict)
+                    return unpatched_config_for_fallback.get(key, default)
             return value
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
