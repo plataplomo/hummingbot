@@ -15,7 +15,6 @@ from cyberdelta.core.models import (
     OrderSide,
     OrderStatus,
     OrderType,
-    Ticker,
     TimeInForce,
     Trade,
 )
@@ -273,50 +272,82 @@ class ExecutionHandler:
             return execution
 
         # Calculate expected prices with slippage
-        expected_long_price: Decimal | None = None
-        expected_short_price: Decimal | None = None
-        try:
-            # Get latest ticker for price check
-            ticker: Ticker | None = await self.portfolio_tracker.get_ticker(
-                opportunity.opportunity.long_exchange, long_symbol
-            )
-            # DEFENSIVE CHECK: ticker.price is Optional[Decimal]
-            if ticker and ticker.price is not None and ticker.price.is_finite():
-                expected_long_price = ticker.price * (Decimal("1") + self.max_slippage)
-            else:
-                logger.warning(
-                    f"Execution {execution.id}: Could not get ticker for long slippage check."
-                )
+        # expected_long_price: Decimal | None = None # Commented out due to PT.get_ticker removal
+        # expected_short_price: Decimal | None = None # Commented out due to PT.get_ticker removal
+        # try:
+        #     # Get latest ticker for price check
+        #     # ticker: Ticker | None = await self.portfolio_tracker.get_ticker( # PT does not have get_ticker
+        #     #     opportunity.opportunity.long_exchange, long_symbol
+        #     # )
+        #     # # DEFENSIVE CHECK: ticker.price is Optional[Decimal]
+        #     # if ticker and ticker.price is not None and ticker.price.is_finite():
+        #     #     expected_long_price = ticker.price * (Decimal(\"1\") + self.max_slippage)
+        #     # else:
+        #     #     logger.warning(
+        #     #         f\"Execution {execution.id}: Could not get ticker for long slippage check.\"
+        #     #     )
+        #     #
+        #     # ticker = await self.portfolio_tracker.get_ticker( # PT does not have get_ticker
+        #     #     opportunity.opportunity.short_exchange, short_symbol
+        #     # )
+        #     # # DEFENSIVE CHECK: ticker.price is Optional[Decimal]
+        #     # if ticker and ticker.price is not None and ticker.price.is_finite():
+        #     #     expected_short_price = ticker.price * (Decimal(\"1\") - self.max_slippage)
+        #     # else:
+        #     #     logger.warning(
+        #     #         f\"Execution {execution.id}: Could not get ticker for short slippage check.\"
+        #     #     )
+        # except Exception as ticker_err:
+        #     logger.warning(
+        #         f\"Execution {execution.id}: Error getting ticker for slippage checks: {ticker_err}\"
+        #     )
+        #     # Continue without slippage checks if tickers fail
+        #     expected_long_price = None
+        #     expected_short_price = None
 
-            ticker = await self.portfolio_tracker.get_ticker(
-                opportunity.opportunity.short_exchange, short_symbol
+        # --- Calculate Base Asset Quantities ---
+        # opportunity.long_size and opportunity.short_size are in USD value.
+        # We need to convert them to base asset quantity (e.g., BTC quantity).
+        # opportunity.opportunity.long_price is the ask price on the long exchange.
+        # opportunity.opportunity.short_price is the bid price on the short exchange.
+
+        base_asset_quantity_long: Decimal | None = None
+        if opportunity.opportunity.long_price and opportunity.opportunity.long_price > Decimal("0"):
+            base_asset_quantity_long = opportunity.long_size / opportunity.opportunity.long_price
+        else:
+            logger.error(
+                f"Execution {execution.id}: Invalid long_price ({opportunity.opportunity.long_price}) for calculating base asset quantity. Aborting long leg."
             )
-            # DEFENSIVE CHECK: ticker.price is Optional[Decimal]
-            if ticker and ticker.price is not None and ticker.price.is_finite():
-                expected_short_price = ticker.price * (Decimal("1") - self.max_slippage)
-            else:
-                logger.warning(
-                    f"Execution {execution.id}: Could not get ticker for short slippage check."
-                )
-        except Exception as ticker_err:
-            logger.warning(
-                f"Execution {execution.id}: Error getting ticker for slippage checks: {ticker_err}"
+            # Handle error: maybe mark execution as failed or skip this leg
+
+        base_asset_quantity_short: Decimal | None = None
+        if opportunity.opportunity.short_price and opportunity.opportunity.short_price > Decimal(
+            "0"
+        ):
+            base_asset_quantity_short = opportunity.short_size / opportunity.opportunity.short_price
+        else:
+            logger.error(
+                f"Execution {execution.id}: Invalid short_price ({opportunity.opportunity.short_price}) for calculating base asset quantity. Aborting short leg."
             )
-            # Continue without slippage checks if tickers fail
-            expected_long_price = None
-            expected_short_price = None
+            # Handle error
 
         # --- Place Orders ---
         # Try placing the long order first (more liquid leg usually)
         execution.status = ExecutionStatus.EXECUTING
-        long_order_result = await self._place_order_with_retry(
-            execution,
-            opportunity.opportunity.long_exchange,
-            long_symbol,
-            OrderSide.BUY,
-            opportunity.long_size,  # Use sized quantity
-            OrderType.MARKET,  # TODO: Consider LIMIT orders
-        )
+        long_order_result: Order | None = None  # Initialize
+        if base_asset_quantity_long is not None and base_asset_quantity_long > Decimal("0"):
+            long_order_result = await self._place_order_with_retry(
+                execution,
+                opportunity.opportunity.long_exchange,
+                long_symbol,
+                OrderSide.BUY,
+                base_asset_quantity_long,  # Use calculated base asset quantity
+                OrderType.MARKET,  # TODO: Consider LIMIT orders
+            )
+        else:
+            logger.error(
+                f"Execution {execution.id}: Skipping long order placement due to invalid base asset quantity."
+            )
 
         # If long order failed, mark execution failed and return
         if long_order_result is None:
@@ -335,15 +366,21 @@ class ExecutionHandler:
         logger.info(f"Execution {execution.id}: Long order placed: {execution.long_order_id}")
 
         # Place short order
-        short_order_result = await self._place_order_with_retry(
-            execution,
-            opportunity.opportunity.short_exchange,
-            short_symbol,
-            OrderSide.SELL,
-            opportunity.short_size,  # Use sized quantity
-            OrderType.MARKET,  # TODO: Consider LIMIT orders
-            is_long_leg=False,
-        )
+        short_order_result: Order | None = None  # Initialize
+        if base_asset_quantity_short is not None and base_asset_quantity_short > Decimal("0"):
+            short_order_result = await self._place_order_with_retry(
+                execution,
+                opportunity.opportunity.short_exchange,
+                short_symbol,
+                OrderSide.SELL,
+                base_asset_quantity_short,  # Use calculated base asset quantity
+                OrderType.MARKET,  # TODO: Consider LIMIT orders
+                is_long_leg=False,
+            )
+        else:
+            logger.error(
+                f"Execution {execution.id}: Skipping short order placement due to invalid base asset quantity."
+            )
 
         # If short order failed, try to compensate the long leg
         if short_order_result is None:
@@ -353,23 +390,34 @@ class ExecutionHandler:
                 execution.error_message or "Short order placement failed after retries"
             )
             execution.status = ExecutionStatus.COMPENSATING
-            if await self._compensate_position(
-                execution,
-                opportunity.opportunity.long_exchange,
-                long_symbol,
-                OrderSide.SELL,
-                opportunity.long_size,
-            ):
-                execution.status = ExecutionStatus.FAILED  # Compensation succeeded
+            if base_asset_quantity_long is not None and base_asset_quantity_long > Decimal(
+                "0"
+            ):  # Added check
+                if await self._compensate_position(
+                    execution,
+                    opportunity.opportunity.long_exchange,
+                    long_symbol,
+                    OrderSide.SELL,
+                    base_asset_quantity_long,  # Use base_asset_quantity_long for compensation quantity as well
+                ):
+                    execution.status = ExecutionStatus.FAILED  # Compensation succeeded
+                else:
+                    # Compensation failed, manual intervention needed
+                    logger.critical(
+                        f"Execution {execution.id} FAILED TO COMPENSATE long position! "
+                        f"Manual intervention required for symbol {long_symbol} on "
+                        f"{opportunity.opportunity.long_exchange}."
+                    )
+                    execution.error_message += " | COMPENSATION FAILED!"
+                    execution.status = ExecutionStatus.FAILED
             else:
-                # Compensation failed, manual intervention needed
-                logger.critical(
-                    f"Execution {execution.id} FAILED TO COMPENSATE long position! "
-                    f"Manual intervention required for symbol {long_symbol} on "
-                    f"{opportunity.opportunity.long_exchange}."
+                logger.error(
+                    f"Execution {execution.id}: Cannot compensate long leg as base_asset_quantity_long is invalid: {base_asset_quantity_long}"
                 )
-                execution.error_message += " | COMPENSATION FAILED!"
-                execution.status = ExecutionStatus.FAILED
+                execution.error_message += " | COMPENSATION SKIPPED (invalid qty)!"
+                execution.status = (
+                    ExecutionStatus.FAILED
+                )  # Mark as failed if compensation cannot be attempted
 
             execution.end_time = datetime.now(UTC)
             self._add_to_history(execution)
@@ -396,8 +444,8 @@ class ExecutionHandler:
             await self._update_pnl(execution)
             # Record success with circuit breaker system
             if self.circuit_breaker_system:
-                self.circuit_breaker_system.record_success(opportunity.opportunity.long_exchange)
-                self.circuit_breaker_system.record_success(opportunity.opportunity.short_exchange)
+                self.circuit_breaker_system.record_success(opportunity.opportunity.long_exchange)  # type: ignore[attr-defined]
+                self.circuit_breaker_system.record_success(opportunity.opportunity.short_exchange)  # type: ignore[attr-defined]
         else:
             execution.status = ExecutionStatus.FAILED  # Or PARTIALLY_COMPLETED
             op_error_msg = f"Execution {execution.id} failed: Orders not fully filled."
@@ -712,7 +760,7 @@ class ExecutionHandler:
             f"_compensate_position: limit_price_offset_pct_str = {limit_price_offset_pct_str} (type: {type(limit_price_offset_pct_str)})"
         )
 
-        reduce_only = True  # Compensation orders should always be reduce_only
+        # reduce_only = True  # Compensation orders should always be reduce_only # Unused variable
         order_type = OrderType.MARKET
         price = None
 
@@ -947,12 +995,13 @@ class ExecutionHandler:
                 price=order.average_fill_price,
                 quantity=order.quantity_filled,  # Use filled quantity for the trade
                 fee=Decimal("0"),  # TODO: Get actual fee if available from order/API
-                fee_asset=None,  # TODO: Get actual fee asset
+                fee_asset=None,  # Placeholder
                 executed_at=order.updated_at or datetime.now(UTC),  # Use executed_at
-                is_maker=None,  # TODO: Determine maker/taker status if possible
+                is_maker=None,  # Placeholder
             )
 
-            logger.info(f"Fill processed for Order ID {order.exchange_order_id}: {trade}")
+            logger.info(f"Fill processed for Order ID {order.client_order_id}: {trade}")
+            self.portfolio_tracker.process_trade(exchange_id, trade)
 
             # Update execution state
             if is_long_leg:
@@ -968,9 +1017,6 @@ class ExecutionHandler:
                 _fill_qty = order.quantity_filled
                 _fill_price = order.average_fill_price
                 _order_id = order.exchange_order_id
-
-            # Update portfolio state
-            await self.portfolio_tracker.on_trade(trade)
 
             # Check slippage
             # Compare fill price against expected price + slippage

@@ -188,7 +188,6 @@ class PortfolioTracker:
                 return False
 
             logger.debug(f"[FETCH_BALANCES:{exchange_id}] Fetching balances from API...")
-            # Corrected type hint for balances_data_raw to match client.get_balances()
             balances_data_raw: (
                 dict[str, SpotBalance] | list[SpotBalance] | None
             ) = await client.get_balances()
@@ -200,35 +199,22 @@ class PortfolioTracker:
                 stacklevel=2,
             )
 
-            # --- Type Guarding and Processing --- #
             updated_balances: dict[str, SpotBalance] = {}
 
             if balances_data_raw is None:
                 logger.info(
                     f"[FETCH_BALANCES:{exchange_id}] API call returned None. No balances to update."
                 )
-                return True  # Successful call, no data.
-
-            elif isinstance(balances_data_raw, dict):
-                # Process dictionary response (Guaranteed dict[str, SpotBalance])
-                balances_dict: dict[str, SpotBalance] = balances_data_raw
-                for asset, balance_obj in balances_dict.items():
-                    # balance_obj is guaranteed SpotBalance here based on type hint
-                    if balance_obj.exchange == exchange_id:
-                        updated_balances[asset] = balance_obj
-                    else:
-                        logger.warning(
-                            f"[{exchange_id}] Skipping balance for asset {asset} "
-                            f"due to mismatched exchange ID ({balance_obj.exchange}) "
-                            f"in received SpotBalance object."
-                        )
-                # Removed the inner isinstance(balance_obj, SpotBalance) check as unnecessary
+                return True
 
             elif isinstance(balances_data_raw, list):
-                # Process list response (Guaranteed list[SpotBalance])
                 balances_list: list[SpotBalance] = balances_data_raw
                 for item in balances_list:
-                    # item is guaranteed SpotBalance here based on type hint
+                    if not isinstance(item, SpotBalance):
+                        logger.warning(
+                            f"[{exchange_id}] Skipping non-SpotBalance item in balances list: {item}"
+                        )
+                        continue
                     if item.exchange == exchange_id:
                         updated_balances[item.asset] = item
                     else:
@@ -237,9 +223,27 @@ class PortfolioTracker:
                             f"due to mismatched exchange ID ({item.exchange}) "
                             f"in received SpotBalance object."
                         )
-            # No final 'else' needed if client.get_balances adheres to its type hint
+            elif isinstance(
+                balances_data_raw, dict
+            ):  # Linter might still say this is unnecessary if it thinks it can only be dict here
+                balances_dict: dict[str, SpotBalance] = balances_data_raw
+                for asset, balance_obj in balances_dict.items():
+                    # Assuming if it's a dict, structure is dict[str, SpotBalance] as per type hint
+                    # Runtime isinstance check for balance_obj removed based on linter feedback for this path
+                    if balance_obj.exchange == exchange_id:
+                        updated_balances[asset] = balance_obj
+                    else:
+                        logger.warning(
+                            f"[{exchange_id}] Skipping balance for asset {asset} "
+                            f"due to mismatched exchange ID ({balance_obj.exchange}) "
+                            f"in received SpotBalance object (from dict)."
+                        )
+            else:
+                logger.error(
+                    f"[{exchange_id}] Unexpected type for balances_data_raw: {type(balances_data_raw)}"
+                )
+                return False
 
-            # --- Update State --- #
             if updated_balances:
                 self._balances[exchange_id] = updated_balances
                 self._last_update_time[exchange_id] = datetime.now(UTC)
@@ -517,11 +521,26 @@ class PortfolioTracker:
             f"{trade.symbol} @ {trade.price}"
         )
 
-        position_key = trade.symbol
+        # --- Use Base Symbol for Position Tracking ---
+        base_symbol: str
+        if "-" in trade.symbol:
+            base_symbol = trade.symbol.split("-")[0]
+        elif "_" in trade.symbol:
+            base_symbol = trade.symbol.split("_")[0]
+        else:
+            base_symbol = trade.symbol  # Assume it's already base if no separator
+        logger.debug(
+            f"Using base symbol '{base_symbol}' for position tracking from trade symbol '{trade.symbol}'"
+        )
+        position_key = base_symbol
+        # -----------------------------------------
+
         current_position = self._positions.get(exchange_id, {}).get(position_key)
 
         if current_position:
-            logger.debug(f"Updating existing position for {trade.symbol} on {exchange_id}")
+            logger.debug(
+                f"Updating existing position for {base_symbol} on {exchange_id}"
+            )  # Use base_symbol
             original_size = current_position.size
             original_entry = current_position.entry_price or Decimal("0")  # Handle potential None
             trade_effect = trade.quantity if trade.side == OrderSide.BUY else -trade.quantity
@@ -572,7 +591,7 @@ class PortfolioTracker:
             side = trade.side
             new_position = DerivativePosition(
                 exchange=exchange_id,
-                symbol=trade.symbol,
+                symbol=base_symbol,  # Use base_symbol
                 side=side,
                 size=trade.quantity if side == OrderSide.BUY else -trade.quantity,
                 entry_price=trade.price,  # Assume trade price is valid entry > 0

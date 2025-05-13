@@ -597,9 +597,9 @@ class RiskManager:
         self, proposed_size: Decimal, total_capital: Decimal
     ) -> tuple[bool, str | None]:
         if total_capital > ZERO:
-            projected_leverage = (
-                await self.calculate_total_exposure() + proposed_size
-            ) / total_capital
+            # Corrected: Use await for calculate_total_exposure
+            current_total_exposure = await self.calculate_total_exposure()
+            projected_leverage = (current_total_exposure + proposed_size) / total_capital
             if projected_leverage > self.max_leverage:
                 return (
                     False,
@@ -613,8 +613,18 @@ class RiskManager:
     ) -> tuple[bool, str | None]:
         long_ex = opportunity.long_exchange
         short_ex = opportunity.short_exchange
-        long_balance_obj = self.portfolio_tracker.get_exchange_balance(long_ex, "USD")
-        short_balance_obj = self.portfolio_tracker.get_exchange_balance(short_ex, "USD")
+        # Use get_collateral_asset_for_exchange to find the correct asset
+        long_collateral_asset = self.get_collateral_asset_for_exchange(long_ex, opportunity.symbol)
+        short_collateral_asset = self.get_collateral_asset_for_exchange(
+            short_ex, opportunity.symbol
+        )
+
+        long_balance_obj = self.portfolio_tracker.get_exchange_balance(
+            long_ex, long_collateral_asset
+        )
+        short_balance_obj = self.portfolio_tracker.get_exchange_balance(
+            short_ex, short_collateral_asset
+        )
 
         long_available = long_balance_obj.available_quantity if long_balance_obj else ZERO
         if long_available < self.min_exchange_balance:  # Ensure Decimal comparison
@@ -1112,12 +1122,17 @@ class RiskManager:
 
         # --- Apply Portfolio Level Controls --- #
         final_sized_opportunity = await self._apply_portfolio_level_controls(sized_opportunity)
+        logger.debug(
+            f"[RM_SIZE_OPP_DEBUG] After _apply_portfolio_level_controls, final_sized_opportunity is: {final_sized_opportunity}, type: {type(final_sized_opportunity)}"
+        )
 
         if final_sized_opportunity:
             logger.info(f"Successfully sized opportunity: {final_sized_opportunity}")
             return final_sized_opportunity
         else:
-            logger.info(f"Opportunity {opportunity.symbol} rejected by portfolio level controls.")
+            logger.info(
+                f"Opportunity {opportunity.symbol} rejected by portfolio level controls (final_sized_opportunity is None)."
+            )
             return None
 
     async def validate_opportunities(
@@ -1136,6 +1151,9 @@ class RiskManager:
         validated_opportunities: list[SizedOpportunity] = []
         for i, result in enumerate(sized_results):
             original_opp = opportunities[i]
+            logger.debug(
+                f"[RM_VALIDATE_OPPS_LOOP] Processing result for {original_opp.symbol}: {result}, type: {type(result)}"
+            )
             if isinstance(result, SizedOpportunity):
                 validated_opportunities.append(result)
                 logger.debug(f"Opportunity for {original_opp.symbol} sized successfully.")

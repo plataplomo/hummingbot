@@ -250,7 +250,7 @@ class MockExchangeAPI(ExchangeAPI):
         # Helper to create Order instances with all required fields
         order_data: dict[str, Any] = {
             "client_order_id": client_order_id,
-            "exchange_order_id": str(uuid.uuid4()),
+            "exchange_order_id": client_order_id,  # Use the passed client_order_id
             "exchange": self.exchange_name,
             "symbol": symbol,
             "side": side,
