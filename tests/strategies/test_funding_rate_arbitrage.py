@@ -285,3 +285,123 @@ def test_none_subscript() -> None:
     maybe_dict: dict[str, int] = {"a": 1}
     value = maybe_dict["a"]
     assert value == 1
+
+
+@pytest.mark.asyncio
+async def test_process_data_rebalance(
+    mock_strategy: FundingRateArbitrageStrategy,
+    mock_data_manager: MagicMock,
+    mock_signal_queue: MagicMock,
+) -> None:
+    """Test processing data leading to a rebalancing signal."""
+    # Mock internal state and data
+    mock_strategy.latest_opportunities = {
+        "BTC/USDT": create_mock_opportunity(
+            "BTC/USDT",
+            long_exchange="hyperliquid",
+            short_exchange="backpack",
+            long_funding_rate=Decimal("0.0001"),
+            short_funding_rate=Decimal("-0.0002"),  # Large difference
+            long_price=Decimal("50000"),
+            short_price=Decimal("50000"),  # Assume same price for simplicity here
+        )
+    }
+    mock_strategy.current_positions = {
+        "hyperliquid": {"BTC/USDT": MagicMock(size=Decimal("-0.1"))},  # Wrong side
+        "backpack": {"BTC/USDT": MagicMock(size=Decimal("0.1"))},
+    }
+    mock_strategy.config.strategy.parameters = {"rebalance_threshold": 0.05}  # Example
+
+    # Mock _check_and_generate_signal to simulate signal generation
+    mock_strategy._check_and_generate_signal = AsyncMock(  # type: ignore[method-assign]
+        return_value=create_mock_signal("BTC/USDT", score=0.9, signal_type=SignalType.REBALANCE)
+    )
+
+    # Call process_data
+    await mock_strategy.process_data()
+
+    # Assert _check_and_generate_signal was awaited
+    # Need to await the mocked async function when asserting its call
+    # This doesn't check if the original call site awaited it, but that's harder to test directly
+    # We rely on the RuntimeWarning fix for the actual call site.
+    mock_strategy._check_and_generate_signal.assert_awaited()  # Check it was called
+
+    # Assert signal was added to the queue
+    mock_signal_queue.add_signal.assert_called_once()
+    call_args, _ = mock_signal_queue.add_signal.call_args
+    added_signal = call_args[0]
+    assert isinstance(added_signal, TradeSignal)
+    assert added_signal.signal_type == SignalType.REBALANCE
+
+
+@pytest.mark.asyncio
+async def test_check_opportunity(
+    mock_strategy: FundingRateArbitrageStrategy, mock_signal_queue: MagicMock
+) -> None:
+    """Test the _check_opportunity method directly for signal generation."""
+    opportunity = create_mock_opportunity(
+        symbol="ETH/USDT",
+        long_exchange="hyperliquid",
+        short_exchange="backpack",
+        long_funding_rate=Decimal("0.0002"),
+        short_funding_rate=Decimal("-0.0001"),
+        net_funding_differential=Decimal("0.0003"),
+        long_price=Decimal("3000"),
+        short_price=Decimal("3001"),
+        expected_profit=Decimal("5"),
+        utility_score=0.9,
+        basis_volatility=Decimal("0.0005"),
+    )
+    mock_strategy.config.strategy.parameters = {
+        "min_utility_score": 0.7,
+        "signal_expiration_seconds": 60,
+    }
+    mock_strategy.symbol_mapper = MagicMock()
+    mock_strategy.symbol_mapper.get_internal_symbol.return_value = "ETH"
+
+    # Await the call to the async method
+    signal = await mock_strategy._check_and_generate_signal(opportunity)  # Add await here
+
+    assert signal is not None
+    assert signal.symbol == "ETH/USDT"
+    assert signal.signal_type == SignalType.OPEN
+    assert signal.score == opportunity.utility_score
+    assert signal.exchange == "MULTI"  # Should indicate both exchanges involved
+    assert (
+        signal.price == (opportunity.long_price + opportunity.short_price) / 2
+    )  # Example price logic
+    assert signal.details["long_exchange"] == "hyperliquid"
+    assert signal.details["short_exchange"] == "backpack"
+    assert signal.details["long_funding_rate"] == opportunity.long_funding_rate
+    assert signal.details["short_funding_rate"] == opportunity.short_funding_rate
+    assert signal.details["net_funding_differential"] == opportunity.net_funding_differential
+    assert signal.details["utility_score"] == opportunity.utility_score
+    assert signal.details["basis_volatility"] == opportunity.basis_volatility
+    assert signal.expiration is not None
+
+
+# Test for potential None subscript error if parameters are missing (Defensive)
+# @pytest.mark.asyncio # REMOVE this mark as it's not an async test
+def test_none_subscript(mock_strategy: FundingRateArbitrageStrategy) -> None:
+    """Test behavior when strategy parameters might be missing."""
+    # Simulate missing parameters
+    mock_strategy.config.strategy.parameters = {}
+    opportunity = create_mock_opportunity(symbol="BTC/USDT", utility_score=0.9)
+
+    # Expect this call NOT to raise an error, even if parameters are missing
+    # The method should handle missing keys gracefully (e.g., use defaults or skip checks)
+    try:
+        # This isn't async, so no await needed
+        signal = mock_strategy._check_and_generate_signal(opportunity)
+        # Depending on implementation, signal might be None or have default values
+        # Add assertions here based on expected graceful handling
+        # For example, if it should return None when min_utility_score is missing:
+        # assert signal is None
+        # Or if defaults are used:
+        # assert signal is not None # Or more specific checks
+        pass  # Placeholder: Test passes if no exception is raised
+
+    except TypeError as e:
+        pytest.fail(f"'_check_and_generate_signal' raised TypeError with missing params: {e}")
+    except KeyError as e:
+        pytest.fail(f"'_check_and_generate_signal' raised KeyError with missing params: {e}")

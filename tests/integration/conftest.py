@@ -1,11 +1,13 @@
+import logging
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import cast
-from unittest.mock import create_autospec
+from unittest.mock import AsyncMock, MagicMock, create_autospec, patch
 
 import pytest
 import pytest_asyncio
+from pytest_mock import MockerFixture
 
 from cyberdelta.core.data_handler import DataHandler, Ticker
 from cyberdelta.core.execution_handler import ExecutionHandler
@@ -22,6 +24,8 @@ from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 from cyberdelta.validation.position_reconciliation import PositionReconciliationSystem
 from tests.integration.mocks.mock_exchange import MockExchangeAPI
+
+logger = logging.getLogger(__name__)
 
 # --- Integration Test Specific Helpers & Fixtures ---
 
@@ -90,7 +94,7 @@ def mock_secrets() -> dict[str, dict[str, str]]:
 
 @pytest_asyncio.fixture
 async def mock_hl_api(
-    mock_config: Config, mock_secrets: dict[str, dict[str, str]]
+    mock_config: Config, mock_secrets: dict[str, dict[str, str]], mocker: MockerFixture
 ) -> AsyncGenerator[MockExchangeAPI]:
     """Mock API for Hyperliquid, passes full config."""
     # Ensure necessary keys exist, *especially* collateral_asset
@@ -105,21 +109,37 @@ async def mock_hl_api(
 
     # Convert secrets to dict[str, Optional[str]] for compatibility
     secrets_hl: dict[str, str | None] = {k: v for k, v in mock_secrets["mock_hl"].items()}
-    api = MockExchangeAPI(
-        "mock_hl",
-        mock_config.config_data["exchanges"]["mock_hl"],
-        secrets_hl,
-        config_obj=mock_config,
-    )
-    try:
-        yield api
-    finally:
-        await api.close()
+
+    with patch(
+        "cyberdelta.apis.base.exchange_api.WebSocketManager", new_callable=MagicMock
+    ) as MockWsManagerClass:
+        mock_ws_instance = MockWsManagerClass.return_value
+        mock_ws_instance.close = AsyncMock()
+        mock_ws_instance.connect = AsyncMock()
+        mock_ws_instance.subscribe = AsyncMock()
+        mock_ws_instance.is_connected = False
+
+        mocker.patch(
+            "cyberdelta.apis.connectivity.http_client.HttpClient.__init__",
+            lambda self, *args, **kwargs: None,  # type: ignore[misc]
+        )
+
+        api = MockExchangeAPI(
+            "mock_hl",
+            mock_config.config_data["exchanges"]["mock_hl"],
+            secrets_hl,
+            config_obj=mock_config,
+        )
+        try:
+            yield api
+        finally:
+            # The defensive check here might be simplified or removed if this works
+            await api.close()
 
 
 @pytest_asyncio.fixture
 async def mock_bp_api(
-    mock_config: Config, mock_secrets: dict[str, dict[str, str]]
+    mock_config: Config, mock_secrets: dict[str, dict[str, str]], mocker: MockerFixture
 ) -> AsyncGenerator[MockExchangeAPI]:
     """Mock API for Backpack, passes full config."""
     # Ensure necessary keys exist, *especially* collateral_asset
@@ -134,16 +154,32 @@ async def mock_bp_api(
 
     # Convert secrets to dict[str, Optional[str]] for compatibility
     secrets_bp: dict[str, str | None] = {k: v for k, v in mock_secrets["mock_bp"].items()}
-    api = MockExchangeAPI(
-        "mock_bp",
-        mock_config.config_data["exchanges"]["mock_bp"],
-        secrets_bp,
-        config_obj=mock_config,
-    )
-    try:
-        yield api
-    finally:
-        await api.close()
+
+    with patch(
+        "cyberdelta.apis.base.exchange_api.WebSocketManager", new_callable=MagicMock
+    ) as MockWsManagerClass:
+        mock_ws_instance = MockWsManagerClass.return_value
+        mock_ws_instance.close = AsyncMock()
+        mock_ws_instance.connect = AsyncMock()
+        mock_ws_instance.subscribe = AsyncMock()
+        mock_ws_instance.is_connected = False
+
+        mocker.patch(
+            "cyberdelta.apis.connectivity.http_client.HttpClient.__init__",
+            lambda self, *args, **kwargs: None,  # type: ignore[misc]
+        )
+
+        api = MockExchangeAPI(
+            "mock_bp",
+            mock_config.config_data["exchanges"]["mock_bp"],
+            secrets_bp,
+            config_obj=mock_config,
+        )
+        try:
+            yield api
+        finally:
+            # The defensive check here might be simplified or removed if this works
+            await api.close()
 
 
 # --- Core Component Fixtures ---

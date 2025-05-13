@@ -422,22 +422,21 @@ class TestBackpackAPIMethodErrors:
 
 
 class TestBackpackAPIWebSocketRouting:
+    """Tests WebSocket message routing logic within BackpackAPI."""
+
     @pytest_asyncio.fixture
     async def api_for_ws_tests(
         self, default_bp_config: dict[str, Any], bp_secrets_valid: dict[str, str | None]
-    ) -> AsyncGenerator[BackpackAPI]:
+    ) -> AsyncGenerator[BackpackAPI]:  # Make it an AsyncGenerator
         # We are primarily testing routing, not live connection
+        # Mock dependencies if needed, but allow internal WsManager initialization for routing tests
+        # Patching __init__ of underlying clients might be too much here
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
-        # Mock the ws_manager for these tests
-        # Ensure the instance and its close method are AsyncMock for await api.close()
-        mock_ws_manager_instance = AsyncMock()
-        mock_ws_manager_instance.close = AsyncMock()  # Ensure ws_manager.close() is awaitable
-        api._ws_manager = mock_ws_manager_instance  # pyright: ignore[reportPrivateUsage]
-
-        yield api  # YIELD instead of return
-
-        # Cleanup after tests are done with the api instance
-        await api.close()
+        try:
+            yield api
+        finally:
+            # Ensure resources are cleaned up, even if WS wasn't fully connected
+            await api.close()
 
     @pytest.mark.asyncio
     async def test_construct_subscription_payload(self, api_for_ws_tests: BackpackAPI) -> None:

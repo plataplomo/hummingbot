@@ -536,6 +536,53 @@ class TestOrderModel:
     @pytest.mark.xfail(reason="Validation issues with Detail models")
     def test_update_order_status(self) -> None:
         """Test updating the order status."""
-        # ... existing code ...
-        assert order.backpack_details is None
-        assert isinstance(order.hyperliquid_details, MockOrderDetails)
+        # Use the base_order_data fixture or a minimal valid dict
+        order_data = {
+            "exchange": "test_exchange",
+            "symbol": "BTC-PERP",
+            "side": OrderSide.BUY,
+            "order_type": OrderType.LIMIT,
+            "quantity_requested": Decimal("1.0"),
+            "price": Decimal("50000.0"),
+            "time_in_force": TimeInForce.GTC,
+            "created_at": datetime.now(UTC),
+        }
+        order = Order(**order_data)  # Create and assign the order instance
+
+        initial_status = order.status
+        initial_updated_at = order.updated_at  # Store initial updated_at
+
+        # Simulate a time delay before status update
+        # In a real scenario, this would happen due to external events
+        # For testing, we can manually advance time if needed, or just check timestamp changes
+
+        order.status = OrderStatus.FILLED
+
+        assert order.status == OrderStatus.FILLED
+        assert order.status != initial_status
+        assert order.updated_at is not None
+        # Ensure updated_at timestamp has changed or is later if initial_updated_at was None
+        if initial_updated_at:
+            assert order.updated_at > initial_updated_at
+        else:
+            # If initial_updated_at was None (e.g. for a brand new order)
+            # then updated_at should now be set.
+            assert order.updated_at is not None
+
+    # Add other tests for Order model specific logic if needed
+    # Example: test_order_with_hyperliquid_details, test_order_with_backpack_details
+
+
+# Example of how you might test with details (adjust based on actual fixture availability)
+# @pytest.mark.xfail(reason="Fixture 'base_order_data' might not be available here or needs adjustment")
+# def test_order_with_hl_details(
+# base_order_data: dict[str, Any],
+# valid_hl_order_details_data: dict[str, Any]
+# ) -> None:
+# """Test Order creation with HyperliquidOrderDetails."""
+# data = base_order_data.copy()
+# data["exchange"] = "hyperliquid" # Ensure exchange matches details
+# order = Order(**data, hl_details=HyperliquidOrderDetails(**valid_hl_order_details_data))
+# assert order.hl_details is not None
+# assert order.hl_details.remaining_sz == Decimal("0.5")
+# assert order.bp_details is None

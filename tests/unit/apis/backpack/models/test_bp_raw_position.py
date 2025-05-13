@@ -1,4 +1,3 @@
-from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -334,11 +333,33 @@ def test_BackpackRawPositionUpdate_frozen(
 
 @pytest.mark.xfail(reason="Validator issues or apply model failure")
 class TestBackpackRawPosition:
-    """Test suite for the BackpackRawPosition Pydantic model."""
+    """Test invalid inputs for BackpackRawPosition."""
 
     def test_invalid_position_bad_side(self) -> None:
-        """Test that a position with an invalid side raises ValidationError."""
-        # ... existing code ...
-        assert pos.entry_price == Decimal("50000")
-        assert pos.mark_price == Decimal("51000")
-        # ... existing code ...
+        """Test that invalid side value raises validation error."""
+        data = {
+            # ... (valid data, replace with minimal required for test)
+            "symbol": "BTC_USDC",
+            "userId": 123,
+            "positionId": "pos1",
+            "breakEvenPrice": "20000",
+            "entryPrice": "19800",
+            "markPrice": "20100",
+            "netQuantity": "0.1",
+            "cumulativeFundingPayment": "0",
+            "side": "invalid_side",  # Invalid side
+            "imfFunction": {"base": "0.1", "factor": "0.5"},
+            "mmfFunction": {"base": "0.05", "factor": "0.25"},
+            # Add other required fields if validation fails early
+            "imf": "0.1",
+            "mmf": "0.05",
+            "netCost": "-1980",
+            "netExposureQuantity": "0.1",
+            "netExposureNotional": "2010",
+            "pnlRealized": "0",
+            "pnlUnrealized": "30",
+        }
+        with pytest.raises(ValidationError):
+            pos = BackpackRawPosition.model_validate(data)  # Add assignment
+            # Optional: Add specific checks on the error message if needed
+            # assert "side" in str(exc_info.value)

@@ -607,6 +607,9 @@ class TestHyperliquidRawUserFill:
 
     def test_invalid_fill_bad_side(self) -> None:
         """Test that a fill with an invalid side raises ValidationError."""
-        # ... existing code ...
-        assert fill.sz == Decimal("0.5")
-        assert fill.side == "B"
+        data = valid_user_fill()  # Start with valid data
+        data["side"] = "InvalidSide"  # Set an invalid side
+        with pytest.raises(ValidationError):
+            fill = HyperliquidRawUserFill.model_validate(data)  # Add assignment
+            # Optional: Check error message details
+            # assert "side" in str(exc_info.value)

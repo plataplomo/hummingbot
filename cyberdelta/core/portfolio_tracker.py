@@ -188,24 +188,29 @@ class PortfolioTracker:
                 return False
 
             logger.debug(f"[FETCH_BALANCES:{exchange_id}] Fetching balances from API...")
-            balances_data = await client.get_balances()
+            balances_data_raw: (
+                dict[str, Any] | list[Any] | None
+            ) = await client.get_balances()  # Type hint for clarity
             logger.debug(
                 (
-                    f"[FETCH_BALANCES:{exchange_id}] Raw API response: {balances_data} "
-                    f"(Type: {type(balances_data)})"
+                    f"[FETCH_BALANCES:{exchange_id}] Raw API response: {balances_data_raw} "
+                    f"(Type: {type(balances_data_raw)})"
                 ),
                 stacklevel=2,
             )
 
-            if balances_data is None:
+            # --- Type Guarding and Processing ---
+            updated_balances: dict[str, SpotBalance] = {}
+
+            if balances_data_raw is None:
                 logger.error(f"[FETCH_BALANCES:{exchange_id}] API call returned None.")
                 return False
 
-            updated_balances: dict[str, SpotBalance] = {}
-            if isinstance(balances_data, dict):
-                for asset, balance_obj in balances_data.items():
+            if isinstance(balances_data_raw, dict):
+                # Process dictionary response
+                balances_dict: dict[str, Any] = balances_data_raw
+                for asset, balance_obj in balances_dict.items():
                     if isinstance(balance_obj, SpotBalance):
-                        # Validate exchange ID if already a SpotBalance object
                         if balance_obj.exchange == exchange_id:
                             updated_balances[asset] = balance_obj
                         else:
@@ -215,11 +220,10 @@ class PortfolioTracker:
                                 f"in received SpotBalance object."
                             )
                     elif isinstance(balance_obj, dict):
-                        # Attempt to parse if it's a dictionary (legacy or raw format?)
-                        # Add exchange_id if missing for parsing
-                        if "exchange" not in balance_obj:
-                            balance_obj["exchange"] = exchange_id
-                        parsed_obj = self._parse_balance_info(exchange_id, asset, balance_obj)
+                        balance_item_dict: dict[str, Any] = balance_obj
+                        if "exchange" not in balance_item_dict:
+                            balance_item_dict["exchange"] = exchange_id
+                        parsed_obj = self._parse_balance_info(exchange_id, asset, balance_item_dict)
                         if parsed_obj:
                             updated_balances[asset] = parsed_obj
                     else:
@@ -228,8 +232,10 @@ class PortfolioTracker:
                             f"for asset {asset}: {type(balance_obj)}"
                         )
 
-            elif isinstance(balances_data, list):  # Handle list case if API returns list
-                for item in balances_data:
+            elif isinstance(balances_data_raw, list):
+                # Process list response
+                balances_list: list[Any] = balances_data_raw
+                for item in balances_list:
                     if isinstance(item, SpotBalance):
                         if item.exchange == exchange_id:
                             updated_balances[item.asset] = item
@@ -240,40 +246,40 @@ class PortfolioTracker:
                                 f"in received SpotBalance object."
                             )
                     elif isinstance(item, dict) and "asset" in item:
-                        asset = item["asset"]
-                        if "exchange" not in item:
-                            item["exchange"] = exchange_id
-                        parsed_obj = self._parse_balance_info(exchange_id, asset, item)
+                        asset = str(item["asset"])
+                        item_dict: dict[str, Any] = dict(item)
+                        if "exchange" not in item_dict:
+                            item_dict["exchange"] = exchange_id
+                        parsed_obj = self._parse_balance_info(exchange_id, asset, item_dict)
                         if parsed_obj:
                             updated_balances[asset] = parsed_obj
                     else:
                         logger.warning(
                             f"[{exchange_id}] Skipping unexpected item in balance list: {item}"
                         )
-
             else:
                 logger.error(
                     f"[FETCH_BALANCES:{exchange_id}] Unexpected data type received "
-                    f"for balances: {type(balances_data)}"
+                    f"for balances: {type(balances_data_raw)}"
                 )
-                return False  # Cannot process
+                return False
 
+            # --- Update State --- #
             if updated_balances:
-                # Atomically update the balances for the exchange
                 self._balances[exchange_id] = updated_balances
                 self._last_update_time[exchange_id] = datetime.now(UTC)
                 logger.info(
                     f"[FETCH_BALANCES:{exchange_id}] Successfully processed and updated "
                     f"{len(updated_balances)} balances."
                 )
-                return True
+                return True  # Success, balances updated
             else:
                 logger.warning(
                     f"[FETCH_BALANCES:{exchange_id}] Processed response, but no valid "
-                    f"balances were found or updated. Original data: {balances_data}"
+                    f"balances were found or updated. Original data: {balances_data_raw}"
                 )
-                # Still return True if the call succeeded but had no data, False only on error
-                return isinstance(balances_data, dict | list)
+                # Return True if API call was successful (returned dict or list) but yielded no data
+                return isinstance(balances_data_raw, (dict, list))
 
         except Exception as e:
             logger.exception(
@@ -618,7 +624,7 @@ class PortfolioTracker:
 
     def _update_realized_pnl(self, amount: Decimal) -> None:
         """Update the total realized PNL."""
-        if not isinstance(amount, Decimal) or not amount.is_finite():
+        if not amount.is_finite():  # Check finiteness directly
             logger.error(f"Attempted to update realized PNL with invalid amount: {amount}")
             return
         self._realized_pnl += amount
@@ -639,8 +645,8 @@ class PortfolioTracker:
 
     def get_all_positions(self) -> list[DerivativePosition]:
         """Returns a list of all derivative positions across all exchanges."""
-        all_positions = []
-        for exchange_id, positions in self._positions.items():
+        all_positions: list[DerivativePosition] = []
+        for _exchange_id, positions in self._positions.items():  # Use _exchange_id if var unused
             for position in positions.values():
                 all_positions.append(position)
         return all_positions
@@ -732,7 +738,8 @@ class PortfolioTracker:
 
             if mark_price is not None and mark_price.is_finite():
                 try:
-                    position_value = position.size * mark_price
+                    # Use absolute value of size for exposure calculation
+                    position_value = abs(position.size) * mark_price
                     exchange_exposure += position_value
                     logger.debug(
                         f"  [{exchange_id}] Position Exposure: {position.symbol} "
@@ -797,24 +804,23 @@ class PortfolioTracker:
                     conversion_rate = await self._get_asset_price_in_base(
                         exchange_id, pnl_quote_asset, base_currency
                     )
-                    if conversion_rate is not None:
+                    # DEFENSIVE CHECK: Ensure position.realized_pnl and conversion_rate are not None
+                    if position.realized_pnl is not None and conversion_rate is not None:
                         total_realized_pnl += position.realized_pnl * conversion_rate
                     else:
                         logger.warning(
                             f"Cannot convert realized PNL for {position_key} on {exchange_id} "
-                            f"to {base_currency}, skipping."
+                            f"to {base_currency}. Realized PNL: {position.realized_pnl}, "
+                            f"Conversion Rate: {conversion_rate}."
                         )
 
                 # Calculate unrealized PNL
-                if (
-                    position.size is None
-                    or position.entry_price is None
-                    or position.symbol is None
-                    or position.size == Decimal("0")
-                ):
+                # DEFENSIVE CHECK: Check entry_price is not None *before* size check
+                # because a non-zero size *requires* a non-None entry_price (model validation)
+                if position.size == Decimal("0") or position.entry_price is None:
                     logger.debug(
                         f"Skipping unrealized PNL calc for {position_key} on {exchange_id} "
-                        f"due to missing data or zero size."
+                        f"due to zero size or missing entry price."
                     )
                     continue
 
@@ -856,14 +862,15 @@ class PortfolioTracker:
                             f"from {quote_currency} to {base_currency}. "
                             f"Skipping unrealized PNL."
                         )
-                        entry_price_in_base = None
+                        entry_price_in_base = None  # Explicitly set to None if conversion fails
 
                 # 5. Calculate Unrealized PNL if possible
+                # DEFENSIVE CHECK: Add explicit None checks for mark_price_in_base and entry_price_in_base
                 if (
                     mark_price_in_base is not None
                     and entry_price_in_base is not None
                     and mark_price_in_base.is_finite()
-                    and entry_price_in_base.is_finite()
+                    and entry_price_in_base.is_finite()  # Check finiteness here
                 ):
                     try:
                         # Unrealized PNL = Size * (Mark Price in Base - Entry Price in Base)
@@ -1070,10 +1077,11 @@ class PortfolioTracker:
                 pass
         elif isinstance(positions_data, list):
             for _pos_data in positions_data:
-                # TODO: Parse pos_data (dict or object?) into DerivativePosition
+                # TODO: Parse pos_data (DerivativePosition object) - likely no parsing needed
                 pass
-        else:
-            logger.error(f"Unexpected type for positions_data: {type(positions_data)}")
+        # else block is unreachable if type hint `list[DerivativePosition] | dict[str, Any]` is correct
+        # else:
+        #     logger.error(f"Unexpected type for positions_data: {type(positions_data)}")
 
     def _parse_orders(self, exchange_id: str, orders_data: list[Order] | dict[str, Any]) -> None:
         logger.warning("_parse_orders needs implementation based on API data format.")
@@ -1083,10 +1091,9 @@ class PortfolioTracker:
                 pass
         elif isinstance(orders_data, list):
             for _order_data in orders_data:
-                # TODO: Parse order_data (dict or object?) into Order
+                # TODO: Parse order_data (Order object?) - likely no parsing needed
                 pass
-        else:
-            logger.error(f"Unexpected type for orders_data: {type(orders_data)}")
+        # No else needed, type hint covers possibilities
 
     def reset(self) -> None:
         """
@@ -1166,7 +1173,8 @@ class PortfolioTracker:
                 f"[{exchange_id}] _get_asset_price_in_base: ticker_direct.price for {symbol_direct}: {getattr(ticker_direct, 'price', 'N/A')}"
             )
             logger.debug(
-                f"[{exchange_id}] _get_asset_price_in_base: ticker_direct.price > 0 for {symbol_direct}: {ticker_direct.price > Decimal('0') if getattr(ticker_direct, 'price', None) is not None else 'N/A'}"
+                f"[{exchange_id}] _get_asset_price_in_base: ticker_direct.price > 0 for {symbol_direct}: {ticker_direct.price > Decimal('0') if ticker_direct and ticker_direct.price is not None else 'N/A'}"
+                # Added check for ticker_direct and ticker_direct.price not being None
             )
 
         if ticker_direct and ticker_direct.price is not None and ticker_direct.price > Decimal("0"):
@@ -1189,7 +1197,8 @@ class PortfolioTracker:
                 f"[{exchange_id}] _get_asset_price_in_base: ticker_inverse.price for {symbol_inverse}: {getattr(ticker_inverse, 'price', 'N/A')}"
             )
             logger.debug(
-                f"[{exchange_id}] _get_asset_price_in_base: ticker_inverse.price > 0 for {symbol_inverse}: {ticker_inverse.price > Decimal('0') if getattr(ticker_inverse, 'price', None) is not None else 'N/A'}"
+                f"[{exchange_id}] _get_asset_price_in_base: ticker_inverse.price > 0 for {symbol_inverse}: {ticker_inverse.price > Decimal('0') if ticker_inverse and ticker_inverse.price is not None else 'N/A'}"
+                # Added check for ticker_inverse and ticker_inverse.price not being None
             )
 
         if (
