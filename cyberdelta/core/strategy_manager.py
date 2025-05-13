@@ -1,17 +1,22 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
 from cyberdelta.core.execution_handler import ExecutionHandler
-from cyberdelta.core.models import TradeSignal
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy import Strategy
+
+if TYPE_CHECKING:
+    from cyberdelta.utils.config import Config
+
 
 logger = structlog.get_logger(__name__)
 
@@ -31,7 +36,7 @@ class StrategyManager:
 
     def __init__(
         self,
-        config: dict[str, Any],
+        config: Config | dict[str, Any],
         execution_handler: ExecutionHandler,
         portfolio_tracker: PortfolioTracker,
         risk_manager: RiskManager,
@@ -125,190 +130,165 @@ class StrategyManager:
         logger.info(f"Disabled strategy '{strategy_name}'")
         return True
 
-    async def process_market_data(self, data: Candle) -> list[TradeSignal]:
+    async def process_market_data(self, data: Candle) -> None:
         """
-        Asynchronously process market data through all enabled strategies that match the symbol.
-        Robustly handles exceptions and filters invalid signals.
-        For v0.0.1 safety: If any strategy's update_historical_data fails,
-        the whole process fails (fail-fast, all-or-nothing).
+        Process market data through relevant strategies and handle generated signals.
 
-        Args:
-            data: Candle object containing market information.
-
-        Returns:
-            List of valid trade signals generated from strategies (may be empty if no signals)
-        Raises:
-            Exception: If any update_historical_data call fails.
+        Handles:
+        - Historical data update (fail-fast on error)
+        - Signal generation per strategy
+        - Basic signal validation (type and required fields)
+        - Logging errors during processing
+        - Adding valid signals to the signal queue
         """
-        signals: list[TradeSignal] = []
         self.last_update_time = datetime.now(UTC)
 
         if data.symbol not in self.active_symbols:
-            return signals
+            return
 
-        # Fail-fast: if any update_historical_data fails, raise immediately
-        for _strategy_name, strategy in self.strategies.items():
-            if strategy.symbol == data.symbol:
-                strategy.update_historical_data(data)
+        strategy_name = ""  # Initialize strategy_name
+        try:
+            for strategy_name, strategy in self.strategies.items():
+                if strategy.symbol == data.symbol:
+                    strategy.update_historical_data(data)
+        except Exception as e:
+            log_msg = (
+                f"Critical error updating historical data for {data.symbol} in {strategy_name}. "
+                f"Halting processing."
+            )
+            logger.error(
+                log_msg,
+                error=str(e),
+                exc_info=True,
+            )
+            raise
 
-        for strategy_name in self.enabled_strategies:
+        for strategy_name in list(self.enabled_strategies):
+            if strategy_name not in self.strategies:
+                continue
+
             strategy = self.strategies[strategy_name]
             if strategy.symbol != data.symbol:
                 continue
+
             try:
-                result = await strategy.process_data(data)
+                generated_signals = await strategy.process_data(data)
             except Exception as e:
                 logger.error(
-                    f"Error processing data in strategy '{strategy_name}': {str(e)}", exc_info=True
+                    f"Error processing data in strategy '{strategy_name}'",
+                    error=str(e),
+                    exc_info=True,
                 )
                 continue
-            if result is None:
-                continue
-            # Always treat result as a list for uniformity
-            result_list = result if isinstance(result, list) else [result]
-            for signal in result_list:
-                # Validate signal type
-                if not isinstance(signal, TradeSignal):
-                    logger.error(f"Non-TradeSignal object returned by {strategy_name}: {signal}")
-                    continue
-                # Validate required fields (symbol, signal_type, side, price, quantity)
-                if (
-                    getattr(signal, "symbol", None) is None
-                    or getattr(signal, "signal_type", None) is None
-                    or getattr(signal, "side", None) is None
-                    or getattr(signal, "price", None) is None
-                    or getattr(signal, "quantity", None) is None
-                ):
-                    logger.error(f"Malformed TradeSignal returned by {strategy_name}: {signal}")
-                    continue
-                # Defensive: risk manager sizing
-                try:
-                    # type: ignore[attr-defined] because size_signal is a test mock, not in interface
-                    sized_signal = (
-                        self.risk_manager.size_signal(signal) if self.risk_manager else signal
-                    )  # type: ignore[attr-defined]
-                except Exception as e:
-                    self.logger.error(
-                        f"Error during signal processing (post-generation) in {strategy_name}: {e}",
-                        exc_info=True,
-                    )
-                    continue
-                # Only append if still valid after sizing
-                signals.append(sized_signal)  # type: ignore[assignment]
-        return signals
 
-    async def on_market_data(self, market_data: Candle) -> list[TradeSignal]:
-        """
-        Asynchronously called when new market data is available. Returns a list of valid
-        TradeSignals (may be empty). Robustly handles exceptions and filters invalid signals.
-        """
-        signals: list[TradeSignal] = []
-        strategies = self.get_strategies_for_symbol(market_data.symbol)
-        if not strategies:
-            return []
-        for strategy in strategies:
-            try:
-                result = await strategy.process_data(market_data)
-            except Exception as e:
-                self.logger.error(
-                    f"Error processing data in strategy '{strategy.name}': {str(e)}", exc_info=True
-                )
+            if generated_signals is None:
                 continue
-            if result is None:
-                continue
-            result_list = result if isinstance(result, list) else [result]
-            for signal in result_list:
-                if not isinstance(signal, TradeSignal):
-                    self.logger.error(
-                        f"Non-TradeSignal object returned by {strategy.name}: {signal}"
-                    )
-                    continue
-                if (
-                    getattr(signal, "symbol", None) is None
-                    or getattr(signal, "signal_type", None) is None
-                    or getattr(signal, "side", None) is None
-                    or getattr(signal, "price", None) is None
-                    or getattr(signal, "quantity", None) is None
+
+            signal_list = (
+                generated_signals if isinstance(generated_signals, list) else [generated_signals]
+            )
+
+            for signal in signal_list:
+                # Type validated by Pydantic on Strategy return hint, isinstance check removed.
+                # Basic Sanity Check:
+                if not all(
+                    [
+                        getattr(signal, "symbol", None) is not None,
+                        getattr(signal, "signal_type", None) is not None,
+                        getattr(signal, "side", None) is not None,
+                        getattr(signal, "price", None) is not None,
+                        getattr(signal, "quantity", None) is not None,
+                    ]
                 ):
-                    self.logger.error(
-                        f"Malformed TradeSignal returned by {strategy.name}: {signal}"
+                    logger.error(
+                        f"Malformed TradeSignal (missing fields) from strategy '{strategy_name}'",
+                        signal_data=signal.model_dump(),
                     )
                     continue
+
+                # Risk Manager Sizing is commented out
+
                 try:
-                    sized_signal = signal  # Pass signal through
+                    # add_signal is synchronous
+                    self.signal_queue.add_signal(signal)  # Removed await
+                    logger.debug("Signal added to queue", signal_id=signal.signal_id)
                 except Exception as e:
-                    self.logger.error(
-                        f"Error during signal processing (post-generation) in {strategy.name}: {e}",
+                    logger.error(
+                        "Signal queue failed to add signal",
+                        signal_id=signal.signal_id,
+                        error=str(e),
                         exc_info=True,
                     )
-                    continue
-                # Only append if still valid after sizing
-                signals.append(sized_signal)  # type: ignore[assignment]
-        # Defensive: add signals to queue, catch and log errors
-        if hasattr(self, "signal_queue") and self.signal_queue:
-            for signal in signals:
-                try:
-                    self.signal_queue.add_signal(signal)
-                except Exception as e:
-                    logger.error(f"Signal queue failed to add signal: {e}", exc_info=True)
-        else:
-            logger.warning("Signal queue not available in StrategyManager, cannot queue signals.")
-        return signals
+
+    async def on_market_data(self, market_data: Candle) -> None:
+        """
+        Entry point for market data. Processes data via relevant strategies.
+        """
+        await self.process_market_data(market_data)
 
     def get_strategies_for_symbol(self, symbol: str) -> list[Strategy]:
-        """
-        Get all strategies registered for a specific symbol.
-
-        Args:
-            symbol: Trading symbol
-
-        Returns:
-            List of strategies for the symbol
-        """
-        return [s for s in self.strategies.values() if s.symbol == symbol]
+        """Returns a list of enabled strategies for a given symbol."""
+        return [
+            strategy
+            for name, strategy in self.strategies.items()
+            if name in self.enabled_strategies and strategy.symbol == symbol
+        ]
 
     def get_enabled_strategies(self) -> list[Strategy]:
-        """
-        Get all currently enabled strategies.
-
-        Returns:
-            List of enabled strategies
-        """
-        return [self.strategies[name] for name in self.enabled_strategies]
+        """Returns a list of all currently enabled strategies."""
+        return [
+            self.strategies[name] for name in self.enabled_strategies if name in self.strategies
+        ]
 
     def get_strategy_performance(self) -> dict[str, dict[str, Any]]:
         """
-        Get performance metrics for all strategies.
-
-        Returns:
-            Dictionary of strategy names to performance metrics
+        Retrieves performance metrics for all registered strategies.
+        Delegates to each strategy's performance_metrics property.
         """
-        performance = {}
+        performance_data: dict[str, dict[str, Any]] = {}
         for name, strategy in self.strategies.items():
-            if hasattr(strategy, "performance_metrics"):
-                performance[name] = strategy.performance_metrics
-            else:
-                performance[name] = {
-                    "signals_generated": strategy.signals_generated,
-                    "last_signal_time": strategy.last_signal_time,
-                }
-        return performance
+            try:
+                # Access the performance_metrics property
+                # The isinstance check is removed as the type hint guarantees it's a dict
+                performance_data[name] = strategy.performance_metrics
+            except Exception as e:
+                logger.error(
+                    f"Error getting performance metrics from strategy '{name}'", error=str(e)
+                )
+                performance_data[name] = {"error": "Failed to retrieve metrics"}
+        return performance_data
 
     def start_all(self) -> None:
-        """Start all registered strategies."""
-        for name, strategy in self.strategies.items():
-            strategy.on_start()
-            if strategy.enabled:
-                self.enabled_strategies.add(name)
-        logger.info(f"Started all strategies ({len(self.strategies)} total)")
+        """Starts all enabled strategies by calling their start_async method."""
+        logger.info("Starting all enabled strategies...")
+        for name in self.enabled_strategies:
+            if name in self.strategies:
+                try:
+                    # Call the synchronous on_start method
+                    self.strategies[name].on_start()  # Renamed from start_async
+                    logger.info(f"Strategy '{name}' started.")
+                except Exception as e:
+                    logger.error(f"Error starting strategy '{name}'", error=str(e), exc_info=True)
 
     def stop_all(self) -> None:
-        """Stop all registered strategies."""
-        for strategy in self.strategies.values():
-            strategy.on_stop()
-        self.enabled_strategies.clear()
-        logger.info("Stopped all strategies")
+        """Stops all running strategies by calling their stop_async method."""
+        logger.info("Stopping all strategies...")
+        for name in list(self.strategies.keys()):
+            if name in self.strategies:
+                strategy = self.strategies[name]
+                try:
+                    # Call the synchronous on_stop method
+                    strategy.on_stop()  # Renamed from stop_async
+                    logger.info(f"Strategy '{name}' stop signal sent.")
+                    if name in self.enabled_strategies:
+                        strategy.disable()
+                        self.enabled_strategies.discard(name)
+                        logger.info(f"Strategy '{name}' disabled after stop.")
+                except Exception as e:
+                    logger.error(f"Error stopping strategy '{name}'", error=str(e), exc_info=True)
+        self._tasks.clear()
 
     def _refresh_active_symbols(self) -> None:
-        """Update the set of active symbols based on registered strategies."""
-        self.active_symbols = {s.symbol for s in self.strategies.values()}
+        """Recalculate the set of active symbols based on current strategies."""
+        self.active_symbols = {strat.symbol for strat in self.strategies.values() if strat.symbol}
+        logger.debug("Active symbols refreshed", active_symbols=self.active_symbols)

@@ -6,7 +6,7 @@ import logging
 import threading
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from cyberdelta.core.models import OrderSide, TradeSignal
 from cyberdelta.core.models.enums import SignalType
@@ -70,19 +70,33 @@ class PrioritySignalQueue:
         # Counter for generating unique IDs
         self.counter = 0
 
-        # Queue parameters - Cast config values to expected types
-        # Ensure config.get returns something convertible to float/int or handle error
-        def get_config_value(key: str, default: Any, target_type: type) -> Any:
-            value = config.get(key, default)
+        # Define a TypeVar for the helper function
+        ConfigValueType = TypeVar("ConfigValueType")
+
+        # Helper function to safely get and cast config values
+        def get_config_value(
+            key: str,
+            default: ConfigValueType,
+            target_type: type[ConfigValueType],
+        ) -> ConfigValueType:
+            value: Any = config.get(key, default)
             try:
-                # Ensure value is convertible before calling int()
-                return int(str(value))
+                if value is default:
+                    # Value is the default, which is already ConfigValueType
+                    return default
+                elif isinstance(value, target_type):
+                    # Value is not default, but already the correct type
+                    return value
+                else:
+                    # Value is not default and not the correct type, attempt conversion
+                    converted_value = target_type(value)
+                    return converted_value
             except (ValueError, TypeError) as e:
-                logger.error(
+                self.logger.error(
                     f"Invalid config value '{value}' for '{key}'. "
                     f"Using default: {default}. Error: {e}"
                 )
-                return target_type(default)
+                return default
 
         self.default_expiration_seconds: float = get_config_value(
             "default_signal_expiration_seconds", 300.0, float
@@ -92,7 +106,7 @@ class PrioritySignalQueue:
 
         self.last_cleanup = datetime.now(UTC)
 
-        logger.info("Initialized priority signal queue")
+        self.logger.info("Initialized priority signal queue")
 
     def add_signal(self, signal: TradeSignal) -> bool:
         """
@@ -104,90 +118,92 @@ class PrioritySignalQueue:
         Returns:
             True if signal was added, False if rejected
         """
-        # Check if signal already has metadata, create if not
+        # Ensure signal.metadata exists for score checking/setting
         if signal.metadata is None:
             signal.metadata = {}
 
-        # Check if utility score is present
+        # Default utility score if missing
         if "utility_score" not in signal.metadata:
-            logger.warning(f"Signal for {signal.symbol} has no utility score, using default 0.0")
+            self.logger.warning(
+                f"Signal for {signal.symbol} has no utility score, using default 0.0"
+            )
             signal.metadata["utility_score"] = 0.0
 
-        # Ensure utility_score is a float
+        # Ensure utility_score is float
         try:
-            signal.metadata["utility_score"] = float(signal.metadata["utility_score"])
-        except (ValueError, TypeError):
-            # Shorten f-string for line length
+            utility_score = float(signal.metadata["utility_score"])
+            signal.metadata["utility_score"] = utility_score  # Store validated float back
+        except (ValueError, TypeError, KeyError):  # Added KeyError
             score_val = signal.metadata.get("utility_score", "N/A")  # Use get for safety
-            logger.warning(
+            self.logger.warning(
                 f"Invalid utility_score '{score_val}' for signal {signal.symbol}. "
                 f"Using default 0.0"  # Ruff E501 fix: Split long f-string
             )
-            signal.metadata["utility_score"] = 0.0
+            utility_score = 0.0
+            signal.metadata["utility_score"] = utility_score  # Store default back
 
         # Set expiration time if not already set
         if signal.expiration is None:
-            signal = self._calculate_expiration(signal)  # Assign the modified signal back
+            # Use the method to calculate and potentially modify the signal object
+            self._calculate_expiration(signal)  # Modifies signal in place
 
         # Check circuit breakers before adding
         if self.circuit_breaker_system and not self._check_circuit_breakers_pre_add(signal):
-            logger.warning(f"Circuit breaker active for {signal.symbol}, rejecting signal")
+            # Logging moved inside _check_circuit_breakers_pre_add for context
             return False
 
-        # Clean expired signals periodically
-        now: datetime = datetime.now(UTC)
-        if (now - self.last_cleanup).total_seconds() > self.cleanup_interval:
-            self._clean_expired_signals()
-            self.last_cleanup = now
+        # Clean expired signals periodically (use sync lock for thread safety)
+        # Avoid cleaning within the async lock if possible
+        with self._sync_lock:
+            now = datetime.now(UTC)
+            if (now - self.last_cleanup).total_seconds() > self.cleanup_interval:
+                self._clean_expired_signals()  # This modifies self.signal_queue
+                self.last_cleanup = now
 
-        # First, check if we need to trim the queue
-        if len(self.signal_queue) >= self.max_queue_size:
-            # Check if new signal has higher utility than the lowest in queue
-            if len(self.signal_queue) > 0:
-                # Find minimum utility score (maximum negative score since we use negative values)
-                min_score = max(self.signal_queue, key=lambda x: x[0])[0]
-                # Mypy fix: Check metadata is not None before indexing
-                if signal.metadata is None:
-                    logger.error(
-                        f"Signal metadata is None for {signal.symbol} during trim check. "
-                        f"Cannot proceed."
-                    )
-                    return False  # Or handle appropriately
-                # Use .get() for safety, although metadata should exist here
-                new_score = -float(signal.metadata.get("utility_score", 0.0))
+        # Add signal using the synchronous lock for basic thread safety
+        with self._sync_lock:
+            # Check if we need to trim the queue (re-check length inside lock)
+            if len(self.signal_queue) >= self.max_queue_size:
+                if len(self.signal_queue) > 0:
+                    # Find minimum utility score (maximum negative score)
+                    min_score_in_queue = max(self.signal_queue, key=lambda x: x[0])[0]
+                    new_signal_score_neg = -utility_score  # Already validated float
 
-                # If new signal has lower utility than the lowest, reject it
-                if new_score >= min_score:
-                    logger.debug(
-                        f"Rejected signal for {signal.symbol} with score "
-                        # Mypy fix: Check metadata is not None before indexing
-                        # Use .get() for safety
-                        f"{signal.metadata.get('utility_score', 0.0)} (lower than min {-min_score})"
-                    )
-                    return False
+                    if new_signal_score_neg >= min_score_in_queue:
+                        # New signal has lower or equal priority than the worst in queue
+                        self.logger.debug(
+                            f"Rejected signal for {signal.symbol} with score "
+                            f"{utility_score} (lower than min {-min_score_in_queue}) - Queue full."
+                        )
+                        return False  # Indicate rejection
 
-                # Otherwise, remove the lowest utility signal
-                self._trim_queue()
+                    # New signal is better than the worst; trim the queue
+                    # Note: _trim_queue also needs to use the sync lock if modifying shared state
+                    if not self._trim_queue():  # _trim_queue modifies self.signal_queue
+                        self.logger.error("Failed to trim queue, cannot add new signal.")
+                        return False  # Indicate rejection due to trim failure
 
-        # Add to priority queue
-        self.counter += 1
-        # Mypy fix: Check metadata is not None before indexing
-        if signal.metadata is None:
-            logger.error(
-                f"Signal metadata is None for {signal.symbol} before push. Cannot proceed."
+            # Add to priority queue
+            self.counter += 1
+            heapq.heappush(self.signal_queue, (-utility_score, self.counter, signal))
+
+            # Log addition
+            self.logger.debug(
+                f"Added signal for {signal.symbol} to queue with score {utility_score}"
             )
-            return False  # Or handle appropriately
-        # Use .get() for safety
-        utility_score = float(signal.metadata.get("utility_score", 0.0))
-        heapq.heappush(self.signal_queue, (-utility_score, self.counter, signal))
+            # Signal the async wait event (if used)
+            # This part is tricky in sync context, might need run_coroutine_threadsafe if loop exists
+            try:
+                loop = asyncio.get_running_loop()
+                loop.call_soon_threadsafe(self.new_signal_event.set)
+            except RuntimeError:
+                # No loop running, cannot reliably signal async waiters from sync call
+                self.logger.debug(
+                    "No running event loop to signal async waiters from sync add_signal."
+                )
+                pass  # Proceed without signaling
 
-        logger.debug(
-            f"Added signal for {signal.symbol} to queue with score "
-            # Mypy fix: Check metadata is not None before indexing
-            # Use .get() for safety
-            f"{signal.metadata.get('utility_score', 0.0)}"
-        )
-        return True
+            return True  # Indicate successful addition (to the sync queue at least)
 
     def add_from_opportunity(
         self, opportunity: ArbitrageOpportunity, strategy_name: str
@@ -241,7 +257,7 @@ class PrioritySignalQueue:
             # Fallback if optimal_size is None or price is not suitable for division
             # This case should ideally be refined based on strategy requirements.
             # For now, use a placeholder to satisfy TradeSignal's gt=0 constraint.
-            logger.warning(
+            self.logger.warning(
                 f"Could not determine quantity for signal {opportunity.symbol} from optimal_size. "
                 f"Using placeholder."
             )
@@ -292,7 +308,7 @@ class PrioritySignalQueue:
                 if not potential_signal.is_valid():
                     # Remove expired signal and log
                     heapq.heappop(self.signal_queue)
-                    logger.debug(
+                    self.logger.debug(
                         f"Removed expired signal {uid} for {potential_signal.symbol} "
                         f"from queue during get_next."
                     )
@@ -305,15 +321,14 @@ class PrioritySignalQueue:
                     # Remove signal blocked by CB and log
                     heapq.heappop(self.signal_queue)
                     # Shorten f-string for line length
-                    # Shorten f-string for line length
-                    logger.warning(
+                    self.logger.warning(
                         f"CB active for {potential_signal.symbol}, skipping signal {uid}"
                     )
                     continue  # Try the next item
 
                 # If valid and passes CB, pop and return
                 heapq.heappop(self.signal_queue)
-                logger.debug(f"Returning signal {uid} for {potential_signal.symbol}")
+                self.logger.debug(f"Returning signal {uid} for {potential_signal.symbol}")
                 return potential_signal
 
             # If loop finishes, queue is empty
@@ -321,7 +336,7 @@ class PrioritySignalQueue:
 
         except Exception as e:
             # Log error and return None to prevent system crash
-            logger.error(f"Error in get_next_signal: {e}")
+            self.logger.error(f"Error in get_next_signal: {e}")
             return None
 
     def peek_next_signal(self) -> TradeSignal | None:
@@ -345,7 +360,7 @@ class PrioritySignalQueue:
         if signal.is_valid():
             # Also check circuit breaker status without removing
             if self.circuit_breaker_system and not self._check_circuit_breakers_post_get(signal):
-                logger.warning(
+                self.logger.warning(
                     f"Peek: Signal for {signal.symbol} would be blocked by circuit breaker."
                 )
                 # Technically, the signal is still in the queue, but won't be returned by get_next
@@ -402,7 +417,7 @@ class PrioritySignalQueue:
     def clear(self) -> None:
         """Clear all signals from the queue."""
         self.signal_queue = []
-        logger.info("Signal queue cleared")
+        self.logger.info("Signal queue cleared")
 
     def _clean_expired_signals(self) -> int:
         """
@@ -429,7 +444,7 @@ class PrioritySignalQueue:
             self.signal_queue = valid_signals
             heapq.heapify(self.signal_queue)
             removed = original_count - len(valid_signals)
-            logger.debug(f"Removed {removed} expired signals")
+            self.logger.debug(f"Removed {removed} expired signals")
             return removed
         return 0
 
@@ -440,95 +455,84 @@ class PrioritySignalQueue:
         Returns:
             True if a signal was removed, False otherwise
         """
-        # Ensure max_queue_size is usable (cast during init)
-        current_size = len(self.signal_queue)
-        if current_size <= self.max_queue_size:
-            return False
+        # This method modifies shared state (self.signal_queue)
+        # and should be protected if called from contexts where add_signal's lock
+        # is not already held, or for general robustness.
+        with self._sync_lock:
+            # Ensure max_queue_size is usable (cast during init)
+            current_size = len(self.signal_queue)
+            if current_size <= self.max_queue_size:
+                return False  # Nothing to trim
 
-        # Determine how many items to remove
-        num_to_remove = current_size - self.max_queue_size
+            # Determine how many items to remove
+            num_to_remove = current_size - self.max_queue_size
+            if num_to_remove <= 0:  # Should not happen if logic above is correct, but defensive
+                self.logger.warning("_trim_queue called when num_to_remove is not positive.")
+                return False
 
-        if num_to_remove > 0:
-            # Get the `num_to_remove` lowest priority items using nlargest on the negative score
-            # This is more efficient than popping one by one
-            lowest_items = heapq.nlargest(num_to_remove, self.signal_queue, key=lambda x: x[0])
+            try:
+                # Get the `num_to_remove` lowest priority items using nlargest on the negative score
+                # This is more efficient than popping one by one if num_to_remove > 1
+                # Need to ensure signal_queue is not empty before calling nlargest if num_to_remove > 0
+                if not self.signal_queue:
+                    self.logger.warning("_trim_queue called with empty signal_queue.")
+                    return False
 
-            # Log removals before modifying the heap
-            for _score, _uid, low_signal in lowest_items:
-                utility = -_score  # Convert back to positive
-                logger.debug(
-                    f"Trimming signal for {low_signal.symbol} with score {utility} "
-                    f"from queue (size {current_size} > max {self.max_queue_size})"
+                lowest_items = heapq.nlargest(num_to_remove, self.signal_queue, key=lambda x: x[0])
+
+                # Log removals before modifying the heap
+                for _score, _uid, low_signal in lowest_items:
+                    utility = -_score  # Convert back to positive
+                    self.logger.debug(
+                        f"Trimming signal for {low_signal.symbol} with score {utility} "
+                        f"from queue (size {current_size} > max {self.max_queue_size})"
+                    )
+
+                # Efficiently remove the lowest priority items
+                # Convert heap to list, filter out lowest items, then heapify again
+                lowest_items_set = set(lowest_items)  # For efficient lookup
+                self.signal_queue = [
+                    item for item in self.signal_queue if item not in lowest_items_set
+                ]
+                heapq.heapify(self.signal_queue)
+
+                self.logger.debug(
+                    f"Trimmed signal queue to {len(self.signal_queue)} items "
+                    f"(max {self.max_queue_size})"
                 )
-
-            # Efficiently remove the lowest priority items
-            # Convert heap to list, filter out lowest items, then heapify again
-            lowest_items_set = set(lowest_items)  # For efficient lookup
-            self.signal_queue = [item for item in self.signal_queue if item not in lowest_items_set]
-            heapq.heapify(self.signal_queue)
-
-            logger.debug(
-                f"Trimmed signal queue to {len(self.signal_queue)} items "
-                f"(max {self.max_queue_size})"
-            )
-            return True
-
-        return True
+                return True
+            except (
+                IndexError
+            ) as e:  # Should not happen if queue is not empty and num_to_remove is valid
+                self.logger.error(
+                    f"IndexError during _trim_queue (likely empty queue or bad num_to_remove): {e}",
+                    exc_info=True,
+                )
+                return False
+            except Exception as e:  # Catch any other unexpected errors
+                self.logger.error(f"Unexpected error during _trim_queue: {e}", exc_info=True)
+                return False
 
     def _calculate_expiration(self, signal: TradeSignal) -> TradeSignal:
-        """
-        Calculate and set the signal expiration time if not already set.
-
-        Modifies the signal object in place.
-
-        Args:
-            signal: Trade signal to potentially modify.
-
-        Returns:
-            The modified (or original) TradeSignal object.
-        """
-        # Base expiration time
-        base_expiration_seconds = self.default_expiration_seconds
-
-        expiration_seconds: float = base_expiration_seconds  # Initialize with base
-
-        # Adjust based on signal confidence if available
-        if signal.metadata and "confidence_score" in signal.metadata:
-            # Get confidence score and ensure it's a float
-            confidence_raw = signal.metadata["confidence_score"]
-            try:
-                # Handle if confidence is a string or another type
-                confidence = float(confidence_raw) if confidence_raw is not None else 0.5
-                # Ensure confidence is between 0 and 1
-                confidence = max(0.0, min(1.0, confidence))
-                # Lower confidence = shorter expiration
-                confidence_factor = 0.5 + confidence * 0.5  # Range: 0.5 - 1.0
-                expiration_seconds = base_expiration_seconds * confidence_factor
-            except (ValueError, TypeError):
-                # If conversion fails, use the base expiration time
-                self.logger.warning(
-                    f"Invalid confidence_score '{confidence_raw}' for signal {signal.symbol}. "
-                    f"Using default expiration time."
-                )
-                expiration_seconds = base_expiration_seconds
-        else:
-            expiration_seconds = base_expiration_seconds
-
-        # Only set expiration if it's not already set
+        """Calculate and set default expiration if needed. Modifies signal in place."""
         if signal.expiration is None:
-            # Create expiration time using timezone-aware datetime
-            # Ensure expiration_seconds is float before passing to timedelta
-            expiration_time = datetime.now(UTC) + timedelta(seconds=float(expiration_seconds))
-            signal.expiration = expiration_time
-            self.logger.debug(
-                f"Calculated expiration for signal {signal.signal_id}: {expiration_time}"
-            )
-        else:
-            self.logger.debug(
-                f"Expiration already set for signal {signal.signal_id}: {signal.expiration}"
-            )
-
-        return signal  # Return the modified (or original) signal
+            try:
+                # Ensure timestamp is timezone-aware (UTC)
+                if signal.timestamp.tzinfo is None:
+                    signal.timestamp = signal.timestamp.replace(tzinfo=UTC)
+                # Ensure default_expiration_seconds is float or compatible
+                expiration_delta = timedelta(seconds=float(self.default_expiration_seconds))
+                signal.expiration = signal.timestamp + expiration_delta
+                self.logger.debug(
+                    f"Set default expiration for {signal.symbol} to {signal.expiration}"
+                )
+            except (TypeError, ValueError) as e:
+                self.logger.error(
+                    f"Failed to calculate default expiration for signal {signal.symbol}. "
+                    f"Expiration remains None. Error: {e}"
+                )
+                signal.expiration = None  # Ensure it's None if calculation fails
+        return signal
 
     def _check_circuit_breakers_pre_add(self, signal: TradeSignal) -> bool:
         """Check circuit breakers before adding a signal to the queue."""
@@ -537,101 +541,106 @@ class PrioritySignalQueue:
 
         exchanges_to_check: set[str] = set()
         metadata = signal.metadata or {}
+
+        # Priority 1: Use explicit exchanges from metadata if available (Arbitrage)
         long_exchange = metadata.get("long_exchange")
         short_exchange = metadata.get("short_exchange")
-
-        if long_exchange:
+        if long_exchange and isinstance(long_exchange, str):  # Type check
             exchanges_to_check.add(long_exchange)
-        if short_exchange:
+        if short_exchange and isinstance(short_exchange, str):  # Type check
             exchanges_to_check.add(short_exchange)
 
-        # Fallback: Infer exchange from symbol if metadata is missing
+        # Priority 2: Use the top-level `exchange` field if populated and no arb exchanges found
+        if not exchanges_to_check and signal.exchange:
+            # The type of signal.exchange is str | list[str] | None.
+            # If it's a string and not empty, add it.
+            if isinstance(signal.exchange, str):
+                if signal.exchange:  # Ensure not empty string
+                    exchanges_to_check.add(signal.exchange)
+                else:
+                    self.logger.warning(
+                        f"Signal {signal.signal_id} for {signal.symbol} has an empty string for 'exchange' field."
+                    )
+                    return False  # Reject if exchange string is empty
+            # If it's a list, process it.
+            # The isinstance check for list can be removed if Ruff implies it from type hints.
+            # However, keeping it can be a defensive measure if the input might not strictly adhere
+            # to the Union[str, List[str], None] type hint despite Pydantic validation.
+            # Given the linter error, we'll remove it here.
+            else:  # Assumed list type after checking for str
+                # Filter out non-string or empty string elements
+                # Mypy complains, but keep isinstance for robustness against malformed list input
+                valid_exchanges = [ex for ex in signal.exchange if ex]  # Check for non-empty string
+                if valid_exchanges:
+                    exchanges_to_check.update(valid_exchanges)
+                else:
+                    self.logger.warning(
+                        f"Signal {signal.signal_id} for {signal.symbol} 'exchange' field is a list with no valid non-empty strings."
+                    )
+                    return False  # Reject if list is empty or contains only empty strings
+            # else: # Should not happen if type hint is enforced by Pydantic
+            #     self.logger.error(f"Signal {signal.signal_id} for {signal.symbol} has unexpected type for 'exchange': {type(signal.exchange)}")
+            #     return False
+
+        # If after all checks, no valid exchange could be determined, reject the signal.
         if not exchanges_to_check:
-            inferred_exchange = self._infer_exchange_from_symbol(signal.symbol)
-            if inferred_exchange:
-                exchanges_to_check.add(str(inferred_exchange))
-                self.logger.debug(
-                    f"Inferred exchange '{inferred_exchange}' from symbol {signal.symbol} "
-                    f"for pre-add CB check."
-                )
-            else:
-                self.logger.warning(
-                    f"Cannot determine exchange for pre-add circuit breaker check on signal "
-                    f"{signal.symbol}. Allowing signal."
-                )
-                return True  # Allow signal if exchange unknown, can't check CB
+            self.logger.warning(
+                f"Cannot determine target exchange(s) for pre-add circuit breaker check on signal "
+                f"{signal.symbol} (metadata: {metadata}, exchange field: {signal.exchange}). "
+                f"Rejecting signal for safety."
+            )
+            return False  # Reject if exchange cannot be determined
 
-        # Check breakers for relevant exchanges
+        # Check breakers using can_execute
         for ex in exchanges_to_check:
-            exchange_id: str = ex  # Use a new variable name
-            # Only check if breaker is OPEN. We don't care about HALF_OPEN here.
-            # Get the exchange API error breaker first
-            api_breaker = self.circuit_breaker_system.get_exchange_breaker(
-                exchange_id, "api_errors"
-            )
-            if api_breaker and api_breaker.state == BreakerState.OPEN:
-                self.logger.warning(
-                    f"Pre-add check: Signal for {signal.symbol} rejected. Exchange {exchange_id} "
-                    f"API circuit breaker is OPEN: {api_breaker.trip_reason}"
-                )
-                return False  # Reject if API breaker is OPEN
+            exchange_id: str = ex
+            try:
+                # Ensure circuit_breaker_system is checked before calling methods on it
+                if not self.circuit_breaker_system:
+                    # This case should be caught earlier, but defensive check
+                    self.logger.error(
+                        "Circuit breaker system is None during check, rejecting signal."
+                    )
+                    return False
 
-            # Check other potential breakers like volatility
-            volatility_breaker = self.circuit_breaker_system.get_exchange_breaker(
-                exchange_id, f"{signal.symbol}_volatility"
-            )
-            if volatility_breaker and volatility_breaker.state == BreakerState.OPEN:
-                self.logger.warning(
-                    f"Pre-add check: Signal for {signal.symbol} rejected. Exchange {exchange_id} "
-                    f"volatility circuit breaker is OPEN: {volatility_breaker.trip_reason}"
+                can_exec, reason = self.circuit_breaker_system.can_execute(
+                    exchange_id, signal.symbol
                 )
-                return False  # Reject if volatility breaker is OPEN
 
-        return True  # Allow if all relevant breakers are CLOSED or HALF_OPEN
+                if not can_exec:
+                    self.logger.warning(
+                        f"Circuit breaker for {exchange_id} is active, rejecting signal {signal.symbol}. "
+                        f"Reason: {reason}"
+                    )
+                    return False  # Reject signal if any relevant breaker is tripped
+            except Exception as e:
+                # Catch potential errors during the circuit breaker check itself
+                self.logger.error(
+                    f"Error checking circuit breaker for exchange '{exchange_id}', symbol '{signal.symbol}'. "
+                    f"Rejecting signal for safety. Error: {e}",
+                    exc_info=True,
+                )
+                return False  # Reject on error during check
+
+        # If loop completes without returning False, all checks passed
+        return True  # Allow signal if all checks pass
 
     def _check_circuit_breakers_post_get(self, signal: TradeSignal) -> bool:
         """Check circuit breakers just before returning a signal from get_next_signal."""
+        # This method simply reuses the pre-add logic.
+        # If the pre-add check passes, the signal is considered okay from CB perspective *at this moment*.
+        # The pre-add logic already handles logging for rejections.
         if not self.circuit_breaker_system:
             return True  # No CB system, always allow
 
-        exchanges_to_check: set[str] = set()
-        metadata = signal.metadata or {}
-        long_exchange = metadata.get("long_exchange")
-        short_exchange = metadata.get("short_exchange")
-
-        if long_exchange:
-            exchanges_to_check.add(long_exchange)
-        if short_exchange:
-            exchanges_to_check.add(short_exchange)
-
-        # Fallback: Infer exchange from symbol if metadata is missing
-        if not exchanges_to_check:
-            inferred_exchange = self._infer_exchange_from_symbol(signal.symbol)
-            if inferred_exchange:
-                exchanges_to_check.add(str(inferred_exchange))
-                self.logger.debug(
-                    f"Inferred exchange '{inferred_exchange}' from symbol {signal.symbol} "
-                    f"for post-get CB check."
-                )
-            else:
-                self.logger.warning(
-                    f"Cannot determine exchange for post-get circuit breaker check on signal "
-                    f"{signal.symbol}. Allowing signal."
-                )
-                return True  # Allow signal if exchange unknown
-
-        # Check breakers using can_execute, which handles HALF_OPEN state
-        for ex in exchanges_to_check:
-            exchange_id: str = ex  # Use new variable name
-            can_exec, reason = self.circuit_breaker_system.can_execute(exchange_id, signal.symbol)
-            if not can_exec:
-                self.logger.warning(
-                    f"Post-get check: Signal for {signal.symbol} blocked by exchange {exchange_id} "
-                    f"circuit breaker: {reason}"
-                )
-                return False  # Block if execution not allowed
-
-        return True  # Allow if all relevant breakers allow execution
+        allow_signal = self._check_circuit_breakers_pre_add(signal)
+        if not allow_signal:
+            # Log message already handled within _check_circuit_breakers_pre_add,
+            # but add a debug message here indicating it was caught post-get.
+            self.logger.debug(
+                f"Post-get circuit breaker check failed for signal {signal.symbol}. Discarding."
+            )
+        return allow_signal
 
     def _infer_exchange_from_symbol(self, symbol: str) -> str | None:
         """
@@ -761,7 +770,7 @@ class PrioritySignalQueue:
             # Handle missing or invalid exchange - perhaps log and skip?
             # For now, defaulting to an empty string or raising might be options.
             # Let's log a warning and potentially skip or use a default.
-            logger.warning(
+            self.logger.warning(
                 f"Signal missing or invalid exchange: {signal}. Defaulting to 'unknown'."
             )
             exchange_name = "unknown"  # Default or raise error

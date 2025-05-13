@@ -1,24 +1,21 @@
 from __future__ import annotations
 
-import asyncio
-import unittest
 from datetime import datetime
 from decimal import Decimal
-from typing import NoReturn
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytz
 
-from cyberdelta.config import ConfigManager
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
-from cyberdelta.core.models.market import Candle
+from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_queue import PrioritySignalQueue
-from cyberdelta.core.strategy import Strategy
 from cyberdelta.core.strategy_manager import StrategyManager
+from tests.unit.mocks.mock_strategy import MockStrategy
 
 # Define UTC timezone
 UTC = pytz.UTC
@@ -26,598 +23,683 @@ UTC = pytz.UTC
 
 # Mock configuration object
 @pytest.fixture
-def mock_config() -> ConfigManager:
-    """Fixture for a mock ConfigManager object."""
-    config_manager = MagicMock(spec=ConfigManager)
-    config_manager.get.side_effect = lambda key, default=None: {
-        "strategy_paths": ["tests.unit.mocks.mock_strategy.MockStrategy"],
-        "strategies": {"MockStrategy": {"enabled": True, "param1": "value1"}},
-    }.get(key, default)
-    return config_manager
-
-
-class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
-    def setUp(self) -> None:
-        # Create mock strategies
-        self.mock_strategy1 = Mock(spec=Strategy)
-        self.mock_strategy1.name = "test_strategy1"
-        self.mock_strategy1.symbol = "BTC-USDT"
-        self.mock_strategy1.enabled = True
-
-        self.mock_strategy2 = Mock(spec=Strategy)
-        self.mock_strategy2.name = "test_strategy2"
-        self.mock_strategy2.symbol = "ETH-USDT"
-        self.mock_strategy2.enabled = False
-
-        # --- Create mocks for required dependencies ---
-        self.mock_config = MagicMock()  # Assuming config is also needed
-        self.mock_execution_handler = Mock(spec=ExecutionHandler)
-        self.mock_portfolio_tracker = Mock(spec=PortfolioTracker)
-        self.mock_risk_manager = Mock(spec=RiskManager)
-        self.mock_risk_manager.size_signal = Mock()
-        self.mock_signal_queue = Mock(spec=PrioritySignalQueue)
-        # --- End Mocks ---
-
-        # Create strategy manager with all required mocks
-        self.strategy_manager = StrategyManager(
-            config=self.mock_config,
-            execution_handler=self.mock_execution_handler,
-            portfolio_tracker=self.mock_portfolio_tracker,
-            risk_manager=self.mock_risk_manager,
-            signal_queue=self.mock_signal_queue,
-        )
-
-        # Register mock strategies
-        self.strategy_manager.register_strategy(self.mock_strategy1)
-        self.strategy_manager.register_strategy(self.mock_strategy2)
-
-    def test_register_strategy(self) -> None:
-        # Register the first strategy
-        self.strategy_manager.register_strategy(self.mock_strategy1)
-
-        # Check if the strategy was added correctly
-        self.assertIn(self.mock_strategy1.name, self.strategy_manager.strategies)
-        self.assertEqual(
-            self.strategy_manager.strategies[self.mock_strategy1.name],
-            self.mock_strategy1,
-        )
-        self.assertIn(self.mock_strategy1.symbol, self.strategy_manager.active_symbols)
-
-        # Register the second strategy
-        self.strategy_manager.register_strategy(self.mock_strategy2)
-
-        # Check if both strategies are registered
-        self.assertEqual(len(self.strategy_manager.strategies), 2)
-        self.assertEqual(len(self.strategy_manager.active_symbols), 2)
-
-    def test_enable_disable_strategy(self) -> None:
-        # Register both strategies
-        self.strategy_manager.register_strategy(self.mock_strategy1)
-        self.strategy_manager.register_strategy(self.mock_strategy2)
-
-        # Enable both strategies
-        self.strategy_manager.enable_strategy(self.mock_strategy1.name)
-        self.strategy_manager.enable_strategy(self.mock_strategy2.name)
-
-        # Check if both strategies are enabled
-        self.assertEqual(len(self.strategy_manager.enabled_strategies), 2)
-        self.mock_strategy1.enable.assert_called_once()
-        self.mock_strategy2.enable.assert_called_once()
-
-        # Disable one strategy
-        self.strategy_manager.disable_strategy(self.mock_strategy1.name)
-
-        # Check if the strategy was disabled
-        self.assertEqual(len(self.strategy_manager.enabled_strategies), 1)
-        self.assertNotIn(self.mock_strategy1.name, self.strategy_manager.enabled_strategies)
-        self.assertIn(self.mock_strategy2.name, self.strategy_manager.enabled_strategies)
-        self.mock_strategy1.disable.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_process_market_data(self) -> None:
-        # Register both strategies
-        self.strategy_manager.register_strategy(self.mock_strategy1)
-        self.strategy_manager.register_strategy(self.mock_strategy2)
-
-        # Enable both strategies
-        self.strategy_manager.enable_strategy(self.mock_strategy1.name)
-        self.strategy_manager.enable_strategy(self.mock_strategy2.name)
-
-        # Create test market data (remove quote_volume and count)
-        now = datetime.now(UTC)
-        market_data = Candle(
-            symbol="BTC-USDT",
-            interval="1m",
-            open_time=now,
-            open=Decimal("50000.0"),
-            high=Decimal("51000.0"),
-            low=Decimal("49000.0"),
-            close=Decimal("50500.0"),
-            volume=Decimal("100.0"),
-        )
-
-        # Create mock signal (removed id)
-        signal = TradeSignal(
-            exchange="mock_exchange",
-            symbol="BTC-PERP",
-            signal_type=SignalType.ENTER_LONG,
-            side=OrderSide.BUY,
-            timestamp=datetime.now(UTC),
-            price=Decimal("30000"),
-            quantity=Decimal("0.1"),
-            confidence=0.8,
-            source_strategy="MockStrategy",
-        )
-
-        # 1. Single signal (already tested)
-        self.mock_strategy1.process_data.return_value = signal
-        self.mock_strategy2.process_data.return_value = None
-        sized_signal = signal
-        sized_signal.quantity = Decimal("0.5")
-        self.mock_risk_manager.size_signal.return_value = sized_signal
-        signals = await self.strategy_manager.process_market_data(market_data)
-        self.mock_strategy1.update_historical_data.assert_called_once_with(market_data)
-        self.mock_strategy1.process_data.assert_called_once_with(market_data)
-        self.mock_strategy2.process_data.assert_not_called()
-        self.mock_risk_manager.size_signal.assert_called_once_with(signal)
-        self.assertEqual(len(signals), 1)
-        self.assertEqual(signals[0], sized_signal)
-
-        # 2. Empty list (should return no signals)
-        self.mock_strategy1.process_data.reset_mock()
-        self.mock_strategy1.update_historical_data.reset_mock()
-        self.mock_strategy2.process_data.reset_mock()
-        self.mock_risk_manager.size_signal.reset_mock()
-        self.mock_strategy1.process_data.return_value = []
-        signals = await self.strategy_manager.process_market_data(market_data)
-        self.mock_strategy1.update_historical_data.assert_called_once_with(market_data)
-        self.mock_strategy1.process_data.assert_called_once_with(market_data)
-        self.assertEqual(len(signals), 0)
-
-        # 3. Multi-leg (list of >1 signals)
-        self.mock_strategy1.process_data.reset_mock()
-        self.mock_strategy1.update_historical_data.reset_mock()
-        self.mock_strategy2.process_data.reset_mock()
-        self.mock_risk_manager.size_signal.reset_mock()
-        signal2 = TradeSignal(
-            exchange="mock_exchange",
-            symbol="BTC-PERP",
-            signal_type=SignalType.ENTER_SHORT,
-            side=OrderSide.SELL,
-            timestamp=datetime.now(UTC),
-            price=Decimal("29900"),
-            quantity=Decimal("0.2"),
-            confidence=0.7,
-            source_strategy="MockStrategy",
-        )
-        self.mock_strategy1.process_data.return_value = [signal, signal2]
-        self.mock_risk_manager.size_signal.side_effect = [sized_signal, signal2]
-        signals = await self.strategy_manager.process_market_data(market_data)
-        self.mock_strategy1.update_historical_data.assert_called_once_with(market_data)
-        self.mock_strategy1.process_data.assert_called_once_with(market_data)
-        self.assertEqual(len(signals), 2)
-        self.assertEqual(signals[0], sized_signal)
-        self.assertEqual(signals[1], signal2)
-
-        # 4. Malformed signal (should be ignored)
-        self.mock_strategy1.process_data.reset_mock()
-        self.mock_strategy1.update_historical_data.reset_mock()
-        self.mock_strategy2.process_data.reset_mock()
-        self.mock_risk_manager.size_signal.reset_mock()
-
-        class NotASignal:
-            pass
-
-        self.mock_strategy1.process_data.return_value = [NotASignal()]
-        signals = await self.strategy_manager.process_market_data(market_data)
-        self.mock_strategy1.update_historical_data.assert_called_once_with(market_data)
-        self.mock_strategy1.process_data.assert_called_once_with(market_data)
-        self.assertEqual(len(signals), 0)
-
-    def test_get_strategies_for_symbol(self) -> None:
-        # Register both strategies
-        self.strategy_manager.register_strategy(self.mock_strategy1)
-        self.strategy_manager.register_strategy(self.mock_strategy2)
-
-        # Get strategies for BTC-USDT
-        btc_strategies = self.strategy_manager.get_strategies_for_symbol("BTC-USDT")
-
-        # Verify we got the right strategy
-        self.assertEqual(len(btc_strategies), 1)
-        self.assertEqual(btc_strategies[0], self.mock_strategy1)
-
-        # Get strategies for a non-existent symbol
-        non_existent = self.strategy_manager.get_strategies_for_symbol("NON-EXISTENT")
-
-        # Verify we got no strategies
-        self.assertEqual(len(non_existent), 0)
-
-    def test_unregister_strategy(self) -> None:
-        # Register both strategies
-        self.strategy_manager.register_strategy(self.mock_strategy1)
-        self.strategy_manager.register_strategy(self.mock_strategy2)
-
-        # Enable one strategy
-        self.strategy_manager.enable_strategy(self.mock_strategy1.name)
-
-        # Unregister the enabled strategy
-        self.strategy_manager.unregister_strategy(self.mock_strategy1.name)
-
-        # Verify it was removed
-        self.assertNotIn(self.mock_strategy1.name, self.strategy_manager.strategies)
-        self.assertNotIn(self.mock_strategy1.name, self.strategy_manager.enabled_strategies)
-        self.assertNotIn(self.mock_strategy1.symbol, self.strategy_manager.active_symbols)
-
-        # Verify the other strategy is still there
-        self.assertIn(self.mock_strategy2.name, self.strategy_manager.strategies)
-
-    def test_start_stop_all(self) -> None:
-        # Register both strategies
-        self.strategy_manager.register_strategy(self.mock_strategy1)
-        self.strategy_manager.register_strategy(self.mock_strategy2)
-
-        # Start all strategies
-        self.strategy_manager.start_all()
-
-        # Verify both strategies were started
-        self.mock_strategy1.on_start.assert_called_once()
-        self.mock_strategy2.on_start.assert_called_once()
-
-        # Verify the enabled one was added to enabled_strategies
-        self.assertIn(self.mock_strategy1.name, self.strategy_manager.enabled_strategies)
-
-        # Stop all strategies
-        self.strategy_manager.stop_all()
-
-        # Verify both strategies were stopped
-        self.mock_strategy1.on_stop.assert_called_once()
-        self.mock_strategy2.on_stop.assert_called_once()
-
-        # Verify all strategies were disabled
-        self.assertEqual(len(self.strategy_manager.enabled_strategies), 0)
-
-    @pytest.mark.asyncio
-    async def test_process_market_data_exception(self) -> None:
-        self.mock_strategy1.process_data.side_effect = Exception("Test exception")
-        self.strategy_manager.register_strategy(self.mock_strategy1)
-        self.strategy_manager.enable_strategy(self.mock_strategy1.name)
-
-        # Create test market data (remove quote_volume and count)
-        now = datetime.now(UTC)
-        market_data = Candle(
-            symbol="BTC-USDT",
-            interval="1m",
-            open_time=now,
-            open=Decimal("50000.0"),
-            high=Decimal("51000.0"),
-            low=Decimal("49000.0"),
-            close=Decimal("50500.0"),
-            volume=Decimal("100.0"),
-        )
-
-        # Process market data - this should not raise an exception
-        signals = await self.strategy_manager.process_market_data(market_data)
-
-        # Verify the error was handled and no signals were returned
-        self.assertEqual(len(signals), 0)
-
-    @pytest.mark.asyncio
-    async def test_process_market_data_mixed_valid_invalid(self) -> None:
-        """Test that only valid TradeSignal objects are processed and returned."""
-        self.strategy_manager.enable_strategy(self.mock_strategy1.name)
-        now = datetime.now(UTC)
-        market_data = Candle(
-            symbol="BTC-USDT",
-            interval="1m",
-            open_time=now,
-            open=Decimal("50000.0"),
-            high=Decimal("51000.0"),
-            low=Decimal("49000.0"),
-            close=Decimal("50500.0"),
-            volume=Decimal("100.0"),
-        )
-        valid_signal = TradeSignal(
-            exchange="mock_exchange",
-            symbol="BTC-PERP",
-            signal_type=SignalType.ENTER_LONG,
-            side=OrderSide.BUY,
-            timestamp=datetime.now(UTC),
-            price=Decimal("30000"),
-            quantity=Decimal("0.1"),
-            confidence=0.8,
-            source_strategy="MockStrategy",
-        )
-
-        class InvalidSignal:
-            pass
-
-        self.mock_strategy1.process_data.return_value = [valid_signal, InvalidSignal(), None]
-        self.mock_risk_manager.size_signal.return_value = valid_signal
-        signals = await self.strategy_manager.process_market_data(market_data)
-        self.assertEqual(len(signals), 1)
-        self.assertEqual(signals[0], valid_signal)
-
-    @pytest.mark.asyncio
-    async def test_process_market_data_duplicate_signals(self) -> None:
-        """Test that duplicate signals are handled (allowed or deduplicated as per logic)."""
-        self.strategy_manager.enable_strategy(self.mock_strategy1.name)
-        now = datetime.now(UTC)
-        market_data = Candle(
-            symbol="BTC-USDT",
-            interval="1m",
-            open_time=now,
-            open=Decimal("50000.0"),
-            high=Decimal("51000.0"),
-            low=Decimal("49000.0"),
-            close=Decimal("50500.0"),
-            volume=Decimal("100.0"),
-        )
-        valid_signal = TradeSignal(
-            exchange="mock_exchange",
-            symbol="BTC-PERP",
-            signal_type=SignalType.ENTER_LONG,
-            side=OrderSide.BUY,
-            timestamp=datetime.now(UTC),
-            price=Decimal("30000"),
-            quantity=Decimal("0.1"),
-            confidence=0.8,
-            source_strategy="MockStrategy",
-        )
-        self.mock_strategy1.process_data.return_value = [valid_signal, valid_signal]
-        self.mock_risk_manager.size_signal.side_effect = [valid_signal, valid_signal]
-        signals = await self.strategy_manager.process_market_data(market_data)
-        # By default, both should be returned unless deduplication is implemented
-        self.assertEqual(len(signals), 2)
-        self.assertEqual(signals[0], valid_signal)
-        self.assertEqual(signals[1], valid_signal)
-
-    @pytest.mark.asyncio
-    async def test_process_market_data_signal_with_missing_fields(self) -> None:
-        """Test that a valid signal from a relevant strategy is correctly processed."""
-        self.strategy_manager.enable_strategy(self.mock_strategy1.name)
-        now = datetime.now(UTC)
-        market_data = Candle(
-            symbol="BTC-USDT",
-            interval="1m",
-            open_time=now,
-            open=Decimal("50000.0"),
-            high=Decimal("51000.0"),
-            low=Decimal("49000.0"),
-            close=Decimal("50500.0"),
-            volume=Decimal("100.0"),
-        )
-
-        # Create a valid signal (matching the strategy's symbol)
-        valid_signal = TradeSignal(
-            exchange="mock_exchange",
-            symbol="BTC-USDT",
-            signal_type=SignalType.ENTER_LONG,
-            side=OrderSide.BUY,
-            timestamp=datetime.now(UTC),
-            price=Decimal("50500"),
-            quantity=Decimal("0.1"),
-            confidence=0.8,
-            source_strategy=self.mock_strategy1.name,
-        )
-
-        # Mock strategy1 to return the valid signal for the correct symbol
-        self.mock_strategy1.process_data.return_value = valid_signal
-        self.mock_strategy2.process_data.return_value = None
-
-        # Mock risk manager to return a sized signal (e.g., different quantity)
-        sized_signal = valid_signal.model_copy()
-        sized_signal.quantity = Decimal("0.05")
-        self.mock_risk_manager.size_signal.return_value = sized_signal
-
-        # Process the market data
-        signals = await self.strategy_manager.process_market_data(market_data)
-
-        # Assertions
-        self.mock_strategy1.update_historical_data.assert_called_once_with(market_data)
-        self.mock_strategy1.process_data.assert_called_once_with(market_data)
-        self.mock_strategy2.process_data.assert_not_called()
-        self.mock_risk_manager.size_signal.assert_called_once_with(valid_signal)
-        self.assertEqual(len(signals), 1)
-        self.assertEqual(signals[0], sized_signal)
-
-    @pytest.mark.asyncio
-    async def test_process_market_data_risk_manager_exception(self) -> None:
-        """Test handling of exceptions during risk management signal sizing."""
-        self.strategy_manager.enable_strategy(self.mock_strategy1.name)
-
-        # Create market data and signal
-        now = datetime.now(UTC)
-        market_data = Candle(
-            symbol="BTC-USDT",
-            interval="1m",
-            open_time=now,
-            open=Decimal("50000.0"),
-            high=Decimal("51000.0"),
-            low=Decimal("49000.0"),
-            close=Decimal("50500.0"),
-            volume=Decimal("100.0"),
-        )
-        signal = TradeSignal(
-            exchange="mock_exchange",
-            symbol="BTC-USDT",
-            signal_type=SignalType.ENTER_LONG,
-            side=OrderSide.BUY,
-            timestamp=datetime.now(UTC),
-            price=Decimal("50500"),
-            quantity=Decimal("0.1"),
-            confidence=0.8,
-            source_strategy=self.mock_strategy1.name,
-        )
-
-        # Mock strategy to return the signal
-        self.mock_strategy1.process_data.return_value = signal
-
-        # Mock risk manager to raise an exception
-        test_exception = ValueError("Risk sizing failed!")
-
-        def size_signal_side_effect(signal: object) -> object | None:
-            if isinstance(signal, TradeSignal):
-                raise test_exception
-            return None
-
-        self.mock_risk_manager.size_signal.side_effect = size_signal_side_effect
-
-        # Process data and expect no signals due to the exception
-        signals = await self.strategy_manager.process_market_data(market_data)
-
-        # Assertions
-        self.mock_strategy1.process_data.assert_called_once_with(market_data)
-        self.mock_risk_manager.size_signal.assert_called_once_with(signal)
-        self.assertEqual(len(signals), 0)
-
-    @pytest.mark.asyncio
-    async def test_process_market_data_update_historical_data_exception(self) -> None:
-        """Test handling of exceptions during strategy historical data update."""
-        self.strategy_manager.enable_strategy(self.mock_strategy1.name)
-        self.strategy_manager.enable_strategy(self.mock_strategy2.name)
-        now = datetime.now(UTC)
-        market_data = Candle(
-            symbol="BTC-USDT",
-            interval="1m",
-            open_time=now,
-            open=Decimal("50000.0"),
-            high=Decimal("51000.0"),
-            low=Decimal("49000.0"),
-            close=Decimal("50500.0"),
-            volume=Decimal("100.0"),
-        )
-        self.mock_strategy1.update_historical_data.side_effect = Exception("History update failed")
-        valid_signal = TradeSignal(
-            exchange="mock_exchange",
-            symbol="BTC-PERP",
-            signal_type=SignalType.ENTER_LONG,
-            side=OrderSide.BUY,
-            timestamp=datetime.now(UTC),
-            price=Decimal("30000"),
-            quantity=Decimal("0.1"),
-            confidence=0.8,
-            source_strategy="MockStrategy",
-        )
-        self.mock_strategy2.process_data.return_value = valid_signal
-        self.mock_risk_manager.size_signal.return_value = valid_signal
-        with self.assertRaises(Exception) as exc_info:
-            await self.strategy_manager.process_market_data(market_data)
-        self.assertIn("History update failed", str(exc_info.exception))
-
-    @pytest.mark.asyncio
-    async def test_process_market_data_no_enabled_strategies(self) -> None:
-        """Test that no signals are returned if no strategies are enabled for the symbol."""
-        # Ensure no strategies are enabled
-        self.strategy_manager.enabled_strategies.clear()
-        now = datetime.now(UTC)
-        market_data = Candle(
-            symbol="BTC-USDT",
-            interval="1m",
-            open_time=now,
-            open=Decimal("50000.0"),
-            high=Decimal("51000.0"),
-            low=Decimal("49000.0"),
-            close=Decimal("50500.0"),
-            volume=Decimal("100.0"),
-        )
-        signals = await self.strategy_manager.process_market_data(market_data)
-        self.assertEqual(len(signals), 0)
-
-    @pytest.mark.asyncio
-    async def test_process_market_data_async_process_data_raises(self) -> None:
-        """Test that if process_data is an async coroutine that raises, error is handled."""
-        self.strategy_manager.enable_strategy(self.mock_strategy1.name)
-        now = datetime.now(UTC)
-        market_data = Candle(
-            symbol="BTC-USDT",
-            interval="1m",
-            open_time=now,
-            open=Decimal("50000.0"),
-            high=Decimal("51000.0"),
-            low=Decimal("49000.0"),
-            close=Decimal("50500.0"),
-            volume=Decimal("100.0"),
-        )
-
-        async def async_raises(*args: object, **kwargs: object) -> NoReturn:
-            raise Exception("Async process_data failed")
-
-        self.mock_strategy1.process_data = async_raises
-        signals = await self.strategy_manager.process_market_data(market_data)
-        self.assertEqual(len(signals), 0)
-
-    @pytest.mark.asyncio
-    async def test_process_market_data_signal_handler_raises(self) -> None:
-        """Test that if the signal handler/queue raises, error is logged and system continues."""
-        self.strategy_manager.enable_strategy(self.mock_strategy1.name)
-        now = datetime.now(UTC)
-        market_data = Candle(
-            symbol="BTC-USDT",
-            interval="1m",
-            open_time=now,
-            open=Decimal("50000.0"),
-            high=Decimal("51000.0"),
-            low=Decimal("49000.0"),
-            close=Decimal("50500.0"),
-            volume=Decimal("100.0"),
-        )
-        valid_signal = TradeSignal(
-            exchange="mock_exchange",
-            symbol="BTC-PERP",
-            signal_type=SignalType.ENTER_LONG,
-            side=OrderSide.BUY,
-            timestamp=datetime.now(UTC),
-            price=Decimal("30000"),
-            quantity=Decimal("0.1"),
-            confidence=0.8,
-            source_strategy="MockStrategy",
-        )
-        self.mock_strategy1.process_data.return_value = valid_signal
-        self.mock_risk_manager.size_signal.return_value = valid_signal
-        # Patch the signal_queue to raise
-        self.mock_signal_queue.add_signal.side_effect = Exception("Queue failed")
-        # The signal queue is used in on_market_data, not process_market_data, but we can simulate
-        # For this test, we call on_market_data
-        signals = await self.strategy_manager.on_market_data(market_data)
-        # The error should be handled, and signals still returned
-        self.assertEqual(len(signals), 1)
-        self.assertEqual(signals[0], valid_signal)
-
-    @pytest.mark.asyncio
-    async def test_strategy_manager_load_and_run(
-        mock_config: ConfigManager, event_loop: asyncio.AbstractEventLoop
-    ) -> None:
-        """Test loading strategies and running them."""
-        mock_execution_handler = AsyncMock(spec=ExecutionHandler)
-        mock_signal_queue = MagicMock(spec=PrioritySignalQueue)
-
-        manager = StrategyManager(mock_config, mock_signal_queue, mock_execution_handler)
-
-        # Mock the dynamic import
-        mock_strategy_class = MagicMock(spec=Strategy)
-        mock_strategy_instance = AsyncMock(spec=Strategy)
-        mock_strategy_class.return_value = mock_strategy_instance
-
-        with patch("importlib.import_module") as mock_import:
-            # Mock the module structure expected by import_module
-            mock_module = MagicMock()
-            mock_module.MockStrategy = mock_strategy_class
-            mock_import.return_value = mock_module
-
-            await manager.initialize_strategies()
-
-            # Assert strategy was loaded and initialized
-            assert "MockStrategy" in manager.strategies
-            mock_strategy_class.assert_called_once_with(
-                mock_config, mock_signal_queue, mock_execution_handler, name="MockStrategy"
-            )
-
-            # Run strategies
-            await manager.run_strategies()
-
-            # Assert run_async was called
-            mock_strategy_instance.run_async.assert_awaited_once()
-
-
-if __name__ == "__main__":
-    unittest.main()
+def mock_config_dict() -> dict[str, Any]:
+    """Fixture for a mock config dictionary."""
+    return {
+        "strategy_paths": [],
+        "strategies": {},
+    }
+
+
+# Mock dependencies needed by StrategyManager
+@pytest.fixture
+def mock_execution_handler() -> MagicMock:
+    return MagicMock(spec=ExecutionHandler)
+
+
+@pytest.fixture
+def mock_portfolio_tracker() -> MagicMock:
+    return MagicMock(spec=PortfolioTracker)
+
+
+@pytest.fixture
+def mock_risk_manager() -> MagicMock:
+    return MagicMock(spec=RiskManager)
+
+
+@pytest.fixture
+def mock_signal_queue() -> MagicMock:
+    return MagicMock(spec=PrioritySignalQueue)
+
+
+@patch("cyberdelta.core.strategy_manager.importlib.import_module")
+@patch("cyberdelta.core.strategy_manager.inspect.getmembers")
+def test_register_strategy(
+    mock_getmembers: MagicMock,
+    mock_import_module: MagicMock,
+    mock_config_dict: dict[str, Any],
+    mock_execution_handler: MagicMock,
+    mock_portfolio_tracker: MagicMock,
+    mock_risk_manager: MagicMock,
+    mock_signal_queue: MagicMock,
+) -> None:
+    """Test registering a new strategy."""
+    config_data_with_strategy = mock_config_dict
+    config_data_with_strategy["strategy_paths"] = ["tests.unit.mocks.mock_strategy.MockStrategy"]
+    strategy_manager_for_test = StrategyManager(
+        config=config_data_with_strategy,
+        execution_handler=mock_execution_handler,
+        portfolio_tracker=mock_portfolio_tracker,
+        risk_manager=mock_risk_manager,
+        signal_queue=mock_signal_queue,
+    )
+    mock_strategy_instance = MockStrategy(name="MockStrategy", symbol="MOCK/SYMBOL")
+    strategy_manager_for_test.register_strategy(mock_strategy_instance)
+    assert "MockStrategy" in strategy_manager_for_test.strategies
+
+
+def test_unregister_strategy(
+    mock_config_dict: dict[str, Any],
+    mock_execution_handler: MagicMock,
+    mock_portfolio_tracker: MagicMock,
+    mock_risk_manager: MagicMock,
+    mock_signal_queue: MagicMock,
+) -> None:
+    """Test unregistering an existing strategy."""
+    strategy_manager_for_test = StrategyManager(
+        config=mock_config_dict,
+        execution_handler=mock_execution_handler,
+        portfolio_tracker=mock_portfolio_tracker,
+        risk_manager=mock_risk_manager,
+        signal_queue=mock_signal_queue,
+    )
+    mock_strategy_instance = MockStrategy(name="MockStrategy", symbol="MOCK/SYMBOL")
+    strategy_manager_for_test.strategies = {"MockStrategy": mock_strategy_instance}
+    assert "MockStrategy" in strategy_manager_for_test.strategies
+    strategy_manager_for_test.unregister_strategy("MockStrategy")
+    assert "MockStrategy" not in strategy_manager_for_test.strategies
+
+
+def test_enable_disable_strategy(
+    mock_config_dict: dict[str, Any],
+    mock_execution_handler: MagicMock,
+    mock_portfolio_tracker: MagicMock,
+    mock_risk_manager: MagicMock,
+    mock_signal_queue: MagicMock,
+) -> None:
+    """Test enabling and disabling a strategy."""
+    strategy_manager_for_test = StrategyManager(
+        config=mock_config_dict,
+        execution_handler=mock_execution_handler,
+        portfolio_tracker=mock_portfolio_tracker,
+        risk_manager=mock_risk_manager,
+        signal_queue=mock_signal_queue,
+    )
+    mock_strategy_instance = MockStrategy(name="TestStrategy", symbol="MOCK/SYMBOL", enabled=False)
+    strategy_manager_for_test.strategies = {"TestStrategy": mock_strategy_instance}
+
+    strategy_manager_for_test.enable_strategy("TestStrategy")
+    assert "TestStrategy" in strategy_manager_for_test.enabled_strategies
+    assert strategy_manager_for_test.strategies["TestStrategy"].enabled
+
+    strategy_manager_for_test.disable_strategy("TestStrategy")
+    assert "TestStrategy" not in strategy_manager_for_test.enabled_strategies
+    assert not strategy_manager_for_test.strategies["TestStrategy"].enabled
+
+
+def test_get_strategies_for_symbol(
+    mock_config_dict: dict[str, Any],
+    mock_execution_handler: MagicMock,
+    mock_portfolio_tracker: MagicMock,
+    mock_risk_manager: MagicMock,
+    mock_signal_queue: MagicMock,
+) -> None:
+    """Test retrieving strategies relevant to a symbol."""
+    strategy_manager_for_test = StrategyManager(
+        config=mock_config_dict,
+        execution_handler=mock_execution_handler,
+        portfolio_tracker=mock_portfolio_tracker,
+        risk_manager=mock_risk_manager,
+        signal_queue=mock_signal_queue,
+    )
+    mock_strategy_btc_instance = MockStrategy(name="BTCStrategy", symbol="BTC/USDT", enabled=True)
+    mock_strategy_eth_instance = MockStrategy(name="ETHStrategy", symbol="ETH/USDT", enabled=True)
+    mock_strategy_disabled_instance = MockStrategy(
+        name="DisabledBTCStrategy", symbol="BTC/USDT", enabled=False
+    )
+
+    strategy_manager_for_test.strategies = {
+        "BTCStrategy": mock_strategy_btc_instance,
+        "ETHStrategy": mock_strategy_eth_instance,
+        "DisabledBTCStrategy": mock_strategy_disabled_instance,
+    }
+    strategy_manager_for_test.enabled_strategies = {"BTCStrategy", "ETHStrategy"}
+
+    btc_strategies = strategy_manager_for_test.get_strategies_for_symbol("BTC/USDT")
+    eth_strategies = strategy_manager_for_test.get_strategies_for_symbol("ETH/USDT")
+    sol_strategies = strategy_manager_for_test.get_strategies_for_symbol("SOL/USDT")
+
+    assert len(btc_strategies) == 1
+    assert mock_strategy_btc_instance in btc_strategies
+    assert len(eth_strategies) == 1
+    assert mock_strategy_eth_instance in eth_strategies
+    assert len(sol_strategies) == 0
+
+
+@patch("cyberdelta.core.strategy_manager.asyncio.gather")
+@pytest.mark.asyncio
+async def test_start_stop_all(
+    mock_gather: MagicMock,
+    mock_config_dict: dict[str, Any],
+    mock_execution_handler: MagicMock,
+    mock_portfolio_tracker: MagicMock,
+    mock_risk_manager: MagicMock,
+    mock_signal_queue: MagicMock,
+) -> None:
+    """Test starting and stopping all strategies."""
+    strategy_manager_for_test = StrategyManager(
+        config=mock_config_dict,
+        execution_handler=mock_execution_handler,
+        portfolio_tracker=mock_portfolio_tracker,
+        risk_manager=mock_risk_manager,
+        signal_queue=mock_signal_queue,
+    )
+    mock_strategy1_instance = MockStrategy(name="Strategy1", symbol="S1/USDT")
+    mock_strategy2_instance = MockStrategy(name="Strategy2", symbol="S2/USDT")
+
+    strategy_manager_for_test.strategies = {
+        "Strategy1": mock_strategy1_instance,
+        "Strategy2": mock_strategy2_instance,
+    }
+    strategy_manager_for_test.enable_strategy("Strategy1")
+    strategy_manager_for_test.enable_strategy("Strategy2")
+
+    strategy_manager_for_test.start_all()
+    assert strategy_manager_for_test.strategies["Strategy1"].enabled
+    assert strategy_manager_for_test.strategies["Strategy2"].enabled
+    assert "Strategy1" in strategy_manager_for_test.enabled_strategies
+    assert "Strategy2" in strategy_manager_for_test.enabled_strategies
+
+    mock_gather.reset_mock()
+
+    strategy_manager_for_test.stop_all()
+    assert not strategy_manager_for_test.strategies["Strategy1"].enabled
+    assert not strategy_manager_for_test.strategies["Strategy2"].enabled
+    assert len(strategy_manager_for_test.enabled_strategies) == 0
+
+
+@patch("cyberdelta.core.strategy_manager.asyncio.create_task")
+@pytest.mark.asyncio
+async def test_process_market_data(
+    mock_create_task: MagicMock,
+    mock_config_dict: dict[str, Any],
+    mock_execution_handler: MagicMock,
+    mock_portfolio_tracker: MagicMock,
+    mock_risk_manager: MagicMock,
+    mock_signal_queue: MagicMock,
+) -> None:
+    """Test processing market data and generating signals."""
+    strategy_manager_for_test = StrategyManager(
+        config=mock_config_dict,
+        execution_handler=mock_execution_handler,
+        portfolio_tracker=mock_portfolio_tracker,
+        risk_manager=mock_risk_manager,
+        signal_queue=mock_signal_queue,
+    )
+    mock_strategy_instance = MockStrategy(name="TestStrategy", symbol="BTC/USDT", enabled=True)
+
+    mock_signal = TradeSignal(
+        symbol="BTC/USDT",
+        signal_type=SignalType.ENTER_LONG,
+        side=OrderSide.BUY,
+        price=Decimal("50000"),
+        quantity=Decimal("1"),
+        metadata={"utility_score": 0.8, "origin_strategy": mock_strategy_instance.name},
+        exchange="mock_exchange",
+    )
+    strategy_manager_for_test.register_strategy(mock_strategy_instance)
+    strategy_manager_for_test.enable_strategy("TestStrategy")
+
+    market_data = Candle(
+        symbol="BTC/USDT",
+        interval="1m",
+        open_time=datetime.now(UTC),
+        open=Decimal("49990"),
+        high=Decimal("50001"),
+        low=Decimal("49980"),
+        close=Decimal("49999"),
+        volume=Decimal("10"),
+    )
+
+    with patch.object(
+        mock_strategy_instance,
+        "process_data",
+        new_callable=AsyncMock,
+        return_value=[mock_signal],
+    ) as mock_process_data:
+        await strategy_manager_for_test.process_market_data(market_data)
+
+    mock_process_data.assert_called_once_with(market_data)
+    mock_signal_queue.add_signal.assert_called_once_with(mock_signal)
+
+
+@pytest.mark.asyncio
+async def test_process_market_data_no_enabled_strategies(
+    mock_config_dict: dict[str, Any],
+    mock_execution_handler: MagicMock,
+    mock_portfolio_tracker: MagicMock,
+    mock_risk_manager: MagicMock,
+    mock_signal_queue: MagicMock,
+) -> None:
+    """Test processing market data when no strategies are enabled."""
+    strategy_manager_for_test = StrategyManager(
+        config=mock_config_dict,
+        execution_handler=mock_execution_handler,
+        portfolio_tracker=mock_portfolio_tracker,
+        risk_manager=mock_risk_manager,
+        signal_queue=mock_signal_queue,
+    )
+    mock_strategy_instance = MockStrategy(name="TestStrategy", symbol="BTC/USDT", enabled=False)
+    strategy_manager_for_test.register_strategy(mock_strategy_instance)
+
+    market_data = Candle(
+        symbol="BTC/USDT",
+        interval="1m",
+        open_time=datetime.now(UTC),
+        open=Decimal("49990"),
+        high=Decimal("50001"),
+        low=Decimal("49980"),
+        close=Decimal("49999"),
+        volume=Decimal("10"),
+    )
+
+    with patch.object(
+        mock_strategy_instance, "process_data", new_callable=AsyncMock
+    ) as mock_process_data:
+        await strategy_manager_for_test.process_market_data(market_data)
+
+    mock_process_data.assert_not_called()
+    mock_signal_queue.add_signal.assert_not_called()
+
+
+@patch("cyberdelta.core.strategy_manager.asyncio.create_task")
+@pytest.mark.asyncio
+async def test_process_market_data_exception(
+    mock_create_task: MagicMock,
+    mock_config_dict: dict[str, Any],
+    mock_execution_handler: MagicMock,
+    mock_portfolio_tracker: MagicMock,
+    mock_risk_manager: MagicMock,
+    mock_signal_queue: MagicMock,
+) -> None:
+    """Test that exceptions during signal processing are handled."""
+    strategy_manager_for_test = StrategyManager(
+        config=mock_config_dict,
+        execution_handler=mock_execution_handler,
+        portfolio_tracker=mock_portfolio_tracker,
+        risk_manager=mock_risk_manager,
+        signal_queue=mock_signal_queue,
+    )
+    mock_strategy_instance = MockStrategy(name="TestStrategy", symbol="BTC/USDT", enabled=True)
+    strategy_manager_for_test.register_strategy(mock_strategy_instance)
+    strategy_manager_for_test.enable_strategy("TestStrategy")
+
+    market_data = Candle(
+        symbol="BTC/USDT",
+        interval="1m",
+        open_time=datetime.now(UTC),
+        open=Decimal("49990"),
+        high=Decimal("50001"),
+        low=Decimal("49980"),
+        close=Decimal("49999"),
+        volume=Decimal("10"),
+    )
+
+    with patch.object(
+        mock_strategy_instance,
+        "process_data",
+        new_callable=AsyncMock,
+        side_effect=ValueError("Test Error"),
+    ) as mock_process_data:
+        await strategy_manager_for_test.process_market_data(market_data)
+
+    mock_process_data.assert_called_once_with(market_data)
+    mock_signal_queue.add_signal.assert_not_called()
+
+
+@patch("cyberdelta.core.strategy_manager.logger")
+@pytest.mark.asyncio
+async def test_process_market_data_signal_handler_raises(
+    mock_logger: MagicMock,
+    mock_config_dict: dict[str, Any],
+    mock_execution_handler: MagicMock,
+    mock_portfolio_tracker: MagicMock,
+    mock_risk_manager: MagicMock,
+    mock_signal_queue: MagicMock,
+) -> None:
+    """Test exception handling when signal_queue.add_signal raises an error."""
+    strategy_manager_for_test = StrategyManager(
+        config=mock_config_dict,
+        execution_handler=mock_execution_handler,
+        portfolio_tracker=mock_portfolio_tracker,
+        risk_manager=mock_risk_manager,
+        signal_queue=mock_signal_queue,
+    )
+    mock_strategy_instance = MockStrategy(name="TestStrategy", symbol="BTC/USDT", enabled=True)
+    mock_signal = TradeSignal(
+        symbol="BTC/USDT",
+        signal_type=SignalType.ENTER_LONG,
+        side=OrderSide.BUY,
+        price=Decimal("50000"),
+        quantity=Decimal("1"),
+        metadata={"utility_score": 0.8, "origin_strategy": mock_strategy_instance.name},
+        exchange="mock_exchange",
+    )
+    strategy_manager_for_test.register_strategy(mock_strategy_instance)
+    strategy_manager_for_test.enable_strategy("TestStrategy")
+
+    mock_signal_queue.add_signal.side_effect = ValueError("Signal Queue Error")
+
+    market_data = Candle(
+        symbol="BTC/USDT",
+        interval="1m",
+        open_time=datetime.now(UTC),
+        open=Decimal("49990"),
+        high=Decimal("50001"),
+        low=Decimal("49980"),
+        close=Decimal("49999"),
+        volume=Decimal("10"),
+    )
+
+    with patch.object(
+        mock_strategy_instance,
+        "process_data",
+        new_callable=AsyncMock,
+        return_value=[mock_signal],
+    ) as mock_process_data:
+        await strategy_manager_for_test.process_market_data(market_data)
+
+    mock_process_data.assert_called_once_with(market_data)
+    mock_signal_queue.add_signal.assert_called_once_with(mock_signal)
+    mock_logger.error.assert_any_call(
+        "Signal queue failed to add signal: Signal Queue Error", exc_info=True
+    )
+
+
+@pytest.mark.asyncio
+async def test_process_market_data_duplicate_signals(
+    mock_config_dict: dict[str, Any],
+    mock_execution_handler: MagicMock,
+    mock_portfolio_tracker: MagicMock,
+    mock_risk_manager: MagicMock,
+    mock_signal_queue: MagicMock,
+) -> None:
+    """Test passing duplicate signals from strategy.
+    Note: StrategyManager itself doesn't deduplicate; this is likely handled
+    downstream (e.g., SignalQueue, ExecutionHandler).
+    """
+    strategy_manager_for_test = StrategyManager(
+        config=mock_config_dict,
+        execution_handler=mock_execution_handler,
+        portfolio_tracker=mock_portfolio_tracker,
+        risk_manager=mock_risk_manager,
+        signal_queue=mock_signal_queue,
+    )
+    mock_strategy_instance = MockStrategy(name="TestStrategy", symbol="BTC/USDT", enabled=True)
+    signal1 = TradeSignal(
+        signal_id="dup_signal_123",
+        symbol="BTC/USDT",
+        signal_type=SignalType.ENTER_LONG,
+        side=OrderSide.BUY,
+        price=Decimal("50000"),
+        quantity=Decimal("1"),
+        metadata={"utility_score": 0.8, "origin_strategy": mock_strategy_instance.name},
+        exchange="mock_exchange",
+    )
+    strategy_manager_for_test.register_strategy(mock_strategy_instance)
+    strategy_manager_for_test.enable_strategy("TestStrategy")
+
+    market_data = Candle(
+        symbol="BTC/USDT",
+        interval="1m",
+        open_time=datetime.now(UTC),
+        open=Decimal("49990"),
+        high=Decimal("50001"),
+        low=Decimal("49980"),
+        close=Decimal("49999"),
+        volume=Decimal("10"),
+    )
+
+    with patch.object(
+        mock_strategy_instance,
+        "process_data",
+        new_callable=AsyncMock,
+        return_value=[signal1, signal1],
+    ) as mock_process_data:
+        await strategy_manager_for_test.process_market_data(market_data)
+
+    mock_process_data.assert_called_once_with(market_data)
+    assert mock_signal_queue.add_signal.call_count == 2
+    mock_signal_queue.add_signal.assert_any_call(signal1)
+
+
+@pytest.mark.asyncio
+async def test_process_market_data_mixed_valid_invalid(
+    mock_config_dict: dict[str, Any],
+    mock_execution_handler: MagicMock,
+    mock_portfolio_tracker: MagicMock,
+    mock_risk_manager: MagicMock,
+    mock_signal_queue: MagicMock,
+) -> None:
+    """Test processing a mix of valid and invalid signals."""
+    strategy_manager_for_test = StrategyManager(
+        config=mock_config_dict,
+        execution_handler=mock_execution_handler,
+        portfolio_tracker=mock_portfolio_tracker,
+        risk_manager=mock_risk_manager,
+        signal_queue=mock_signal_queue,
+    )
+    mock_strategy_instance = MockStrategy(name="TestStrategy", symbol="ETH/USDT", enabled=True)
+    valid_signal = TradeSignal(
+        signal_id="valid_sig_789",
+        symbol="ETH/USDT",
+        signal_type=SignalType.ENTER_SHORT,
+        side=OrderSide.SELL,
+        price=Decimal("3000"),
+        quantity=Decimal("5"),
+        metadata={"utility_score": 0.9, "origin_strategy": mock_strategy_instance.name},
+        exchange="another_exchange",
+    )
+    invalid_signal_object = {"data": "not a trade signal"}
+
+    strategy_manager_for_test.register_strategy(mock_strategy_instance)
+    strategy_manager_for_test.enable_strategy("TestStrategy")
+
+    market_data = Candle(
+        symbol="ETH/USDT",
+        interval="1m",
+        open_time=datetime.now(UTC),
+        open=Decimal("2990"),
+        high=Decimal("3001"),
+        low=Decimal("2980"),
+        close=Decimal("2999"),
+        volume=Decimal("12"),
+    )
+
+    with (
+        patch.object(
+            mock_strategy_instance,
+            "process_data",
+            new_callable=AsyncMock,
+            return_value=[valid_signal, invalid_signal_object],
+        ) as mock_process_data,
+        patch("cyberdelta.core.strategy_manager.logger") as mock_logger_local,
+    ):
+        await strategy_manager_for_test.process_market_data(market_data)
+
+    mock_process_data.assert_called_once_with(market_data)
+    mock_signal_queue.add_signal.assert_called_once_with(valid_signal)
+
+    invalid_msg = (
+        f"Non-TradeSignal object returned by {mock_strategy_instance.name}: {invalid_signal_object}"
+    )
+    mock_logger_local.error.assert_any_call(invalid_msg)
+
+
+@pytest.mark.asyncio
+async def test_signal_handler_risk_manager_exception(
+    mock_config_dict: dict[str, Any],
+    mock_execution_handler: MagicMock,
+    mock_portfolio_tracker: MagicMock,
+    mock_risk_manager: MagicMock,
+    mock_signal_queue: MagicMock,
+) -> None:
+    """Test process_market_data when risk_manager.size_signal raises."""
+    strategy_manager = StrategyManager(
+        config=mock_config_dict,
+        execution_handler=mock_execution_handler,
+        portfolio_tracker=mock_portfolio_tracker,
+        risk_manager=mock_risk_manager,
+        signal_queue=mock_signal_queue,
+    )
+    mock_strategy_instance = MockStrategy(name="TestStrategyRMEx", symbol="SYM/USDT", enabled=True)
+    mock_signal = TradeSignal(
+        signal_id="test_signal_rm_ex",
+        symbol="SYM/USDT",
+        signal_type=SignalType.ENTER_LONG,
+        side=OrderSide.BUY,
+        price=Decimal("100"),
+        quantity=Decimal("1"),
+        exchange="test_exchange",
+    )
+    strategy_manager.register_strategy(mock_strategy_instance)
+    strategy_manager.enable_strategy("TestStrategyRMEx")
+
+    mock_risk_manager.size_signal.side_effect = ValueError("Risk Eval Error")
+
+    market_data = Candle(
+        symbol="SYM/USDT",
+        interval="1m",
+        open_time=datetime.now(UTC),
+        open=Decimal("99"),
+        high=Decimal("101"),
+        low=Decimal("98"),
+        close=Decimal("100"),
+        volume=Decimal("100"),
+    )
+
+    with (
+        patch.object(
+            mock_strategy_instance,
+            "process_data",
+            new_callable=AsyncMock,
+            return_value=[mock_signal],
+        ) as mock_process_data,
+        patch("cyberdelta.core.strategy_manager.logger") as mock_logger,
+    ):
+        await strategy_manager.process_market_data(market_data)
+
+    mock_process_data.assert_called_once_with(market_data)
+    mock_risk_manager.size_signal.assert_called_once_with(mock_signal)
+    mock_signal_queue.add_signal.assert_not_called()
+    error_msg = (
+        f"Error during signal processing (post-generation) in "
+        f"{mock_strategy_instance.name}: Risk Eval Error"
+    )
+    mock_logger.error.assert_any_call(error_msg, exc_info=True)
+
+
+@pytest.mark.asyncio
+async def test_signal_handler_update_historical_data_exception(
+    mock_config_dict: dict[str, Any],
+    mock_execution_handler: MagicMock,
+    mock_portfolio_tracker: MagicMock,
+    mock_risk_manager: MagicMock,
+    mock_signal_queue: MagicMock,
+) -> None:
+    """Test process_market_data when strategy.update_historical_data raises an exception."""
+    strategy_manager = StrategyManager(
+        config=mock_config_dict,
+        execution_handler=mock_execution_handler,
+        portfolio_tracker=mock_portfolio_tracker,
+        risk_manager=mock_risk_manager,
+        signal_queue=mock_signal_queue,
+    )
+    mock_strategy_instance = MockStrategy(
+        name="TestStrategyHistEx", symbol="SYM/USDT", enabled=True
+    )
+    strategy_manager.register_strategy(mock_strategy_instance)
+    strategy_manager.enable_strategy("TestStrategyHistEx")
+
+    market_data = Candle(
+        symbol="SYM/USDT",
+        interval="1m",
+        open_time=datetime.now(UTC),
+        open=Decimal("99"),
+        high=Decimal("101"),
+        low=Decimal("98"),
+        close=Decimal("100"),
+        volume=Decimal("100"),
+    )
+
+    with (
+        patch.object(
+            mock_strategy_instance,
+            "update_historical_data",
+            side_effect=ValueError("Hist Data Error"),
+        ) as mock_update_hist,
+        patch.object(
+            mock_strategy_instance, "process_data", new_callable=AsyncMock
+        ) as mock_process_data,
+    ):
+        with pytest.raises(ValueError, match="Hist Data Error"):
+            await strategy_manager.process_market_data(market_data)
+
+    mock_update_hist.assert_called_once_with(market_data)
+    mock_process_data.assert_not_called()
+    mock_signal_queue.add_signal.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_process_market_data_malformed_signal(
+    mock_config_dict: dict[str, Any],
+    mock_execution_handler: MagicMock,
+    mock_portfolio_tracker: MagicMock,
+    mock_risk_manager: MagicMock,
+    mock_signal_queue: MagicMock,
+) -> None:
+    """Test process_market_data when strategy returns malformed signal data."""
+    strategy_manager = StrategyManager(
+        config=mock_config_dict,
+        execution_handler=mock_execution_handler,
+        portfolio_tracker=mock_portfolio_tracker,
+        risk_manager=mock_risk_manager,
+        signal_queue=mock_signal_queue,
+    )
+    mock_strategy_instance = MockStrategy(
+        name="TestStrategyMalformed", symbol="SYM/USDT", enabled=True
+    )
+    malformed_signal_dict: dict[str, Any] = {
+        "signal_id": "malformed_123",
+        "symbol": "SYM/USDT",
+        "signal_type": SignalType.ENTER_LONG,
+        "side": OrderSide.BUY,
+        "quantity": Decimal("1"),
+        "exchange": "test",
+        "metadata": {},
+    }
+
+    strategy_manager.register_strategy(mock_strategy_instance)
+    strategy_manager.enable_strategy("TestStrategyMalformed")
+
+    market_data = Candle(
+        symbol="SYM/USDT",
+        interval="1m",
+        open_time=datetime.now(UTC),
+        open=Decimal("99"),
+        high=Decimal("101"),
+        low=Decimal("98"),
+        close=Decimal("100"),
+        volume=Decimal("100"),
+    )
+
+    with (
+        patch.object(
+            mock_strategy_instance,
+            "process_data",
+            new_callable=AsyncMock,
+            return_value=[malformed_signal_dict],
+        ) as mock_process_data,
+        patch("cyberdelta.core.strategy_manager.logger") as mock_logger,
+    ):
+        await strategy_manager.process_market_data(market_data)
+
+    mock_process_data.assert_called_once_with(market_data)
+    mock_signal_queue.add_signal.assert_not_called()
+    error_msg = (
+        f"Non-TradeSignal object returned by {mock_strategy_instance.name}: {malformed_signal_dict}"
+    )
+    mock_logger.error.assert_any_call(error_msg)
+
+
+# Removed the __main__ block as tests are run via pytest

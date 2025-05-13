@@ -4,6 +4,7 @@ Tests for the Priority Signal Queue functionality.
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 from unittest.mock import MagicMock, patch  # Import patch
 from uuid import UUID
 
@@ -14,42 +15,65 @@ from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.utils.config import Config
 
 # Import BreakerState for mocking states
-from cyberdelta.validation.circuit_breaker import BreakerState
+from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
 @pytest.fixture
-def mock_config() -> Config:
-    """Mock configuration for testing."""
-    return Config(
-        {
-            "default_signal_expiration_seconds": 60,
-            "max_signal_queue_size": 100,
-            "queue_cleanup_interval": 5,
-        }
-    )
+def mock_config() -> MagicMock:
+    """Fixture for a mock configuration object."""
+    mock = MagicMock(spec=Config)
+    mock_storage: dict[str, Any] = {}
+    default_config_values = {
+        "default_signal_expiration_seconds": 60.0,
+        "max_signal_queue_size": 100,
+        "queue_cleanup_interval": 5.0,
+    }
 
+    # Define a regular function for the side effect with type hints
+    def mock_get_side_effect(key: str, default: Any = None) -> Any:
+        # Check mock_storage first, then fallback to defaults, then to the provided default
+        return mock_storage.get(key, default_config_values.get(key, default))
 
-@pytest.fixture
-def mock_circuit_breaker() -> MagicMock:
-    """Mock circuit breaker system for testing."""
-    mock = MagicMock()
-    # Default to all checks passing
-    mock.check_exchange.return_value = True
-    mock.check_symbol.return_value = True
+    # Define the mock_set function
+    def mock_set(key: str, value: Any) -> None:
+        mock_storage[key] = value
+
+    # Assign the functions to the mock object's methods
+    mock.get.side_effect = mock_get_side_effect
+    mock.set = mock_set  # Keep the set method
+
+    # Populate mock_storage with defaults so initial get works as expected
+    mock_storage.update(default_config_values)
+
     return mock
 
 
 @pytest.fixture
-def signal_queue(mock_config: Config) -> PrioritySignalQueue:
-    """Mock signal queue for testing."""
-    return PrioritySignalQueue(mock_config)
+def mock_circuit_breaker() -> MagicMock:
+    """Fixture for a mock CircuitBreakerSystem."""
+    mock_system = MagicMock(spec=CircuitBreakerSystem)
+    # Mock the get_exchange_breaker to return another mock
+    mock_breaker_instance = MagicMock()
+    mock_breaker_instance.state = BreakerState.CLOSED  # Default state
+    mock_breaker_instance.trip_reason = None
+    mock_system.get_exchange_breaker.return_value = mock_breaker_instance
+    # Mock can_execute to return True by default
+    mock_system.can_execute.return_value = (True, None)
+    return mock_system
+
+
+@pytest.fixture
+def signal_queue(mock_config: Config, mock_circuit_breaker: MagicMock) -> PrioritySignalQueue:
+    """Fixture for a PrioritySignalQueue instance with mocks."""
+    # Pass the mock circuit breaker during initialization
+    return PrioritySignalQueue(mock_config, mock_circuit_breaker)
 
 
 @pytest.fixture
 def sample_signal() -> TradeSignal:
     """Sample trade signal for testing."""
-    now = datetime.now()
+    now = datetime.now(UTC)  # Use UTC
     return TradeSignal(
         timestamp=now,
         symbol="BTC/USDT",
@@ -59,7 +83,7 @@ def sample_signal() -> TradeSignal:
         quantity=Decimal("1"),
         source_strategy="test_strategy",
         metadata={"utility_score": 0.8},
-        exchange=["mock_exchange"],  # Changed to list
+        exchange="mock_exchange",  # String is valid
     )
 
 
@@ -84,10 +108,48 @@ def sample_opportunity() -> ArbitrageOpportunity:
     )
 
 
+# --- Helper Function ---
+def create_test_signal(
+    symbol: str,
+    score: float,
+    price: Decimal,  # Added required price
+    signal_type: SignalType = SignalType.ENTER_LONG,
+    side: OrderSide = OrderSide.BUY,
+    quantity: Decimal | None = Decimal("1.0"),
+    expiration_offset: int = 60,  # seconds
+    exchange_name: str = "mock_exchange",
+    source_strategy: str = "test_strategy",
+    exchange_pair: tuple[str, str] | None = None,
+) -> TradeSignal:
+    """Helper function to create a test signal with a utility score."""
+    now = datetime.now(UTC)  # Use UTC
+    expiration = now + timedelta(seconds=expiration_offset)
+    metadata = {"utility_score": score}
+    if exchange_pair:
+        # Pyright might complain here as dict value is Any, ignoring.
+        metadata["long_exchange"] = exchange_pair[0]  # type: ignore
+        metadata["short_exchange"] = exchange_pair[1]  # type: ignore
+
+    return TradeSignal(
+        timestamp=now,
+        symbol=symbol,
+        signal_type=signal_type,
+        side=side,
+        price=price,
+        quantity=quantity,
+        exchange=exchange_name,
+        source_strategy=source_strategy,
+        expiration=expiration,
+        metadata=metadata,
+    )
+
+
+# --- Basic Queue Tests ---
+
+
 def test_initialization(mock_config: Config) -> None:
     """Test queue initialization."""
     queue = PrioritySignalQueue(mock_config)
-
     assert queue.signal_queue == []
     assert queue.counter == 0
     assert queue.default_expiration_seconds == 60
@@ -95,23 +157,19 @@ def test_initialization(mock_config: Config) -> None:
     assert queue.cleanup_interval == 5
 
 
-def test_add_signal(mock_config: Config, sample_signal: TradeSignal) -> None:
-    """Test adding a signal to the queue."""
-    queue = PrioritySignalQueue(mock_config)
-
-    # Add signal
-    result = queue.add_signal(sample_signal)
-
+def test_add_signal(signal_queue: PrioritySignalQueue, sample_signal: TradeSignal) -> None:
+    """Test adding a valid signal to the queue."""
+    result = signal_queue.add_signal(sample_signal)
     assert result is True
-    assert len(queue.signal_queue) == 1
-    assert queue.counter == 1
+    assert signal_queue.count() == 1
+    assert not signal_queue.is_empty()
 
-    # Check queue contents
-    priority, _, signal = queue.signal_queue[0]
-    assert priority == -0.8  # Negative for max-heap
+    # Check queue contents (internal check, less ideal but useful)
+    priority, _, signal = signal_queue.signal_queue[0]
+    assert priority == -0.8  # Negative for max-heap based on utility_score
     assert signal.symbol == "BTC/USDT"
     assert signal.expiration is not None
-    assert signal.exchange == ["mock_exchange"]
+    assert signal.exchange == "mock_exchange"
     # Check that the signal_id is a valid UUID string
     try:
         UUID(signal.signal_id, version=4)
@@ -119,557 +177,436 @@ def test_add_signal(mock_config: Config, sample_signal: TradeSignal) -> None:
         pytest.fail("signal_id is not a valid UUID")
 
 
-def test_add_signal_with_circuit_breaker(
+def test_add_signal_with_circuit_breaker_open(
     mock_config: Config, mock_circuit_breaker: MagicMock, sample_signal: TradeSignal
 ) -> None:
-    """Test adding a signal with circuit breaker integration."""
+    """Test adding a signal is rejected when the relevant circuit breaker is OPEN."""
+    # Set the mock can_execute to return False for the target exchange
+    target_exchange = "reject_exchange"
+    sample_signal.exchange = target_exchange
+    mock_circuit_breaker.can_execute.side_effect = (
+        lambda ex_id, sym: (False, "Test trip") if ex_id == target_exchange else (True, None)
+    )
+
     queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
-
-    # Simulate the relevant breaker being OPEN
-    mock_breaker_instance = MagicMock()
-    mock_breaker_instance.state = BreakerState.OPEN
-    mock_breaker_instance.trip_reason = "Test trip"
-    # Mock get_exchange_breaker to return this OPEN breaker for the relevant exchange
-    # Infer exchange from signal symbol (e.g., assuming BTC/USDT implies 'binance'
-    # if not in metadata)
-    # We need a symbol mapper or assume metadata for a robust test, let's add metadata
-    sample_signal.metadata = {"long_exchange": "test_exchange"}  # Add metadata
-    mock_circuit_breaker.get_exchange_breaker.return_value = mock_breaker_instance
-
-    # Add signal (should be rejected)
     result = queue.add_signal(sample_signal)
 
+    # Assert that can_execute was called correctly
+    mock_circuit_breaker.can_execute.assert_called_with(target_exchange, sample_signal.symbol)
     assert result is False, "Signal should be rejected when relevant breaker is OPEN"
-    assert len(queue.signal_queue) == 0
-    mock_circuit_breaker.get_exchange_breaker.assert_called()  # Check that the breaker was checked
 
-    # Simulate the breaker being CLOSED (or non-existent)
-    mock_breaker_instance.state = BreakerState.CLOSED
-    # Or mock get_exchange_breaker to return None or a CLOSED breaker
-    mock_circuit_breaker.get_exchange_breaker.return_value = mock_breaker_instance
 
-    # Add signal (should succeed)
-    result = queue.add_signal(sample_signal)
+def test_add_signal_with_circuit_breaker_closed(
+    signal_queue: PrioritySignalQueue, mock_circuit_breaker: MagicMock, sample_signal: TradeSignal
+) -> None:
+    """Test adding a signal succeeds when the relevant circuit breaker is CLOSED."""
+    # Ensure the mock can_execute returns True (default fixture behavior)
+    target_exchange = "allow_exchange"
+    sample_signal.exchange = target_exchange
+
+    # Reset can_execute mock side effect if set in other tests
+    # The fixture already sets return_value=(True, None)
+    mock_circuit_breaker.can_execute.side_effect = None
+    mock_circuit_breaker.can_execute.return_value = (True, None)
+
+    result = signal_queue.add_signal(sample_signal)
 
     assert result is True, "Signal should be added when relevant breaker is CLOSED"
-    assert len(queue.signal_queue) == 1
+    assert signal_queue.count() == 1
+    # Assert can_execute was called, not get_exchange_breaker
+    mock_circuit_breaker.can_execute.assert_called_with(target_exchange, sample_signal.symbol)
 
 
 def test_add_from_opportunity(
-    mock_config: Config, sample_opportunity: ArbitrageOpportunity
-) -> None:
-    """Test creating and adding a signal from an arbitrage opportunity."""
-    queue = PrioritySignalQueue(mock_config)
-
-    # Add from opportunity using the method
-    signal = queue.add_from_opportunity(
-        opportunity=sample_opportunity,
-        strategy_name="funding_arb_strategy",
-    )
-
-    assert signal is not None
-    assert len(queue.signal_queue) == 1
-    assert signal.source_strategy == "funding_arb_strategy"
-    assert signal.symbol == "ETH/USDT"
-    assert signal.metadata is not None
-    assert signal.metadata["utility_score"] == 0.9
-    assert signal.metadata["long_exchange"] == "exA"
-    assert signal.metadata["short_exchange"] == "exB"
-
-
-def test_get_next_signal(mock_config: Config, sample_signal: TradeSignal) -> None:
-    """Test getting the next signal from the queue."""
-    queue = PrioritySignalQueue(mock_config)
-
-    # Add signal
-    queue.add_signal(sample_signal)
-
-    # Get next signal
-    signal = queue.get_next_signal()
-
-    assert signal is not None
-    assert signal.symbol == "BTC/USDT"
-    assert len(queue.signal_queue) == 0  # Signal should be removed
-
-
-def test_peek_next_signal(mock_config: Config, sample_signal: TradeSignal) -> None:
-    """Test peeking at the next signal without removing it."""
-    queue = PrioritySignalQueue(mock_config)
-
-    # Add signal
-    queue.add_signal(sample_signal)
-
-    # Peek at next signal
-    signal = queue.peek_next_signal()
-
-    assert signal is not None
-    assert signal.symbol == "BTC/USDT"
-    assert len(queue.signal_queue) == 1  # Signal should still be in queue
-
-
-def test_get_signals(mock_config: Config) -> None:
-    """Test getting signals by symbol or all signals."""
-    queue = PrioritySignalQueue(mock_config)
-
-    # Add two signals with different symbols
-    signal1 = TradeSignal(
-        symbol="BTC/USDT",
-        signal_type=SignalType.ENTER_LONG,
-        side=OrderSide.BUY,
-        price=Decimal("50000"),
-        quantity=Decimal("1"),
-        exchange="mock_exchange1",
-    )
-    signal2 = TradeSignal(
-        symbol="ETH/USDT",
-        signal_type=SignalType.ENTER_LONG,
-        side=OrderSide.BUY,
-        price=Decimal("3000"),
-        quantity=Decimal("1"),
-        exchange="mock_exchange2",
-    )
-
-    queue.add_signal(signal1)
-    queue.add_signal(signal2)
-
-    # Get signals for BTC/USDT
-    btc_signals = queue.get_signals(symbol="BTC/USDT")
-    assert len(btc_signals) == 1
-    assert btc_signals[0].symbol == "BTC/USDT"
-
-    # Get all signals
-    all_signals = queue.get_signals()
-    assert len(all_signals) == 2
-
-
-def test_count(mock_config: Config, sample_signal: TradeSignal) -> None:
-    """Test counting signals in the queue."""
-    queue = PrioritySignalQueue(mock_config)
-
-    assert queue.count() == 0
-
-    queue.add_signal(sample_signal)
-    assert queue.count() == 1
-
-
-def test_clear(mock_config: Config, sample_signal: TradeSignal) -> None:
-    """Test clearing the queue."""
-    queue = PrioritySignalQueue(mock_config)
-
-    queue.add_signal(sample_signal)
-    assert queue.count() == 1
-
-    queue.clear()
-    assert queue.count() == 0
-    assert queue.signal_queue == []
-
-
-@pytest.mark.xfail(reason="Persistent TypeError when patching datetime.now for this test.")
-@patch(
-    "cyberdelta.core.signal_queue.datetime.now"  # Patch datetime.now specifically
-)
-def test_clean_expired_signals(
-    patched_datetime_now: MagicMock,  # Patched datetime.now
-    mock_config: Config,
-) -> None:
-    """Test cleaning up expired signals."""
-    queue = PrioritySignalQueue(mock_config)
-
-    # Mock current time
-    now_fixed = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
-    patched_datetime_now.return_value = now_fixed  # Set return value of patched now
-
-    # Set last_cleanup far in the past to ensure cleanup is triggered on first add
-    queue.last_cleanup = now_fixed - timedelta(days=1)
-
-    # Create signals
-    # Signal that should NOT expire (explicit future expiration relative to now_fixed)
-    valid_signal = TradeSignal(
-        timestamp=now_fixed - timedelta(seconds=10),
-        symbol="BTC/USDT",
-        signal_type=SignalType.ENTER_LONG,
-        side=OrderSide.BUY,
-        price=Decimal("50000"),
-        quantity=Decimal("1"),
-        source_strategy="test",
-        metadata={"utility_score": 0.8},
-        expiration=(now_fixed + timedelta(seconds=30)),
-        exchange="mock_exchange",
-    )
-    # Signal that SHOULD expire (explicit past expiration)
-    expired_signal = TradeSignal(
-        timestamp=now_fixed - timedelta(seconds=70),
-        symbol="ETH/USDT",
-        signal_type=SignalType.ENTER_LONG,
-        side=OrderSide.BUY,
-        price=Decimal("3000"),
-        quantity=Decimal("1"),
-        source_strategy="test",
-        metadata={"utility_score": 0.7},
-        expiration=(now_fixed - timedelta(seconds=10)),
-        exchange="mock_exchange",
-    )
-    # Signal that SHOULD expire (default expiration, created > 60s ago)
-    default_expired_signal = TradeSignal(
-        timestamp=now_fixed - timedelta(seconds=70),
-        symbol="SOL/USDT",
-        signal_type=SignalType.ENTER_LONG,
-        side=OrderSide.BUY,
-        price=Decimal("100"),
-        quantity=Decimal("10"),
-        source_strategy="test",
-        metadata={"utility_score": 0.6},
-        # No explicit expiration, will be calculated using patched now_fixed
-        exchange="mock_exchange",
-    )
-
-    # Add signals - cleanup should run internally on the first add
-    queue.add_signal(expired_signal)
-    queue.add_signal(default_expired_signal)
-    queue.add_signal(valid_signal)
-
-    # Assert final state after adds (which trigger cleanup)
-    # Expired: expired_signal, default_expired_signal (total 2)
-    # Valid: valid_signal (1)
-    # Expected count = 1
-    assert queue.count() == 1
-    # Ensure only the valid signal remains
-    remaining_signal = queue.peek_next_signal()
-    assert remaining_signal is not None
-    assert remaining_signal.symbol == "BTC/USDT"  # valid_signal
-
-
-def test_trim_queue(mock_config: Config) -> None:
-    """Test that the queue trims the lowest priority signals when full."""
-    # Override max queue size for this test
-    config = Config(
-        {
-            "default_signal_expiration_seconds": 60,
-            "max_signal_queue_size": 2,
-            "queue_cleanup_interval": 5,
-        }
-    )
-    queue = PrioritySignalQueue(config)
-
-    # Add signals with different priorities
-    signal1 = TradeSignal(
-        symbol="BTC/USDT",
-        signal_type=SignalType.ENTER_LONG,
-        side=OrderSide.BUY,
-        price=Decimal(str(50000 + 0)),
-        quantity=Decimal("1"),
-        metadata={"utility_score": 0.1 * 0},
-        exchange=f"mock_exchange_{0}",
-    )
-
-    signal2 = TradeSignal(
-        symbol="ETH/USDT",
-        signal_type=SignalType.ENTER_LONG,
-        side=OrderSide.BUY,
-        price=Decimal(str(50000 + 1)),
-        quantity=Decimal("1"),
-        metadata={"utility_score": 0.1 * 1},
-        exchange=f"mock_exchange_{1}",
-    )
-
-    signal3 = TradeSignal(
-        symbol="SOL/USDT",
-        signal_type=SignalType.ENTER_LONG,
-        side=OrderSide.BUY,
-        price=Decimal(str(50000 + 2)),
-        quantity=Decimal("1"),
-        metadata={"utility_score": 0.1 * 2},
-        exchange=f"mock_exchange_{2}",
-    )
-
-    queue.add_signal(signal1)
-    queue.add_signal(signal2)
-    queue.add_signal(signal3)
-
-    # Queue should automatically trim to max size of 2
-    assert queue.count() == 2
-
-    # Check which signals remain (should be the highest priority ones)
-    signals = queue.get_signals()
-    symbols = [s.symbol for s in signals]
-    assert "BTC/USDT" in symbols
-    assert "ETH/USDT" in symbols
-    assert "SOL/USDT" not in symbols
-
-    # Verify signals are added
-    assert len(queue.signal_queue) == 3
-
-    # Add one more signal to trigger trimming
-    signal4 = TradeSignal(
-        symbol="LOW_PRIORITY",
-        signal_type=SignalType.ENTER_LONG,
-        side=OrderSide.BUY,
-        price=Decimal(str(50000 + 3)),
-        quantity=Decimal("1"),
-        metadata={"utility_score": 0.1 * 3},
-        exchange=f"mock_exchange_{3}",
-    )
-    queue.add_signal(signal4)
-
-    # Check which signals remain (should be the highest priority ones)
-    signals = queue.get_signals()
-    symbols = [s.symbol for s in signals]
-    assert "BTC/USDT" in symbols
-    assert "ETH/USDT" in symbols
-    assert "SOL/USDT" not in symbols
-
-    # Ensure queue length is within limits
-    assert queue.count() <= queue.max_queue_size
-
-
-def test_private_calculate_expiration(mock_config: Config, sample_signal: TradeSignal) -> None:
-    """Test the internal _calculate_expiration method."""
-    queue = PrioritySignalQueue(mock_config)
-    now = datetime.now(UTC)
-    expiration = queue._calculate_expiration(sample_signal)  # noqa: SLF001
-    expected_expiration = now + timedelta(seconds=60)  # Default expiration
-    assert abs((expiration - expected_expiration).total_seconds()) < 1
-
-    # Test with custom expiration
-    mock_config.get.return_value = 120
-    queue_custom = PrioritySignalQueue(mock_config)
-    expiration_custom = queue_custom._calculate_expiration(sample_signal)  # noqa: SLF001
-    expected_expiration_custom = now + timedelta(seconds=120)
-    assert abs((expiration_custom - expected_expiration_custom).total_seconds()) < 1
-
-
-def test_private_check_circuit_breakers(
-    mock_config: Config, mock_circuit_breaker: MagicMock
-) -> None:
-    """Test the internal _check_circuit_breakers method."""
-    queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
-    signal = TradeSignal(
-        symbol="BTC/USDT",
-        signal_type=SignalType.ENTER_LONG,
-        score=0.8,
-        timestamp=datetime.now(UTC),
-        exchange_pair=("exchange1", "exchange2"),  # Add exchange pair
-        details={"side": OrderSide.BUY},  # Add required details
-    )
-
-    # Case 1: All breakers closed
-    mock_circuit_breaker.can_execute.return_value = (True, None)
-    assert queue._check_circuit_breakers(signal) is True  # noqa: SLF001
-
-    # Case 2: Global breaker open
-    def get_breaker_side_effect_case1(name: str) -> MagicMock:
-        breaker = MagicMock()
-        breaker.is_open = name == "global"
-        return breaker
-
-    def get_exchange_breaker_side_effect_case1(exchange: str, breaker_type: str) -> MagicMock:
-        breaker = MagicMock()
-        breaker.is_open = False
-        return breaker
-
-    mock_circuit_breaker.get_breaker.side_effect = get_breaker_side_effect_case1
-    mock_circuit_breaker.get_exchange_breaker.side_effect = get_exchange_breaker_side_effect_case1
-    assert queue._check_circuit_breakers(signal) is False  # noqa: SLF001
-
-    # Case 3: Exchange breaker open
-    def get_breaker_side_effect_case2(name: str) -> MagicMock:
-        breaker = MagicMock()
-        breaker.is_open = False
-        return breaker
-
-    def get_exchange_breaker_side_effect_case2(exchange: str, breaker_type: str) -> MagicMock:
-        breaker = MagicMock()
-        breaker.is_open = exchange == "exchange1"
-        return breaker
-
-    mock_circuit_breaker.get_breaker.side_effect = get_breaker_side_effect_case2
-    mock_circuit_breaker.get_exchange_breaker.side_effect = get_exchange_breaker_side_effect_case2
-    assert queue._check_circuit_breakers(signal) is False  # noqa: SLF001
-
-    # Case 4: Symbol/Pair breaker open (assuming get_breaker handles these)
-    def get_breaker_side_effect_case3(name: str) -> MagicMock:
-        # Symbol and pair breakers are closed for this case
-        breaker = MagicMock()
-        breaker.is_open = name == "symbol_BTC/USDT"
-        return breaker
-
-    def get_exchange_breaker_side_effect_case3(exchange: str, breaker_type: str) -> MagicMock:
-        breaker = MagicMock()
-        breaker.is_open = False
-        return breaker
-
-    mock_circuit_breaker.get_breaker.side_effect = get_breaker_side_effect_case3
-    mock_circuit_breaker.get_exchange_breaker.side_effect = get_exchange_breaker_side_effect_case3
-    assert queue._check_circuit_breakers(signal) is False  # noqa: SLF001
-
-
-def test_queue_init(signal_queue: PrioritySignalQueue) -> None:
-    """Test queue initialization with fixture."""
-    assert signal_queue.signal_queue == []
-
-
-def test_add_basic_signal(signal_queue: PrioritySignalQueue, sample_signal: TradeSignal) -> None:
-    """Test adding a basic signal."""
-    assert signal_queue.add_signal(sample_signal) is True
-
-
-def test_add_from_opportunity_fixture(
     signal_queue: PrioritySignalQueue, sample_opportunity: ArbitrageOpportunity
 ) -> None:
-    """Test add from opportunity with fixture."""
+    """Test creating and adding a signal from an arbitrage opportunity."""
     signal = signal_queue.add_from_opportunity(
         opportunity=sample_opportunity,
         strategy_name="funding_arb_strategy",
     )
+
     assert signal is not None
+    assert signal_queue.count() == 1
+    added_signal = signal_queue.peek_next_signal()
+    assert added_signal is not None
+    assert added_signal.source_strategy == "funding_arb_strategy"
+    assert added_signal.symbol == "ETH/USDT"
+    assert added_signal.metadata is not None
+    assert added_signal.metadata["utility_score"] == 0.9
+    assert added_signal.metadata["long_exchange"] == "exA"
+    assert added_signal.metadata["short_exchange"] == "exB"
+    # Check that the exchange field is populated correctly (e.g., list of involved exchanges)
+    assert isinstance(added_signal.exchange, list)
+    assert set(added_signal.exchange) == {"exA", "exB"}
 
 
-def test_get_next_signal_fixture(
-    signal_queue: PrioritySignalQueue, sample_signal: TradeSignal
-) -> None:
-    """Test get next signal with fixture."""
+def test_get_next_signal(signal_queue: PrioritySignalQueue, sample_signal: TradeSignal) -> None:
+    """Test getting the next signal removes it from the queue."""
     signal_queue.add_signal(sample_signal)
-    assert signal_queue.get_next_signal() is not None
+    assert signal_queue.count() == 1
+    retrieved_signal = signal_queue.get_next_signal()
+
+    assert retrieved_signal == sample_signal
+    assert signal_queue.count() == 0
+    assert signal_queue.is_empty()
 
 
-def test_queue_is_empty(signal_queue: PrioritySignalQueue) -> None:
-    """Test checking if queue is empty."""
-    assert signal_queue.is_empty() is True
+def test_peek_next_signal(signal_queue: PrioritySignalQueue, sample_signal: TradeSignal) -> None:
+    """Test peeking at the next signal without removing it."""
+    signal_queue.add_signal(sample_signal)
+    assert signal_queue.count() == 1
+    peeked_signal = signal_queue.peek_next_signal()
+
+    assert peeked_signal == sample_signal
+    assert signal_queue.count() == 1  # Signal should still be in queue
+    assert not signal_queue.is_empty()
 
 
-# Helper to create a TradeSignal
-def create_test_signal(
-    symbol: str,
-    score: float,
-    expiration_offset: int = 60,  # seconds
-    signal_type: SignalType = SignalType.ENTER_LONG,
-    side: OrderSide = OrderSide.BUY,
-    exchange_name: str = "mock_exchange",  # Add exchange name
-    exchange_pair: tuple[str, str] | None = None,  # Make exchange_pair optional
-) -> TradeSignal:
-    """Helper function to create TradeSignal instances for testing."""
-    now = datetime.now(UTC)
-    return TradeSignal(
-        symbol=symbol,
-        signal_type=signal_type,
-        score=score,
-        timestamp=now,
-        expiration=now + timedelta(seconds=expiration_offset),
-        details={"side": side, "exchange": exchange_name},
-        exchange_pair=exchange_pair or (f"{exchange_name}_1", f"{exchange_name}_2"),
-    )
-
-
-def test_clean_expired_signals_with_helper(mock_config: Config) -> None:
-    """Test cleaning up expired signals with helper function."""
-    queue = PrioritySignalQueue(mock_config)
-
-    # Create signals with different expiration times
-    # Unused signals removed to clear linter warnings
-    # expired_signal = create_test_signal(
-    #     "EXPIRED/USDT", 0.8, expiration_offset=-10, exchange_name="mock_ex"
-    # )  # Expired
-    # valid_signal_1 = create_test_signal(
-    #     "VALID1/USDT", 0.7, expiration_offset=60, exchange_name="mock_ex"
-    # )
-    # valid_signal_2 = create_test_signal(
-    #     "VALID2/USDT", 0.6, expiration_offset=120, exchange_name="mock_ex"
-    # )
-
-    # Create signals with different priorities
-    low_priority_signal = create_test_signal("LOW/USDT", 0.2, exchange_name="mock_ex")
-    mid_priority_signal = create_test_signal("MID/USDT", 0.5, exchange_name="mock_ex")
-    high_priority_signal = create_test_signal("HIGH/USDT", 0.8, exchange_name="mock_ex")
-
-    queue.add_signal(low_priority_signal)
-    queue.add_signal(mid_priority_signal)
-    queue.add_signal(high_priority_signal)
-
-    # Retrieve signals to check order (get_next_signal cleans expired)
-    retrieved_high = queue.get_next_signal()
-    retrieved_mid = queue.get_next_signal()
-    retrieved_low = queue.get_next_signal()
-
-    assert retrieved_high is not None
-    assert retrieved_high.symbol == "HIGH/USDT"
-    assert retrieved_mid is not None
-    assert retrieved_mid.symbol == "MID/USDT"
-    assert retrieved_low is not None
-    assert retrieved_low.symbol == "LOW/USDT"
-    assert queue.is_empty()
-
-
-def test_signal_creation(sample_signal: TradeSignal) -> None:
-    """Test basic signal creation and attributes."""
-    # Test with the sample_signal fixture
-    assert sample_signal.symbol == "BTC/USDT"
-    assert sample_signal.signal_type == SignalType.ENTER_LONG
-    assert sample_signal.price is not None  # Linter fix
-    assert sample_signal.price > Decimal("0")
-    assert sample_signal.quantity is not None  # Linter fix (assuming quantity could be None)
-    assert sample_signal.quantity > Decimal("0")
-    assert isinstance(sample_signal.timestamp, datetime)
-    assert sample_signal.metadata is not None  # Linter fix
-    assert sample_signal.metadata["utility_score"] == 0.8
-    # Add exchange to this direct instantiation as well
-    signal = TradeSignal(
-        symbol="ETH/USDT",
-        signal_type=SignalType.EXIT_LONG,
-        side=OrderSide.SELL,
-        price=Decimal("3000"),
-        quantity=Decimal("0.5"),
-        exchange=["test_exchange"],
-    )
-    assert signal.symbol == "ETH/USDT"
-
-
-def test_add_signal_different_priorities(
-    mock_config: Config, mock_circuit_breaker: MagicMock, sample_signal: TradeSignal
-) -> None:
-    """Test adding a signal with different priorities."""
-    queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
-
-    # Add signal with different priorities
+def test_get_signals(signal_queue: PrioritySignalQueue) -> None:
+    """Test getting signals by symbol or all signals."""
+    now_utc = datetime.now(UTC)
     signal1 = TradeSignal(
+        timestamp=now_utc,
         symbol="BTC/USDT",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("50000"),
         quantity=Decimal("1"),
-        metadata={"utility_score": 0.8},
+        source_strategy="test_strategy_1",
         exchange="mock_exchange1",
+        metadata={"utility_score": 0.8},
     )
     signal2 = TradeSignal(
+        timestamp=now_utc,
         symbol="ETH/USDT",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("3000"),
         quantity=Decimal("1"),
-        metadata={"utility_score": 0.7},
+        source_strategy="test_strategy_2",
         exchange="mock_exchange2",
+        metadata={"utility_score": 0.7},
     )
-    signal3 = TradeSignal(
-        symbol="SOL/USDT",
+
+    signal_queue.add_signal(signal1)
+    signal_queue.add_signal(signal2)
+
+    # Get signals for BTC/USDT
+    btc_signals = signal_queue.get_signals(symbol="BTC/USDT")
+    assert len(btc_signals) == 1
+    assert btc_signals[0].symbol == "BTC/USDT"
+
+    # Get all signals
+    all_signals = signal_queue.get_signals()
+    assert len(all_signals) == 2
+    # Order depends on priority (utility_score)
+    assert {s.symbol for s in all_signals} == {"BTC/USDT", "ETH/USDT"}
+
+
+def test_count(signal_queue: PrioritySignalQueue, sample_signal: TradeSignal) -> None:
+    """Test counting signals in the queue."""
+    assert signal_queue.count() == 0
+    assert signal_queue.is_empty()
+
+    signal_queue.add_signal(sample_signal)
+    assert signal_queue.count() == 1
+    assert not signal_queue.is_empty()
+
+    signal_queue.get_next_signal()
+    assert signal_queue.count() == 0
+    assert signal_queue.is_empty()
+
+
+def test_clear(signal_queue: PrioritySignalQueue, sample_signal: TradeSignal) -> None:
+    """Test clearing the queue."""
+    signal_queue.add_signal(sample_signal)
+    assert signal_queue.count() == 1
+    signal_queue.clear()
+    assert signal_queue.count() == 0
+    assert signal_queue.is_empty()
+
+
+# --- Advanced Queue Logic Tests ---
+
+
+# Note: The test `test_clean_expired_signals` below uses direct datetime patching.
+# It's kept for reference but can be tricky.
+# `test_signal_expiration_logic` and `test_clean_expired_signals_with_helper` are preferred.
+@pytest.mark.xfail(reason="Patching datetime can be complex and lead to subtle issues.")
+@patch("cyberdelta.core.signal_queue.datetime")
+def test_clean_expired_signals_direct_patch(
+    mock_dt: MagicMock, mock_config: Config, mock_circuit_breaker: MagicMock
+) -> None:
+    """Test cleaning expired signals from the queue (direct datetime patch)."""
+    queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
+
+    # Define fixed points in time for clarity
+    time_now = datetime(2023, 10, 27, 12, 0, 0, tzinfo=UTC)
+    time_expired = time_now - timedelta(seconds=70)  # Before default expiry window
+    time_valid = time_now - timedelta(seconds=30)  # Within default expiry window
+    explicit_expiry_past = time_now - timedelta(seconds=1)
+    explicit_expiry_future = time_now + timedelta(minutes=5)
+
+    mock_dt.now.return_value = time_now  # Set the mocked 'now'
+    mock_dt.UTC = UTC  # Ensure the mock datetime object has UTC
+
+    # Signal 1: Should expire based on default (timestamp too old)
+    signal_default_expired = TradeSignal(
+        timestamp=time_expired,
+        symbol="DEF_EXP",
+        price=Decimal(1),
+        exchange="ex",
+        signal_type=SignalType.ENTER_LONG,
+        side=OrderSide.BUY,  # Added defaults
+    )
+    # Signal 2: Should be valid based on default (timestamp recent)
+    signal_default_valid = TradeSignal(
+        timestamp=time_valid,
+        symbol="DEF_VAL",
+        price=Decimal(1),
+        exchange="ex",
+        signal_type=SignalType.ENTER_LONG,
+        side=OrderSide.BUY,  # Added defaults
+    )
+    # Signal 3: Explicitly expired
+    signal_explicit_expired = TradeSignal(
+        timestamp=time_valid,
+        symbol="EXP_EXP",
+        price=Decimal(1),
+        exchange="ex",
+        expiration=explicit_expiry_past,
+        signal_type=SignalType.ENTER_LONG,
+        side=OrderSide.BUY,  # Added defaults
+    )
+    # Signal 4: Explicitly valid
+    signal_explicit_valid = TradeSignal(
+        timestamp=time_valid,
+        symbol="EXP_VAL",
+        price=Decimal(1),
+        exchange="ex",
+        expiration=explicit_expiry_future,
+        signal_type=SignalType.ENTER_LONG,
+        side=OrderSide.BUY,  # Added defaults
+    )
+
+    queue.add_signal(signal_default_expired)
+    queue.add_signal(signal_default_valid)
+    queue.add_signal(signal_explicit_expired)
+    queue.add_signal(signal_explicit_valid)
+
+    assert queue.count() == 4
+
+    # Trigger cleanup by attempting to get a signal - uses the mocked datetime.now() internally
+    _ = queue.get_next_signal()  # We expect signal_default_valid or signal_explicit_valid
+    # The internal cleanup runs *before* returning the signal.
+
+    # Assertions
+    # One signal was retrieved, and two expired signals were cleaned.
+    assert queue.count() == 1  # Only the other valid signal should remain
+    remaining_symbols = {s.symbol for s in queue.get_signals()}
+    assert len(remaining_symbols) == 1
+    assert remaining_symbols.issubset({"DEF_VAL", "EXP_VAL"})  # Check it's one of the valid ones
+
+
+def test_trim_queue(mock_config: Config, mock_circuit_breaker: MagicMock) -> None:
+    """Test trimming the queue when it exceeds the maximum size."""
+    # Set max size low for testing using the Config object's set method
+    mock_config.set("max_signal_queue_size", 3)
+    queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
+
+    # Create signals using the helper
+    signal1 = create_test_signal(symbol="S1", score=0.1, price=Decimal("10"))
+    signal2 = create_test_signal(symbol="S2", score=0.9, price=Decimal("10"))  # Highest
+    signal3 = create_test_signal(symbol="S3", score=0.5, price=Decimal("10"))
+    signal4 = create_test_signal(symbol="S4", score=0.3, price=Decimal("10"))  # Lowest to be added
+
+    queue.add_signal(signal1)  # Score 0.1
+    queue.add_signal(signal2)  # Score 0.9
+    queue.add_signal(signal3)  # Score 0.5
+
+    assert queue.count() == 3
+
+    # Adding the 4th signal should trigger trim and remove the lowest priority (signal1)
+    result = queue.add_signal(signal4)  # Score 0.3
+
+    assert result is True
+    assert queue.count() == 3  # Still max size
+
+    # Check which signals remain (should be S2, S3, S4)
+    remaining_symbols = {s.symbol for s in queue.get_signals()}
+    assert remaining_symbols == {"S2", "S3", "S4"}
+    assert "S1" not in remaining_symbols
+
+
+@patch("cyberdelta.core.models.trade_signal.datetime")  # Patch where datetime.now(UTC) is used
+def test_signal_expiration_logic(
+    mock_dt: MagicMock, mock_config: Config, mock_circuit_breaker: MagicMock
+) -> None:
+    """Test that signals expire correctly based on default and explicit times using patching."""
+    queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
+    start_time = datetime.now(UTC)
+    # Use .get() for safe access with a default
+    _default_expiry_seconds_raw = mock_config.get("default_signal_expiration_seconds", 60)
+    assert _default_expiry_seconds_raw is not None, (
+        "Config default_signal_expiration_seconds cannot be None"
+    )
+    default_expiry_seconds: int = int(_default_expiry_seconds_raw)  # Ensure int type
+
+    # Signal using default expiration (should be valid initially)
+    signal_default = TradeSignal(
+        symbol="DEFAULT/EXP",
+        price=Decimal("100"),
+        exchange="mock",
+        timestamp=start_time,
+        signal_type=SignalType.ENTER_LONG,
+        side=OrderSide.BUY,  # Added defaults
+    )
+    queue.add_signal(signal_default)
+    assert queue.count() == 1
+
+    # Signal with explicit future expiration
+    explicit_future = start_time + timedelta(minutes=5)
+    signal_explicit = TradeSignal(
+        symbol="EXPLICIT/EXP",
+        price=Decimal("200"),
+        exchange="mock",
+        timestamp=start_time,
+        expiration=explicit_future,
+        signal_type=SignalType.ENTER_LONG,
+        side=OrderSide.BUY,  # Added defaults
+    )
+    queue.add_signal(signal_explicit)
+    assert queue.count() == 2
+
+    # Mock time advancing just past the default expiration
+    time_after_default_expiry = start_time + timedelta(seconds=default_expiry_seconds + 1)
+    mock_dt.now.return_value = time_after_default_expiry
+    mock_dt.UTC = UTC
+
+    # Clean expired signals by trying to get the next one. This uses the mocked datetime.now()
+    retrieved_after_default = queue.get_next_signal()
+
+    # Default signal should be gone. Explicit should have been returned.
+    assert retrieved_after_default is not None
+    assert retrieved_after_default.symbol == "EXPLICIT/EXP"  # Default was older
+    assert queue.count() == 0  # Explicit was returned, default cleaned
+
+    # Add the explicit signal back to test its own expiration
+    # Re-create it as mutable state might be unexpected
+    signal_explicit_readd = TradeSignal(
+        symbol="EXPLICIT/EXP",
+        price=Decimal("200"),
+        exchange="mock",
+        timestamp=start_time,  # Original timestamp
+        expiration=explicit_future,  # Original expiration
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
-        price=Decimal("1000"),
-        quantity=Decimal("1"),
-        metadata={"utility_score": 0.6},
-        exchange="mock_exchange3",
     )
+    queue.add_signal(signal_explicit_readd)
+    assert queue.count() == 1
 
-    queue.add_signal(signal1)
-    queue.add_signal(signal2)
-    queue.add_signal(signal3)
+    # Mock time advancing past the explicit expiration
+    time_after_explicit_expiry = explicit_future + timedelta(seconds=1)
+    mock_dt.now.return_value = time_after_explicit_expiry
 
-    # Check queue contents
-    assert len(queue.signal_queue) == 3
-    assert signal1.symbol == "BTC/USDT"
-    assert signal2.symbol == "ETH/USDT"
-    assert signal3.symbol == "SOL/USDT"
+    # Try get signal again. It should now be cleaned as expired.
+    retrieved_after_explicit = queue.get_next_signal()
+    # Queue should now be empty
+    assert retrieved_after_explicit is None  # Expired signal is cleaned, not returned
+    assert queue.count() == 0
+    assert queue.is_empty()
 
-    # Verify priorities
-    priority1, _, _ = queue.signal_queue[0]
-    priority2, _, _ = queue.signal_queue[1]
-    priority3, _, _ = queue.signal_queue[2]
-    assert priority1 < priority2 < priority3  # Corrected assertion
+
+@patch("cyberdelta.core.models.trade_signal.datetime")  # Patch where datetime.now(UTC) is used
+def test_clean_expired_signals_with_helper(
+    mock_dt: MagicMock, mock_config: Config, mock_circuit_breaker: MagicMock
+) -> None:
+    """Test cleaning expired signals using the helper and patching datetime."""
+    queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
+
+    # Create signals with different expirations relative to a fixed future time
+    future_now = datetime.now(UTC) + timedelta(minutes=10)
+
+    # Signal that should NOT expire (explicit future expiry)
+    signal_valid = create_test_signal(symbol="VALID/USDT", score=0.8, price=Decimal("100"))
+    signal_valid.expiration = future_now + timedelta(seconds=120)
+
+    # Signal that SHOULD expire (explicit past expiry)
+    signal_expired = create_test_signal(symbol="EXPIRED/USDT", score=0.7, price=Decimal("200"))
+    signal_expired.expiration = future_now - timedelta(seconds=30)
+
+    queue.add_signal(signal_valid)
+    queue.add_signal(signal_expired)
+    assert queue.count() == 2
+
+    # Patch datetime.now to return the fixed future time
+    mock_dt.now.return_value = future_now
+    mock_dt.UTC = UTC  # Ensure UTC is accessible
+
+    # Trigger cleanup by getting the next signal
+    retrieved_signal = queue.get_next_signal()
+
+    # Assertions
+    # get_next_signal should have cleaned the expired one and returned the valid one.
+    assert retrieved_signal is not None
+    assert retrieved_signal.symbol == "VALID/USDT"
+    assert queue.count() == 0  # The valid one was retrieved
+    assert queue.is_empty()
+
+
+# --- Signal Specific Tests ---
+
+
+def test_signal_creation(sample_signal: TradeSignal) -> None:
+    """Test basic TradeSignal properties and methods."""
+    assert isinstance(sample_signal.signal_id, str)
+    try:
+        UUID(sample_signal.signal_id, version=4)
+    except ValueError:
+        pytest.fail("signal_id is not a valid UUIDv4")
+
+    # Default expiration is calculated on add, test is_valid with explicit values
+    assert sample_signal.is_valid()  # Relies on internal check, less robust
+
+    # Test expiration explicitly
+    past_time = datetime.now(UTC) - timedelta(minutes=1)
+    sample_signal.expiration = past_time
+    assert not sample_signal.is_valid()
+
+    future_time = datetime.now(UTC) + timedelta(minutes=1)
+    sample_signal.expiration = future_time
+    assert sample_signal.is_valid()
+
+    sample_signal.expiration = None
+    assert sample_signal.is_valid()  # None expiration means always valid
+
+
+def test_add_signal_different_priorities(
+    signal_queue: PrioritySignalQueue, mock_circuit_breaker: MagicMock
+) -> None:
+    """Test adding signals with different utility scores are retrieved in priority order."""
+    # Ensure breaker allows signals
+    mock_circuit_breaker.get_exchange_breaker.return_value.state = BreakerState.CLOSED
+
+    # Create signals with varying utility scores using the helper
+    signal_low = create_test_signal(symbol="LOW/USDT", score=0.1, price=Decimal("10"))
+    signal_med = create_test_signal(symbol="MED/USDT", score=0.5, price=Decimal("20"))
+    signal_high = create_test_signal(symbol="HIGH/USDT", score=0.9, price=Decimal("30"))
+
+    # Add signals in arbitrary order
+    signal_queue.add_signal(signal_med)
+    signal_queue.add_signal(signal_low)
+    signal_queue.add_signal(signal_high)
+
+    assert signal_queue.count() == 3
+
+    # Get signals - should come out in order of highest priority (score) first
+    first = signal_queue.get_next_signal()
+    second = signal_queue.get_next_signal()
+    third = signal_queue.get_next_signal()
+
+    assert first is not None and first.symbol == "HIGH/USDT"
+    assert second is not None and second.symbol == "MED/USDT"
+    assert third is not None and third.symbol == "LOW/USDT"
+    assert signal_queue.is_empty()
