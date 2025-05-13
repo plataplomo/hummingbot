@@ -200,23 +200,64 @@ class StrategyManager:
                         getattr(signal, "quantity", None) is not None,
                     ]
                 ):
+                    # Attempt to get a structured representation if possible
+                    if hasattr(signal, "model_dump") and callable(signal.model_dump):
+                        try:
+                            signal_data_dict = signal.model_dump()  # Renamed variable
+                        except Exception as dump_err:
+                            logger.warning(
+                                f"Failed to dump malformed signal data: {dump_err}",
+                                signal_object=str(signal),  # Fallback to str()
+                            )
+                            signal_data_dict = {"error": "Failed to dump signal"}  # Provide a dict
+                    else:
+                        signal_data_dict = {"raw_signal": str(signal)}  # Provide a dict
+
+                    logger.warning(
+                        "Malformed signal received from strategy",
+                        strategy_name=strategy.name,
+                        signal_data=signal_data_dict,  # Log the dict
+                        error_details="Signal object missing required attributes or not a TradeSignal",  # Provide specific reason
+                    )
+                    continue  # Skip to the next signal
+
+                # --- Risk Management and Sizing --- #
+                try:
+                    # Ensure signal is not None before sizing
+                    if signal is None:
+                        logger.debug("Signal is None after strategy processing, skipping sizing.")
+                        continue
+
+                    # If it returns a NEW signal or None:
+                    # sized_signal = self.risk_manager.size_signal(signal)
+                    sized_signal = await self.risk_manager.validate_and_size_trade_signal(signal)
+                    if sized_signal is None:
+                        logger.info(
+                            f"Signal rejected by risk manager sizing: {signal.signal_id}",
+                            signal_symbol=signal.symbol,
+                        )
+                        continue
+                    signal = sized_signal  # Replace original signal with sized one
+
+                except Exception as risk_e:
                     logger.error(
-                        f"Malformed TradeSignal (missing fields) from strategy '{strategy_name}'",
-                        signal_data=signal.model_dump(),
+                        "Error during potential (currently bypassed) risk management step",
+                        signal_id=signal.signal_id if signal else None,
+                        error=str(risk_e),
+                        exc_info=True,
                     )
                     continue
 
-                # Risk Manager Sizing is commented out
-
+                # --- Add to Signal Queue --- #
                 try:
-                    # add_signal is synchronous
-                    self.signal_queue.add_signal(signal)  # Removed await
+                    # add_signal is now asynchronous
+                    await self.signal_queue.add_signal(signal)  # Add await
                     logger.debug("Signal added to queue", signal_id=signal.signal_id)
-                except Exception as e:
+                except Exception as queue_e:  # Use different variable name
                     logger.error(
                         "Signal queue failed to add signal",
                         signal_id=signal.signal_id,
-                        error=str(e),
+                        error=str(queue_e),  # Use queue_e
                         exc_info=True,
                     )
 

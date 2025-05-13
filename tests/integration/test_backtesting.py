@@ -132,7 +132,7 @@ class TestBacktestingIntegration:
         # first_row_data is a Series, potentially with complex index/dtypes
         first_row_data: pd.Series[Any] = self.funding_data.iloc[0]
         # Ignore type error for adapter.update which depends on complex Series type
-        result: dict[str, Any] = adapter.update(first_row_data)  # type: ignore
+        result: dict[str, Any] = adapter.update(first_row_data)  # type: ignore[no-untyped-call]
 
         assert "signals" in result
 
@@ -145,7 +145,7 @@ class TestBacktestingIntegration:
 
         # The type of the element retrieved can vary, use Any
         # Ignore type error for iloc on potentially complex Series/DataFrame slice
-        first_close_price: Any = self.funding_data[first_close_price_column_key].iloc[0]  # type: ignore
+        first_close_price: Any = self.funding_data[first_close_price_column_key].iloc[0]  # type: ignore[no-untyped-call]
 
         expected_signal_count = 0
         try:
@@ -233,7 +233,7 @@ class TestBacktestingIntegration:
                         try:
                             # Assume mean returns float or compatible type
                             # Ignore type error for mean on potentially complex Series
-                            mean_price: float = data[price_column_key].mean()  # type: ignore
+                            mean_price: float = data[price_column_key].mean()  # type: ignore[no-untyped-call]
                             self.price_threshold = Decimal(str(mean_price))
                             logger.info(
                                 f"Initialized {self.name} with price threshold: {self.price_threshold:.2f} from {TEST_SYMBOL} mean price."
@@ -262,15 +262,15 @@ class TestBacktestingIntegration:
 
                 if isinstance(current_data, pd.Series):
                     # Ignore type error for index access on complex Series
-                    if price_column_key in current_data.index:  # type: ignore
-                        price_val_raw = current_data[price_column_key]
+                    if price_column_key in current_data.index:  # type: ignore[operator]
+                        price_val_raw = current_data[price_column_key]  # Correct indexing
                 # Linter flagged isinstance(current_data, pd.DataFrame) as unnecessary, removing elif.
                 # This assumes if it's not a Series, it must be a DataFrame based on type hint.
                 else:
                     if price_column_key in current_data.columns:
                         # Assuming we need the first (or only) value if it's a DataFrame slice for current step
                         # Ignore type error for iloc on potentially complex Series/DataFrame slice
-                        price_val_raw = current_data[price_column_key].iloc[0]  # type: ignore
+                        price_val_raw = current_data[price_column_key].iloc[0]  # type: ignore[no-untyped-call]
 
                 if price_val_raw is None:
                     # logger.debug(f"No price data for {TEST_SYMBOL} in current_data step.")

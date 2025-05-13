@@ -5,7 +5,7 @@ import heapq
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from cyberdelta.core.models import OrderSide, TradeSignal
 from cyberdelta.core.models.enums import SignalType
@@ -77,7 +77,8 @@ class PrioritySignalQueue:
             default: ConfigValueType,
             target_type: type[ConfigValueType],
         ) -> ConfigValueType:
-            value: Any = config.get(key, default)
+            """Helper to get and validate config values."""
+            value = self.config.get(key, default)
             try:
                 if value is default:
                     # Value is the default, which is already ConfigValueType
@@ -87,7 +88,7 @@ class PrioritySignalQueue:
                     return value
                 else:
                     # Value is not default and not the correct type, attempt conversion
-                    converted_value = target_type(value)
+                    converted_value = target_type(value)  # type: ignore[operator] # Dynamic type call OK here
                     return converted_value
             except (ValueError, TypeError) as e:
                 self.logger.error(
@@ -162,34 +163,46 @@ class PrioritySignalQueue:
 
         # Use asyncio.Lock for adding the signal
         async with self.lock:  # Changed to async with self.lock
-            # Check if we need to trim the queue (re-check length inside lock)
-            if len(self.signal_queue) >= self.max_queue_size:
-                if len(self.signal_queue) > 0:
-                    # Find minimum utility score (maximum negative score)
-                    min_score_in_queue = max(self.signal_queue, key=lambda x: x[0])[0]
-                    new_signal_score_neg = -utility_score  # Already validated float
+            # Check for duplicates before adding
+            existing_ids = {s.signal_id for _, _, s in self.signal_queue if hasattr(s, "signal_id")}
+            if hasattr(signal, "signal_id") and signal.signal_id in existing_ids:
+                self.logger.debug(f"Rejected duplicate signal ID: {signal.signal_id}")
+                return False  # Indicate rejection due to duplicate
 
-                    if new_signal_score_neg >= min_score_in_queue:
-                        # New signal has lower or equal priority than the worst in queue
-                        self.logger.debug(
-                            f"Rejected signal for {signal.symbol} with score "
-                            f"{utility_score} (lower than min {-min_score_in_queue}) - Queue full."
-                        )
-                        return False  # Indicate rejection
-
-                    # New signal is better than the worst; trim the queue
-                    # Note: _trim_queue also needs to use the sync lock if modifying shared state
-                    if not self._trim_queue():  # _trim_queue modifies self.signal_queue
-                        self.logger.error("Failed to trim queue, cannot add new signal.")
-                        return False  # Indicate rejection due to trim failure
-
-            # Add to priority queue
+            # Add to priority queue FIRST
             self.counter += 1
-            heapq.heappush(self.signal_queue, (-utility_score, self.counter, signal))
+            # Ensure utility_score is float before negation
+            try:
+                priority = -float(signal.metadata.get("utility_score", 0.0))
+            except (ValueError, TypeError):
+                priority = 0.0  # Default priority if conversion fails
+                self.logger.warning(
+                    f"Invalid utility score for {signal.symbol}, using 0.0 priority."
+                )
+
+            heapq.heappush(self.signal_queue, (priority, self.counter, signal))
+
+            # THEN check if trimming is needed
+            trimmed = False
+            if len(self.signal_queue) > self.max_queue_size:
+                trimmed = self._trim_queue()  # Trim if queue is over size limit
+                if not trimmed:
+                    self.logger.error(
+                        "Failed to trim queue after adding signal. State might be inconsistent."
+                    )
+                    # Decide behavior: raise error, remove added signal, or just log? Logging for now.
+                    # Attempt removal of the just added signal (based on counter) might be complex if heap reordered.
+                    # Let's return False for now, though the signal *is* in the queue.
+                    return False  # Indicate potential issue post-add
 
             # Log addition
-            self.logger.debug(
-                f"Added signal for {signal.symbol} to queue with score {utility_score}"
+            log_level = (
+                logging.DEBUG if not trimmed else logging.INFO
+            )  # Log INFO if trimming occurred
+            self.logger.log(
+                log_level,
+                f"Added signal for {signal.symbol} to queue with score {signal.metadata.get('utility_score', 'N/A')}"
+                f"{' (and trimmed queue)' if trimmed else ''}",
             )
             # Signal the async wait event
             self.new_signal_event.set()  # Directly set event in async context
@@ -425,73 +438,73 @@ class PrioritySignalQueue:
         that protects self.signal_queue.
 
         Returns:
-            Number of signals removed.
+            The number of signals removed.
         """
         now = datetime.now(UTC)
-        initial_count = len(self.signal_queue)
-        # Create a list of signals that are NOT expired
-        # Need to iterate over a copy or build a new list if modifying during iteration
-        valid_signals_temp: list[tuple[float, int, TradeSignal]] = []
-        expired_count = 0
+        original_count = len(self.signal_queue)
+        self.logger.debug(
+            f"[_clean_expired] Running at time {now}. Current queue size: {original_count}"
+        )
 
-        # Iterate through the original queue items
+        # Rebuild the heap excluding expired signals
+        valid_signals: list[tuple[float, int, TradeSignal]] = []  # Add type hint
+        removed_count_local = 0
         for item in self.signal_queue:
-            _priority, unique_id, signal = item  # Assign priority to _priority
-            signal = self._calculate_expiration(signal)  # Ensure expiration is calculated
-            if signal.expiration is not None and signal.expiration < now:
-                self.logger.debug(
-                    f"Removing expired signal {unique_id} for {signal.symbol} "
-                    f"(expired at {signal.expiration})"
-                )
-                expired_count += 1
+            priority, counter, signal = item  # noqa: F841
+            is_valid = signal.is_valid()  # Removed 'now' argument
+            self.logger.debug(
+                f"[_clean_expired] Checking signal {signal.signal_id} (score={-priority:.4f}, expiry={signal.expiration}). Valid={is_valid}."
+            )
+            if is_valid:
+                valid_signals.append(item)
             else:
-                # Keep valid signals
-                valid_signals_temp.append(item)
+                removed_count_local += 1
+                self.logger.debug(f"[_clean_expired] Removing expired signal {signal.signal_id}")
 
-        if expired_count > 0:
-            # Rebuild the heap efficiently from the valid signals
-            self.signal_queue = valid_signals_temp
-            heapq.heapify(self.signal_queue)  # Re-heapify after removal
-            removed_count = initial_count - len(self.signal_queue)  # Should match expired_count
+        # self.signal_queue = valid_signals  # Assign the filtered list back
+        # heapq.heapify(self.signal_queue)  # Re-heapify is crucial after filtering
+        # Update: Optimized approach - Build new heap directly if many removals expected,
+        # or selectively remove if few. For simplicity and clarity, rebuilding is robust.
+        self.signal_queue.clear()  # Clear the existing list
+        self.signal_queue.extend(valid_signals)  # Add back valid ones
+        heapq.heapify(self.signal_queue)  # Re-heapify
+
+        removed_count = original_count - len(self.signal_queue)
+        if removed_count > 0:
             self.logger.info(f"Cleaned {removed_count} expired signals.")
-            return removed_count
-        else:
-            self.logger.debug("No expired signals found during cleanup.")
-            return 0  # No signals removed
+        elif removed_count != removed_count_local:
+            self.logger.warning(
+                f"[_clean_expired] Mismatch in removed count! Logic={removed_count_local}, Diff={removed_count}"
+            )
+
+        self.logger.debug(f"[_clean_expired] Finished. New queue size: {len(self.signal_queue)}")
+        return removed_count
 
     def _trim_queue(self) -> bool:
-        """
-        Remove the lowest priority signal if the queue exceeds max size.
+        """Remove lowest priority signals until queue is at max size."""
+        if len(self.signal_queue) <= self.max_queue_size:
+            return True  # No trimming needed
 
-        This method MUST be called within a lock context (sync or async)
-        that protects self.signal_queue.
+        try:
+            # Keep the N signals with the smallest negative_priority values (highest actual priority)
+            # heapq.nsmallest returns a list sorted by priority (smallest first)
+            num_to_keep = self.max_queue_size
+            highest_priority_signals = heapq.nsmallest(
+                num_to_keep, self.signal_queue, key=lambda x: x[0]
+            )
+            num_removed = len(self.signal_queue) - len(highest_priority_signals)
 
-        Returns:
-            True if trimming occurred or wasn't needed, False on error.
-        """
-        if not self.signal_queue:
-            self.logger.warning("_trim_queue called on an empty queue.")
-            return True  # Nothing to trim
+            # Rebuild the heap efficiently (though direct assignment might be okay if heap property isn't strictly needed elsewhere)
+            # self.signal_queue = highest_priority_signals
+            # heapq.heapify(self.signal_queue) # Optional: restore heap invariant if needed
+            self.signal_queue = highest_priority_signals  # Direct assignment is simpler
 
-        if len(self.signal_queue) > self.max_queue_size:
-            try:
-                # heapq implementation is a min-heap based on the tuple's first element.
-                # Since we store (-utility_score, counter, signal), the "smallest"
-                # item in the heap corresponds to the *highest* negative score,
-                # which is the *lowest* actual utility score.
-                # heappop removes the smallest item.
-                popped_priority, popped_counter, popped_signal = heapq.heappop(self.signal_queue)
-                self.logger.info(
-                    f"Queue trimmed. Removed signal for {popped_signal.symbol} "
-                    f"with score {-popped_priority}. New size: {len(self.signal_queue)}"
-                )
-                return True
-            except IndexError:
-                self.logger.error(
-                    "Error popping from heap during trim, queue might be inconsistent."
-                )
-                return False  # Indicate failure
-        return True  # Trimming not needed or successful
+            if num_removed > 0:
+                self.logger.info(f"Trimmed {num_removed} lowest priority signals from queue.")
+            return True
+        except Exception as e:
+            self.logger.error(f"Error during queue trimming: {e}", exc_info=True)
+            return False
 
     def _calculate_expiration(self, signal: TradeSignal) -> TradeSignal:
         """Calculate and set default expiration if needed. Modifies signal in place."""
@@ -786,7 +799,7 @@ class PrioritySignalQueue:
             List of TradeSignal objects ordered by priority
         """
         # First see if we already have signals available
-        result = self.pop_signals(max_signals)
+        result = await self.pop_signals(max_signals)
         if result:
             return result
 
@@ -795,7 +808,7 @@ class PrioritySignalQueue:
         # This would need to be awaited in an async function
         if self.new_signal_event.is_set():
             # Event is already set, signals should be available
-            return self.pop_signals(max_signals)
+            return await self.pop_signals(max_signals)
         else:
             # Can't wait in a synchronous context
             self.logger.debug("Cannot wait for signals in synchronous context")
@@ -832,7 +845,7 @@ class PrioritySignalQueue:
 
     async def get_next_signals(self, max_count: int = 1) -> list[TradeSignal]:
         """Get the next highest priority signals without removing them."""
-        signals = []
+        signals: list[TradeSignal] = []  # Add type hint
         async with self.lock:
             # Perform cleanup first if needed
             now = datetime.now(UTC)
@@ -846,7 +859,8 @@ class PrioritySignalQueue:
             potential_signals = heapq.nsmallest(max_count, self.signal_queue)
 
             # Post-get circuit breaker check for peeking signals
-            for _priority, _counter, signal in potential_signals:
+            for _priority, _counter, raw_signal in potential_signals:
+                signal = raw_signal  # Removed unnecessary cast
                 if self._check_circuit_breakers_post_get(signal):
                     signals.append(signal)
                 else:
@@ -969,7 +983,7 @@ class PrioritySignalQueue:
             signal: TradeSignal to enqueue.
         """
         async with self.lock:
-            added = self.add_signal(signal)
+            added = await self.add_signal(signal)
             if added:
                 self.new_signal_event.set()
                 self.logger.info(f"Enqueued signal for {signal.symbol} (async)")

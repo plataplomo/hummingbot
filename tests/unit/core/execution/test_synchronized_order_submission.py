@@ -246,6 +246,10 @@ class TestOrderVerifier:
         mock_api.get_order = AsyncMock(
             return_value=api_order_response
         )  # Assuming get_order returns similar obj
+        # >>> ADD MOCK FOR get_recent_fills <<<
+        mock_api.get_recent_fills = AsyncMock(
+            return_value=[]
+        )  # Mock as async returning empty list for this test
 
         result_dict = await verifier.verify_order_execution(
             "hyperliquid", "exchange-order-id-1"

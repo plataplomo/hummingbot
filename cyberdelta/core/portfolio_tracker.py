@@ -158,6 +158,19 @@ class PortfolioTracker:
                 f"PortfolioTracker failed to initialize essential data from one or more exchanges. "
                 f"Cannot proceed reliably. Errors: {error_summary}"
             )
+
+        # Set initial reconciliation time AFTER fetching
+        now_utc = datetime.now(UTC)
+        logger.info(
+            f"PT INIT: Setting reconciliation times. Current _last_reconciliation_time before: {self._last_reconciliation_time}"
+        )
+        for exchange_id in self.api_clients:
+            self._last_reconciliation_time[exchange_id] = now_utc
+        logger.info(
+            f"PT INIT: Reconciliation times set. Current _last_reconciliation_time after: {self._last_reconciliation_time}"
+        )
+
+        # Calculate initial portfolio capital and set high watermark
         initial_capital = await self.get_total_capital()
         self._high_watermark = initial_capital
         if initial_capital > Decimal("0.0"):
@@ -612,16 +625,9 @@ class PortfolioTracker:
         logger.info(f"Realized PNL updated by {amount:.4f}. New total: {self._realized_pnl:.4f}")
 
     # --- Position Access Methods ---
-    def get_position(self, exchange_id: str, position_key: str) -> DerivativePosition | None:
-        """
-        Get a specific position by its key (currently symbol) on an exchange.
-        Args:
-            exchange_id: Exchange identifier.
-            position_key: Unique key for the position (e.g., symbol).
-        Returns:
-            DerivativePosition object or None if not found.
-        """
-        return self._positions.get(exchange_id, {}).get(position_key)
+    def get_position(self, exchange_id: str, symbol: str) -> DerivativePosition | None:
+        """Returns the position for a specific symbol on a specific exchange."""
+        return self._positions.get(exchange_id, {}).get(symbol)
 
     def get_positions_by_symbol(self, exchange_id: str, symbol: str) -> list[DerivativePosition]:
         """Retrieve all positions for a specific symbol on a given exchange."""
@@ -631,12 +637,12 @@ class PortfolioTracker:
         # Iterate over values() as key is unused
         return [pos for pos in exchange_positions.values() if pos.symbol == symbol]
 
-    def get_all_positions(self) -> list[tuple[str, DerivativePosition]]:
-        """Get all positions across all exchanges."""
-        all_positions: list[tuple[str, DerivativePosition]] = []
+    def get_all_positions(self) -> list[DerivativePosition]:
+        """Returns a list of all derivative positions across all exchanges."""
+        all_positions = []
         for exchange_id, positions in self._positions.items():
             for position in positions.values():
-                all_positions.append((exchange_id, position))
+                all_positions.append(position)
         return all_positions
 
     def get_positions_by_exchange(self, exchange_id: str) -> list[DerivativePosition]:

@@ -312,7 +312,7 @@ async def test_funding_rate_validator_accepts_safe_opportunity(
         )
     )
     await real_portfolio_tracker.initialize()
-    await real_portfolio_tracker.initialize()
+    await real_portfolio_tracker.update()  # Ensure total capital is calculated
     # Safe opportunity: low expected_return, high volatility
     opp = ArbitrageOpportunity(
         symbol="BTC",
@@ -374,7 +374,7 @@ async def test_funding_rate_validator_rejects_oversized_opportunity(
         )
     )
     await real_portfolio_tracker.initialize()
-    await real_portfolio_tracker.initialize()
+    await real_portfolio_tracker.update()  # Ensure total capital is calculated
     # Oversized opportunity: high expected_return, low volatility
     opp = ArbitrageOpportunity(
         symbol="BTC",
@@ -458,7 +458,7 @@ async def test_position_reconciler_detects_discrepancy(
     )
 
     # Accessing protected member _positions for test setup is intentional and safe in this context.
-    mock_bp_api._positions[symbol] = mock_position  # noqa: SLF001 - Accessing protected member for test setup
+    mock_bp_api._positions[symbol] = mock_position  # noqa: SLF001
 
     # 2. Run Reconciliation
     # Assume reconciler uses portfolio_tracker.api_clients
@@ -789,7 +789,7 @@ async def test_kelly_insufficient_balance(
         )
     )
     await real_portfolio_tracker.initialize()
-    await real_portfolio_tracker.initialize()
+    await real_portfolio_tracker.update()  # Ensure total capital is calculated
     risk_manager.funding_rate_validator = None
     sized_opps = await risk_manager.validate_opportunities([opp])
     assert len(sized_opps) == 0, "Insufficient balance should cause rejection."
@@ -825,7 +825,7 @@ async def test_kelly_zero_total_capital(
         )
     )
     await real_portfolio_tracker.initialize()
-    await real_portfolio_tracker.initialize()
+    await real_portfolio_tracker.update()  # Ensure total capital is calculated
     opp = ArbitrageOpportunity(
         symbol="BTC",
         long_exchange="mock_bp",

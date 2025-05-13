@@ -1166,6 +1166,9 @@ async def test_execution_failure_compensation(
     symbol_key = "ETH"
     hl_symbol = str(mock_config.get(f"exchanges.mock_hl.symbols.{symbol_key}"))  # Cast
     bp_symbol = str(mock_config.get(f"exchanges.mock_bp.symbols.{symbol_key}"))  # Cast
+    short_order_id_hl = (
+        "hl_short_for_comp_test"  # Define short_order_id_hl for test_execution_failure_compensation
+    )
     mock_hl_api.reset()
     mock_bp_api.reset()
     # Re-initialize portfolio tracker state for this test
@@ -1317,11 +1320,15 @@ async def test_execution_failure_compensation(
                 f"Unexpected BP place_order call {bp_place_call_num} with side {side}"
             )
 
-    mock_bp_api.place_order.side_effect = place_order_bp_side_effect
+    # mocker.patch.object(mock_bp_api, "place_order", side_effect=place_order_bp_side_effect)
+    # Ensure this is applied correctly if it wasn't (it seems it was in the previous diff)
+    if not hasattr(mock_bp_api.place_order, "call_args_list"):  # Check if already patched by mocker
+        mocker.patch.object(mock_bp_api, "place_order", side_effect=place_order_bp_side_effect)
 
     bp_status_call_count = 0
 
     async def get_order_status_side_effect_bp(*args: object, **kwargs: object) -> Order | None:
+        nonlocal bp_status_call_count
         order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
         logger.debug(f"MOCK BP get_order_status called for ID: {order_id}")
         if order_id == long_order_id_bp:
@@ -1334,7 +1341,11 @@ async def test_execution_failure_compensation(
             logger.warning(f"MOCK BP get_order_status: Unknown order ID {order_id}")
             return None
 
-    mock_bp_api.get_order_status.side_effect = get_order_status_side_effect_bp
+    # mocker.patch.object(mock_bp_api, "get_order_status", side_effect=get_order_status_side_effect_bp)
+    if not hasattr(mock_bp_api.get_order_status, "call_args_list"):
+        mocker.patch.object(
+            mock_bp_api, "get_order_status", side_effect=get_order_status_side_effect_bp
+        )
 
     # HL (Short) - Fills completely initially, then needs compensation
     hl_place_call_count = 0
@@ -1389,7 +1400,10 @@ async def test_execution_failure_compensation(
                 f"Unexpected HL place_order call {hl_place_call_count} with side {side}"
             )
 
-    mock_hl_api.place_order.side_effect = place_order_side_effect_hl
+    # Use mocker to patch the method on the instance
+    # mocker.patch.object(mock_hl_api, "place_order", side_effect=place_order_side_effect_hl)
+    if not hasattr(mock_hl_api.place_order, "call_args_list"):
+        mocker.patch.object(mock_hl_api, "place_order", side_effect=place_order_side_effect_hl)
 
     async def get_order_status_side_effect_hl(*args: object, **kwargs: object) -> Order | None:
         order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
@@ -1406,7 +1420,11 @@ async def test_execution_failure_compensation(
             logger.warning(f"MOCK HL get_order_status: Unknown order ID {order_id}")
             return None
 
-    mock_hl_api.get_order_status.side_effect = get_order_status_side_effect_hl
+    # mocker.patch.object(mock_hl_api, "get_order_status", side_effect=get_order_status_side_effect_hl)
+    if not hasattr(mock_hl_api.get_order_status, "call_args_list"):
+        mocker.patch.object(
+            mock_hl_api, "get_order_status", side_effect=get_order_status_side_effect_hl
+        )
 
     # --- Execute Test ---
     # 1. Generate Signal
@@ -1547,6 +1565,9 @@ async def test_failed_execution(
     symbol_key = "ETH"
     hl_symbol = str(mock_config.get(f"exchanges.mock_hl.symbols.{symbol_key}"))  # Cast
     bp_symbol = str(mock_config.get(f"exchanges.mock_bp.symbols.{symbol_key}"))  # Cast
+    short_order_id_hl = (
+        "hl_short_for_comp_test"  # Define short_order_id_hl for test_execution_failure_compensation
+    )
     mock_hl_api.reset()
     mock_bp_api.reset()
     # Re-initialize portfolio tracker state for this test
