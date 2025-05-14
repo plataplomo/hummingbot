@@ -896,20 +896,17 @@ class BackpackAPI(ExchangeAPI):
 
         try:
             # 1. Fetch Raw Account Settings
-            raw_account_settings = (
-                await self.get_account_info()
-            )  # This already returns BackpackRawAccountSummary
+            raw_account_settings = await self.get_account_info()
             if not raw_account_settings:
                 logger.warning(
                     f"[{self.exchange_name}] Failed to fetch raw account settings for summary."
                 )
-                return None  # Critical piece missing
+                return None
 
             # 2. Fetch and Validate Raw Balances
             balances_endpoint = "/api/v1/capital"
-            # build_get_balances_params returns None, which is fine for self._request
             balances_params = BackpackRequestBuilder.build_get_balances_params()
-            balances_response_raw: RawJsonResponse | None = None  # Initialize for broader scope
+            balances_response_raw: RawJsonResponse | None = None
             try:
                 balances_response_raw = await self._request(
                     "GET", balances_endpoint, params=balances_params, is_signed=True
@@ -935,14 +932,13 @@ class BackpackAPI(ExchangeAPI):
                 raw_spot_balances = {}
 
             # 3. Fetch and Validate Raw Positions
-            positions_endpoint = "/api/v1/positions"  # Fetch all positions
-            # build_get_positions_params returns None for all positions, fine for self._request
+            positions_endpoint = "/api/v1/positions"
             positions_params = BackpackRequestBuilder.build_get_positions_params(symbol=None)
-            positions_response_raw: RawJsonResponse | None = None  # Initialize
+            positions_response_raw: RawJsonResponse | None = None
             try:
                 positions_response_raw = await self._request(
-                    method="GET",
-                    endpoint=positions_endpoint,
+                    "GET",  # Use positional for method
+                    positions_endpoint,  # Use positional for endpoint
                     params=positions_params,
                     is_signed=True,
                 )
@@ -967,26 +963,55 @@ class BackpackAPI(ExchangeAPI):
                 raw_derivative_positions = []
 
             # 4. Transform all raw components using the instance mapper
-            # The mapper now expects raw_settings, raw_spot_balances, and raw_derivative_positions
-            internal_summary = self._bp_mapper.transform_raw_account_summary_to_internal(
-                raw_settings=raw_account_settings,
-                spot_balances_raw=raw_spot_balances,  # Pass the raw balances dict
-                derivative_positions_raw=raw_derivative_positions,  # Pass the raw positions list
-            )
-            logger.info(f"[{self.exchange_name}] Successfully generated internal account summary.")
-            return internal_summary
+            try:
+                internal_summary = self._bp_mapper.transform_raw_account_summary_to_internal(
+                    raw_settings=raw_account_settings,
+                    spot_balances_raw=raw_spot_balances,
+                    derivative_positions_raw=raw_derivative_positions,
+                    # timestamp=datetime.now(UTC) # Example if timestamp was needed by mapper
+                )
+                logger.info(
+                    f"[{self.exchange_name}] Successfully generated internal account summary."
+                )
+                return internal_summary
+            except ValueError as e_map:
+                logger.error(
+                    f"[{self.exchange_name}] Error mapping raw account data to internal summary: {e_map}",
+                    exc_info=True,
+                )
+                raise APIError(
+                    message=f"Failed to map account summary due to invalid data or mapper error: {e_map}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,  # Use INVALID_RESPONSE for mapping issues
+                    original_exception=e_map,
+                ) from e_map
+            # except Exception as e_map_other: # Catch other potential mapper errors if necessary
+            #     logger.error(
+            #         f"[{self.exchange_name}] Unexpected error during account data mapping: {e_map_other}",
+            #         exc_info=True,
+            #     )
+            #     raise APIError(
+            #         message=f"Unexpected error mapping account summary: {e_map_other}",
+            #         code=APIErrorCode.UNKNOWN.value,
+            #         original_exception=e_map_other,
+            #     ) from e_map_other
 
         except APIError as e:
+            # This will catch APIErrors from get_account_info, or from _request for balances/positions if they raise APIError
+            # Also catches the re-raised APIError from the new mapper exception handling above.
             logger.error(
                 f"[{self.exchange_name}] API Error in get_account_summary orchestration: {e}"
             )
-            return None  # Or re-raise depending on desired behavior for partial failures
-        except Exception as e_unhandled:
+            # If the caught error is already the one from mapping, just let it propagate
+            if e.code == APIErrorCode.INVALID_RESPONSE.value and isinstance(
+                e.original_exception, ValueError
+            ):
+                raise  # Re-raise the specific mapping error
+            return None  # For other APIErrors during fetching, return None
+        except Exception as e_unhandled:  # Catch-all for truly unexpected issues
             logger.error(
                 f"[{self.exchange_name}] Unexpected error in get_account_summary orchestration: {e_unhandled}",
                 exc_info=True,
             )
-            # Wrap in APIError for consistent error handling upstream
             raise APIError(
                 message=f"Unexpected error during get_account_summary: {e_unhandled}",
                 code=APIErrorCode.UNKNOWN.value,
@@ -1512,26 +1537,17 @@ class BackpackAPI(ExchangeAPI):
         try:
             response_raw = await self._request("GET", endpoint, params=params)
 
-            # Validate using the handler.
-            # The handler BackpackResponseHandler.handle_get_historical_trades_response
-            # is responsible for validating the raw response and returning list[BackpackRawTrade].
             validated_trades: list[BackpackRawTrade] = (
                 BackpackResponseHandler.handle_get_historical_trades_response(response_raw, symbol)
             )
-            # Note: The check `if not isinstance(response_raw, list):` and the subsequent
-            # loop `for trade_data_raw in response_raw:` with direct model_validate
-            # are removed as this logic is now encapsulated within the handler.
 
             internal_trades: list[Trade] = []
-            for raw_trade_model in validated_trades:  # Iterate over already validated models
-                # No need to check `isinstance(trade_data_raw, dict)` or call
-                # `BackpackRawTrade.model_validate(trade_data_raw)` here anymore.
+            for raw_trade_model in validated_trades:
                 try:
-                    # Then transform to internal model using instance mapper
                     internal_trade = self._bp_mapper.transform_raw_trade_to_internal(
-                        raw_trade_model  # This is already a BackpackRawTrade instance
+                        raw_trade_model
                     )
-                    if internal_trade:  # Mapper returns Trade | None
+                    if internal_trade:
                         internal_trades.append(internal_trade)
                     else:
                         logger.warning(

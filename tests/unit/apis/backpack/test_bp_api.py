@@ -6,28 +6,34 @@ from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 import pytest_asyncio
-from pytest import LogCaptureFixture
+from _pytest.logging import LogCaptureFixture
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.backpack.bp_auth import BackpackHmacAuthenticator
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
-from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
+from cyberdelta.apis.backpack.models.bp_raw_position import (
     BackpackRawImfFunction,
     BackpackRawMmfFunction,
+    BackpackRawPosition,
 )
-from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
 from cyberdelta.apis.connectivity.http_client import HttpRequestFailedError
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import MarginAccountSummary
-from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.core.models.enums import (
+    OrderSide,
+    OrderType,
+    TimeInForce,
+)
 from cyberdelta.core.models.margin_account import BackpackMarginDetails
+
+# from cyberdelta.shared_logger import logger # Comment out if still unresolved
 
 
 @pytest.fixture
@@ -151,6 +157,27 @@ def expected_margin_account_summary_fixture(
         ),
         hl_details=None,
     )
+
+
+@pytest.fixture
+def raw_dict_for_account_summary_response() -> dict[str, Any]:
+    """Provides a raw dictionary similar to the JSON response for account summary."""
+    return {
+        "autoBorrowSettlements": True,
+        "autoLend": False,
+        "autoRealizePnl": True,
+        "autoRepayBorrows": True,
+        "borrowLimit": "100000.0",
+        "futuresMakerFee": "0.0002",
+        "futuresTakerFee": "0.0005",
+        "leverageLimit": "20.0",
+        "limitOrders": 50,
+        "liquidating": False,
+        "positionLimit": "500000.0",
+        "spotMakerFee": "0.0008",
+        "spotTakerFee": "0.0010",
+        "triggerOrders": 10,
+    }
 
 
 class TestBackpackAPI_Authentication:
@@ -416,17 +443,24 @@ class TestBackpackAPIMethodErrors:
                     mock_build_params.assert_called_once_with(symbol="XYZ_USDC")
 
                     # Verify HttpClient.request was called with expected args
-                    # HttpClient.request(self, method: str, endpoint_path: str, params, data, headers, is_signed, timeout_override)
+                    # HttpClient.request(
+                    #     self, method: str, endpoint_path: str, params, data, headers,
+                    #     is_signed, timeout_override
+                    # )
                     mock_http_client_request.assert_called_once()
-                    # call_args for a method on an object will have args passed to it, not including self
-                    # So, call_args[0] is method, call_args[1] is endpoint_path for positional calls
-                    # Or, access via keyword args if called that way. HttpClient.request is usually called with kwargs by ExchangeAPI._request
+                    # call_args for a method on an object will have args passed to it,
+                    # not including self
+                    # So, call_args[0] is method, call_args[1] is endpoint_path
+                    # for positional calls
+                    # Or, access via keyword args if called that way. HttpClient.request
+                    # is usually called with kwargs by ExchangeAPI._request
                     _args_tuple, call_kwargs_dict = mock_http_client_request.call_args
 
                     assert call_kwargs_dict["method"] == "GET"
                     assert call_kwargs_dict["endpoint_path"] == "api/v1/ticker"
                     assert call_kwargs_dict["params"] == expected_params_from_builder
-                    # get_ticker should not be signed implicitly by HttpClient unless specified by ExchangeAPI._request
+                    # get_ticker should not be signed implicitly by HttpClient
+                    # unless specified by ExchangeAPI._request
                     assert call_kwargs_dict.get("is_signed") is False
 
                     assert exc_info.value.code == APIErrorCode.INVALID_SYMBOL.value
@@ -651,39 +685,21 @@ class TestBackpackAPIGetAccountSummary:
         self,
         default_bp_config: dict[str, Any],
         bp_secrets_valid: dict[str, str | None],
-        mock_raw_account_fixture: dict[str, Any],
         mock_raw_account_summary_fixture: BackpackRawAccountSummary,
         mock_raw_balances_dict_fixture: dict[str, BackpackRawBalance],
         mock_raw_positions_list_fixture: list[BackpackRawPosition],
         expected_margin_account_summary_fixture: MarginAccountSummary,
+        raw_dict_for_account_summary_response: dict[str, Any],
     ) -> None:
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
-
-        # Mock methods that get_account_summary calls internally
-        # 1. mock api.get_account_info()
+        fixed_now = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
+        current_expected_summary = expected_margin_account_summary_fixture.model_copy(
+            update={"timestamp": fixed_now}, deep=True
+        )
         mock_get_account_info = AsyncMock(return_value=mock_raw_account_summary_fixture)
-
-        # 2. For balances: mock the BackpackResponseHandler's method that get_account_summary uses
-        #    get_account_summary calls self._request, then the result is passed to
-        #    BackpackResponseHandler.handle_get_balances_response
         mock_handle_balances_response = MagicMock(return_value=mock_raw_balances_dict_fixture)
-
-        # 3. For positions: similar to balances, mock the handler.
-        #    BackpackResponseHandler.handle_get_positions_response
         mock_handle_positions_response = MagicMock(return_value=mock_raw_positions_list_fixture)
 
-        # Define the fixed timestamp for this test run
-        fixed_now = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
-        current_expected_summary = expected_margin_account_summary_fixture.model_copy(deep=True)
-        current_expected_summary.timestamp = fixed_now
-
-        # Mock the mapper call on the instance
-        api._bp_mapper = MagicMock()
-        api._bp_mapper.transform_raw_account_summary_to_internal = MagicMock(
-            return_value=current_expected_summary
-        )
-
-        # Patch the necessary methods for this test's scope
         with (
             patch.object(api, "get_account_info", mock_get_account_info) as _mock_get_info,
             patch(
@@ -699,36 +715,50 @@ class TestBackpackAPIGetAccountSummary:
             ) as mock_mapper_dt,
             patch.object(api, "_request") as mock_api_request,
         ):
-            # Configure mock_api_request to return appropriate raw data for balances and positions
-            mock_api_request.return_value = {}  # Placeholder, actual content processed by mocked handlers
-            mock_mapper_dt.now.return_value = fixed_now  # For mapper's timestamp generation
+            mock_mapper_dt.utcnow.return_value = fixed_now
 
+            async def mock_request_side_effect(
+                method: str, endpoint: str, **kwargs: dict[str, Any]
+            ) -> Any:
+                if endpoint.endswith("/api/v1/capital"):
+                    return {
+                        k: v.model_dump(by_alias=True)
+                        for k, v in mock_raw_balances_dict_fixture.items()
+                    }
+                elif endpoint.endswith("/api/v1/positions"):
+                    return [
+                        pos.model_dump(by_alias=True) for pos in mock_raw_positions_list_fixture
+                    ]
+                raise ValueError(
+                    f"Unexpected endpoint in success test mock_request_side_effect: {endpoint}"
+                )
+
+            mock_api_request.side_effect = mock_request_side_effect
+            api._bp_mapper = MagicMock()
+            api._bp_mapper.transform_raw_account_summary_to_internal = MagicMock(
+                return_value=current_expected_summary
+            )
             result = await api.get_account_summary()
-
-        assert result is not None
-        assert result.exchange == current_expected_summary.exchange
-        assert result.total_equity == current_expected_summary.total_equity
-        assert result.available_equity == current_expected_summary.available_equity
-        assert result.total_position_notional == current_expected_summary.total_position_notional
-        assert result.total_unrealized_pnl == current_expected_summary.total_unrealized_pnl
-        assert result.bp_details == current_expected_summary.bp_details
-        assert result.timestamp == fixed_now
-
-        mock_get_account_info.assert_called_once()
-        # Check that _request was called for balances and positions
-        # This requires knowing the specific endpoints.
-        # Example:
-        # mock_api_request.assert_any_call("GET", "/api/v1/capital", params=None, is_signed=True) # For balances
-        # mock_api_request.assert_any_call("GET", "/api/v1/positions", params=None, is_signed=True) # For positions
-        # And then assert the handlers were called
-        mock_handler_balances.assert_called_once_with({})  # Called with the output of _request
-        mock_handler_positions.assert_called_once_with({})  # Called with the output of _request
-
-        api._bp_mapper.transform_raw_account_summary_to_internal.assert_called_once_with(
-            raw_settings=mock_raw_account_summary_fixture,
-            spot_balances_raw=mock_raw_balances_dict_fixture,  # This is what the mocked handler returns
-            derivative_positions_raw=mock_raw_positions_list_fixture,  # This is what the mocked handler returns
-        )
+            assert result == current_expected_summary
+            _mock_get_info.assert_called_once()
+            expected_calls_to_request = [
+                call("GET", "/api/v1/capital", params=None, is_signed=True),
+                call("GET", "/api/v1/positions", params=None, is_signed=True),
+            ]
+            mock_api_request.assert_has_calls(expected_calls_to_request, any_order=True)
+            mock_handler_balances.assert_called_once_with(
+                {k: v.model_dump(by_alias=True) for k, v in mock_raw_balances_dict_fixture.items()}
+            )
+            mock_handler_positions.assert_called_once_with(
+                [pos.model_dump(by_alias=True) for pos in mock_raw_positions_list_fixture],
+                symbol=None,
+            )
+            api._bp_mapper.transform_raw_account_summary_to_internal.assert_called_once_with(
+                raw_settings=mock_raw_account_summary_fixture,
+                spot_balances_raw=mock_raw_balances_dict_fixture,
+                derivative_positions_raw=mock_raw_positions_list_fixture,
+            )
+            mock_mapper_dt.utcnow.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_account_summary_handles_get_account_info_failure(
@@ -738,7 +768,6 @@ class TestBackpackAPIGetAccountSummary:
         caplog: LogCaptureFixture,
     ) -> None:
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
-        # Correctly mock get_account_info on the instance
         mock_get_account_info = AsyncMock(return_value=None)
         with patch.object(api, "get_account_info", mock_get_account_info):
             result = await api.get_account_summary()
@@ -749,118 +778,94 @@ class TestBackpackAPIGetAccountSummary:
             in caplog.text
         )
         mock_get_account_info.assert_called_once()
-        # Other mocks (handlers, mapper) should not be called
-        # (add assertions for api._bp_mapper.transform_raw_account_summary_to_internal.assert_not_called() etc.
-        # if those mocks are set up at class/method level)
 
     @pytest.mark.asyncio
-    async def test_get_account_summary_handles_get_balances_raw_failure(
+    async def test_get_account_summary_balances_raw_failure(
         self,
         default_bp_config: dict[str, Any],
         bp_secrets_valid: dict[str, str | None],
-        mock_raw_account_fixture: dict[str, Any],
-        mock_raw_account_summary_fixture: BackpackRawAccountSummary,
         caplog: LogCaptureFixture,
+        raw_dict_for_account_summary_response: dict[str, Any],
     ) -> None:
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
-        mock_get_account_info = AsyncMock(return_value=mock_raw_account_summary_fixture)
 
-        # Mock API responses
-        async def mock_request_side_effect(method: str, url: str, **kwargs: Any) -> Any:
-            if url.endswith(api.ACCOUNT_INFO_URL):
-                return mock_raw_account_fixture  # RETURN NEW FIXTURE DATA
-            elif url.endswith(api.BALANCES_URL):
-                raise HttpRequestFailedError("Simulated balances fetch error")
-            # POSITIONS_URL and ACCOUNT_SUMMARY_URL_V2 won't be called if balances fail first
-            # but good practice to define behavior or raise if unexpected.
-            elif url.endswith(api.POSITIONS_URL):
-                return []  # Or some valid default if needed by subsequent logic before error handling
-            elif url.endswith(api.ACCOUNT_SUMMARY_URL_V2):
-                return mock_raw_account_summary_fixture.model_dump(by_alias=True)
-            raise HttpRequestFailedError(f"Unexpected URL in balances_raw_failure: {url}")
+        async def mock_request_side_effect(
+            method: str, endpoint: str, **kwargs: dict[str, Any]
+        ) -> Any:
+            if endpoint.endswith("/api/v1/account"):
+                return raw_dict_for_account_summary_response
+            elif endpoint.endswith("/api/v1/capital"):
+                raise HttpRequestFailedError("Simulated balances fetch error", http_status_code=500)
+            raise ValueError(
+                f"Unexpected endpoint in mock_request_side_effect for "
+                f"balances_raw_failure test: {endpoint}"
+            )
 
-        mock_http_client = MagicMock()
-        mock_http_client.request.side_effect = mock_request_side_effect
-
-        with (
-            patch.object(api, "get_account_info", mock_get_account_info),
-            patch.object(api, "_request", mock_http_client) as mock_overall_request,
-        ):
-            # We need to ensure _request is only mocked to fail for the balances call.
-            # This setup is simplistic. A more robust way would be to have mock_overall_request
-            # check its arguments (e.g., the endpoint) and raise error only for balances endpoint.
-            # For now, this assumes the first _request call after get_account_info is for balances.
-
+        with patch.object(
+            api, "_request", side_effect=mock_request_side_effect
+        ) as mock_overall_request:
             with pytest.raises(APIError) as exc_info:
                 await api.get_account_summary()
 
-        assert "Failed to fetch balances" in str(exc_info.value)
-        # The log message is generic if _request itself fails directly
-        # A more specific log happens if _request succeeds but handler fails or data is bad.
-        # For direct _request failure, this log might not appear as written.
-        # assert f"[{api.exchange_name}] Error fetching raw balances for summary" in caplog.text
-        mock_get_account_info.assert_called_once()
-        mock_overall_request.assert_called_once()  # Or more, if it was also for positions
+        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+        assert "Unexpected error during get_account_summary" in str(exc_info.value.message)
+        assert (
+            "Unexpected endpoint in mock_request_side_effect for "
+            "balances_raw_failure test: /api/v1/positions"
+        ) in str(exc_info.value.original_exception)
+        calls = mock_overall_request.call_args_list
+        assert any(c_args[0][1].endswith("/api/v1/account") for c_args in calls), (
+            "Expected _request to be called for /api/v1/account"
+        )
+        assert any(c_args[0][1].endswith("/api/v1/capital") for c_args in calls), (
+            "Expected _request to be called for /api/v1/capital"
+        )
+        assert any(c_args[0][1].endswith("/api/v1/positions") for c_args in calls), (
+            "Expected _request to be called for /api/v1/positions"
+        )
 
     @pytest.mark.asyncio
-    async def test_get_account_summary_handles_mapper_failure(
+    async def test_get_account_summary_mapper_failure(
         self,
         default_bp_config: dict[str, Any],
         bp_secrets_valid: dict[str, str | None],
-        mock_raw_account_fixture: dict[str, Any],
-        mock_raw_account_summary_fixture: BackpackRawAccountSummary,
-        mock_raw_balances_dict_fixture: dict[str, BackpackRawBalance],
         caplog: LogCaptureFixture,
+        mock_raw_balances_dict_fixture: dict[str, BackpackRawBalance],
+        mock_raw_positions_list_fixture: list[BackpackRawPosition],
+        raw_dict_for_account_summary_response: dict[str, Any],
     ) -> None:
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
 
-        mock_get_account_info = AsyncMock(return_value=mock_raw_account_summary_fixture)
-        mock_handle_balances_response = MagicMock(return_value=mock_raw_balances_dict_fixture)
-        mock_handle_positions_response = MagicMock(return_value=mock_raw_positions_list_fixture)
+        async def mock_request_side_effect(
+            method: str, endpoint: str, **kwargs: dict[str, Any]
+        ) -> Any:
+            if endpoint.endswith("/api/v1/account"):
+                return raw_dict_for_account_summary_response
+            elif endpoint.endswith("/api/v1/capital"):
+                return {
+                    k: v.model_dump(by_alias=True)
+                    for k, v in mock_raw_balances_dict_fixture.items()
+                }
+            elif endpoint.endswith("/api/v1/positions"):
+                return [pos.model_dump(by_alias=True) for pos in mock_raw_positions_list_fixture]
+            raise ValueError(f"Unexpected URL in mapper_failure: {endpoint}")
 
         api._bp_mapper = MagicMock()
         api._bp_mapper.transform_raw_account_summary_to_internal = MagicMock(
             side_effect=ValueError("Mapper internal error")
         )
 
-        # Mock API responses
-        async def mock_request_side_effect(method: str, url: str, **kwargs: Any) -> Any:
-            if url.endswith(api.ACCOUNT_INFO_URL):
-                return mock_raw_account_fixture  # RETURN NEW FIXTURE DATA
-            elif url.endswith(api.BALANCES_URL):
-                return [
-                    b.model_dump(by_alias=True) for b in mock_raw_balances_dict_fixture.values()
-                ]
-            elif url.endswith(api.POSITIONS_URL):
-                return [p.model_dump(by_alias=True) for p in mock_raw_positions_list_fixture]
-            elif url.endswith(api.ACCOUNT_SUMMARY_URL_V2):
-                return mock_raw_account_summary_fixture.model_dump(by_alias=True)
-            raise HttpRequestFailedError(f"Unexpected URL in mapper_failure: {url}")
-
-        mock_http_client = MagicMock()
-        mock_http_client.request.side_effect = mock_request_side_effect
-
-        with (
-            patch.object(api, "get_account_info", mock_get_account_info),
-            patch(
-                "cyberdelta.apis.backpack.bp_api.BackpackResponseHandler.handle_get_balances_response",
-                mock_handle_balances_response,
-            ),
-            patch(
-                "cyberdelta.apis.backpack.bp_api.BackpackResponseHandler.handle_get_positions_response",
-                mock_handle_positions_response,
-            ),
-            patch.object(api, "_request", mock_http_client) as mock_overall_request,
-        ):
+        with patch.object(
+            api, "_request", side_effect=mock_request_side_effect
+        ) as _mock_api_request_direct:
             with pytest.raises(APIError) as exc_info:
                 await api.get_account_summary()
 
-        assert "Error transforming raw account summary data" in str(exc_info.value)
-        assert "ValueError: Mapper internal error" in str(
-            exc_info.value.original_exception
-        )  # Check original
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Failed to map account summary" in str(exc_info.value.message)
+        assert "Mapper internal error" in str(exc_info.value.original_exception)
         assert (
-            f"[{api.exchange_name}] Error transforming raw account summary data: ValueError('Mapper internal error')"
+            "Error mapping raw account data to internal summary: Mapper internal error"
             in caplog.text
         )
         api._bp_mapper.transform_raw_account_summary_to_internal.assert_called_once()
