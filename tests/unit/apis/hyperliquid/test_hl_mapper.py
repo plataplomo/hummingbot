@@ -4,7 +4,6 @@ Unit tests for the HyperliquidMapper.
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -354,7 +353,7 @@ def test_map_raw_clearinghouse_state_to_spot_balances_with_other_spot_assets(
             ),
             HyperliquidRawAssetPosition(  # Simulate a non-USDC spot asset
                 asset="SPOT-ASSET",
-                position=HyperliquidRawPositionInfo(  # HL might use position field even for spot-like things
+                position=HyperliquidRawPositionInfo(
                     coin="SPOT-ASSET",
                     szi="10.0",  # This would be total_quantity
                     entryPx="0",  # Not applicable for spot usually
@@ -371,14 +370,14 @@ def test_map_raw_clearinghouse_state_to_spot_balances_with_other_spot_assets(
             ),
         ],
         marginSummary=HyperliquidRawMarginSummary(  # Main margin summary
-            accountValue="10700.0",  # Total portfolio value (USDC + SPOT-ASSET value + ETH-PERP PNL)
+            accountValue="10700.0",  # Total value (USDC + SPOT-ASSET val + ETH-PERP PNL)
             totalRawUsd="500.0",  # Value of non-USDC assets (SPOT-ASSET value)
             totalNtlPos="3000.0",  # Notional value of derivative positions (ETH-PERP)
             totalMarginUsed="300.0",  # Margin used by ETH-PERP
         ),
         crossMaintenanceMarginUsed="150.0",  # Maintenance for ETH-PERP
         crossMarginSummary=HyperliquidRawMarginSummary(  # Cross-specific summary
-            accountValue="10200.0",  # Value attributed to cross account (USDC balance + PNLs if cross)
+            accountValue="10200.0",  # Value for cross account (USDC bal + PNLs if cross)
             # This is often the total USDC if all perps are cross
             totalRawUsd="0",  # Assuming SPOT-ASSET is not part of cross margin here
             totalNtlPos="3000.0",  # Notional of cross positions
@@ -391,7 +390,8 @@ def test_map_raw_clearinghouse_state_to_spot_balances_with_other_spot_assets(
             totalNtlPos="0",
             totalMarginUsed="0",
         ),
-        withdrawable="9900.0",  # Typically (crossMarginSummary.accountValue - crossMarginSummary.totalInitialMargin)
+        withdrawable="9900.0",  # Typically (crossMarginSummary.accountValue -
+        # crossMarginSummary.totalInitialMargin)
         # For test: Cross Account Value (10200) - ETH Initial Margin (300) = 9900
     )
 
@@ -654,8 +654,8 @@ def test_transform_raw_fill_to_internal_invalid_data_handling(mapper: Hyperliqui
         "isMaker": False,
     }
     # We need to construct HyperliquidRawFill carefully if we want to bypass Pydantic validation
-    # for this specific test, or rely on Pydantic to fail first.
-    # For testing the mapper's robustness, direct field manipulation isn't easy with Pydantic v2 frozen.
+    # for this test, or rely on Pydantic to fail first.
+    # For mapper robustness, direct field manipulation is hard with Pydantic v2 frozen.
 
     # Test case 1: Pydantic validation catches it first
     with pytest.raises(ValidationError):
@@ -849,29 +849,40 @@ def test_map_raw_order_book_empty(
 def test_map_raw_order_book_malformed_levels_structure(
     mapper: HyperliquidMapper,
 ) -> None:
-    """Test mapping when raw_book.levels has an unexpected structure (e.g., not a list of 2 lists)."""
+    """Test mapping when raw_book.levels has an unexpected structure
+    (e.g., not a list of 2 lists)."""
     # The HyperliquidRawL2Book model itself has a validator for levels structure.
     # This test ensures the mapper handles it gracefully if such data somehow passed.
     # (Pydantic should prevent this, so this is more of a conceptual check on mapper robustness).
 
     # Case 1: levels is not a list (should be caught by Pydantic on HyperliquidRawL2Book)
     with pytest.raises(ValidationError):
-        HyperliquidRawL2Book(coin="MALFORMED-PERP", levels="not_a_list", time=123)
+        raw_data_invalid_levels_type = {
+            "coin": "MALFORMED-PERP",
+            "levels": "not_a_list",
+            "time": 123,
+        }
+        HyperliquidRawL2Book.model_validate(raw_data_invalid_levels_type)
 
     # Case 2: levels is a list, but not of length 2 (should be caught by Pydantic)
     with pytest.raises(ValidationError):
-        HyperliquidRawL2Book(coin="MALFORMED-PERP", levels=[[]], time=123)
+        raw_data_invalid_levels_item_type = {
+            "coin": "MALFORMED-PERP",
+            "levels": ["not_list_1", "not_list_2"],
+            "time": 123,
+        }
+        HyperliquidRawL2Book.model_validate(raw_data_invalid_levels_item_type)
 
-    # Case 3: levels has 2 elements, but they are not lists (should be caught by Pydantic)
-    with pytest.raises(ValidationError):
-        HyperliquidRawL2Book(coin="MALFORMED-PERP", levels=["not_list_1", "not_list_2"], time=123)
-
-    # The mapper logic itself also logs warnings if levels structure is bad after Pydantic validation.
-    # We can simulate a raw_book object that bypasses Pydantic for the levels field to test this.
-    # This requires a bit of careful construction or mocking.
-
-    # For this test, we rely on Pydantic validation of HyperliquidRawL2Book to catch these.
-    # The mapper contains logging for malformed levels if it ever receives one post-validation.
+    # The mapper logic itself also logs warnings if levels structure is bad after
+    # Pydantic validation.
+    # We can simulate a raw_book object that bypasses Pydantic for the levels field
+    # to test this.
+    # If a non-finite decimal somehow got past RawFiniteDecimalStr for px:
+    # This scenario is unlikely due to RawFiniteDecimalStr but tests mapper's
+    # direct use of parse_decimal_value
+    # For Pydantic v2, direct instantiation with invalid types is harder if
+    # validators are robust.
+    # The mapper directly calls parse_decimal_value, which would raise ValueError.
     pass
 
 
@@ -976,10 +987,11 @@ def test_transform_raw_public_trade_invalid_data(mapper: HyperliquidMapper) -> N
         HyperliquidRawPublicTrade.model_validate(invalid_raw_data)
 
     # If a non-finite decimal somehow got past RawFiniteDecimalStr for px:
-    # This scenario is unlikely due to RawFiniteDecimalStr but tests mapper's direct use of parse_decimal_value
-    # For Pydantic v2, direct instantiation with invalid types is harder if validators are robust.
+    # This scenario is unlikely due to RawFiniteDecimalStr but tests mapper's
+    # direct use of parse_decimal_value
+    # For Pydantic v2, direct instantiation with invalid types is harder if
+    # validators are robust.
     # The mapper directly calls parse_decimal_value, which would raise ValueError.
-    # We can assume Pydantic validation handles structural and basic type errors for the raw model.
     pass
 
 
@@ -1067,10 +1079,13 @@ def test_map_raw_trades_with_transformation_error(
     hyperliquid_raw_public_trade_buy_fixture: HyperliquidRawPublicTrade,
     mocker: MockerFixture,  # For pytest-mock
 ) -> None:
-    """Test that map_raw_trades handles errors from transform_raw_public_trade_to_internal gracefully."""
+    """Test that map_raw_trades handles errors from
+    transform_raw_public_trade_to_internal gracefully."""
     # Create a raw trade that will pass HyperliquidRawPublicTrade validation
-    # but cause an issue inside transform_raw_public_trade_to_internal (e.g., hypothetical internal error)
-    # For this example, we mock transform_raw_public_trade_to_internal to raise an exception for one item.
+    # but cause an issue inside transform_raw_public_trade_to_internal
+    # (e.g., hypothetical internal error)
+    # For this example, we mock transform_raw_public_trade_to_internal to raise
+    # an exception for one item.
 
     problematic_raw_trade = HyperliquidRawPublicTrade(
         coin="ERR-PERP",
@@ -1107,7 +1122,8 @@ def test_map_raw_trades_with_transformation_error(
         mapper.map_raw_trades(raw_trades_list)
     assert mocked_transformer.call_count == 2  # Called for ETH, then for ERR
 
-    # Option 2: If map_raw_trades is designed to skip errors and log (not current design based on snippet)
+    # Option 2: If map_raw_trades is designed to skip errors and log
+    # (not current design based on snippet)
     # trades = mapper.map_raw_trades(raw_trades_list)
     # assert len(trades) == 1 # Only the valid one
     # Check logs for the error (would require log capture fixture)
@@ -1204,7 +1220,7 @@ def test_map_raw_ctx_to_funding_rate_parsing_error_returns_none(
         value: str | int | float | Decimal,
         allow_none: bool = False,
         field_name: str | None = None,
-        **kwargs: Any,
+        # **kwargs: Any, # Removed kwargs
     ) -> Decimal | None:
         if field_name == "funding":
             return None
@@ -1212,7 +1228,7 @@ def test_map_raw_ctx_to_funding_rate_parsing_error_returns_none(
             value,
             allow_none=allow_none,
             field_name=field_name if field_name is not None else "",
-            **kwargs,
+            # **kwargs, # Removed kwargs
         )
 
     mocker.patch(
@@ -1233,7 +1249,7 @@ def test_map_raw_ctx_to_funding_rate_parsing_error_returns_none(
         value: str | int | float | Decimal,
         allow_none: bool = False,
         field_name: str | None = None,
-        **kwargs: Any,
+        # **kwargs: Any, # Removed kwargs
     ) -> Decimal | None:
         if field_name == "funding":
             raise ValueError("Simulated parsing error for funding")
@@ -1241,7 +1257,7 @@ def test_map_raw_ctx_to_funding_rate_parsing_error_returns_none(
             value,
             allow_none=allow_none,
             field_name=field_name if field_name is not None else "",
-            **kwargs,
+            # **kwargs, # Removed kwargs
         )
 
     mocker.patch(
@@ -1269,7 +1285,7 @@ def test_map_raw_ctx_to_funding_rate_parsing_error_returns_none(
         value: str | int | float | Decimal,
         allow_none: bool = False,
         field_name: str | None = None,
-        **kwargs: Any,
+        # **kwargs: Any, # Removed kwargs
     ) -> Decimal | None:
         if field_name == "mark_px":
             raise ValueError("Simulated parsing error for mark_px")
@@ -1277,7 +1293,7 @@ def test_map_raw_ctx_to_funding_rate_parsing_error_returns_none(
             value,
             allow_none=allow_none,
             field_name=field_name if field_name is not None else "",
-            **kwargs,
+            # **kwargs, # Removed kwargs
         )
 
     mocker.patch(
