@@ -105,8 +105,8 @@ class BackpackAPI(ExchangeAPI):
             )
             self._bp_authenticator = None
 
-        # Instantiate the error mapper
         self._backpack_error_mapper = BackpackErrorMapper()
+        self._bp_mapper = BackpackOrderMapper()
 
         super().__init__(
             exchange_name="backpack",
@@ -116,7 +116,6 @@ class BackpackAPI(ExchangeAPI):
             error_mapper=self._backpack_error_mapper,
         )
 
-        # Default headers - can be moved to base or kept here if specific
         self.default_headers: dict[str, str] = {
             "Content-Type": "application/json; charset=utf-8",
             "Accept": "application/json",
@@ -281,8 +280,8 @@ class BackpackAPI(ExchangeAPI):
             raw_ticker: BackpackRawTicker = BackpackResponseHandler.handle_get_ticker_response(
                 response_data_raw, symbol
             )
-            # Transform using the new mapper method
-            return BackpackOrderMapper.transform_raw_ticker_to_internal(
+            # Transform using the instance mapper method
+            return self._bp_mapper.transform_raw_ticker_to_internal(
                 raw_ticker, symbol_override=symbol
             )
 
@@ -332,8 +331,8 @@ class BackpackAPI(ExchangeAPI):
             validated_book: BackpackRawOrderBook = (
                 BackpackResponseHandler.handle_get_order_book_response(response_raw, symbol)
             )
-            # Transform validated raw data to internal model
-            internal_book = BackpackOrderMapper.transform_raw_orderbook_to_internal(
+            # Transform validated raw data to internal model using instance mapper
+            internal_book = self._bp_mapper.transform_raw_orderbook_to_internal(
                 symbol=symbol, raw=validated_book
             )
             # TODO: Apply depth limit if needed (Backpack provides full depth)
@@ -395,10 +394,8 @@ class BackpackAPI(ExchangeAPI):
             trades: list[Trade] = []
             for raw_trade in validated_trades:
                 try:
-                    # Transform validated raw trade to internal Trade using mapper
-                    internal_trade = BackpackOrderMapper.transform_raw_trade_to_internal(
-                        raw=raw_trade
-                    )
+                    # Transform validated raw trade to internal Trade using instance mapper
+                    internal_trade = self._bp_mapper.transform_raw_trade_to_internal(raw=raw_trade)
 
                     # Append only if transformation succeeded (returned Trade, not None)
                     if internal_trade:
@@ -461,8 +458,8 @@ class BackpackAPI(ExchangeAPI):
         processed_balances: dict[str, SpotBalance] = {}
         for asset_symbol, raw_balance in validated_balances.items():
             try:
-                # Transform validated raw balance to internal SpotBalance using mapper
-                internal_balance = BackpackOrderMapper.transform_raw_balance_to_internal(
+                # Transform validated raw balance to internal SpotBalance using instance mapper
+                internal_balance = self._bp_mapper.transform_raw_balance_to_internal(
                     asset_symbol=asset_symbol, raw=raw_balance
                 )
                 processed_balances[internal_balance.asset] = internal_balance
@@ -523,8 +520,8 @@ class BackpackAPI(ExchangeAPI):
             # Transformation logic remains here
             for raw_position in validated_positions:
                 try:
-                    # Transform validated raw position to internal DerivativePosition
-                    internal_position = BackpackOrderMapper.transform_raw_position_to_internal(
+                    # Transform validated raw position to internal DerivativePosition using instance mapper
+                    internal_position = self._bp_mapper.transform_raw_position_to_internal(
                         raw=raw_position
                     )
                     positions.append(internal_position)
@@ -628,9 +625,7 @@ class BackpackAPI(ExchangeAPI):
                             cast(dict[str, Any], response_data)
                         )
                     )
-                    return BackpackOrderMapper.transform_raw_order_to_internal(
-                        raw_order_from_direct
-                    )
+                    return self._bp_mapper.transform_raw_order_to_internal(raw_order_from_direct)
                 except (APIError, ValidationError, ValueError) as e_direct_map:
                     logger.warning(
                         f"[{self.exchange_name}] Failed to directly map initial place_order "
@@ -647,7 +642,7 @@ class BackpackAPI(ExchangeAPI):
             raw_order: BackpackRawOrder = BackpackResponseHandler.handle_place_order_response(
                 cast(RawJsonResponse, response_data)  # Cast to expected handler input
             )
-            return BackpackOrderMapper.transform_raw_order_to_internal(raw_order)
+            return self._bp_mapper.transform_raw_order_to_internal(raw_order)
 
         except ValueError as ve:  # e.g., missing price for limit order from builder
             raise ve
@@ -714,7 +709,7 @@ class BackpackAPI(ExchangeAPI):
             )
             for raw_order in validated_orders:
                 try:
-                    internal_order: Order = BackpackOrderMapper.transform_raw_order_to_internal(
+                    internal_order: Order = self._bp_mapper.transform_raw_order_to_internal(
                         raw_order
                     )
                     if internal_order.status in [
@@ -776,8 +771,8 @@ class BackpackAPI(ExchangeAPI):
             raw_funding_rate: BackpackRawFundingRate = (
                 BackpackResponseHandler.handle_get_funding_rate_response(response_raw, symbol)
             )
-            # Transform using the new mapper method
-            return BackpackOrderMapper.transform_raw_funding_rate_to_internal(raw_funding_rate)
+            # Transform using the instance mapper method
+            return self._bp_mapper.transform_raw_funding_rate_to_internal(raw_funding_rate)
 
         except ValidationError as e_val:
             logger.error(
@@ -898,20 +893,27 @@ class BackpackAPI(ExchangeAPI):
         try:
             raw_account_settings = await self.get_account_info()
             if not raw_account_settings:
-                logger.warning(f"[{self.exchange_name}] Failed to fetch raw account settings.")
-                return None
+                logger.warning(
+                    f"[{self.exchange_name}] Failed to fetch raw account settings for summary."
+                )
+                return None  # Critical piece missing
 
-            spot_balances = await self.get_balances()
-            # get_balances already logs errors, so we can proceed even if it's empty
+            # get_balances() already returns dict[str, SpotBalance] (internal models)
+            spot_balances_internal = await self.get_balances()
+            # get_balances already logs errors, so we can proceed even if it's empty or partially failed
 
-            derivative_positions = await self.get_positions()
+            # get_positions() already returns list[DerivativePosition] (internal models)
+            derivative_positions_internal = await self.get_positions()
             # get_positions already logs errors
 
-            # Now call the mapper with all the fetched data
-            internal_summary = BackpackOrderMapper.transform_raw_account_summary_to_internal(
+            # The mapper transform_raw_account_summary_to_internal expects:
+            # raw_settings: BackpackRawAccountSummary (which get_account_info provides)
+            # spot_balances: dict[str, SpotBalance] (which get_balances provides)
+            # derivative_positions: list[DerivativePosition] (which get_positions provides)
+            internal_summary = self._bp_mapper.transform_raw_account_summary_to_internal(
                 raw_settings=raw_account_settings,
-                spot_balances=spot_balances,
-                derivative_positions=derivative_positions,
+                spot_balances=spot_balances_internal,
+                derivative_positions=derivative_positions_internal,
             )
             logger.info(f"[{self.exchange_name}] Successfully generated internal account summary.")
             return internal_summary
@@ -1053,7 +1055,7 @@ class BackpackAPI(ExchangeAPI):
                             cast(dict[str, Any], response_data)  # Cast to dict
                         )
                     )
-                    return BackpackOrderMapper.transform_raw_withdrawal_response_to_internal(
+                    return self._bp_mapper.transform_raw_withdrawal_response_to_internal(
                         validated_response_direct
                     )
                 except (APIError, ValidationError, ValueError) as e_direct_map:
@@ -1071,9 +1073,7 @@ class BackpackAPI(ExchangeAPI):
                     cast(RawJsonResponse, response_data)  # Cast to expected handler input
                 )
             )
-            return BackpackOrderMapper.transform_raw_withdrawal_response_to_internal(
-                validated_response
-            )
+            return self._bp_mapper.transform_raw_withdrawal_response_to_internal(validated_response)
 
         except APIError:  # Handles validation errors from handler or _request
             # Assuming APIError is already logged by handler or _request if it originates there
@@ -1210,7 +1210,7 @@ class BackpackAPI(ExchangeAPI):
             # Transformation remains here
             for raw_order in validated_orders:
                 try:
-                    internal_order = BackpackOrderMapper.transform_raw_order_to_internal(raw_order)
+                    internal_order = self._bp_mapper.transform_raw_order_to_internal(raw_order)
                     orders.append(internal_order)
                 except ValueError as e_transform:  # Catch transformation errors per item
                     logger.warning(
@@ -1253,8 +1253,8 @@ class BackpackAPI(ExchangeAPI):
             trades: list[Trade] = []
             for raw_trade_model in validated_trades:
                 try:
-                    # Then transform to internal model
-                    internal_trade = BackpackOrderMapper.transform_raw_trade_to_internal(
+                    # Then transform to internal model using instance mapper
+                    internal_trade = self._bp_mapper.transform_raw_trade_to_internal(
                         raw_trade_model
                     )
                     if internal_trade:  # Mapper returns Trade | None
@@ -1471,8 +1471,8 @@ class BackpackAPI(ExchangeAPI):
                 try:
                     # Validate raw trade data first
                     raw_trade_model = BackpackRawTrade.model_validate(trade_data_raw)
-                    # Then transform to internal model
-                    internal_trade = BackpackOrderMapper.transform_raw_trade_to_internal(
+                    # Then transform to internal model using instance mapper
+                    internal_trade = self._bp_mapper.transform_raw_trade_to_internal(
                         raw_trade_model
                     )
                     if internal_trade:  # Mapper returns Trade | None
@@ -1542,8 +1542,8 @@ class BackpackAPI(ExchangeAPI):
                 response_data_raw, identifier
             )
 
-            # Transformation remains here
-            return BackpackOrderMapper.transform_raw_order_to_internal(raw_order)
+            # Transformation remains here using instance mapper
+            return self._bp_mapper.transform_raw_order_to_internal(raw_order)
 
         except APIError as e:  # Catches validation errors and ORDER_NOT_FOUND
             # Handle ORDER_NOT_FOUND specifically as per method contract

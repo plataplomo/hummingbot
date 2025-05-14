@@ -121,6 +121,9 @@ class HyperliquidAPI(ExchangeAPI):
         self._hyperliquid_error_mapper = HyperliquidErrorMapper()
 
         self._asset_to_index_cache: dict[str, int] = {}
+        self._hl_mapper = HyperliquidMapper()
+        self._hl_order_mapper = HyperliquidOrderMapper()
+        self._hl_candle_mapper = HyperliquidCandleMapper()
 
         super().__init__(
             exchange_name="hyperliquid",
@@ -378,7 +381,7 @@ class HyperliquidAPI(ExchangeAPI):
                     cast(RawJsonResponse, response), self._wallet_address
                 )
             )
-            return HyperliquidMapper.map_raw_clearinghouse_state_to_spot_balances(validated_state)
+            return self._hl_mapper.map_raw_clearinghouse_state_to_spot_balances(validated_state)
         except ValidationError as e:
             logger.error(
                 f"[{self.exchange_name}] Error validating clearinghouseState for balances: {e}"
@@ -419,7 +422,7 @@ class HyperliquidAPI(ExchangeAPI):
                     cast(RawJsonResponse, response), self._wallet_address
                 )
             )
-            positions_dict = HyperliquidMapper.map_raw_clearinghouse_state_to_derivative_positions(
+            positions_dict = self._hl_mapper.map_raw_clearinghouse_state_to_derivative_positions(
                 validated_state
             )
             positions_list: list[DerivativePosition] = list(positions_dict.values())
@@ -472,7 +475,7 @@ class HyperliquidAPI(ExchangeAPI):
                 trigger_info = order_obj.trigger
                 order_symbol: str = order_data.asset
                 if symbol is None or order_symbol == symbol:
-                    mapped_order = HyperliquidOrderMapper.transform_raw_order_to_internal(
+                    mapped_order = self._hl_order_mapper.transform_raw_order_to_internal(
                         raw=order_data, trigger=trigger_info
                     )
                     if mapped_order and mapped_order.status in [
@@ -518,7 +521,7 @@ class HyperliquidAPI(ExchangeAPI):
                     code=APIErrorCode.SYMBOL_NOT_FOUND.value,
                 )
 
-            return HyperliquidMapper.map_raw_ctx_to_ticker(target_asset_ctx_raw)
+            return self._hl_mapper.map_raw_ctx_to_ticker(target_asset_ctx_raw)
         except APIError:
             raise
         except Exception as e:
@@ -545,7 +548,7 @@ class HyperliquidAPI(ExchangeAPI):
                     cast(RawJsonResponse, response), symbol
                 )
             )
-            return HyperliquidMapper.map_raw_order_book(validated, depth)
+            return self._hl_mapper.map_raw_order_book(validated, depth)
         except APIError:
             raise
         except Exception as e:
@@ -572,7 +575,7 @@ class HyperliquidAPI(ExchangeAPI):
                     cast(RawJsonResponse, response), symbol
                 )
             )
-            return HyperliquidMapper.map_raw_trades(validated_trades_list, limit)
+            return self._hl_mapper.map_raw_trades(validated_trades_list, limit)
         except APIError:
             raise
         except Exception as e:
@@ -606,7 +609,7 @@ class HyperliquidAPI(ExchangeAPI):
             if asset_ctx is None:
                 logger.warning(f"[{self.exchange_name}] No asset context found for {symbol}.")
                 return None
-            return HyperliquidMapper.map_raw_ctx_to_funding_rate(asset_ctx)
+            return self._hl_mapper.map_raw_ctx_to_funding_rate(asset_ctx)
         except APIError:
             raise
         except Exception as e:
@@ -1010,9 +1013,11 @@ class HyperliquidAPI(ExchangeAPI):
                 try:
                     raw_order = raw_status_response.order
                     trigger_info = None
-                    internal_order = HyperliquidOrderMapper.transform_raw_order_to_internal(
-                        raw=raw_order,  # type: ignore[arg-type]
-                        trigger=trigger_info,
+                    internal_order = (
+                        self._hl_order_mapper.transform_raw_historical_order_to_internal(
+                            raw_historical_order=raw_order,
+                            trigger=trigger_info,
+                        )
                     )
                     if internal_order:
                         orders_list.append(internal_order)
@@ -1087,7 +1092,7 @@ class HyperliquidAPI(ExchangeAPI):
                         continue
                     # Cast raw_fill (HyperliquidRawUserFill) to HyperliquidRawFill
                     # for the mapper
-                    internal_trade = HyperliquidMapper.transform_raw_fill_to_internal(
+                    internal_trade = self._hl_mapper.transform_raw_fill_to_internal(
                         cast(HyperliquidRawFill, raw_fill)
                     )
                     trades.append(internal_trade)
@@ -1136,7 +1141,7 @@ class HyperliquidAPI(ExchangeAPI):
                     market_symbol: str = asset_ctx_item.name
                     if symbols is not None and market_symbol not in symbols:
                         continue
-                    funding_rate = HyperliquidMapper.map_raw_ctx_to_funding_rate(asset_ctx_item)
+                    funding_rate = self._hl_mapper.map_raw_ctx_to_funding_rate(asset_ctx_item)
                     if funding_rate:
                         result.append(funding_rate)
                 except ValidationError as ve_ctx:  # Should ideally not happen if handler worked
@@ -1193,7 +1198,7 @@ class HyperliquidAPI(ExchangeAPI):
                 )
             )
             # The mapper now expects the full response object (HyperliquidRawCandleSnapshot)
-            internal_candles = HyperliquidCandleMapper.map(raw_snapshot, symbol, timeframe)
+            internal_candles = self._hl_candle_mapper.map(raw_snapshot, symbol, timeframe)
             if limit > 0 and len(internal_candles) > limit:
                 internal_candles = internal_candles[-limit:]
             return internal_candles
@@ -1605,7 +1610,7 @@ class HyperliquidAPI(ExchangeAPI):
                 )
             )
             # Use the correct mapper for HyperliquidRawHistoricalOrder
-            return HyperliquidOrderMapper.transform_raw_historical_order_to_internal(
+            return self._hl_order_mapper.transform_raw_historical_order_to_internal(
                 raw_historical_order=validated_status_response.order,
                 trigger=None,  # Assuming no separate trigger info here
             )
@@ -1671,10 +1676,9 @@ class HyperliquidAPI(ExchangeAPI):
                 )
             )
 
-            # Transform to MarginAccountSummary
-            # This transformation needs to be properly implemented in HyperliquidMapper
-            margin_summary = HyperliquidMapper.map_raw_clearinghouse_state_to_margin_summary(
-                raw_state=validated_user_state  # Pass validated_user_state as raw_state
+            # Transform to MarginAccountSummary using the instance mapper
+            margin_summary = self._hl_mapper.map_raw_clearinghouse_state_to_margin_summary(
+                raw_state=validated_user_state
             )
             return margin_summary
 

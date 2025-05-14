@@ -902,27 +902,25 @@ class BackpackOrderMapper:
         """
         current_time_utc = datetime.now(UTC)
 
+        # Calculations will use the already transformed spot_balances and derivative_positions
+
         # --- Calculate sums from derivative positions ---
         total_position_notional = Decimal("0.0")
         total_unrealized_pnl = Decimal("0.0")
 
-        if derivative_positions:
+        if derivative_positions:  # Use the passed internal list
             for pos in derivative_positions:
-                if (
-                    pos.size is not None
-                    and pos.entry_price is not None
-                    and pos.size != Decimal("0")
-                ):
+                if pos.entry_price is not None and pos.size != Decimal("0"):
                     total_position_notional += abs(pos.size) * pos.entry_price
                 if pos.unrealized_pnl is not None:
                     total_unrealized_pnl += pos.unrealized_pnl
 
-        # --- Approximate total equity and available equity ---
+        # --- Approximate total equity and available equity from spot balances ---
         calculated_total_equity = Decimal("0.0")
         calculated_available_equity = Decimal("0.0")
 
         usdc_like_assets = ("USDC", "USD", "USDT")
-        for asset_symbol, balance in spot_balances.items():
+        for asset_symbol, balance in spot_balances.items():  # Use passed internal dict
             if asset_symbol.upper() in usdc_like_assets:
                 calculated_total_equity += balance.total_quantity
                 calculated_available_equity += balance.available_quantity
@@ -931,17 +929,15 @@ class BackpackOrderMapper:
 
         # --- Populate BackpackMarginDetails ---
         assets_value_approx = Decimal("0.0")
-        for asset_symbol, balance in spot_balances.items():
+        for asset_symbol, balance in spot_balances.items():  # Use passed internal dict
             if asset_symbol.upper() in usdc_like_assets:
                 assets_value_approx += balance.total_quantity
 
-        # Determine the final value for BackpackMarginDetails.assets_value
-        # It should be assets_value_approx if strictly positive, otherwise None.
         final_assets_value_for_details: Decimal | None = None
         if assets_value_approx > Decimal("0.0"):
             final_assets_value_for_details = assets_value_approx
 
-        margin_fraction_calc = None  # Kept as None as per previous reasoning
+        margin_fraction_calc = None
 
         bp_details = BackpackMarginDetails(
             assets_value=final_assets_value_for_details,
