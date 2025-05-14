@@ -203,7 +203,9 @@ class DataHandler:
             }
             self.user_fills[exchange_id] = {symbol: [] for symbol in symbols}
             self.open_orders[exchange_id] = {}
-            self.last_update_time[exchange_id] = {}
+            self.last_update_time[exchange_id] = {
+                symbol: datetime.min.replace(tzinfo=UTC) for symbol in symbols
+            }
 
             logger.debug(f"Initialized data structures for {exchange_id} with symbols: {symbols}")
 

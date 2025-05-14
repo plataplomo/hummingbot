@@ -65,6 +65,42 @@ def generate_synthetic_data(
             df_symbol[("bid_price", symbol)] = prices - spread / 2
             df_symbol[("ask_price", symbol)] = prices + spread / 2
 
+        elif data_type == "ohlcv":
+            # Simulate OHLCV data based on a mid_price simulation
+            start_price = rng.uniform(1000, 50000)
+            drift = rng.uniform(-0.001, 0.001)
+            volatility = rng.uniform(0.01, 0.05)
+            log_returns = rng.normal(drift, volatility, num_points)
+            base_prices = start_price * np.exp(log_returns.cumsum())
+
+            # Derive OHLC from base_prices with some noise
+            price_variation = volatility * base_prices * 0.1  # Smaller variation for OHLC
+            df_symbol[("open", symbol)] = base_prices - rng.normal(
+                0, price_variation / 2, num_points
+            )
+            df_symbol[("close", symbol)] = base_prices + rng.normal(
+                0, price_variation / 2, num_points
+            )
+            df_symbol[("high", symbol)] = np.maximum(
+                df_symbol[("open", symbol)], df_symbol[("close", symbol)]
+            ) + rng.exponential(price_variation, num_points)
+            df_symbol[("low", symbol)] = np.minimum(
+                df_symbol[("open", symbol)], df_symbol[("close", symbol)]
+            ) - rng.exponential(price_variation, num_points)
+            # Ensure low <= open/close <= high
+            df_symbol[("low", symbol)] = np.minimum(
+                df_symbol[("low", symbol)],
+                np.minimum(df_symbol[("open", symbol)], df_symbol[("close", symbol)]),
+            )
+            df_symbol[("high", symbol)] = np.maximum(
+                df_symbol[("high", symbol)],
+                np.maximum(df_symbol[("open", symbol)], df_symbol[("close", symbol)]),
+            )
+
+            # Simulate volume
+            mean_volume = rng.uniform(10, 1000)
+            df_symbol[("volume", symbol)] = rng.poisson(mean_volume, num_points)
+
         # Ensure columns are Decimal
         # for col in df_symbol.columns:
         #     try:
@@ -83,8 +119,18 @@ def generate_synthetic_data(
     combined_df = pd.concat(data_frames, axis=1)
 
     # Sort columns by symbol then metric for consistent structure
-    combined_df.columns = pd.MultiIndex.from_tuples(combined_df.columns)
-    combined_df = combined_df.sort_index(axis=1, level=[1, 0])
+    if not combined_df.columns.empty:
+        # If columns are already a MultiIndex, from_tuples will recreate it.
+        # If it's some other non-empty Index that from_tuples can handle, it will convert.
+        try:
+            combined_df.columns = pd.MultiIndex.from_tuples(combined_df.columns)
+            combined_df = combined_df.sort_index(axis=1, level=[1, 0])
+        except TypeError as e:
+            logger.error(f"Error processing DataFrame columns: {e}. Columns: {combined_df.columns}")
+            # Decide on fallback: return as is, or raise, or return with empty MultiIndex
+            # For now, let it pass to see if a later stage handles it or fails revealing more.
+            pass  # Or raise e if this state is truly invalid
+    # else: combined_df has no columns, leave as is (empty Index for columns)
 
     logger.info(
         f"Generated synthetic {data_type} data for {symbols} with shape {combined_df.shape}"

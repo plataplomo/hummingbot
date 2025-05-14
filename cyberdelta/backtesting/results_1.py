@@ -27,6 +27,8 @@ class BacktestResultsHandler:
         self,
         strategy_name: str,
         initial_capital: Decimal,
+        commission: Decimal,
+        slippage: Decimal,
         results_dir: str = "backtest_results",
     ) -> None:
         """
@@ -35,11 +37,15 @@ class BacktestResultsHandler:
         Args:
             strategy_name: Name of the strategy
             initial_capital: Initial capital for the backtest
+            commission: Commission rate for the backtest
+            slippage: Slippage rate for the backtest
             results_dir: Directory to save results
         """
         self.strategy_name = strategy_name
         self.initial_capital = initial_capital
         self.results_dir = results_dir
+        self.commission = commission
+        self.slippage = slippage
 
         # Create results directory if it doesn't exist
         pathlib.Path(results_dir).mkdir(parents=True, exist_ok=True)
@@ -248,18 +254,16 @@ class BacktestResultsHandler:
 
         results = {
             "strategy_name": self.strategy_name,
-            "initial_capital": str(self.initial_capital),  # Save Decimal as string
-            "timestamp": datetime.now().isoformat(),
+            "parameters": {  # Parameters of the backtest, not the strategy itself
+                "initial_capital": self.initial_capital,
+                "commission_rate": self.commission,  # Use actual commission
+                "slippage_rate": self.slippage,  # Use actual slippage
+            },
             "metrics": self.metrics,
             "trades": self.trades,
             "equity_curve": self.equity_curve,
             # Add other relevant information like configuration if needed
-            "parameters": {  # Placeholder for strategy parameters if available
-                "commission": str(
-                    self.initial_capital
-                ),  # Example: This should be actual commission
-                "slippage": str(self.initial_capital),  # Example: This should be actual slippage
-            },
+            "timestamp": datetime.now().isoformat(),
         }
 
         try:

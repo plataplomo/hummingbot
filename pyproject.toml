@@ -50,6 +50,7 @@ dependencies = [
     "python-dateutil>=2.9.0.post0",
     "pytz>=2025.2",
     "types-pyyaml>=6.0.12.20250402",
+    "pandas-stubs>=2.2.3.250308",
 ]
 
 [project.optional-dependencies]
@@ -60,6 +61,7 @@ dev = [
     "ruff>=0.11.7",
     "pyright>=1.1.365",
     "types-jsonschema>=4.23.0.20241208",
+    "jsonschema>=4.23.0",
 ]
 
 [tool.pytest.ini_options]

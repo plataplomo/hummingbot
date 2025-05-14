@@ -239,6 +239,8 @@ class BacktestEngine:
             results_handler = BacktestResultsHandler(
                 strategy_name=self.strategy.name,
                 initial_capital=self.initial_capital,
+                commission=self.commission,
+                slippage=self.slippage,
                 results_dir=self.results_dir,
             )
             self.results_handler = results_handler  # Assign to instance attribute
@@ -599,39 +601,45 @@ class StrategyAdapter(BacktestStrategy):
                     timestamp = timestamp.replace(tzinfo=UTC)
 
             if isinstance(data.index, pd.MultiIndex):
-                # Assuming MultiIndex levels are (symbol, field)
-                symbols = data.index.get_level_values(0).unique()  # type: ignore[union-attr]
-                for symbol in symbols:
-                    row = data.loc[symbol]  # Get data for this symbol
+                # Assuming MultiIndex levels are (field, symbol) based on column structure
+                # e.g., columns are [('open', 'BTC'), ('close', 'BTC'), ('open', 'ETH') ...]
+                # So, data.index for a row Series will be this MultiIndex.
+                # Level 0 of index = field (open, close), Level 1 of index = symbol (BTC, ETH)
+                actual_symbols = data.index.get_level_values(1).unique()  # Get symbols from level 1
+                for actual_symbol_str in actual_symbols:
+                    symbol = str(actual_symbol_str)  # Ensure it's a string
+                    # Get all data for this specific symbol: will be a Series with index ['open', 'close', ...]
+                    symbol_specific_data = data.xs(key=actual_symbol_str, level=1, axis=0)
+
                     try:
-                        # DEFENSIVE CHECK: Validate required fields exist
-                        required = ["open", "high", "low", "close", "volume"]
-                        if not all(field in row.index for field in required):  # type: ignore[operator]
+                        # DEFENSIVE CHECK: Validate required fields exist in symbol_specific_data.index
+                        required_fields = ["open", "high", "low", "close", "volume"]
+                        if not all(
+                            field in symbol_specific_data.index for field in required_fields
+                        ):
                             self._logger.warning(
-                                f"Missing OHLCV fields for {symbol} at {timestamp}. Skipping candle."
+                                f"Missing OHLCV fields for {symbol} at {timestamp}. Fields available: {symbol_specific_data.index.tolist()}. Skipping candle."
                             )
                             continue
 
                         candle = Candle(
-                            symbol=str(symbol),
+                            symbol=symbol,
                             interval="1m",  # TODO: Use actual interval if available
                             open_time=timestamp,
-                            # Use .get with default 'NaN' for robustness before Decimal conversion
-                            open=Decimal(str(row.get("open", "NaN"))),
-                            high=Decimal(str(row.get("high", "NaN"))),
-                            low=Decimal(str(row.get("low", "NaN"))),
-                            close=Decimal(str(row.get("close", "NaN"))),
-                            volume=Decimal(str(row.get("volume", "NaN"))),
+                            open=Decimal(str(symbol_specific_data.get("open", "NaN"))),
+                            high=Decimal(str(symbol_specific_data.get("high", "NaN"))),
+                            low=Decimal(str(symbol_specific_data.get("low", "NaN"))),
+                            close=Decimal(str(symbol_specific_data.get("close", "NaN"))),
+                            volume=Decimal(str(symbol_specific_data.get("volume", "NaN"))),
                         )
                         candle_list.append(candle)
                     except Exception as e:
                         self._logger.error(
                             f"Error converting row to Candle for symbol {symbol} "
-                            f"at {timestamp}: {e} - Row data: {row.to_dict()}"  # type: ignore[union-attr]
+                            f"at {timestamp}: {e} - Symbol data: {symbol_specific_data.to_dict() if isinstance(symbol_specific_data, pd.Series) else 'Error converting to dict'}"
                         )
-
             else:
-                # Assuming single index represents symbol or just one instrument
+                # Assuming single index represents symbol or just one instrument (non-MultiIndex columns case)
                 symbol = data.index.name if data.index.name else "UNKNOWN_SYMBOL"
                 try:
                     # DEFENSIVE CHECK: Validate required fields exist
@@ -789,6 +797,48 @@ class StrategyAdapter(BacktestStrategy):
             signals_out.append(signal_dict)
 
         return signals_out
+
+    def _convert_row_to_candle(
+        self, row_data: pd.Series, symbol: str, timestamp: datetime
+    ) -> Candle | None:
+        try:
+            # Ensure timestamp is timezone-aware (UTC)
+            if timestamp.tzinfo is None:
+                timestamp = timestamp.replace(tzinfo=UTC)
+            else:
+                timestamp = timestamp.astimezone(UTC)
+
+            self.logger.debug(
+                f"[_convert_row_to_candle] For {symbol} at {timestamp}, received row_data.index: {row_data.index.tolist()}, row_data.values: {row_data.values.tolist()}"
+            )
+
+            # Try to get OHLCV directly
+            o = row_data.get("open")
+            h = row_data.get("high")
+            l = row_data.get("low")
+            c = row_data.get("close")
+            v = row_data.get("volume")
+
+            if o is None or h is None or l is None or c is None or v is None:
+                self.logger.warning(f"Missing OHLCV fields for {symbol} at {timestamp}")
+                return None
+
+            candle = Candle(
+                symbol=symbol,
+                interval="1m",
+                open_time=timestamp,
+                open=Decimal(str(o)),
+                high=Decimal(str(h)),
+                low=Decimal(str(l)),
+                close=Decimal(str(c)),
+                volume=Decimal(str(v)),
+            )
+            return candle
+        except Exception as e:
+            self.logger.error(
+                f"Error converting row to Candle for symbol {symbol} at {timestamp}: {e}"
+            )
+            return None
 
 
 # --- Example Strategy (for demonstration) ---

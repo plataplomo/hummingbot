@@ -62,10 +62,10 @@ class TestBacktestingIntegration:
         # Generate synthetic data for testing - ensure price data is included for MockStrategy
         if cls.test_data_dir:  # Ensure not None
             cls.data_file_path = cls.test_data_dir / "test_data.csv"
-            # Use data_type="price" and specify TEST_SYMBOL
+            # Use data_type="ohlcv" and specify TEST_SYMBOL
             cls.funding_data = synthetic_data.generate_synthetic_data(
                 days=5,
-                data_type="price",
+                data_type="ohlcv",
                 symbols=[TEST_SYMBOL],  # Use module constant TEST_SYMBOL
             )
             # cls.funding_data is pd.DataFrame, so this check is redundant based on type hints
@@ -132,20 +132,21 @@ class TestBacktestingIntegration:
         # first_row_data is a Series, potentially with complex index/dtypes
         first_row_data: pd.Series[Any] = self.funding_data.iloc[0]
         # Ignore type error for adapter.update which depends on complex Series type
-        result: dict[str, Any] = adapter.update(first_row_data)  # type: ignore[no-untyped-call]
+        result: dict[str, Any] = adapter.update(first_row_data)
 
         assert "signals" in result
 
-        # Correct price access using TEST_SYMBOL and "mid_price"
-        first_close_price_column_key = (TEST_SYMBOL, "mid_price")
+        # Correct price access using TEST_SYMBOL and "close" price from OHLCV data
+        first_close_price_column_key = ("close", TEST_SYMBOL)  # Changed from "mid_price"
         if first_close_price_column_key not in self.funding_data.columns:
             pytest.fail(
-                f"Column {first_close_price_column_key} not found in generated data. Available: {self.funding_data.columns}"
+                f"Column {first_close_price_column_key} not found in generated data. "
+                f"Available: {self.funding_data.columns}"
             )
 
         # The type of the element retrieved can vary, use Any
         # Ignore type error for iloc on potentially complex Series/DataFrame slice
-        first_close_price: Any = self.funding_data[first_close_price_column_key].iloc[0]  # type: ignore[no-untyped-call]
+        first_close_price: Any = self.funding_data[first_close_price_column_key].iloc[0]
 
         expected_signal_count = 0
         try:
@@ -156,7 +157,9 @@ class TestBacktestingIntegration:
             pass
 
         assert len(result["signals"]) == expected_signal_count, (
-            f"Expected {expected_signal_count} signal(s) based on first row close price {first_close_price} vs threshold {mock_strategy.entry_threshold}, got {len(result['signals'])}"
+            f"Expected {expected_signal_count} signal(s) based on first row close price "
+            f"{first_close_price} vs threshold {mock_strategy.entry_threshold}, "
+            f"got {len(result['signals'])}"
         )
         if expected_signal_count > 0:
             assert result["signals"][0]["action"] == "ENTRY_LONG"
@@ -164,7 +167,8 @@ class TestBacktestingIntegration:
     def test_funding_rate_strategy_integration(self) -> None:
         """Test integration with the FundingRateArbitrageStrategy"""
         pytest.skip(
-            "Skipping FundingRateArbitrageStrategy integration test temporarily due to potential import/dependency issues."
+            "Skipping FundingRateArbitrageStrategy integration test temporarily due to "
+            "potential import/dependency issues."
         )
         # try:
         #     from unittest.mock import MagicMock  # Import MagicMock
@@ -195,7 +199,8 @@ class TestBacktestingIntegration:
         #     assert self.data_file_path is not None, "data_file_path not initialized"
         #     assert self.test_results_dir is not None, "test_results_dir not initialized"
         #     engine = BacktestEngine(
-        #         strategy=adapter, data=str(self.data_file_path), results_dir=str(self.test_results_dir)
+        #         strategy=adapter, data=str(self.data_file_path),
+        #         results_dir=str(self.test_results_dir)
         #     )
         #     results = engine.run()
 
@@ -228,49 +233,55 @@ class TestBacktestingIntegration:
             def initialize(self, data: pd.DataFrame) -> bool:
                 if not self.initialized:  # Check if already initialized
                     # Try to find the price column for TEST_SYMBOL
-                    price_column_key = (TEST_SYMBOL, "mid_price")
+                    price_column_key = ("close", TEST_SYMBOL)
                     if price_column_key in data.columns:
                         try:
                             # Assume mean returns float or compatible type
                             # Ignore type error for mean on potentially complex Series
-                            mean_price: float = data[price_column_key].mean()  # type: ignore[no-untyped-call]
+                            mean_price: float = data[price_column_key].mean()
                             self.price_threshold = Decimal(str(mean_price))
                             logger.info(
-                                f"Initialized {self.name} with price threshold: {self.price_threshold:.2f} from {TEST_SYMBOL} mean price."
+                                f"Initialized {self.name} with price threshold: "
+                                f"{self.price_threshold:.2f} from {TEST_SYMBOL} mean price."
                             )
                         except (InvalidOperation, TypeError, KeyError) as e:
                             logger.warning(
-                                f"Could not calculate mean for {price_column_key}, using default threshold {self.price_threshold}. Error: {e}"
+                                f"Could not calculate mean for {price_column_key}, "
+                                f"using default threshold {self.price_threshold}. Error: {e}"
                             )
                     else:
                         logger.warning(
-                            f"Price column {price_column_key} not found in data, using default threshold {self.price_threshold}."
+                            f"Price column {price_column_key} not found in data, "
+                            f"using default threshold {self.price_threshold}."
                         )
                     self.initialized = True
                 return True
 
             def update(
                 self,
-                current_data: pd.Series[Any] | pd.DataFrame,  # Add Any type argument
+                current_data: pd.Series | pd.DataFrame,  # Removed [Any]
             ) -> dict[str, list[dict[str, Any]]]:
                 signals: list[dict[str, Any]] = []
 
                 # Determine the price for TEST_SYMBOL from current_data
-                # current_data could be a Series (one row) or a DataFrame (if strategy handles slices)
+                # current_data could be a Series (one row) or a DataFrame
+                # (if strategy handles slices)
                 price_val_raw: Any = None
-                price_column_key = (TEST_SYMBOL, "mid_price")
+                price_column_key = ("close", TEST_SYMBOL)
 
                 if isinstance(current_data, pd.Series):
                     # Ignore type error for index access on complex Series
-                    if price_column_key in current_data.index:  # type: ignore[operator]
+                    if price_column_key in current_data.index:
                         price_val_raw = current_data[price_column_key]  # Correct indexing
-                # Linter flagged isinstance(current_data, pd.DataFrame) as unnecessary, removing elif.
-                # This assumes if it's not a Series, it must be a DataFrame based on type hint.
+                # Linter flagged isinstance(current_data, pd.DataFrame) as
+                # unnecessary, removing elif. This assumes if it's not a Series,
+                # it must be a DataFrame based on type hint.
                 else:
                     if price_column_key in current_data.columns:
-                        # Assuming we need the first (or only) value if it's a DataFrame slice for current step
+                        # Assuming we need the first (or only) value if it's a
+                        # DataFrame slice for current step
                         # Ignore type error for iloc on potentially complex Series/DataFrame slice
-                        price_val_raw = current_data[price_column_key].iloc[0]  # type: ignore[no-untyped-call]
+                        price_val_raw = current_data[price_column_key].iloc[0]
 
                 if price_val_raw is None:
                     # logger.debug(f"No price data for {TEST_SYMBOL} in current_data step.")
@@ -279,7 +290,9 @@ class TestBacktestingIntegration:
                 try:
                     price = Decimal(str(price_val_raw))
                 except (InvalidOperation, ValueError):
-                    # logger.warning(f"Invalid price value {price_val_raw} for {TEST_SYMBOL}, skipping.")
+                    # logger.warning(
+                    #    f"Invalid price value {price_val_raw} for {TEST_SYMBOL}, skipping."
+                    # )
                     return {"signals": signals}
 
                 if price < self.price_threshold:
@@ -326,7 +339,7 @@ class TestBacktestingIntegration:
         assert results is not None, "Backtest engine run did not return results."
         assert results.get("success", False), f"Backtest failed. Error: {results.get('error')}"
         assert "metrics" in results
-        assert "equity_curve" in results
+        # assert "equity_curve" in results # This key is not directly in engine.run() output
 
         metrics = results["metrics"]
         assert "total_return" in metrics
@@ -351,7 +364,8 @@ class TestBacktestingIntegration:
                 return True
 
             def update(
-                self, current_data: pd.Series[Any] | pd.DataFrame
+                self,
+                current_data: pd.Series | pd.DataFrame,  # Removed [Any]
             ) -> dict[str, list[Any]]:  # Add Any
                 return {"signals": []}
 
@@ -373,9 +387,9 @@ class TestBacktestingIntegration:
 
             loaded_results = json.load(f)
 
-        assert "strategy" in loaded_results
-        assert "initial_capital" in loaded_results
-        assert "final_capital" in loaded_results
+        assert "strategy_name" in loaded_results
+        assert "parameters" in loaded_results
+        assert "initial_capital" in loaded_results["parameters"]
         assert "metrics" in loaded_results
         assert "trades" in loaded_results
         assert "equity_curve" in loaded_results
@@ -386,12 +400,12 @@ class TestBacktestingIntegration:
                 "sharpe_ratio should be present even if equity_std_dev is zero"
             )
             sharpe_ratio_val = loaded_results["metrics"]["sharpe_ratio"]
-            assert isinstance(sharpe_ratio_val, (int, float))
+            assert isinstance(sharpe_ratio_val, int | float)
             assert sharpe_ratio_val == 0.0, "Expected Sharpe ratio to be 0.0 when std dev is zero"
             logger.info("Verified Sharpe Ratio handling when equity std dev is zero.")
         else:
             assert "sharpe_ratio" in loaded_results["metrics"]
-            assert isinstance(loaded_results["metrics"]["sharpe_ratio"], (int, float))
+            assert isinstance(loaded_results["metrics"]["sharpe_ratio"], int | float)
 
     def test_basic_backtest_run(self) -> None:
         assert self.data_file_path is not None, "data_file_path not initialized in setup_class"
@@ -405,7 +419,8 @@ class TestBacktestingIntegration:
                 return True
 
             def update(
-                self, current_data: pd.Series[Any] | pd.DataFrame
+                self,
+                current_data: pd.Series | pd.DataFrame,  # Removed [Any]
             ) -> dict[str, list[Any]]:  # Add Any
                 return {"signals": []}  # Return no signals
 
