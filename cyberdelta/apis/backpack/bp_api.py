@@ -19,7 +19,7 @@ This module implements the Backpack exchange adapter for CyberDeltaEngine, inclu
 """
 
 from collections.abc import Mapping
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 from typing import Any, cast
 
@@ -846,86 +846,92 @@ class BackpackAPI(ExchangeAPI):
         return rates
 
     # --- Account Management --- #
-    async def get_account_info(
-        self,
-    ) -> dict[str, Any]:
-        """Fetches comprehensive account information."""
-        endpoint = "/api/v1/account"
-        params = BackpackRequestBuilder.build_get_account_info_params()  # Returns None
-        response_raw: RawJsonResponse | None = None
-        account_info_dict: dict[str, Any] = {}  # Initialize outside try
+    async def get_account_info(self) -> BackpackRawAccountSummary | None:
+        """Fetches raw account settings and fee structures from Backpack.
+        Returns the validated raw Pydantic model or None if an error occurs.
+        """
+        # Construct the full endpoint URL for the account info
+        # Backpack's account endpoint is typically /api/v1/account relative to base URL
+        if not self.rest_endpoint:
+            logger.error(f"[{self.exchange_name}] REST endpoint not configured.")
+            return None
+
+        # endpoint_path = "account" # Unused variable
+
+        api_path = "/api/v1/account"  # The specific path for this endpoint
+
         try:
-            response_raw = await self._request(
-                method="GET", endpoint=endpoint, params=params, is_signed=True
+            response_raw = await self._request(  # Call the _request method from ExchangeAPI
+                method="GET",
+                endpoint=api_path,  # Pass the relative path
+                is_signed=True,  # This is a private, signed endpoint
             )
 
-            # DEFENSIVE CHECK: Ensure response_raw is a dict before validation
-            if not isinstance(response_raw, dict):
-                logger.error(
-                    f"[{self.exchange_name}] get_account_info response is not a dict: "
-                    f"{type(response_raw)}. Raw: {response_raw}"
-                )
-                raise APIError(
-                    "Invalid response format from get_account_info (not a dict)",
-                    code=APIErrorCode.EXCHANGE_SPECIFIC.value,
-                )
-
-            # Validate using the handler
-            validated_account_summary: BackpackRawAccountSummary = (
-                BackpackResponseHandler.handle_get_account_info_response(response_raw)
+            validated_account_summary = BackpackResponseHandler.handle_get_account_info_response(
+                response_raw
             )
-
-            # Transformation remains here
-            # TODO: Define a proper internal AccountSummary model and map fully.
-            # For now, using BackpackOrderMapper to return a dict.
-            account_info_dict = BackpackOrderMapper.transform_raw_account_summary_to_internal(
-                validated_account_summary
-            )
-            return account_info_dict
+            return validated_account_summary
 
         except APIError as e:
-            logger.error(f"[{self.exchange_name}] API Error getting account info: {e}")
-            raise e  # Re-raise mapped APIError from _request
-        except Exception as e:
+            logger.error(f"[{self.exchange_name}] API Error fetching account info: {e}")
+            # if e.code == APIErrorCode.RESOURCE_NOT_FOUND.value: # Temporarily commented out
+            #     logger.warning(f"[{self.exchange_name}] Account info not found on Backpack.")
+            #     return None
+            raise
+        except Exception as e_unhandled:
             logger.error(
-                f"[{self.exchange_name}] Unexpected error in get_account_info: {e}",
+                f"[{self.exchange_name}] Unexpected error fetching account info: {e_unhandled}",
                 exc_info=True,
             )
             raise APIError(
-                f"Unexpected error getting account info: {e}",
+                message=f"Unexpected error getting account info: {e_unhandled}",
                 code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
+                original_exception=e_unhandled,
+            ) from e_unhandled
 
     async def get_account_summary(self) -> MarginAccountSummary | None:
         """
-        Fetches and transforms account summary information into the internal MarginAccountSummary model.
-
-        NOTE: Backpack's /api/v1/account endpoint provides account settings and fee structures,
-        not direct margin health metrics like total collateral or margin requirements.
-        This implementation returns a placeholder MarginAccountSummary with many default values
-        and logs a warning. Proper mapping requires identifying appropriate data sources or
-        calculations from Backpack's available endpoints (e.g., balances, positions).
+        Fetches and transforms account summary information, balances, and positions
+        into the internal MarginAccountSummary model.
         """
-        logger.warning(
-            f"[{self.exchange_name}] get_account_summary currently returns a placeholder "
-            f"MarginAccountSummary for Backpack. Full mapping of Backpack data to "
-            f"MarginAccountSummary is required."
-        )
-        # Placeholder values
-        current_time = datetime.now(UTC)
-        return MarginAccountSummary(
-            exchange=self.exchange_name,
-            timestamp=current_time,
-            total_equity=Decimal("0.0"),
-            available_equity=Decimal("0.0"),
-            total_initial_margin_required=None,  # Default
-            total_maintenance_margin_required=None,  # Default
-            total_position_notional=None,  # Default
-            total_unrealized_pnl=None,  # Default
-            hl_details=None,  # No Hyperliquid details for Backpack API
-            bp_details=None,  # Placeholder - needs mapping if BackpackMarginDetails is defined and useful
-        )
+        logger.debug(f"[{self.exchange_name}] Fetching full account summary...")
+        try:
+            raw_account_settings = await self.get_account_info()
+            if not raw_account_settings:
+                logger.warning(f"[{self.exchange_name}] Failed to fetch raw account settings.")
+                return None
+
+            spot_balances = await self.get_balances()
+            # get_balances already logs errors, so we can proceed even if it's empty
+
+            derivative_positions = await self.get_positions()
+            # get_positions already logs errors
+
+            # Now call the mapper with all the fetched data
+            internal_summary = BackpackOrderMapper.transform_raw_account_summary_to_internal(
+                raw_settings=raw_account_settings,
+                spot_balances=spot_balances,
+                derivative_positions=derivative_positions,
+            )
+            logger.info(f"[{self.exchange_name}] Successfully generated internal account summary.")
+            return internal_summary
+
+        except APIError as e:
+            logger.error(
+                f"[{self.exchange_name}] API Error in get_account_summary orchestration: {e}"
+            )
+            return None  # Or re-raise depending on desired behavior for partial failures
+        except Exception as e_unhandled:
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error in get_account_summary orchestration: {e_unhandled}",
+                exc_info=True,
+            )
+            # Wrap in APIError for consistent error handling upstream
+            raise APIError(
+                message=f"Unexpected error during get_account_summary: {e_unhandled}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e_unhandled,
+            ) from e_unhandled
 
     async def transfer(
         self,

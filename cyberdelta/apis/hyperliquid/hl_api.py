@@ -1644,13 +1644,14 @@ class HyperliquidAPI(ExchangeAPI):
             )
             return None
 
-        payload = HyperliquidRequestBuilder.build_user_state_payload(self._wallet_address)
+        payload_model = HyperliquidRequestBuilder.build_user_state_payload(self._wallet_address)
+        payload_dict = payload_model.model_dump(by_alias=True, exclude_none=True)
         response_raw: RawJsonResponse | None = None
         try:
             response_raw = await self._request(
                 method="POST",
                 endpoint=self.INFO_URL,  # User state is on the INFO_URL
-                data=payload,
+                data=payload_dict,  # Use the dumped dictionary
                 is_signed=False,  # User state is a public endpoint if wallet address is known
             )
 

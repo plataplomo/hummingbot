@@ -54,6 +54,7 @@ from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
+    MarginAccountSummary,
     Order,
     SpotBalance,
     Ticker,
@@ -69,6 +70,7 @@ from cyberdelta.core.models.enums import (
     TimeInForce,
     TriggerType,
 )
+from cyberdelta.core.models.margin_account import BackpackMarginDetails
 from cyberdelta.core.models.market import Candle, OrderBook
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
@@ -877,28 +879,92 @@ class BackpackOrderMapper:
 
     @staticmethod
     def transform_raw_account_summary_to_internal(
-        raw: BackpackRawAccountSummary,
-    ) -> dict[str, Any]:
+        raw_settings: BackpackRawAccountSummary,
+        spot_balances: dict[str, SpotBalance],
+        derivative_positions: list[DerivativePosition],
+    ) -> MarginAccountSummary:
         """
-        Transforms a validated `BackpackRawAccountSummary` object into a dictionary
-        representing an internal account summary.
+        Transforms raw Backpack account settings, balances, and positions into an
+        internal MarginAccountSummary model.
 
-        TODO: Define a specific internal Pydantic model for AccountSummary and map to it.
-              For now, returns raw.model_dump().
+        Note: BackpackRawAccountSummary primarily contains settings and limits.
+        Calculations for total equity, available equity, etc., are approximations
+        based on the provided spot balances and derivative positions, as Backpack's
+        /capital endpoint (not used here) would provide more direct values.
 
         Args:
-            raw (BackpackRawAccountSummary): The validated raw account summary data.
+            raw_settings: Validated raw account summary/settings from Backpack.
+            spot_balances: Dictionary of internal SpotBalance models.
+            derivative_positions: List of internal DerivativePosition models.
 
         Returns:
-            dict[str, Any]: A dictionary representation of the account summary.
+            MarginAccountSummary: The populated internal margin account summary.
         """
-        # Placeholder: Implement detailed mapping to a future internal AccountSummary model
-        # For now, just dump the raw model.
-        logger.debug(
-            f"[BackpackOrderMapper] Transforming BackpackRawAccountSummary. Raw data: "
-            f"{raw.model_dump(exclude_none=True)}"
+        current_time_utc = datetime.now(UTC)
+
+        # --- Calculate sums from derivative positions ---
+        total_position_notional = Decimal("0.0")
+        total_unrealized_pnl = Decimal("0.0")
+
+        if derivative_positions:
+            for pos in derivative_positions:
+                if (
+                    pos.size is not None
+                    and pos.entry_price is not None
+                    and pos.size != Decimal("0")
+                ):
+                    total_position_notional += abs(pos.size) * pos.entry_price
+                if pos.unrealized_pnl is not None:
+                    total_unrealized_pnl += pos.unrealized_pnl
+
+        # --- Approximate total equity and available equity ---
+        calculated_total_equity = Decimal("0.0")
+        calculated_available_equity = Decimal("0.0")
+
+        usdc_like_assets = ("USDC", "USD", "USDT")
+        for asset_symbol, balance in spot_balances.items():
+            if asset_symbol.upper() in usdc_like_assets:
+                calculated_total_equity += balance.total_quantity
+                calculated_available_equity += balance.available_quantity
+
+        calculated_total_equity += total_unrealized_pnl
+
+        # --- Populate BackpackMarginDetails ---
+        assets_value_approx = Decimal("0.0")
+        for asset_symbol, balance in spot_balances.items():
+            if asset_symbol.upper() in usdc_like_assets:
+                assets_value_approx += balance.total_quantity
+
+        # Determine the final value for BackpackMarginDetails.assets_value
+        # It should be assets_value_approx if strictly positive, otherwise None.
+        final_assets_value_for_details: Decimal | None = None
+        if assets_value_approx > Decimal("0.0"):
+            final_assets_value_for_details = assets_value_approx
+
+        margin_fraction_calc = None  # Kept as None as per previous reasoning
+
+        bp_details = BackpackMarginDetails(
+            assets_value=final_assets_value_for_details,
+            borrow_liability=None,
+            liabilities_value=None,
+            locked_equity=None,
+            margin_fraction=margin_fraction_calc,
+            imf_raw=None,
+            mmf_raw=None,
         )
-        return raw.model_dump(by_alias=True, exclude_none=True)
+
+        return MarginAccountSummary(
+            exchange=ExchangeName.BACKPACK.value,
+            timestamp=current_time_utc,
+            total_equity=calculated_total_equity,
+            available_equity=calculated_available_equity,
+            total_initial_margin_required=None,
+            total_maintenance_margin_required=None,
+            total_position_notional=total_position_notional if derivative_positions else None,
+            total_unrealized_pnl=total_unrealized_pnl if derivative_positions else None,
+            hl_details=None,
+            bp_details=bp_details,
+        )
 
     @staticmethod
     def transform_raw_withdrawal_response_to_internal(
