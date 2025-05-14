@@ -597,7 +597,7 @@ def test_transform_raw_fill_to_internal_buy_taker(
     assert trade.hl_details is not None
     assert isinstance(trade.hl_details, HyperliquidTradeDetails)
     assert trade.hl_details.trade_hash == raw_fill.hash
-    assert trade.hl_details.liquidation_mark_px is None  # Based on fixture
+    assert trade.hl_details.liquidation_mark_px is None
     assert trade.hl_details.start_position == Decimal(raw_fill.start_position)
     assert trade.hl_details.dir == raw_fill.dir
     assert trade.bp_details is None
@@ -628,7 +628,8 @@ def test_transform_raw_fill_to_internal_sell_maker(
     assert trade.hl_details is not None
     assert isinstance(trade.hl_details, HyperliquidTradeDetails)
     assert trade.hl_details.trade_hash == raw_fill.hash
-    assert trade.hl_details.liquidation_mark_px == Decimal(raw_fill.liquidationMarkPx)
+    assert raw_fill.liquidation_mark_px is not None
+    assert trade.hl_details.liquidation_mark_px == Decimal(raw_fill.liquidation_mark_px)
     assert trade.hl_details.start_position == Decimal(raw_fill.start_position)
     assert trade.hl_details.dir == raw_fill.dir
     assert trade.bp_details is None
