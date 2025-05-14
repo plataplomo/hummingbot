@@ -4,6 +4,7 @@ Unit tests for the HyperliquidAPI client implementation.
 
 import logging
 from collections.abc import AsyncGenerator, Generator
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -17,6 +18,11 @@ from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestCom
 from cyberdelta.apis.connectivity.http_client import HttpRequestFailedError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
+from cyberdelta.apis.hyperliquid.hl_mapper import (
+    HyperliquidCandleMapper,
+    HyperliquidMapper,
+    HyperliquidOrderMapper,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
     HyperliquidApiPlaceOrderRequest,
 )
@@ -26,9 +32,18 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
     HyperliquidRawOrderType,
     HyperliquidRawPlaceOrderAction,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
+    HyperliquidRawAssetPosition,
+    HyperliquidRawClearinghouseState,
+    HyperliquidRawLeverage,
+    HyperliquidRawMarginSummary,
+    HyperliquidRawPositionInfo,
+)
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.core.models import MarginAccountSummary
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.core.models.margin_account import HyperliquidMarginDetails
 from cyberdelta.core.models.market.order import Order
 
 # Constants for testing
@@ -94,6 +109,9 @@ async def test_hl_api_init_with_key(
         )
         assert api.authenticator is mock_instance
         assert api._hl_authenticator is mock_instance  # pyright: ignore [reportPrivateUsage]
+        assert isinstance(api._hl_mapper, HyperliquidMapper)  # pyright: ignore [reportPrivateUsage]
+        assert isinstance(api._hl_order_mapper, HyperliquidOrderMapper)  # pyright: ignore [reportPrivateUsage]
+        assert isinstance(api._hl_candle_mapper, HyperliquidCandleMapper)  # pyright: ignore [reportPrivateUsage]
     finally:
         if api:
             await api.close()
@@ -112,6 +130,9 @@ async def test_hl_api_init_without_key(
         mock_auth_class.assert_not_called()
         assert api.authenticator is None
         assert api._hl_authenticator is None  # pyright: ignore [reportPrivateUsage]
+        assert isinstance(api._hl_mapper, HyperliquidMapper)  # pyright: ignore [reportPrivateUsage]
+        assert isinstance(api._hl_order_mapper, HyperliquidOrderMapper)  # pyright: ignore [reportPrivateUsage]
+        assert isinstance(api._hl_candle_mapper, HyperliquidCandleMapper)  # pyright: ignore [reportPrivateUsage]
     finally:
         if api:
             await api.close()
@@ -132,6 +153,9 @@ async def test_hl_api_init_auth_init_fails(
         assert api.authenticator is None
         assert api._hl_authenticator is None  # pyright: ignore [reportPrivateUsage]
         assert "Failed to init HL authenticator: Bad key format" in caplog.text
+        assert isinstance(api._hl_mapper, HyperliquidMapper)  # pyright: ignore [reportPrivateUsage]
+        assert isinstance(api._hl_order_mapper, HyperliquidOrderMapper)  # pyright: ignore [reportPrivateUsage]
+        assert isinstance(api._hl_candle_mapper, HyperliquidCandleMapper)  # pyright: ignore [reportPrivateUsage]
     finally:
         if api:
             await api.close()
@@ -151,6 +175,9 @@ async def test_hl_api_init_no_address(
         assert api.authenticator is None
         assert api._hl_authenticator is None  # pyright: ignore [reportPrivateUsage]
         assert "HLAPI: Wallet address required" in caplog.text
+        assert isinstance(api._hl_mapper, HyperliquidMapper)  # pyright: ignore [reportPrivateUsage]
+        assert isinstance(api._hl_order_mapper, HyperliquidOrderMapper)  # pyright: ignore [reportPrivateUsage]
+        assert isinstance(api._hl_candle_mapper, HyperliquidCandleMapper)  # pyright: ignore [reportPrivateUsage]
     finally:
         if api:
             await api.close()
@@ -809,3 +836,247 @@ class TestHyperliquidAPIWebSocketRouting:
         test_message = {"type": "someType", "data": {"other": "data"}}  # No channel
         await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore[reportPrivateUsage]
         assert f"Received WS message without channel: {test_message}" in caplog.text
+
+
+# --- Get Account Summary Tests --- #
+
+
+@pytest.fixture
+def mock_raw_user_state_fixture() -> HyperliquidRawClearinghouseState:
+    """Provides a valid HyperliquidRawClearinghouseState fixture."""
+    return HyperliquidRawClearinghouseState(
+        assetPositions=[
+            HyperliquidRawAssetPosition(
+                asset="ETH-PERP",
+                position=HyperliquidRawPositionInfo(
+                    coin="ETH-PERP",
+                    szi="1.0",
+                    entryPx="3000.0",
+                    leverage=HyperliquidRawLeverage(type="cross", value=10),
+                    liquidationPx="2700.0",
+                    marginUsed="300.0",
+                    maxLeverage=50,
+                    positionValue="3000.0",
+                    returnOnEquity="0.0",
+                    unrealizedPnl="50.0",
+                ),
+            ),
+            HyperliquidRawAssetPosition(
+                asset="BTC-PERP",
+                position=HyperliquidRawPositionInfo(
+                    coin="BTC-PERP",
+                    szi="-0.1",
+                    entryPx="60000.0",
+                    leverage=HyperliquidRawLeverage(type="isolated", value=5),
+                    liquidationPx="65000.0",
+                    marginUsed="1200.0",
+                    maxLeverage=20,
+                    positionValue="-6000.0",
+                    returnOnEquity="0.0",
+                    unrealizedPnl="-100.0",
+                ),
+            ),
+        ],
+        crossMaintenanceMarginUsed="30.0",
+        crossMarginSummary=HyperliquidRawMarginSummary(
+            accountValue="10000.0",
+            totalMarginUsed="1500.0",
+            totalNtlPos="9000.0",
+            totalRawUsd="8500.0",
+        ),
+        marginSummary=HyperliquidRawMarginSummary(
+            accountValue="10000.0",
+            totalMarginUsed="1500.0",
+            totalNtlPos="9000.0",
+            totalRawUsd="8500.0",
+        ),
+        isolatedMaintenanceMarginUsed="120.0",
+        isolatedMarginSummary=HyperliquidRawMarginSummary(
+            accountValue="0",
+            totalMarginUsed="0",
+            totalNtlPos="0",
+            totalRawUsd="0",
+        ),
+        withdrawable="8500.0",
+    )
+
+
+@pytest.fixture
+def expected_margin_account_summary_from_hl_fixture() -> MarginAccountSummary:
+    """Provides an expected MarginAccountSummary fixture for HL tests."""
+    # This should align with how HyperliquidMapper transforms mock_raw_user_state_fixture
+    # Specifically, total_unrealized_pnl should be sum of mapped positions' PnL.
+    # Mapped positions from mock_raw_user_state_fixture:
+    # ETH-PERP: pnl = 50
+    # BTC-PERP: pnl = -100
+    # Total unrealized = 50 - 100 = -50
+
+    # Ensure UTC is defined correctly
+    # For Pydantic v2, datetime objects should be timezone-aware when comparing.
+    # If datetime.now(UTC) was intended, define UTC = timezone.utc
+    current_utc_time = datetime.now(UTC)
+
+    return MarginAccountSummary(
+        exchange="hyperliquid",
+        timestamp=current_utc_time,
+        total_equity=Decimal("10000.0"),
+        available_equity=Decimal("8500.0"),
+        total_initial_margin_required=None,
+        total_maintenance_margin_required=Decimal("150.0"),
+        total_position_notional=Decimal("9000.0"),
+        total_unrealized_pnl=Decimal("-50.0"),
+        hl_details=HyperliquidMarginDetails(
+            cross_maintenance_margin_used=Decimal("30.0"),
+            isolated_maintenance_margin_used=Decimal("120.0"),
+        ),
+        bp_details=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_account_summary_success(
+    mock_hl_auth_init: tuple[MagicMock, MagicMock],
+    mock_raw_user_state_fixture: HyperliquidRawClearinghouseState,
+    expected_margin_account_summary_from_hl_fixture: MarginAccountSummary,
+) -> None:
+    """Test successful retrieval and mapping of account summary."""
+    _mock_auth_class, _mock_auth_instance = mock_hl_auth_init
+    api = HyperliquidAPI(BASE_API_CONFIG, SECRETS_WITH_KEY)
+    raw_user_state_dict_from_api = mock_raw_user_state_fixture.model_dump(by_alias=True)
+    mock_api_request = AsyncMock(return_value=raw_user_state_dict_from_api)
+    mock_handle_user_state_response = MagicMock(return_value=mock_raw_user_state_fixture)
+
+    fixed_timestamp = datetime(2023, 10, 26, 12, 0, 0, tzinfo=UTC)
+    # Create a mutable copy for modification if fixture is frozen or for clarity
+    current_expected_summary = expected_margin_account_summary_from_hl_fixture.model_copy(
+        update={"timestamp": fixed_timestamp}
+    )
+    mock_map_to_margin_summary = MagicMock(return_value=current_expected_summary)
+
+    with (
+        patch.object(api, "_request", mock_api_request),
+        patch(
+            "cyberdelta.apis.hyperliquid.hl_api.HyperliquidResponseHandler.handle_info_user_state_response",
+            mock_handle_user_state_response,
+        ) as patched_handler,
+        patch.object(
+            api._hl_mapper,  # pyright: ignore [reportPrivateUsage]
+            "map_raw_clearinghouse_state_to_margin_summary",
+            mock_map_to_margin_summary,
+        ),
+        patch("cyberdelta.apis.hyperliquid.hl_mapper.datetime") as mock_datetime_in_mapper,
+    ):
+        mock_datetime_in_mapper.now.return_value = fixed_timestamp
+        result = await api.get_account_summary()
+
+    assert result is not None
+    assert result == current_expected_summary
+
+    mock_api_request.assert_awaited_once_with(
+        method="POST",
+        endpoint="/info",
+        data={"type": "clearinghouseState", "user": TEST_WALLET_ADDRESS},
+        is_signed=False,
+    )
+    patched_handler.assert_called_once_with(raw_user_state_dict_from_api, TEST_WALLET_ADDRESS)
+    mock_map_to_margin_summary.assert_called_once_with(mock_raw_user_state_fixture)
+
+
+@pytest.mark.asyncio
+async def test_get_account_summary_request_fails(
+    mock_hl_auth_init: tuple[MagicMock, MagicMock], caplog: LogCaptureFixture
+) -> None:
+    """Test get_account_summary when the initial _request call fails."""
+    _mock_auth_class, _mock_auth_instance = mock_hl_auth_init
+    api = HyperliquidAPI(BASE_API_CONFIG, SECRETS_WITH_KEY)
+
+    mock_api_request = AsyncMock(
+        side_effect=APIError("Network Error", code=APIErrorCode.SERVICE_UNAVAILABLE.value)
+    )
+
+    with patch.object(api, "_request", mock_api_request):
+        with pytest.raises(APIError) as exc_info:
+            await api.get_account_summary()
+
+    assert exc_info.value.code == APIErrorCode.SERVICE_UNAVAILABLE.value
+    assert "Network Error" in str(exc_info.value)
+    assert "Failed to fetch raw user state for account summary" in caplog.text
+    mock_api_request.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_account_summary_handler_fails(
+    mock_hl_auth_init: tuple[MagicMock, MagicMock], caplog: LogCaptureFixture
+) -> None:
+    """Test get_account_summary when HyperliquidResponseHandler fails."""
+    _mock_auth_class, _mock_auth_instance = mock_hl_auth_init
+    api = HyperliquidAPI(BASE_API_CONFIG, SECRETS_WITH_KEY)
+
+    raw_user_state_dict_from_api = {"some": "invalid_data"}
+    mock_api_request = AsyncMock(return_value=raw_user_state_dict_from_api)
+
+    mock_handle_user_state_response = MagicMock(
+        side_effect=ValidationError.from_exception_data(
+            title="HyperliquidRawClearinghouseState",
+            line_errors=[
+                {
+                    "type": "missing",
+                    "loc": ("asset_positions",),
+                    "input": {},
+                }
+            ],
+        )
+    )
+
+    with (
+        patch.object(api, "_request", mock_api_request),
+        patch(
+            "cyberdelta.apis.hyperliquid.hl_api.HyperliquidResponseHandler.handle_info_user_state_response",
+            mock_handle_user_state_response,
+        ) as patched_handler,
+    ):
+        with pytest.raises(APIError) as exc_info:
+            await api.get_account_summary()
+
+    assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+    assert "Validation error in clearinghouseState response" in str(exc_info.value.message)
+    assert "Validation error processing raw user state for account summary" in caplog.text
+    mock_api_request.assert_awaited_once()
+    patched_handler.assert_called_once_with(raw_user_state_dict_from_api, TEST_WALLET_ADDRESS)
+
+
+@pytest.mark.asyncio
+async def test_get_account_summary_mapper_fails(
+    mock_hl_auth_init: tuple[MagicMock, MagicMock],
+    mock_raw_user_state_fixture: HyperliquidRawClearinghouseState,
+    caplog: LogCaptureFixture,
+) -> None:
+    """Test get_account_summary when the mapper fails."""
+    _mock_auth_class, _mock_auth_instance = mock_hl_auth_init
+    api = HyperliquidAPI(BASE_API_CONFIG, SECRETS_WITH_KEY)
+
+    raw_user_state_dict_from_api = mock_raw_user_state_fixture.model_dump(by_alias=True)
+    mock_api_request = AsyncMock(return_value=raw_user_state_dict_from_api)
+    mock_handle_user_state_response = MagicMock(return_value=mock_raw_user_state_fixture)
+    mock_map_to_margin_summary = MagicMock(side_effect=ValueError("Mapper transformation error"))
+
+    with (
+        patch.object(api, "_request", mock_api_request),
+        patch(
+            "cyberdelta.apis.hyperliquid.hl_api.HyperliquidResponseHandler.handle_info_user_state_response",
+            mock_handle_user_state_response,
+        ),
+        patch.object(
+            api._hl_mapper,  # pyright: ignore [reportPrivateUsage]
+            "map_raw_clearinghouse_state_to_margin_summary",
+            mock_map_to_margin_summary,
+        ) as patched_mapper,
+    ):
+        with pytest.raises(APIError) as exc_info:
+            await api.get_account_summary()
+
+    assert exc_info.value.code == APIErrorCode.UNKNOWN.value  # Temporarily use UNKNOWN
+    assert "Error transforming raw user state to internal summary" in str(exc_info.value.message)
+    assert "Mapper transformation error" in str(exc_info.value.original_exception)
+    assert "Error transforming user state to margin summary" in caplog.text
+    patched_mapper.assert_called_once_with(mock_raw_user_state_fixture)
