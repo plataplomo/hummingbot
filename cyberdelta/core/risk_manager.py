@@ -538,8 +538,14 @@ class RiskManager:
     async def _check_leverage(self, opportunity: ArbitrageOpportunity) -> bool:
         """Check that portfolio leverage is within allowed limits."""
         total_capital = await self.portfolio_tracker.get_total_capital()
+
+        # DEFENSIVE CHECK: total_capital can be None if portfolio_tracker returns None.
+        if total_capital is None:
+            self.logger.warning("Total capital is None. Cannot calculate or check leverage.")
+            return False
+
         if total_capital <= ZERO:
-            logger.warning(f"Total capital {total_capital} is not positive. Cannot check leverage.")
+            self.logger.warning("Total capital is zero or negative. Cannot calculate leverage.")
             return False
         try:
             total_exposure_dec = await self.calculate_total_exposure()
@@ -838,17 +844,29 @@ class RiskManager:
             )
             return None
 
-        # Assuming self.funding_rate_validator.get_symbol_metrics always returns a dict as per protocol.
-        # Thus, 'metrics' itself should not be None here.
-        if metrics.get("rmse") is None or metrics.get("bias") is None:
+        # Check if metrics is None before trying to access its items.
+        # This can happen if get_symbol_metrics returns None without raising an error.
+        # DEFENSIVE CHECK: metrics might be None if get_symbol_metrics returns None despite type hint. Mypy=[unreachable-code-if-strict-typing]
+        if metrics is None:
+            self.logger.warning(
+                f"FundingRateValidator returned None for metrics for {symbol} on {exchange}. "
+                "Cannot calculate validation factor."
+            )
+            return None  # Or consider returning self.min_validation_factor as a fallback if appropriate
+
+        # Now metrics is guaranteed to be a dict, but keys might be missing
+        rmse_value = metrics.get("rmse")
+        bias_value = metrics.get("bias")
+
+        if rmse_value is None or bias_value is None:
             self.logger.warning(
                 f"Validation metrics for {exchange}/{symbol} are incomplete or missing "
                 f"(rmse/bias is None in returned dict). Rejecting for safety."
             )
             return None
 
-        rmse = Decimal(str(metrics.get("rmse")))
-        bias = Decimal(str(metrics.get("bias")))
+        rmse = Decimal(str(rmse_value))
+        bias = Decimal(str(bias_value))
 
         if rmse > self.max_acceptable_rmse or abs(bias) > self.max_acceptable_bias:
             self.logger.warning(

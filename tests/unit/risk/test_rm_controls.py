@@ -5,6 +5,8 @@ from decimal import Decimal
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import pytest  # Added for asyncio mark
+
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.validation.circuit_breaker import BreakerState
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
@@ -17,7 +19,8 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 class TestRiskManagerControls:
     """Test suite for RiskManager _apply_portfolio_level_controls."""
 
-    def test_apply_portfolio_level_controls_simple_path(
+    @pytest.mark.asyncio  # Added
+    async def test_apply_portfolio_level_controls_simple_path(
         self,
         risk_manager: RiskManager,
         mock_config: MagicMock,
@@ -95,7 +98,7 @@ class TestRiskManagerControls:
         ) as _mock_get_method:  # Renamed to indicate it's not used
             # Direct access to protected method is justified here for white-box testing;
             # no public interface exposes this logic.
-            adjusted_sized_opp = risk_manager._apply_portfolio_level_controls(sized_opp)
+            adjusted_sized_opp = await risk_manager._apply_portfolio_level_controls(sized_opp)
 
         # --- Assert ---
         mock_circuit_breaker.can_execute.assert_not_called()

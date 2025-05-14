@@ -2,7 +2,7 @@
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from pytest import fixture
 
@@ -84,9 +84,9 @@ def mock_portfolio_tracker() -> MagicMock:
     )
     tracker.get_all_positions.return_value = []  # Default to no positions
     tracker.get_current_drawdown.return_value = Decimal("0.05")  # 5% drawdown
-    tracker.get_total_exposure_usd = MagicMock(
+    tracker.get_total_exposure_usd = AsyncMock(
         return_value=Decimal("0.0")
-    )  # Explicitly make it a mock
+    )  # Use AsyncMock for async method
     return tracker
 
 

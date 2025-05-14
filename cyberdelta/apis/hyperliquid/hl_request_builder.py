@@ -250,11 +250,29 @@ class HyperliquidRequestBuilder:
         wallet_address: str, order_id: int
     ) -> HyperliquidRawOrderStatusRequestPayload:
         """
-        Builds the Pydantic model for fetching the status of a specific order.
+        Builds the payload for querying the status of a specific order.
         """
         return HyperliquidRawOrderStatusRequestPayload(
             type="orderStatus", user=wallet_address, oid=order_id
         )
+
+    @staticmethod
+    def build_user_state_payload(wallet_address: str) -> dict[str, str]:
+        """
+        Builds the payload for fetching the user's clearinghouse state.
+
+        Args:
+            wallet_address: The user's wallet address.
+
+        Returns:
+            A dictionary representing the request payload.
+        """
+        if not wallet_address:
+            raise ValueError("Wallet address cannot be empty for user_state request.")
+        return {
+            "type": "clearinghouseState",
+            "user": wallet_address,
+        }
 
     # No changes needed for comments about /info endpoints and build_info_request_payload
     # as those are already handled or determined to not need specific Pydantic models for the

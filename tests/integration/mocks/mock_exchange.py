@@ -15,6 +15,7 @@ from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAP
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
+    MarginAccountSummary,
     Order,
     OrderBook,
     OrderSide,
@@ -227,6 +228,46 @@ class MockExchangeAPI(ExchangeAPI):
             position  # Store in the _positions dict used by get_positions
         )
         logger.debug(f"Mock position set for {self.exchange_name} - {position.symbol}: {position}")
+
+    async def get_account_summary(self) -> MarginAccountSummary | None:
+        """Returns a mock account summary."""
+        # Simulate potential API error for this method if configured
+        self._check_error("get_account_summary")
+        await self._simulate_latency()
+
+        # For simplicity, return a generic summary. Tests can override by mocking this method further if needed.
+        # Or, could store a self._mock_account_summary and allow tests to set it.
+        now = datetime.now(UTC)
+        # Basic mock summary, can be expanded or made configurable
+        return MarginAccountSummary(
+            exchange=self.exchange_name,
+            timestamp=now,
+            total_equity=self._balances.get(
+                "USDC",
+                SpotBalance(
+                    exchange=self.exchange_name,
+                    asset="USDC",
+                    total_quantity=Decimal("10000"),
+                    available_quantity=Decimal("10000"),
+                    timestamp=now,
+                ),
+            ).total_quantity,  # Example logic
+            available_equity=self._balances.get(
+                "USDC",
+                SpotBalance(
+                    exchange=self.exchange_name,
+                    asset="USDC",
+                    total_quantity=Decimal("9000"),
+                    available_quantity=Decimal("9000"),
+                    timestamp=now,
+                ),
+            ).available_quantity,  # Example logic
+            total_initial_margin_required=Decimal("1000"),
+            total_maintenance_margin_required=Decimal("500"),
+            total_unrealized_pnl=Decimal(
+                sum((pos.unrealized_pnl or Decimal(0)) for pos in self._positions.values())
+            ),
+        )
 
     # --- END Test Control Methods ---
 

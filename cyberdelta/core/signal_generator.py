@@ -1,7 +1,7 @@
 from __future__ import annotations  # Enable postponed evaluation
 
 from collections import deque
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation, getcontext  # Import Decimal and InvalidOperation
 from typing import Any, cast
 
@@ -147,7 +147,9 @@ class SignalGenerator:
                     internal_symbol, exchange_id
                 )
                 if exchange_symbol:
-                    self.historical_funding_rates[exchange_id][internal_symbol] = deque()
+                    self.historical_funding_rates[exchange_id][internal_symbol] = deque(
+                        maxlen=self.funding_sample_count  # Use maxlen
+                    )
                     self.historical_slippage[exchange_id][
                         internal_symbol
                     ] = []  # Initialize empty list
@@ -163,7 +165,9 @@ class SignalGenerator:
 
         # Initialize basis history using all known internal symbols
         for internal_symbol in all_internal_symbols:
-            self.historical_basis[internal_symbol] = deque()
+            self.historical_basis[internal_symbol] = deque(
+                maxlen=self.funding_sample_count
+            )  # Use maxlen
             logger.debug(f"  Initialized basis deque for {internal_symbol}")
 
         # Log the final structure for verification
@@ -233,12 +237,12 @@ class SignalGenerator:
                 ):
                     history_deque = self.historical_funding_rates[exchange_id][internal_symbol]
                     history_deque.append((timestamp, rate))
-                    # Trim history using deque's efficient popleft
-                    cutoff_time = now - timedelta(
-                        seconds=float(self.funding_sample_period * self.funding_sample_count)
-                    )
-                    while history_deque and history_deque[0][0] < cutoff_time:
-                        history_deque.popleft()
+                    # REMOVE Manual trimming logic as deque maxlen handles it
+                    # cutoff_time = now - timedelta(
+                    #     seconds=float(self.funding_sample_period * self.funding_sample_count)
+                    # )
+                    # while history_deque and history_deque[0][0] < cutoff_time:
+                    #     history_deque.popleft()
                 else:
                     logger.error(
                         f"Historical funding rate deque not found for "
@@ -317,18 +321,13 @@ class SignalGenerator:
                     basis = ticker1.price - ticker2.price
                     timestamp = now  # Use current time for basis update
 
-                    # Add to basis history for the internal symbol
+                    # Add to basis history
                     if internal_symbol in self.historical_basis:
-                        basis_deque = self.historical_basis[internal_symbol]
-                        basis_deque.append((timestamp, basis))
-                        # Trim history
-                        cutoff_time = now - timedelta(
-                            seconds=float(self.funding_sample_period * self.funding_sample_count)
-                        )
-                        while basis_deque and basis_deque[0][0] < cutoff_time:
-                            basis_deque.popleft()
+                        basis_history_deque = self.historical_basis[internal_symbol]
+                        basis_history_deque.append((timestamp, basis))
+                        # REMOVE Manual trimming logic for basis as deque maxlen handles it
                     else:
-                        logger.error(
+                        logger.warning(
                             f"Historical basis deque not found for {internal_symbol} during update."
                         )
                 # else: logger.debug(
@@ -337,6 +336,10 @@ class SignalGenerator:
             # else: logger.debug(
             #    f"Skipping basis calc for {internal_symbol}: Need >= 2 valid tickers."
             # )
+
+        # Log after updates if needed for debugging
+        # logger.debug(f"Updated historical_funding_rates: {self.historical_funding_rates}")
+        # logger.debug(f"Updated historical_basis: {self.historical_basis}")
 
     def calculate_funding_rate_volatility(self, exchange: str, internal_symbol: str) -> Decimal:
         """Calculate the volatility (std dev) of the historical funding rates."""

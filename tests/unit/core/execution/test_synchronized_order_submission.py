@@ -15,6 +15,7 @@ import pytest
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.core.execution.synchronized_order_submission import (
+    ExecutionContext,
     ExecutionCoordinator,
     ExecutionResult,
     ExecutionStatus,
@@ -973,14 +974,43 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_positions: AsyncMock,
         service: tuple[SynchronizedOrderSubmissionService, dict[str, Any], MagicMock, MagicMock],
     ) -> None:
-        """Test the internal _verify_post_execution method logic."""
-        service_instance, _, _, _ = service
-        # Mock context is passed in, but we need coordinator instance for checkpoint calls
+        """Test the _verify_post_execution method for successful verification."""
+        service_instance, _, _, mock_exchange_adapters = service
         mock_coordinator_instance = MockExecutionCoordinator.return_value
-        service_instance.execution_coordinator = mock_coordinator_instance  # Assign instance
+        service_instance.execution_coordinator = mock_coordinator_instance
 
-        # mock_context = MagicMock() # Mock context passed - Not needed as it's not used
-        mock_opportunity = ArbitrageOpportunity(
+        # Create a mock ExecutionContext instance
+        mock_exec_context = ExecutionContext(
+            execution_id="test-execution",
+            opportunity=ArbitrageOpportunity(  # Using a concrete ArbitrageOpportunity
+                symbol="BTC-PERP",
+                long_exchange="hyperliquid",
+                short_exchange="backpack",
+                long_price=Decimal("50000.0"),
+                short_price=Decimal("50001.0"),
+                long_funding_rate=Decimal("0.0001"),
+                short_funding_rate=Decimal("-0.0001"),
+                net_funding_differential=Decimal("0.0002"),
+                timestamp=datetime.now(UTC),
+                expected_profit=Decimal("1.0"),
+                utility_score=0.8,  # Use float for mock data to match type hint
+                basis_volatility=0.001,  # Use float for mock data
+                # id= # default_factory
+                # hl_raw_snapshot=None, # Default
+                # bp_raw_snapshot=None, # Default
+                # long_ticker=None, # Default
+                # short_ticker=None, # Default
+                # adjusted_thresholds=None, # Default
+                # metadata=None, # Default
+                # expiration_timestamp=None # Default
+            ),
+            strategy="test_strategy",
+            start_time=datetime.now(UTC),
+            status=ExecutionStatus.EXECUTING,  # Initial status for context
+            checkpoints=[],
+        )
+
+        mock_opportunity_arg = ArbitrageOpportunity(  # This is passed to _verify_post_execution
             symbol="BTC-PERP",
             long_exchange="hyperliquid",
             short_exchange="backpack",
@@ -991,8 +1021,8 @@ class TestSynchronizedOrderSubmissionService:
             net_funding_differential=Decimal("0.0002"),
             timestamp=datetime.now(UTC),
             expected_profit=Decimal("1.0"),
-            utility_score=0.8,
-            basis_volatility=0.001,
+            utility_score=0.8,  # Use float
+            basis_volatility=0.001,  # Use float
         )
         mock_execution_result = ExecutionResult(
             execution_id="test-execution",
@@ -1009,8 +1039,7 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_orders.return_value = mock_order_result
 
         final_result_dict = await service_instance._verify_post_execution(
-            mock_opportunity,
-            mock_execution_result,
+            mock_exec_context, mock_opportunity_arg, mock_execution_result
         )
 
         assert final_result_dict.get("success") is True
@@ -1037,68 +1066,72 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_orders.return_value = mock_order_result  # Ensure others pass
 
         final_result_pos_fail = await service_instance._verify_post_execution(
-            mock_opportunity,
-            mock_execution_result,
+            mock_exec_context, mock_opportunity_arg, mock_execution_result
         )
 
         assert final_result_pos_fail.get("success") is False
-        assert "Pos Fail" in final_result_pos_fail.get("error", "")
-        mock_verify_positions.assert_awaited_once()
-        # Logic might still call other checks even if one fails, depending on implementation
-        mock_verify_fills.assert_awaited_once()
-        mock_verify_orders.assert_awaited_once()
-        assert (
-            mock_coordinator_instance.add_checkpoint.call_count > 0
-        )  # Checkpoints called internally
+        assert "Pos Fail" in final_result_pos_fail.get("details", {}).get("positions", {}).get(
+            "error", ""
+        )
+        assert mock_coordinator_instance.add_checkpoint.call_count == 1
+        mock_coordinator_instance.add_checkpoint.assert_any_call(
+            mock_exec_context,
+            "position_verification_failed",
+            {"error": "Pos Fail", "details": {"pos_fail": True}},
+        )
 
         # --- Test fill verification failure ---
         mock_verify_positions.reset_mock()
         mock_verify_fills.reset_mock()
         mock_verify_orders.reset_mock()
         mock_coordinator_instance.add_checkpoint.reset_mock()
-        mock_verify_positions.return_value = mock_pos_result  # Ensure pos passes
         mock_fill_fail_result: dict[str, Any] = {
             "success": False,
             "error": "Fill Fail",
             "details": {"fill_fail": True},
         }
+        mock_verify_positions.return_value = mock_pos_result  # Positions succeed
         mock_verify_fills.return_value = mock_fill_fail_result
-        mock_verify_orders.return_value = mock_order_result  # Ensure orders passes
+        mock_verify_orders.return_value = mock_order_result  # Orders succeed
 
         final_result_fill_fail = await service_instance._verify_post_execution(
-            mock_opportunity,
-            mock_execution_result,
+            mock_exec_context, mock_opportunity_arg, mock_execution_result
         )
-
         assert final_result_fill_fail.get("success") is False
-        assert "Fill Fail" in final_result_fill_fail.get("error", "")
-        mock_verify_positions.assert_awaited_once()
-        mock_verify_fills.assert_awaited_once()
-        mock_verify_orders.assert_awaited_once()  # Called even if fills fail
-        assert mock_coordinator_instance.add_checkpoint.call_count > 0
+        assert "Fill Fail" in final_result_fill_fail.get("details", {}).get("fills", {}).get(
+            "error", ""
+        )
+        assert mock_coordinator_instance.add_checkpoint.call_count == 1
+        mock_coordinator_instance.add_checkpoint.assert_any_call(
+            mock_exec_context,
+            "fill_verification_failed",
+            {"error": "Fill Fail", "details": {"fill_fail": True}},
+        )
 
         # --- Test order verification failure ---
         mock_verify_positions.reset_mock()
         mock_verify_fills.reset_mock()
         mock_verify_orders.reset_mock()
         mock_coordinator_instance.add_checkpoint.reset_mock()
-        mock_verify_positions.return_value = mock_pos_result  # Ensure pos passes
-        mock_verify_fills.return_value = mock_fill_result  # Ensure fills passes
         mock_order_fail_result: dict[str, Any] = {
             "success": False,
             "error": "Order Fail",
             "details": {"order_fail": True},
         }
+        mock_verify_positions.return_value = mock_pos_result  # Positions succeed
+        mock_verify_fills.return_value = mock_fill_result  # Fills succeed
         mock_verify_orders.return_value = mock_order_fail_result
 
         final_result_order_fail = await service_instance._verify_post_execution(
-            mock_opportunity,
-            mock_execution_result,
+            mock_exec_context, mock_opportunity_arg, mock_execution_result
         )
-
         assert final_result_order_fail.get("success") is False
-        assert "Order Fail" in final_result_order_fail.get("error", "")
-        mock_verify_positions.assert_awaited_once()
-        mock_verify_fills.assert_awaited_once()
-        mock_verify_orders.assert_awaited_once()
-        assert mock_coordinator_instance.add_checkpoint.call_count > 0
+        assert "Order Fail" in final_result_order_fail.get("details", {}).get("orders", {}).get(
+            "error", ""
+        )
+        assert mock_coordinator_instance.add_checkpoint.call_count == 1
+        mock_coordinator_instance.add_checkpoint.assert_any_call(
+            mock_exec_context,
+            "order_verification_failed",
+            {"error": "Order Fail", "details": {"order_fail": True}},
+        )

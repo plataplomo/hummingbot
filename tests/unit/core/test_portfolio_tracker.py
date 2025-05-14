@@ -126,6 +126,18 @@ class TestPortfolioTracker:
         hyperliquid_client.get_ticker.side_effect = mock_get_ticker_side_effect
         backpack_client.get_ticker.side_effect = mock_get_ticker_side_effect
 
+        # Ensure clients are healthy by default for tests
+        hyperliquid_client.is_healthy = True
+        backpack_client.is_healthy = True
+
+        # Explicitly mock get_account_summary as an AsyncMock for each client
+        hyperliquid_client.get_account_summary = AsyncMock(
+            return_value=None
+        )  # Adjust return_value as needed for tests
+        backpack_client.get_account_summary = AsyncMock(
+            return_value=None
+        )  # Adjust return_value as needed for tests
+
         return {"hyperliquid": hyperliquid_client, "backpack": backpack_client}
 
     @pytest.fixture
@@ -431,6 +443,9 @@ class TestPortfolioTracker:
         self, portfolio_tracker: PortfolioTracker, api_clients: dict[str, AsyncMock]
     ) -> None:
         """Test successful reconciliation (via update method) of the full portfolio state."""
+        for client in api_clients.values():  # Ensure all mocked clients are healthy
+            client.is_healthy = True
+
         now = datetime.now(UTC)
         api_clients["hyperliquid"].get_account_summary = AsyncMock(
             return_value=MarginAccountSummary(
@@ -508,6 +523,9 @@ class TestPortfolioTracker:
         self, portfolio_tracker: PortfolioTracker, api_clients: dict[str, AsyncMock]
     ) -> None:
         """Test reconciliation (via update method) when one API call fails."""
+        for client in api_clients.values():  # Ensure all mocked clients are healthy
+            client.is_healthy = True
+
         now = datetime.now(UTC)
         api_clients["hyperliquid"].get_balances.side_effect = Exception("API connection failed")
 
@@ -584,8 +602,15 @@ class TestPortfolioTracker:
         now: datetime,
     ) -> None:
         """Test updating an order using the public update_order method."""
-        portfolio_tracker._balances = sample_balances_state  # noqa: SLF001 # TEST: Accessing protected member for test verification
-        portfolio_tracker._orders = sample_orders  # noqa: SLF001 # TEST: Accessing protected member for test verification
+        portfolio_tracker._balances.clear()  # noqa: SLF001
+        for ex_id, assets in sample_balances_state.items():
+            for asset_symbol, balance_obj in assets.items():
+                portfolio_tracker._balances[ex_id][asset_symbol] = balance_obj  # noqa: SLF001
+
+        portfolio_tracker._orders.clear()  # noqa: SLF001
+        for ex_id, orders_dict in sample_orders.items():
+            for order_id, order_obj in orders_dict.items():
+                portfolio_tracker._orders[ex_id][order_id] = order_obj  # noqa: SLF001
 
         order_to_update = sample_orders["hyperliquid"]["hl-order-1"]
         update_data = order_to_update.model_copy(
@@ -614,8 +639,15 @@ class TestPortfolioTracker:
         now: datetime,
     ) -> None:
         """Test updating a position using the public update_position method."""
-        portfolio_tracker._balances = sample_balances_state  # noqa: SLF001 # TEST: Accessing protected member for test verification
-        portfolio_tracker._positions = sample_positions  # noqa: SLF001 # TEST: Accessing protected member for test verification
+        portfolio_tracker._balances.clear()  # noqa: SLF001
+        for ex_id, assets in sample_balances_state.items():
+            for asset_symbol, balance_obj in assets.items():
+                portfolio_tracker._balances[ex_id][asset_symbol] = balance_obj  # noqa: SLF001
+
+        portfolio_tracker._positions.clear()  # noqa: SLF001
+        for ex_id, positions_dict in sample_positions.items():
+            for pos_symbol, pos_obj in positions_dict.items():
+                portfolio_tracker._positions[ex_id][pos_symbol] = pos_obj  # noqa: SLF001
 
         position_to_update = sample_positions["hyperliquid"]["BTC"]
         update_data = position_to_update.model_copy(
@@ -643,7 +675,10 @@ class TestPortfolioTracker:
         now: datetime,
     ) -> None:
         """Test updating a balance using the public update_balance method."""
-        portfolio_tracker._balances = sample_balances_state  # noqa: SLF001
+        portfolio_tracker._balances.clear()  # noqa: SLF001
+        for ex_id, assets in sample_balances_state.items():
+            for asset_symbol, balance_obj in assets.items():
+                portfolio_tracker._balances[ex_id][asset_symbol] = balance_obj  # noqa: SLF001
 
         balance_to_update = sample_balances_state["hyperliquid"]["USDC"]
         # update_data variable was unused. Removing it.
@@ -672,7 +707,10 @@ class TestPortfolioTracker:
         self, portfolio_tracker: PortfolioTracker, sample_balances_state: ExchangeBalances
     ) -> None:
         """Test getting an exchange balance."""
-        portfolio_tracker._balances = sample_balances_state  # noqa: SLF001
+        portfolio_tracker._balances.clear()  # noqa: SLF001
+        for ex_id, assets in sample_balances_state.items():
+            for asset_symbol, balance_obj in assets.items():
+                portfolio_tracker._balances[ex_id][asset_symbol] = balance_obj  # noqa: SLF001
 
         usdc_balance = portfolio_tracker.get_exchange_balance("hyperliquid", "USDC")
         assert usdc_balance is not None
@@ -692,9 +730,11 @@ class TestPortfolioTracker:
         api_clients: dict[str, AsyncMock],
     ) -> None:
         """Test calculating total capital across all exchanges in base currency."""
-        portfolio_tracker._balances = sample_balances_state  # noqa: SLF001
-        portfolio_tracker._positions = {}  # noqa: SLF001
-        # portfolio_tracker.api_clients = api_clients # Removed: Clients registered in fixture
+        portfolio_tracker._balances.clear()  # noqa: SLF001
+        for ex_id, assets in sample_balances_state.items():
+            for asset_symbol, balance_obj in assets.items():
+                portfolio_tracker._balances[ex_id][asset_symbol] = balance_obj  # noqa: SLF001
+        portfolio_tracker._positions.clear()  # noqa: SLF001
 
         total_capital_usdc = await portfolio_tracker.get_total_capital(base_currency="USDC")
         # --- Type Check Added ---
@@ -783,7 +823,10 @@ class TestPortfolioTracker:
         self, portfolio_tracker: PortfolioTracker, sample_positions: ExchangePositions
     ) -> None:
         """Test getting a specific position by exchange and symbol."""
-        portfolio_tracker._positions = sample_positions  # noqa: SLF001
+        portfolio_tracker._positions.clear()  # noqa: SLF001
+        for ex_id, positions_dict in sample_positions.items():
+            for pos_symbol, pos_obj in positions_dict.items():
+                portfolio_tracker._positions[ex_id][pos_symbol] = pos_obj  # noqa: SLF001
 
         btc_position = portfolio_tracker.get_position("hyperliquid", "BTC")
         assert btc_position is not None
@@ -800,9 +843,14 @@ class TestPortfolioTracker:
     ) -> None:
         """Test getting all positions grouped by symbol across exchanges."""
         now = datetime.now(UTC)
-        if "backpack" not in sample_positions:
-            sample_positions["backpack"] = {}
-        sample_positions["backpack"]["BTC"] = DerivativePosition(
+        # Create a mutable copy for modification within this test
+        current_test_positions = {
+            ex: {sym: pos.model_copy() for sym, pos in inner.items()}
+            for ex, inner in sample_positions.items()
+        }
+        if "backpack" not in current_test_positions:
+            current_test_positions["backpack"] = {}
+        current_test_positions["backpack"]["BTC"] = DerivativePosition(
             exchange="backpack",
             timestamp=now,
             symbol="BTC",
@@ -813,7 +861,11 @@ class TestPortfolioTracker:
             liquidation_price=Decimal("46000.0"),
             unrealized_pnl=Decimal("250.0"),
         )
-        portfolio_tracker._positions = sample_positions  # noqa: SLF001
+        # portfolio_tracker._positions = sample_positions  # noqa: SLF001
+        portfolio_tracker._positions.clear()  # noqa: SLF001
+        for ex_id, positions_dict in current_test_positions.items():  # Use current_test_positions
+            for pos_symbol, pos_obj in positions_dict.items():
+                portfolio_tracker._positions[ex_id][pos_symbol] = pos_obj  # noqa: SLF001
 
         all_btc_positions: list[DerivativePosition] = portfolio_tracker.get_positions_by_symbol(
             exchange_id="backpack", symbol="BTC"
@@ -845,7 +897,10 @@ class TestPortfolioTracker:
         self, portfolio_tracker: PortfolioTracker, sample_positions: ExchangePositions
     ) -> None:
         """Test getting all positions held by the tracker."""
-        portfolio_tracker._positions = sample_positions  # noqa: SLF001
+        portfolio_tracker._positions.clear()  # noqa: SLF001
+        for ex_id, positions_dict in sample_positions.items():
+            for pos_symbol, pos_obj in positions_dict.items():
+                portfolio_tracker._positions[ex_id][pos_symbol] = pos_obj  # noqa: SLF001
 
         all_positions_list: list[DerivativePosition] = portfolio_tracker.get_all_positions()  # type: ignore[assignment] # DEFENSIVE: Ignore potential Mypy confusion
         expected_total_positions = sum(len(v) for v in sample_positions.values())
@@ -859,7 +914,8 @@ class TestPortfolioTracker:
         returned_symbols_and_exchanges = {(pos.exchange, pos.symbol) for pos in all_positions_list}
         assert returned_symbols_and_exchanges == expected_symbols_and_exchanges
 
-        portfolio_tracker._positions = {}  # noqa: SLF001
+        # portfolio_tracker._positions = {}  # noqa: SLF001
+        portfolio_tracker._positions.clear()  # noqa: SLF001
         empty_positions_list = portfolio_tracker.get_all_positions()
         assert empty_positions_list == []
 
@@ -867,7 +923,10 @@ class TestPortfolioTracker:
         self, portfolio_tracker: PortfolioTracker, sample_orders: ExchangeOrders
     ) -> None:
         """Test getting a specific order by exchange and client order ID."""
-        portfolio_tracker._orders = sample_orders  # noqa: SLF001
+        portfolio_tracker._orders.clear()  # noqa: SLF001
+        for ex_id, orders_dict in sample_orders.items():
+            for order_id, order_obj in orders_dict.items():
+                portfolio_tracker._orders[ex_id][order_id] = order_obj  # noqa: SLF001
 
         hl_order = portfolio_tracker.get_order_by_id("hyperliquid", "hl-order-1")
         assert hl_order is not None
@@ -883,7 +942,10 @@ class TestPortfolioTracker:
         self, portfolio_tracker: PortfolioTracker, sample_orders: ExchangeOrders
     ) -> None:
         """Test getting all open orders, optionally filtered by exchange or symbol."""
-        portfolio_tracker._orders = sample_orders  # noqa: SLF001
+        portfolio_tracker._orders.clear()  # noqa: SLF001
+        for ex_id, orders_dict in sample_orders.items():
+            for order_id, order_obj in orders_dict.items():
+                portfolio_tracker._orders[ex_id][order_id] = order_obj  # noqa: SLF001
 
         all_open = portfolio_tracker.get_open_orders(exchange_id="hyperliquid")
         all_open.extend(portfolio_tracker.get_open_orders(exchange_id="backpack"))
@@ -908,9 +970,14 @@ class TestPortfolioTracker:
         assert bp_sol_open[0].client_order_id == "bp-order-2"
 
         filled_order_key = "bp-order-1"
-        portfolio_tracker._orders = {  # noqa: SLF001
-            "backpack": {filled_order_key: sample_orders["backpack"][filled_order_key]}
-        }
+        # portfolio_tracker._orders = {  # noqa: SLF001
+        #     "backpack": {filled_order_key: sample_orders["backpack"][filled_order_key]}
+        # }
+        portfolio_tracker._orders.clear()  # noqa: SLF001
+        portfolio_tracker._orders["backpack"][filled_order_key] = sample_orders["backpack"][
+            filled_order_key
+        ]  # noqa: SLF001
+
         no_open = portfolio_tracker.get_open_orders(exchange_id="backpack")
         assert len(no_open) == 0
 
@@ -918,11 +985,15 @@ class TestPortfolioTracker:
         self, portfolio_tracker: PortfolioTracker, sample_orders: ExchangeOrders
     ) -> None:
         """Test getting all orders held by the tracker."""
-        portfolio_tracker._orders = sample_orders  # noqa: SLF001
+        portfolio_tracker._orders.clear()  # noqa: SLF001
+        for ex_id, orders_dict in sample_orders.items():
+            for order_id, order_obj in orders_dict.items():
+                portfolio_tracker._orders[ex_id][order_id] = order_obj  # noqa: SLF001
 
         assert portfolio_tracker._orders == sample_orders  # noqa: SLF001
 
-        portfolio_tracker._orders = {}  # noqa: SLF001
+        # portfolio_tracker._orders = {}  # noqa: SLF001
+        portfolio_tracker._orders.clear()  # noqa: SLF001
         assert not portfolio_tracker._orders  # noqa: SLF001
 
     def test_calculate_pnl(
@@ -930,18 +1001,30 @@ class TestPortfolioTracker:
     ) -> None:
         """Test calculating realized and unrealized PNL (using position data directly)."""
         now_utc = datetime.now(UTC)
-        portfolio_tracker._balances = {  # noqa: SLF001
-            "hyperliquid": {
-                "USDC": SpotBalance(
-                    exchange="hyperliquid",
-                    asset="USDC",
-                    timestamp=now_utc,
-                    total_quantity=Decimal("1000.0"),
-                    available_quantity=Decimal("1000.0"),
-                )
-            }
-        }
-        portfolio_tracker._positions = sample_positions  # noqa: SLF001
+        # portfolio_tracker._balances = {  # noqa: SLF001
+        #     "hyperliquid": {
+        #         "USDC": SpotBalance(
+        #             exchange="hyperliquid",
+        #             asset="USDC",
+        #             timestamp=now_utc,
+        #             total_quantity=Decimal("1000.0"),
+        #             available_quantity=Decimal("1000.0"),
+        #         )
+        #     }
+        # }
+        portfolio_tracker._balances.clear()  # noqa: SLF001
+        portfolio_tracker._balances["hyperliquid"]["USDC"] = SpotBalance(  # noqa: SLF001
+            exchange="hyperliquid",
+            asset="USDC",
+            timestamp=now_utc,
+            total_quantity=Decimal("1000.0"),
+            available_quantity=Decimal("1000.0"),
+        )
+        # portfolio_tracker._positions = sample_positions  # noqa: SLF001
+        portfolio_tracker._positions.clear()  # noqa: SLF001
+        for ex_id, positions_dict in sample_positions.items():
+            for pos_symbol, pos_obj in positions_dict.items():
+                portfolio_tracker._positions[ex_id][pos_symbol] = pos_obj  # noqa: SLF001
 
         position_to_test = sample_positions["hyperliquid"]["BTC"]
         assert position_to_test.unrealized_pnl == Decimal("1000.0")

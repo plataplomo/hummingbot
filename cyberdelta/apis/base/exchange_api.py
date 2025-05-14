@@ -29,6 +29,7 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
+    MarginAccountSummary,
     Order,
     OrderBook,
     SpotBalance,
@@ -578,6 +579,11 @@ class ExchangeAPI(ABC):
     @abstractmethod
     async def get_balances(self) -> dict[str, SpotBalance]:
         """Get account balances."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_account_summary(self) -> MarginAccountSummary | None:
+        """Fetch the account summary for the exchange."""
         raise NotImplementedError
 
     @abstractmethod

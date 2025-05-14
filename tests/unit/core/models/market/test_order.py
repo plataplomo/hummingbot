@@ -556,6 +556,7 @@ class TestOrderModel:
         # For testing, we can manually advance time if needed, or just check timestamp changes
 
         order.status = OrderStatus.FILLED
+        order.updated_at = datetime.now(UTC)  # Explicitly update timestamp
 
         assert order.status == OrderStatus.FILLED
         assert order.status != initial_status

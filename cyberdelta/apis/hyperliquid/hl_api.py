@@ -60,6 +60,7 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
+    MarginAccountSummary,
     Order,
     OrderBook,
     OrderSide,
@@ -1622,12 +1623,77 @@ class HyperliquidAPI(ExchangeAPI):
             ) from e_val
         except Exception as e_unexp:
             logger.error(
-                f"[{self.exchange_name}] Unexpected error in get_order_status for oid {order_id}: "
-                f"{e_unexp}",
+                f"[{self.exchange_name}] Unhandled error fetching order status for "
+                f"{order_id or client_order_id}: {e_unexp}",
                 exc_info=True,
             )
             raise APIError(
-                f"Unexpected error fetching order status: {e_unexp}",
+                message=(
+                    f"Unexpected error processing order status for "
+                    f"{order_id or client_order_id}: {e_unexp}"
+                ),
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e_unexp,
             ) from e_unexp
+
+    async def get_account_summary(self) -> MarginAccountSummary | None:
+        """Fetches user state and maps it to MarginAccountSummary."""
+        if not self._wallet_address:
+            logger.error(
+                f"[{self.exchange_name}] Wallet address not available, cannot fetch user state/account summary."
+            )
+            return None
+
+        payload = HyperliquidRequestBuilder.build_user_state_payload(self._wallet_address)
+        response_raw: RawJsonResponse | None = None
+        try:
+            response_raw = await self._request(
+                method="POST",
+                endpoint=self.INFO_URL,  # User state is on the INFO_URL
+                data=payload,
+                is_signed=False,  # User state is a public endpoint if wallet address is known
+            )
+
+            if not isinstance(response_raw, dict):
+                logger.error(
+                    f"[{self.exchange_name}] Unexpected user_state response format: "
+                    f"{type(response_raw)}. Raw: {response_raw}"
+                )
+                raise APIError(
+                    "Invalid user_state response format (not a dict)",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                )
+
+            validated_user_state: HyperliquidRawClearinghouseState = (
+                HyperliquidResponseHandler.handle_info_user_state_response(
+                    raw_response_content=response_raw, user_address=self._wallet_address
+                )
+            )
+
+            # Transform to MarginAccountSummary
+            # This transformation needs to be properly implemented in HyperliquidMapper
+            margin_summary = HyperliquidMapper.map_raw_clearinghouse_state_to_margin_summary(
+                raw_state=validated_user_state  # Pass validated_user_state as raw_state
+            )
+            return margin_summary
+
+        except APIError as e:
+            logger.error(
+                f"[{self.exchange_name}] API Error getting account summary (user_state): {e}"
+            )
+            # Depending on error, might return None or re-raise
+            if (
+                e.code == APIErrorCode.AUTHENTICATION_FAILED.value
+            ):  # Should not happen for public endpoint
+                return None
+            raise e
+        except Exception as e:
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error in get_account_summary (user_state): {e}",
+                exc_info=True,
+            )
+            raise APIError(
+                f"Unexpected error getting account summary (user_state): {e}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e

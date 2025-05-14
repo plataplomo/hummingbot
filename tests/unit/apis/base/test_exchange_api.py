@@ -28,6 +28,7 @@ from cyberdelta.core.models import (
     Ticker,
     Trade,
 )
+from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.market import Candle
 
 # Match the definition in cyberdelta.apis.base.exchange_api.py
@@ -109,6 +110,15 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
 
     async def get_balances(self) -> dict[str, SpotBalance]:
         return {"USD": MagicMock(spec=SpotBalance)}
+
+    async def get_account_summary(self) -> MarginAccountSummary | None:
+        """Mock implementation for get_account_summary."""
+        mock_summary = MagicMock(spec=MarginAccountSummary)
+        # Optionally set attributes on mock_summary if tests rely on them
+        # For example:
+        # mock_summary.total_equity = Decimal("10000")
+        # mock_summary.available_equity = Decimal("5000")
+        return mock_summary
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         return [MagicMock(spec=DerivativePosition)]

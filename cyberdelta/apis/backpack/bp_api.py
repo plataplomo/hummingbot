@@ -19,7 +19,7 @@ This module implements the Backpack exchange adapter for CyberDeltaEngine, inclu
 """
 
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
 
@@ -51,6 +51,7 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
+    MarginAccountSummary,
     SpotBalance,
     Ticker,
     Trade,
@@ -895,6 +896,36 @@ class BackpackAPI(ExchangeAPI):
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e,
             ) from e
+
+    async def get_account_summary(self) -> MarginAccountSummary | None:
+        """
+        Fetches and transforms account summary information into the internal MarginAccountSummary model.
+
+        NOTE: Backpack's /api/v1/account endpoint provides account settings and fee structures,
+        not direct margin health metrics like total collateral or margin requirements.
+        This implementation returns a placeholder MarginAccountSummary with many default values
+        and logs a warning. Proper mapping requires identifying appropriate data sources or
+        calculations from Backpack's available endpoints (e.g., balances, positions).
+        """
+        logger.warning(
+            f"[{self.exchange_name}] get_account_summary currently returns a placeholder "
+            f"MarginAccountSummary for Backpack. Full mapping of Backpack data to "
+            f"MarginAccountSummary is required."
+        )
+        # Placeholder values
+        current_time = datetime.now(UTC)
+        return MarginAccountSummary(
+            exchange=self.exchange_name,
+            timestamp=current_time,
+            total_equity=Decimal("0.0"),
+            available_equity=Decimal("0.0"),
+            total_initial_margin_required=None,  # Default
+            total_maintenance_margin_required=None,  # Default
+            total_position_notional=None,  # Default
+            total_unrealized_pnl=None,  # Default
+            hl_details=None,  # No Hyperliquid details for Backpack API
+            bp_details=None,  # Placeholder - needs mapping if BackpackMarginDetails is defined and useful
+        )
 
     async def transfer(
         self,

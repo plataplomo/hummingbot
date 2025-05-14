@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import MagicMock
 
+import pytest
+
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
@@ -15,7 +17,8 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 class TestRiskManagerConstraints:
     """Test suite for RiskManager constraint checking (_check_portfolio_constraints)."""
 
-    def test_check_portfolio_constraints(
+    @pytest.mark.asyncio
+    async def test_check_portfolio_constraints(
         self, risk_manager: RiskManager, mock_portfolio_tracker: MagicMock
     ) -> None:
         """Test portfolio constraint checking logic (passing case)."""
@@ -35,10 +38,13 @@ class TestRiskManagerConstraints:
         )
         # Direct access to protected method is justified here for white-box testing;
         # no public interface exposes this logic.
-        is_valid, _ = risk_manager._check_portfolio_constraints(Decimal("1000.0"), opportunity)  # noqa: SLF001
+        is_valid, _ = await risk_manager._check_portfolio_constraints(
+            Decimal("1000.0"), opportunity
+        )  # noqa: SLF001
         assert is_valid, "Expected constraints to pass with default mocks"
 
-    def test_check_portfolio_constraints_fail_total_exposure(
+    @pytest.mark.asyncio
+    async def test_check_portfolio_constraints_fail_total_exposure(
         self, risk_manager: RiskManager, mock_portfolio_tracker: MagicMock
     ) -> None:
         """Test failure due to exceeding total exposure."""
@@ -57,10 +63,13 @@ class TestRiskManagerConstraints:
         )
         # Direct access to protected method is justified here for white-box testing;
         # no public interface exposes this logic.
-        is_valid, _ = risk_manager._check_portfolio_constraints(Decimal("1000.0"), opportunity)  # noqa: SLF001
+        is_valid, _ = await risk_manager._check_portfolio_constraints(
+            Decimal("1000.0"), opportunity
+        )  # noqa: SLF001
         assert not is_valid, "Expected failure due to total exposure limit"
 
-    def test_check_portfolio_constraints_fail_leverage(
+    @pytest.mark.asyncio
+    async def test_check_portfolio_constraints_fail_leverage(
         self, risk_manager: RiskManager, mock_portfolio_tracker: MagicMock
     ) -> None:
         """Test failure due to exceeding leverage."""
@@ -79,5 +88,7 @@ class TestRiskManagerConstraints:
         )
         # Direct access to protected method is justified here for white-box testing;
         # no public interface exposes this logic.
-        is_valid, _ = risk_manager._check_portfolio_constraints(Decimal("1000.0"), opportunity)  # noqa: SLF001
+        is_valid, _ = await risk_manager._check_portfolio_constraints(
+            Decimal("1000.0"), opportunity
+        )  # noqa: SLF001
         assert not is_valid, "Expected failure due to leverage limit"

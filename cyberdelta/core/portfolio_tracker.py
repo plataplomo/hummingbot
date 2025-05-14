@@ -13,16 +13,13 @@ from pydantic import BaseModel, Field, ValidationError
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.core.models import (
     DerivativePosition,
+    MarginAccountSummary,
     Order,
     OrderSide,
     OrderStatus,
     SpotBalance,
     Ticker,
     Trade,
-)
-from cyberdelta.core.models.enums import (
-    OrderSide,
-    OrderStatus,
 )
 from cyberdelta.utils.config import Config
 from cyberdelta.utils.logging_config import get_logger
@@ -73,6 +70,7 @@ class PortfolioTracker:
             api_clients: Dictionary of exchange API clients
             exchange_factories: Dictionary of exchange API factory functions
         """
+        self.logger = get_logger(__name__ + "." + self.__class__.__name__)
         self.config: Config = config
         self.api_clients: dict[str, ExchangeAPI] = api_clients or {}
         self.exchange_factories = exchange_factories or {}
@@ -203,14 +201,15 @@ class PortfolioTracker:
 
     async def initialize(self) -> None:
         """Initialize portfolio state from exchanges."""
-        initialization_tasks: list[Awaitable[bool]] = []
+        initialization_tasks: list[Awaitable[Any]] = []
         logger.info(
             f"PortfolioTracker {id(self)}: About to gather init tasks. "
             f"Balance dict: {self._balances}"
         )
-        for exchange_id, _client in self.api_clients.items():
+        for exchange_id, client in self.api_clients.items():
             if not self.config.get(f"exchanges.{exchange_id}.enabled", False):
                 continue
+            initialization_tasks.append(self._fetch_exchange_account_summary(client, exchange_id))
             initialization_tasks.append(self._fetch_exchange_balances(exchange_id))
             initialization_tasks.append(self._fetch_exchange_positions(exchange_id))
             initialization_tasks.append(self._fetch_exchange_orders(exchange_id))
@@ -583,8 +582,8 @@ class PortfolioTracker:
     async def update(self) -> None:
         """Update portfolio state by fetching data from exchanges."""
         now = datetime.now(UTC)
-        update_tasks: list[Awaitable[bool]] = []
-        for exchange_id, _client in self.api_clients.items():
+        update_tasks: list[Awaitable[Any]] = []
+        for exchange_id, client in self.api_clients.items():
             if not self.config.get(f"exchanges.{exchange_id}.enabled", False):
                 continue
             last_reconciliation = self._last_reconciliation_time.get(
@@ -595,6 +594,7 @@ class PortfolioTracker:
             ).total_seconds() >= self.reconciliation_interval
             if needs_reconciliation:
                 logger.info(f"Reconciliation needed for {exchange_id}. Fetching all data.")
+                update_tasks.append(self._fetch_exchange_account_summary(client, exchange_id))
                 update_tasks.append(self._fetch_exchange_balances(exchange_id))
                 update_tasks.append(self._fetch_exchange_positions(exchange_id))
                 update_tasks.append(self._fetch_exchange_orders(exchange_id))
@@ -782,14 +782,9 @@ class PortfolioTracker:
     # --- Position Access Methods ---
     def get_position(self, exchange_id: str, symbol: str) -> DerivativePosition | None:
         """Returns the position for a specific symbol on a specific exchange."""
-        position = self._positions[exchange_id].get(symbol)  # Direct access to inner dict
-        # Return None if it's the placeholder (size 0 and default timestamp)
-        if (
-            position
-            and position.size == Decimal(0)
-            and position.timestamp == datetime.min.replace(tzinfo=UTC)
-        ):
+        if exchange_id not in self._positions:
             return None
+        position = self._positions[exchange_id].get(symbol)  # Direct access to inner dict
         return position
 
     def get_positions_by_symbol(self, exchange_id: str, symbol: str) -> list[DerivativePosition]:
@@ -1497,3 +1492,17 @@ class PortfolioTracker:
                 f"Initialized position: {pos.symbol} on {pos.exchange}, Side: {pos.side}, Size: {pos.size}"
             )
         logger.info("PortfolioTracker initialized.")
+
+    async def _fetch_exchange_account_summary(
+        self, client: ExchangeAPI, exchange_id: str
+    ) -> tuple[str, MarginAccountSummary | None] | None:
+        try:
+            summary = await client.get_account_summary()
+            if summary:
+                return exchange_id, summary
+            else:
+                logger.warning(f"No account summary found for {exchange_id}")
+                return None
+        except Exception as e:
+            logger.exception(f"Error fetching account summary for {exchange_id}: {e}")
+            return None
