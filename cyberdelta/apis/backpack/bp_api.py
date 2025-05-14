@@ -250,10 +250,10 @@ class BackpackAPI(ExchangeAPI):
             "data": auth_components["data"],
         }
 
-    async def _handle_ws_message(self, message: Mapping[str, Any], ws_url: str) -> None:
-        # This method is not provided in the original file or the code block
-        # It's assumed to exist as it's called in the _route_ws_message method
-        pass
+    # async def _handle_ws_message(self, message: Mapping[str, Any], ws_url: str) -> None:
+    #     # This method is not provided in the original file or the code block
+    #     # It's assumed to exist as it's called in the _route_ws_message method
+    #     pass # REMOVING THIS UNUSED AND CONFUSING METHOD
 
     # --- Core API Implementation --- #
 

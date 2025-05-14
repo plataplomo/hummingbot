@@ -196,7 +196,9 @@ class OrderVerifier:
             # Assuming get_order exists on the concrete API client
             try:
                 # Assuming get_order exists on the concrete API client
-                api_order = await api_client.get_order(order_id, expected_details.get("symbol"))  # type: ignore[attr-defined] # Ignore potential missing attr on base API
+                api_order = await api_client.get_order(
+                    order_id, expected_details.get("symbol")
+                )  # No type: ignore needed if mypy doesn't complain after other fixes
             except AttributeError:
                 logger.error(f"API client for {exchange} missing get_order method.")
                 verification_success = False
@@ -212,7 +214,7 @@ class OrderVerifier:
             verification_error = f"Order {order_id} not found in local state"
             verification_details["local_order"] = None
         else:
-            verification_details["local_order"] = local_order.to_dict()
+            verification_details["local_order"] = local_order.model_dump()
 
             # Verify key properties match expected values
             for key, expected_value in expected_details.items():
@@ -232,27 +234,28 @@ class OrderVerifier:
             verification_details["api_order"] = None
         else:
             verification_details["api_order"] = (
-                api_order.to_dict() if hasattr(api_order, "to_dict") else api_order
+                api_order.model_dump() if hasattr(api_order, "model_dump") else api_order
             )
 
             # Verify essential properties match on API side too
             properties_to_check = {
                 "symbol": "symbol",
                 "side": "side",
-                "order_type": "order_type"  # Maps Order attribute to expected_details key
+                "order_type": "order_type",  # Maps Order attribute to expected_details key
             }
             for attr_name, expected_detail_key in properties_to_check.items():
                 api_value = getattr(api_order, attr_name, None)
                 expected_value = expected_details.get(expected_detail_key)
 
-                # If expected_value is None because the key is genuinely missing in expected_details,
-                # and it's not a case where None is the expected value, this check might need refinement.
-                # For now, we assume expected_details contains all keys listed in properties_to_check.
+                # If expected_value is None because the key is genuinely missing
+                # in expected_details, and it's not a case where None is the
+                # expected value, this check might need refinement. For now, we assume
+                # expected_details contains all keys listed in properties_to_check.
                 if api_value != expected_value:
                     verification_success = False
                     verification_error = (verification_error or "") + (
-                        f" API order {attr_name} mismatch (expected key: {expected_detail_key}):\"
-                        f" expected {expected_value}, got {api_value}\"
+                        f" API order {attr_name} mismatch (expected key: {expected_detail_key}): "
+                        f"expected {expected_value}, got {api_value}"
                     )
                     break
 
@@ -302,7 +305,7 @@ class OrderVerifier:
         # Get recent fills
         recent_fills = None
         if api_client is not None:
-            recent_fills = await api_client.get_recent_fills(
+            recent_fills = await api_client.get_recent_fills(  # type: ignore[attr-defined]
                 local_order.symbol if local_order else None
             )
 
@@ -312,7 +315,7 @@ class OrderVerifier:
             verification_error = f"Order {order_id} not found in local state"
             verification_details["local_order"] = None
         else:
-            verification_details["local_order"] = local_order.to_dict()
+            verification_details["local_order"] = local_order.model_dump()
 
             # Check if order is filled in local state
             if local_order.status != OrderStatus.FILLED:
@@ -328,7 +331,9 @@ class OrderVerifier:
             ) + f" Order {order_id} not found in exchange API"
             verification_details["api_order"] = None
         else:
-            api_order_dict = api_order.to_dict() if hasattr(api_order, "to_dict") else api_order
+            api_order_dict = (
+                api_order.model_dump() if hasattr(api_order, "model_dump") else api_order
+            )
             verification_details["api_order"] = api_order_dict
 
             # Check if order is filled in API state
@@ -482,11 +487,7 @@ class ExecutionCoordinator:
             "execution_aborted",
             {
                 "reason": reason,
-                "duration_ms": (
-                    (context.end_time - context.start_time).total_seconds() * 1000
-                    if context.end_time is not None and context.start_time is not None
-                    else -1.0  # Indicate error or unknown duration
-                ),
+                "duration_ms": ((context.end_time - context.start_time).total_seconds() * 1000),
             },
         )
 
@@ -572,7 +573,7 @@ class SynchronizedOrderSubmissionService:
         )
 
         # Pre-execution verification
-        pre_verify_result = await self._verify_pre_execution(opportunity)
+        pre_verify_result = await self._verify_pre_execution(execution_context, opportunity)
         await self.execution_coordinator.add_checkpoint(
             execution_context, "pre_execution_verification", pre_verify_result
         )
@@ -664,64 +665,90 @@ class SynchronizedOrderSubmissionService:
         await self.execution_coordinator.complete_execution(execution_context, execution_result)
         return execution_result
 
-    async def _verify_pre_execution(self, opportunity: OpportunityType) -> dict[str, Any]:
+    async def _verify_pre_execution(
+        self, execution_context: ExecutionContext, opportunity: OpportunityType
+    ) -> dict[str, Any]:
         """Perform pre-execution verification checks."""
         results = {}
         all_success = True
         error_msg = ""
 
+        if self.execution_coordinator:
+            await self.execution_coordinator.add_checkpoint(
+                execution_context,
+                "pre_execution_start",
+                {"message": "Pre-execution verification started."},
+            )
+
         # Circuit breaker check for long leg
-        cb_long_ok, cb_long_msg = await self.circuit_breaker_system.can_execute(
+        cb_long_ok, cb_long_msg = self.circuit_breaker_system.can_execute(
             opportunity.long_exchange,
             opportunity.symbol,
-            "ORDER_EXECUTION",  # Action type
         )
-        results["circuit_breaker_long"] = {"success": cb_long_ok, "error": cb_long_msg}
+        if self.execution_coordinator:
+            await self.execution_coordinator.add_checkpoint(
+                execution_context,
+                "pre_execution_cb_long",
+                {"success": cb_long_ok, "msg": cb_long_msg},
+            )
         if not cb_long_ok:
             all_success = False
-            error_msg += f"Circuit breaker for long leg ({opportunity.long_exchange}) tripped: {cb_long_msg}; "
+            error_msg += f"Long leg CB: {cb_long_msg or 'Failed'}. "
+            results["circuit_breaker_long"] = {"success": False, "error": cb_long_msg}
 
         # Circuit breaker check for short leg
-        if (
-            all_success
-        ):  # Only proceed if long leg CB is okay, or check independently based on desired logic
-            cb_short_ok, cb_short_msg = await self.circuit_breaker_system.can_execute(
+        if all_success:  # Only check short leg if long leg is okay
+            cb_short_ok, cb_short_msg = self.circuit_breaker_system.can_execute(
                 opportunity.short_exchange,
                 opportunity.symbol,
-                "ORDER_EXECUTION",  # Action type
             )
-            results["circuit_breaker_short"] = {"success": cb_short_ok, "error": cb_short_msg}
+            if self.execution_coordinator:
+                await self.execution_coordinator.add_checkpoint(
+                    execution_context,
+                    "pre_execution_cb_short",
+                    {"success": cb_short_ok, "msg": cb_short_msg},
+                )
             if not cb_short_ok:
                 all_success = False
-                error_msg += f"Circuit breaker for short leg ({opportunity.short_exchange}) tripped: {cb_short_msg}; "
+                error_msg += f"Short leg CB: {cb_short_msg or 'Failed'}. "
+                results["circuit_breaker_short"] = {"success": False, "error": cb_short_msg}
 
-        if not all_success:
-            # If circuit breakers failed, we might not need to check market/balances,
-            # or we might still want to log them. For now, let's ensure they are logged if called.
-            # The current structure calls them regardless and aggregates errors.
-            pass  # Error already logged by individual checks
+        # Market conditions check
+        if all_success:
+            market_result = await self._verify_market_conditions(opportunity)
+            if self.execution_coordinator:
+                await self.execution_coordinator.add_checkpoint(
+                    execution_context,
+                    "pre_execution_market",
+                    {"success": market_result["success"], "details": market_result},
+                )
+            if not market_result["success"]:
+                all_success = False
+                error_msg += f"Market conditions: {market_result.get('error') or 'Failed'}. "
+            results["market_conditions"] = market_result
 
-        market_check = await self._verify_market_conditions(opportunity)
-        results["market_conditions"] = market_check
-        if not market_check.get("success"):
-            all_success = False
-            error_msg += f"Market conditions invalid: {market_check.get('error')}; "
+        # Balance checks
+        if all_success:
+            balance_result = await self._verify_balances(opportunity)
+            if self.execution_coordinator:
+                await self.execution_coordinator.add_checkpoint(
+                    execution_context,
+                    "pre_execution_balance",
+                    {"success": balance_result["success"], "details": balance_result},
+                )
+            if not balance_result["success"]:
+                all_success = False
+                error_msg += f"Balance check: {balance_result.get('error') or 'Failed'}. "
+            results["balances"] = balance_result
 
-        balance_check = await self._verify_balances(opportunity)
-        results["balances"] = balance_check
-        if not balance_check.get("success"):
-            all_success = False
-            error_msg += f"Balance check failed: {balance_check.get('error')}; "
+        if self.execution_coordinator:
+            await self.execution_coordinator.add_checkpoint(
+                execution_context,
+                "pre_execution_end",
+                {"success": all_success, "error_summary": error_msg or None},
+            )
 
-        # Add more checks (e.g., circuit breakers specific to this service)
-        # ...
-
-        return {
-            "timestamp": int(time.time() * 1000),
-            "success": all_success,
-            "error": error_msg.strip() or None,
-            "details": results,
-        }
+        return {"success": all_success, "error": error_msg.strip() or None, "details": results}
 
     async def _verify_market_conditions(self, opportunity: OpportunityType) -> dict[str, Any]:
         """Verify market conditions (e.g., price spreads, volatility)."""
@@ -781,7 +808,7 @@ class SynchronizedOrderSubmissionService:
             await self.execution_coordinator.add_checkpoint(
                 execution_context,
                 "first_order_preparation",
-                {"exchange": first_exchange, "order": first_order.to_dict()},
+                {"exchange": first_exchange, "order": first_order.model_dump()},
             )
 
             # Place first order
@@ -807,7 +834,7 @@ class SynchronizedOrderSubmissionService:
                 await self.execution_coordinator.add_checkpoint(
                     execution_context,
                     "first_order_placed",
-                    {"order_id": placed_order.client_order_id, "order": placed_order.to_dict()},
+                    {"order_id": placed_order.client_order_id, "order": placed_order.model_dump()},
                 )
 
                 # Verify first order
@@ -861,7 +888,7 @@ class SynchronizedOrderSubmissionService:
                 await self.execution_coordinator.add_checkpoint(
                     execution_context,
                     "second_order_preparation",
-                    {"exchange": second_exchange, "order": second_order.to_dict()},
+                    {"exchange": second_exchange, "order": second_order.model_dump()},
                 )
 
                 # Place second order
@@ -891,7 +918,7 @@ class SynchronizedOrderSubmissionService:
                         "second_order_placed",
                         {
                             "order_id": second_placed_order.client_order_id,
-                            "order": second_placed_order.to_dict(),
+                            "order": second_placed_order.model_dump(),
                         },
                     )
 
@@ -964,16 +991,22 @@ class SynchronizedOrderSubmissionService:
         symbol_val: str
         quantity_val: Any
         price_val: Any
+        exchange_val: str  # Added for the order
 
         # OpportunityType is always ArbitrageOpportunity, so no need for isinstance check
         symbol_val = opportunity.symbol
         quantity_val = opportunity.optimal_size
-        price_val = opportunity.long_price if leg_type == "long" else opportunity.short_price
+        if leg_type == "long":
+            price_val = opportunity.long_price
+            exchange_val = opportunity.long_exchange
+        else:  # leg_type == "short"
+            price_val = opportunity.short_price
+            exchange_val = opportunity.short_exchange
 
         # Validate extracted values
-        if symbol_val is None or quantity_val is None:
-            logger.error(f"Missing required fields (symbol/quantity) in opportunity: {opportunity}")
-            raise ValueError("Invalid opportunity data for order preparation")
+        if quantity_val is None:  # Simplified check
+            logger.error(f"Missing required quantity in opportunity: {opportunity}")
+            raise ValueError("Invalid opportunity data: quantity missing for order preparation")
 
         # Convert quantity and price to Decimal if they are not None
         try:
@@ -991,6 +1024,7 @@ class SynchronizedOrderSubmissionService:
 
         # Create the Order object using correct field names
         return Order(
+            exchange=exchange_val,  # Added
             symbol=symbol_val,
             side=OrderSide.BUY if leg_type == "long" else OrderSide.SELL,
             order_type=order_type,
@@ -998,7 +1032,11 @@ class SynchronizedOrderSubmissionService:
             price=price_dec,
             status=OrderStatus.NEW,
             created_at=datetime.now(UTC),
-            # average_fill_price, exchange_order_id, updated_at, trades, strategy_name, signal_id are optional
+            updated_at=datetime.now(UTC),  # Added
+            time_in_force=TimeInForce.GTC,  # Added default
+            triggered_at=None,  # Explicitly None for optional field
+            strategy_name=None,  # Explicitly None for optional field
+            signal_id=None,  # Explicitly None for optional field
         )
 
     async def _execute_simultaneous_with_verification(
@@ -1043,8 +1081,8 @@ class SynchronizedOrderSubmissionService:
         if not position_result.get("success"):
             overall_success = False
             logger.warning(
-                f"Post-execution position verification FAILED for {execution_context.execution_id}: "
-                f"{position_result.get('error')}"
+                f"Post-execution position verification FAILED for "
+                f"{execution_context.execution_id}: {position_result.get('error')}"
             )
             if self.execution_coordinator:
                 await self.execution_coordinator.add_checkpoint(
@@ -1098,11 +1136,12 @@ class SynchronizedOrderSubmissionService:
                 )
         else:
             logger.error(f"Post-execution verification FAILED for {execution_context.execution_id}")
-            # A general failure checkpoint if no specific one was added and overall_success is False.
-            # This could happen if overall_success is set to False by other logic not adding a checkpoint.
-            # However, with current structure, individual failures add checkpoints.
-            # Consider if a generic failure checkpoint is needed if all_details is empty but overall_success is False.
-            # For now, assume individual failure checkpoints are sufficient.
+            # A general failure checkpoint if no specific one was added and
+            # overall_success is False. This could happen if overall_success is
+            # set to False by other logic not adding a checkpoint. However, with current
+            # structure, individual failures add checkpoints. Consider if a generic
+            # failure checkpoint is needed if all_details is empty but overall_success
+            # is False. For now, assume individual failure checkpoints are sufficient.
 
         return {"success": overall_success, "details": all_details}
 
