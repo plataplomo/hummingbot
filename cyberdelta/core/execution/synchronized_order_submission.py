@@ -179,9 +179,7 @@ class OrderVerifier:
 
         # Get order from portfolio tracker (local state)
         # Assuming get_order exists and returns Order | None
-        local_order: Order | None = self.portfolio_tracker._orders.get(exchange, {}).get(
-            order_id
-        )  # Access internal dict
+        local_order: Order | None = self.portfolio_tracker.get_order_by_id(exchange, order_id)
 
         # Get order from exchange API
         api_client = self.portfolio_tracker.api_clients.get(
@@ -277,9 +275,7 @@ class OrderVerifier:
         verification_error = None
 
         # Get order from portfolio tracker
-        local_order: Order | None = self.portfolio_tracker._orders.get(exchange, {}).get(
-            order_id
-        )  # Access internal dict
+        local_order: Order | None = self.portfolio_tracker.get_order_by_id(exchange, order_id)
 
         # Get order from exchange API
         api_client = self.portfolio_tracker.api_clients.get(exchange)  # Access dict directly
@@ -573,7 +569,7 @@ class SynchronizedOrderSubmissionService:
         )
 
         # Pre-execution verification
-        pre_verify_result = await self._verify_pre_execution(execution_context, opportunity)
+        pre_verify_result = await self.verify_pre_execution(execution_context, opportunity)
         await self.execution_coordinator.add_checkpoint(
             execution_context, "pre_execution_verification", pre_verify_result
         )
@@ -585,7 +581,7 @@ class SynchronizedOrderSubmissionService:
             return result
 
         # Market conditions verification
-        market_verify_result = await self._verify_market_conditions(opportunity)
+        market_verify_result = await self.verify_market_conditions(opportunity)
         await self.execution_coordinator.add_checkpoint(
             execution_context, "market_conditions_verification", market_verify_result
         )
@@ -599,7 +595,7 @@ class SynchronizedOrderSubmissionService:
             return result
 
         # Balance verification
-        balance_verify_result = await self._verify_balances(opportunity)
+        balance_verify_result = await self.verify_balances(opportunity)
         await self.execution_coordinator.add_checkpoint(
             execution_context, "balance_verification", balance_verify_result
         )
@@ -645,7 +641,7 @@ class SynchronizedOrderSubmissionService:
             ExecutionStatus.COMPLETED,
             ExecutionStatus.PARTIALLY_COMPLETED,
         ):
-            post_verify_result = await self._verify_post_execution(
+            post_verify_result = await self.verify_post_execution(
                 execution_context, opportunity, execution_result
             )
             await self.execution_coordinator.add_checkpoint(
@@ -665,7 +661,7 @@ class SynchronizedOrderSubmissionService:
         await self.execution_coordinator.complete_execution(execution_context, execution_result)
         return execution_result
 
-    async def _verify_pre_execution(
+    async def verify_pre_execution(
         self, execution_context: ExecutionContext, opportunity: OpportunityType
     ) -> dict[str, Any]:
         """Perform pre-execution verification checks."""
@@ -715,7 +711,7 @@ class SynchronizedOrderSubmissionService:
 
         # Market conditions check
         if all_success:
-            market_result = await self._verify_market_conditions(opportunity)
+            market_result = await self.verify_market_conditions(opportunity)
             if self.execution_coordinator:
                 await self.execution_coordinator.add_checkpoint(
                     execution_context,
@@ -729,7 +725,7 @@ class SynchronizedOrderSubmissionService:
 
         # Balance checks
         if all_success:
-            balance_result = await self._verify_balances(opportunity)
+            balance_result = await self.verify_balances(opportunity)
             if self.execution_coordinator:
                 await self.execution_coordinator.add_checkpoint(
                     execution_context,
@@ -750,7 +746,7 @@ class SynchronizedOrderSubmissionService:
 
         return {"success": all_success, "error": error_msg.strip() or None, "details": results}
 
-    async def _verify_market_conditions(self, opportunity: OpportunityType) -> dict[str, Any]:
+    async def verify_market_conditions(self, opportunity: OpportunityType) -> dict[str, Any]:
         """Verify market conditions (e.g., price spreads, volatility)."""
         # Placeholder implementation
         return {
@@ -760,7 +756,7 @@ class SynchronizedOrderSubmissionService:
             "details": {"spread_ok": True, "volatility_ok": True},
         }
 
-    async def _verify_balances(self, opportunity: OpportunityType) -> dict[str, Any]:
+    async def verify_balances(self, opportunity: OpportunityType) -> dict[str, Any]:
         """Verify sufficient balances are available on both exchanges."""
         # Placeholder implementation - needs integration with PortfolioTracker
         # and opportunity details (required sizes)
@@ -1052,7 +1048,7 @@ class SynchronizedOrderSubmissionService:
         )
 
         # Call _verify_post_execution with the context
-        verification_outcome = await self._verify_post_execution(
+        verification_outcome = await self.verify_post_execution(
             execution_context, opportunity, mock_simultaneous_execution_result
         )
         # The method now returns a dict, not ExecutionResult directly
@@ -1061,7 +1057,7 @@ class SynchronizedOrderSubmissionService:
         # For now, let's return the verification outcome as it's what the test might assert on.
         return verification_outcome
 
-    async def _verify_post_execution(
+    async def verify_post_execution(
         self,
         execution_context: ExecutionContext,
         opportunity: OpportunityType,
@@ -1076,7 +1072,7 @@ class SynchronizedOrderSubmissionService:
         all_details: dict[str, Any] = {}
 
         # Verify positions
-        position_result = await self._verify_positions(opportunity, execution_result)
+        position_result = await self.verify_positions(opportunity, execution_result)
         all_details["positions"] = position_result
         if not position_result.get("success"):
             overall_success = False
@@ -1095,7 +1091,7 @@ class SynchronizedOrderSubmissionService:
                 )
 
         # Verify fills
-        fill_result = await self._verify_fills(opportunity, execution_result)
+        fill_result = await self.verify_fills(opportunity, execution_result)
         all_details["fills"] = fill_result
         if not fill_result.get("success"):
             overall_success = False
@@ -1111,7 +1107,7 @@ class SynchronizedOrderSubmissionService:
                 )
 
         # Verify final order states
-        order_result = await self._verify_orders(opportunity, execution_result)
+        order_result = await self.verify_orders(opportunity, execution_result)
         all_details["orders"] = order_result
         if not order_result.get("success"):
             overall_success = False
@@ -1145,7 +1141,7 @@ class SynchronizedOrderSubmissionService:
 
         return {"success": overall_success, "details": all_details}
 
-    async def _verify_positions(
+    async def verify_positions(
         self, opportunity: OpportunityType, execution_result: ExecutionResult
     ) -> dict[str, Any]:
         """
@@ -1162,7 +1158,7 @@ class SynchronizedOrderSubmissionService:
         # Actual implementation would use position reconciliation system
         return {"checked": True}
 
-    async def _verify_fills(
+    async def verify_fills(
         self, opportunity: OpportunityType, execution_result: ExecutionResult
     ) -> dict[str, Any]:
         """
@@ -1179,7 +1175,7 @@ class SynchronizedOrderSubmissionService:
         # Actual implementation would check fill quantities
         return {"checked": True}
 
-    async def _verify_orders(
+    async def verify_orders(
         self, opportunity: OpportunityType, execution_result: ExecutionResult
     ) -> dict[str, Any]:
         """
