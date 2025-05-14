@@ -1512,26 +1512,24 @@ class BackpackAPI(ExchangeAPI):
         try:
             response_raw = await self._request("GET", endpoint, params=params)
 
-            if not isinstance(response_raw, list):
-                logger.warning(
-                    f"[{self.exchange_name}] Unexpected trades history response type: "
-                    f"{type(response_raw)}. Expected list. Returning empty list."
-                )
-                return []
+            # Validate using the handler.
+            # The handler BackpackResponseHandler.handle_get_historical_trades_response
+            # is responsible for validating the raw response and returning list[BackpackRawTrade].
+            validated_trades: list[BackpackRawTrade] = (
+                BackpackResponseHandler.handle_get_historical_trades_response(response_raw, symbol)
+            )
+            # Note: The check `if not isinstance(response_raw, list):` and the subsequent
+            # loop `for trade_data_raw in response_raw:` with direct model_validate
+            # are removed as this logic is now encapsulated within the handler.
 
             internal_trades: list[Trade] = []
-            for trade_data_raw in response_raw:
-                if not isinstance(trade_data_raw, dict):
-                    logger.warning(
-                        f"Skipping non-dict item in trades history list: {trade_data_raw}"
-                    )
-                    continue
+            for raw_trade_model in validated_trades:  # Iterate over already validated models
+                # No need to check `isinstance(trade_data_raw, dict)` or call
+                # `BackpackRawTrade.model_validate(trade_data_raw)` here anymore.
                 try:
-                    # Validate raw trade data first
-                    raw_trade_model = BackpackRawTrade.model_validate(trade_data_raw)
                     # Then transform to internal model using instance mapper
                     internal_trade = self._bp_mapper.transform_raw_trade_to_internal(
-                        raw_trade_model
+                        raw_trade_model  # This is already a BackpackRawTrade instance
                     )
                     if internal_trade:  # Mapper returns Trade | None
                         internal_trades.append(internal_trade)
@@ -1544,21 +1542,21 @@ class BackpackAPI(ExchangeAPI):
                 except (
                     ValidationError,
                     ValueError,
-                ) as e:  # Catch Pydantic and other validation errors
+                ) as e:  # Catch Pydantic and other validation errors during transformation
                     logger.warning(
                         f"[{self.exchange_name}] Skipping trade in history due to validation/"
-                        f"transformation error: {e}. Data: {trade_data_raw}"
+                        f"transformation error: {e}. Data: {raw_trade_model.model_dump_json()}"
                     )
                     continue
                 except Exception as e:  # Catch any other unexpected errors during item processing
                     logger.error(
                         f"[{self.exchange_name}] Unexpected error processing historical "
-                        f"trade: {e}. Data: {trade_data_raw}",
+                        f"trade: {e}. Data: {raw_trade_model.model_dump_json()}",
                         exc_info=True,
                     )
                     continue  # Continue with the next trade item
             return internal_trades
-        except APIError as e:
+        except APIError as e:  # This will catch APIError from _request or from the handler
             logger.error(f"[{self.exchange_name}] API Error getting trades history: {e}")
             raise e
         except Exception as e:

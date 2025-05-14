@@ -632,7 +632,8 @@ class HyperliquidMapper:
     ) -> MarginAccountSummary:
         """
         Maps the margin summary from the raw clearinghouse state to an internal
-        MarginAccountSummary model.
+        MarginAccountSummary model. Total unrealized PnL is calculated
+        from the mapped derivative positions for consistency.
 
         Args:
             raw_state: The validated HyperliquidRawClearinghouseState object.
@@ -641,16 +642,35 @@ class HyperliquidMapper:
             An internal MarginAccountSummary object.
 
         Raises:
-            ValueError: If essential numeric fields cannot be parsed.
+            ValueError: If essential numeric fields cannot be parsed or if critical
+                        components like margin_summary are missing.
         """
         if not raw_state or not raw_state.margin_summary:
-            logger.error("[HyperliquidMapper] Raw state or margin_summary is missing for mapping.")
+            logger.error(
+                "[HyperliquidMapper] Raw state or margin_summary is missing for mapping "
+                "to MarginAccountSummary."
+            )
             raise ValueError(
                 "Raw state or margin_summary missing, cannot map MarginAccountSummary."
             )
 
         raw_margin_summary: HyperliquidRawMarginSummary = raw_state.margin_summary
 
+        # 1. Map Derivative Positions to calculate total PnL consistently
+        #    (These mapped positions are not directly part of MarginAccountSummary model)
+        derivative_positions_mapped_dict: dict[str, DerivativePosition] = (
+            HyperliquidMapper.map_raw_clearinghouse_state_to_derivative_positions(raw_state)
+        )
+        derivative_positions_list: list[DerivativePosition] = list(
+            derivative_positions_mapped_dict.values()
+        )
+
+        total_unrealized_pnl_val = Decimal("0")
+        for pos in derivative_positions_list:
+            if pos.unrealized_pnl is not None and pos.unrealized_pnl.is_finite():
+                total_unrealized_pnl_val += pos.unrealized_pnl
+
+        # 2. Parse other essential numeric fields for MarginAccountSummary
         total_equity_val = parse_decimal_value(
             raw_margin_summary.account_value,
             allow_none=False,
@@ -682,7 +702,8 @@ class HyperliquidMapper:
             field_name="margin_summary.total_margin_used",
         )
 
-        if total_equity_val is None:  # Should be caught by allow_none=False in helper
+        # Defensive checks for None after parsing (should be caught by allow_none=False)
+        if total_equity_val is None:
             raise ValueError("Failed to parse total_equity (account_value).")
         if total_notional_val is None:
             raise ValueError("Failed to parse total_notional_value (total_ntl_pos).")
@@ -697,34 +718,25 @@ class HyperliquidMapper:
 
         total_maintenance_margin_val = cross_mmr_val + isolated_mmr_val
 
-        total_unrealized_pnl_val = Decimal("0")
-        if raw_state.asset_positions:
-            for asset_pos in raw_state.asset_positions:
-                if asset_pos.position and asset_pos.position.unrealized_pnl:
-                    pnl = parse_decimal_value(
-                        asset_pos.position.unrealized_pnl,
-                        allow_none=True,  # PNL can be missing for an asset if no position
-                        field_name=f"asset_positions.{asset_pos.asset}.unrealized_pnl",
-                    )
-                    if pnl is not None:
-                        total_unrealized_pnl_val += pnl
-
-        # HyperliquidMarginDetails takes cross_maintenance_margin_used
-        # and isolated_maintenance_margin_used
+        # 3. Create HyperliquidMarginDetails
         hyperliquid_details = HyperliquidMarginDetails(
             cross_maintenance_margin_used=cross_mmr_val,
             isolated_maintenance_margin_used=isolated_mmr_val,
         )
 
+        # 4. Construct and return MarginAccountSummary
+        #    NOTE: MarginAccountSummary does NOT directly contain spot_balances or derivative_positions lists.
+        #    These are separate concerns, fetched via get_balances() and get_positions().
         return MarginAccountSummary(
             exchange=ExchangeName.HYPERLIQUID.value,
-            timestamp=datetime.now(UTC),  # Raw state doesn't provide a snapshot timestamp
+            timestamp=datetime.now(UTC),  # Raw state doesn't provide a specific snapshot timestamp
             total_equity=total_equity_val,
             available_equity=available_for_withdrawal_val,
             total_initial_margin_required=total_initial_margin_val,
             total_maintenance_margin_required=total_maintenance_margin_val,
             total_position_notional=total_notional_val,
             total_unrealized_pnl=total_unrealized_pnl_val,
+            # spot_balances and derivative_positions are NOT fields of MarginAccountSummary
             hl_details=hyperliquid_details,
         )
 
