@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import unittest.mock
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -32,6 +33,7 @@ from cyberdelta.core.models.enums import (
     TimeInForce,
 )
 from cyberdelta.core.models.margin_account import BackpackMarginDetails
+from cyberdelta.core.models.market.order import Order
 
 # from cyberdelta.shared_logger import logger # Comment out if still unresolved
 
@@ -185,11 +187,15 @@ class TestBackpackAPI_Authentication:
         self,
         default_bp_config: dict[str, Any],
         bp_secrets_valid: dict[str, str | None],
-        mock_loop: MagicMock,
+        mock_loop: MagicMock,  # mock_loop might be unused if not passed to API
     ) -> None:
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
-        assert api._bp_authenticator is not None
-        assert isinstance(api._bp_authenticator, BackpackHmacAuthenticator)
+        # We expect the authenticator to be an instance of BackpackHmacAuthenticator
+        # if valid secrets are provided. Accessing api.authenticator is public.
+        assert api.authenticator is not None
+        assert isinstance(api.authenticator, BackpackHmacAuthenticator)
+        # These internal checks can be removed if we trust the constructor sets them
+        # based on the public authenticator. For now, keeping to see if linter still flags.
         assert api._api_key == "test_key"
         assert api._api_secret == "test_secret"
 
@@ -197,203 +203,156 @@ class TestBackpackAPI_Authentication:
         self,
         default_bp_config: dict[str, Any],
         bp_secrets_invalid: dict[str, str | None],
-        mock_loop: MagicMock,
+        mock_loop: MagicMock,  # mock_loop might be unused
         caplog: LogCaptureFixture,
     ) -> None:
         api = BackpackAPI(default_bp_config, bp_secrets_invalid)
-        assert api._bp_authenticator is None
+        assert api.authenticator is None  # Public accessor
         assert "Authenticator not initialized" in caplog.text
 
     @pytest.mark.asyncio
-    async def test_authenticate_method_uses_bp_authenticator(
+    async def test_authenticate_delegates_to_bp_authenticator_prepare_request(
         self,
         default_bp_config: dict[str, Any],
         bp_secrets_valid: dict[str, str | None],
-        mock_bp_authenticator_instance: MagicMock,
     ) -> None:
-        """Test that _authenticate method correctly uses the BackpackHmacAuthenticator."""
+        """Test that _authenticate method correctly uses the BackpackHmacAuthenticator's
+        prepare_request."""
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
-        api._bp_authenticator = mock_bp_authenticator_instance
+        assert api.authenticator is not None  # Should be initialized
 
         method = "GET"
         path = "/api/v1/capital"
         params = {"test_param": "value"}
-        data = {"test_data": "value"}  # _authenticate should pass this to prepare_request
+        data = {"test_data": "value"}
 
-        # Expected components returned by the authenticator's prepare_request
         expected_components_from_auth = AuthenticatedRequestComponents(
-            headers={
-                "X-BP-ApiKey": "test_key",  # Example header from authenticator
-                "X-BP-Signature": "signed_value",
-                "X-BP-Timestamp": "1234567890123",
-                **api.default_headers,  # Authenticator might add to default headers
-            },
-            params=params,  # Assuming authenticator passes params through or modifies them
-            data=data,  # Assuming authenticator passes data through or re-serializes
-        )
-        mock_bp_authenticator_instance.prepare_request.return_value = expected_components_from_auth
-
-        # Call the _authenticate method directly
-        # The actual `headers` param to _authenticate itself is what _bp_authenticator receives.
-        # BackpackAPI._authenticate passes api.default_headers to its
-        # _bp_authenticator.prepare_request.
-        auth_result_dict = await api._authenticate(method, path, params, data)
-        # headers param defaults to None
-
-        mock_bp_authenticator_instance.prepare_request.assert_called_once_with(
-            method=method,
-            path=path,
+            headers={"X-BP-ApiKey": "test_key", "X-BP-Signature": "signed_value"},
             params=params,
             data=data,
-            headers=api.default_headers.copy(),  # BackpackAPI._authenticate passes this header set
         )
-        # _authenticate should return a dict matching the structure
-        # of AuthenticatedRequestComponents
-        assert auth_result_dict["headers"] == expected_components_from_auth["headers"]
-        assert auth_result_dict["params"] == expected_components_from_auth["params"]
-        assert auth_result_dict["data"] == expected_components_from_auth["data"]
+
+        with patch.object(
+            api.authenticator, "prepare_request", new_callable=AsyncMock
+        ) as mock_prepare_request:
+            mock_prepare_request.return_value = expected_components_from_auth
+
+            # Call the _authenticate method directly (still testing this internal,
+            # but with instance's authenticator)
+            auth_result_dict = await api._authenticate(method, path, params, data)  # type: ignore[attr-defined]
+
+            mock_prepare_request.assert_called_once_with(
+                method=method,
+                path=path,
+                params=params,
+                data=data,
+                headers=api.default_headers.copy(),
+            )
+            assert auth_result_dict["headers"] == expected_components_from_auth["headers"]
+            assert auth_result_dict["params"] == expected_components_from_auth["params"]
+            assert auth_result_dict["data"] == expected_components_from_auth["data"]
 
     @pytest.mark.asyncio
-    async def test_authenticate_method_raises_if_authenticator_not_initialized(
+    async def test_authenticate_raises_if_authenticator_not_initialized(
         self,
         default_bp_config: dict[str, Any],
         bp_secrets_invalid: dict[str, str | None],
-        mock_loop: MagicMock,
+        mock_loop: MagicMock,  # mock_loop might be unused
     ) -> None:
-        api = BackpackAPI(
-            default_bp_config, bp_secrets_invalid
-        )  # Initializes with no authenticator
+        api = BackpackAPI(default_bp_config, bp_secrets_invalid)
+        assert api.authenticator is None  # Ensure it's not initialized
+
         with pytest.raises(APIError) as exc_info:
             await api._authenticate("GET", "/test", None, None)
         assert exc_info.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
         assert "Backpack authenticator not initialized" in exc_info.value.message
 
     @pytest.mark.asyncio
-    async def test_signed_request_flow_uses_authenticator_prepare_request(
+    async def test_signed_public_method_uses_authenticator(
         self,
         default_bp_config: dict[str, Any],
         bp_secrets_valid: dict[str, str | None],
-        mock_bp_authenticator_instance: MagicMock,
     ) -> None:
-        """Test that a signed request flow correctly calls authenticator.prepare_request."""
-        api = None
-        try:
-            # Create a mock authenticator instance FOR THIS TEST
-            mock_auth_for_test = MagicMock(spec=BackpackHmacAuthenticator)
-            auth_prepared_components = AuthenticatedRequestComponents(
-                headers={"X-Signed-Header": "TestSignature"}, params=None, data=None
+        """
+        Test that a signed public method (e.g., place_order) correctly uses the
+        authenticator's prepare_request method via the internal _authenticate call,
+        and then calls _request with the authenticated components.
+        """
+        api = BackpackAPI(default_bp_config, bp_secrets_valid)
+        assert api.authenticator is not None
+
+        expected_builder_payload = {
+            "symbol": "SOL_USDC",
+            "side": "buy",
+            "orderType": "LIMIT",
+            "quantity": "1",
+            "price": "100",
+            "timeInForce": "GTC",
+        }
+        authenticated_components = AuthenticatedRequestComponents(
+            headers={**api.default_headers, "X-BP-Signature": "mock_signature"},
+            params=None,
+            data=expected_builder_payload,
+        )
+        mock_order_response_content = {"id": "123", "status": "NEW", "symbol": "SOL_USDC"}
+
+        with (
+            patch.object(
+                api.authenticator, "prepare_request", new_callable=AsyncMock
+            ) as mock_prepare_request,
+            patch.object(api, "_request", new_callable=AsyncMock) as mock_api_request,
+            patch(
+                "cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder.build_place_order_payload"
+            ) as mock_build_payload,
+            patch.object(api._bp_mapper, "transform_raw_order_to_internal") as mock_transform_order,
+        ):  # type: ignore[attr-defined]
+            mock_build_payload.return_value = expected_builder_payload
+            mock_prepare_request.return_value = authenticated_components
+            mock_api_request.return_value = mock_order_response_content
+
+            mock_transformed_order = MagicMock(spec=Order)
+            mock_transform_order.return_value = mock_transformed_order
+
+            await api.place_order(
+                symbol="SOL_USDC",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("1"),
+                price=Decimal("100"),
+                time_in_force=TimeInForce.GTC,
             )
-            # Make prepare_request an AsyncMock *on the instance* so we can assert awaits
-            mock_auth_for_test.prepare_request = AsyncMock(return_value=auth_prepared_components)
 
-            # Data the builder produces
-            expected_builder_payload = {
-                "symbol": "SOL_USDC",
-                "side": "buy",
-                "orderType": "LIMIT",
-                "quantity": "1",
-                "price": "100",
-                "timeInForce": "GTC",
-                "clientId": "myorder123",
-            }
-            # Update the return data expected from prepare_request
-            auth_prepared_components["data"] = expected_builder_payload
+            mock_build_payload.assert_called_once_with(
+                symbol="SOL_USDC",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("1"),
+                price=Decimal("100"),
+                time_in_force=TimeInForce.GTC,
+                client_order_id=None,
+                post_only=False,
+                trigger_price=None,
+            )
 
-            # Expected response content returned by _request
-            mock_http_response_content = {
-                "id": "123456789",
-                "symbol": "SOL_USDC",
-                "side": "buy",
-                "orderType": "LIMIT",
-                "quantity": "1",
-                "price": "100",
-                "timeInForce": "GTC",
-                "clientId": "myorder123",
-                "status": "NEW",
-                "createdAt": 1678886400000,
-                "executedQuantity": "0",
-            }
-            # mock_response_headers = MagicMock(spec=CIMultiDictProxy) # F841 - Removed
+            mock_prepare_request.assert_called_once()
+            call_args_to_prepare = mock_prepare_request.call_args
+            assert call_args_to_prepare is not None
+            assert call_args_to_prepare.kwargs.get("data") == expected_builder_payload
 
-            # Patch the Authenticator constructor within bp_api module scope
-            with patch(
-                "cyberdelta.apis.backpack.bp_api.BackpackHmacAuthenticator",
-                return_value=mock_auth_for_test,
-            ) as mock_auth_constructor:
-                api = BackpackAPI(default_bp_config, bp_secrets_valid)
-                # Assert API instance uses our mock authenticator
-                mock_auth_constructor.assert_called_once_with(
-                    api_key="test_key", api_secret="test_secret"
-                )
-                assert api.authenticator is mock_auth_for_test
-                assert api._bp_authenticator is mock_auth_for_test
+            mock_api_request.assert_called_once_with(
+                method="POST",
+                endpoint="/api/v1/order",
+                params=authenticated_components["params"],
+                data=authenticated_components["data"],
+                headers=authenticated_components["headers"],
+                is_signed=True,  # This flag is for _request internal logic,
+                # not passed to HttpClient
+            )
 
-                # Define a side effect for the mocked _request
-                async def mock_request_side_effect(
-                    *args: Any,  # noqa: ANN401
-                    **kwargs: Any,  # noqa: ANN401
-                ) -> dict[str, Any]:
-                    # Simulate the internal call to prepare_request
-                    if kwargs.get("is_signed") is True and api.authenticator:
-                        await api.authenticator.prepare_request(
-                            method=kwargs.get("method", args[0] if args else None),
-                            path=kwargs.get(
-                                "endpoint", args[1] if len(args) > 1 else None
-                            ),  # Base _request uses 'endpoint'
-                            params=kwargs.get("params"),
-                            data=kwargs.get("data"),
-                            headers=dict(api.default_headers),  # Simulate passing headers
-                        )
-                    # Return ONLY the expected content, matching ExchangeAPI._request signature
-                    return mock_http_response_content  # NOT the tuple
-
-                # Patch the _request method on the API instance
-                with patch.object(
-                    api, "_request", side_effect=mock_request_side_effect, spec=True
-                ) as mock_api_request:
-                    # Patch the builder
-                    with patch(
-                        "cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder.build_place_order_payload"
-                    ) as mock_build_payload:
-                        mock_build_payload.return_value = expected_builder_payload
-
-                        await api.place_order(
-                            symbol="SOL_USDC",
-                            side=OrderSide.BUY,
-                            order_type=OrderType.LIMIT,
-                            quantity=Decimal("1"),
-                            price=Decimal("100"),
-                            time_in_force=TimeInForce.GTC,
-                            client_order_id="myorder123",
-                        )
-
-                    # Verify builder was called
-                    mock_build_payload.assert_called_once_with(
-                        symbol="SOL_USDC",
-                        side=OrderSide.BUY,
-                        order_type=OrderType.LIMIT,
-                        quantity=Decimal("1"),
-                        price=Decimal("100"),
-                        time_in_force=TimeInForce.GTC,
-                        client_order_id="myorder123",
-                        post_only=False,
-                        trigger_price=None,
-                    )
-
-                    # Verify prepare_request (on our specific mock instance) was awaited
-                    # via the side_effect
-                    mock_auth_for_test.prepare_request.assert_awaited_once()
-
-                    # Verify _request itself was called correctly
-                    mock_api_request.assert_awaited_once_with(
-                        method="POST",
-                        endpoint="/api/v1/order",
-                        data=expected_builder_payload,
-                        is_signed=True,
-                    )
-        finally:
-            if api:
-                await api.close()
+            mock_transform_order.assert_called_once_with(
+                unittest.mock.ANY  # Using ANY because the raw order model is
+                # complex to reconstruct here
+            )
 
 
 class TestBackpackAPIMethodErrors:
@@ -405,73 +364,53 @@ class TestBackpackAPIMethodErrors:
         default_bp_config: dict[str, Any],
         bp_secrets_valid: dict[str, str | None],
     ) -> None:
-        """Test get_ticker correctly maps a 400 error for invalid symbol."""
-        api = None
-        try:
-            api = BackpackAPI(default_bp_config, bp_secrets_valid)
-            # api.error_mapper is BackpackErrorMapper by default
+        """Test get_ticker correctly maps an HTTP error from _request."""
+        api = BackpackAPI(default_bp_config, bp_secrets_valid)
 
-            # Ensure the HttpClient session is initialized before patching its request method
-            # This can help with cleaner session teardown in scenarios where the first
-            # request is mocked to fail immediately.
-            await api._http_client._get_session()
+        http_status_from_exchange = 400
+        # This body structure is for BackpackErrorMapper to parse
+        error_body_from_exchange_dict = {
+            "message": "Invalid symbol provided via test.",
+            "code": "INVALID_SYMBOL",
+        }
+        error_body_json_str = json.dumps(error_body_from_exchange_dict)
 
-            http_status_from_exchange = 400
-            error_body_from_exchange = (
-                '{"message":"Invalid symbol provided via test.", "code":"INVALID_SYMBOL"}'
+        # Simulate that api._request (which calls HttpClient.request) raises HttpRequestFailedError
+        http_failure = HttpRequestFailedError(
+            message="HTTP 400 Error from _request",  # Message from HttpRequestFailedError
+            http_status_code=http_status_from_exchange,
+            response_body=error_body_json_str,  # Must be string for HttpRequestFailedError
+        )
+
+        # Patch api._request directly
+        with (
+            patch.object(api, "_request", side_effect=http_failure) as mock_api_request,
+            patch(
+                "cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder.build_get_ticker_params"
+            ) as mock_build_params,
+        ):
+            expected_params_from_builder = {"symbol": "XYZ_USDC"}
+            mock_build_params.return_value = expected_params_from_builder
+
+            with pytest.raises(APIError) as exc_info:
+                await api.get_ticker(symbol="XYZ_USDC")
+
+            mock_build_params.assert_called_once_with(symbol="XYZ_USDC")
+
+            # Verify api._request was called by get_ticker with correct params
+            mock_api_request.assert_called_once_with(
+                "GET",  # method
+                "/api/v1/ticker",  # endpoint
+                params=expected_params_from_builder,
+                # is_signed is False by default for get_ticker in _request call
             )
 
-            http_failure = HttpRequestFailedError(
-                message="HTTP 400 Error",
-                http_status_code=http_status_from_exchange,
-                response_body=error_body_from_exchange,
-            )
-
-            # Patch the request method on HttpClient itself
-            with patch.object(
-                api._http_client, "request", side_effect=http_failure
-            ) as mock_http_client_request:
-                with patch(
-                    "cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder.build_get_ticker_params"
-                ) as mock_build_params:
-                    expected_params_from_builder = {"symbol": "XYZ_USDC"}
-                    mock_build_params.return_value = expected_params_from_builder
-
-                    with pytest.raises(APIError) as exc_info:
-                        await api.get_ticker(symbol="XYZ_USDC")
-
-                    mock_build_params.assert_called_once_with(symbol="XYZ_USDC")
-
-                    # Verify HttpClient.request was called with expected args
-                    # HttpClient.request(
-                    #     self, method: str, endpoint_path: str, params, data, headers,
-                    #     is_signed, timeout_override
-                    # )
-                    mock_http_client_request.assert_called_once()
-                    # call_args for a method on an object will have args passed to it,
-                    # not including self
-                    # So, call_args[0] is method, call_args[1] is endpoint_path
-                    # for positional calls
-                    # Or, access via keyword args if called that way. HttpClient.request
-                    # is usually called with kwargs by ExchangeAPI._request
-                    _args_tuple, call_kwargs_dict = mock_http_client_request.call_args
-
-                    assert call_kwargs_dict["method"] == "GET"
-                    assert call_kwargs_dict["endpoint_path"] == "api/v1/ticker"
-                    assert call_kwargs_dict["params"] == expected_params_from_builder
-                    # get_ticker should not be signed implicitly by HttpClient
-                    # unless specified by ExchangeAPI._request
-                    assert call_kwargs_dict.get("is_signed") is False
-
-                    assert exc_info.value.code == APIErrorCode.INVALID_SYMBOL.value
-                    assert exc_info.value.http_status == http_status_from_exchange
-                    assert "Invalid symbol provided via test." in exc_info.value.message
-                    assert exc_info.value.exchange_message == json.loads(
-                        error_body_from_exchange
-                    ).get("message")
-        finally:
-            if api:  # Ensure api is not None before calling close
-                await api.close()
+            assert exc_info.value.code == APIErrorCode.INVALID_SYMBOL.value
+            assert exc_info.value.http_status == http_status_from_exchange
+            # APIError.message should now be based on the mapped error from BackpackErrorMapper
+            assert "Invalid symbol provided via test." in exc_info.value.message
+            # APIError.exchange_message should be the message from the raw error dict
+            assert exc_info.value.exchange_message == error_body_from_exchange_dict.get("message")
 
     @pytest.mark.asyncio
     async def test_place_order_handles_mapped_insufficient_funds_error(
@@ -479,75 +418,59 @@ class TestBackpackAPIMethodErrors:
         default_bp_config: dict[str, Any],
         bp_secrets_valid: dict[str, str | None],
     ) -> None:
-        """Test place_order maps insufficient funds error from Backpack."""
+        """Test place_order maps insufficient funds error from _request via BackpackErrorMapper."""
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
-        try:
-            # await api._http_client._get_session() # REMOVED
 
-            http_status_from_exchange = 400
-            error_body_from_exchange = (
-                '{"message":"Account has insufficient balance for requested action.",'
-                '"code":"INSUFFICIENT_FUNDS"}'
+        http_status_from_exchange = 400
+        error_body_dict = {
+            "message": "Account has insufficient balance for requested action.",
+            "code": "INSUFFICIENT_FUNDS",
+        }
+        error_body_json_str = json.dumps(error_body_dict)
+
+        http_failure = HttpRequestFailedError(
+            message="HTTP 400 Error from _request",
+            http_status_code=http_status_from_exchange,
+            response_body=error_body_json_str,
+        )
+
+        # Patch api._request directly
+        with (
+            patch.object(api, "_request", side_effect=http_failure) as mock_api_request,
+            patch(
+                "cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder.build_place_order_payload"
+            ) as mock_build_payload,
+        ):
+            expected_payload = {
+                "symbol": "BTC_USDC",
+                "side": "Buy",
+                "orderType": "Limit",
+                "quantity": "1.0",
+                "price": "50000",
+                "timeInForce": "GTC",
+            }
+            mock_build_payload.return_value = expected_payload
+
+            with pytest.raises(APIError) as exc_info:
+                await api.place_order(
+                    symbol="BTC_USDC",
+                    side=OrderSide.BUY,
+                    order_type=OrderType.LIMIT,
+                    quantity=Decimal("1.0"),
+                    price=Decimal("50000"),
+                    time_in_force=TimeInForce.GTC,
+                )
+
+            mock_build_payload.assert_called_once()
+            # Verify api._request was called by place_order
+            mock_api_request.assert_called_once_with(
+                method="POST", endpoint="/api/v1/order", data=expected_payload, is_signed=True
             )
 
-            http_failure = HttpRequestFailedError(
-                message="HTTP 400 Error",
-                http_status_code=http_status_from_exchange,
-                response_body=error_body_from_exchange,
-            )
-
-            # Patch HttpClient.request directly so ExchangeAPI._request can process its error
-            with patch.object(
-                api._http_client,
-                "request",
-                side_effect=http_failure,
-            ) as mock_http_client_request:
-                with patch(
-                    "cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder.build_place_order_payload"
-                ) as mock_build_payload:
-                    expected_payload = {
-                        "symbol": "BTC_USDC",
-                        "side": "Buy",
-                        "orderType": "Limit",
-                        "quantity": "1.0",
-                        "price": "50000",
-                        "timeInForce": "GTC",
-                    }
-                    mock_build_payload.return_value = expected_payload
-
-                    with pytest.raises(APIError) as exc_info:
-                        await api.place_order(
-                            symbol="BTC_USDC",
-                            side=OrderSide.BUY,
-                            order_type=OrderType.LIMIT,
-                            quantity=Decimal("1.0"),
-                            price=Decimal("50000"),
-                            time_in_force=TimeInForce.GTC,
-                        )
-
-                    mock_build_payload.assert_called_once()
-
-                    # Verify HttpClient.request was called by api._request
-                    mock_http_client_request.assert_called_once()
-                    _args_tuple, call_kwargs_dict = mock_http_client_request.call_args
-                    assert call_kwargs_dict["method"] == "POST"
-                    # BackpackAPI.place_order calls self._request with endpoint="/api/v1/order"
-                    # ExchangeAPI._request prepares path_for_http_client by lstrip("/")
-                    assert (
-                        call_kwargs_dict["endpoint_path"] == "api/v1/order"
-                    )  # REMOVED leading slash
-                    assert call_kwargs_dict["data"] == expected_payload
-                    assert call_kwargs_dict["is_signed"] is True  # place_order is signed
-
-            # Now exc_info.value should be the APIError mapped by ExchangeAPI._request
             assert exc_info.value.code == APIErrorCode.INSUFFICIENT_FUNDS.value
             assert exc_info.value.http_status == http_status_from_exchange
             assert "Account has insufficient balance" in exc_info.value.message
-            assert exc_info.value.exchange_message == json.loads(error_body_from_exchange).get(
-                "message"
-            )
-        finally:
-            await api.close()
+            assert exc_info.value.exchange_message == error_body_dict.get("message")
 
     # TODO: Add more error tests for other methods and error types
 
@@ -558,16 +481,18 @@ class TestBackpackAPIWebSocketRouting:
     @pytest_asyncio.fixture
     async def api_for_ws_tests(
         self, default_bp_config: dict[str, Any], bp_secrets_valid: dict[str, str | None]
-    ) -> AsyncGenerator[BackpackAPI]:  # Make it an AsyncGenerator
-        # We are primarily testing routing, not live connection
-        # Mock dependencies if needed, but allow internal WsManager initialization for routing tests
-        # Patching __init__ of underlying clients might be too much here
+    ) -> AsyncGenerator[BackpackAPI]:
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
+        # Mock the WebSocketManager instance used by the API
+        mock_ws_manager = AsyncMock()
+        mock_ws_manager.send_json = AsyncMock()
+        mock_ws_manager.close = AsyncMock()
+        # If WebSocketManager has an is_connected property or similar, mock it if needed
+        api._ws_manager = mock_ws_manager
         try:
             yield api
         finally:
-            # Ensure resources are cleaned up, even if WS wasn't fully connected
-            await api.close()
+            await api.close()  # Ensures http_client session is closed
 
     @pytest.mark.asyncio
     async def test_construct_subscription_payload(self, api_for_ws_tests: BackpackAPI) -> None:
@@ -580,103 +505,106 @@ class TestBackpackAPIWebSocketRouting:
         }
 
     @pytest.mark.asyncio
-    async def test_route_ws_message_public_topic_ticker(
+    async def test_route_ws_message_public_topic_handler_called(
         self, api_for_ws_tests: BackpackAPI
     ) -> None:
         mock_handler = AsyncMock()
         topic = "depth.SOL_USDC"
-        if api_for_ws_tests._ws_manager:
-            # Ensure send_json is an AsyncMock on the instance for this test path
-            api_for_ws_tests._ws_manager.send_json = AsyncMock()  # type: ignore[method-assign]
-            # is_connected is handled by PropertyMock in fixture, no need to set here
 
+        # Use public subscribe method
         await api_for_ws_tests.subscribe(topic, mock_handler)
+        # Verify subscribe called ws_manager.send_json (implicitly tests _construct_payload)
+        assert api_for_ws_tests._ws_manager is not None
+        api_for_ws_tests._ws_manager.send_json.assert_called_with(  # type: ignore[attr-defined]
+            {
+                "op": "subscribe",
+                "channel": topic,
+                "args": {},
+            }
+        )
 
         test_message_data = {"bids": [["100", "1"]], "asks": [["101", "2"]]}
         test_message = {"topic": topic, "data": test_message_data}
 
         await api_for_ws_tests._handle_websocket_message(test_message)
-        # The handler should receive both the data payload and the full message
         mock_handler.assert_called_once_with(test_message_data, test_message)
 
     @pytest.mark.asyncio
-    async def test_route_ws_message_private_topic_fills(
+    async def test_route_ws_message_private_topic_handler_called(
         self, api_for_ws_tests: BackpackAPI
     ) -> None:
         mock_handler = AsyncMock()
-        topic_internal = "fills"
-        if api_for_ws_tests._ws_manager:
-            # Ensure send_json is an AsyncMock
-            api_for_ws_tests._ws_manager.send_json = AsyncMock()  # type: ignore[method-assign]
-            # is_connected is handled by PropertyMock
+        topic_internal = "fills"  # This is treated as a topic by BackpackAPI
 
         await api_for_ws_tests.subscribe(topic_internal, mock_handler)
+        assert api_for_ws_tests._ws_manager is not None
+        api_for_ws_tests._ws_manager.send_json.assert_called_with(  # type: ignore[attr-defined]
+            {
+                "op": "subscribe",
+                "channel": topic_internal,
+                "args": {},
+            }
+        )
 
         test_fill_data = {"id": "fill123", "price": "150", "qty": "0.5"}
-        test_message = {"type": "fills", "data": test_fill_data}
+        # For private streams like 'fills', BackpackAPI's _route_ws_message uses 'type' as key
+        test_message = {"type": topic_internal, "data": test_fill_data}
 
         await api_for_ws_tests._handle_websocket_message(test_message)
-        # For private streams like fills, the handler receives the full message as data_payload
-        # and the full message again as the second argument.
+        # The handler for 'fills' expects the full message as data_payload and full message again
         mock_handler.assert_called_once_with(test_message, test_message)
 
     @pytest.mark.asyncio
-    async def test_route_ws_message_no_handler(
+    async def test_route_ws_message_no_handler_logs_debug(
         self,
         api_for_ws_tests: BackpackAPI,
-        caplog: LogCaptureFixture,  # caplog might be removed
+        caplog: LogCaptureFixture,
     ) -> None:
         test_message = {"topic": "unhandled.topic", "data": {"key": "value"}}
-        api_for_ws_tests._ws_handlers.clear()  # Ensure no pre-existing handlers
+        # Ensure no handler is registered for this topic by not calling subscribe
+        # Or explicitly clear if necessary: api_for_ws_tests._ws_handlers.clear()
+        api_for_ws_tests._ws_handlers.clear()
+
         with patch("cyberdelta.apis.backpack.bp_api.logger.debug") as mock_logger_debug:
             await api_for_ws_tests._handle_websocket_message(test_message)
-            print(f"mock_logger_debug calls: {mock_logger_debug.call_args_list}")  # DEBUG PRINT
-            # Assert based on actual logged message from debug print
             mock_logger_debug.assert_called_once_with(
                 f"[{api_for_ws_tests.exchange_name}] No handler registered for topic: "
                 f"unhandled.topic"
             )
 
     @pytest.mark.asyncio
-    async def test_route_ws_message_no_topic_or_type(
+    async def test_route_ws_message_no_topic_or_type_logs_debug(
         self,
         api_for_ws_tests: BackpackAPI,
-        caplog: LogCaptureFixture,  # caplog might be removed
+        caplog: LogCaptureFixture,
     ) -> None:
         test_message = {
-            "event": "random_event",
+            "event": "random_event",  # Neither 'topic' nor 'type'
             "data": {"key": "value"},
         }
         with patch("cyberdelta.apis.backpack.bp_api.logger.debug") as mock_logger_debug:
             await api_for_ws_tests._handle_websocket_message(test_message)
-            print(f"mock_logger_debug calls: {mock_logger_debug.call_args_list}")  # DEBUG PRINT
-            # Assert based on actual logged message from debug print
             mock_logger_debug.assert_called_once_with(
                 f"[{api_for_ws_tests.exchange_name}] Unroutable message (no clear string "
                 f"topic/type): {test_message}"
             )
 
     @pytest.mark.asyncio
-    async def test_route_ws_message_topic_no_data(
+    async def test_route_ws_message_topic_no_data_logs_debug(
         self, api_for_ws_tests: BackpackAPI, caplog: LogCaptureFixture
     ) -> None:
         mock_handler = AsyncMock()
         topic = "public.depth.SOL_USDC"
-        # Ensure _ws_manager exists and send_json is an AsyncMock before calling subscribe
-        assert api_for_ws_tests._ws_manager is not None
-        api_for_ws_tests._ws_manager.send_json = AsyncMock()  # type: ignore[method-assign]
+        await api_for_ws_tests.subscribe(topic, mock_handler)  # Register a handler
 
-        await api_for_ws_tests.subscribe(topic, mock_handler)
-        # The original test had an assignment to mock_ws_mgr_instance.send_json after subscribe,
-        # but subscribe itself calls send_json. So, it must be an AsyncMock before subscribe.
-        # This test doesn't actually check data handling for "no data" messages yet,
-        # it primarily ensures subscribe path with mock works.
-        # If the intent was to test _handle_websocket_message with no data:
-        # test_message_no_data = {\"topic\": topic} # Missing 'data'
-        # await api_for_ws_tests._handle_websocket_message(test_message_no_data)
-        # # Add assertions based on expected behavior (e.g., log, error, specific handling)
-        # For now, keeping it focused on the subscribe path with a correctly mocked ws_manager
-        pass  # Test implicitly passes if subscribe doesn't crash
+        test_message_no_data = {"topic": topic}  # Message has topic but no 'data' field
+        with patch("cyberdelta.apis.backpack.bp_api.logger.debug") as mock_logger_debug:
+            await api_for_ws_tests._handle_websocket_message(test_message_no_data)
+            mock_logger_debug.assert_called_once_with(
+                f"[{api_for_ws_tests.exchange_name}] Received message with topic '{topic}'"
+                f" but no data: {test_message_no_data}"
+            )
+            mock_handler.assert_not_called()  # Handler should not be called if data is missing
 
 
 class TestBackpackAPIGetAccountSummary:
@@ -689,7 +617,6 @@ class TestBackpackAPIGetAccountSummary:
         mock_raw_balances_dict_fixture: dict[str, BackpackRawBalance],
         mock_raw_positions_list_fixture: list[BackpackRawPosition],
         expected_margin_account_summary_fixture: MarginAccountSummary,
-        raw_dict_for_account_summary_response: dict[str, Any],
     ) -> None:
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
         fixed_now = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
@@ -719,7 +646,7 @@ class TestBackpackAPIGetAccountSummary:
 
             async def mock_request_side_effect(
                 method: str, endpoint: str, **kwargs: dict[str, Any]
-            ) -> Any:
+            ) -> dict[str, Any] | list[Any]:
                 if endpoint.endswith("/api/v1/capital"):
                     return {
                         k: v.model_dump(by_alias=True)
@@ -786,43 +713,53 @@ class TestBackpackAPIGetAccountSummary:
         bp_secrets_valid: dict[str, str | None],
         caplog: LogCaptureFixture,
         raw_dict_for_account_summary_response: dict[str, Any],
+        mock_raw_account_summary_fixture: BackpackRawAccountSummary,
     ) -> None:
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
 
-        async def mock_request_side_effect(
-            method: str, endpoint: str, **kwargs: dict[str, Any]
-        ) -> Any:
-            if endpoint.endswith("/api/v1/account"):
-                return raw_dict_for_account_summary_response
-            elif endpoint.endswith("/api/v1/capital"):
-                raise HttpRequestFailedError("Simulated balances fetch error", http_status_code=500)
-            raise ValueError(
-                f"Unexpected endpoint in mock_request_side_effect for "
-                f"balances_raw_failure test: {endpoint}"
-            )
+        with (
+            patch.object(
+                api, "get_account_info", return_value=mock_raw_account_summary_fixture
+            ) as mock_get_info_method,
+            patch.object(api, "_request") as mock_api_request,
+        ):
 
-        with patch.object(
-            api, "_request", side_effect=mock_request_side_effect
-        ) as mock_overall_request:
+            def request_side_effect(method: str, endpoint: str, **kwargs: dict[str, Any]) -> None:
+                if endpoint.endswith("/api/v1/capital"):
+                    raise HttpRequestFailedError(
+                        "Simulated balances fetch error", http_status_code=500
+                    )
+                elif endpoint.endswith("/api/v1/positions"):
+                    raise ValueError(
+                        "Positions should not be fetched if balances failed contextually"
+                        " in this test"
+                    )
+                raise ValueError(
+                    f"Unexpected endpoint in balances_raw_failure test mock_request: {endpoint}"
+                )
+
+            mock_api_request.side_effect = request_side_effect
+
             with pytest.raises(APIError) as exc_info:
                 await api.get_account_summary()
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
         assert "Unexpected error during get_account_summary" in str(exc_info.value.message)
         assert (
-            "Unexpected endpoint in mock_request_side_effect for "
-            "balances_raw_failure test: /api/v1/positions"
-        ) in str(exc_info.value.original_exception)
-        calls = mock_overall_request.call_args_list
-        assert any(c_args[0][1].endswith("/api/v1/account") for c_args in calls), (
-            "Expected _request to be called for /api/v1/account"
+            "Positions should not be fetched if balances failed contextually in this test"
+            in str(exc_info.value.original_exception)
         )
-        assert any(c_args[0][1].endswith("/api/v1/capital") for c_args in calls), (
-            "Expected _request to be called for /api/v1/capital"
-        )
-        assert any(c_args[0][1].endswith("/api/v1/positions") for c_args in calls), (
-            "Expected _request to be called for /api/v1/positions"
-        )
+
+        mock_get_info_method.assert_called_once()
+        balance_call_found = False
+        position_call_found = False
+        for call_item in mock_api_request.call_args_list:
+            if call_item.args[1].endswith("/api/v1/capital"):
+                balance_call_found = True
+            if call_item.args[1].endswith("/api/v1/positions"):
+                position_call_found = True
+        assert balance_call_found
+        assert position_call_found
 
     @pytest.mark.asyncio
     async def test_get_account_summary_mapper_failure(
@@ -830,34 +767,38 @@ class TestBackpackAPIGetAccountSummary:
         default_bp_config: dict[str, Any],
         bp_secrets_valid: dict[str, str | None],
         caplog: LogCaptureFixture,
+        mock_raw_account_summary_fixture: BackpackRawAccountSummary,
         mock_raw_balances_dict_fixture: dict[str, BackpackRawBalance],
         mock_raw_positions_list_fixture: list[BackpackRawPosition],
-        raw_dict_for_account_summary_response: dict[str, Any],
     ) -> None:
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
 
-        async def mock_request_side_effect(
-            method: str, endpoint: str, **kwargs: dict[str, Any]
-        ) -> Any:
-            if endpoint.endswith("/api/v1/account"):
-                return raw_dict_for_account_summary_response
-            elif endpoint.endswith("/api/v1/capital"):
-                return {
-                    k: v.model_dump(by_alias=True)
-                    for k, v in mock_raw_balances_dict_fixture.items()
-                }
-            elif endpoint.endswith("/api/v1/positions"):
-                return [pos.model_dump(by_alias=True) for pos in mock_raw_positions_list_fixture]
-            raise ValueError(f"Unexpected URL in mapper_failure: {endpoint}")
+        with (
+            patch.object(api, "get_account_info", return_value=mock_raw_account_summary_fixture),
+            patch.object(api, "_request") as mock_api_request,
+            patch.object(
+                api._bp_mapper,
+                "transform_raw_account_summary_to_internal",
+                side_effect=ValueError("Mapper internal error"),
+            ) as mock_transform_summary,
+        ):
 
-        api._bp_mapper = MagicMock()
-        api._bp_mapper.transform_raw_account_summary_to_internal = MagicMock(
-            side_effect=ValueError("Mapper internal error")
-        )
+            def request_side_effect(
+                method: str, endpoint: str, **kwargs: dict[str, Any]
+            ) -> dict[str, Any] | list[Any]:
+                if endpoint.endswith("/api/v1/capital"):
+                    return {
+                        k: v.model_dump(by_alias=True)
+                        for k, v in mock_raw_balances_dict_fixture.items()
+                    }
+                elif endpoint.endswith("/api/v1/positions"):
+                    return [
+                        pos.model_dump(by_alias=True) for pos in mock_raw_positions_list_fixture
+                    ]
+                raise ValueError(f"Unexpected URL in mapper_failure mock_request: {endpoint}")
 
-        with patch.object(
-            api, "_request", side_effect=mock_request_side_effect
-        ) as _mock_api_request_direct:
+            mock_api_request.side_effect = request_side_effect
+
             with pytest.raises(APIError) as exc_info:
                 await api.get_account_summary()
 
@@ -868,4 +809,4 @@ class TestBackpackAPIGetAccountSummary:
             "Error mapping raw account data to internal summary: Mapper internal error"
             in caplog.text
         )
-        api._bp_mapper.transform_raw_account_summary_to_internal.assert_called_once()
+        mock_transform_summary.assert_called_once()
