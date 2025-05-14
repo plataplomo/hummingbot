@@ -63,6 +63,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 from cyberdelta.core.models import (
     DerivativePosition,
     HyperliquidMarginDetails,
+    HyperliquidPositionDetails,
     HyperliquidSpotBalanceDetails,
     MarginAccountSummary,
     Order,
@@ -791,22 +792,79 @@ class HyperliquidMapper:
                 )
                 effective_available = Decimal("0")
 
-            # HyperliquidSpotBalanceDetails is currently an empty model
-            details = HyperliquidSpotBalanceDetails()
+            # Only add USDC if there's a non-zero total or a non-zero (and valid) available amount.
+            # This prevents adding a USDC entry with (0, 0) for truly empty accounts.
+            is_total_zero = usdc_total_balance == Decimal("0")
+            # Consider available effectively zero if it parses to None or Decimal('0')
+            is_available_effectively_zero = effective_available == Decimal("0")
 
-            spot_balances["USDC"] = SpotBalance(
-                exchange=ExchangeName.HYPERLIQUID.value,
-                asset="USDC",
-                timestamp=datetime.now(UTC),  # Raw state doesn't provide a snapshot timestamp
-                total_quantity=usdc_total_balance,
-                available_quantity=effective_available,
-                hl_details=details,
-            )
+            if not (is_total_zero and is_available_effectively_zero):
+                # HyperliquidSpotBalanceDetails is currently an empty model
+                details = HyperliquidSpotBalanceDetails()
+
+                spot_balances["USDC"] = SpotBalance(
+                    exchange=ExchangeName.HYPERLIQUID.value,
+                    asset="USDC",
+                    timestamp=datetime.now(UTC),  # Raw state doesn't provide a snapshot timestamp
+                    total_quantity=usdc_total_balance,
+                    available_quantity=effective_available,
+                    hl_details=details,
+                )
         else:
             logger.warning(
                 "[HyperliquidMapper] Could not parse 'account_value' from margin_summary "
                 "to determine USDC total spot balance."
             )
+
+        # Iterate asset_positions for other potential spot assets
+        for asset_pos in raw_state.asset_positions:
+            asset_name = asset_pos.asset
+            if asset_name == "USDC":  # Already handled or will be via margin_summary
+                continue
+
+            # Heuristic: if asset name doesn't typically denote a known derivative, treat as spot.
+            # Hyperliquid perps are often like 'BTC', 'ETH' or 'BTC-PERP'.
+            # This needs to be robust if new spot assets or perp naming conventions appear.
+            # For now, a simple check against "-PERP" suffix.
+            is_likely_perp = "-PERP" in asset_name.upper()
+
+            if not is_likely_perp:
+                logger.debug(
+                    f"[HyperliquidMapper] Processing potential spot asset: {asset_name}"
+                )  # DEBUG
+                total_qty_str = asset_pos.position.szi
+                total_qty = parse_decimal_value(
+                    total_qty_str,
+                    allow_none=True,
+                    field_name=f"asset_positions.{asset_name}.szi (for spot total)",
+                )
+                logger.debug(
+                    f"[HyperliquidMapper] Parsed total_qty for {asset_name}: {total_qty}"
+                )  # DEBUG
+
+                if total_qty is not None and total_qty > Decimal("0"):
+                    # For non-USDC spot from assetPositions, available_quantity is ambiguous.
+                    # Defaulting to total_quantity for now.
+                    available_qty = total_qty
+                    details = HyperliquidSpotBalanceDetails()  # Empty for now
+
+                    spot_balances[asset_name] = SpotBalance(
+                        exchange=ExchangeName.HYPERLIQUID.value,
+                        asset=asset_name,
+                        timestamp=datetime.now(UTC),  # Consider a common timestamp
+                        total_quantity=total_qty,
+                        available_quantity=available_qty,
+                        hl_details=details,
+                    )
+                elif total_qty is None:
+                    logger.warning(
+                        f"[HyperliquidMapper] Could not parse 'szi' for potential spot asset "
+                        f"{asset_name} from asset_positions."
+                    )
+                else:  # total_qty <= 0
+                    logger.debug(
+                        f"[HyperliquidMapper] Skipping spot asset {asset_name} due to zero or negative quantity: {total_qty}"
+                    )  # DEBUG
 
         return spot_balances
 
@@ -875,6 +933,8 @@ class HyperliquidMapper:
             dir=raw.dir,
         )
 
+        internal_cloid = raw.cloid if raw.cloid else None  # Convert empty string to None
+
         return Trade(
             id=str(raw.tid),  # Use trade ID as primary ID
             symbol=raw.coin,
@@ -882,7 +942,7 @@ class HyperliquidMapper:
             side=side,
             order_id=str(raw.oid),
             exchange=ExchangeName.HYPERLIQUID.value,
-            client_order_id=raw.cloid,
+            client_order_id=internal_cloid,  # Use mapped cloid
             price=price,
             quantity=quantity,
             fee=fee,
@@ -947,18 +1007,28 @@ class HyperliquidPositionMapper:
         entry_price = parse_decimal_value(
             raw.entry_px, allow_none=False, field_name="position.entry_price"
         )
-        mark_price = parse_decimal_value(
-            raw.position_value, allow_none=True, field_name="position.position_value"
-        )
         unrealized_pnl = parse_decimal_value(
             raw.unrealized_pnl, allow_none=True, field_name="position.unrealized_pnl"
         )
-        if size is None or entry_price is None:
+        margin_used_val = parse_decimal_value(
+            raw.margin_used, allow_none=False, field_name="position.margin_used"
+        )
+
+        if (
+            size is None or entry_price is None or margin_used_val is None
+        ):  # entry_price & margin_used are critical
             return None
         side = OrderSide.BUY if size > 0 else OrderSide.SELL
         # Extract timestamp (assuming it exists in raw.position or similar)
         # Placeholder: Use current time if timestamp is not available
         timestamp = parse_datetime_utc(getattr(raw, "timestamp", None)) or datetime.now(UTC)
+
+        hl_details = HyperliquidPositionDetails(
+            leverage_type=raw.leverage.type,
+            leverage_value=raw.leverage.value,
+            max_leverage=raw.max_leverage,
+            margin_used=margin_used_val,
+        )
 
         return DerivativePosition(
             exchange=ExchangeName.HYPERLIQUID,  # Add required exchange
@@ -966,14 +1036,15 @@ class HyperliquidPositionMapper:
             symbol=raw.coin,
             size=size,
             entry_price=entry_price,
-            mark_price=mark_price,
+            mark_price=None,  # Corrected: HyperliquidRawPositionInfo does not provide mark_price
             side=side,
             liquidation_price=parse_decimal_value(
                 raw.liquidation_px, allow_none=True, field_name="position.liquidation_px"
             ),
             unrealized_pnl=unrealized_pnl,
+            hl_details=hl_details,  # Pass the created details object
             # leverage removed
-            # TODO: Add hl_details parsing if needed
+            # TODO: Add hl_details parsing if needed # This TODO can be removed now
         )
 
     @staticmethod

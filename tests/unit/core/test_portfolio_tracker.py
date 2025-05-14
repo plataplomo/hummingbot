@@ -746,9 +746,9 @@ class TestPortfolioTracker:
         # If initialize() was called, initial_balances would reflect that.
         # If the error occurs during update *after* a successful init, state should persist.
         # Here, initial_balances reflects the state *before* this failing update.
-        assert portfolio_tracker.balances.get("hyperliquid", {}) == initial_balances.get(
-            "hyperliquid", {}
-        )
+        assert portfolio_tracker.balances.get(
+            "hyperliquid", dict[str, SpotBalance]()
+        ) == initial_balances.get("hyperliquid", dict[str, SpotBalance]())
 
         # Positions and orders should reflect the successful API calls for those parts
         assert "BTC" in portfolio_tracker.positions["hyperliquid"]
@@ -943,7 +943,7 @@ class TestPortfolioTracker:
         # HyperLiquid ETH
         price_eth_in_usdc = await portfolio_tracker._get_asset_price_in_base(
             "hyperliquid", "ETH", "USDC"
-        )
+        )  # noqa: SLF001
         assert price_eth_in_usdc is not None, "Price for ETH in USDC should be available"
         hl_eth_val = sample_balances_state["hyperliquid"]["ETH"].total_quantity * price_eth_in_usdc
 
@@ -955,7 +955,7 @@ class TestPortfolioTracker:
         # This access might be an issue if _get_asset_price_in_base is truly private and not testable
         price_btc_in_usdc = await portfolio_tracker._get_asset_price_in_base(
             "backpack", "BTC", "USDC"
-        )
+        )  # noqa: SLF001
         assert price_btc_in_usdc is not None, (
             "Price for BTC in USDC should be available from mock ticker"
         )
@@ -973,7 +973,7 @@ class TestPortfolioTracker:
 
         # Test with a different base currency if _get_asset_price_in_base supports it
         # For example, if BTC is base currency (this requires USDC-BTC ticker mock)
-        # price_usdc_btc = await portfolio_tracker._get_asset_price_in_base("hyperliquid", "USDC", "BTC")
+        # price_usdc_btc = await portfolio_tracker._get_asset_price_in_base("hyperliquid", "USDC", "BTC") # noqa: SLF001
         # print(f"Debug: Price USDC-BTC from helper: {price_usdc_btc}") # Should be 0.00002
 
         # total_capital_btc = await portfolio_tracker.get_total_capital(base_currency="BTC")
@@ -994,7 +994,7 @@ class TestPortfolioTracker:
         )
         # Ensure _get_asset_price_in_base returns None for "UNPRICED"
         # The api_clients fixture's mock_get_ticker_side_effect should return None for it.
-        # unpriced_price = await portfolio_tracker._get_asset_price_in_base("hyperliquid", "UNPRICED", "USDC")
+        # unpriced_price = await portfolio_tracker._get_asset_price_in_base("hyperliquid", "UNPRICED", "USDC") # noqa: SLF001
         # print(f"Debug: Price UNPRICED-USDC: {unpriced_price}") # Should be None
 
         total_capital_with_unpriced = await portfolio_tracker.get_total_capital(
