@@ -67,6 +67,12 @@ def mock_bp_authenticator_instance() -> MagicMock:
 
 
 @pytest.fixture
+def mock_raw_account_fixture() -> dict[str, Any]:
+    """Provides a valid raw data dictionary for BackpackRawAccount."""
+    return {"id": "test-account-id-123", "email": "testuser@example.com", "status": "active"}
+
+
+@pytest.fixture
 def mock_raw_account_summary_fixture() -> BackpackRawAccountSummary:
     return BackpackRawAccountSummary(
         autoBorrowSettlements=True,
@@ -645,6 +651,7 @@ class TestBackpackAPIGetAccountSummary:
         self,
         default_bp_config: dict[str, Any],
         bp_secrets_valid: dict[str, str | None],
+        mock_raw_account_fixture: dict[str, Any],
         mock_raw_account_summary_fixture: BackpackRawAccountSummary,
         mock_raw_balances_dict_fixture: dict[str, BackpackRawBalance],
         mock_raw_positions_list_fixture: list[BackpackRawPosition],
@@ -751,22 +758,33 @@ class TestBackpackAPIGetAccountSummary:
         self,
         default_bp_config: dict[str, Any],
         bp_secrets_valid: dict[str, str | None],
+        mock_raw_account_fixture: dict[str, Any],
         mock_raw_account_summary_fixture: BackpackRawAccountSummary,
         caplog: LogCaptureFixture,
     ) -> None:
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
         mock_get_account_info = AsyncMock(return_value=mock_raw_account_summary_fixture)
 
-        # Simulate APIError when _request for balances is called
-        # The actual get_balances_raw was a misnomer; we mock _request or the handler
-        # Here, we'll mock _request to raise an error when called for balances
-        mock_api_request_for_balances = AsyncMock(
-            side_effect=APIError("Failed to fetch balances", code=APIErrorCode.UNKNOWN.value)
-        )
+        # Mock API responses
+        async def mock_request_side_effect(method: str, url: str, **kwargs: Any) -> Any:
+            if url.endswith(api.ACCOUNT_INFO_URL):
+                return mock_raw_account_fixture  # RETURN NEW FIXTURE DATA
+            elif url.endswith(api.BALANCES_URL):
+                raise HttpRequestFailedError("Simulated balances fetch error")
+            # POSITIONS_URL and ACCOUNT_SUMMARY_URL_V2 won't be called if balances fail first
+            # but good practice to define behavior or raise if unexpected.
+            elif url.endswith(api.POSITIONS_URL):
+                return []  # Or some valid default if needed by subsequent logic before error handling
+            elif url.endswith(api.ACCOUNT_SUMMARY_URL_V2):
+                return mock_raw_account_summary_fixture.model_dump(by_alias=True)
+            raise HttpRequestFailedError(f"Unexpected URL in balances_raw_failure: {url}")
+
+        mock_http_client = MagicMock()
+        mock_http_client.request.side_effect = mock_request_side_effect
 
         with (
             patch.object(api, "get_account_info", mock_get_account_info),
-            patch.object(api, "_request", mock_api_request_for_balances) as mock_overall_request,
+            patch.object(api, "_request", mock_http_client) as mock_overall_request,
         ):
             # We need to ensure _request is only mocked to fail for the balances call.
             # This setup is simplistic. A more robust way would be to have mock_overall_request
@@ -789,9 +807,9 @@ class TestBackpackAPIGetAccountSummary:
         self,
         default_bp_config: dict[str, Any],
         bp_secrets_valid: dict[str, str | None],
+        mock_raw_account_fixture: dict[str, Any],
         mock_raw_account_summary_fixture: BackpackRawAccountSummary,
         mock_raw_balances_dict_fixture: dict[str, BackpackRawBalance],
-        mock_raw_positions_list_fixture: list[BackpackRawPosition],
         caplog: LogCaptureFixture,
     ) -> None:
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
@@ -805,6 +823,23 @@ class TestBackpackAPIGetAccountSummary:
             side_effect=ValueError("Mapper internal error")
         )
 
+        # Mock API responses
+        async def mock_request_side_effect(method: str, url: str, **kwargs: Any) -> Any:
+            if url.endswith(api.ACCOUNT_INFO_URL):
+                return mock_raw_account_fixture  # RETURN NEW FIXTURE DATA
+            elif url.endswith(api.BALANCES_URL):
+                return [
+                    b.model_dump(by_alias=True) for b in mock_raw_balances_dict_fixture.values()
+                ]
+            elif url.endswith(api.POSITIONS_URL):
+                return [p.model_dump(by_alias=True) for p in mock_raw_positions_list_fixture]
+            elif url.endswith(api.ACCOUNT_SUMMARY_URL_V2):
+                return mock_raw_account_summary_fixture.model_dump(by_alias=True)
+            raise HttpRequestFailedError(f"Unexpected URL in mapper_failure: {url}")
+
+        mock_http_client = MagicMock()
+        mock_http_client.request.side_effect = mock_request_side_effect
+
         with (
             patch.object(api, "get_account_info", mock_get_account_info),
             patch(
@@ -815,8 +850,8 @@ class TestBackpackAPIGetAccountSummary:
                 "cyberdelta.apis.backpack.bp_api.BackpackResponseHandler.handle_get_positions_response",
                 mock_handle_positions_response,
             ),
-            patch.object(api, "_request", AsyncMock(return_value={})),
-        ):  # Mock _request to not fail
+            patch.object(api, "_request", mock_http_client) as mock_overall_request,
+        ):
             with pytest.raises(APIError) as exc_info:
                 await api.get_account_summary()
 

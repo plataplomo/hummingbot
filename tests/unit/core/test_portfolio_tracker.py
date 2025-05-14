@@ -943,7 +943,7 @@ class TestPortfolioTracker:
         # HyperLiquid ETH
         price_eth_in_usdc = await portfolio_tracker._get_asset_price_in_base(
             "hyperliquid", "ETH", "USDC"
-        )  # noqa: SLF001
+        )
         assert price_eth_in_usdc is not None, "Price for ETH in USDC should be available"
         hl_eth_val = sample_balances_state["hyperliquid"]["ETH"].total_quantity * price_eth_in_usdc
 
@@ -955,7 +955,7 @@ class TestPortfolioTracker:
         # This access might be an issue if _get_asset_price_in_base is truly private and not testable
         price_btc_in_usdc = await portfolio_tracker._get_asset_price_in_base(
             "backpack", "BTC", "USDC"
-        )  # noqa: SLF001
+        )
         assert price_btc_in_usdc is not None, (
             "Price for BTC in USDC should be available from mock ticker"
         )

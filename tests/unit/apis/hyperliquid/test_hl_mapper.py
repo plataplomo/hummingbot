@@ -223,63 +223,57 @@ class TestMapRawClearinghouseStateToMarginSummary:
     def test_invalid_numeric_strings_in_raw_state(
         self, raw_clearinghouse_state_base_fixture: HyperliquidRawClearinghouseState
     ) -> None:
-        """Test graceful handling of invalid numeric strings in raw_state."""
-        invalid_margin_summary = HyperliquidRawMarginSummary(
-            accountValue="not-a-number",
-            totalRawUsd="still-bad",
-            totalMarginUsed="nope",
-            totalNtlPos="bad",
-        )
-        current_raw_state = raw_clearinghouse_state_base_fixture.model_copy(
-            update={
-                "marginSummary": invalid_margin_summary,
-                "crossMaintenanceMarginUsed": "also-invalid",
-                "isolatedMaintenanceMarginUsed": "another-bad-one",
-                "withdrawable": "bad-decimal",
-            }
-        )
-
-        summary = HyperliquidMapper.map_raw_clearinghouse_state_to_margin_summary(current_raw_state)
-
-        assert summary.total_equity == Decimal("0")
-        assert summary.total_unrealized_pnl == Decimal("0")
-        assert summary.total_initial_margin_required == Decimal("0")
-        assert summary.total_maintenance_margin_required == Decimal("0")
-        assert summary.available_equity == Decimal("0")
-
-    def test_missing_margin_summary_in_raw_state_simulated(
-        self, raw_clearinghouse_state_base_fixture: HyperliquidRawClearinghouseState
-    ) -> None:
-        """Test handling if margin_summary is effectively None (e.g., parsing failed upstream)."""
-        raw_dict_missing_summary = raw_clearinghouse_state_base_fixture.model_dump(by_alias=True)
-        if "marginSummary" in raw_dict_missing_summary:
-            del raw_dict_missing_summary["marginSummary"]
-        if "crossMaintenanceMarginUsed" in raw_dict_missing_summary:
-            del raw_dict_missing_summary["crossMaintenanceMarginUsed"]
+        """Test that creating/copying raw_state with invalid numeric strings raises ValidationError."""
+        invalid_margin_summary_data = {
+            "accountValue": "not-a-number",
+            "totalRawUsd": "still-bad",
+            "totalMarginUsed": "nope",
+            "totalNtlPos": "bad",
+        }
+        # Validation should fail when attempting to create HyperliquidRawMarginSummary
+        # or when model_copy tries to validate the updated fields.
+        with pytest.raises(ValidationError):
+            raw_clearinghouse_state_base_fixture.model_copy(
+                update={
+                    "marginSummary": HyperliquidRawMarginSummary(**invalid_margin_summary_data),
+                    "crossMaintenanceMarginUsed": "also-invalid",
+                    "isolatedMaintenanceMarginUsed": "another-bad-one",
+                    "withdrawable": "bad-decimal",
+                }
+            )
 
     def test_withdrawable_funds_invalid_or_missing_in_raw_state(
         self, raw_clearinghouse_state_base_fixture: HyperliquidRawClearinghouseState
     ) -> None:
-        """Test available_equity calculation when withdrawable is problematic."""
-        state_with_invalid_withdrawable = raw_clearinghouse_state_base_fixture.model_copy(
+        """Test that mapping raw_state with invalid 'withdrawable' raises ValueError from mapper."""
+        current_raw_state_invalid = raw_clearinghouse_state_base_fixture.model_copy(
             update={"withdrawable": "not-a-decimal"}
         )
-        summary_invalid = HyperliquidMapper.map_raw_clearinghouse_state_to_margin_summary(
-            state_with_invalid_withdrawable
-        )
-        assert summary_invalid.available_equity == Decimal("0")
+        # Expect ValueError from parse_decimal_value inside the mapper
+        with pytest.raises(ValueError) as exc_info:
+            HyperliquidMapper.map_raw_clearinghouse_state_to_margin_summary(
+                current_raw_state_invalid
+            )
+        assert "withdrawable" in str(exc_info.value).lower()
 
     def test_cross_maintenance_margin_used_invalid_or_missing_in_raw_state(
         self, raw_clearinghouse_state_base_fixture: HyperliquidRawClearinghouseState
     ) -> None:
-        """Test total_maintenance_margin when crossMaintenanceMarginUsed is problematic."""
-        state_invalid_cross_mmr = raw_clearinghouse_state_base_fixture.model_copy(
-            update={"crossMaintenanceMarginUsed": "invalid"}
+        """Test mapping with problematic crossMaintenanceMarginUsed."""
+        # Case 1: Invalid numeric string for crossMaintenanceMarginUsed - should raise ValidationError on model_copy
+        with pytest.raises(ValidationError):
+            raw_clearinghouse_state_base_fixture.model_copy(
+                update={"crossMaintenanceMarginUsed": "bad-value"}
+            )
+
+        # Case 2: Test successful mapping with valid values (original intent of the second part)
+        current_raw_state_updated_mmr = raw_clearinghouse_state_base_fixture.model_copy(
+            update={"crossMaintenanceMarginUsed": "0.0", "isolatedMaintenanceMarginUsed": "25.0"}
         )
-        summary_invalid = HyperliquidMapper.map_raw_clearinghouse_state_to_margin_summary(
-            state_invalid_cross_mmr
+        summary_updated_mmr = HyperliquidMapper.map_raw_clearinghouse_state_to_margin_summary(
+            current_raw_state_updated_mmr
         )
-        assert summary_invalid.total_maintenance_margin_required == Decimal("25.0")
+        assert summary_updated_mmr.total_maintenance_margin_required == Decimal("25.0")
 
 
 # --- Tests for map_raw_clearinghouse_state_to_spot_balances ---

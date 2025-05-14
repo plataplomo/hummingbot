@@ -1692,7 +1692,17 @@ class HyperliquidAPI(ExchangeAPI):
             ):  # Should not happen for public endpoint
                 return None
             raise e
-        except Exception as e:
+        except ValidationError as ve:  # ADDED BLOCK
+            logger.error(
+                f"[{self.exchange_name}] Pydantic ValidationError in get_account_summary (user_state): {ve}",
+                exc_info=True,
+            )
+            raise APIError(
+                f"Validation error processing account summary (user_state): {ve}",
+                code=APIErrorCode.INVALID_RESPONSE.value,  # Or a more specific code
+                original_exception=ve,
+            ) from ve
+        except Exception as e:  # Keep this for other unexpected errors
             logger.error(
                 f"[{self.exchange_name}] Unexpected error in get_account_summary (user_state): {e}",
                 exc_info=True,

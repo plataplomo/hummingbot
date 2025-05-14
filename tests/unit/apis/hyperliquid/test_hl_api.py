@@ -47,7 +47,7 @@ from cyberdelta.core.models.margin_account import HyperliquidMarginDetails
 from cyberdelta.core.models.market.order import Order
 
 # Constants for testing
-TEST_WALLET_ADDRESS = "0xTestWalletAddress000000000000000000000000"
+TEST_WALLET_ADDRESS = "0x0000000000000000000000000000000000000000"  # Corrected length (42 chars)
 TEST_PRIVATE_KEY = "0xTestPrivateKey00000000000000000000000000000000000000000000000"
 TEST_CHAIN_ID = 1337
 TEST_API_KEY = "test_key"
@@ -943,6 +943,7 @@ async def test_get_account_summary_success(
     _mock_auth_class, _mock_auth_instance = mock_hl_auth_init
     api = HyperliquidAPI(BASE_API_CONFIG, SECRETS_WITH_KEY)
     raw_user_state_dict_from_api = mock_raw_user_state_fixture.model_dump(by_alias=True)
+
     mock_api_request = AsyncMock(return_value=raw_user_state_dict_from_api)
     mock_handle_user_state_response = MagicMock(return_value=mock_raw_user_state_fixture)
 
@@ -974,11 +975,13 @@ async def test_get_account_summary_success(
 
     mock_api_request.assert_awaited_once_with(
         method="POST",
-        endpoint="/info",
+        endpoint=api.INFO_URL,  # Corrected from "/info"
         data={"type": "clearinghouseState", "user": TEST_WALLET_ADDRESS},
         is_signed=False,
     )
-    patched_handler.assert_called_once_with(raw_user_state_dict_from_api, TEST_WALLET_ADDRESS)
+    patched_handler.assert_called_once_with(
+        raw_response_content=raw_user_state_dict_from_api, user_address=TEST_WALLET_ADDRESS
+    )
     mock_map_to_margin_summary.assert_called_once_with(mock_raw_user_state_fixture)
 
 
@@ -1000,7 +1003,7 @@ async def test_get_account_summary_request_fails(
 
     assert exc_info.value.code == APIErrorCode.SERVICE_UNAVAILABLE.value
     assert "Network Error" in str(exc_info.value)
-    assert "Failed to fetch raw user state for account summary" in caplog.text
+    assert "API Error getting account summary (user_state)" in caplog.text
     mock_api_request.assert_awaited_once()
 
 
@@ -1009,6 +1012,7 @@ async def test_get_account_summary_handler_fails(
     mock_hl_auth_init: tuple[MagicMock, MagicMock], caplog: LogCaptureFixture
 ) -> None:
     """Test get_account_summary when HyperliquidResponseHandler fails."""
+    caplog.set_level(logging.ERROR, logger="cyberdelta.apis.hyperliquid.hl_api")
     _mock_auth_class, _mock_auth_instance = mock_hl_auth_init
     api = HyperliquidAPI(BASE_API_CONFIG, SECRETS_WITH_KEY)
 
@@ -1039,8 +1043,8 @@ async def test_get_account_summary_handler_fails(
             await api.get_account_summary()
 
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "Validation error in clearinghouseState response" in str(exc_info.value.message)
-    assert "Validation error processing raw user state for account summary" in caplog.text
+    assert "Validation error processing account summary (user_state)" in str(exc_info.value.message)
+    assert "Pydantic ValidationError in get_account_summary (user_state)" in caplog.text
     mock_api_request.assert_awaited_once()
     patched_handler.assert_called_once_with(raw_user_state_dict_from_api, TEST_WALLET_ADDRESS)
 
@@ -1052,6 +1056,7 @@ async def test_get_account_summary_mapper_fails(
     caplog: LogCaptureFixture,
 ) -> None:
     """Test get_account_summary when the mapper fails."""
+    caplog.set_level(logging.ERROR, logger="cyberdelta.apis.hyperliquid.hl_api")
     _mock_auth_class, _mock_auth_instance = mock_hl_auth_init
     api = HyperliquidAPI(BASE_API_CONFIG, SECRETS_WITH_KEY)
 
@@ -1075,8 +1080,8 @@ async def test_get_account_summary_mapper_fails(
         with pytest.raises(APIError) as exc_info:
             await api.get_account_summary()
 
-    assert exc_info.value.code == APIErrorCode.UNKNOWN.value  # Temporarily use UNKNOWN
-    assert "Error transforming raw user state to internal summary" in str(exc_info.value.message)
+    assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+    assert "Unexpected error getting account summary (user_state)" in str(exc_info.value.message)
     assert "Mapper transformation error" in str(exc_info.value.original_exception)
-    assert "Error transforming user state to margin summary" in caplog.text
+    assert "Unexpected error in get_account_summary (user_state)" in caplog.text
     patched_mapper.assert_called_once_with(mock_raw_user_state_fixture)
