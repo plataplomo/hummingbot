@@ -890,30 +890,88 @@ class BackpackAPI(ExchangeAPI):
         into the internal MarginAccountSummary model.
         """
         logger.debug(f"[{self.exchange_name}] Fetching full account summary...")
+        raw_account_settings: BackpackRawAccountSummary | None = None
+        raw_spot_balances: dict[str, BackpackRawBalance] = {}
+        raw_derivative_positions: list[BackpackRawPosition] = []
+
         try:
-            raw_account_settings = await self.get_account_info()
+            # 1. Fetch Raw Account Settings
+            raw_account_settings = (
+                await self.get_account_info()
+            )  # This already returns BackpackRawAccountSummary
             if not raw_account_settings:
                 logger.warning(
                     f"[{self.exchange_name}] Failed to fetch raw account settings for summary."
                 )
                 return None  # Critical piece missing
 
-            # get_balances() already returns dict[str, SpotBalance] (internal models)
-            spot_balances_internal = await self.get_balances()
-            # get_balances already logs errors, so we can proceed even if it's empty or partially failed
+            # 2. Fetch and Validate Raw Balances
+            balances_endpoint = "/api/v1/capital"
+            # build_get_balances_params returns None, which is fine for self._request
+            balances_params = BackpackRequestBuilder.build_get_balances_params()
+            balances_response_raw: RawJsonResponse | None = None  # Initialize for broader scope
+            try:
+                balances_response_raw = await self._request(
+                    "GET", balances_endpoint, params=balances_params, is_signed=True
+                )
+                if not isinstance(balances_response_raw, dict):
+                    logger.error(
+                        f"[{self.exchange_name}] Unexpected balances response type in get_account_summary: "
+                        f"{type(balances_response_raw)}. Expected dict. Raw: {balances_response_raw!r}"
+                    )
+                    # Depending on strictness, might raise or return None here
+                    # For now, assign empty dict to raw_spot_balances if response is bad
+                    raw_spot_balances = {}
+                else:
+                    raw_spot_balances = BackpackResponseHandler.handle_get_balances_response(
+                        balances_response_raw
+                    )
+            except APIError as e_balance_fetch:
+                logger.error(
+                    f"[{self.exchange_name}] API Error fetching balances for summary: {e_balance_fetch}"
+                )
+                # Decide if partial summary is acceptable or if we should return None/re-raise
+                # For now, allow proceeding with empty raw_spot_balances
+                raw_spot_balances = {}
 
-            # get_positions() already returns list[DerivativePosition] (internal models)
-            derivative_positions_internal = await self.get_positions()
-            # get_positions already logs errors
+            # 3. Fetch and Validate Raw Positions
+            positions_endpoint = "/api/v1/positions"  # Fetch all positions
+            # build_get_positions_params returns None for all positions, fine for self._request
+            positions_params = BackpackRequestBuilder.build_get_positions_params(symbol=None)
+            positions_response_raw: RawJsonResponse | None = None  # Initialize
+            try:
+                positions_response_raw = await self._request(
+                    method="GET",
+                    endpoint=positions_endpoint,
+                    params=positions_params,
+                    is_signed=True,
+                )
+                if not isinstance(positions_response_raw, list):
+                    logger.error(
+                        f"[{self.exchange_name}] Unexpected positions response type in get_account_summary: "
+                        f"{type(positions_response_raw)}. Expected list. Raw: {positions_response_raw!r}"
+                    )
+                    raw_derivative_positions = []  # Assign empty list if response is bad
+                else:
+                    raw_derivative_positions = (
+                        BackpackResponseHandler.handle_get_positions_response(
+                            positions_response_raw,
+                            symbol=None,  # symbol=None for all positions
+                        )
+                    )
+            except APIError as e_positions_fetch:
+                logger.error(
+                    f"[{self.exchange_name}] API Error fetching positions for summary: {e_positions_fetch}"
+                )
+                # Allow proceeding with empty raw_derivative_positions
+                raw_derivative_positions = []
 
-            # The mapper transform_raw_account_summary_to_internal expects:
-            # raw_settings: BackpackRawAccountSummary (which get_account_info provides)
-            # spot_balances: dict[str, SpotBalance] (which get_balances provides)
-            # derivative_positions: list[DerivativePosition] (which get_positions provides)
+            # 4. Transform all raw components using the instance mapper
+            # The mapper now expects raw_settings, raw_spot_balances, and raw_derivative_positions
             internal_summary = self._bp_mapper.transform_raw_account_summary_to_internal(
                 raw_settings=raw_account_settings,
-                spot_balances=spot_balances_internal,
-                derivative_positions=derivative_positions_internal,
+                spot_balances_raw=raw_spot_balances,  # Pass the raw balances dict
+                derivative_positions_raw=raw_derivative_positions,  # Pass the raw positions list
             )
             logger.info(f"[{self.exchange_name}] Successfully generated internal account summary.")
             return internal_summary

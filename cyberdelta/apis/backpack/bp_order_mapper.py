@@ -880,36 +880,59 @@ class BackpackOrderMapper:
     @staticmethod
     def transform_raw_account_summary_to_internal(
         raw_settings: BackpackRawAccountSummary,
-        spot_balances: dict[str, SpotBalance],
-        derivative_positions: list[DerivativePosition],
+        spot_balances_raw: dict[str, BackpackRawBalance],
+        derivative_positions_raw: list[BackpackRawPosition],
     ) -> MarginAccountSummary:
         """
         Transforms raw Backpack account settings, balances, and positions into an
         internal MarginAccountSummary model.
 
-        Note: BackpackRawAccountSummary primarily contains settings and limits.
-        Calculations for total equity, available equity, etc., are approximations
-        based on the provided spot balances and derivative positions, as Backpack's
-        /capital endpoint (not used here) would provide more direct values.
-
         Args:
             raw_settings: Validated raw account summary/settings from Backpack.
-            spot_balances: Dictionary of internal SpotBalance models.
-            derivative_positions: List of internal DerivativePosition models.
+            spot_balances_raw: Dictionary of raw BackpackRawBalance models.
+            derivative_positions_raw: List of raw BackpackRawPosition models.
 
         Returns:
             MarginAccountSummary: The populated internal margin account summary.
         """
         current_time_utc = datetime.now(UTC)
 
-        # Calculations will use the already transformed spot_balances and derivative_positions
+        # --- Transform raw balances to internal SpotBalance models ---
+        internal_spot_balances: dict[str, SpotBalance] = {}
+        for asset_symbol, raw_balance in spot_balances_raw.items():
+            try:
+                internal_spot_balances[asset_symbol.upper()] = (
+                    BackpackOrderMapper.transform_raw_balance_to_internal(asset_symbol, raw_balance)
+                )
+            except ValueError as e:
+                logger.warning(
+                    f"[BackpackOrderMapper] Failed to transform raw balance for {asset_symbol} "
+                    f"in account summary: {e}. Skipping."
+                )
+                continue
+
+        # --- Transform raw positions to internal DerivativePosition models ---
+        internal_derivative_positions: list[DerivativePosition] = []
+        for raw_position in derivative_positions_raw:
+            try:
+                internal_derivative_positions.append(
+                    BackpackOrderMapper.transform_raw_position_to_internal(raw_position)
+                )
+            except ValueError as e:
+                logger.warning(
+                    f"[BackpackOrderMapper] Failed to transform raw position for {raw_position.symbol} "
+                    f"in account summary: {e}. Skipping."
+                )
+                continue
+
+        # Calculations will use the now internally transformed spot_balances and derivative_positions
 
         # --- Calculate sums from derivative positions ---
         total_position_notional = Decimal("0.0")
         total_unrealized_pnl = Decimal("0.0")
 
-        if derivative_positions:  # Use the passed internal list
-            for pos in derivative_positions:
+        if internal_derivative_positions:  # Use the transformed internal list
+            for pos in internal_derivative_positions:
                 if pos.entry_price is not None and pos.size != Decimal("0"):
                     total_position_notional += abs(pos.size) * pos.entry_price
                 if pos.unrealized_pnl is not None:
@@ -920,7 +943,10 @@ class BackpackOrderMapper:
         calculated_available_equity = Decimal("0.0")
 
         usdc_like_assets = ("USDC", "USD", "USDT")
-        for asset_symbol, balance in spot_balances.items():  # Use passed internal dict
+        for (
+            asset_symbol,
+            balance,
+        ) in internal_spot_balances.items():  # Use transformed internal dict
             if asset_symbol.upper() in usdc_like_assets:
                 calculated_total_equity += balance.total_quantity
                 calculated_available_equity += balance.available_quantity
@@ -929,7 +955,10 @@ class BackpackOrderMapper:
 
         # --- Populate BackpackMarginDetails ---
         assets_value_approx = Decimal("0.0")
-        for asset_symbol, balance in spot_balances.items():  # Use passed internal dict
+        for (
+            asset_symbol,
+            balance,
+        ) in internal_spot_balances.items():  # Use transformed internal dict
             if asset_symbol.upper() in usdc_like_assets:
                 assets_value_approx += balance.total_quantity
 
@@ -956,8 +985,10 @@ class BackpackOrderMapper:
             available_equity=calculated_available_equity,
             total_initial_margin_required=None,
             total_maintenance_margin_required=None,
-            total_position_notional=total_position_notional if derivative_positions else None,
-            total_unrealized_pnl=total_unrealized_pnl if derivative_positions else None,
+            total_position_notional=total_position_notional
+            if internal_derivative_positions
+            else None,
+            total_unrealized_pnl=total_unrealized_pnl if internal_derivative_positions else None,
             hl_details=None,
             bp_details=bp_details,
         )
