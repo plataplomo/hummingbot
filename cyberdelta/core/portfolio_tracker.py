@@ -1110,13 +1110,20 @@ class PortfolioTracker:
 
     def get_open_orders(self, exchange_id: str, symbol: str | None = None) -> list[Order]:
         """Get all open orders for a given exchange and optionally a symbol."""
-        open_orders: list[Order] = []
-        exchange_orders = self.orders.get(exchange_id, {})
-        for order in exchange_orders.values():
-            if order.status in [OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED]:
-                if symbol is None or order.symbol == symbol:
-                    open_orders.append(order)
-        return open_orders
+        if exchange_id not in self.orders:
+            return []
+
+        exchange_orders_dict = self.orders[exchange_id]
+
+        open_orders_collected: list[Order] = []
+        for order in exchange_orders_dict.values():
+            is_status_open = order.status.is_open()
+            is_symbol_match = symbol is None or order.symbol == symbol
+
+            if is_status_open and is_symbol_match:
+                open_orders_collected.append(order)
+
+        return open_orders_collected
 
     def get_order_history(self, exchange_id: str, symbol: str | None = None) -> list[Order]:
         """Get all orders (open and closed) for a given exchange and optionally a symbol."""

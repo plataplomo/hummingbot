@@ -76,6 +76,32 @@ class OrderStatus(Enum):
     FAILED = "FAILED"  # Order submission or lifecycle failed unexpectedly.
     UNKNOWN = "UNKNOWN"  # Status cannot be determined.
 
+    def is_open(self) -> bool:
+        """Checks if the order status represents an open order."""
+        return self in {
+            OrderStatus.NEW,
+            OrderStatus.OPEN,
+            OrderStatus.PARTIALLY_FILLED,
+            OrderStatus.TRIGGER_PENDING,
+            # Add other non-terminal, active statuses if they exist
+            # e.g., PENDING_NEW, REPLACED, PENDING_CANCEL, UNTRIGGERED
+            # Based on the current enum definition, these are the key open ones.
+        }
+
+    def is_closed(self) -> bool:
+        """Checks if the order status represents a closed/terminal order."""
+        return self in {
+            OrderStatus.FILLED,
+            OrderStatus.CANCELED,
+            OrderStatus.REJECTED,
+            OrderStatus.EXPIRED,
+            OrderStatus.FAILED,
+        }
+
+    def is_terminal(self) -> bool:  # Alias for is_closed for clarity
+        """Alias for is_closed, checks for terminal states."""
+        return self.is_closed()
+
 
 class TimeInForce(Enum):
     """
