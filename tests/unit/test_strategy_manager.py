@@ -13,6 +13,7 @@ from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy_manager import StrategyManager
 from tests.unit.mocks.mock_strategy import MockStrategy
@@ -759,6 +760,3 @@ async def test_process_market_data_malformed_signal(
     assert found_warning_log_malformed, (
         "Expected warning log for malformed signal dict not found or incorrect."
     )
-
-
-# Removed the __main__ block as tests are run via pytest

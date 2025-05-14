@@ -44,7 +44,12 @@ dependencies = [
     "pandas>=2.2.3",
     "plotly>=6.0.1",
     "dash>=3.0.4",
-    "dash-bootstrap-components>=2.0.2"
+    "dash-bootstrap-components>=2.0.2",
+    "uv>=0.7.3",
+    "pytest-mock>=3.14.0",
+    "python-dateutil>=2.9.0.post0",
+    "pytz>=2025.2",
+    "types-pyyaml>=6.0.12.20250402",
 ]
 
 [project.optional-dependencies]
@@ -53,7 +58,8 @@ dev = [
     "pytest-asyncio>=0.26.0",
     "mypy>=1.15.0",
     "ruff>=0.11.7",
-    "pyright>=1.1.365"
+    "pyright>=1.1.365",
+    "types-jsonschema>=4.23.0.20241208",
 ]
 
 [tool.pytest.ini_options]

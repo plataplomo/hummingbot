@@ -423,16 +423,3 @@ def test_backpack_details_extra_fields_ignored(valid_bp_details_data: dict[str, 
     # Expect no error, as extra fields should be ignored by default or if extra='ignore'
     details = BackpackPositionDetails(**data_with_extra)
     assert not hasattr(details, "some_random_field")
-
-
-@pytest.mark.xfail(reason="Detail model issues")
-class TestDerivativePositionModel:
-    """Test suite for the DerivativePosition Pydantic model."""
-
-    def test_backpack_details_extra_fields_fail(
-        self, valid_bp_details_data: dict[str, Any]
-    ) -> None:
-        """Test extra='forbid' on BackpackPositionDetails."""
-        data = valid_bp_details_data.copy()
-        with pytest.raises(ValidationError, match="Unrecognized field"):
-            BackpackPositionDetails(**data, extra_field="should_fail")

@@ -803,7 +803,6 @@ async def test_happy_path_full_cycle(
 
 
 # --- test_api_error_during_placement needs significant rework ---
-@pytest.mark.skip(reason="Rework needed for new structure and error handling")
 @pytest.mark.asyncio
 async def test_api_error_during_placement(
     mock_config: Config,
@@ -822,7 +821,6 @@ async def test_api_error_during_placement(
 
 
 # --- test_insufficient_balance needs rework ---
-@pytest.mark.skip(reason="Rework needed for new structure and balance checks")
 @pytest.mark.asyncio
 async def test_insufficient_balance(
     mock_config: Config,

@@ -30,9 +30,6 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 logger = logging.getLogger(__name__)
 
 
-@pytest.mark.xfail(
-    reason="Persistent issues with fixing test logic or applying xfails to individual tests within this class due to apply model failures."
-)
 class TestSignalGenerator:
     """Test suite for the SignalGenerator class."""
 
@@ -284,6 +281,9 @@ class TestSignalGenerator:
         volatility_insufficient = signal_generator.calculate_basis_volatility("TEST_INSUFFICIENT")
         assert volatility_insufficient == Decimal("0.0")
 
+        assert volatility == approx(0.0, abs=1e-9)
+        signal_generator.historical_basis["TEST"] = deque()  # Clear for next test
+
     def test_calculate_funding_rate_volatility(self, signal_generator: SignalGenerator) -> None:
         """Test calculation of funding rate volatility."""
         now = datetime.now(UTC)
@@ -325,7 +325,7 @@ class TestSignalGenerator:
         assert volatility_insufficient == Decimal("0.0")
 
         assert volatility == approx(0.0, abs=1e-9)
-        signal_generator.historical_basis["TEST"] = []  # Clear for next test
+        signal_generator.historical_basis["TEST"] = deque()  # Clear for next test
 
     def test_estimate_slippage(
         self, signal_generator: SignalGenerator, data_handler: MagicMock

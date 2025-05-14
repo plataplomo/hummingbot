@@ -98,9 +98,6 @@ class TestDataHandler:
         assert "test_exchange" in data_handler.api_clients
         assert data_handler.api_clients["test_exchange"] == mock_exchange_api
 
-    @pytest.mark.skip(
-        reason="DataHandler._collect_initial_data seems to have been removed or refactored."
-    )
     @pytest.mark.asyncio
     async def test_initialize(self, data_handler: DataHandler) -> None:
         """Test initialization of the DataHandler."""
@@ -120,9 +117,6 @@ class TestDataHandler:
                 assert isinstance(data_handler.last_update_time["hyperliquid"]["BTC"], datetime)
                 assert data_handler.last_update_time["hyperliquid"]["BTC"].tzinfo is not None
 
-    @pytest.mark.skip(
-        reason="DataHandler._collect_initial_data seems to have been removed or refactored."
-    )
     @pytest.mark.asyncio
     async def test_collect_initial_data(self, data_handler: DataHandler) -> None:
         """Test initial data collection."""
@@ -157,9 +151,6 @@ class TestDataHandler:
                 assert isinstance(data_handler.last_update_time["hyperliquid"]["BTC"], datetime)
                 assert data_handler.last_update_time["hyperliquid"]["BTC"].tzinfo is not None
 
-    @pytest.mark.skip(
-        reason="DataHandler._collect_tickers seems to have been removed or refactored."
-    )
     @pytest.mark.asyncio
     async def test_collect_tickers(
         self, data_handler: DataHandler, mock_exchange_api: AsyncMock
@@ -186,9 +177,6 @@ class TestDataHandler:
         assert isinstance(data_handler.last_update_time["hyperliquid"]["BTC"], datetime)
         assert data_handler.last_update_time["hyperliquid"]["BTC"].tzinfo is not None
 
-    @pytest.mark.skip(
-        reason="DataHandler._collect_funding_rates seems to have been removed or refactored."
-    )
     @pytest.mark.asyncio
     async def test_collect_funding_rates(
         self, data_handler: DataHandler, mock_exchange_api: AsyncMock
@@ -200,6 +188,7 @@ class TestDataHandler:
             symbol="BTC",
             funding_rate=Decimal(str(rate)),
             timestamp=int(timestamp.timestamp()),  # type: ignore[arg-type]
+            mark_price=None,
         )
         mock_exchange_api.get_funding_rates = AsyncMock(return_value=[mock_rate_obj])
         await data_handler._collect_funding_rates("hyperliquid", ["BTC"])
@@ -215,9 +204,6 @@ class TestDataHandler:
         assert isinstance(last_update_ts, datetime)
         assert last_update_ts.tzinfo is not None
 
-    @pytest.mark.skip(
-        reason="DataHandler.update_all_data seems to have been removed or refactored."
-    )
     @pytest.mark.asyncio
     async def test_update_all_data(self, data_handler: DataHandler) -> None:
         """Test updating all data for enabled exchanges."""
