@@ -920,12 +920,13 @@ class BackpackOrderMapper:
                 )
             except ValueError as e:
                 logger.warning(
-                    f"[BackpackOrderMapper] Failed to transform raw position for {raw_position.symbol} "
-                    f"in account summary: {e}. Skipping."
+                    f"[BackpackOrderMapper] Failed to transform raw position for "
+                    f"{raw_position.symbol} in account summary: {e}. Skipping."
                 )
                 continue
 
-        # Calculations will use the now internally transformed spot_balances and derivative_positions
+        # Calculations will use the now internally transformed spot_balances and
+        # derivative_positions
 
         # --- Calculate sums from derivative positions ---
         total_position_notional = Decimal("0.0")
@@ -934,6 +935,7 @@ class BackpackOrderMapper:
         if internal_derivative_positions:  # Use the transformed internal list
             for pos in internal_derivative_positions:
                 if pos.entry_price is not None and pos.size != Decimal("0"):
+                    # Ensure entry_price is not None before multiplication
                     total_position_notional += abs(pos.size) * pos.entry_price
                 if pos.unrealized_pnl is not None:
                     total_unrealized_pnl += pos.unrealized_pnl

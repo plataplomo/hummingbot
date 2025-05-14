@@ -72,7 +72,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         if wallet_private_key:
             try:
                 # Ensure LocalAccount is used for type consistency if Account.from_key returns it
-                # or can be cast to it, or if Account.from_key actually returns LocalAccount directly.
+                # or can be cast to it, or if Account.from_key actually returns
+                # LocalAccount directly.
                 # For now, assume Account.from_key provides a compatible type or is LocalAccount.
                 self._account: LocalAccount = Account.from_key(wallet_private_key)
             except ValueError as e:
@@ -89,7 +90,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             self.logger.critical(f"HyperliquidEip712Authenticator: {impos_msg}")
             raise RuntimeError(impos_msg)
 
-        # DEFENSIVE CHECK: _account cannot be None after successful initialization. Mypy=[unreachable] Ruff=[RUF005,ERA001]
+        # DEFENSIVE CHECK: _account cannot be None after successful initialization.
+        # Mypy=[unreachable] Ruff=[RUF005,ERA001]
         if self._account is None:
             # This path should be logically unreachable if above logic is correct.
             self.logger.error(
@@ -200,7 +202,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             "types": self._agent_typed_data_message_types,
         }
 
-        # DEFENSIVE CHECK: _account cannot be None if __init__ succeeded. Mypy=[unreachable] Ruff=[RUF005,ERA001]
+        # DEFENSIVE CHECK: _account cannot be None if __init__ succeeded.
+        # Mypy=[unreachable] Ruff=[RUF005,ERA001]
         if self._account is None:
             # This should not be reached if __init__ succeeded
             self.logger.error(

@@ -726,7 +726,8 @@ class HyperliquidMapper:
         )
 
         # 4. Construct and return MarginAccountSummary
-        #    NOTE: MarginAccountSummary does NOT directly contain spot_balances or derivative_positions lists.
+        #    NOTE: MarginAccountSummary does NOT directly contain spot_balances or
+        #    derivative_positions lists.
         #    These are separate concerns, fetched via get_balances() and get_positions().
         return MarginAccountSummary(
             exchange=ExchangeName.HYPERLIQUID.value,
@@ -863,7 +864,8 @@ class HyperliquidMapper:
                     )
                 else:  # total_qty <= 0
                     logger.debug(
-                        f"[HyperliquidMapper] Skipping spot asset {asset_name} due to zero or negative quantity: {total_qty}"
+                        f"[HyperliquidMapper] Skipping spot asset {asset_name} due to zero or "
+                        f"negative quantity: {total_qty}"
                     )  # DEBUG
 
         return spot_balances
@@ -1055,7 +1057,8 @@ class HyperliquidPositionMapper:
 
 class HyperliquidCandleMapper:
     """
-    Maps a validated HyperliquidRawCandleSnapshot (parallel array format) to a list of internal Candle models.
+    Maps a validated HyperliquidRawCandleSnapshot (parallel array format) to a list of internal
+    Candle models.
     """
 
     @staticmethod
@@ -1063,11 +1066,13 @@ class HyperliquidCandleMapper:
         candles: list[Candle] = []
         if raw_snapshot.s != "ok":
             logger.warning(
-                f"Candle snapshot status is not 'ok': {raw_snapshot.s}. Symbol: {symbol}, Interval: {interval}"
+                f"Candle snapshot status is not 'ok': {raw_snapshot.s}. Symbol: {symbol}, "
+                f"Interval: {interval}"
             )
             return candles  # Return empty list if status is not ok
 
-        # The model validator in HyperliquidRawCandleSnapshot ensures all lists are of the same length.
+        # The model validator in HyperliquidRawCandleSnapshot ensures all lists are of the same
+        # length.
         # We can iterate based on the length of the timestamp list (self.t).
         num_candles = len(raw_snapshot.t)
 
@@ -1099,7 +1104,8 @@ class HyperliquidCandleMapper:
                     )
                     continue
 
-                # Ensure Non-None after check for MyPy (already guaranteed by allow_none=False for decimals)
+                # Ensure Non-None after check for MyPy
+                # (already guaranteed by allow_none=False for decimals)
                 assert open_time_dt is not None
                 assert open_ is not None
                 assert high is not None

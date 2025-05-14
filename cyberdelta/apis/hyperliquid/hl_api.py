@@ -705,10 +705,11 @@ class HyperliquidAPI(ExchangeAPI):
                 # Other HyperliquidSuccessfulOrderStatus types (resting, filled, oid-based canceled)
                 # are generally not expected for L2 Transfer. If process_first_exchange_status
                 # mapped the raw L2 transfer success to one of these, it might be unexpected.
-                # However, any non-error HyperliquidSuccessfulOrderStatus is treated as success here.
+                # However, any non-error HyperliquidSuccessfulOrderStatus is
+                # treated as success here.
                 logger.info(
-                    f"[{self.exchange_name}] L2 Transfer appears successful. "
-                    f"Processed status: {processed_status.model_dump_json(exclude_none=True)!r}"
+                    f"[{self.exchange_name}] L2 Transfer appears successful. Processed status: "
+                    f"{processed_status.model_dump_json(exclude_none=True)!r}"
                 )
                 return {"status": "success", "data": processed_status.model_dump(exclude_none=True)}
 
@@ -729,11 +730,10 @@ class HyperliquidAPI(ExchangeAPI):
             if error_to_raise_from_status:
                 raise error_to_raise_from_status
 
-            # Fallback: This should ideally not be reached if the logic for HyperliquidSuccessfulOrderStatus
-            # and HyperliquidErrorStatus is exhaustive and process_first_exchange_status is robust.
+            # Fallback: This should ideally not be reached if the logic for
+            # HyperliquidSuccessfulOrderStatus and HyperliquidErrorStatus is exhaustive
+            # and process_first_exchange_status is robust.
             # If it is reached, it means processed_status was neither of the expected types OR
-            # it was HyperliquidSuccessfulOrderStatus but not handled by the return statements above
-            # (which shouldn't happen with the current logic).
             logger.warning(
                 f"[{self.exchange_name}] L2 Transfer status unclear after processing logic. "
                 f"Processed: {processed_status!r}. Raw response used for handler: "
@@ -1479,10 +1479,12 @@ class HyperliquidAPI(ExchangeAPI):
                     # but could indicate success.
                     logger.warning(
                         f"[{self.exchange_name}] Cancel order {order_id} returned unexpected "
-                        f"successful status: {processed_status.model_dump_json(exclude_none=True)!r}. "
+                        f"successful status: "
+                        f"{processed_status.model_dump_json(exclude_none=True)!r}. "
                         f"Assuming success."
                     )
-                    return True  # Assuming any non-error successful status means cancel likely went through
+                    # Assuming any non-error successful status means cancel likely went through
+                    return True
 
             # If not HyperliquidSuccessfulOrderStatus, it must be HyperliquidErrorStatus
             # assuming process_first_exchange_status strictly returns one of these two types.
@@ -1645,7 +1647,8 @@ class HyperliquidAPI(ExchangeAPI):
         """Fetches user state and maps it to MarginAccountSummary."""
         if not self._wallet_address:
             logger.error(
-                f"[{self.exchange_name}] Wallet address not available, cannot fetch user state/account summary."
+                f"[{self.exchange_name}] Wallet address not available, cannot fetch "
+                f"user state/account summary."
             )
             return None
 
@@ -1694,7 +1697,8 @@ class HyperliquidAPI(ExchangeAPI):
             raise e
         except ValidationError as ve:  # ADDED BLOCK
             logger.error(
-                f"[{self.exchange_name}] Pydantic ValidationError in get_account_summary (user_state): {ve}",
+                f"[{self.exchange_name}] Pydantic ValidationError in get_account_summary "
+                f"(user_state): {ve}",
                 exc_info=True,
             )
             raise APIError(

@@ -520,7 +520,8 @@ class BackpackAPI(ExchangeAPI):
             # Transformation logic remains here
             for raw_position in validated_positions:
                 try:
-                    # Transform validated raw position to internal DerivativePosition using instance mapper
+                    # Transform validated raw position to internal DerivativePosition
+                    # using the instance mapper
                     internal_position = self._bp_mapper.transform_raw_position_to_internal(
                         raw=raw_position
                     )
@@ -913,8 +914,9 @@ class BackpackAPI(ExchangeAPI):
                 )
                 if not isinstance(balances_response_raw, dict):
                     logger.error(
-                        f"[{self.exchange_name}] Unexpected balances response type in get_account_summary: "
-                        f"{type(balances_response_raw)}. Expected dict. Raw: {balances_response_raw!r}"
+                        f"[{self.exchange_name}] Unexpected balances response type in "
+                        f"get_account_summary: {type(balances_response_raw)}. Expected dict. "
+                        f"Raw: {balances_response_raw!r}"
                     )
                     # Depending on strictness, might raise or return None here
                     # For now, assign empty dict to raw_spot_balances if response is bad
@@ -925,7 +927,8 @@ class BackpackAPI(ExchangeAPI):
                     )
             except APIError as e_balance_fetch:
                 logger.error(
-                    f"[{self.exchange_name}] API Error fetching balances for summary: {e_balance_fetch}"
+                    f"[{self.exchange_name}] API Error fetching balances for summary: "
+                    f"{e_balance_fetch}"
                 )
                 # Decide if partial summary is acceptable or if we should return None/re-raise
                 # For now, allow proceeding with empty raw_spot_balances
@@ -944,8 +947,9 @@ class BackpackAPI(ExchangeAPI):
                 )
                 if not isinstance(positions_response_raw, list):
                     logger.error(
-                        f"[{self.exchange_name}] Unexpected positions response type in get_account_summary: "
-                        f"{type(positions_response_raw)}. Expected list. Raw: {positions_response_raw!r}"
+                        f"[{self.exchange_name}] Unexpected positions response type in "
+                        f"get_account_summary: {type(positions_response_raw)}. Expected list. "
+                        f"Raw: {positions_response_raw!r}"
                     )
                     raw_derivative_positions = []  # Assign empty list if response is bad
                 else:
@@ -957,7 +961,8 @@ class BackpackAPI(ExchangeAPI):
                     )
             except APIError as e_positions_fetch:
                 logger.error(
-                    f"[{self.exchange_name}] API Error fetching positions for summary: {e_positions_fetch}"
+                    f"[{self.exchange_name}] API Error fetching positions for summary: "
+                    f"{e_positions_fetch}"
                 )
                 # Allow proceeding with empty raw_derivative_positions
                 raw_derivative_positions = []
@@ -976,17 +981,21 @@ class BackpackAPI(ExchangeAPI):
                 return internal_summary
             except ValueError as e_map:
                 logger.error(
-                    f"[{self.exchange_name}] Error mapping raw account data to internal summary: {e_map}",
+                    f"[{self.exchange_name}] Error mapping raw account data to internal "
+                    f"summary: {e_map}",
                     exc_info=True,
                 )
                 raise APIError(
-                    message=f"Failed to map account summary due to invalid data or mapper error: {e_map}",
-                    code=APIErrorCode.INVALID_RESPONSE.value,  # Use INVALID_RESPONSE for mapping issues
+                    message=f"Failed to map account summary due to invalid data "
+                    f"or mapper error: {e_map}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,  # Use INVALID_RESPONSE
+                    # for mapping issues
                     original_exception=e_map,
                 ) from e_map
             # except Exception as e_map_other: # Catch other potential mapper errors if necessary
             #     logger.error(
-            #         f"[{self.exchange_name}] Unexpected error during account data mapping: {e_map_other}",
+            #         f"[{self.exchange_name}] Unexpected error during account data "
+            #         f"mapping: {e_map_other}",
             #         exc_info=True,
             #     )
             #     raise APIError(
@@ -996,7 +1005,8 @@ class BackpackAPI(ExchangeAPI):
             #     ) from e_map_other
 
         except APIError as e:
-            # This will catch APIErrors from get_account_info, or from _request for balances/positions if they raise APIError
+            # This will catch APIErrors from get_account_info, or from _request for
+            # balances/positions if they raise APIError
             # Also catches the re-raised APIError from the new mapper exception handling above.
             logger.error(
                 f"[{self.exchange_name}] API Error in get_account_summary orchestration: {e}"
@@ -1009,7 +1019,8 @@ class BackpackAPI(ExchangeAPI):
             return None  # For other APIErrors during fetching, return None
         except Exception as e_unhandled:  # Catch-all for truly unexpected issues
             logger.error(
-                f"[{self.exchange_name}] Unexpected error in get_account_summary orchestration: {e_unhandled}",
+                f"[{self.exchange_name}] Unexpected error in get_account_summary "
+                f"orchestration: {e_unhandled}",
                 exc_info=True,
             )
             raise APIError(
@@ -1174,8 +1185,6 @@ class BackpackAPI(ExchangeAPI):
                 f"Validation/Value error during withdrawal: {ve}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 original_exception=ve,
-                http_status=None,  # Correct parameter name
-                # response_body removed
             ) from ve
         except Exception as e:  # Catch any other unexpected errors
             logger.error(

@@ -492,7 +492,8 @@ class HyperliquidResponseHandler:
                     )
                 if not isinstance(total_sz_raw, str):
                     raise APIError(
-                        message=f"Invalid or missing 'totalSz' (expected str) in filled status for {action_description}",
+                        message=f"Invalid or missing 'totalSz' (expected str) in filled status for "
+                        f"{action_description}",
                         code=APIErrorCode.INVALID_RESPONSE.value,
                         metadata={"raw_status": first_status_raw},
                     )
