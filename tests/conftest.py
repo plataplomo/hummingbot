@@ -253,11 +253,11 @@ def mock_config() -> MagicMock:
                         "enabled": True,
                         "threshold": 5,
                         "window_seconds": 120,
-                        "cooldown_seconds": 600,  # Shortened line
+                        "cooldown_seconds": 600,
                     }
                 },
                 "exchanges": {
-                    "mock_hl": {
+                    "hyperliquid": {
                         "enabled": True,
                         "api_errors": {
                             "enabled": True,
@@ -270,7 +270,7 @@ def mock_config() -> MagicMock:
                         "volatility": {"enabled": False},
                         "liquidity": {"enabled": False},
                     },
-                    "mock_bp": {
+                    "backpack": {
                         "enabled": True,
                         "api_errors": {
                             "enabled": True,
@@ -314,14 +314,14 @@ def mock_exchange_api() -> AsyncMock:
     mock_api.get_balances.return_value = {
         "USDC": SpotBalance(
             asset="USDC",
-            exchange="mock_hl",
+            exchange="hyperliquid",
             total_quantity=Decimal("10000"),
             available_quantity=Decimal("10000"),
             timestamp=datetime.now(UTC),
         ),
         "BTC": SpotBalance(
             asset="BTC",
-            exchange="mock_hl",
+            exchange="hyperliquid",
             total_quantity=Decimal("1"),
             available_quantity=Decimal("1"),
             timestamp=datetime.now(UTC),
@@ -330,7 +330,7 @@ def mock_exchange_api() -> AsyncMock:
 
     mock_api.get_positions.return_value = {
         "BTC": DerivativePosition(
-            exchange="mock_exchange",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             symbol="BTC",
             size=Decimal("0.5"),
@@ -340,7 +340,7 @@ def mock_exchange_api() -> AsyncMock:
             unrealized_pnl=Decimal("500"),
         ),
         "ETH": DerivativePosition(
-            exchange="mock_exchange",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             symbol="ETH",
             size=Decimal("-10"),
@@ -369,7 +369,7 @@ def mock_exchange_api() -> AsyncMock:
     )
 
     mock_api.place_order.return_value = Order(
-        exchange="mock_exchange",
+        exchange="hyperliquid",
         exchange_order_id="order123",
         symbol="BTC",
         side=OrderSide.BUY,
@@ -505,7 +505,7 @@ def mock_get_config() -> dict[str, Any]:  # noqa: ANN401 - Test fixture returns 
     """Fixture to provide a mock configuration dictionary."""
     return {
         "exchanges": {
-            "mock_hl": {
+            "hyperliquid": {
                 "enabled": True,
                 "symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP"},
                 "websocket": {
@@ -515,7 +515,7 @@ def mock_get_config() -> dict[str, Any]:  # noqa: ANN401 - Test fixture returns 
                 },
                 "risk_modifier": 0.9,
             },
-            "mock_bp": {
+            "backpack": {
                 "enabled": True,
                 "symbols": {"BTC": "BTCUSDC", "ETH": "ETHUSDC"},
                 "websocket": {
@@ -551,11 +551,11 @@ def mock_get_config() -> dict[str, Any]:  # noqa: ANN401 - Test fixture returns 
                         "enabled": True,
                         "threshold": 5,
                         "window_seconds": 120,
-                        "cooldown_seconds": 600,  # Shortened line
+                        "cooldown_seconds": 600,
                     }
                 },
                 "exchanges": {
-                    "mock_hl": {
+                    "hyperliquid": {
                         "enabled": True,
                         "api_errors": {
                             "enabled": True,
@@ -568,7 +568,7 @@ def mock_get_config() -> dict[str, Any]:  # noqa: ANN401 - Test fixture returns 
                         "volatility": {"enabled": False},
                         "liquidity": {"enabled": False},
                     },
-                    "mock_bp": {
+                    "backpack": {
                         "enabled": True,
                         "api_errors": {
                             "enabled": True,
