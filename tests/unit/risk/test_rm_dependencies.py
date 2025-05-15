@@ -255,60 +255,38 @@ class TestRiskManagerDependencyFailures:
     async def test_size_opportunity_low_funding_validation(
         self,
         risk_manager: RiskManager,
-        mock_config: MagicMock,
-        mock_config_dict: dict[str, Any],
         mock_circuit_breaker: MagicMock,
         mock_funding_validator: MagicMock,
         mock_portfolio_tracker: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test size rejection due to low funding validation factor (fail-safe)."""
-        min_factor = Decimal("0.2")
-        test_overrides = {
-            "risk.use_simple_sizing_path": True,
-            "risk.simple_sizing_method": "fixed_fraction",
-            "risk.simple_fixed_fraction": "0.10",
-            "risk.min_validation_factor": str(min_factor),
-            "risk.max_acceptable_rmse": 0.05,
-            "risk.max_acceptable_bias": 0.02,
-        }
-        combined_config = {**mock_config_dict, **test_overrides}
-
-        def get_side_effect_for_low_fv(key: str, default: object = None) -> object:
-            return combined_config.get(key, default)
+        risk_manager.min_validation_factor = Decimal("0.2")
+        risk_manager.max_acceptable_rmse = Decimal("0.05")
+        risk_manager.max_acceptable_bias = Decimal("0.02")
 
         risk_manager.max_position_size = Decimal("20000.0")
         risk_manager.portfolio_tracker = mock_portfolio_tracker
+        risk_manager.funding_rate_validator = mock_funding_validator
+        risk_manager.circuit_breaker_system = mock_circuit_breaker
 
-        with patch.object(mock_config, "get", side_effect=get_side_effect_for_low_fv):
-            mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
-            mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
-            with patch.object(
-                risk_manager,
-                "_apply_portfolio_exposure_management",
-                side_effect=apply_portfolio_exposure_management_passthrough,
-            ):
-                with patch.object(
-                    risk_manager, "_check_portfolio_constraints", return_value=(True, None)
-                ):
-                    mock_funding_validator.get_symbol_metrics.return_value = {
-                        "rmse": 1.0,  # High RMSE to trigger low validation factor
-                        "bias": 0.0,
-                    }
-                    risk_manager.funding_rate_validator = mock_funding_validator
-                    risk_manager.circuit_breaker_system = mock_circuit_breaker
-                    mock_circuit_breaker.can_execute.return_value = (True, None)
+        mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
+        mock_circuit_breaker.can_execute.return_value = (True, None)
 
-                    sized_opp = await risk_manager.size_opportunity(sample_opportunity)
-                    assert sized_opp is None
+        mock_funding_validator.get_symbol_metrics.return_value = {
+            "rmse": 1.0,
+            "bias": 0.0,
+        }
+
+        sized_opp = await risk_manager.size_opportunity(sample_opportunity)
+        assert sized_opp is None
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("bad_metrics_return", [None, Exception("Simulated FV Error")])
     async def test_size_opportunity_funding_validation_error_or_none(
         self,
         risk_manager: RiskManager,
-        mock_config: MagicMock,
-        mock_config_dict: dict[str, Any],
         mock_circuit_breaker: MagicMock,
         mock_funding_validator: MagicMock,
         mock_portfolio_tracker: MagicMock,
@@ -316,41 +294,23 @@ class TestRiskManagerDependencyFailures:
         bad_metrics_return: object,
     ) -> None:
         """Test size rejection when validator returns None or raises (fail-safe)."""
-        min_factor = Decimal("0.25")
-        test_overrides = {
-            "risk.use_simple_sizing_path": True,
-            "risk.simple_sizing_method": "fixed_fraction",
-            "risk.simple_fixed_fraction": "0.10",
-            "risk.min_validation_factor": str(min_factor),
-            "risk.max_acceptable_rmse": 0.05,
-            "risk.max_acceptable_bias": 0.02,
-        }
-        combined_config = {**mock_config_dict, **test_overrides}
-
-        def get_side_effect_for_fv_error(key: str, default: object = None) -> object:
-            return combined_config.get(key, default)
+        risk_manager.min_validation_factor = Decimal("0.25")
+        risk_manager.max_acceptable_rmse = Decimal("0.05")
+        risk_manager.max_acceptable_bias = Decimal("0.02")
 
         risk_manager.max_position_size = Decimal("20000.0")
         risk_manager.portfolio_tracker = mock_portfolio_tracker
+        risk_manager.funding_rate_validator = mock_funding_validator
+        risk_manager.circuit_breaker_system = mock_circuit_breaker
 
-        with patch.object(mock_config, "get", side_effect=get_side_effect_for_fv_error):
-            mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
-            mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
-            with patch.object(
-                risk_manager,
-                "_apply_portfolio_exposure_management",
-                side_effect=apply_portfolio_exposure_management_passthrough,
-            ):
-                with patch.object(
-                    risk_manager, "_check_portfolio_constraints", return_value=(True, None)
-                ):
-                    if isinstance(bad_metrics_return, Exception):
-                        mock_funding_validator.get_symbol_metrics.side_effect = bad_metrics_return
-                        risk_manager.funding_rate_validator = mock_funding_validator
-                        sized_opp = await risk_manager.size_opportunity(sample_opportunity)
-                        assert sized_opp is None
-                    else:  # bad_metrics_return is None
-                        mock_funding_validator.get_symbol_metrics.return_value = bad_metrics_return
-                        risk_manager.funding_rate_validator = mock_funding_validator
-                        sized_opp = await risk_manager.size_opportunity(sample_opportunity)
-                        assert sized_opp is None
+        mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
+        mock_circuit_breaker.can_execute.return_value = (True, None)
+
+        if isinstance(bad_metrics_return, Exception):
+            mock_funding_validator.get_symbol_metrics.side_effect = bad_metrics_return
+        else:  # bad_metrics_return is None
+            mock_funding_validator.get_symbol_metrics.return_value = bad_metrics_return
+
+        sized_opp = await risk_manager.size_opportunity(sample_opportunity)
+        assert sized_opp is None

@@ -2,7 +2,7 @@ import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -922,3 +922,115 @@ async def test_max_drawdown_halts_execution(
 ) -> None:
     # Implementation of test_max_drawdown_halts_execution
     pass
+
+
+@pytest.mark.asyncio
+async def test_max_total_exposure_constraint_prevents_trade(
+    risk_manager: RiskManager,  # RiskManager instance from fixture
+    basic_opportunity: ArbitrageOpportunity,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.DEBUG, logger="cyberdelta.core.risk_manager.RiskManager")
+    """Test that max_total_exposure constraint prevents sizing if capital is low."""
+    # Configure RiskManager for this specific test
+    risk_manager.max_total_exposure_usd = Decimal("100")
+    risk_manager.min_trade_size_usd = Decimal("1")
+    risk_manager.max_trade_size_usd = Decimal("100000")
+    risk_manager.max_position_size = Decimal("20000")
+    risk_manager.max_single_position_exposure = Decimal("1.0")
+    risk_manager.max_drawdown_limit = Decimal("0.2")  # Default, ensure it passes
+
+    # Configure mock portfolio tracker
+    assert hasattr(risk_manager.portfolio_tracker, "get_total_capital")
+    assert isinstance(risk_manager.portfolio_tracker.get_total_capital, AsyncMock)
+    risk_manager.portfolio_tracker.get_total_capital.return_value = Decimal("10000")
+
+    assert hasattr(risk_manager.portfolio_tracker, "get_total_exposure_usd")
+    assert isinstance(risk_manager.portfolio_tracker.get_total_exposure_usd, AsyncMock)
+    risk_manager.portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0")
+
+    assert hasattr(risk_manager.portfolio_tracker, "get_current_drawdown")
+    assert isinstance(risk_manager.portfolio_tracker.get_current_drawdown, AsyncMock)
+    risk_manager.portfolio_tracker.get_current_drawdown.return_value = Decimal("0")
+
+    # Effective max_total_exposure_usd for the check will be 10000 * 0.01 = 100 USD
+
+    basic_opportunity.net_funding_differential = Decimal("0.001")
+    risk_manager.kelly_fraction = Decimal("1.0")
+    basic_opportunity.basis_volatility = 0.01
+
+    logger.info(
+        f"Test: RM Configs: max_total_exposure_usd={risk_manager.max_total_exposure_usd}, "
+        f"max_position_size={risk_manager.max_position_size}, kelly_fraction={risk_manager.kelly_fraction}, "
+        f"max_single_position_exposure={risk_manager.max_single_position_exposure}"
+    )
+    logger.info(
+        f"Test: PT mock total_capital: {risk_manager.portfolio_tracker.get_total_capital.return_value}, "
+        f"PT mock total_exposure: {risk_manager.portfolio_tracker.get_total_exposure_usd.return_value}"
+    )
+    logger.info(
+        f"Test: Sizing opportunity (volatility={basic_opportunity.basis_volatility}): {basic_opportunity}"
+    )
+
+    sized_opportunity = await risk_manager.size_opportunity(basic_opportunity)
+
+    logger.info(f"Test: Sized opportunity result: {sized_opportunity}")
+    logger.info(f"Test: Caplog contents: {caplog.text}")
+
+    assert sized_opportunity is None
+    assert (
+        "rejected due to portfolio constraints: Adding $2500.00 would exceed max total exposure ($100.00)"
+        in caplog.text
+    ), "Specific constraint failure message for max total exposure not found in logs."
+
+
+@pytest.mark.asyncio
+async def test_min_trade_size_constraint_prevents_trade(
+    risk_manager: RiskManager,  # RiskManager instance from fixture
+    basic_opportunity: ArbitrageOpportunity,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that min_trade_size constraint prevents sizing if capital is low."""
+    risk_manager.max_total_exposure_ratio = Decimal("0.1")  # 10% of capital
+    risk_manager.min_trade_size_usd = Decimal("1")
+    risk_manager.max_trade_size_usd = Decimal("100000")  # Ensure this doesn't interfere
+
+    # Configure the portfolio_tracker *that risk_manager is using*
+    # risk_manager.portfolio_tracker is the mock created by create_autospec in the risk_manager fixture
+
+    assert hasattr(risk_manager.portfolio_tracker, "get_total_capital"), (
+        "RiskManager's portfolio_tracker mock is missing get_total_capital attribute"
+    )
+    # Ensure it's an AsyncMock, as get_total_capital is an async method in the protocol
+    assert isinstance(risk_manager.portfolio_tracker.get_total_capital, AsyncMock), (
+        f"RiskManager's portfolio_tracker.get_total_capital is not an AsyncMock, but {type(risk_manager.portfolio_tracker.get_total_capital)}"
+    )
+
+    risk_manager.portfolio_tracker.get_total_capital.return_value = Decimal(
+        "1000"
+    )  # Capital is 1000
+
+    # Max exposure allowed is 0.1 * 1000 = 100 USD
+    # Based on sample_opportunity_scaled from integration/conftest.py:
+    # default long_price=Decimal("60000"), quantity=Decimal("0.002") => long_size_usd = 120
+    # So, 120 USD > 100 USD limit. Should be rejected.
+
+    logger.info(
+        f"Test: RM Config max_total_exposure_ratio: {risk_manager.max_total_exposure_ratio}, "
+        f"PT mock total_capital: {risk_manager.portfolio_tracker.get_total_capital.return_value}"
+    )
+    logger.info(f"Test: Sizing opportunity: {basic_opportunity}")
+
+    sized_opportunity = await risk_manager.size_opportunity(basic_opportunity)
+
+    logger.info(f"Test: Sized opportunity result: {sized_opportunity}")
+    logger.info(f"Test: Caplog contents: {caplog.text}")
+
+    assert sized_opportunity is None
+    assert "Constraint failed: _check_constraint_min_trade_size" in caplog.text, (
+        "Specific constraint failure message not found in logs."
+    )
+    assert "Proposed size" in caplog.text, "'Proposed size' not found in constraint failure log."
+    assert "exceeds min allowed exposure based on total capital" in caplog.text, (
+        "Exposure limit reason not found in constraint failure log."
+    )

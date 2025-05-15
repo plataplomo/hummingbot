@@ -4,11 +4,13 @@ import asyncio  # Added import for asyncio
 import logging
 from collections.abc import Sequence
 from decimal import ROUND_DOWN, Decimal, InvalidOperation, getcontext
+from enum import Enum  # Ensure Enum is imported
 from typing import Any, Protocol
 
 from cyberdelta.core.models import SpotBalance
 from cyberdelta.utils.config import Config  # Ensure Config is imported
 from cyberdelta.utils.logging_config import get_logger  # Ensure get_logger is imported
+from cyberdelta.utils.parsing import parse_decimal_value  # CORRECTED IMPORT
 
 # from cyberdelta.core.portfolio_tracker import PortfolioTrackerProtocol # This line should be commented out or removed
 # from cyberdelta.core.models import ArbitrageOpportunity, Order, OrderSide, OrderType, TradeSignal
@@ -26,6 +28,15 @@ getcontext().prec = 28  # Default precision, adjust if needed
 # Define ZERO and ONE constants for clarity
 ZERO = Decimal("0")
 ONE = Decimal("1")
+
+
+# Define SimpleSizingMethod Enum and VALID_SIMPLE_SIZING_METHODS at the module level
+class SimpleSizingMethod(str, Enum):
+    FIXED_USD = "fixed_usd"
+    FIXED_FRACTION = "fixed_fraction"
+
+
+VALID_SIMPLE_SIZING_METHODS = {member.value for member in SimpleSizingMethod}
 
 
 # Protocol for funding rate validator
@@ -193,13 +204,61 @@ class RiskManager:
         Raises:
             ConfigError: If any required config value is missing or invalid.
         """
-        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.config = config
-        self.portfolio_tracker = portfolio_tracker
-        self.circuit_breaker_system = circuit_breaker_system
-        self.funding_rate_validator = funding_rate_validator
-        self.current_drawdown_metrics: dict[str, Any] = {}
-        self._load_config()
+        self.config: Config = config  # Assign config first
+        self.logger = logging.getLogger(
+            f"{self.__class__.__module__}.{self.__class__.__name__}"
+        )  # Then logger
+
+        # Assign dependencies from constructor arguments BEFORE any config parsing that might use them
+        self.portfolio_tracker: PortfolioTrackerProtocol = portfolio_tracker
+        self.circuit_breaker_system: CircuitBreakerSystemProtocol | None = circuit_breaker_system
+        self.funding_rate_validator: FundingRateValidatorProtocol | None = funding_rate_validator
+
+        self.current_drawdown_metrics: dict[str, Any] = {}  # Initialize attribute
+
+        # Initialize attributes that will be set in _load_config to satisfy linters
+        # and provide default values if config loading has issues before these are set.
+        self.use_simple_sizing_path: bool = False
+        self.kelly_enabled: bool = False
+        self.simple_fixed_usd_size: Decimal = ZERO
+        self.simple_fixed_fraction: Decimal = ZERO
+        self.simple_sizing_method_str: str = SimpleSizingMethod.FIXED_USD.value
+
+        # Load core boolean flags first, robustly
+        try:
+            raw_use_simple_path = self.config.get("risk.use_simple_sizing_path", False)
+            self.logger.info(
+                f"RM_INIT: Raw 'risk.use_simple_sizing_path' from config: {raw_use_simple_path} (type: {type(raw_use_simple_path)})"
+            )
+            if isinstance(raw_use_simple_path, bool):
+                self.use_simple_sizing_path = raw_use_simple_path
+            else:  # Handle strings like "true", "True", "false", "False"
+                self.use_simple_sizing_path = str(raw_use_simple_path).lower() == "true"
+            self.logger.info(
+                f"RM_INIT: Parsed self.use_simple_sizing_path: {self.use_simple_sizing_path}"
+            )
+
+            raw_kelly_enabled = self.config.get("risk.kelly_criterion.enabled", False)
+            self.logger.info(
+                f"RM_INIT: Raw 'risk.kelly_criterion.enabled' from config: {raw_kelly_enabled} (type: {type(raw_kelly_enabled)})"
+            )
+            if isinstance(raw_kelly_enabled, bool):
+                self.kelly_enabled = raw_kelly_enabled
+            else:  # Handle strings
+                self.kelly_enabled = str(raw_kelly_enabled).lower() == "true"
+            self.logger.info(f"RM_INIT: Parsed self.kelly_enabled: {self.kelly_enabled}")
+
+            # Now load all other configuration values
+            self._load_config()
+
+        except (InvalidOperation, ValueError, TypeError, KeyError) as e:
+            self.logger.error(
+                f"RM_INIT: Critical error during initial config parsing or _load_config: {e}",
+                exc_info=True,
+            )
+            raise ConfigError(
+                f"Invalid or missing configuration value during RiskManager initialization: {e}"
+            ) from e
 
     def _load_config(self) -> None:
         """
@@ -208,96 +267,305 @@ class RiskManager:
         """
         try:
             # General Risk Parameters
-            self.max_position_size = Decimal(
-                str(self.config.get("risk.global.max_position_usd", "2000.0"))
+            max_position_size_val = parse_decimal_value(
+                self.config.get("risk.global.max_position_usd", "2000.0"),
+                allow_none=False,
+                field_name="max_position_usd",
             )
-            self.max_total_exposure_usd = Decimal(
-                str(self.config.get("risk.global.max_total_exposure_usd", "5000.0"))
-            )
-            self.min_position_size = Decimal(
-                str(self.config.get("risk.global.min_position_usd", "10.0"))
-            )
-            self.min_opportunity_profitability = Decimal(
-                str(self.config.get("risk.strategy.min_net_funding_differential", "0.00001"))
-            )
-            self.max_collateral_per_exchange: Decimal = Decimal(
-                str(self.config.get("risk.max_collateral_per_exchange", 0.8))
-            )
-            self.max_leverage = Decimal(
-                str(self.config.get("risk.global.max_portfolio_leverage", "5.0"))
-            )
-            self.min_liquidation_buffer: Decimal = Decimal(
-                str(self.config.get("risk.min_liquidation_buffer", 0.2))
-            )
-            self.max_exposure_per_asset: Decimal = Decimal(
-                str(self.config.get("risk.max_exposure_per_asset", 0.2))
-            )
-            self.max_exposure_per_exchange: Decimal = Decimal(
-                str(self.config.get("risk.max_exposure_per_exchange", 0.5))
-            )
-            self.circuit_breaker_recovery_factor: Decimal = Decimal(
-                str(self.config.get("risk.circuit_breaker_recovery_factor", 0.3))
-            )
-            self.min_exchange_balance = Decimal(
-                str(self.config.get("risk_manager.min_exchange_balance", 10.0))
-            )
-            self.max_acceptable_rmse = Decimal(
-                str(self.config.get("risk.max_acceptable_rmse", 0.05))
-            )
-            self.max_acceptable_bias = Decimal(
-                str(self.config.get("risk.max_acceptable_bias", 0.02))
-            )
-            self.min_validation_factor = Decimal(
-                str(self.config.get("risk.min_validation_factor", 0.2))
-            )
-            self.exchange_risk_modifiers: dict[str, float] = {}
-            exchanges_config_any = self.config.get("exchanges", {})  # Get as Any first
-            if isinstance(exchanges_config_any, dict):
-                exchanges_config: dict[str, Any] = exchanges_config_any  # Narrow type
-                for exchange_id_raw in exchanges_config.keys():  # Now keys should be str
-                    # exchange_id_raw is now str
-                    exchange_id: str = exchange_id_raw
+            if max_position_size_val is None:
+                raise ConfigError("RM_INIT: max_position_size is None")
+            self.max_position_size: Decimal = max_position_size_val
 
+            max_total_exposure_usd_val = parse_decimal_value(
+                self.config.get("risk.global.max_total_exposure_usd", "5000.0"),
+                allow_none=False,
+                field_name="max_total_exposure_usd",
+            )
+            if max_total_exposure_usd_val is None:
+                raise ConfigError("RM_INIT: max_total_exposure_usd is None")
+            self.max_total_exposure_usd: Decimal = max_total_exposure_usd_val
+
+            min_trade_size_usd_val = parse_decimal_value(
+                self.config.get("risk.global.min_trade_size_usd", "1.0"),
+                allow_none=False,
+                field_name="min_trade_size_usd",
+            )
+            if min_trade_size_usd_val is None:
+                raise ConfigError("RM_INIT: min_trade_size_usd is None")
+            self.min_trade_size_usd: Decimal = min_trade_size_usd_val
+
+            min_nfd_bps_val = parse_decimal_value(
+                self.config.get("risk.min_nfd_bps", "1"),
+                allow_none=False,
+                field_name="min_nfd_bps",
+            )
+            if min_nfd_bps_val is None:
+                raise ConfigError("RM_INIT: min_nfd_bps is None")
+            self.min_nfd_for_sizing: Decimal = min_nfd_bps_val / Decimal("10000")
+
+            max_collateral_per_exchange_val = parse_decimal_value(
+                self.config.get("risk.max_collateral_per_exchange", "0.8"),
+                allow_none=False,
+                field_name="max_collateral_per_exchange",
+            )
+            if max_collateral_per_exchange_val is None:
+                raise ConfigError("RM_INIT: max_collateral_per_exchange is None")
+            self.max_collateral_per_exchange: Decimal = max_collateral_per_exchange_val
+
+            max_leverage_val = parse_decimal_value(
+                self.config.get("risk.global.max_portfolio_leverage", "5.0"),
+                allow_none=False,
+                field_name="max_portfolio_leverage",
+            )
+            if max_leverage_val is None:
+                raise ConfigError("RM_INIT: max_portfolio_leverage is None")
+            self.max_leverage: Decimal = max_leverage_val
+
+            min_liquidation_buffer_val = parse_decimal_value(
+                self.config.get("risk.min_liquidation_buffer", "0.2"),
+                allow_none=False,
+                field_name="min_liquidation_buffer",
+            )
+            if min_liquidation_buffer_val is None:
+                raise ConfigError("RM_INIT: min_liquidation_buffer is None")
+            self.min_liquidation_buffer: Decimal = min_liquidation_buffer_val
+
+            max_exposure_per_asset_val = parse_decimal_value(
+                self.config.get("risk.max_exposure_per_asset", "0.2"),
+                allow_none=False,
+                field_name="max_exposure_per_asset",
+            )
+            if max_exposure_per_asset_val is None:
+                raise ConfigError("RM_INIT: max_exposure_per_asset is None")
+            self.max_exposure_per_asset: Decimal = max_exposure_per_asset_val
+
+            max_exposure_per_exchange_val = parse_decimal_value(
+                self.config.get("risk.max_exposure_per_exchange", "0.5"),
+                allow_none=False,
+                field_name="max_exposure_per_exchange",
+            )
+            if max_exposure_per_exchange_val is None:
+                raise ConfigError("RM_INIT: max_exposure_per_exchange is None")
+            self.max_exposure_per_exchange: Decimal = max_exposure_per_exchange_val
+
+            circuit_breaker_recovery_factor_val = parse_decimal_value(
+                self.config.get("risk.circuit_breaker_recovery_factor", "0.3"),
+                allow_none=False,
+                field_name="circuit_breaker_recovery_factor",
+            )
+            if circuit_breaker_recovery_factor_val is None:
+                raise ConfigError("RM_INIT: circuit_breaker_recovery_factor is None")
+            self.circuit_breaker_recovery_factor: Decimal = circuit_breaker_recovery_factor_val
+
+            min_exchange_balance_val = parse_decimal_value(
+                self.config.get("balance.min_exchange_balance", "10.0"),
+                allow_none=False,
+                field_name="min_exchange_balance",
+            )
+            if min_exchange_balance_val is None:
+                raise ConfigError("RM_INIT: min_exchange_balance is None")
+            self.min_exchange_balance: Decimal = min_exchange_balance_val
+
+            max_acceptable_rmse_val = parse_decimal_value(
+                self.config.get("risk.max_acceptable_rmse", "0.05"),
+                allow_none=False,
+                field_name="max_acceptable_rmse",
+            )
+            if max_acceptable_rmse_val is None:
+                raise ConfigError("RM_INIT: max_acceptable_rmse is None")
+            self.max_acceptable_rmse: Decimal = max_acceptable_rmse_val
+
+            max_acceptable_bias_val = parse_decimal_value(
+                self.config.get("risk.max_acceptable_bias", "0.02"),
+                allow_none=False,
+                field_name="max_acceptable_bias",
+            )
+            if max_acceptable_bias_val is None:
+                raise ConfigError("RM_INIT: max_acceptable_bias is None")
+            self.max_acceptable_bias: Decimal = max_acceptable_bias_val
+
+            min_validation_factor_val = parse_decimal_value(
+                self.config.get("risk.min_validation_factor", "0.2"),
+                allow_none=False,
+                field_name="min_validation_factor",
+            )
+            if min_validation_factor_val is None:
+                raise ConfigError("RM_INIT: min_validation_factor is None")
+            self.min_validation_factor: Decimal = min_validation_factor_val
+
+            self.exchange_risk_modifiers: dict[str, float] = {}
+            exchanges_config_any = self.config.get("exchanges", {})
+            if isinstance(exchanges_config_any, dict):
+                exchanges_config: dict[str, Any] = exchanges_config_any
+                for exchange_id_raw in exchanges_config.keys():
+                    exchange_id: str = str(exchange_id_raw)
                     if self.config.get(f"exchanges.{exchange_id}.enabled", False):
-                        modifier_val = self.config.get(
+                        modifier_val_any = self.config.get(
                             f"exchanges.{exchange_id}.risk_modifier", 1.0
                         )
-                        # Validate modifier type
-                        if isinstance(modifier_val, (float, int)):
-                            self.exchange_risk_modifiers[exchange_id] = float(modifier_val)
-                        else:
-                            # Default to 1.0 if type is wrong
-                            self.exchange_risk_modifiers[exchange_id] = 1.0
+                        # Ensure modifier_val_any is float or int before direct conversion
+                        if isinstance(modifier_val_any, (float, int)):
+                            self.exchange_risk_modifiers[exchange_id] = float(modifier_val_any)
+                        else:  # Try to parse if it's a string representation of a float
+                            try:
+                                self.exchange_risk_modifiers[exchange_id] = float(
+                                    str(modifier_val_any)
+                                )
+                            except (ValueError, TypeError):
+                                self.logger.warning(
+                                    f"RM_INIT: Invalid risk_modifier for exchange {exchange_id}: {modifier_val_any}. Defaulting to 1.0."
+                                )
+                                self.exchange_risk_modifiers[exchange_id] = 1.0
             else:
-                logger.warning(
-                    "'exchanges' config is not a dictionary, cannot load risk modifiers."
+                self.logger.warning(
+                    "RM_INIT: 'exchanges' config is not a dictionary, cannot load risk modifiers."
                 )
 
-            self.max_single_position_exposure = Decimal(
-                str(self.config.get("risk.strategy.max_single_position_exposure_ratio", 0.1))
+            max_single_position_exposure_ratio_val = parse_decimal_value(
+                self.config.get("risk.strategy.max_single_position_exposure_ratio", "0.1"),
+                allow_none=False,
+                field_name="max_single_position_exposure_ratio",
             )
-            self.max_drawdown_limit = Decimal(
-                str(self.config.get("risk.global.max_drawdown_limit_ratio", 0.2))
+            if max_single_position_exposure_ratio_val is None:
+                raise ConfigError("RM_INIT: max_single_position_exposure_ratio is None")
+            self.max_single_position_exposure_ratio: Decimal = (
+                max_single_position_exposure_ratio_val
             )
-            self.min_net_funding_differential = Decimal(
-                str(self.config.get("risk.strategy.min_net_funding_differential", "0.0001"))
+
+            max_drawdown_limit_ratio_val = parse_decimal_value(
+                self.config.get("risk.global.max_drawdown_limit_ratio", "0.2"),
+                allow_none=False,
+                field_name="max_drawdown_limit_ratio",
             )
-            self.max_leverage_per_trade = Decimal(
-                str(self.config.get("risk.strategy.max_leverage_per_trade", 5.0))
+            if max_drawdown_limit_ratio_val is None:
+                raise ConfigError("RM_INIT: max_drawdown_limit_ratio is None")
+            self.max_drawdown_limit_ratio: Decimal = max_drawdown_limit_ratio_val
+
+            max_leverage_per_trade_val = parse_decimal_value(
+                self.config.get("risk.strategy.max_leverage_per_trade", "5.0"),
+                allow_none=False,
+                field_name="max_leverage_per_trade",
             )
-            self.volatility_period = self.config.get("strategy.volatility_period_days", 14)
-            self.min_acceptable_kelly = Decimal(
-                str(self.config.get("risk.kelly.min_acceptable_fraction", "0.001"))
+            if max_leverage_per_trade_val is None:
+                raise ConfigError("RM_INIT: max_leverage_per_trade is None")
+            self.max_leverage_per_trade: Decimal = max_leverage_per_trade_val
+
+            # Simple Sizing Path specific attributes
+            raw_simple_sizing_method = self.config.get(
+                "risk.simple_sizing_method", SimpleSizingMethod.FIXED_USD.value
             )
-            self.max_acceptable_kelly = Decimal(
-                str(self.config.get("risk.kelly.max_acceptable_fraction", "0.25"))
+            if (
+                isinstance(raw_simple_sizing_method, str)
+                and raw_simple_sizing_method in VALID_SIMPLE_SIZING_METHODS
+            ):
+                self.simple_sizing_method_str = raw_simple_sizing_method
+            elif isinstance(raw_simple_sizing_method, SimpleSizingMethod):
+                self.simple_sizing_method_str = (
+                    raw_simple_sizing_method.value
+                )  # Ensure it's the string value
+            else:
+                self.logger.warning(
+                    f"RM_INIT: Invalid simple_sizing_method '{raw_simple_sizing_method}'. "
+                    f"Reverting to initialized default '{self.simple_sizing_method_str}'."
+                )
+                # Keep self.simple_sizing_method_str as its initialized default
+
+            simple_fixed_usd_size_val = parse_decimal_value(
+                self.config.get("risk.simple_fixed_usd_size", "100.0"),
+                allow_none=False,
+                field_name="simple_fixed_usd_size",
             )
-            self.min_volatility = Decimal(
-                str(self.config.get("risk.kelly.min_volatility", "0.001"))
+            if simple_fixed_usd_size_val is None:
+                raise ConfigError("RM_INIT: simple_fixed_usd_size is None")
+            self.simple_fixed_usd_size = simple_fixed_usd_size_val
+
+            simple_fixed_fraction_val = parse_decimal_value(
+                self.config.get("risk.simple_fixed_fraction", "0.01"),
+                allow_none=False,
+                field_name="simple_fixed_fraction",
             )
-            self.kelly_fraction = Decimal(str(self.config.get("risk.kelly.fraction", "0.5")))
+            if simple_fixed_fraction_val is None:
+                raise ConfigError("RM_INIT: simple_fixed_fraction is None")
+            self.simple_fixed_fraction = simple_fixed_fraction_val
+
+            # Kelly Criterion specific attributes
+            volatility_period_val_parsed = parse_decimal_value(
+                self.config.get("strategy.volatility_period_days", "14"),
+                allow_none=False,
+                field_name="volatility_period_days",
+            )
+            if volatility_period_val_parsed is None:
+                raise ConfigError("RM_INIT: volatility_period_days is None")
+            self.volatility_period: int = int(volatility_period_val_parsed)
+
+            min_acceptable_kelly_val = parse_decimal_value(
+                self.config.get("risk.kelly_criterion.min_acceptable_fraction", "0.001"),
+                allow_none=False,
+                field_name="min_acceptable_kelly",
+            )
+            if min_acceptable_kelly_val is None:
+                raise ConfigError("RM_INIT: min_acceptable_kelly is None")
+            self.min_acceptable_kelly: Decimal = min_acceptable_kelly_val
+
+            max_acceptable_kelly_val = parse_decimal_value(
+                self.config.get("risk.kelly_criterion.max_acceptable_fraction", "0.25"),
+                allow_none=False,
+                field_name="max_acceptable_kelly",
+            )
+            if max_acceptable_kelly_val is None:
+                raise ConfigError("RM_INIT: max_acceptable_kelly is None")
+            self.max_acceptable_kelly: Decimal = max_acceptable_kelly_val
+
+            min_volatility_val = parse_decimal_value(
+                self.config.get("risk.kelly_criterion.min_volatility", "0.001"),
+                allow_none=False,
+                field_name="min_volatility",
+            )
+            if min_volatility_val is None:
+                raise ConfigError("RM_INIT: min_volatility is None")
+            self.min_volatility: Decimal = min_volatility_val
+
+            kelly_fraction_config_val = parse_decimal_value(
+                self.config.get("risk.kelly_criterion.fraction", "0.1"),
+                allow_none=False,
+                field_name="kelly_fraction_config",
+            )
+            if kelly_fraction_config_val is None:
+                raise ConfigError("RM_INIT: kelly_fraction_config is None")
+            self.kelly_fraction_config: Decimal = kelly_fraction_config_val
+
+            kelly_max_leverage_cap_val = parse_decimal_value(
+                self.config.get("risk.kelly_criterion.max_leverage_cap", "3.0"),
+                allow_none=False,
+                field_name="kelly_max_leverage_cap",
+            )
+            if kelly_max_leverage_cap_val is None:
+                raise ConfigError("RM_INIT: kelly_max_leverage_cap is None")
+            self.kelly_max_leverage_cap: Decimal = kelly_max_leverage_cap_val
+
+            min_edge_bps_kelly_val = parse_decimal_value(
+                self.config.get("risk.kelly_criterion.min_edge_bps", "5"),
+                allow_none=False,
+                field_name="min_edge_bps_kelly",
+            )
+            if min_edge_bps_kelly_val is None:
+                raise ConfigError("RM_INIT: min_edge_bps_kelly is None")
+            self.min_edge_bps_kelly: Decimal = min_edge_bps_kelly_val
+
+            # Ensure simple_fixed_usd_size, simple_fixed_fraction, simple_sizing_method_str are initialized for linter
+            # These were defined above, but this ensures they are seen by linter as part of the `try`
+            if not hasattr(self, "simple_fixed_usd_size"):  # Should be redundant due to above
+                self.simple_fixed_usd_size = ZERO
+            if not hasattr(self, "simple_fixed_fraction"):  # Should be redundant
+                self.simple_fixed_fraction = ZERO
+            if not hasattr(self, "simple_sizing_method_str"):  # Should be redundant
+                self.simple_sizing_method_str = SimpleSizingMethod.FIXED_USD.value
+
         except (InvalidOperation, ValueError, TypeError, KeyError) as e:
-            raise ConfigError(f"Invalid or missing configuration value: {e}") from e
+            self.logger.error(
+                f"RM_INIT: Error loading configuration in _load_config: {e}", exc_info=True
+            )
+            raise ConfigError(f"Invalid or missing configuration value in RiskManager: {e}") from e
 
     def _calculate_kelly_size(
         self, opportunity: ArbitrageOpportunity, total_capital: Decimal
@@ -364,7 +632,7 @@ class RiskManager:
             return ZERO
 
         # Apply configured Kelly fraction (e.g., half Kelly)
-        adjusted_kelly_fraction = kelly_fraction_raw * self.kelly_fraction
+        adjusted_kelly_fraction = kelly_fraction_raw * self.kelly_fraction_config
 
         # Clamp Kelly fraction to acceptable min/max range from config
         clamped_kelly_fraction = max(
@@ -408,7 +676,7 @@ class RiskManager:
                 f"  Expected Return (NFD): {expected_return:.8f}\n"
                 f"  Volatility: {volatility:.8f}\n"
                 f"  Raw Kelly Fraction (mu/sigma^2): {kelly_fraction_raw:.4f}\n"
-                f"  Configured Kelly Multiplier: {self.kelly_fraction}\n"
+                f"  Configured Kelly Multiplier: {self.kelly_fraction_config}\n"
                 f"  Adjusted Kelly Fraction: {adjusted_kelly_fraction:.4f}\n"
                 f"  Clamped Kelly Fraction (min: {self.min_acceptable_kelly}, max: {self.max_acceptable_kelly}): {clamped_kelly_fraction:.4f}\n"
                 f"  RMSE Factor: {rmse_factor:.2f}, Bias Factor: {bias_factor:.2f}\n"
@@ -539,7 +807,7 @@ class RiskManager:
         """Check that portfolio leverage is within allowed limits."""
         total_capital = await self.portfolio_tracker.get_total_capital()
 
-        # DEFENSIVE CHECK: total_capital can be None if portfolio_tracker returns None.
+        # DEFENSIVE CHECK: Runtime check for None. Linter_Error=[Condition_always_False_due_to_Decimal_vs_None_type_overlap]
         if total_capital is None:
             self.logger.warning("Total capital is None. Cannot calculate or check leverage.")
             return False
@@ -577,12 +845,12 @@ class RiskManager:
     async def _check_constraint_max_relative_size(
         self, proposed_size: Decimal, total_capital: Decimal
     ) -> tuple[bool, str | None]:
-        max_relative_size = total_capital * self.max_single_position_exposure
+        max_relative_size = total_capital * self.max_single_position_exposure_ratio
         if proposed_size > max_relative_size:
             return (
                 False,
                 f"Proposed size ${proposed_size:.2f} exceeds max relative position size "
-                f"(${max_relative_size:.2f}, {self.max_single_position_exposure:.1%})",
+                f"(${max_relative_size:.2f}, {self.max_single_position_exposure_ratio:.1%})",
             )
         return True, None
 
@@ -844,15 +1112,8 @@ class RiskManager:
             )
             return None
 
-        # Check if metrics is None before trying to access its items.
-        # This can happen if get_symbol_metrics returns None without raising an error.
-        # DEFENSIVE CHECK: metrics might be None if get_symbol_metrics returns None despite type hint. Mypy=[unreachable-code-if-strict-typing]
-        if metrics is None:
-            self.logger.warning(
-                f"FundingRateValidator returned None for metrics for {symbol} on {exchange}. "
-                "Cannot calculate validation factor."
-            )
-            return None  # Or consider returning self.min_validation_factor as a fallback if appropriate
+        # The FundingRateValidatorProtocol ensures 'metrics' is a dict.
+        # Individual keys 'rmse' or 'bias' might be missing or their values None.
 
         # Now metrics is guaranteed to be a dict, but keys might be missing
         rmse_value = metrics.get("rmse")
@@ -865,17 +1126,44 @@ class RiskManager:
             )
             return None
 
-        rmse = Decimal(str(rmse_value))
-        bias = Decimal(str(bias_value))
+        rmse_dec = Decimal(str(rmse_value))
+        bias_dec = Decimal(str(bias_value))
 
-        if rmse > self.max_acceptable_rmse or abs(bias) > self.max_acceptable_bias:
+        max_acceptable_rmse = Decimal(str(self.config.get("risk.max_acceptable_rmse", "0.05")))
+        max_acceptable_bias = Decimal(str(self.config.get("risk.max_acceptable_bias", "0.02")))
+
+        factor_rmse = max(ZERO, ONE - (rmse_dec / max_acceptable_rmse))
+        factor_bias = max(ZERO, ONE - (abs(bias_dec) / max_acceptable_bias))
+
+        # For now, using minimum of the individual factors.
+        combined_factor = min(factor_rmse, factor_bias)
+
+        # If the raw combined factor from metrics is below the minimum acceptable, treat as failure.
+        if combined_factor < self.min_validation_factor:
             self.logger.warning(
-                f"Validation metrics for {exchange}/{symbol} exceed thresholds. "
-                f"RMSE={rmse}, Bias={bias}. Rejecting for safety."
+                f"Raw combined validation factor {combined_factor:.3f} for {exchange}/{symbol} is below "
+                f"minimum threshold {self.min_validation_factor:.3f}. Rejecting opportunity."
             )
-            return None
+            return None  # Reject
 
-        return ONE  # Only allow full size if metrics are within thresholds
+        # If we reach here, combined_factor is >= self.min_validation_factor.
+        # This combined_factor will be used directly.
+        final_factor = combined_factor
+
+        if (
+            final_factor < ONE
+        ):  # Log if the factor is still less than 1 (i.e., applying some reduction)
+            self.logger.info(  # Changed to info as it's an expected reduction, not necessarily a warning
+                f"Validation metrics for {exchange}/{symbol} result in factor: {final_factor:.3f} "
+                f"(RMSE={rmse_dec}, Bias={bias_dec}). Applying factor."
+            )
+        else:
+            self.logger.debug(
+                f"Validation metrics for {exchange}/{symbol} are within limits. "
+                f"RMSE={rmse_dec}, Bias={bias_dec}. Factor: {final_factor:.3f}"
+            )
+
+        return final_factor.quantize(Decimal("0.001"))
 
     async def _check_portfolio_constraints(
         self, size: Decimal, opportunity: ArbitrageOpportunity
@@ -913,7 +1201,11 @@ class RiskManager:
         return True, None
 
     async def _calculate_simple_size(
-        self, opportunity: ArbitrageOpportunity, total_capital: Decimal
+        self,
+        opportunity: ArbitrageOpportunity,
+        total_capital: Decimal,
+        long_val_factor: Decimal,  # ADDED: Explicitly pass pre-calculated validation factors
+        short_val_factor: Decimal,  # ADDED
     ) -> SizedOpportunity | None:
         """
         Calculate position size using the simple sizing path (fixed fraction or fixed USD).
@@ -922,10 +1214,25 @@ class RiskManager:
         Args:
             opportunity: The arbitrage opportunity to size.
             total_capital: The total available capital (Decimal).
+            long_val_factor: Validation factor for the long leg.
+            short_val_factor: Validation factor for the short leg.
+
 
         Returns:
             A SizedOpportunity object if valid and sized, otherwise None.
         """
+        self.logger.debug(
+            f"SOS: Called for {opportunity.symbol}. Total capital: {total_capital}, "  # MODIFIED: opportunity.id_str -> opportunity.symbol
+            f"Configured Fixed USD Size: {self.simple_fixed_usd_size}, Configured Fixed Fraction: {self.simple_fixed_fraction}, "
+            f"Configured Method: {self.simple_sizing_method_str}, Passed LVal: {long_val_factor}, Passed SVal: {short_val_factor}"
+        )  # MODIFIED: Use parameters long_val_factor, short_val_factor
+
+        if opportunity.net_funding_differential <= self.min_nfd_for_sizing:
+            self.logger.warning(
+                f"SOS: Opportunity {opportunity.symbol} NFD {opportunity.net_funding_differential:.8f} < Min NFD {self.min_nfd_for_sizing:.8f}"
+            )
+            return None
+
         method = self.config.get("risk.simple_sizing_method", "fixed_fraction")
         max_position = Decimal(str(self.config.get("risk.global.max_position_usd", "1000.0")))
         size = ZERO
@@ -939,39 +1246,39 @@ class RiskManager:
         # Cap at available capital
         size = min(size, total_capital)
         # --- Apply Validation Factor (if validator exists) ---
-        long_validation_factor = self._get_validation_metrics(
-            opportunity.long_exchange, opportunity.symbol
-        )
-        short_validation_factor = self._get_validation_metrics(
-            opportunity.short_exchange, opportunity.symbol
-        )
+        # REMOVED: Validation factors are now passed as arguments
+        # long_validation_factor = self._get_validation_metrics(
+        #     opportunity.long_exchange, opportunity.symbol
+        # )
+        # short_validation_factor = self._get_validation_metrics(
+        #     opportunity.short_exchange, opportunity.symbol
+        # )
 
-        if long_validation_factor is None or short_validation_factor is None:
-            self.logger.warning(
-                f"Validation metrics failed for {opportunity.symbol} (Simple Path). Rejecting opportunity."
+        # if long_validation_factor is None or short_validation_factor is None:
+        #     self.logger.warning(
+        #         f"Validation metrics failed for {opportunity.symbol} (Simple Path). Rejecting opportunity."
+        #     )
+        #     return None
+
+        # Apply the pre-calculated validation factors
+        validation_factor = min(long_val_factor, short_val_factor)
+        if validation_factor < ONE:
+            self.logger.info(
+                f"Applying validation factor {validation_factor:.3f} to size for "
+                f"{opportunity.symbol} (simple path)."
             )
-            return None
-
-        # Current _get_validation_metrics returns ONE or None. If it returns ONE, no change to size.
-        # If it could return other decimal factors, this logic would apply them:
-        # validation_factor: Decimal = min(long_validation_factor, short_validation_factor)
-        # if validation_factor < ONE:
-        #     self.logger.info(
-        #         f"Applying validation factor {validation_factor:.3f} to size for "
-        #         f"{opportunity.symbol} (simple path)."
-        #     )
-        #     sized_amount_usd *= validation_factor
-        #     sized_amount_usd = sized_amount_usd.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
-        #     if sized_amount_usd <= ZERO:
-        #         self.logger.info(
-        #             f"Size reduced to zero or less after validation factor for "
-        #             f"{opportunity.symbol} (simple path). Rejecting."
-        #         )
-        #         return None
-        #     self.logger.debug(
-        #         f"Size after validation factor for {opportunity.symbol} (simple path): ${sized_amount_usd:.2f}"
-        #     )
-        # --- END INSERTED VALIDATION FACTOR LOGIC ---
+            size *= validation_factor  # Apply factor to size
+            size = size.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+            if size <= ZERO:  # Check if size became zero or negative
+                self.logger.info(
+                    f"Size reduced to zero or less after validation factor for "
+                    f"{opportunity.symbol} (simple path). Rejecting."
+                )
+                return None
+            self.logger.debug(
+                f"Size after validation factor for {opportunity.symbol} (simple path): ${size:.2f}"
+            )
+        # --- END MODIFIED VALIDATION FACTOR LOGIC ---
 
         # Enforce portfolio constraints
         is_valid, reason = await self._check_portfolio_constraints(size, opportunity)
@@ -1013,6 +1320,12 @@ class RiskManager:
                 f"Validation failed at _check_exchange_balances for {opportunity.symbol}"
             )
 
+        # Add the missing circuit breaker check
+        if not self._check_circuit_breaker(opportunity):
+            raise ValueError(
+                f"Validation failed at _check_circuit_breaker for {opportunity.symbol}"
+            )
+
         # if not self._check_funding_rate_stability(opportunity): # COMMENTED OUT - POTENTIALLY MISSING METHOD
         #      raise ValueError(f"Validation failed at _check_funding_rate_stability for {opportunity.symbol}")
 
@@ -1034,9 +1347,42 @@ class RiskManager:
             f"RiskManager: Starting to size opportunity for {opportunity.symbol} on {opportunity.long_exchange}/{opportunity.short_exchange}"
         )
         try:
+            # Perform initial validation steps (circuit breaker, balances, etc.)
+            # This pipeline should raise ValueError on failure.
             await self._validate_opportunity_pipeline(opportunity)
+
+            # Get validation factors *after* _validate_opportunity_pipeline passes,
+            # especially circuit breaker and balance checks.
+            long_validation_factor = self._get_validation_metrics(
+                opportunity.long_exchange, opportunity.symbol
+            )
+            self.logger.debug(
+                f"RM.size_opp: Long validation factor for {opportunity.long_exchange}/{opportunity.symbol}: {long_validation_factor}"
+            )
+            if long_validation_factor is None:
+                self.logger.warning(
+                    f"Funding validation failed for long leg {opportunity.long_exchange}/"
+                    f"{opportunity.symbol}. Rejecting opportunity."
+                )
+                return None
+
+            short_validation_factor = self._get_validation_metrics(
+                opportunity.short_exchange, opportunity.symbol
+            )
+            self.logger.debug(
+                f"RM.size_opp: Short validation factor for {opportunity.short_exchange}/{opportunity.symbol}: {short_validation_factor}"
+            )
+            if short_validation_factor is None:
+                self.logger.warning(
+                    f"Funding validation failed for short leg {opportunity.short_exchange}/"
+                    f"{opportunity.symbol}. Rejecting opportunity."
+                )
+                return None
+
         except ValueError as e:
-            logger.warning(f"Opportunity {opportunity.symbol} failed pre-sizing validation: {e}")
+            self.logger.warning(
+                f"Opportunity {opportunity.symbol} failed pre-sizing validation: {e}"
+            )
             return None
 
         total_capital = await self.portfolio_tracker.get_total_capital()
@@ -1053,32 +1399,20 @@ class RiskManager:
         if sizing_method == "kelly":
             # --- Kelly Sizing Path --- #
             calculated_size_usd = self._calculate_kelly_size(opportunity, total_capital)
-            if calculated_size_usd <= self.min_position_size:
-                logger.info(
-                    f"Kelly calculated size (${calculated_size_usd}) for {opportunity.symbol} below min size (${self.min_position_size}). Rejecting."
+            if calculated_size_usd <= self.min_trade_size_usd:
+                self.logger.info(
+                    f"Kelly calculated size (${calculated_size_usd}) for {opportunity.symbol} below min size (${self.min_trade_size_usd}). Rejecting."
                 )
                 return None
 
             # --- Apply Validation Factor (if validator exists) --- #
-            long_validation_factor = self._get_validation_metrics(
-                opportunity.long_exchange, opportunity.symbol
-            )
-            short_validation_factor = self._get_validation_metrics(
-                opportunity.short_exchange, opportunity.symbol
-            )
-
-            if long_validation_factor is None or short_validation_factor is None:
-                self.logger.warning(
-                    f"Validation metrics failed for {opportunity.symbol} (Kelly Path). Rejecting opportunity."
-                )
-                return None
-
-            # Combine factors (assuming ONE means valid, otherwise apply reduction)
-            # If _get_validation_metrics returns ONE or None, this just checks they aren't None
-            validation_factor = min(long_validation_factor, short_validation_factor)
+            # This repeats logic, assuming long_validation_factor and short_validation_factor are fetched at the start of size_opportunity
+            validation_factor = min(
+                long_validation_factor, short_validation_factor
+            )  # Already checked for None
 
             if validation_factor < ONE:  # Apply reduction only if factor < 1
-                logger.info(
+                self.logger.info(
                     f"Applying validation factor {validation_factor:.3f} to size for "
                     f"{opportunity.symbol} (kelly path)."
                 )
@@ -1086,16 +1420,16 @@ class RiskManager:
                 calculated_size_usd = calculated_size_usd.quantize(
                     Decimal("0.01"), rounding=ROUND_DOWN
                 )
-                if calculated_size_usd <= self.min_position_size:
-                    logger.info(
-                        f"Size reduced below min size after validation factor for "
-                        f"{opportunity.symbol} (kelly path). Rejecting."
+                if calculated_size_usd <= self.min_trade_size_usd:
+                    self.logger.info(
+                        f"Kelly size reduced below min size after validation factor for "
+                        f"{opportunity.symbol}. Rejecting."
                     )
                     return None
-                logger.debug(
-                    f"Size after validation factor for {opportunity.symbol} (kelly path): ${calculated_size_usd:.2f}"
+                self.logger.debug(
+                    f"Kelly size after validation factor for {opportunity.symbol}: ${calculated_size_usd:.2f}"
                 )
-            # --- END Validation Factor --- #
+            # --- END Validation Factor for Kelly --- #
 
             # Check constraints for the calculated Kelly size
             is_valid, reason = await self._check_portfolio_constraints(
@@ -1129,9 +1463,13 @@ class RiskManager:
 
         elif sizing_method == "simple":
             # --- Simple Sizing Path --- #
-            sized_opportunity = await self._calculate_simple_size(opportunity, total_capital)
+            sized_opportunity = await self._calculate_simple_size(
+                opportunity, total_capital, long_validation_factor, short_validation_factor
+            )
             if sized_opportunity is None:
-                logger.info(f"Simple sizing failed or rejected opportunity {opportunity.symbol}")
+                self.logger.info(
+                    f"Simple sizing failed or rejected opportunity {opportunity.symbol}"
+                )
                 return None  # _calculate_simple_size already logged the reason
 
         else:
@@ -1208,10 +1546,10 @@ class RiskManager:
             )
             return False  # Fail closed: block trading if drawdown data is missing
 
-        if current_drawdown >= self.max_drawdown_limit:
+        if current_drawdown >= self.max_drawdown_limit_ratio:
             self.logger.warning(
                 f"Drawdown check failed: Current {current_drawdown:.2%} >= Limit "
-                f"{self.max_drawdown_limit:.2%}",
+                f"{self.max_drawdown_limit_ratio:.2%}",
             )
             return False
         return True
@@ -1343,10 +1681,10 @@ class RiskManager:
         # Ensure min_opportunity_profitability is a Decimal (should be by _load_config)
         # No need for isinstance check on self.min_opportunity_profitability as it's set in _load_config
 
-        is_profitable = nfd >= self.min_opportunity_profitability
+        is_profitable = nfd >= self.min_nfd_for_sizing
         if not is_profitable:
             self.logger.debug(
-                f"Opportunity {opportunity.symbol} NFD {nfd:.8f} < Min Profitable NFD {self.min_opportunity_profitability:.8f}"
+                f"Opportunity {opportunity.symbol} NFD {nfd:.8f} < Min Profitable NFD {self.min_nfd_for_sizing:.8f}"
             )
         return is_profitable
 
@@ -1386,7 +1724,9 @@ class RiskManager:
 
         # Check 2: Drawdown (if available)
         current_drawdown = await self.portfolio_tracker.get_current_drawdown()
-        sanity_drawdown_limit = self.max_drawdown_limit * Decimal("1.5")  # Example: 50% buffer
+        sanity_drawdown_limit = self.max_drawdown_limit_ratio * Decimal(
+            "1.5"
+        )  # Example: 50% buffer
 
         if current_drawdown is not None:
             self.logger.info(f"Sanity Check: Current Drawdown = {current_drawdown:.2%}")
