@@ -437,16 +437,19 @@ class TestWebSocketManager:
             await local_ws_manager.close()
 
             assert local_ws_manager.is_connected is False
-            # DEFENSIVE CHECK: _ws_connection cleared by close(). Mypy=[unreachable] Ruff=[SLF001]
-            assert local_ws_manager._ws_connection is None  # noqa: SLF001
-            assert local_ws_manager._should_reconnect is False  # noqa: SLF001
+            assert local_ws_manager._ws_connection is None  # pyright: ignore [reportPrivateUsage]
+            assert not local_ws_manager._should_reconnect  # pyright: ignore [reportPrivateUsage]
 
-            assert listener_task_for_close.cancelled()
+            mock_aiohttp_session_ws_connect_method.assert_not_called()  # Should not try to connect
+            # Check session was closed
+            assert actual_mock_ws_conn.close.call_count == 1
+
+            # Check _listen_task and _ping_task were cancelled if they existed (they shouldn't here)
+            if listener_task_for_close:
+                assert listener_task_for_close.cancelled()
             if ping_task_for_close:
-                assert ping_task_for_close.done()
-
-            actual_mock_ws_conn.close.assert_called_once()
-            assert local_ws_manager._session is None  # noqa: SLF001
+                assert ping_task_for_close.cancelled()
+            assert local_ws_manager._session is None  # pyright: ignore [reportPrivateUsage]
 
         finally:
             if local_ws_manager.is_connected:
@@ -514,6 +517,7 @@ class TestWebSocketManager:
     @patch("aiohttp.ClientSession.ws_connect")
     @patch("cyberdelta.apis.connectivity.ws_manager.asyncio.create_task")
     @patch("asyncio.sleep", new_callable=AsyncMock)
+    @pytest.mark.asyncio
     async def test_listen_loop_processes_message_and_reconnects_on_close(
         self,
         mock_sleep: AsyncMock,

@@ -1103,4 +1103,7 @@ async def test_get_account_summary_no_wallet_address(
 
     assert exc_info.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
     assert "HLAPI: Wallet address required" in str(exc_info.value)
-    assert "API Error getting account summary (user_state)" in caplog.text
+    assert (
+        "[hyperliquid] Wallet address not available, cannot fetch user state/account summary."
+        in caplog.text
+    )

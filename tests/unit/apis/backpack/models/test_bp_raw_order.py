@@ -425,12 +425,9 @@ def test_BackpackRawOrderUpdate_corruption_cases() -> None:
         json.loads(bad_json)
 
 
-@pytest.mark.xfail(reason="Validator issues or apply model failure")
 class TestBackpackRawOrder:
-    """
-    Tests for the BackpackRawOrder model that might involve more complex validation
-    or scenarios not covered by simple field-level parametrization.
-    """
+    # Placeholder for further tests specific to BackpackRawOrder
+    # focusing on edge cases or complex validation interactions.
 
     def test_invalid_market_order_missing_side(self) -> None:
         """Test that a market order missing a side fails validation."""

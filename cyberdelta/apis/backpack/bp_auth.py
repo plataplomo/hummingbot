@@ -51,9 +51,9 @@ class BackpackHmacAuthenticator(IAuthenticator):
         self,
         method: str,
         path: str,  # Path is not directly used in Backpack's signature, but good to have
-        params: dict[str, Any] | None,
-        data: dict[str, Any] | None,
-        headers: dict[str, Any] | None,  # Existing headers to augment
+        params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,  # Added type hint for headers
     ) -> AuthenticatedRequestComponents:
         """
         Prepares and signs a Backpack API request using HMAC-SHA256.

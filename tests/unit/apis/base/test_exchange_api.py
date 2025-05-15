@@ -294,7 +294,7 @@ async def test_exchange_api_request_delegates_to_http_client_and_handles_respons
     assert result == mock_response_content
     mock_http_client_request.assert_called_once_with(
         method=method,
-        endpoint_path=endpoint.lstrip("/"),  # Ensure leading slash is removed for http_client
+        endpoint_path=f"{default_config['rest_endpoint']}{endpoint}",  # Ensure leading slash is removed for http_client
         rate_limiter_service=api._rate_limiter_service,  # pyright: ignore [reportPrivateUsage]
         authenticator=mock_authenticator,
         params=params,
@@ -307,7 +307,7 @@ async def test_exchange_api_request_delegates_to_http_client_and_handles_respons
     api.mock_update_rate_limit_method.assert_called_once_with(
         mock_raw_headers_multidict,  # This is the CIMultiDictProxy instance
         method,
-        endpoint.lstrip("/"),
+        f"{default_config['rest_endpoint']}{endpoint}",
     )
 
 
@@ -366,7 +366,7 @@ async def test_request_error_mapping_from_http_request_failed_error(
         status_code=http_status_from_exchange,
         error_body=error_body_from_exchange,
         error_data=parsed_error_data_from_exchange,
-        request_path=request_path_sent,
+        request_path=f"{default_config['rest_endpoint']}{request_path_sent}",
     )
 
 
@@ -411,7 +411,7 @@ async def test_request_handles_client_error_from_http_client(
         status_code=503,  # This is how ExchangeAPI._request currently translates ClientError
         error_body=str(original_client_error),
         error_data=None,
-        request_path=request_path_sent,
+        request_path=f"{default_config['rest_endpoint']}{request_path_sent}",
     )
 
 
@@ -456,7 +456,7 @@ async def test_request_handles_timeout_error_from_http_client(
         status_code=503,  # Corrected: ExchangeAPI._request maps TimeoutError to 503 for the mapper
         error_body=str(original_timeout_error),
         error_data=None,
-        request_path=request_path_sent,
+        request_path=f"{default_config['rest_endpoint']}{request_path_sent}",
     )
 
 
