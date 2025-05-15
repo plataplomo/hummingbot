@@ -1542,13 +1542,6 @@ class HyperliquidAPI(ExchangeAPI):
                 code=APIErrorCode.UNKNOWN.value,
             ) from e_unexp_cancel
 
-    async def get_recent_fills(
-        self, symbol: str | None = None, limit: int | None = None
-    ) -> list[Trade]:
-        """Fetch recent fills/trades for the account."""
-        effective_limit = limit if limit is not None else 100
-        return await self.get_trade_history(symbol=symbol, limit=effective_limit)
-
     async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Fetch all open orders, optionally filtering by symbol."""
         return await self.get_open_orders(symbol=symbol)

@@ -1235,17 +1235,6 @@ class BackpackAPI(ExchangeAPI):
         # await self.subscribe(fill_topic, handler) # Incorrect
         # await self.subscribe(order_topic, handler) # Incorrect
 
-    async def get_recent_fills(
-        self, symbol: str | None = None, limit: int | None = None
-    ) -> list[Trade]:
-        """Fetch recent fills/trades for the account.
-
-        Uses the existing get_trade_history method.
-        """
-        # Ensure limit is handled correctly, default in get_trade_history is 100
-        effective_limit = limit if limit is not None else 100
-        return await self.get_trade_history(symbol=symbol, limit=effective_limit)
-
     async def get_order_history(
         self,
         symbol: str | None = None,

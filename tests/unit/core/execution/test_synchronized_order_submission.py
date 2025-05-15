@@ -122,7 +122,7 @@ class TestOrderVerifier:
             spec=ExchangeAPI,
             get_order=AsyncMock(return_value=mock_api_order),
             get_order_status=AsyncMock(return_value=mock_api_order),
-            get_recent_fills=AsyncMock(
+            get_trade_history=AsyncMock(
                 return_value=[
                     MagicMock(
                         order_id="exchange-order-id-1",
@@ -144,7 +144,7 @@ class TestOrderVerifier:
                 spec=ExchangeAPI,
                 get_order=AsyncMock(return_value=mock_api_order),
                 get_order_status=AsyncMock(return_value=mock_api_order),
-                get_recent_fills=AsyncMock(return_value=[]),  # Example empty fills
+                get_trade_history=AsyncMock(return_value=[]),  # Example empty fills
             ),
         }
 
@@ -212,7 +212,10 @@ class TestOrderVerifier:
 
         result_dict = await verifier.verify_order_placement(exchange_id, order_id, expected_details)
 
+        logger.info(f"Verification result: {result_dict}")
+
         assert result_dict["success"] is True
+        assert result_dict.get("error") is None
 
         # Test failed verification with missing order
         # portfolio_tracker.get_order.return_value = None # REMOVE: PortfolioTracker has no get_order
@@ -224,7 +227,7 @@ class TestOrderVerifier:
 
         assert result_fail.get("success") is False
         error_msg = result_fail.get("error")
-        assert error_msg is not None and "not found in local state" in error_msg
+        assert error_msg is not None and "not found in local portfolio" in error_msg
         details = result_fail.get("details")
         assert details is not None and details.get("local_order") is None
 
@@ -235,34 +238,13 @@ class TestOrderVerifier:
         verifier = OrderVerifier(config, portfolio_tracker)
 
         # Test successful verification
-        # Corrected based on mypy error: Add 'type', use 'id', remove timestamp/order_type kwarg
-        # local_order_mock = Order( # This variable is no longer used
-        #     client_order_id=\"exchange-order-id-1\",
-        #     exchange=\"mock_exchange\",
-        #     symbol=\"BTC-PERP\",
-        #     side=OrderSide.BUY,
-        #     order_type=OrderType.LIMIT,
-        #     time_in_force=TimeInForce.GTC,
-        #     status=OrderStatus.FILLED,
-        #     price=Decimal(\"50000.0\"),
-        #     quantity_requested=Decimal(\"1.0\"),
-        #     quantity_filled=Decimal(\"1.0\"),
-        #     average_fill_price=Decimal(\"50000.0\"),  # Added for validation
-        #     created_at=datetime.now(UTC),
-        #     updated_at=None,
-        #     triggered_at=None,
-        #     strategy_name=None,
-        #     signal_id=None,
-        # )
-        # portfolio_tracker.get_order.return_value = local_order_mock # REMOVE: PortfolioTracker has no get_order
-
-        # Mock the API call within verify_order_execution
         # Ensure we use a client from the mocked api_clients dict
-        mock_api = portfolio_tracker.api_clients["mock_exchange"]
+        # For the success part, the test calls with "hyperliquid", so configure that client.
+        success_mock_api_client = portfolio_tracker.api_clients["hyperliquid"]
 
-        api_order_response = Order(
+        api_order_response_filled = Order(
             client_order_id="exchange-order-id-1",
-            exchange="mock_exchange",
+            exchange="hyperliquid",  # Match the exchange used in the call
             symbol="BTC-PERP",
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
@@ -271,42 +253,32 @@ class TestOrderVerifier:
             price=Decimal("50000"),
             status=OrderStatus.FILLED,
             quantity_filled=Decimal("1.0"),
-            average_fill_price=Decimal("50000"),  # Added for validation
+            average_fill_price=Decimal("50000"),
             created_at=datetime.now(UTC),
             updated_at=None,
             triggered_at=None,
             strategy_name=None,
             signal_id=None,
         )
-        # Mypy fix: avg_fill_price is not a direct attribute
-        # api_order_response.avg_fill_price=Decimal("50000")
+        success_mock_api_client.get_order_status = AsyncMock(return_value=api_order_response_filled)
+        success_mock_api_client.get_order = AsyncMock(return_value=api_order_response_filled)
+        success_mock_api_client.get_trade_history = AsyncMock(return_value=[])
 
-        # Ensure get_order_status method is mocked correctly on the mock_api instance
-        # Fix [method-assign]: Assign to method attribute
-        mock_api.get_order_status = AsyncMock(return_value=api_order_response)
-        # >>> ADD MOCK FOR get_order <<<
-        mock_api.get_order = AsyncMock(
-            return_value=api_order_response
-        )  # Assuming get_order returns similar obj
-        # >>> ADD MOCK FOR get_recent_fills <<<
-        mock_api.get_recent_fills = AsyncMock(
-            return_value=[]
-        )  # Mock as async returning empty list for this test
-
-        result_dict = await verifier.verify_order_execution(
-            "hyperliquid", "exchange-order-id-1"
-        )  # Use correct ID
+        result_dict = await verifier.verify_order_execution("hyperliquid", "exchange-order-id-1")
 
         assert result_dict.get("success") is True
         assert result_dict.get("error") is None
-        # Mypy fix: Check for None before using `in` [operator] error 227
         if result_dict and "details" in result_dict and result_dict["details"]:
-            assert "api_order" in result_dict["details"]
+            assert "api_order_details" in result_dict["details"]
+            assert "local_order_details" in result_dict["details"]
 
         # Test failed verification (e.g., order not filled on exchange)
+        # Ensure this mock is applied to the correct client ("hyperliquid")
+        failure_mock_api_client = portfolio_tracker.api_clients["hyperliquid"]
+
         api_order_response_open = Order(
             client_order_id="exchange-order-id-1",
-            exchange="mock_exchange",
+            exchange="hyperliquid",  # Match the exchange used in the call
             symbol="BTC-PERP",
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
@@ -314,14 +286,17 @@ class TestOrderVerifier:
             quantity_requested=Decimal("1.0"),
             price=Decimal("50000"),
             status=OrderStatus.OPEN,
-            # quantity_filled=Decimal("0"), # Not needed, defaults to 0 for OPEN
             created_at=datetime.now(UTC),
             updated_at=None,
             triggered_at=None,
             strategy_name=None,
             signal_id=None,
         )
-        mock_api.get_order_status.return_value = api_order_response_open  # Update return value
+        # Configure the get_order_status for the failure case on the correct mock client
+        failure_mock_api_client.get_order_status = AsyncMock(return_value=api_order_response_open)
+        # Also mock get_order for fallback, though get_order_status should be hit first if available
+        failure_mock_api_client.get_order = AsyncMock(return_value=api_order_response_open)
+
         result_fail = await verifier.verify_order_execution("hyperliquid", "exchange-order-id-1")
         assert result_fail.get("success") is False
         assert result_fail.get("error") is not None
@@ -481,7 +456,12 @@ class TestSynchronizedOrderSubmissionService:
     @pytest.fixture
     def service(
         self,
-    ) -> tuple[SynchronizedOrderSubmissionService, dict[str, Any], MagicMock, MagicMock]:
+    ) -> tuple[
+        SynchronizedOrderSubmissionService,
+        dict[str, Any],
+        MagicMock,  # mock_cb_system
+        MagicMock,  # mock_portfolio_tracker
+    ]:
         """Create a service instance with mocked dependencies using dependency injection."""
         config: dict[str, Any] = {
             "execution.order_placement_type": "sequential",
@@ -500,14 +480,16 @@ class TestSynchronizedOrderSubmissionService:
         # Use spec for better validation of mocked methods/attributes
         mock_cb_system = MagicMock(spec=CircuitBreakerSystem)
         # Assuming async behavior for recon system, adjust spec if available
-        mock_pos_recon_system = AsyncMock()
+        mock_pos_recon_system = (
+            AsyncMock()
+        )  # This is not returned by fixture, tests should patch if needed
         mock_portfolio_tracker = MagicMock(spec=PortfolioTracker)
 
         # Mocks for components potentially used internally or returned for test assertions
         # These are not directly injected via __init__ based on previous fixture structure,
         # but tests might expect them. Tests using @patch will override these anyway.
-        mock_order_verifier = MagicMock(spec=OrderVerifier)
-        mock_coordinator = MagicMock(spec=ExecutionCoordinator)
+        # mock_order_verifier = MagicMock(spec=OrderVerifier) # No longer returned
+        # mock_coordinator = MagicMock(spec=ExecutionCoordinator) # No longer returned
 
         # 2. Configure Default Mock Methods (Optional - keep minimal in fixture)
         # Example: Default CB allows execution
@@ -540,7 +522,7 @@ class TestSynchronizedOrderSubmissionService:
         # Returning mocks needed for assertions or further configuration in tests.
         # Keep returning mock_order_verifier and mock_coordinator for signature compatibility,
         # although tests using @patch might not use these specific instances.
-        return service_instance, config, mock_order_verifier, mock_coordinator
+        return service_instance, config, mock_cb_system, mock_portfolio_tracker
 
     @pytest.mark.asyncio
     @patch.object(
@@ -559,7 +541,12 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_post: AsyncMock,
         mock_execute_seq: AsyncMock,
         mock_verify_pre: AsyncMock,
-        service: tuple[SynchronizedOrderSubmissionService, dict[str, Any], MagicMock, MagicMock],
+        service: tuple[
+            SynchronizedOrderSubmissionService,
+            dict[str, Any],
+            MagicMock,  # mock_cb_system
+            MagicMock,  # mock_portfolio_tracker
+        ],
     ) -> None:
         """Test submitting orders with sequential strategy."""
         service_instance, _, _, _ = service
@@ -579,13 +566,13 @@ class TestSynchronizedOrderSubmissionService:
         )
 
         # Configure patched mocks (they replace the instance methods)
-        mock_verify_pre.return_value = {"success": True, "error": None, "details": {}}
+        mock_verify_pre.return_value = {"verified": True, "error": None, "details": {}}
         mock_execute_seq.return_value = ExecutionResult(
             execution_id="test-seq-exec",
             status=ExecutionStatus.COMPLETED,
             timestamp=int(time.time() * 1000),
         )
-        mock_verify_post.return_value = {"success": True, "error": None, "details": {}}
+        mock_verify_post.return_value = {"verified": True, "error": None, "details": {}}
 
         # Call the SUT
         result_obj: ExecutionResult = await service_instance.submit_orders(
@@ -621,7 +608,12 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_post: AsyncMock,
         mock_execute_sim: AsyncMock,
         mock_verify_pre: AsyncMock,
-        service: tuple[SynchronizedOrderSubmissionService, dict[str, Any], MagicMock, MagicMock],
+        service: tuple[
+            SynchronizedOrderSubmissionService,
+            dict[str, Any],
+            MagicMock,  # mock_cb_system
+            MagicMock,  # mock_portfolio_tracker
+        ],
     ) -> None:
         """Test submitting orders with simultaneous strategy."""
         service_instance, _, _, _ = service
@@ -641,14 +633,14 @@ class TestSynchronizedOrderSubmissionService:
         )
 
         # Configure patched mocks
-        mock_verify_pre.return_value = {"success": True, "error": None, "details": {}}
+        mock_verify_pre.return_value = {"verified": True, "error": None, "details": {}}
         mock_execute_sim.return_value = {  # Returns dict
-            "success": True,
+            "verified": True,
             "error": None,
             "timestamp": int(time.time() * 1000),
             "details": {},
         }
-        mock_verify_post.return_value = {"success": True, "error": None, "details": {}}
+        mock_verify_post.return_value = {"verified": True, "error": None, "details": {}}
 
         # Call the SUT
         result_obj: ExecutionResult = await service_instance.submit_orders(
@@ -680,27 +672,43 @@ class TestSynchronizedOrderSubmissionService:
         SynchronizedOrderSubmissionService, "verify_post_execution", new_callable=AsyncMock
     )
     @patch.object(
-        ExecutionCoordinator, "start_execution", new_callable=AsyncMock
-    )  # Mock coordinator interactions
+        SynchronizedOrderSubmissionService,
+        "_compensate_verification_failure",
+        new_callable=AsyncMock,
+    )
+    @patch.object(ExecutionCoordinator, "start_execution", new_callable=AsyncMock)
     @patch.object(ExecutionCoordinator, "add_checkpoint", new_callable=AsyncMock)
     @patch.object(ExecutionCoordinator, "complete_execution", new_callable=AsyncMock)
     async def test_submit_orders_pre_execution_failure(
         self,
-        mock_complete_execution: AsyncMock,
-        mock_add_checkpoint: AsyncMock,
-        mock_start_execution: AsyncMock,
-        mock_verify_post: AsyncMock,
-        mock_execute_seq: AsyncMock,
-        mock_verify_pre: AsyncMock,
-        service: tuple[SynchronizedOrderSubmissionService, dict[str, Any], MagicMock, MagicMock],
+        mock_ec_complete_exec: AsyncMock,  # Corresponds to ExecutionCoordinator.complete_execution
+        mock_ec_add_checkpoint: AsyncMock,  # Corresponds to ExecutionCoordinator.add_checkpoint
+        mock_ec_start_exec: AsyncMock,  # Corresponds to ExecutionCoordinator.start_execution
+        mock_sos_compensate: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService._compensate_verification_failure
+        mock_sos_verify_post: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService.verify_post_execution
+        mock_sos_exec_seq: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService._execute_sequential_with_verification
+        mock_sos_verify_pre: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService.verify_pre_execution
+        service: tuple[  # This should now be the fixture
+            SynchronizedOrderSubmissionService,
+            dict[str, Any],
+            MagicMock,  # mock_cb_system
+            MagicMock,  # mock_portfolio_tracker
+        ],
     ) -> None:
         """Test failure during pre-execution checks."""
-        service_instance, _, _, _ = service
+        service_instance, _, _, _ = service  # Now 'service' is the fixture tuple
         # Use patched coordinator mocks from parameters, not fixture
-        service_instance.execution_coordinator = MagicMock(spec=ExecutionCoordinator)
-        service_instance.execution_coordinator.start_execution = mock_start_execution
-        service_instance.execution_coordinator.add_checkpoint = mock_add_checkpoint
-        service_instance.execution_coordinator.complete_execution = mock_complete_execution
+        # Assign them to the service_instance's coordinator if necessary,
+        # or ensure the patches correctly target the instance's coordinator.
+        # For now, we assume patches correctly mock the methods on the instance.
+        # However, the coordinator itself is instantiated within SOS.
+        # So we should mock the *class* ExecutionCoordinator, and then its methods.
+        # The current patches on ExecutionCoordinator methods should be fine if they
+        # are applied globally to the class for the test's duration.
+
+        # service_instance.execution_coordinator is created internally.
+        # To control its methods, the patches on ExecutionCoordinator class methods are used.
+        # mock_ec_start_exec, mock_ec_add_checkpoint, mock_ec_complete_exec will act on it.
 
         mock_opportunity = ArbitrageOpportunity(
             symbol="BTC-PERP",
@@ -718,24 +726,24 @@ class TestSynchronizedOrderSubmissionService:
         )
         strategy = "sequential_lock_in"
 
-        # Configure the mock for _verify_pre_execution to fail
-        mock_verify_pre.return_value = {
-            "success": False,
+        # Configure the mock for SynchronizedOrderSubmissionService.verify_pre_execution to fail
+        mock_sos_verify_pre.return_value = {  # Use the correctly named mock
+            "verified": False,
             "error": "Pre-execution check failed (mock)",
             "details": {},
         }
 
-        # Mock coordinator methods as submit_orders calls them
-        mock_context = MagicMock()
-        mock_start_execution.return_value = mock_context
+        # Mock coordinator methods
+        mock_context = MagicMock(spec=ExecutionContext)  # Use spec for better mock
+        mock_ec_start_exec.return_value = mock_context
 
-        # Mypy fix [no-untyped-def] error 471: Add type annotation
-        async def mock_complete(ctx: object, res: ExecutionResult) -> None:
+        async def mock_complete_side_effect(ctx: ExecutionContext, res: ExecutionResult) -> None:
             assert isinstance(res, ExecutionResult)
             assert res.status == ExecutionStatus.REJECTED
+            # ensure ctx is the same mock_context if needed
+            assert ctx == mock_context
 
-        # Use the actual mock instance from the test parameters
-        mock_complete_execution.side_effect = mock_complete
+        mock_ec_complete_exec.side_effect = mock_complete_side_effect
 
         # Submit orders
         result_obj: ExecutionResult = await service_instance.submit_orders(
@@ -744,19 +752,20 @@ class TestSynchronizedOrderSubmissionService:
 
         # Verify status is REJECTED and error is propagated correctly in ExecutionResult
         assert result_obj.status == ExecutionStatus.REJECTED
-        assert (
-            result_obj.error == "Pre-execution check failed (mock)"
-        )  # Error should be set on ExecutionResult
+        assert result_obj.error == "Pre-execution check failed (mock)"
 
         # Verify the pre-execution check was called, but not execution or post-check
-        mock_verify_pre.assert_awaited_once()
-        mock_execute_seq.assert_not_awaited()
-        mock_verify_post.assert_not_awaited()
+        mock_sos_verify_pre.assert_awaited_once()
+        mock_sos_exec_seq.assert_not_awaited()
+        mock_sos_verify_post.assert_not_awaited()  # This was mock_verify_post, now mock_sos_verify_post
+
         # Verify coordinator interactions
-        mock_start_execution.assert_awaited_once()
+        mock_ec_start_exec.assert_awaited_once()
         # Checkpoints called for start and pre-execution checks
-        assert mock_add_checkpoint.call_count >= 2
-        mock_complete_execution.assert_awaited_once()
+        # With complete_execution's side_effect bypassing original add_checkpoint,
+        # only start_execution's add_checkpoint is counted.
+        assert mock_ec_add_checkpoint.call_count == 1  # Expect 1 call from start_execution
+        mock_ec_complete_exec.assert_awaited_once_with(mock_context, result_obj)
 
     @pytest.mark.asyncio
     @patch.object(
@@ -774,25 +783,28 @@ class TestSynchronizedOrderSubmissionService:
         SynchronizedOrderSubmissionService,
         "_compensate_verification_failure",
         new_callable=AsyncMock,
-    )  # Mock compensation
-    @patch.object(
-        ExecutionCoordinator, "start_execution", new_callable=AsyncMock
-    )  # Mock coordinator interactions
+    )
+    @patch.object(ExecutionCoordinator, "start_execution", new_callable=AsyncMock)
     @patch.object(ExecutionCoordinator, "add_checkpoint", new_callable=AsyncMock)
     @patch.object(ExecutionCoordinator, "complete_execution", new_callable=AsyncMock)
     async def test_submit_orders_post_execution_failure(
         self,
-        mock_complete_execution: AsyncMock,
-        mock_add_checkpoint: AsyncMock,
-        mock_start_execution: AsyncMock,
-        mock_compensate: AsyncMock,  # Add mock compensation
-        mock_verify_post: AsyncMock,
-        mock_execute_seq: AsyncMock,
-        mock_verify_pre: AsyncMock,
-        service: tuple[SynchronizedOrderSubmissionService, dict[str, Any], MagicMock, MagicMock],
+        mock_ec_complete_exec: AsyncMock,
+        mock_ec_add_checkpoint: AsyncMock,
+        mock_ec_start_exec: AsyncMock,
+        mock_sos_compensate: AsyncMock,
+        mock_sos_verify_post: AsyncMock,
+        mock_sos_exec_seq: AsyncMock,
+        mock_sos_verify_pre: AsyncMock,
+        service: tuple[
+            SynchronizedOrderSubmissionService,
+            dict[str, Any],
+            MagicMock,  # mock_cb_system
+            MagicMock,  # mock_portfolio_tracker
+        ],
     ) -> None:
         """Test order submission with post-execution verification failure."""
-        service_instance, _, _, _ = service
+        service_instance, _, _, _ = service  # Unpack fixture
         mock_opportunity = ArbitrageOpportunity(
             symbol="BTC-PERP",
             long_exchange="hyperliquid",
@@ -811,70 +823,68 @@ class TestSynchronizedOrderSubmissionService:
         )
 
         # Mock pre-execution verification to succeed
-        mock_verify_pre.return_value = {"success": True}
+        mock_sos_verify_pre.return_value = {"verified": True}
 
         # Mock execution to succeed
         mock_execution_result = ExecutionResult(
             execution_id="test_exec_id_post_fail",
             status=ExecutionStatus.COMPLETED,
             timestamp=int(time.time() * 1000),
+            details=None,  # Explicitly provide details as None initially
         )
-        mock_execute_seq.return_value = mock_execution_result
+        mock_sos_exec_seq.return_value = mock_execution_result
 
         # Mock post-execution verification to fail
-        mock_verify_post.return_value = {"success": False, "error": "Post-execution check failed"}
+        mock_sos_verify_post.return_value = {
+            "verified": False,
+            "error": "Post-execution check failed",
+        }
 
         # Mock compensation to succeed
-        mock_compensate.return_value = {"compensated": True}
+        mock_sos_compensate.return_value = {
+            "compensated": True,
+            "details": "Compensation successful",
+        }
 
         # Mock ExecutionCoordinator methods
         mock_exec_context = ExecutionContext(
             execution_id="test_exec_id_post_fail",
             opportunity=mock_opportunity,
-            strategy="sequential_lock_in",
+            strategy="sequential_lock_in",  # Default strategy from config if not specified
             start_time=datetime.now(UTC),
             status=ExecutionStatus.PENDING,
             checkpoints=[],
         )
-        mock_start_execution.return_value = mock_exec_context
+        mock_ec_start_exec.return_value = mock_exec_context
 
-        # --- Setup mock_complete_execution to behave like the original ---
-        # It should take context and result, and not return anything.
-        async def mock_complete(ctx: object, res: ExecutionResult) -> None:
-            # In a real scenario, this might update ctx or log
-            # For testing, we just ensure it's callable with correct args
-            # and doesn't raise an error.
-            # We can add assertions here if needed, e.g., on ctx.status or res.status
-            # For this test, we're focusing on the flow, so a no-op is fine.
-            pass
+        async def mock_complete_side_effect(ctx: ExecutionContext, res: ExecutionResult) -> None:
+            assert isinstance(res, ExecutionResult)
+            assert res.status == ExecutionStatus.PARTIALLY_COMPLETED
+            assert ctx == mock_exec_context
 
-        mock_complete_execution.side_effect = mock_complete
-        # --- End mock_complete_execution setup ---
+        mock_ec_complete_exec.side_effect = mock_complete_side_effect
 
-        # Call the method
+        # Call the method using the default strategy from config (or specify if different)
         result = await service_instance.submit_orders(mock_opportunity)
 
         # Assertions
         assert result.status == ExecutionStatus.PARTIALLY_COMPLETED
-        assert result.error is None  # Error is in verification_result or compensation_result
-        assert result.compensation_result is not None
-        assert result.compensation_result.get("compensated") is True
+        assert result.error is None
+        assert result.details is not None
+        assert result.details.get("compensation_attempted") is True
+        compensation_res = result.details.get("compensation_result")
+        assert compensation_res is not None
+        assert compensation_res.get("compensated") is True
+        assert "Compensation successful" in compensation_res.get("details", "")
 
-        # Verify that checkpoints were added (basic check, can be more specific)
-        # Check for critical checkpoints like pre-execution, execution start,
-        # post-execution verification, and completion.
-        # The exact number of checkpoints might vary, so check for existence or key ones.
-        assert mock_add_checkpoint.call_count >= 4  # Adjust based on expected checkpoints
-
-        # Ensure critical methods were called
-        mock_verify_pre.assert_awaited_once()
-        mock_execute_seq.assert_awaited_once()
-        mock_verify_post.assert_awaited_once()
-        mock_compensate.assert_awaited_once()
-        mock_start_execution.assert_awaited_once()
-        # mock_complete_execution.assert_awaited_once() # This might be called multiple times
-        # or its internal logic is more complex. Check call_count if specific number is expected.
-        assert mock_complete_execution.call_count > 0
+        # Verify calls
+        mock_sos_verify_pre.assert_awaited_once()
+        mock_sos_exec_seq.assert_awaited_once()
+        mock_sos_verify_post.assert_awaited_once()
+        mock_sos_compensate.assert_awaited_once()
+        mock_ec_start_exec.assert_awaited_once()
+        mock_ec_complete_exec.assert_awaited_once_with(mock_exec_context, result)
+        assert mock_ec_add_checkpoint.call_count >= 4
 
     @pytest.mark.asyncio
     @patch.object(
@@ -890,16 +900,21 @@ class TestSynchronizedOrderSubmissionService:
         MockExecutionCoordinator: MagicMock,  # Patched class
         mock_verify_balances: AsyncMock,
         mock_verify_market_conditions: AsyncMock,
-        service: tuple[SynchronizedOrderSubmissionService, dict[str, Any], MagicMock, MagicMock],
+        service: tuple[
+            SynchronizedOrderSubmissionService,
+            dict[str, Any],
+            MagicMock,  # mock_cb_system
+            MagicMock,  # mock_portfolio_tracker
+        ],
     ) -> None:
         """Test the internal verify_pre_execution method's logic paths."""
-        service_instance, _, mock_circuit_breaker_system, _ = service
+        service_instance, _, mock_cb_system, _ = service
 
         # --- Setup for ExecutionCoordinator interaction ---
         # Instantiate the mock ExecutionCoordinator
         mock_coordinator_instance = MockExecutionCoordinator.return_value
-        # service_instance.execution_coordinator = mock_coordinator_instance
-        # Assign if needed by method
+        # Explicitly assign to ensure the service instance uses this specific mock
+        service_instance.execution_coordinator = mock_coordinator_instance
 
         mock_opportunity = ArbitrageOpportunity(
             symbol="BTC-PERP",
@@ -929,19 +944,23 @@ class TestSynchronizedOrderSubmissionService:
         )
 
         # --- Test all pass ---
-        mock_circuit_breaker_system.can_execute.return_value = (True, None)
-        mock_verify_market_conditions.return_value = {"success": True, "error": None, "details": {}}
-        mock_verify_balances.return_value = {"success": True, "error": None, "details": {}}
+        mock_cb_system.can_execute.return_value = (True, None)
+        mock_verify_market_conditions.return_value = {
+            "verified": True,
+            "error": None,
+            "details": {},
+        }
+        mock_verify_balances.return_value = {"verified": True, "error": None, "details": {}}
 
         result_dict_all_pass = await service_instance.verify_pre_execution(
             mock_exec_context, mock_opportunity
         )
-        assert result_dict_all_pass.get("success") is True
+        assert result_dict_all_pass.get("verified") is True
         assert result_dict_all_pass.get("error") is None
-        mock_circuit_breaker_system.can_execute.assert_any_call(
+        mock_cb_system.can_execute.assert_any_call(
             mock_opportunity.long_exchange, mock_opportunity.symbol
         )
-        mock_circuit_breaker_system.can_execute.assert_any_call(
+        mock_cb_system.can_execute.assert_any_call(
             mock_opportunity.short_exchange, mock_opportunity.symbol
         )
         mock_verify_market_conditions.assert_awaited_once_with(mock_opportunity)
@@ -949,25 +968,32 @@ class TestSynchronizedOrderSubmissionService:
         assert mock_coordinator_instance.add_checkpoint.call_count > 0  # Check for some calls
 
         # Reset mocks for next scenario
-        mock_circuit_breaker_system.reset_mock()
+        mock_cb_system.reset_mock()
+        mock_cb_system.can_execute.side_effect = (
+            None  # Explicitly clear side_effect for the attribute mock
+        )
         mock_verify_market_conditions.reset_mock()
         mock_verify_balances.reset_mock()
         mock_coordinator_instance.add_checkpoint.reset_mock()
 
         # --- Test long leg CB failure ---
-        mock_circuit_breaker_system.can_execute.side_effect = [
+        mock_cb_system.can_execute.side_effect = [
             (False, "Long leg CB tripped"),
             (True, None),  # Should not be called for short leg
         ]
-        mock_verify_market_conditions.return_value = {"success": True, "error": None, "details": {}}
-        mock_verify_balances.return_value = {"success": True, "error": None, "details": {}}
+        mock_verify_market_conditions.return_value = {
+            "verified": True,
+            "error": None,
+            "details": {},
+        }
+        mock_verify_balances.return_value = {"verified": True, "error": None, "details": {}}
 
         result_dict_fail_long_cb = await service_instance.verify_pre_execution(
             mock_exec_context, mock_opportunity
         )
-        assert result_dict_fail_long_cb.get("success") is False
+        assert result_dict_fail_long_cb.get("verified") is False
         assert "Long leg CB tripped" in result_dict_fail_long_cb.get("error", "")
-        mock_circuit_breaker_system.can_execute.assert_called_once_with(
+        mock_cb_system.can_execute.assert_called_once_with(
             mock_opportunity.long_exchange, mock_opportunity.symbol
         )  # Only long check
         mock_verify_market_conditions.assert_not_awaited()
@@ -975,56 +1001,69 @@ class TestSynchronizedOrderSubmissionService:
         assert mock_coordinator_instance.add_checkpoint.call_count > 0
 
         # Reset mocks
-        mock_circuit_breaker_system.reset_mock()
+        mock_cb_system.reset_mock()
+        mock_cb_system.can_execute.side_effect = (
+            None  # Explicitly clear side_effect for the attribute mock
+        )
         mock_verify_market_conditions.reset_mock()
         mock_verify_balances.reset_mock()
         mock_coordinator_instance.add_checkpoint.reset_mock()
 
         # --- Test short leg CB failure ---
-        mock_circuit_breaker_system.can_execute.side_effect = [
+        mock_cb_system.can_execute.side_effect = [
             (True, None),
             (False, "Short leg CB tripped"),
         ]
-        mock_verify_market_conditions.return_value = {"success": True, "error": None, "details": {}}
-        mock_verify_balances.return_value = {"success": True, "error": None, "details": {}}
+        mock_verify_market_conditions.return_value = {
+            "verified": True,
+            "error": None,
+            "details": {},
+        }
+        mock_verify_balances.return_value = {"verified": True, "error": None, "details": {}}
 
         result_dict_fail_short_cb = await service_instance.verify_pre_execution(
             mock_exec_context, mock_opportunity
         )
-        assert result_dict_fail_short_cb.get("success") is False
+        assert result_dict_fail_short_cb.get("verified") is False
         assert "Short leg CB tripped" in result_dict_fail_short_cb.get("error", "")
         # Market/balance checks might not be called if short CB fails.
         # For now, assume they are not called after a CB failure in verify_pre_execution
         # mock_verify_market_conditions.assert_not_awaited()
         # mock_verify_balances.assert_not_awaited()
-        assert mock_circuit_breaker_system.can_execute.call_count == 2
+        assert mock_cb_system.can_execute.call_count == 2
         assert mock_coordinator_instance.add_checkpoint.call_count > 0
 
         # Reset mocks
-        mock_circuit_breaker_system.reset_mock()
+        mock_cb_system.reset_mock()
+        mock_cb_system.can_execute.side_effect = (
+            None  # Explicitly clear side_effect for the attribute mock
+        )
         mock_verify_market_conditions.reset_mock()
         mock_verify_balances.reset_mock()
         mock_coordinator_instance.add_checkpoint.reset_mock()
 
         # --- Test market condition failure ---
-        mock_circuit_breaker_system.can_execute.return_value = (True, None)
+        mock_cb_system.can_execute.return_value = (True, None)
         mock_verify_market_conditions.return_value = {
-            "success": False,
+            "verified": False,
             "error": "Market spread too wide",
             "details": {},
         }
-        mock_verify_balances.return_value = {"success": True, "error": None, "details": {}}
+        mock_verify_balances.return_value = {"verified": True, "error": None, "details": {}}
 
         result_dict_fail_market = await service_instance.verify_pre_execution(
             mock_exec_context, mock_opportunity
         )
-        assert result_dict_fail_market.get("success") is False
+        assert result_dict_fail_market.get("verified") is False
         assert "Market spread too wide" in result_dict_fail_market.get("error", "")
         mock_verify_balances.assert_not_awaited()  # Should not be called if market fails
         assert mock_coordinator_instance.add_checkpoint.call_count > 0
 
         # Reset mocks
-        mock_circuit_breaker_system.reset_mock()
+        mock_cb_system.reset_mock()
+        mock_cb_system.can_execute.side_effect = (
+            None  # Explicitly clear side_effect for the attribute mock
+        )
         mock_verify_market_conditions.reset_mock()
         mock_verify_balances.reset_mock()
         mock_coordinator_instance.add_checkpoint.reset_mock()
@@ -1032,11 +1071,18 @@ class TestSynchronizedOrderSubmissionService:
         # --- Test balance verification failure ---
         mock_circuit_breaker_system_balance_fail = MagicMock(spec=CircuitBreakerSystem)
         mock_circuit_breaker_system_balance_fail.can_execute.return_value = (True, None)
-        service_instance.circuit_breaker_system = mock_circuit_breaker_system_balance_fail
+        mock_cb_system.can_execute.side_effect = (
+            None  # Clear side effect before setting return_value
+        )
+        mock_cb_system.can_execute.return_value = (True, None)
 
-        mock_verify_market_conditions.return_value = {"success": True, "error": None, "details": {}}
+        mock_verify_market_conditions.return_value = {
+            "verified": True,
+            "error": None,
+            "details": {},
+        }
         mock_verify_balances.return_value = {
-            "success": False,
+            "verified": False,
             "error": "Insufficient balance on long leg",
             "details": {},
         }
@@ -1044,7 +1090,7 @@ class TestSynchronizedOrderSubmissionService:
         result_dict_fail_balance = await service_instance.verify_pre_execution(
             mock_exec_context, mock_opportunity
         )
-        assert result_dict_fail_balance.get("success") is False
+        assert result_dict_fail_balance.get("verified") is False
         assert "Insufficient balance on long leg" in result_dict_fail_balance.get("error", "")
         assert mock_coordinator_instance.add_checkpoint.call_count > 0
 
@@ -1062,14 +1108,21 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_orders: AsyncMock,
         mock_verify_fills: AsyncMock,
         mock_verify_positions: AsyncMock,
-        service: tuple[SynchronizedOrderSubmissionService, dict[str, Any], MagicMock, MagicMock],
+        service: tuple[
+            SynchronizedOrderSubmissionService,
+            dict[str, Any],
+            MagicMock,  # mock_cb_system
+            MagicMock,  # mock_portfolio_tracker
+        ],
     ) -> None:
         """Test the verify_post_execution method."""
         service_instance, _, _, _ = service
 
         # --- Setup for ExecutionCoordinator interaction ---
         mock_coordinator_instance = MockExecutionCoordinator.return_value
-        # service_instance.execution_coordinator = mock_coordinator_instance # Assign if needed
+        service_instance.execution_coordinator = (
+            mock_coordinator_instance  # CRITICAL: Ensure this assignment happens
+        )
 
         mock_opportunity = ArbitrageOpportunity(
             symbol="ETH-PERP",
@@ -1102,20 +1155,33 @@ class TestSynchronizedOrderSubmissionService:
         )
 
         # Scenario 1: All verifications pass
-        mock_verify_positions.return_value = {"success": True, "details": "Positions OK"}
-        mock_verify_fills.return_value = {"success": True, "details": "Fills OK"}
-        mock_verify_orders.return_value = {"success": True, "details": "Orders OK"}
+        mock_verify_positions.return_value = {"verified": True, "details": "Positions OK"}
+        mock_verify_fills.return_value = {"verified": True, "details": "Fills OK"}
+        mock_verify_orders.return_value = {"verified": True, "details": "Orders OK"}
 
         result_pass = await service_instance.verify_post_execution(
             mock_exec_context, mock_opportunity, mock_execution_result
         )
-        assert result_pass["success"] is True
+        assert result_pass["verified"] is True
         mock_verify_positions.assert_awaited_once_with(mock_opportunity, mock_execution_result)
         mock_verify_fills.assert_awaited_once_with(mock_opportunity, mock_execution_result)
         mock_verify_orders.assert_awaited_once_with(mock_opportunity, mock_execution_result)
         # Check for success checkpoint
-        mock_coordinator_instance.add_checkpoint.assert_any_call(
-            mock_exec_context, "post_execution_verification_success", result_pass["details"]
+        checkpoint_found = False
+        expected_checkpoint_name = "post_execution_verification_success"
+        expected_details = result_pass["details"]
+        for call_args in mock_coordinator_instance.add_checkpoint.call_args_list:
+            args, _kwargs = call_args
+            if (
+                len(args) == 3
+                and args[0] == mock_exec_context
+                and args[1] == expected_checkpoint_name
+                and args[2] == expected_details
+            ):
+                checkpoint_found = True
+                break
+        assert checkpoint_found, (
+            f"Checkpoint {expected_checkpoint_name} with details {expected_details} not found in calls to add_checkpoint. Calls: {mock_coordinator_instance.add_checkpoint.call_args_list}"
         )
 
         # Reset mocks for next scenario
@@ -1126,24 +1192,32 @@ class TestSynchronizedOrderSubmissionService:
 
         # Scenario 2: Position verification fails
         mock_verify_positions.return_value = {
-            "success": False,
+            "verified": False,
             "error": "Position mismatch",
             "details": {},
         }
-        mock_verify_fills.return_value = {"success": True}  # Fills and orders pass
-        mock_verify_orders.return_value = {"success": True}
+        mock_verify_fills.return_value = {"verified": True}  # Fills and orders pass
+        mock_verify_orders.return_value = {"verified": True}
 
         result_fail_pos = await service_instance.verify_post_execution(
             mock_exec_context, mock_opportunity, mock_execution_result
         )
-        assert result_fail_pos["success"] is False
-        mock_coordinator_instance.add_checkpoint.assert_any_call(
-            mock_exec_context,
-            "position_verification_failed",
-            {
-                "error": "Position mismatch",
-                "details": {},
-            },
+        assert result_fail_pos["verified"] is False
+        checkpoint_found_fail_pos = False
+        expected_checkpoint_name_fail_pos = "position_verification_failed"
+        expected_details_fail_pos: dict[str, Any] = {"error": "Position mismatch", "details": {}}
+        for call_args in mock_coordinator_instance.add_checkpoint.call_args_list:
+            args, _kwargs = call_args
+            if (
+                len(args) == 3
+                and args[0] == mock_exec_context
+                and args[1] == expected_checkpoint_name_fail_pos
+                and args[2] == expected_details_fail_pos
+            ):
+                checkpoint_found_fail_pos = True
+                break
+        assert checkpoint_found_fail_pos, (
+            f"Checkpoint {expected_checkpoint_name_fail_pos} with details {expected_details_fail_pos} not found in calls to add_checkpoint. Calls: {mock_coordinator_instance.add_checkpoint.call_args_list}"
         )
 
         # Reset mocks
@@ -1153,16 +1227,30 @@ class TestSynchronizedOrderSubmissionService:
         mock_coordinator_instance.add_checkpoint.reset_mock()
 
         # Scenario 3: Fill verification fails
-        mock_verify_positions.return_value = {"success": True}
-        mock_verify_fills.return_value = {"success": False, "error": "Fill quantity incorrect"}
-        mock_verify_orders.return_value = {"success": True}
+        mock_verify_positions.return_value = {"verified": True}
+        mock_verify_fills.return_value = {"verified": False, "error": "Fill quantity incorrect"}
+        mock_verify_orders.return_value = {"verified": True}
 
         result_fail_fill = await service_instance.verify_post_execution(
             mock_exec_context, mock_opportunity, mock_execution_result
         )
-        assert result_fail_fill["success"] is False
-        mock_coordinator_instance.add_checkpoint.assert_any_call(
-            mock_exec_context,
-            "fill_verification_failed",
-            {"error": "Fill quantity incorrect", "details": None},  # Assuming details might be None
+        assert result_fail_fill["verified"] is False
+        checkpoint_found_fail_fill = False
+        expected_checkpoint_name_fail_fill = "fill_verification_failed"
+        expected_details_fail_fill: dict[str, Any | None] = {
+            "error": "Fill quantity incorrect",
+            "details": None,
+        }
+        for call_args in mock_coordinator_instance.add_checkpoint.call_args_list:
+            args, _kwargs = call_args
+            if (
+                len(args) == 3
+                and args[0] == mock_exec_context
+                and args[1] == expected_checkpoint_name_fail_fill
+                and args[2] == expected_details_fail_fill
+            ):
+                checkpoint_found_fail_fill = True
+                break
+        assert checkpoint_found_fail_fill, (
+            f"Checkpoint {expected_checkpoint_name_fail_fill} with details {expected_details_fail_fill} not found in calls to add_checkpoint. Calls: {mock_coordinator_instance.add_checkpoint.call_args_list}"
         )

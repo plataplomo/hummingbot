@@ -107,15 +107,6 @@ class TestHyperliquidAPI:
             async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
                 return []
 
-            async def get_recent_fills(
-                self,
-                symbol: str | None = None,
-                limit: int | None = None,
-                order_id: str | None = None,
-                start_time: int | None = None,
-            ) -> list[Trade]:
-                return []
-
             async def get_funding_rates(
                 self, symbols: list[str] | None = None
             ) -> list[FundingRate]:

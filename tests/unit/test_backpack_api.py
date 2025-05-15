@@ -203,16 +203,6 @@ class ConcreteBackpackAPI(BackpackAPI):
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         return []  # Placeholder
 
-    async def get_recent_fills(
-        self,
-        symbol: str | None = None,
-        limit: int | None = None,
-        order_id: str | None = None,
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-    ) -> list[Trade]:
-        return []
-
     # Added _sign_request placeholder for ConcreteBackpackAPI
     def _sign_request(
         self, method: str, instruction: str, params: list[tuple[str, Any]]
