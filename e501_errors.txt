@@ -1,0 +1,2348 @@
+cyberdelta/apis/connectivity/ws_manager.py:147:101: E501 Line too long (154 > 100)
+    |
+145 | …
+146 | …
+147 | …red method. Should_reconnect: {self._should_reconnect}, Is_connected: {self.is_connected}"
+    |                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+148 | …
+149 | …
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:151:101: E501 Line too long (132 > 100)
+    |
+149 |         async with self._reconnect_lock:
+150 |             self._logger.info(
+151 |                 f"[{self._exchange_name} _establish_connection] Acquired reconnect_lock. Should_reconnect: {self._should_reconnect}"
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+152 |             )
+153 |             if not self._should_reconnect:
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:165:101: E501 Line too long (144 > 100)
+    |
+163 | …
+164 | …
+165 | …ion] Starting connection attempts loop. Max attempts: {self._max_reconnect_attempts}"
+    |                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+166 | …
+167 | …t < self._max_reconnect_attempts:
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:169:101: E501 Line too long (123 > 100)
+    |
+167 |             while self._should_reconnect and current_attempt < self._max_reconnect_attempts:
+168 |                 self._logger.info(
+169 |                     f"[{self._exchange_name} _establish_connection] Loop Iteration. Current attempt: {current_attempt + 1}"
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^ E501
+170 |                 )
+171 |                 if current_attempt > 0:
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:187:101: E501 Line too long (124 > 100)
+    |
+185 |                     session = await self._get_session()
+186 |                     self._logger.info(
+187 |                         f"[{self._exchange_name} _establish_connection] About to call session.ws_connect for {self._ws_url}"
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^ E501
+188 |                     )
+189 |                     server_expected_ping_interval = (
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:196:101: E501 Line too long (193 > 100)
+    |
+195 | …
+196 | …to connect to {self._ws_url} (Attempt {current_attempt + 1}) via session {id(session) if session else 'None'}"
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+197 | …
+198 | …
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:204:101: E501 Line too long (163 > 100)
+    |
+202 | …
+203 | …
+204 | …on] session.ws_connect call completed. self._ws_connection is now: {type(self._ws_connection)}"
+    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+205 | …
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:210:101: E501 Line too long (144 > 100)
+    |
+208 | …
+209 | …
+210 | …_connection] Successfully connected to {self._ws_url}. Starting listener/ping tasks."
+    |                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+211 | …
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:215:101: E501 Line too long (144 > 100)
+    |
+213 | …stener_task.done():
+214 | …
+215 | …lish_connection] Cancelling existing listener task: {self._listener_task.get_name()}"
+    |                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+216 | …
+217 | …
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:220:101: E501 Line too long (136 > 100)
+    |
+218 | …     if self._ping_task and not self._ping_task.done():
+219 | …         self._logger.info(
+220 | …             f"[{self._exchange_name} _establish_connection] Cancelling existing ping task: {self._ping_task.get_name()}"
+    |                                                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+221 | …         )
+222 | …         self._ping_task.cancel()
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:249:101: E501 Line too long (125 > 100)
+    |
+247 |                 except (TimeoutError, aiohttp.ClientError) as e:
+248 |                     self._logger.warning(
+249 |                         f"[{self._exchange_name} _establish_connection] Connection attempt {current_attempt + 1} failed: {e}"
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+250 |                     )
+251 |                     self._is_connected = False
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:256:101: E501 Line too long (142 > 100)
+    |
+254 | …
+255 | …
+256 | …h_connection] Unexpected error during connection attempt {current_attempt + 1}: {e}"
+    |                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+257 | …
+258 | …
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:298:101: E501 Line too long (249 > 100)
+    |
+296 | …
+297 | …
+298 | …iteration_count}. Msg type: {msg.type if msg else 'None'}. Cancelled state: {current_task_listen_loop.cancelled() if current_task_listen_loop else 'N/A'}"
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+299 | …
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:331:101: E501 Line too long (171 > 100)
+    |
+329 | …
+330 | …
+331 | …ten_loop}] Received WSMsgType.CLOSED. Iteration {loop_iteration_count}. Terminating listener loop."
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+332 | …
+333 | …
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:336:101: E501 Line too long (172 > 100)
+    |
+334 | …
+335 | …
+336 | …en_loop}] Received WSMsgType.CLOSING. Iteration {loop_iteration_count}. Terminating listener loop."
+    |                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+337 | …
+338 | …
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:346:101: E501 Line too long (202 > 100)
+    |
+344 | …
+345 | …
+346 | …xplicitly CANCELLED (caught in except block). Loop iterations: {loop_iteration_count}. Re-raising CancelledError."
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+347 | …
+348 | …
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:362:101: E501 Line too long (127 > 100)
+    |
+361 |             self._logger.info(
+362 |                 f"[{self._exchange_name} _listen] Finally block. Task: {current_task.get_name() if current_task else 'None'}, "
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+363 |                 f"Cancelled state: {final_is_cancelled_state}, Should Reconnect: {self._should_reconnect}"
+364 |             )
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:363:101: E501 Line too long (106 > 100)
+    |
+361 |             self._logger.info(
+362 |                 f"[{self._exchange_name} _listen] Finally block. Task: {current_task.get_name() if current_task else 'None'}, "
+363 |                 f"Cancelled state: {final_is_cancelled_state}, Should Reconnect: {self._should_reconnect}"
+    |                                                                                                     ^^^^^^ E501
+364 |             )
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:388:101: E501 Line too long (102 > 100)
+    |
+386 |         if not self._ping_interval or self._ping_interval <= 0:
+387 |             self._logger.info(
+388 |                 f"[{self._exchange_name} _keep_alive] Ping interval zero/negative, task will not run."
+    |                                                                                                     ^^ E501
+389 |             )
+390 |             return
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:430:101: E501 Line too long (107 > 100)
+    |
+428 |                 if not new_connection_attempt_task:
+429 |                     self._logger.debug(
+430 |                         f"[{self._exchange_name} _keep_alive] Reconnect from error did not start new task."
+    |                                                                                                     ^^^^^^^ E501
+431 |                     )
+432 |         finally:
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:491:101: E501 Line too long (131 > 100)
+    |
+489 |             try:
+490 |                 self._logger.debug(
+491 |                     f"Awaiting listener task: {self._listener_task.get_name()}, cancelled state: {self._listener_task.cancelled()}"
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+492 |                 )
+493 |                 await asyncio.wait_for(self._listener_task, timeout=5.0)
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:495:101: E501 Line too long (159 > 100)
+    |
+493 | …t=5.0)
+494 | …
+495 | …)} awaited. Done: {self._listener_task.done()}, Cancelled: {self._listener_task.cancelled()}"
+    |                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+496 | …
+497 | …
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:499:101: E501 Line too long (105 > 100)
+    |
+497 |             except asyncio.CancelledError:
+498 |                 self._logger.debug(
+499 |                     f"Listener task {self._listener_task.get_name()} successfully cancelled and awaited."
+    |                                                                                                     ^^^^^ E501
+500 |                 )
+501 |             except TimeoutError:
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:504:101: E501 Line too long (139 > 100)
+    |
+502 | …
+503 | …task {self._listener_task.get_name()} "
+504 | …te: Done={self._listener_task.done()}, Cancelled={self._listener_task.cancelled()}"
+    |                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+505 | …
+506 | …
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:517:101: E501 Line too long (119 > 100)
+    |
+515 |             try:
+516 |                 self._logger.debug(
+517 |                     f"Awaiting ping task: {self._ping_task.get_name()}, cancelled state: {self._ping_task.cancelled()}"
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^ E501
+518 |                 )
+519 |                 await asyncio.wait_for(self._ping_task, timeout=5.0)
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:521:101: E501 Line too long (143 > 100)
+    |
+519 | …meout=5.0)
+520 | …
+521 | …)} awaited. Done: {self._ping_task.done()}, Cancelled: {self._ping_task.cancelled()}"
+    |                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+522 | …
+523 | …
+    |
+
+cyberdelta/apis/connectivity/ws_manager.py:530:101: E501 Line too long (131 > 100)
+    |
+528 |                 self._logger.error(
+529 |                     f"Timeout (5s) waiting for ping task {self._ping_task.get_name()} "
+530 |                     f"to complete during close! Task state: Done={self._ping_task.done()}, Cancelled={self._ping_task.cancelled()}"
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+531 |                 )
+532 |             except Exception as e:
+    |
+
+cyberdelta/backtesting/backtesting.py:64:101: E501 Line too long (115 > 100)
+   |
+62 |         Args:
+63 |             current_data: A pandas Series or DataFrame row representing the current time step.
+64 |                           For OHLCV data, typically includes columns like 'open', 'high', 'low', 'close', 'volume'.
+   |                                                                                                     ^^^^^^^^^^^^^^^ E501
+65 |                           Index is expected to be a Timestamp.
+   |
+
+cyberdelta/backtesting/backtesting.py:118:101: E501 Line too long (108 > 100)
+    |
+116 |                 raise ValueError(f"Invalid data path or format: {data}") from e
+117 |         else:
+118 |             # At this point, data is assumed to be a pd.DataFrame (type: ignore for pandas stub limitations)
+    |                                                                                                     ^^^^^^^^ E501
+119 |             self.data = data.copy()  # Use a copy to avoid modifying original DataFrame
+    |
+
+cyberdelta/backtesting/backtesting.py:496:101: E501 Line too long (102 > 100)
+    |
+494 |         """
+495 |         Processes the current market data (a single time step as a pandas Series or DataFrame row)
+496 |         using the adapted strategy. Converts pandas data to Candle(s) and calls strategy.process_data.
+    |                                                                                                     ^^ E501
+497 |         Converts resulting TradeSignal(s) back to the backtester's dict format.
+498 |         Handles both synchronous and asynchronous process_data methods.
+    |
+
+cyberdelta/backtesting/backtesting.py:532:101: E501 Line too long (103 > 100)
+    |
+530 |                         # Check if a loop is already running - needed if engine becomes async
+531 |                         loop = asyncio.get_running_loop()
+532 |                         # If loop running, create task and await (adaptation needed if engine is async)
+    |                                                                                                     ^^^ E501
+533 |                         # For now, assume engine is sync, so run might be okay, but prefer creating task if possible
+534 |                         self._logger.warning(
+    |
+
+cyberdelta/backtesting/backtesting.py:533:101: E501 Line too long (116 > 100)
+    |
+531 |                         loop = asyncio.get_running_loop()
+532 |                         # If loop running, create task and await (adaptation needed if engine is async)
+533 |                         # For now, assume engine is sync, so run might be okay, but prefer creating task if possible
+    |                                                                                                     ^^^^^^^^^^^^^^^^ E501
+534 |                         self._logger.warning(
+535 |                             "Running async process_data within sync backtest loop. Consider engine refactor."
+    |
+
+cyberdelta/backtesting/backtesting.py:535:101: E501 Line too long (109 > 100)
+    |
+533 |                         # For now, assume engine is sync, so run might be okay, but prefer creating task if possible
+534 |                         self._logger.warning(
+535 |                             "Running async process_data within sync backtest loop. Consider engine refactor."
+    |                                                                                                     ^^^^^^^^^ E501
+536 |                         )
+537 |                         task = loop.create_task(signal_or_coro)
+    |
+
+cyberdelta/backtesting/backtesting.py:539:101: E501 Line too long (101 > 100)
+    |
+537 |                         task = loop.create_task(signal_or_coro)
+538 |                         processed_signal = asyncio.get_event_loop().run_until_complete(task)
+539 |                         # Ideally: processed_signal = await task (if adapter.update itself was async)
+    |                                                                                                     ^ E501
+540 |
+541 |                     except RuntimeError:  # No running event loop
+    |
+
+cyberdelta/backtesting/backtesting.py:611:101: E501 Line too long (111 > 100)
+    |
+609 |                 for actual_symbol_str in actual_symbols:
+610 |                     symbol = str(actual_symbol_str)  # Ensure it's a string
+611 |                     # Get all data for this specific symbol: will be a Series with index ['open', 'close', ...]
+    |                                                                                                     ^^^^^^^^^^^ E501
+612 |                     symbol_specific_data = data.xs(key=actual_symbol_str, level=1, axis=0)
+    |
+
+cyberdelta/backtesting/backtesting.py:615:101: E501 Line too long (103 > 100)
+    |
+614 |                     try:
+615 |                         # DEFENSIVE CHECK: Validate required fields exist in symbol_specific_data.index
+    |                                                                                                     ^^^ E501
+616 |                         required_fields = ["open", "high", "low", "close", "volume"]
+617 |                         if not all(
+    |
+
+cyberdelta/backtesting/backtesting.py:621:101: E501 Line too long (158 > 100)
+    |
+619 | …
+620 | …
+621 | …} at {timestamp}. Fields available: {symbol_specific_data.index.tolist()}. Skipping candle."
+    |                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+622 | …
+623 | …
+    |
+
+cyberdelta/backtesting/backtesting.py:639:101: E501 Line too long (177 > 100)
+    |
+637 | …
+638 | …mbol} "
+639 | …ecific_data.to_dict() if isinstance(symbol_specific_data, pd.Series) else 'Error converting to dict'}"
+    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+640 | …
+641 | …
+    |
+
+cyberdelta/backtesting/backtesting.py:642:101: E501 Line too long (110 > 100)
+    |
+640 |                         )
+641 |             else:
+642 |                 # Assuming single index represents symbol or just one instrument (non-MultiIndex columns case)
+    |                                                                                                     ^^^^^^^^^^ E501
+643 |                 symbol = data.index.name if data.index.name else "UNKNOWN_SYMBOL"
+644 |                 try:
+    |
+
+cyberdelta/backtesting/backtesting.py:714:101: E501 Line too long (108 > 100)
+    |
+712 |                     symbol_data = data.loc[symbol]
+713 |                     self._logger.debug(
+714 |                         f"[get_current_price] symbol_data type: {type(symbol_data)}, content: {symbol_data}"
+    |                                                                                                     ^^^^^^^^ E501
+715 |                     )
+716 |                     price_val = (
+    |
+
+cyberdelta/backtesting/backtesting.py:721:101: E501 Line too long (107 > 100)
+    |
+719 |                 else:
+720 |                     self._logger.debug(
+721 |                         "[get_current_price] Data has non-MultiIndex. Accessing data directly for 'close'."
+    |                                                                                                     ^^^^^^^ E501
+722 |                     )
+723 |                     # Assumes single series, check if name matches or just get close
+    |
+
+cyberdelta/backtesting/backtesting.py:728:101: E501 Line too long (109 > 100)
+    |
+726 |                     else:  # Check if the series itself contains the symbol? Unlikely.
+727 |                         self._logger.warning(
+728 |                             f"[get_current_price] Cannot reliably get price for {symbol} from simple Series."
+    |                                                                                                     ^^^^^^^^^ E501
+729 |                         )
+730 |             except KeyError as ke:
+    |
+
+cyberdelta/backtesting/backtesting.py:732:101: E501 Line too long (154 > 100)
+    |
+730 | …
+731 | …
+732 | …nt price for symbol '{symbol}': {ke}. Data shape: {data.shape}, Data index: {data.index}",
+    |                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+733 | …
+734 | …
+    |
+
+cyberdelta/backtesting/backtesting.py:757:101: E501 Line too long (102 > 100)
+    |
+756 |         for signal in signals:
+757 |             # Use signal.timestamp if available and valid, otherwise fallback to current row timestamp
+    |                                                                                                     ^^ E501
+758 |             signal_timestamp = signal.timestamp
+759 |             if not isinstance(signal_timestamp, datetime):
+    |
+
+cyberdelta/backtesting/backtesting.py:790:101: E501 Line too long (105 > 100)
+    |
+788 |                 else:
+789 |                     self._logger.warning(
+790 |                         f"Invalid entry price ({signal.entry_price}) for PnL calculation on exit signal."
+    |                                                                                                     ^^^^^ E501
+791 |                     )
+792 |             elif is_exit:
+    |
+
+cyberdelta/backtesting/backtesting.py:794:101: E501 Line too long (141 > 100)
+    |
+792 | …
+793 | …
+794 | …gnal: Missing entry price ({signal.entry_price}) or current price ({current_price})"
+    |                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+795 | …
+    |
+
+cyberdelta/backtesting/backtesting.py:812:101: E501 Line too long (168 > 100)
+    |
+811 | …
+812 | … received row_data.index: {row_data.index.tolist()}, row_data.values: {row_data.values.tolist()}"
+    |                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+813 | …
+    |
+
+cyberdelta/backtesting/results_1.py:275:101: E501 Line too long (105 > 100)
+    |
+273 |         except TypeError as e:
+274 |             logger.error(
+275 |                 f"Error serializing results to JSON: {e}. Attempting manual conversion for equity_curve."
+    |                                                                                                     ^^^^^ E501
+276 |             )
+277 |             # Fallback if CyberDeltaJSONEncoder has issues or isn't comprehensive enough for nested structures
+    |
+
+cyberdelta/backtesting/results_1.py:277:101: E501 Line too long (110 > 100)
+    |
+275 |                 f"Error serializing results to JSON: {e}. Attempting manual conversion for equity_curve."
+276 |             )
+277 |             # Fallback if CyberDeltaJSONEncoder has issues or isn't comprehensive enough for nested structures
+    |                                                                                                     ^^^^^^^^^^ E501
+278 |             results_copy = results.copy()
+279 |             if "equity_curve" in results_copy and isinstance(results_copy["equity_curve"], list):
+    |
+
+cyberdelta/core/balance_monitor.py:136:101: E501 Line too long (105 > 100)
+    |
+134 |             except (ValueError, TypeError):
+135 |                 logger.warning(
+136 |                     f"Invalid min_usdc_balance '{min_usdc_raw}' for {exchange_id}. Using global default."
+    |                                                                                                     ^^^^^ E501
+137 |                 )
+138 |                 min_usdc = self.min_usdc_balance
+    |
+
+cyberdelta/core/balance_monitor.py:155:101: E501 Line too long (108 > 100)
+    |
+153 |                 except (ValueError, TypeError):
+154 |                     logger.error(
+155 |                         f"Invalid min_balance amount '{amount_raw}' for {asset} on {exchange_id}. Skipping."
+    |                                                                                                     ^^^^^^^^ E501
+156 |                     )
+    |
+
+cyberdelta/core/data_handler.py:266:101: E501 Line too long (106 > 100)
+    |
+264 |                     # Attempt to find corresponding exchange_id based on task order (fragile)
+265 |                     # A better approach would be to associate exchange_id with the task
+266 |                     # This part remains fragile, consider refactoring task creation to include exchange_id
+    |                                                                                                     ^^^^^^ E501
+267 |                     try:
+268 |                         exchange_id_for_error = list(exchanges_dict.keys())[i]
+    |
+
+cyberdelta/core/data_handler.py:274:101: E501 Line too long (102 > 100)
+    |
+272 |                     except IndexError:
+273 |                         logger.error(
+274 |                             f"Error starting connection for an unknown exchange (index {i}): {result}"
+    |                                                                                                     ^^ E501
+275 |                         )
+    |
+
+cyberdelta/core/data_handler.py:345:101: E501 Line too long (113 > 100)
+    |
+343 |                 else:
+344 |                     logger.warning(
+345 |                         f"[{exchange_id}] No relevant subscribe methods found or symbols list empty after check."
+    |                                                                                                     ^^^^^^^^^^^^^ E501
+346 |                     )
+    |
+
+cyberdelta/core/data_handler.py:352:101: E501 Line too long (114 > 100)
+    |
+350 |             if exchange_id in self.ws_tasks and not self.ws_tasks[exchange_id].done():
+351 |                 logger.warning(
+352 |                     f"[{exchange_id}] Previous message handling task still exists and is not done. Cancelling it."
+    |                                                                                                     ^^^^^^^^^^^^^^ E501
+353 |                 )
+354 |                 self.ws_tasks[exchange_id].cancel()
+    |
+
+cyberdelta/core/data_handler.py:367:101: E501 Line too long (104 > 100)
+    |
+365 |             )
+366 |             logger.info(
+367 |                 f"[{exchange_id}] Message handler task created: {self.ws_tasks[exchange_id].get_name()}"
+    |                                                                                                     ^^^^ E501
+368 |             )
+369 |             await self.ws_tasks[
+    |
+
+cyberdelta/core/data_handler.py:375:101: E501 Line too long (101 > 100)
+    |
+373 |         except ConnectionError as e:
+374 |             logger.error(f"[{exchange_id}] ConnectionError during connect/subscribe: {e}")
+375 |             raise  # Re-raise ConnectionError for _maintain_websocket_connection to handle explicitly
+    |                                                                                                     ^ E501
+376 |         except asyncio.CancelledError:
+377 |             logger.info(f"[{exchange_id}] _connect_and_subscribe task was cancelled.")
+    |
+
+cyberdelta/core/data_handler.py:380:101: E501 Line too long (103 > 100)
+    |
+378 |             if hasattr(client, "is_connected") and client.is_connected:
+379 |                 logger.info(
+380 |                     f"[{exchange_id}] Closing WebSocket due to cancellation of _connect_and_subscribe."
+    |                                                                                                     ^^^ E501
+381 |                 )
+382 |                 if hasattr(client, "close_websocket"):
+    |
+
+cyberdelta/core/data_handler.py:439:101: E501 Line too long (111 > 100)
+    |
+437 |         if not client or not hasattr(client, "parse_ws_message"):
+438 |             logger.warning(
+439 |                 f"Cannot process message for {exchange_id}: Client not found or lacks parse_ws_message method."
+    |                                                                                                     ^^^^^^^^^^^ E501
+440 |             )
+441 |             return
+    |
+
+cyberdelta/core/data_handler.py:452:101: E501 Line too long (112 > 100)
+    |
+450 |             if not (isinstance(parsed_result_any, tuple) and len(parsed_result_any) == 2):
+451 |                 logger.warning(
+452 |                     f"[{exchange_id}] parse_ws_message did not return a 2-tuple. Got: {type(parsed_result_any)}"
+    |                                                                                                     ^^^^^^^^^^^^ E501
+453 |                 )
+454 |                 return
+    |
+
+cyberdelta/core/data_handler.py:461:101: E501 Line too long (120 > 100)
+    |
+459 |             if not isinstance(message_type_any, str):
+460 |                 logger.warning(
+461 |                     f"[{exchange_id}] Message type from parse_ws_message is not a string. Got: {type(message_type_any)}"
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^ E501
+462 |                 )
+463 |                 return
+    |
+
+cyberdelta/core/data_handler.py:515:101: E501 Line too long (153 > 100)
+    |
+513 | …
+514 | …
+515 | … missing price or timestamp. Price: {ticker_obj.price}, Timestamp: {ticker_obj.timestamp}"
+    |                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+516 | …
+    |
+
+cyberdelta/core/data_handler.py:522:101: E501 Line too long (131 > 100)
+    |
+520 |                     # OrderBook.timestamp is not Optional after Pydantic validation
+521 |                     # if parsed_data.timestamp is None: # This check is redundant
+522 |                     #    logger.warning(f"OrderBook for {exchange_id}/{parsed_data.symbol} missing timestamp. Using current time.")
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+523 |                     #    current_ts = datetime.now(UTC)
+524 |                     #    # Create a new model instance if timestamp needs to be updated, as Pydantic models are often immutable
+    |
+
+cyberdelta/core/data_handler.py:524:101: E501 Line too long (127 > 100)
+    |
+522 |                     #    logger.warning(f"OrderBook for {exchange_id}/{parsed_data.symbol} missing timestamp. Using current time.")
+523 |                     #    current_ts = datetime.now(UTC)
+524 |                     #    # Create a new model instance if timestamp needs to be updated, as Pydantic models are often immutable
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+525 |                     #    parsed_data_with_ts = parsed_data.model_copy(update={"timestamp": current_ts})
+526 |                     #    self._update_order_book(exchange_id, parsed_data_with_ts.symbol, parsed_data_with_ts, now)
+    |
+
+cyberdelta/core/data_handler.py:525:101: E501 Line too long (103 > 100)
+    |
+523 |                     #    current_ts = datetime.now(UTC)
+524 |                     #    # Create a new model instance if timestamp needs to be updated, as Pydantic models are often immutable
+525 |                     #    parsed_data_with_ts = parsed_data.model_copy(update={"timestamp": current_ts})
+    |                                                                                                     ^^^ E501
+526 |                     #    self._update_order_book(exchange_id, parsed_data_with_ts.symbol, parsed_data_with_ts, now)
+527 |                     #    await self._notify_order_book_observers(parsed_data_with_ts)
+    |
+
+cyberdelta/core/data_handler.py:526:101: E501 Line too long (115 > 100)
+    |
+524 |                     #    # Create a new model instance if timestamp needs to be updated, as Pydantic models are often immutable
+525 |                     #    parsed_data_with_ts = parsed_data.model_copy(update={"timestamp": current_ts})
+526 |                     #    self._update_order_book(exchange_id, parsed_data_with_ts.symbol, parsed_data_with_ts, now)
+    |                                                                                                     ^^^^^^^^^^^^^^^ E501
+527 |                     #    await self._notify_order_book_observers(parsed_data_with_ts)
+528 |                     # else:
+    |
+
+cyberdelta/core/data_handler.py:537:101: E501 Line too long (103 > 100)
+    |
+535 |             elif message_type == "funding_rate":
+536 |                 if isinstance(parsed_data, FundingRate):
+537 |                     # FundingRate.timestamp and funding_rate are not Optional after Pydantic validation
+    |                                                                                                     ^^^ E501
+538 |                     # if parsed_data.timestamp is None or parsed_data.funding_rate is None:
+539 |                     #    logger.warning(f"FundingRate for {exchange_id}/{parsed_data.symbol} missing timestamp or rate. Skipping.")
+    |
+
+cyberdelta/core/data_handler.py:539:101: E501 Line too long (131 > 100)
+    |
+537 |                     # FundingRate.timestamp and funding_rate are not Optional after Pydantic validation
+538 |                     # if parsed_data.timestamp is None or parsed_data.funding_rate is None:
+539 |                     #    logger.warning(f"FundingRate for {exchange_id}/{parsed_data.symbol} missing timestamp or rate. Skipping.")
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+540 |                     # else:
+541 |                     self._update_funding_rate(exchange_id, parsed_data.symbol, parsed_data, now)
+    |
+
+cyberdelta/core/data_handler.py:561:101: E501 Line too long (102 > 100)
+    |
+559 |             else:
+560 |                 # Log unhandled message types if necessary
+561 |                 # logger.debug(f"Received unhandled message type '{message_type}' from {exchange_id}")
+    |                                                                                                     ^^ E501
+562 |                 pass  # Ensure else block is not empty
+    |
+
+cyberdelta/core/data_handler.py:617:101: E501 Line too long (107 > 100)
+    |
+615 |     def _update_user_fills(self, exchange_id: str, symbol: str, fills: list[Trade]) -> None:
+616 |         # Ensure structures are initialized if symbol is new
+617 |         # self._ensure_symbol_structures_exist(exchange_id, symbol) # Method does not exist, commenting out
+    |                                                                                                     ^^^^^^^ E501
+618 |
+619 |         # Retrieve the stored FundingRate object
+    |
+
+cyberdelta/core/data_handler.py:642:101: E501 Line too long (106 > 100)
+    |
+640 |         # Actual fill update logic needs to be implemented.
+641 |         logger.warning(
+642 |             f"DataHandler._update_user_fills for {exchange_id}/{symbol} called but not fully implemented."
+    |                                                                                                     ^^^^^^ E501
+643 |         )
+644 |         pass
+    |
+
+cyberdelta/core/data_handler.py:706:101: E501 Line too long (105 > 100)
+    |
+704 |         if rate is None or next_time is None:
+705 |             logger.debug(
+706 |                 f"Incomplete funding data for {exchange_id}/{symbol}: rate={rate}, next_time={next_time}"
+    |                                                                                                     ^^^^^ E501
+707 |             )
+708 |             return None
+    |
+
+cyberdelta/core/data_handler.py:878:101: E501 Line too long (110 > 100)
+    |
+876 |             try:
+877 |                 # This call will internally handle subscriptions and then start message handling.
+878 |                 # It will return if _handle_messages exits (e.g., due to CancelledError or client disconnect).
+    |                                                                                                     ^^^^^^^^^^ E501
+879 |                 await self._connect_and_subscribe(exchange_id, client, symbols)
+    |
+
+cyberdelta/core/data_handler.py:885:101: E501 Line too long (132 > 100)
+    |
+883 |                 # completed or was cancelled.
+884 |                 logger.info(
+885 |                     f"[{exchange_id}] _connect_and_subscribe completed its current run (stream might have ended or been cancelled)."
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+886 |                 )
+    |
+
+cyberdelta/core/data_handler.py:888:101: E501 Line too long (106 > 100)
+    |
+886 |                 )
+887 |
+888 |                 # Reset attempts if connection was successful at some point before _handle_messages ended.
+    |                                                                                                     ^^^^^^ E501
+889 |                 # This is debatable: if _handle_messages is cancelled, is it a "successful" cycle?
+890 |                 # For now, let's assume any return from _connect_and_subscribe means we should just retry
+    |
+
+cyberdelta/core/data_handler.py:890:101: E501 Line too long (105 > 100)
+    |
+888 |                 # Reset attempts if connection was successful at some point before _handle_messages ended.
+889 |                 # This is debatable: if _handle_messages is cancelled, is it a "successful" cycle?
+890 |                 # For now, let's assume any return from _connect_and_subscribe means we should just retry
+    |                                                                                                     ^^^^^ E501
+891 |                 # as per the loop's own logic, unless an explicit "shutdown" is signaled.
+892 |                 # If we wanted to break on clean exit of _handle_messages, logic would go here.
+    |
+
+cyberdelta/core/data_handler.py:896:101: E501 Line too long (149 > 100)
+    |
+894 | …
+895 | …
+896 | …tenance loop: {e}. Attempt {attempt + 1}/{max_attempts if max_attempts > 0 else 'inf'}."
+    |                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+897 | …
+898 | …le.
+    |
+
+cyberdelta/core/data_handler.py:907:101: E501 Line too long (155 > 100)
+    |
+905 | …nnect_and_subscribe
+906 | …
+907 | …ket maintenance: {e}. Attempt {attempt + 1}/{max_attempts if max_attempts > 0 else 'inf'}."
+    |                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+908 | …
+    |
+
+cyberdelta/core/data_handler.py:918:101: E501 Line too long (160 > 100)
+    |
+916 | …
+917 | …
+918 | …attempts}) reached for initial connection. Stopping WebSocket maintenance for this exchange."
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+919 | …
+920 | …
+    |
+
+cyberdelta/core/data_handler.py:925:101: E501 Line too long (115 > 100)
+    |
+923 |             current_delay = min(current_delay * 2, max_reconnect_delay)
+924 |             logger.info(
+925 |                 f"[{exchange_id}] Retrying WebSocket connection in {current_delay:.2f}s... (Attempt {attempt + 1})"
+    |                                                                                                     ^^^^^^^^^^^^^^^ E501
+926 |             )  # attempt is 0-indexed
+927 |             await asyncio.sleep(current_delay)
+    |
+
+cyberdelta/core/execution/synchronized_order_submission.py:234:101: E501 Line too long (125 > 100)
+    |
+232 |                     if actual_value.name != expected_value.name:  # Compare by name for enums
+233 |                         verification_success = False
+234 |                         verification_error = f"Order {key} mismatch: expected {expected_value.name}, got {actual_value.name}"
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+235 |                         break
+236 |                 elif actual_value != expected_value:
+    |
+
+cyberdelta/core/execution/synchronized_order_submission.py:244:101: E501 Line too long (124 > 100)
+    |
+242 |         # Ensure api_order check doesn't overwrite a critical local_order failure
+243 |         if verification_success:  # Only proceed if local checks are okay so far
+244 |             if not api_order:  # This means api_client existed but get_order returned None or errored non-critically earlier
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^ E501
+245 |                 if not verification_error:  # Only set this if no prior error.
+246 |                     verification_error = (
+    |
+
+cyberdelta/core/execution/synchronized_order_submission.py:268:101: E501 Line too long (106 > 100)
+    |
+266 | …                     verification_success = False
+267 | …                     verification_error = (verification_error or "") + (
+268 | …                         f" API order {attr_name} mismatch (expected key: {expected_detail_key}): "
+    |                                                                                               ^^^^^^ E501
+269 | …                         f"expected {expected_value.name}, got {api_value.name}"
+270 | …                     )
+    |
+
+cyberdelta/core/execution/synchronized_order_submission.py:275:101: E501 Line too long (102 > 100)
+    |
+273 |                         verification_success = False
+274 |                         verification_error = (verification_error or "") + (
+275 |                             f" API order {attr_name} mismatch (expected key: {expected_detail_key}): "
+    |                                                                                                     ^^ E501
+276 |                             f"expected {expected_value}, got {api_value}"
+277 |                         )
+    |
+
+cyberdelta/core/execution/synchronized_order_submission.py:281:101: E501 Line too long (114 > 100)
+    |
+279 |         return {
+280 |             "timestamp": int(time.time() * 1000),
+281 |             "success": verification_success,  # Ensure key is 'success' as expected by test_verify_order_placement
+    |                                                                                                     ^^^^^^^^^^^^^^ E501
+282 |             "error": verification_error,
+283 |             "details": verification_details,
+    |
+
+cyberdelta/core/execution/synchronized_order_submission.py:323:101: E501 Line too long (105 > 100)
+    |
+321 |             }
+322 |
+323 |         # 3. Get order from exchange API (using get_order, as test mocks this primarily for success path)
+    |                                                                                                     ^^^^^ E501
+324 |         # Test also mocks get_order_status for specific failure case, so we might need to call that too.
+325 |         # For now, let's stick to get_order for the primary fetch.
+    |
+
+cyberdelta/core/execution/synchronized_order_submission.py:324:101: E501 Line too long (104 > 100)
+    |
+323 |         # 3. Get order from exchange API (using get_order, as test mocks this primarily for success path)
+324 |         # Test also mocks get_order_status for specific failure case, so we might need to call that too.
+    |                                                                                                     ^^^^ E501
+325 |         # For now, let's stick to get_order for the primary fetch.
+326 |         api_order: Order | None = None
+    |
+
+cyberdelta/core/execution/synchronized_order_submission.py:332:101: E501 Line too long (107 > 100)
+    |
+330 |                 logger.warning(f"Local order {order_id} exists but has no symbol for API call.")
+331 |
+332 |             # The test TestOrderVerifier.test_verify_order_execution mocks api_client.get_order for success
+    |                                                                                                     ^^^^^^^ E501
+333 |             # and api_client.get_order_status for the OPEN status failure case.
+334 |             # Let's try using get_order_status as the primary source from API for verification.
+    |
+
+cyberdelta/core/execution/synchronized_order_submission.py:342:101: E501 Line too long (101 > 100)
+    |
+340 |             ):  # Fallback if get_order_status is not on protocol
+341 |                 logger.warning(
+342 |                     f"API client for {exchange} missing get_order_status, falling back to get_order."
+    |                                                                                                     ^ E501
+343 |                 )
+344 |                 api_order = await api_client.get_order(order_id, symbol_for_api_call)
+    |
+
+cyberdelta/core/execution/synchronized_order_submission.py:401:101: E501 Line too long (106 > 100)
+    |
+399 |             elif api_order.status != OrderStatus.FILLED:
+400 |                 verification_success = False
+401 |                 # This is the key check for the failing test TestOrderVerifier.test_verify_order_execution
+    |                                                                                                     ^^^^^^ E501
+402 |                 error_msg = f"Order status mismatch: API order {order_id} status is {api_order.status}, expected FILLED."
+403 |                 verification_error = (
+    |
+
+cyberdelta/core/execution/synchronized_order_submission.py:402:101: E501 Line too long (121 > 100)
+    |
+400 |                 verification_success = False
+401 |                 # This is the key check for the failing test TestOrderVerifier.test_verify_order_execution
+402 |                 error_msg = f"Order status mismatch: API order {order_id} status is {api_order.status}, expected FILLED."
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^ E501
+403 |                 verification_error = (
+404 |                     f"{verification_error} {error_msg}" if verification_error else error_msg
+    |
+
+cyberdelta/core/execution/synchronized_order_submission.py:438:101: E501 Line too long (114 > 100)
+    |
+436 |         return {
+437 |             "timestamp": int(time.time() * 1000),
+438 |             "success": verification_success,  # Ensure key is 'success' as expected by test_verify_order_execution
+    |                                                                                                     ^^^^^^^^^^^^^^ E501
+439 |             "error": verification_error,
+440 |             "details": verification_details,
+    |
+
+cyberdelta/core/execution/synchronized_order_submission.py:750:101: E501 Line too long (116 > 100)
+    |
+748 |                     opportunity, execution_result, post_verify_result
+749 |                 )
+750 |                 # execution_result.compensation_result = compensation_outcome_dict # Keep this for any direct access
+    |                                                                                                     ^^^^^^^^^^^^^^^^ E501
+751 |                 execution_result.status = ExecutionStatus.PARTIALLY_COMPLETED
+    |
+
+cyberdelta/core/execution/synchronized_order_submission.py:759:101: E501 Line too long (111 > 100)
+    |
+757 |                 execution_result.details["compensation_result"] = compensation_outcome_dict
+758 |
+759 |                 # Also ensure the main execution_result.compensation_result is set if it's still used elsewhere
+    |                                                                                                     ^^^^^^^^^^^ E501
+760 |                 # or if other parts of the system expect it there.
+761 |                 execution_result.compensation_result = compensation_outcome_dict
+    |
+
+cyberdelta/core/execution/synchronized_order_submission.py:1203:101: E501 Line too long (101 > 100)
+     |
+1201 |                 overall_success = False
+1202 |                 logger.warning(
+1203 |                     f"Post-execution fill verification FAILED for {execution_context.execution_id}: "
+     |                                                                                                     ^ E501
+1204 |                     f"{fill_result.get('error')}"
+1205 |                 )
+     |
+
+cyberdelta/core/execution/synchronized_order_submission.py:1220:101: E501 Line too long (102 > 100)
+     |
+1218 |                 overall_success = False
+1219 |                 logger.warning(
+1220 |                     f"Post-execution order verification FAILED for {execution_context.execution_id}: "
+     |                                                                                                     ^^ E501
+1221 |                     f"{order_result.get('error')}"
+1222 |                 )
+     |
+
+cyberdelta/core/execution_handler.py:37:101: E501 Line too long (259 > 100)
+   |
+35 | …
+36 | …
+37 | …_requested' for order size, 'quantity_filled' for filled size, and 'average_fill_price' for fill price. There is no 'id', 'quantity', or 'avg_fill_price' attribute.
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+   |
+
+cyberdelta/core/execution_handler.py:279:101: E501 Line too long (110 > 100)
+    |
+277 |         # try:
+278 |         #     # Get latest ticker for price check
+279 |         #     # ticker: Ticker | None = await self.portfolio_tracker.get_ticker( # PT does not have get_ticker
+    |                                                                                                     ^^^^^^^^^^ E501
+280 |         #     #     opportunity.opportunity.long_exchange, long_symbol
+281 |         #     # )
+    |
+
+cyberdelta/core/execution_handler.py:298:101: E501 Line too long (101 > 100)
+    |
+296 |         #     # else:
+297 |         #     #     logger.warning(
+298 |         #     #         f\"Execution {execution.id}: Could not get ticker for short slippage check.\"
+    |                                                                                                     ^ E501
+299 |         #     #     )
+300 |         # except Exception as ticker_err:
+    |
+
+cyberdelta/core/execution_handler.py:302:101: E501 Line too long (103 > 100)
+    |
+300 |         # except Exception as ticker_err:
+301 |         #     logger.warning(
+302 |         #         f\"Execution {execution.id}: Error getting ticker for slippage checks: {ticker_err}\"
+    |                                                                                                     ^^^ E501
+303 |         #     )
+304 |         #     # Continue without slippage checks if tickers fail
+    |
+
+cyberdelta/core/execution_handler.py:319:101: E501 Line too long (158 > 100)
+    |
+317 | …
+318 | …
+319 | …pportunity.opportunity.long_price}) for calculating base asset quantity. Aborting long leg."
+    |                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+320 | …
+321 | … this leg
+    |
+
+cyberdelta/core/execution_handler.py:330:101: E501 Line too long (161 > 100)
+    |
+328 | …
+329 | …
+330 | …pportunity.opportunity.short_price}) for calculating base asset quantity. Aborting short leg."
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+331 | …
+332 | …
+    |
+
+cyberdelta/core/execution_handler.py:349:101: E501 Line too long (110 > 100)
+    |
+347 |         else:
+348 |             logger.error(
+349 |                 f"Execution {execution.id}: Skipping long order placement due to invalid base asset quantity."
+    |                                                                                                     ^^^^^^^^^^ E501
+350 |             )
+    |
+
+cyberdelta/core/execution_handler.py:382:101: E501 Line too long (111 > 100)
+    |
+380 |         else:
+381 |             logger.error(
+382 |                 f"Execution {execution.id}: Skipping short order placement due to invalid base asset quantity."
+    |                                                                                                     ^^^^^^^^^^^ E501
+383 |             )
+    |
+
+cyberdelta/core/execution_handler.py:401:101: E501 Line too long (111 > 100)
+    |
+399 |                     long_symbol,
+400 |                     OrderSide.SELL,
+401 |                     base_asset_quantity_long,  # Use base_asset_quantity_long for compensation quantity as well
+    |                                                                                                     ^^^^^^^^^^^ E501
+402 |                 ):
+403 |                     execution.status = ExecutionStatus.FAILED  # Compensation succeeded
+    |
+
+cyberdelta/core/execution_handler.py:415:101: E501 Line too long (142 > 100)
+    |
+413 | …
+414 | …
+415 | …pensate long leg as base_asset_quantity_long is invalid: {base_asset_quantity_long}"
+    |                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+416 | …
+417 | …N SKIPPED (invalid qty)!"
+    |
+
+cyberdelta/core/execution_handler.py:534:101: E501 Line too long (106 > 100)
+    |
+532 |                 logger.info(
+533 |                     f"Execution {execution.id} ({context}): Attempt {attempt + 1} - "
+534 |                     f"{side.name} {quantity:.8f} {symbol} on {exchange_id} (Client ID: {client_order_id})"
+    |                                                                                                     ^^^^^^ E501
+535 |                 )
+536 |                 order_result = await client.place_order(
+    |
+
+cyberdelta/core/execution_handler.py:573:101: E501 Line too long (111 > 100)
+    |
+571 |                 return None
+572 |
+573 |         # If loop finishes, it means all retries were exhausted for an APIError, or another exception occurred.
+    |                                                                                                     ^^^^^^^^^^^ E501
+574 |         # The error_message should already be set by the last attempt or the unexpected exception block.
+575 |         # If the reason for exhausting retries was specifically an APIError, re-raise it as per test expectation.
+    |
+
+cyberdelta/core/execution_handler.py:574:101: E501 Line too long (104 > 100)
+    |
+573 |         # If loop finishes, it means all retries were exhausted for an APIError, or another exception occurred.
+574 |         # The error_message should already be set by the last attempt or the unexpected exception block.
+    |                                                                                                     ^^^^ E501
+575 |         # If the reason for exhausting retries was specifically an APIError, re-raise it as per test expectation.
+576 |         if last_api_error_for_reraise:
+    |
+
+cyberdelta/core/execution_handler.py:575:101: E501 Line too long (113 > 100)
+    |
+573 |         # If loop finishes, it means all retries were exhausted for an APIError, or another exception occurred.
+574 |         # The error_message should already be set by the last attempt or the unexpected exception block.
+575 |         # If the reason for exhausting retries was specifically an APIError, re-raise it as per test expectation.
+    |                                                                                                     ^^^^^^^^^^^^^ E501
+576 |         if last_api_error_for_reraise:
+577 |             # Ensure error_message reflects this final attempt if not already set by non-retryable path
+    |
+
+cyberdelta/core/execution_handler.py:577:101: E501 Line too long (103 > 100)
+    |
+575 | …     # If the reason for exhausting retries was specifically an APIError, re-raise it as per test expectation.
+576 | …     if last_api_error_for_reraise:
+577 | …         # Ensure error_message reflects this final attempt if not already set by non-retryable path
+    |                                                                                                   ^^^ E501
+578 | …         if not execution.error_message or "Non-retryable" not in execution.error_message:
+579 | …             execution.error_message = f"Failed to place order on {exchange_id} after {self.max_retries} retries due to: {last_api_e…
+    |
+
+cyberdelta/core/execution_handler.py:579:101: E501 Line too long (161 > 100)
+    |
+577 | …ot already set by non-retryable path
+578 | …n execution.error_message:
+579 | …n {exchange_id} after {self.max_retries} retries due to: {last_api_error_for_reraise.message}"
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+580 | …
+581 | … API error: {last_api_error_for_reraise}"
+    |
+
+cyberdelta/core/execution_handler.py:581:101: E501 Line too long (108 > 100)
+    |
+579 | …         execution.error_message = f"Failed to place order on {exchange_id} after {self.max_retries} retries due to: {last_api_error…
+580 | …     logger.error(
+581 | …         f"Execution {execution.id}: Exhausted retries. Last API error: {last_api_error_for_reraise}"
+    |                                                                                               ^^^^^^^^ E501
+582 | …     )
+583 | …     raise last_api_error_for_reraise
+    |
+
+cyberdelta/core/execution_handler.py:587:101: E501 Line too long (112 > 100)
+    |
+585 |             # This path should ideally not be hit if an APIError occurred and was stored.
+586 |             # If it's another exception, it would have been raised or returned None from the loop.
+587 |             # If it's just max_retries without a specific APIError stored (e.g. unexpected error returned None),
+    |                                                                                                     ^^^^^^^^^^^^ E501
+588 |             # set a generic message if not already set.
+589 |             if not execution.error_message:
+    |
+
+cyberdelta/core/execution_handler.py:590:101: E501 Line too long (134 > 100)
+    |
+588 |             # set a generic message if not already set.
+589 |             if not execution.error_message:
+590 |                 execution.error_message = f"Failed to place order on {exchange_id} after {self.max_retries} retries (unknown reason)."
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+591 |             logger.error(f"Execution {execution.id}: {execution.error_message}")
+    |
+
+cyberdelta/core/execution_handler.py:635:101: E501 Line too long (107 > 100)
+    |
+633 |                 if order_status:
+634 |                     logger.debug(
+635 |                         f"Execution {execution.id}: Got status for order {order_id}: {order_status.status}"
+    |                                                                                                     ^^^^^^^ E501
+636 |                     )
+637 |                     return order_status
+    |
+
+cyberdelta/core/execution_handler.py:720:101: E501 Line too long (110 > 100)
+    |
+719 |         logger.error(
+720 |             f"Execution {execution.id}: Failed to get status for {order_id} after {self.max_retries} retries."
+    |                                                                                                     ^^^^^^^^^^ E501
+721 |         )
+722 |         return None
+    |
+
+cyberdelta/core/execution_handler.py:757:101: E501 Line too long (128 > 100)
+    |
+755 |         # Log the config values being used AFTER they are defined
+756 |         logger.info(
+757 |             f"_compensate_position: use_limit_orders_config = {use_limit_orders_config} (type: {type(use_limit_orders_config)})"
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+758 |         )
+759 |         logger.info(
+    |
+
+cyberdelta/core/execution_handler.py:760:101: E501 Line too long (137 > 100)
+    |
+758 | …
+759 | …
+760 | …pct_str = {limit_price_offset_pct_str} (type: {type(limit_price_offset_pct_str)})"
+    |                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+761 | …
+    |
+
+cyberdelta/core/execution_handler.py:782:101: E501 Line too long (153 > 100)
+    |
+780 | …
+781 | …
+782 | …ot determine limit price for compensation on {exchange_id} for {symbol}. Missing bid/ask."
+    |                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+783 | …
+784 | …
+    |
+
+cyberdelta/core/execution_handler.py:786:101: E501 Line too long (139 > 100)
+    |
+784 | …
+785 | …
+786 | …d not get ticker for {exchange_id} {symbol} to calculate compensation limit price."
+    |                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+787 | …
+788 | …or) as e:
+    |
+
+cyberdelta/core/execution_handler.py:790:101: E501 Line too long (152 > 100)
+    |
+788 | …e:
+789 | …
+790 | …g limit price for compensation on {exchange_id} for {symbol}: {e}. Defaulting to MARKET."
+    |                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+791 | …
+792 | …RKET on error
+    |
+
+cyberdelta/core/execution_handler.py:810:101: E501 Line too long (110 > 100)
+    |
+808 |         if compensation_order:
+809 |             logger.info(
+810 |                 f"Execution {execution.id}: Compensation order placed: {compensation_order.exchange_order_id}"
+    |                                                                                                     ^^^^^^^^^^ E501
+811 |             )
+812 |             # Basic check: If status is already filled, assume compensation worked
+    |
+
+cyberdelta/core/execution_handler.py:820:101: E501 Line too long (103 > 100)
+    |
+818 |             # would monitor this order's status properly.
+819 |             logger.warning(
+820 |                 f"Execution {execution.id}: Compensation order {compensation_order.exchange_order_id} "
+    |                                                                                                     ^^^ E501
+821 |                 f"not immediately filled (Status: {compensation_order.status}). Monitoring needed."
+822 |             )
+    |
+
+cyberdelta/core/execution_handler.py:975:101: E501 Line too long (110 > 100)
+    |
+973 |         """
+974 |         logger.info(
+975 |             f"Processing filled order {order.exchange_order_id} on {exchange_id} for execution {execution.id}"
+    |                                                                                                     ^^^^^^^^^^ E501
+976 |         )
+    |
+
+cyberdelta/core/execution_handler.py:981:101: E501 Line too long (116 > 100)
+    |
+979 |         if order.average_fill_price is None or order.quantity_filled == Decimal(0):
+980 |             logger.error(
+981 |                 f"Filled order {order.exchange_order_id} is missing average fill price or has zero filled quantity."
+    |                                                                                                     ^^^^^^^^^^^^^^^^ E501
+982 |             )
+983 |             # Potentially mark execution as failed or requires investigation
+    |
+
+cyberdelta/core/execution_handler.py:1039:101: E501 Line too long (103 > 100)
+     |
+1038 |             # Add trade to execution history
+1039 |             # execution.opportunity.trades.append(trade) # Redundant if portfolio tracker handles this?
+     |                                                                                                     ^^^ E501
+1040 |
+1041 |         except Exception as e:
+     |
+
+cyberdelta/core/execution_handler.py:1043:101: E501 Line too long (105 > 100)
+     |
+1041 |         except Exception as e:
+1042 |             logger.exception(
+1043 |                 f"Execution {execution.id}: Error processing filled order {order.exchange_order_id}: {e}"
+     |                                                                                                     ^^^^^ E501
+1044 |             )
+1045 |             # Consider how to handle this - potentially fail the execution
+     |
+
+cyberdelta/core/execution_handler.py:1073:101: E501 Line too long (101 > 100)
+     |
+1071 |         if order_id is None:
+1072 |             logger.error(
+1073 |                 f"Execution {execution.id}: Cannot monitor order on {exchange_id}, order ID is None."
+     |                                                                                                     ^ E501
+1074 |             )
+1075 |             return None  # Or perhaps OrderStatus.REJECTED?
+     |
+
+cyberdelta/core/execution_handler.py:1097:101: E501 Line too long (108 > 100)
+     |
+1095 |                 ):
+1096 |                     logger.info(
+1097 |                         f"Execution {execution.id}: Order {order_id} reached terminal state: {order.status}"
+     |                                                                                                     ^^^^^^^^ E501
+1098 |                     )
+1099 |                     # Process the final state (e.g., record fill)
+     |
+
+cyberdelta/core/execution_handler.py:1121:101: E501 Line too long (109 > 100)
+     |
+1119 |                 # _get_order_status failed after retries
+1120 |                 logger.error(
+1121 |                     f"Execution {execution.id}: Failed to get status for order {order_id}. Assuming failure."
+     |                                                                                                     ^^^^^^^^^ E501
+1122 |                 )
+1123 |                 return None  # Indicate monitoring failure
+     |
+
+cyberdelta/core/models/market/ticker.py:118:101: E501 Line too long (131 > 100)
+    |
+116 |                 else:
+117 |                     logger.warning(
+118 |                         f"Mid-price calculation for {self.symbol} resulted in non-finite value from bid={self.bid}, ask={self.ask}"
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+119 |                     )
+120 |                     return None
+    |
+
+cyberdelta/core/models/market/ticker.py:124:101: E501 Line too long (105 > 100)
+    |
+122 |                 # Should not happen if inputs are finite Decimals, but defensive
+123 |                 logger.error(
+124 |                     f"Error calculating mid-price for {self.symbol} from bid={self.bid}, ask={self.ask}",
+    |                                                                                                     ^^^^^ E501
+125 |                     exc_info=True,
+126 |                 )
+    |
+
+cyberdelta/core/order_manager.py:5:101: E501 Line too long (110 > 100)
+  |
+3 | ------------------------------------------------------------
+4 |
+5 | Handles all order state mutation, fill reconciliation, average fill price calculation, and status transitions.
+  |                                                                                                     ^^^^^^^^^^ E501
+6 | This is the only place where order state mutation, snapping, and status transitions occur.
+  |
+
+cyberdelta/core/order_manager.py:40:101: E501 Line too long (102 > 100)
+   |
+38 |     def apply_fill(order: "Order", trade: "Trade") -> None:
+39 |         """
+40 |         Apply a new fill/trade to the order, updating filled quantity, average fill price, and status.
+   |                                                                                                     ^^ E501
+41 |         Handles overfill (snapping) and logs inconsistencies.
+42 |         Args:
+   |
+
+cyberdelta/core/portfolio_tracker.py:83:101: E501 Line too long (102 > 100)
+   |
+81 |         self.balances: defaultdict[str, defaultdict[str, SpotBalance]] = defaultdict(
+82 |             lambda: defaultdict(
+83 |                 # Ensure a default SpotBalance that makes sense if an asset is queried before it's set
+   |                                                                                                     ^^ E501
+84 |                 lambda: SpotBalance(
+85 |                     exchange="",  # Should be overridden or considered invalid
+   |
+
+cyberdelta/core/portfolio_tracker.py:365:101: E501 Line too long (103 > 100)
+    |
+363 |                             f"in received SpotBalance object (from dict)."
+364 |                         )
+365 |             else:  # DEFENSIVE CHECK: Handle unexpected types for balances_data_raw. Mypy=[unreachable]
+    |                                                                                                     ^^^ E501
+366 |                 logger.error(
+367 |                     f"[{exchange_id}] Unexpected type for balances_data_raw: "
+    |
+
+cyberdelta/core/portfolio_tracker.py:372:101: E501 Line too long (112 > 100)
+    |
+370 |                 return False  # Indicate failure due to unexpected data type
+371 |
+372 |             # Update internal state if new valid balances were found or if an empty list/dict signified clearing
+    |                                                                                                     ^^^^^^^^^^^^ E501
+373 |             if (
+374 |                 updated_balances
+    |
+
+cyberdelta/core/portfolio_tracker.py:1044:101: E501 Line too long (106 > 100)
+     |
+1043 |                 # 5. Calculate Unrealized PNL if possible
+1044 |                 # DEFENSIVE CHECK: Add explicit None checks for mark_price_in_base and entry_price_in_base
+     |                                                                                                     ^^^^^^ E501
+1045 |                 if (
+1046 |                     mark_price_in_base is not None
+     |
+
+cyberdelta/core/portfolio_tracker.py:1211:101: E501 Line too long (103 > 100)
+     |
+1209 |                             except ValidationError as e:
+1210 |                                 logger.error(
+1211 |                                     f"Error validating SpotBalance for {asset_str} on {ex_id_str}: {e}"
+     |                                                                                                     ^^^ E501
+1212 |                                 )
+1213 |                         elif isinstance(bal_data_any, SpotBalance):  # If already an object
+     |
+
+cyberdelta/core/portfolio_tracker.py:1234:101: E501 Line too long (112 > 100)
+     |
+1232 |                             except ValidationError as e:
+1233 |                                 logger.error(
+1234 |                                     f"Error validating DerivativePosition for {sym_str} on {ex_id_str_pos}: {e}"
+     |                                                                                                     ^^^^^^^^^^^^ E501
+1235 |                                 )
+1236 |                         elif isinstance(pos_data_any, DerivativePosition):
+     |
+
+cyberdelta/core/portfolio_tracker.py:1257:101: E501 Line too long (102 > 100)
+     |
+1255 |                             except ValidationError as e:
+1256 |                                 logger.error(
+1257 |                                     f"Error validating Order for {ord_id_str} on {ex_id_str_ord}: {e}"
+     |                                                                                                     ^^ E501
+1258 |                                 )
+1259 |                         elif isinstance(order_data_any, Order):
+     |
+
+cyberdelta/core/portfolio_tracker.py:1307:101: E501 Line too long (108 > 100)
+     |
+1305 |                         else:
+1306 |                             logger.warning(
+1307 |                                 f"Received None for last_reconciliation_time for {ex_id_str_lrt}, skipping."
+     |                                                                                                     ^^^^^^^^ E501
+1308 |                             )
+1309 |                 except Exception as e:
+     |
+
+cyberdelta/core/portfolio_tracker.py:1402:101: E501 Line too long (102 > 100)
+     |
+1400 |                 else:
+1401 |                     logger.error(
+1402 |                         f"_parse_orders received unexpected type for orders_data: {type(orders_data)}"
+     |                                                                                                     ^^ E501
+1403 |                     )
+1404 |                     return
+     |
+
+cyberdelta/core/portfolio_tracker.py:1441:101: E501 Line too long (103 > 100)
+     |
+1439 |                             updated_count += 1
+1440 |                         except ValidationError as e:
+1441 |                             # Accessing order.client_order_id might fail if model_validate failed early
+     |                                                                                                     ^^^ E501
+1442 |                             client_id_for_log = order_dict_data.get(
+1443 |                                 "clientOrderId",
+     |
+
+cyberdelta/core/portfolio_tracker.py:1447:101: E501 Line too long (103 > 100)
+     |
+1445 |                             )
+1446 |                             logger.error(
+1447 |                                 f"Error validating Order for {client_id_for_log} on {exchange_id}: {e}"
+     |                                                                                                     ^^^ E501
+1448 |                             )
+1449 |                     elif isinstance(order_data_item, Order):
+     |
+
+cyberdelta/core/portfolio_tracker.py:1479:101: E501 Line too long (117 > 100)
+     |
+1477 |                             current_orders[order.client_order_id] = order
+1478 |                             new_count += 1
+1479 |                     else:  # DEFENSIVE CHECK: Handle unexpected item types in order_data_iterable. Mypy=[unreachable]
+     |                                                                                                     ^^^^^^^^^^^^^^^^^ E501
+1480 |                         logger.warning(f"Invalid order format for {order_data_item}")
+1481 |                 # Explicitly update the dictionary for the exchange
+     |
+
+cyberdelta/core/portfolio_tracker.py:1575:101: E501 Line too long (119 > 100)
+     |
+1573 |                 f"[{exchange_id}] _get_asset_price_in_base: "
+1574 |                 f"ticker_direct.price > 0 for {symbol_direct}: "
+1575 |                 f"{ticker_direct.price > Decimal('0') if ticker_direct and ticker_direct.price is not None else 'N/A'}"
+     |                                                                                                     ^^^^^^^^^^^^^^^^^^^ E501
+1576 |                 # Added check for ticker_direct and ticker_direct.price not being None
+1577 |             )
+     |
+
+cyberdelta/core/portfolio_tracker.py:1605:101: E501 Line too long (122 > 100)
+     |
+1603 |                 f"[{exchange_id}] _get_asset_price_in_base: "
+1604 |                 f"ticker_inverse.price > 0 for {symbol_inverse}: "
+1605 |                 f"{ticker_inverse.price > Decimal('0') if ticker_inverse and ticker_inverse.price is not None else 'N/A'}"
+     |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^ E501
+1606 |                 # Added check for ticker_inverse and ticker_inverse.price not being None
+1607 |             )
+     |
+
+cyberdelta/core/signal_generator.py:278:101: E501 Line too long (106 > 100)
+    |
+277 |                     # Ensure market data and price are valid
+278 |                     # if market_data is not None and hasattr(market_data, "close"): # Old check for Candle
+    |                                                                                                     ^^^^^^ E501
+279 |                     if (
+280 |                         ticker_data is not None and ticker_data.price is not None
+    |
+
+cyberdelta/core/signal_generator.py:287:101: E501 Line too long (145 > 100)
+    |
+285 | …
+286 | …
+287 | …rice # Ticker.price is already Decimal | None, checked above - REMOVED UNUSED VARIABLE
+    |                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+288 | …
+289 | …nd(exchange_id)
+    |
+
+cyberdelta/core/signal_generator.py:536:101: E501 Line too long (109 > 100)
+    |
+535 |             # Check opportunities for the current internal_symbol
+536 |             # Ensure current_symbol_funding_data contains actual FundingRate objects, not None where expected
+    |                                                                                                     ^^^^^^^^^ E501
+537 |             valid_funding_for_symbol: dict[str, FundingRate] = {
+538 |                 ex: fr
+    |
+
+cyberdelta/core/signal_generator.py:662:101: E501 Line too long (102 > 100)
+    |
+660 |                     continue
+661 |
+662 |                 # Determine actual long/short rates and the pure rate differential for the opportunity
+    |                                                                                                     ^^ E501
+663 |                 # funding_differential was rate_b - rate_a
+664 |                 if funding_differential > Decimal("0"):  # rate_b > rate_a: Long B, Short A
+    |
+
+cyberdelta/core/signal_generator.py:670:101: E501 Line too long (110 > 100)
+    |
+668 |                     current_short_price = bid_a
+669 |                     # Explicitly recalculate for clarity and to ensure types
+670 |                     # actual_long_rate and actual_short_rate are already Decimal | None, and checked for None.
+    |                                                                                                     ^^^^^^^^^^ E501
+671 |                     # The explicit Decimal(str(...)) is for hyper-explicitness, though redundant.
+672 |                     opportunity_nfd_calculated = Decimal(str(actual_long_rate)) - Decimal(
+    |
+
+cyberdelta/core/signal_generator.py:683:101: E501 Line too long (115 > 100)
+    |
+681 |                         long_funding_rate=actual_long_rate,
+682 |                         short_funding_rate=actual_short_rate,
+683 |                         net_funding_differential=opportunity_nfd_calculated,  # Use the explicitly calculated value
+    |                                                                                                     ^^^^^^^^^^^^^^^ E501
+684 |                         expected_profit=expected_profit,
+685 |                         timestamp=datetime.now(UTC),
+    |
+
+cyberdelta/core/signal_generator.py:693:101: E501 Line too long (110 > 100)
+    |
+691 |                     current_short_price = bid_b
+692 |                     # Explicitly recalculate for clarity and to ensure types
+693 |                     # actual_long_rate and actual_short_rate are already Decimal | None, and checked for None.
+    |                                                                                                     ^^^^^^^^^^ E501
+694 |                     opportunity_nfd_calculated = Decimal(str(actual_long_rate)) - Decimal(
+695 |                         str(actual_short_rate)
+    |
+
+cyberdelta/core/signal_generator.py:705:101: E501 Line too long (115 > 100)
+    |
+703 |                         long_funding_rate=actual_long_rate,
+704 |                         short_funding_rate=actual_short_rate,
+705 |                         net_funding_differential=opportunity_nfd_calculated,  # Use the explicitly calculated value
+    |                                                                                                     ^^^^^^^^^^^^^^^ E501
+706 |                         expected_profit=expected_profit,
+707 |                         timestamp=datetime.now(UTC),
+    |
+
+cyberdelta/core/signal_queue.py:193:101: E501 Line too long (102 > 100)
+    |
+191 |                         "Failed to trim queue after adding signal. State might be inconsistent."
+192 |                     )
+193 |                     # Decide behavior: raise error, remove added signal, or just log? Logging for now.
+    |                                                                                                     ^^ E501
+194 |                     # Attempt removal of the just added signal (based on counter) might be complex if heap reordered.
+195 |                     # Let's return False for now, though the signal *is* in the queue.
+    |
+
+cyberdelta/core/signal_queue.py:194:101: E501 Line too long (117 > 100)
+    |
+192 |                     )
+193 |                     # Decide behavior: raise error, remove added signal, or just log? Logging for now.
+194 |                     # Attempt removal of the just added signal (based on counter) might be complex if heap reordered.
+    |                                                                                                     ^^^^^^^^^^^^^^^^^ E501
+195 |                     # Let's return False for now, though the signal *is* in the queue.
+196 |                     return False  # Indicate potential issue post-add
+    |
+
+cyberdelta/core/signal_queue.py:630:101: E501 Line too long (106 > 100)
+    |
+628 |         """Check circuit breakers just before returning a signal from get_next_signal."""
+629 |         # This method simply reuses the pre-add logic.
+630 |         # If the pre-add check passes, the signal is considered okay from CB perspective *at this moment*.
+    |                                                                                                     ^^^^^^ E501
+631 |         # The pre-add logic already handles logging for rejections.
+632 |         if not self.circuit_breaker_system:
+    |
+
+cyberdelta/core/signal_queue.py:946:101: E501 Line too long (113 > 100)
+    |
+944 |             # Assume a generic breaker type like "main" for get_exchange_breaker
+945 |             # Or, if checking for specific types like "api_errors", that should be specified.
+946 |             # For a general check, let's assume a primary exchange breaker type, e.g., "main_exchange_operations"
+    |                                                                                                     ^^^^^^^^^^^^^ E501
+947 |             exchange_breaker = self.circuit_breaker_system.get_exchange_breaker(
+948 |                 exchange_name, "main_exchange_operations"
+    |
+
+cyberdelta/core/strategy_manager.py:220:101: E501 Line too long (130 > 100)
+    |
+218 |                         strategy_name=strategy.name,
+219 |                         signal_data=signal_data_dict,  # Log the dict
+220 |                         error_details="Signal object missing required attributes or not a TradeSignal",  # Provide specific reason
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+221 |                     )
+222 |                     continue  # Skip to the next signal
+    |
+
+cyberdelta/strategies/funding_rate_arbitrage.py:308:101: E501 Line too long (149 > 100)
+    |
+307 | …
+308 | …erp and spot) if trades should be executed, or an empty list if no opportunity is found.
+    |                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+309 | …s are generated.
+310 | …
+    |
+
+cyberdelta/validation/circuit_breaker.py:475:101: E501 Line too long (107 > 100)
+    |
+473 |         elif success_recovery:
+474 |             logger.info(
+475 |                 f"APIErrorBreaker {self.name} recovery check: Despite {len(recent_errors)} recent errors, "
+    |                                                                                                     ^^^^^^^ E501
+476 |                 f"has {self.consecutive_success_count} consecutive successes - recovery allowed"
+477 |             )
+    |
+
+cyberdelta/validation/circuit_breaker.py:633:101: E501 Line too long (108 > 100)
+    |
+631 |                     logger.warning(
+632 |                         f"Configuration for breaker type '{breaker_type_key}' under exchange "
+633 |                         f"'{exchange_id}' is not a dict (found {type(config_data_for_this_breaker_type)}). "
+    |                                                                                                     ^^^^^^^^ E501
+634 |                         "Skipping."
+635 |                     )
+    |
+
+cyberdelta/validation/circuit_breaker.py:705:101: E501 Line too long (103 > 100)
+    |
+703 |                         # For now, let's assume Volatility/Liquidity require symbols.
+704 |                         logger.warning(
+705 |                             f"No symbols list found or list is empty for symbol-specific breaker type "
+    |                                                                                                     ^^^ E501
+706 |                             f"'{breaker_type_key}' on exchange '{exchange_id}'. "
+707 |                             "No non-symbol-specific version will be created automatically by default for this type."
+    |
+
+cyberdelta/validation/circuit_breaker.py:707:101: E501 Line too long (116 > 100)
+    |
+705 |                             f"No symbols list found or list is empty for symbol-specific breaker type "
+706 |                             f"'{breaker_type_key}' on exchange '{exchange_id}'. "
+707 |                             "No non-symbol-specific version will be created automatically by default for this type."
+    |                                                                                                     ^^^^^^^^^^^^^^^^ E501
+708 |                         )
+709 |                 else:  # For non-symbol-specific types like api_error, drawdown
+    |
+
+tests/integration/test_core_workflow.py:264:101: E501 Line too long (106 > 100)
+    |
+262 |                 "min_net_funding_differential": "0.00005",  # More specific path for this
+263 |                 # For RiskManager.min_net_funding_differential attribute
+264 |                 # "min_net_funding_differential": "0.0001", # If separate, or ensure the one above is used
+    |                                                                                                     ^^^^^^ E501
+265 |                 "max_single_position_exposure_ratio": "0.1",  # Default, but can be set
+266 |             },
+    |
+
+tests/integration/test_core_workflow.py:274:101: E501 Line too long (129 > 100)
+    |
+272 |             },
+273 |             # This key is specific and correctly structured for RiskManager._load_config
+274 |             "min_exchange_balance": "20.0",  # This key was previously under "risk_manager", moving to "risk" as per direct load.
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+275 |             # Actually, RiskManager loads this as "risk_manager.min_exchange_balance".
+276 |             # Keeping it separate for now to see if it loads, might need adjustment
+    |
+
+tests/integration/test_core_workflow.py:279:101: E501 Line too long (102 > 100)
+    |
+277 |         },
+278 |         "risk_manager": {  # Keeping this key for settings specific to "risk_manager.*" path
+279 |             "min_exchange_balance": "20.0"  # This will be loaded by risk_manager.min_exchange_balance
+    |                                                                                                     ^^ E501
+280 |         },
+281 |         "data_handler": {"max_staleness_seconds": 30},
+    |
+
+tests/integration/test_core_workflow.py:590:101: E501 Line too long (128 > 100)
+    |
+588 |     # Configure mock APIs to return these order books
+589 |     # Assign AsyncMock directly to the method for mocking purposes
+590 |     # mock_hl_api.get_order_book = AsyncMock(return_value=mock_hl_ob)  # type: ignore[assignment] # Replaced with configure_mock
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+591 |     # mock_bp_api.get_order_book = AsyncMock(return_value=mock_bp_ob)  # type: ignore[assignment] # Replaced with configure_mock
+592 |     # mock_hl_api.get_order_book.return_value = mock_hl_ob # Assuming get_order_book is already an AsyncMock - Incorrect
+    |
+
+tests/integration/test_core_workflow.py:591:101: E501 Line too long (128 > 100)
+    |
+589 |     # Assign AsyncMock directly to the method for mocking purposes
+590 |     # mock_hl_api.get_order_book = AsyncMock(return_value=mock_hl_ob)  # type: ignore[assignment] # Replaced with configure_mock
+591 |     # mock_bp_api.get_order_book = AsyncMock(return_value=mock_bp_ob)  # type: ignore[assignment] # Replaced with configure_mock
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+592 |     # mock_hl_api.get_order_book.return_value = mock_hl_ob # Assuming get_order_book is already an AsyncMock - Incorrect
+593 |     # mock_bp_api.get_order_book.return_value = mock_bp_ob # Assuming get_order_book is already an AsyncMock - Incorrect
+    |
+
+tests/integration/test_core_workflow.py:592:101: E501 Line too long (120 > 100)
+    |
+590 |     # mock_hl_api.get_order_book = AsyncMock(return_value=mock_hl_ob)  # type: ignore[assignment] # Replaced with configure_mock
+591 |     # mock_bp_api.get_order_book = AsyncMock(return_value=mock_bp_ob)  # type: ignore[assignment] # Replaced with configure_mock
+592 |     # mock_hl_api.get_order_book.return_value = mock_hl_ob # Assuming get_order_book is already an AsyncMock - Incorrect
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^ E501
+593 |     # mock_bp_api.get_order_book.return_value = mock_bp_ob # Assuming get_order_book is already an AsyncMock - Incorrect
+594 |     mocker.patch.object(mock_hl_api, "get_order_book", return_value=mock_hl_ob)
+    |
+
+tests/integration/test_core_workflow.py:593:101: E501 Line too long (120 > 100)
+    |
+591 |     # mock_bp_api.get_order_book = AsyncMock(return_value=mock_bp_ob)  # type: ignore[assignment] # Replaced with configure_mock
+592 |     # mock_hl_api.get_order_book.return_value = mock_hl_ob # Assuming get_order_book is already an AsyncMock - Incorrect
+593 |     # mock_bp_api.get_order_book.return_value = mock_bp_ob # Assuming get_order_book is already an AsyncMock - Incorrect
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^ E501
+594 |     mocker.patch.object(mock_hl_api, "get_order_book", return_value=mock_hl_ob)
+595 |     mocker.patch.object(mock_bp_api, "get_order_book", return_value=mock_bp_ob)
+    |
+
+tests/integration/test_core_workflow.py:996:101: E501 Line too long (107 > 100)
+    |
+994 |             return None
+995 |
+996 |     # mock_bp_api.get_order_status.side_effect = get_order_status_side_effect_bp # Replaced by mocker.patch
+    |                                                                                                     ^^^^^^^ E501
+997 |     mocker.patch.object(
+998 |         mock_bp_api, "get_order_status", side_effect=get_order_status_side_effect_bp
+    |
+
+tests/integration/test_core_workflow.py:1072:101: E501 Line too long (107 > 100)
+     |
+1070 |             return None
+1071 |
+1072 |     # mock_hl_api.get_order_status.side_effect = get_order_status_side_effect_hl # Replaced by mocker.patch
+     |                                                                                                     ^^^^^^^ E501
+1073 |     mocker.patch.object(
+1074 |         mock_hl_api, "get_order_status", side_effect=get_order_status_side_effect_hl
+     |
+
+tests/integration/test_core_workflow.py:1238:101: E501 Line too long (102 > 100)
+     |
+1237 |     mock_bp_api.set_mock_ticker(mock_bp_ticker)
+1238 |     # mock_bp_api.set_mock_ticker(mock_usdc_usd_ticker) # Old name, renamed to mock_usdc_usd_bp_ticker
+     |                                                                                                     ^^ E501
+1239 |     mock_bp_api.set_mock_ticker(mock_usdc_usd_bp_ticker)  # Add to Backpack mock API
+     |
+
+tests/integration/test_core_workflow.py:1391:101: E501 Line too long (103 > 100)
+     |
+1389 |             return None
+1390 |
+1391 |     # mocker.patch.object(mock_bp_api, "get_order_status", side_effect=get_order_status_side_effect_bp)
+     |                                                                                                     ^^^ E501
+1392 |     if not hasattr(mock_bp_api.get_order_status, "call_args_list"):
+1393 |         mocker.patch.object(
+     |
+
+tests/integration/test_core_workflow.py:1472:101: E501 Line too long (103 > 100)
+     |
+1470 |             return None
+1471 |
+1472 |     # mocker.patch.object(mock_hl_api, "get_order_status", side_effect=get_order_status_side_effect_hl)
+     |                                                                                                     ^^^ E501
+1473 |     if not hasattr(mock_hl_api.get_order_status, "call_args_list"):
+1474 |         mocker.patch.object(
+     |
+
+tests/integration/test_core_workflow.py:1759:101: E501 Line too long (102 > 100)
+     |
+1757 |     # BP leg (long) would not be attempted if short leg fails first in sequential placement.
+1758 |     # If parallel, its status might differ. Current EH logic seems sequential short then long.
+1759 |     # Thus, if short_order_id is None due to pre-placement failure, long_order_id should also be None.
+     |                                                                                                     ^^ E501
+1760 |     assert trade_execution_result.short_order_id is None  # HL leg (short) failed placement
+1761 |     assert trade_execution_result.long_order_id is None  # BP leg (long) should not have been placed
+     |
+
+tests/integration/test_failure_scenarios.py:284:101: E501 Line too long (163 > 100)
+    |
+282 | …rror_message
+283 | …
+284 | …lt.error_message}' doesn't mention the originally failing exchange breaker '{target_exchange}'"
+    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+285 | …
+286 | …
+    |
+
+tests/integration/test_safety_systems.py:964:101: E501 Line too long (109 > 100)
+    |
+962 |     logger.info(
+963 |         f"Test: RM Configs: max_total_exposure_usd={risk_manager.max_total_exposure_usd}, "
+964 |         f"max_position_size={risk_manager.max_position_size}, kelly_fraction={risk_manager.kelly_fraction}, "
+    |                                                                                                     ^^^^^^^^^ E501
+965 |         f"max_single_position_exposure={risk_manager.max_single_position_exposure}"
+966 |     )
+    |
+
+tests/integration/test_safety_systems.py:968:101: E501 Line too long (105 > 100)
+    |
+966 |     )
+967 |     logger.info(
+968 |         f"Test: PT mock total_capital: {risk_manager.portfolio_tracker.get_total_capital.return_value}, "
+    |                                                                                                     ^^^^^ E501
+969 |         f"PT mock total_exposure: {risk_manager.portfolio_tracker.get_total_exposure_usd.return_value}"
+970 |     )
+    |
+
+tests/integration/test_safety_systems.py:969:101: E501 Line too long (103 > 100)
+    |
+967 |     logger.info(
+968 |         f"Test: PT mock total_capital: {risk_manager.portfolio_tracker.get_total_capital.return_value}, "
+969 |         f"PT mock total_exposure: {risk_manager.portfolio_tracker.get_total_exposure_usd.return_value}"
+    |                                                                                                     ^^^ E501
+970 |     )
+971 |     logger.info(
+    |
+
+tests/integration/test_safety_systems.py:972:101: E501 Line too long (106 > 100)
+    |
+970 |     )
+971 |     logger.info(
+972 |         f"Test: Sizing opportunity (volatility={basic_opportunity.basis_volatility}): {basic_opportunity}"
+    |                                                                                                     ^^^^^^ E501
+973 |     )
+    |
+
+tests/integration/test_safety_systems.py:982:101: E501 Line too long (106 > 100)
+    |
+980 |     assert sized_opportunity is None
+981 |     assert (
+982 |         "rejected due to portfolio constraints: Adding $2500.00 would exceed max total exposure ($100.00)"
+    |                                                                                                     ^^^^^^ E501
+983 |         in caplog.text
+984 |     ), "Specific constraint failure message for max total exposure not found in logs."
+    |
+
+tests/integration/test_safety_systems.py:999:101: E501 Line too long (103 > 100)
+     |
+ 998 |     # Configure the portfolio_tracker *that risk_manager is using*
+ 999 |     # risk_manager.portfolio_tracker is the mock created by create_autospec in the risk_manager fixture
+     |                                                                                                     ^^^ E501
+1000 |
+1001 |     assert hasattr(risk_manager.portfolio_tracker, "get_total_capital"), (
+     |
+
+tests/integration/test_safety_systems.py:1006:101: E501 Line too long (142 > 100)
+     |
+1004 | … async method in the protocol
+1005 | …otal_capital, AsyncMock), (
+1006 | …l is not an AsyncMock, but {type(risk_manager.portfolio_tracker.get_total_capital)}"
+     |                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+1007 | …
+     |
+
+tests/unit/core/execution/test_synchronized_order_submission.py:221:101: E501 Line too long (101 > 100)
+    |
+220 |         # Test failed verification with missing order
+221 |         # portfolio_tracker.get_order.return_value = None # REMOVE: PortfolioTracker has no get_order
+    |                                                                                                     ^ E501
+222 |         # Instead, rely on the mock_get_order_by_id logic in the fixture for missing orders
+    |
+
+tests/unit/core/execution/test_synchronized_order_submission.py:687:101: E501 Line too long (125 > 100)
+    |
+685 |         mock_ec_add_checkpoint: AsyncMock,  # Corresponds to ExecutionCoordinator.add_checkpoint
+686 |         mock_ec_start_exec: AsyncMock,  # Corresponds to ExecutionCoordinator.start_execution
+687 |         mock_sos_compensate: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService._compensate_verification_failure
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+688 |         mock_sos_verify_post: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService.verify_post_execution
+689 |         mock_sos_exec_seq: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService._execute_sequential_with_verification
+    |
+
+tests/unit/core/execution/test_synchronized_order_submission.py:688:101: E501 Line too long (115 > 100)
+    |
+686 |         mock_ec_start_exec: AsyncMock,  # Corresponds to ExecutionCoordinator.start_execution
+687 |         mock_sos_compensate: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService._compensate_verification_failure
+688 |         mock_sos_verify_post: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService.verify_post_execution
+    |                                                                                                     ^^^^^^^^^^^^^^^ E501
+689 |         mock_sos_exec_seq: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService._execute_sequential_with_verification
+690 |         mock_sos_verify_pre: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService.verify_pre_execution
+    |
+
+tests/unit/core/execution/test_synchronized_order_submission.py:689:101: E501 Line too long (128 > 100)
+    |
+687 |         mock_sos_compensate: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService._compensate_verification_failure
+688 |         mock_sos_verify_post: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService.verify_post_execution
+689 |         mock_sos_exec_seq: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService._execute_sequential_with_verification
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+690 |         mock_sos_verify_pre: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService.verify_pre_execution
+691 |         service: tuple[  # This should now be the fixture
+    |
+
+tests/unit/core/execution/test_synchronized_order_submission.py:690:101: E501 Line too long (113 > 100)
+    |
+688 |         mock_sos_verify_post: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService.verify_post_execution
+689 |         mock_sos_exec_seq: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService._execute_sequential_with_verification
+690 |         mock_sos_verify_pre: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService.verify_pre_execution
+    |                                                                                                     ^^^^^^^^^^^^^ E501
+691 |         service: tuple[  # This should now be the fixture
+692 |             SynchronizedOrderSubmissionService,
+    |
+
+tests/unit/core/execution/test_synchronized_order_submission.py:760:101: E501 Line too long (104 > 100)
+    |
+758 |         mock_sos_verify_pre.assert_awaited_once()
+759 |         mock_sos_exec_seq.assert_not_awaited()
+760 |         mock_sos_verify_post.assert_not_awaited()  # This was mock_verify_post, now mock_sos_verify_post
+    |                                                                                                     ^^^^ E501
+761 |
+762 |         # Verify coordinator interactions
+    |
+
+tests/unit/core/execution/test_synchronized_order_submission.py:1184:101: E501 Line too long (187 > 100)
+     |
+1182 | …
+1183 | …
+1184 | …s} not found in calls to add_checkpoint. Calls: {mock_coordinator_instance.add_checkpoint.call_args_list}"
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+1185 | …
+     |
+
+tests/unit/core/execution/test_synchronized_order_submission.py:1220:101: E501 Line too long (205 > 100)
+     |
+1218 | …
+1219 | …
+1220 | …s_fail_pos} not found in calls to add_checkpoint. Calls: {mock_coordinator_instance.add_checkpoint.call_args_list}"
+     |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+1221 | …
+     |
+
+tests/unit/core/execution/test_synchronized_order_submission.py:1255:101: E501 Line too long (207 > 100)
+     |
+1253 | …
+1254 | …
+1255 | …s_fail_fill} not found in calls to add_checkpoint. Calls: {mock_coordinator_instance.add_checkpoint.call_args_list}"
+     |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+1256 | …
+     |
+
+tests/unit/core/models/market/test_order.py:577:101: E501 Line too long (104 > 100)
+    |
+576 | # Example of how you might test with details (adjust based on actual fixture availability)
+577 | # @pytest.mark.xfail(reason="Fixture 'base_order_data' might not be available here or needs adjustment")
+    |                                                                                                     ^^^^ E501
+578 | # def test_order_with_hl_details(
+579 | # base_order_data: dict[str, Any],
+    |
+
+tests/unit/core/test_signal_generator.py:163:101: E501 Line too long (113 > 100)
+    |
+161 |         mock_orderbook.bids = [(Decimal("29999"), Decimal("2.5"))]
+162 |         mock_orderbook.asks = [(Decimal("30001"), Decimal("1.5"))]
+163 |         # This orderbooks mock might not be strictly necessary if get_orderbook is not called by the tested logic
+    |                                                                                                     ^^^^^^^^^^^^^ E501
+164 |         # or if estimate_slippage is mocked directly if it uses get_orderbook.
+165 |         # For now, keeping it as it was.
+    |
+
+tests/unit/core/test_signal_generator.py:364:101: E501 Line too long (110 > 100)
+    |
+362 |         # which is already mocked. We also need to ensure that the Ticker data is available
+363 |         # if it's used internally by estimate_slippage or its callees.
+364 |         # For now, assuming Ticker is not directly used by estimate_slippage based on its current simple mock.
+    |                                                                                                     ^^^^^^^^^^ E501
+365 |         # The estimate_slippage method itself might need get_latest_ticker if it uses price data.
+366 |         # For this test, we mock get_latest_order_book. If it also needs get_latest_ticker, that should be mocked too.
+    |
+
+tests/unit/core/test_signal_generator.py:366:101: E501 Line too long (118 > 100)
+    |
+364 |         # For now, assuming Ticker is not directly used by estimate_slippage based on its current simple mock.
+365 |         # The estimate_slippage method itself might need get_latest_ticker if it uses price data.
+366 |         # For this test, we mock get_latest_order_book. If it also needs get_latest_ticker, that should be mocked too.
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^ E501
+367 |         data_handler.get_latest_order_book.return_value = mock_orderbook
+    |
+
+tests/unit/core/test_signal_generator.py:456:101: E501 Line too long (103 > 100)
+    |
+455 |         # SignalGenerator uses self.data_handler.tickers. Ensure it's set.
+456 |         # For this test, we assume the prices are such that the low funding diff doesn't create an opp.
+    |                                                                                                     ^^^ E501
+457 |         # The data_handler fixture populates tickers, which should be sufficient.
+458 |         # If specific ticker values are needed for this test, mock data_handler.tickers here.
+    |
+
+tests/unit/risk/test_rm_controls.py:77:101: E501 Line too long (109 > 100)
+   |
+75 |         # Mock safety systems: Low validation factor (get_symbol_metrics part)
+76 |         mock_funding_validator.get_symbol_metrics.return_value = {
+77 |             "rmse": 1.0,  # Values don't matter as FV is not directly used by _apply_portfolio_level_controls
+   |                                                                                                     ^^^^^^^^^ E501
+78 |             "bias": 1.0,
+79 |         }
+   |
+
+tests/unit/risk/test_rm_sizing_simple.py:463:101: E501 Line too long (108 > 100)
+    |
+462 |         # Behavior depends on whether RM sizes down or rejects.
+463 |         # Assuming simple_fixed_usd_size is a hard target for now, it should be rejected if capital is less.
+    |                                                                                                     ^^^^^^^^ E501
+464 |         # Or, if it sizes down to available capital (100), then check for 100.
+465 |         # Current _size_simple uses min(calculated_size, capital_for_sizing) for fixed_fraction
+    |
+
+tests/unit/risk/test_rm_sizing_simple.py:507:101: E501 Line too long (105 > 100)
+    |
+505 |                     # This part of the original side_effect might need careful thought
+506 |                     # if the dynamic changes are supposed to affect keys not initially present.
+507 |                     # For now, assume dynamic changes only affect existing keys in live_test_config_data.
+    |                                                                                                     ^^^^^ E501
+508 |                     # If a key is not in live_test_config_data, it will use the initial state of
+509 |                     # test_specific_config which was derived from live_test_config_data's initial state.
+    |
+
+tests/unit/risk/test_rm_sizing_simple.py:509:101: E501 Line too long (104 > 100)
+    |
+507 |                     # For now, assume dynamic changes only affect existing keys in live_test_config_data.
+508 |                     # If a key is not in live_test_config_data, it will use the initial state of
+509 |                     # test_specific_config which was derived from live_test_config_data's initial state.
+    |                                                                                                     ^^^^ E501
+510 |                     # To be robust, we might need to re-create a Config from the original mock_config_dict
+511 |                     # if a key isn't found in live_test_config_data.
+    |
+
+tests/unit/risk/test_rm_sizing_simple.py:510:101: E501 Line too long (106 > 100)
+    |
+508 |                     # If a key is not in live_test_config_data, it will use the initial state of
+509 |                     # test_specific_config which was derived from live_test_config_data's initial state.
+510 |                     # To be robust, we might need to re-create a Config from the original mock_config_dict
+    |                                                                                                     ^^^^^^ E501
+511 |                     # if a key isn't found in live_test_config_data.
+512 |                     # However, the test modifies existing keys, so this should be okay.
+    |
+
+tests/unit/risk/test_rm_sizing_simple.py:608:101: E501 Line too long (118 > 100)
+    |
+606 |         assert isinstance(sized_opp, SizedOpportunity)
+607 |         assert sized_opp.long_size == Decimal("5000.0")  # Base size * 1.0 factor
+608 |         # assert sized_opp.validation_factor == Decimal("1.0") # Removed due to SizedOpportunity not having this field
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^ E501
+609 |
+610 |     @pytest.mark.asyncio
+    |
+
+tests/unit/risk/test_rm_sizing_simple.py:660:101: E501 Line too long (118 > 100)
+    |
+658 |         # Base size (5000) * validation_factor (0.2) = 1000
+659 |         assert sized_opp.long_size == Decimal("1000.0")
+660 |         # assert sized_opp.validation_factor == Decimal("0.2") # Removed due to SizedOpportunity not having this field
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^ E501
+661 |
+662 |     @pytest.mark.asyncio
+    |
+
+tests/unit/risk/test_rm_validation.py:54:101: E501 Line too long (120 > 100)
+   |
+52 |                 net_funding_differential=Decimal("0.0"),  # Explicitly zero NFD
+53 |                 timestamp=sample_opportunity.timestamp,
+54 |                 # Add missing fields if ArbitrageOpportunity requires them and they affect equality/hashing for the test
+   |                                                                                                     ^^^^^^^^^^^^^^^^^^^^ E501
+55 |                 expected_profit=Decimal("-1000.0"),  # Unprofitable
+56 |                 utility_score=0.1,  # Low utility
+   |
+
+tests/unit/test_data_handler.py:228:101: E501 Line too long (113 > 100)
+    |
+226 |         # object's timestamp
+227 |         # or the time it was fetched. For this stale test, ensuring the FundingRate object
+228 |         # itself has a stale timestamp is key. DataHandler's get_latest_funding_rate uses the object's timestamp.
+    |                                                                                                     ^^^^^^^^^^^^^ E501
+229 |         # So, directly setting last_update_time["hyperliquid"]["BTC"] to stale_timestamp
+230 |         # might be redundant
+    |
+
+tests/unit/test_data_handler.py:281:101: E501 Line too long (109 > 100)
+    |
+279 |             # Ensure the attribute exists on the mock_exchange_api fixture if it's used across tests
+280 |             # or that data_handler.api_clients[exchange_id] is a distinct mock per exchange.
+281 |             # Assuming data_handler.api_clients holds distinct mocks or mock_exchange_api is general purpose.
+    |                                                                                                     ^^^^^^^^^ E501
+282 |             data_handler.api_clients[exchange_id].close_websocket = AsyncMock()  # type: ignore[attr-defined]
+    |
+
+tests/unit/test_data_handler.py:361:101: E501 Line too long (102 > 100)
+    |
+359 |                 "exchanges.hyperliquid.subscriptions.tickers": True,
+360 |                 "exchanges.hyperliquid.subscriptions.order_book": True,
+361 |                 "exchanges.hyperliquid.subscriptions.trades": False,  # Example: trades not subscribed
+    |                                                                                                     ^^ E501
+362 |                 "exchanges.hyperliquid.subscriptions.account_updates": False,
+363 |                 "exchanges.hyperliquid.subscriptions.funding_rates": True,
+    |
+
+tests/unit/test_data_handler.py:424:101: E501 Line too long (103 > 100)
+    |
+422 |             # Verify initial setup was performed (subscriptions)
+423 |             # Check based on what's enabled in mock_config_get for subscriptions
+424 |             # mock_exchange_api.subscribe_to_tickers.assert_called_with(["BTC", "ETH"]) # Old assertion
+    |                                                                                                     ^^^ E501
+425 |             # mock_exchange_api.subscribe_to_order_book.assert_called_with(
+426 |             #     ["BTC", "ETH"]
+    |
+
+tests/unit/test_data_handler.py:431:101: E501 Line too long (103 > 100)
+    |
+429 |             # mock_exchange_api.subscribe_to_funding_rates.assert_called_with(["BTC", "ETH"])
+430 |
+431 |             # Corrected assertions based on DataHandler implementation (subscribe_to_ticker per symbol)
+    |                                                                                                     ^^^ E501
+432 |             # Account for re-subscription after simulated connection error and reconnect
+433 |             assert mock_exchange_api.subscribe_to_ticker.call_count == 4  # Was 2
+    |
+
+tests/unit/test_data_handler.py:506:101: E501 Line too long (112 > 100)
+    |
+504 |                     await asyncio.wait_for(process_task, timeout=2.0)
+505 |                 except TimeoutError:
+506 |                     # This might happen if the loop in _process_websocket_messages doesn't terminate as expected
+    |                                                                                                     ^^^^^^^^^^^^ E501
+507 |                     if not message_received.is_set():
+508 |                         pytest.fail(
+    |
+
+tests/unit/test_data_handler.py:509:101: E501 Line too long (119 > 100)
+    |
+507 |                     if not message_received.is_set():
+508 |                         pytest.fail(
+509 |                             "WebSocket message was not processed (receive_ws_message not called enough or loop issue)."
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^ E501
+510 |                         )
+511 |                     # If message was received but task timed out, it might be stuck after, or test logic issue.
+    |
+
+tests/unit/test_data_handler.py:511:101: E501 Line too long (111 > 100)
+    |
+509 |                             "WebSocket message was not processed (receive_ws_message not called enough or loop issue)."
+510 |                         )
+511 |                     # If message was received but task timed out, it might be stuck after, or test logic issue.
+    |                                                                                                     ^^^^^^^^^^^ E501
+512 |
+513 |                 # Verify _update_and_notify was called with the test_message
+    |
+
+tests/unit/test_data_handler.py:516:101: E501 Line too long (109 > 100)
+    |
+514 |                 mock_update_notify.assert_called_once_with("hyperliquid", test_message)
+515 |
+516 |                 # Optionally, check if ping was attempted if the logic allows for it within one message cycle
+    |                                                                                                     ^^^^^^^^^ E501
+517 |                 # This depends on ping_interval vs how quickly the message is processed.
+518 |                 # For this specific test focusing on message processing, ping_sent.is_set() might be too strict
+    |
+
+tests/unit/test_data_handler.py:518:101: E501 Line too long (111 > 100)
+    |
+516 |                 # Optionally, check if ping was attempted if the logic allows for it within one message cycle
+517 |                 # This depends on ping_interval vs how quickly the message is processed.
+518 |                 # For this specific test focusing on message processing, ping_sent.is_set() might be too strict
+    |                                                                                                     ^^^^^^^^^^^ E501
+519 |                 # or require longer timeouts/more messages.
+    |
+
+tests/unit/test_data_handler.py:578:101: E501 Line too long (138 > 100)
+    |
+576 | …_mapper=mock_symbol_mapper)
+577 | …
+578 | …for the test (though not directly used by DataHandler._process_websocket_messages)
+    |                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+579 | …
+    |
+
+tests/unit/test_data_handler.py:586:101: E501 Line too long (110 > 100)
+    |
+584 |         )  # Corresponds to the 'subscribe' check in DataHandler
+585 |
+586 |         # DataHandler._process_websocket_messages checks for client.is_connected and client.receive_ws_message
+    |                                                                                                     ^^^^^^^^^^ E501
+587 |         mock_api_client.is_connected = (
+588 |             True  # Initial state for the loop in _process_websocket_messages
+    |
+
+tests/unit/test_data_handler.py:610:101: E501 Line too long (112 > 100)
+    |
+608 |         # and then _process_websocket_messages which uses client.receive_ws_message
+609 |         # We need to let the reconnection logic in DataHandler run.
+610 |         # DataHandler.start_connections calls _maintain_websocket_connection which calls _connect_and_subscribe.
+    |                                                                                                     ^^^^^^^^^^^^ E501
+611 |
+612 |         # To gracefully stop the test after the intended behavior (reconnect attempt and then CancelledError from receive_ws_message):
+    |
+
+tests/unit/test_data_handler.py:612:101: E501 Line too long (134 > 100)
+    |
+610 |         # DataHandler.start_connections calls _maintain_websocket_connection which calls _connect_and_subscribe.
+611 |
+612 |         # To gracefully stop the test after the intended behavior (reconnect attempt and then CancelledError from receive_ws_message):
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+613 |         # We need to wrap the receive_ws_message_mock.side_effect if we want to change is_connected from there.
+614 |         # However, CancelledError from receive_ws_message should already stop the _process_websocket_messages loop.
+    |
+
+tests/unit/test_data_handler.py:613:101: E501 Line too long (111 > 100)
+    |
+612 |         # To gracefully stop the test after the intended behavior (reconnect attempt and then CancelledError from receive_ws_message):
+613 |         # We need to wrap the receive_ws_message_mock.side_effect if we want to change is_connected from there.
+    |                                                                                                     ^^^^^^^^^^^ E501
+614 |         # However, CancelledError from receive_ws_message should already stop the _process_websocket_messages loop.
+    |
+
+tests/unit/test_data_handler.py:614:101: E501 Line too long (115 > 100)
+    |
+612 |         # To gracefully stop the test after the intended behavior (reconnect attempt and then CancelledError from receive_ws_message):
+613 |         # We need to wrap the receive_ws_message_mock.side_effect if we want to change is_connected from there.
+614 |         # However, CancelledError from receive_ws_message should already stop the _process_websocket_messages loop.
+    |                                                                                                     ^^^^^^^^^^^^^^^ E501
+615 |
+616 |         # Start connections, which should trigger reconnection attempts
+    |
+
+tests/unit/test_data_handler.py:639:101: E501 Line too long (107 > 100)
+    |
+637 |         # original_receive_json holds the mock we want to check.
+638 |         assert hasattr(receive_ws_message_mock, "assert_called"), (
+639 |             "receive_ws_message_mock is not a mock object, test setup error for receive_ws_message mocking"
+    |                                                                                                     ^^^^^^^ E501
+640 |         )
+641 |         receive_ws_message_mock.assert_called()
+    |
+
+tests/validation/test_circuit_breaker.py:577:101: E501 Line too long (135 > 100)
+    |
+575 | …
+576 | …
+577 | …a["exchanges"][exchange_name]["circuit_breakers"]["defaults"]["cooldown_seconds"]
+    |                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+578 | …
+579 | …change_name_from_key]["circuit_breakers"][
+    |
+
+tests/validation/test_circuit_breaker.py:586:101: E501 Line too long (103 > 100)
+    |
+584 |                 pass  # Fall through to general default
+585 |
+586 |         # For any other key, try a direct lookup on the top level of full_config_data or return default
+    |                                                                                                     ^^^ E501
+587 |         # This is a simplification; real Config might have deeper structure via get
+588 |         return full_config_data.get(key, default)
+    |
+
+tests/validation/test_position_reconciliation.py:335:101: E501 Line too long (114 > 100)
+    |
+333 |         def side_effect_for_specific_none_tests(key: str, default: Any = None) -> Any:
+334 |             if key == "validation.position_reconciliation.interval_seconds":
+335 |                 return None  # __init__ handles None for this, defaults to 300.0 for _reconciliation_interval_secs
+    |                                                                                                     ^^^^^^^^^^^^^^ E501
+336 |             if key == "validation.position_reconciliation.action_mode":
+337 |                 return None  # __init__ handles None for this, defaults to "log" for _action_mode
+    |
+
+tests/validation/test_position_reconciliation.py:338:101: E501 Line too long (102 > 100)
+    |
+336 |             if key == "validation.position_reconciliation.action_mode":
+337 |                 return None  # __init__ handles None for this, defaults to "log" for _action_mode
+338 |             # For threshold_percent, if config.get returns None, __init__ would try Decimal(str(None))
+    |                                                                                                     ^^ E501
+339 |             # So, we don't make it return None here. Let the fixture's mock behavior for config.get(..., "5.0") work.
+340 |             # If the original side_effect is callable, use it for other keys.
+    |
+
+tests/validation/test_position_reconciliation.py:339:101: E501 Line too long (117 > 100)
+    |
+337 |                 return None  # __init__ handles None for this, defaults to "log" for _action_mode
+338 |             # For threshold_percent, if config.get returns None, __init__ would try Decimal(str(None))
+339 |             # So, we don't make it return None here. Let the fixture's mock behavior for config.get(..., "5.0") work.
+    |                                                                                                     ^^^^^^^^^^^^^^^^^ E501
+340 |             # If the original side_effect is callable, use it for other keys.
+341 |             if callable(original_system_config_get_side_effect):
+    |
+
+tests/validation/test_position_reconciliation.py:345:101: E501 Line too long (101 > 100)
+    |
+343 |             return default  # Fallback
+344 |
+345 |         # Use the config instance that the existing `reconciliation_system` fixture was created with.
+    |                                                                                                     ^ E501
+346 |         current_config_mock = reconciliation_system._config
+347 |         current_config_mock.get.side_effect = side_effect_for_specific_none_tests
+    |
+
+tests/validation/test_position_reconciliation.py:356:101: E501 Line too long (107 > 100)
+    |
+354 |         )  # Class default for None from config.get
+355 |         # For threshold_percent, __init__ calls config.get(..., "5.0").
+356 |         # The side_effect_for_specific_none_tests lets this pass to original_system_config_get_side_effect.
+    |                                                                                                     ^^^^^^^ E501
+357 |         # So it uses the value from the main fixture mock (e.g. "5.0").
+358 |         assert temp_system._discrepancy_threshold_percent == Decimal("5.0")
+    |
+
+tests/validation/test_position_reconciliation.py:401:101: E501 Line too long (102 > 100)
+    |
+399 |             if key == "exchanges.backpack.enabled":
+400 |                 return True
+401 |             # Delegate to the original side_effect for other keys like threshold, check_interval, etc.
+    |                                                                                                     ^^ E501
+402 |             if callable(original_get_side_effect):
+403 |                 return original_get_side_effect(key, default)
+    |
+
+tests/validation/test_position_reconciliation.py:407:101: E501 Line too long (116 > 100)
+    |
+405 |             # This relies on the main config fixture to provide other necessary values.
+406 |             # Or, more robustly, query the main fixture's behavior for other keys.
+407 |             # For this test, other values are set by class attributes directly on reconciliation_system by __init__.
+    |                                                                                                     ^^^^^^^^^^^^^^^^ E501
+408 |             return default  # Default fallback
+    |
+
+tests/validation/test_position_reconciliation.py:417:101: E501 Line too long (114 > 100)
+    |
+416 |         reconciliation_system.last_check_time = datetime.now(UTC) - timedelta(seconds=200)
+417 |         # reconciliation_system.check_interval is set by __init__ from config, ensure it's what we expect for test
+    |                                                                                                     ^^^^^^^^^^^^^^ E501
+418 |         # Default from config fixture is 3600. Let's override for this test scenario if needed for clarity.
+419 |         reconciliation_system.check_interval = timedelta(
+    |
+
+tests/validation/test_position_reconciliation.py:418:101: E501 Line too long (107 > 100)
+    |
+416 |         reconciliation_system.last_check_time = datetime.now(UTC) - timedelta(seconds=200)
+417 |         # reconciliation_system.check_interval is set by __init__ from config, ensure it's what we expect for test
+418 |         # Default from config fixture is 3600. Let's override for this test scenario if needed for clarity.
+    |                                                                                                     ^^^^^^^ E501
+419 |         reconciliation_system.check_interval = timedelta(
+420 |             seconds=100
+    |
+
+tests/validation/test_position_reconciliation.py:536:101: E501 Line too long (107 > 100)
+    |
+535 |         # Patch _reconcile_positions to return a known structure to avoid internal errors
+536 |         # This helps test check_positions's aggregation logic rather than _reconcile_positions itself here.
+    |                                                                                                     ^^^^^^^ E501
+537 |         mock_reconcile_result = {
+538 |             "success": True,
+    |
+
+tests/validation/test_position_reconciliation.py:620:101: E501 Line too long (101 > 100)
+    |
+618 |             }
+619 |
+620 |             # Call check_positions, which should trigger _reconcile_positions if auto_correct is True
+    |                                                                                                     ^ E501
+621 |             await system.check_positions(force=True)
+    |
+
+tests/validation/test_position_reconciliation.py:888:101: E501 Line too long (107 > 100)
+    |
+887 |         # Patch _reconcile_positions to return a known structure to avoid internal errors
+888 |         # This helps test check_positions's aggregation logic rather than _reconcile_positions itself here.
+    |                                                                                                     ^^^^^^^ E501
+889 |         mock_reconcile_result = {
+890 |             "success": True,
+    |
+
+Found 241 errors.

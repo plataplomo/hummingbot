@@ -34,7 +34,9 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# NOTE: CyberDeltaEngine Order model uses 'client_order_id' as the unique identifier, 'quantity_requested' for order size, 'quantity_filled' for filled size, and 'average_fill_price' for fill price. There is no 'id', 'quantity', or 'avg_fill_price' attribute.
+# NOTE: CyberDeltaEngine Order model uses 'client_order_id' as the unique identifier,
+# 'quantity_requested' for order size, 'quantity_filled' for filled size, and 'average_fill_price'
+# for fill price. There is no 'id', 'quantity', or 'avg_fill_price' attribute.
 
 
 class ExecutionStatus(Enum):
@@ -299,7 +301,8 @@ class ExecutionHandler:
         #     #     )
         # except Exception as ticker_err:
         #     logger.warning(
-        #         f\"Execution {execution.id}: Error getting ticker for slippage checks: {ticker_err}\"
+        #         f\"Execution {execution.id}: Error getting ticker for slippage "
+        #         f"checks: {ticker_err}\"
         #     )
         #     # Continue without slippage checks if tickers fail
         #     expected_long_price = None
@@ -316,7 +319,9 @@ class ExecutionHandler:
             base_asset_quantity_long = opportunity.long_size / opportunity.opportunity.long_price
         else:
             logger.error(
-                f"Execution {execution.id}: Invalid long_price ({opportunity.opportunity.long_price}) for calculating base asset quantity. Aborting long leg."
+                f"Execution {execution.id}: Cannot derive base asset quantity from request size "
+                f"({opportunity.long_size}, price {opportunity.opportunity.long_price}) "
+                f"for calculating base asset quantity. Aborting long leg."
             )
             # Handle error: maybe mark execution as failed or skip this leg
 
@@ -327,7 +332,9 @@ class ExecutionHandler:
             base_asset_quantity_short = opportunity.short_size / opportunity.opportunity.short_price
         else:
             logger.error(
-                f"Execution {execution.id}: Invalid short_price ({opportunity.opportunity.short_price}) for calculating base asset quantity. Aborting short leg."
+                f"Execution {execution.id}: Cannot derive base asset quantity from request size "
+                f"({opportunity.short_size}, price {opportunity.opportunity.short_price}) "
+                f"for calculating base asset quantity. Aborting short leg."
             )
             # Handle error
 
@@ -346,7 +353,8 @@ class ExecutionHandler:
             )
         else:
             logger.error(
-                f"Execution {execution.id}: Skipping long order placement due to invalid base asset quantity."
+                f"Execution {execution.id}: Skipping long order placement due to "
+                f"invalid base asset quantity."
             )
 
         # If long order failed, mark execution failed and return
@@ -379,7 +387,8 @@ class ExecutionHandler:
             )
         else:
             logger.error(
-                f"Execution {execution.id}: Skipping short order placement due to invalid base asset quantity."
+                f"Execution {execution.id}: Skipping short order placement due to "
+                f"invalid base asset quantity."
             )
 
         # If short order failed, try to compensate the long leg
@@ -398,7 +407,8 @@ class ExecutionHandler:
                     opportunity.opportunity.long_exchange,
                     long_symbol,
                     OrderSide.SELL,
-                    base_asset_quantity_long,  # Use base_asset_quantity_long for compensation quantity as well
+                    base_asset_quantity_long,  # Use base_asset_quantity_long
+                    # for compensation quantity as well
                 ):
                     execution.status = ExecutionStatus.FAILED  # Compensation succeeded
                 else:
@@ -412,7 +422,8 @@ class ExecutionHandler:
                     execution.status = ExecutionStatus.FAILED
             else:
                 logger.error(
-                    f"Execution {execution.id}: Cannot compensate long leg as base_asset_quantity_long is invalid: {base_asset_quantity_long}"
+                    f"Execution {execution.id}: Cannot compensate long leg as "
+                    f"base_asset_quantity_long is invalid: {base_asset_quantity_long}"
                 )
                 execution.error_message += " | COMPENSATION SKIPPED (invalid qty)!"
                 execution.status = (
@@ -531,7 +542,8 @@ class ExecutionHandler:
             try:
                 logger.info(
                     f"Execution {execution.id} ({context}): Attempt {attempt + 1} - "
-                    f"{side.name} {quantity:.8f} {symbol} on {exchange_id} (Client ID: {client_order_id})"
+                    f"{side.name} {quantity:.8f} {symbol} on {exchange_id} "
+                    f"(Client ID: {client_order_id})"
                 )
                 order_result = await client.place_order(
                     symbol=symbol,
@@ -570,24 +582,35 @@ class ExecutionHandler:
                 # Decide if unexpected errors are retryable (maybe not)
                 return None
 
-        # If loop finishes, it means all retries were exhausted for an APIError, or another exception occurred.
-        # The error_message should already be set by the last attempt or the unexpected exception block.
-        # If the reason for exhausting retries was specifically an APIError, re-raise it as per test expectation.
+        # If loop finishes, it means all retries were exhausted for an APIError,
+        # or another exception occurred.
+        # The error_message should already be set by the last attempt or the
+        # unexpected exception block.
+        # If the reason for exhausting retries was specifically an APIError,
+        # re-raise it as per test expectation.
         if last_api_error_for_reraise:
             # Ensure error_message reflects this final attempt if not already set by non-retryable path
             if not execution.error_message or "Non-retryable" not in execution.error_message:
-                execution.error_message = f"Failed to place order on {exchange_id} after {self.max_retries} retries due to: {last_api_error_for_reraise.message}"
+                execution.error_message = (
+                    f"Failed to place order on {exchange_id} after "
+                    f"{self.max_retries} retries due to: {last_api_error_for_reraise.message}"
+                )
             logger.error(
-                f"Execution {execution.id}: Exhausted retries. Last API error: {last_api_error_for_reraise}"
+                f"Execution {execution.id}: Exhausted retries. Last API error: "
+                f"{last_api_error_for_reraise}"
             )
             raise last_api_error_for_reraise
         else:
             # This path should ideally not be hit if an APIError occurred and was stored.
             # If it's another exception, it would have been raised or returned None from the loop.
-            # If it's just max_retries without a specific APIError stored (e.g. unexpected error returned None),
+            # If it's just max_retries without a specific APIError stored
+            # (e.g. unexpected error returned None),
             # set a generic message if not already set.
             if not execution.error_message:
-                execution.error_message = f"Failed to place order on {exchange_id} after {self.max_retries} retries (unknown reason)."
+                execution.error_message = (
+                    f"Failed to place order on {exchange_id} after "
+                    f"{self.max_retries} retries (unknown reason)."
+                )
             logger.error(f"Execution {execution.id}: {execution.error_message}")
 
         return None  # Fallback, though raising last_api_error_for_reraise is preferred if it exists
@@ -632,7 +655,8 @@ class ExecutionHandler:
                 )
                 if order_status:
                     logger.debug(
-                        f"Execution {execution.id}: Got status for order {order_id}: {order_status.status}"
+                        f"Execution {execution.id}: Got status for order {order_id}: "
+                        f"{order_status.status}"
                     )
                     return order_status
                 else:
@@ -717,7 +741,8 @@ class ExecutionHandler:
                 return None
 
         logger.error(
-            f"Execution {execution.id}: Failed to get status for {order_id} after {self.max_retries} retries."
+            f"Execution {execution.id}: Failed to get status for {order_id} after "
+            f"{self.max_retries} retries."
         )
         return None
 
@@ -754,10 +779,12 @@ class ExecutionHandler:
 
         # Log the config values being used AFTER they are defined
         logger.info(
-            f"_compensate_position: use_limit_orders_config = {use_limit_orders_config} (type: {type(use_limit_orders_config)})"
+            f"_compensate_position: use_limit_orders_config = {use_limit_orders_config} "
+            f"(type: {type(use_limit_orders_config)})"
         )
         logger.info(
-            f"_compensate_position: limit_price_offset_pct_str = {limit_price_offset_pct_str} (type: {type(limit_price_offset_pct_str)})"
+            f"_compensate_position: limit_price_offset_pct_str = {limit_price_offset_pct_str} "
+            f"(type: {type(limit_price_offset_pct_str)})"
         )
 
         # reduce_only = True  # Compensation orders should always be reduce_only # Unused variable
@@ -1094,7 +1121,8 @@ class ExecutionHandler:
                     OrderStatus.EXPIRED,
                 ):
                     logger.info(
-                        f"Execution {execution.id}: Order {order_id} reached terminal state: {order.status}"
+                        f"Execution {execution.id}: Order {order_id} reached terminal "
+                        f"state: {order.status}"
                     )
                     # Process the final state (e.g., record fill)
                     if order.status == OrderStatus.FILLED:
@@ -1118,7 +1146,8 @@ class ExecutionHandler:
             else:
                 # _get_order_status failed after retries
                 logger.error(
-                    f"Execution {execution.id}: Failed to get status for order {order_id}. Assuming failure."
+                    f"Execution {execution.id}: Failed to get status for order {order_id}. "
+                    f"Assuming failure."
                 )
                 return None  # Indicate monitoring failure
 
