@@ -88,7 +88,7 @@ class PrioritySignalQueue:
                     return value
                 else:
                     # Value is not default and not the correct type, attempt conversion
-                    converted_value = target_type(value)  # type: ignore[operator] # Dynamic type call OK here
+                    converted_value = target_type(value)
                     return converted_value
             except (ValueError, TypeError) as e:
                 self.logger.error(
@@ -135,8 +135,7 @@ class PrioritySignalQueue:
         except (ValueError, TypeError, KeyError):  # Added KeyError
             score_val = signal.metadata.get("utility_score", "N/A")  # Use get for safety
             self.logger.warning(
-                f"Invalid utility_score '{score_val}' for signal {signal.symbol}. "
-                f"Using default 0.0"  # Ruff E501 fix: Split long f-string
+                f"Invalid utility_score '{score_val}' for signal {signal.symbol}. Using default 0.0"
             )
             utility_score = 0.0
             signal.metadata["utility_score"] = utility_score  # Store default back
@@ -152,7 +151,8 @@ class PrioritySignalQueue:
             return False
 
         # Clean expired signals periodically
-        # Run cleanup *before* acquiring the main lock to avoid holding it during potentially longer cleanup
+        # Run cleanup *before* acquiring the main lock to avoid holding it during
+        # potentially longer cleanup
         now = datetime.now(UTC)
         if (now - self.last_cleanup).total_seconds() > self.cleanup_interval:
             async with self.lock:  # Acquire lock specifically for cleanup
@@ -201,7 +201,8 @@ class PrioritySignalQueue:
             )  # Log INFO if trimming occurred
             self.logger.log(
                 log_level,
-                f"Added signal for {signal.symbol} to queue with score {signal.metadata.get('utility_score', 'N/A')}"
+                f"Added signal for {signal.symbol} to queue with score "
+                f"{signal.metadata.get('utility_score', 'N/A')}"
                 f"{' (and trimmed queue)' if trimmed else ''}",
             )
             # Signal the async wait event
@@ -453,7 +454,8 @@ class PrioritySignalQueue:
             priority, counter, signal = item  # noqa: F841
             is_valid = signal.is_valid()  # Removed 'now' argument
             self.logger.debug(
-                f"[_clean_expired] Checking signal {signal.signal_id} (score={-priority:.4f}, expiry={signal.expiration}). Valid={is_valid}."
+                f"[_clean_expired] Checking signal {signal.signal_id} (score={-priority:.4f}, "
+                f"expiry={signal.expiration}). Valid={is_valid}."
             )
             if is_valid:
                 valid_signals.append(item)
@@ -474,7 +476,8 @@ class PrioritySignalQueue:
             self.logger.info(f"Cleaned {removed_count} expired signals.")
         elif removed_count != removed_count_local:
             self.logger.warning(
-                f"[_clean_expired] Mismatch in removed count! Logic={removed_count_local}, Diff={removed_count}"
+                f"[_clean_expired] Mismatch in removed count! Logic="
+                f"{removed_count_local}, Diff={removed_count}"
             )
 
         self.logger.debug(f"[_clean_expired] Finished. New queue size: {len(self.signal_queue)}")
@@ -486,17 +489,16 @@ class PrioritySignalQueue:
             return True  # No trimming needed
 
         try:
-            # Keep the N signals with the smallest negative_priority values (highest actual priority)
-            # heapq.nsmallest returns a list sorted by priority (smallest first)
+            # Keep the N signals with the smallest negative_priority values
+            # (highest actual priority)
             num_to_keep = self.max_queue_size
             highest_priority_signals = heapq.nsmallest(
                 num_to_keep, self.signal_queue, key=lambda x: x[0]
             )
             num_removed = len(self.signal_queue) - len(highest_priority_signals)
 
-            # Rebuild the heap efficiently (though direct assignment might be okay if heap property isn't strictly needed elsewhere)
-            # self.signal_queue = highest_priority_signals
-            # heapq.heapify(self.signal_queue) # Optional: restore heap invariant if needed
+            # Rebuild the heap efficiently (though direct assignment might be okay
+            # if heap property isn't strictly needed elsewhere)
             self.signal_queue = highest_priority_signals  # Direct assignment is simpler
 
             if num_removed > 0:
@@ -552,7 +554,8 @@ class PrioritySignalQueue:
                     exchanges_to_check.add(signal.exchange)
                 else:
                     self.logger.warning(
-                        f"Signal {signal.signal_id} for {signal.symbol} has an empty string for 'exchange' field."
+                        f"Signal {signal.signal_id} for {signal.symbol} has an empty "
+                        f"string for 'exchange' field."
                     )
                     return False  # Reject if exchange string is empty
             # If it's a list, process it.
@@ -568,11 +571,13 @@ class PrioritySignalQueue:
                     exchanges_to_check.update(valid_exchanges)
                 else:
                     self.logger.warning(
-                        f"Signal {signal.signal_id} for {signal.symbol} 'exchange' field is a list with no valid non-empty strings."
+                        f"Signal {signal.signal_id} for {signal.symbol} 'exchange' field "
+                        f"is a list with no valid non-empty strings."
                     )
                     return False  # Reject if list is empty or contains only empty strings
             # else: # Should not happen if type hint is enforced by Pydantic
-            #     self.logger.error(f"Signal {signal.signal_id} for {signal.symbol} has unexpected type for 'exchange': {type(signal.exchange)}")
+            #     self.logger.error(f"Signal {signal.signal_id} for {signal.symbol} has unexpected "
+            #                       f"type for 'exchange': {type(signal.exchange)}")
             #     return False
 
         # If after all checks, no valid exchange could be determined, reject the signal.
@@ -602,15 +607,16 @@ class PrioritySignalQueue:
 
                 if not can_exec:
                     self.logger.warning(
-                        f"Circuit breaker for {exchange_id} is active, rejecting signal {signal.symbol}. "
+                        f"Circuit breaker for {exchange_id} is active, rejecting signal "
+                        f"{signal.symbol}. "
                         f"Reason: {reason}"
                     )
                     return False  # Reject signal if any relevant breaker is tripped
             except Exception as e:
                 # Catch potential errors during the circuit breaker check itself
                 self.logger.error(
-                    f"Error checking circuit breaker for exchange '{exchange_id}', symbol '{signal.symbol}'. "
-                    f"Rejecting signal for safety. Error: {e}",
+                    f"Error checking circuit breaker for exchange '{exchange_id}', "
+                    f"symbol '{signal.symbol}'. Rejecting signal for safety. Error: {e}",
                     exc_info=True,
                 )
                 return False  # Reject on error during check
@@ -897,7 +903,8 @@ class PrioritySignalQueue:
                 "short_exchange" in signal.metadata
                 and signal.metadata["short_exchange"] is not None
             ):
-                # Ensure not to add the same exchange twice if long_exchange == short_exchange (e.g. for spot)
+                # Ensure not to add the same exchange twice if long_exchange == short_exchange
+                # (e.g. for spot)
                 if str(signal.metadata["short_exchange"]) != str(signal.metadata["long_exchange"]):
                     exchanges_to_check.append(str(signal.metadata["short_exchange"]))
         # Fallback to signal.exchange field
@@ -910,7 +917,8 @@ class PrioritySignalQueue:
             # If no specific exchange found, check symbol-level breaker if any
             # Or, if this case is an error, log and return False
             self.logger.debug(
-                f"No specific exchanges found for signal {signal.signal_id} ({signal.symbol}) to check CB. Checking symbol-level."
+                f"No specific exchanges found for signal {signal.signal_id} "
+                f"({signal.symbol}) to check CB. Checking symbol-level."
             )
             # Pass to symbol check
 
@@ -941,8 +949,10 @@ class PrioritySignalQueue:
             )
             if exchange_breaker and exchange_breaker.state == BreakerState.OPEN:
                 self.logger.warning(
-                    f"Exchange circuit breaker for {exchange_name} (type: main_exchange_operations) is OPEN. "
-                    f"Reason: {exchange_breaker.trip_reason}. Signal {signal.signal_id} rejected."
+                    f"Exchange circuit breaker for {exchange_name} (type: "
+                    f"main_exchange_operations) is OPEN. "
+                    f"Reason: {exchange_breaker.trip_reason}. Signal {signal.signal_id} "
+                    f"rejected."
                 )
                 return False
 
@@ -952,8 +962,10 @@ class PrioritySignalQueue:
             pair_breaker = self.circuit_breaker_system.get_breaker(pair_breaker_name)
             if pair_breaker and pair_breaker.state == BreakerState.OPEN:
                 self.logger.warning(
-                    f"Pair circuit breaker for {exchange_name}-{signal.symbol} ({pair_breaker_name}) is OPEN. "
-                    f"Reason: {pair_breaker.trip_reason}. Signal {signal.signal_id} rejected."
+                    f"Pair circuit breaker for {exchange_name}-{signal.symbol} "
+                    f"({pair_breaker_name}) is OPEN. "
+                    f"Reason: {pair_breaker.trip_reason}. Signal {signal.signal_id} "
+                    f"rejected."
                 )
                 return False
 

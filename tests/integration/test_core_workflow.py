@@ -1576,7 +1576,8 @@ async def test_execution_failure_compensation(
     logger.info(f"Final HL Position: {final_hl_pos}")
     # Get balances using internal dict for test verification
     logger.info(
-        f"Final mock_hl USD Balance after compensation test: {portfolio_tracker.get_exchange_balance('mock_hl', 'USD')}"
+        f"Final mock_hl USD Balance after compensation test: "
+        f"{portfolio_tracker.get_exchange_balance('mock_hl', 'USD')}"
     )
     logger.info(f"Final Balances: {portfolio_tracker._balances}")
 

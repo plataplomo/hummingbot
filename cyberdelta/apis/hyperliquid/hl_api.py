@@ -1644,7 +1644,10 @@ class HyperliquidAPI(ExchangeAPI):
                 f"user state/account summary."
             )
             raise APIError(
-                message=f"HLAPI: Wallet address required for get_account_summary. Exchange: {self.exchange_name}",
+                message=(
+                    f"HLAPI: Wallet address required for get_account_summary. "
+                    f"Exchange: {self.exchange_name}"
+                ),
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 

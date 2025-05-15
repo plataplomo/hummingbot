@@ -102,7 +102,8 @@ class ExchangeAPI(ABC):
                 self.loop = asyncio.get_running_loop()
             except RuntimeError:
                 logger.warning(  # Assuming 'logger' is defined in this class or module scope
-                    f"[{self.exchange_name}] ExchangeAPI initialized without a running event loop and no loop provided. "
+                    f"[{self.exchange_name}] ExchangeAPI initialized without a running "
+                    f"event loop and no loop provided. "
                     f"Creating a new event loop. This might not be intended."
                 )
                 self.loop = asyncio.new_event_loop()

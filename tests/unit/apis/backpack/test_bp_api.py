@@ -327,11 +327,13 @@ class TestBackpackAPI_Authentication:
             # Print the authenticator it received
             authenticator_received = kwargs.get("authenticator")
             print(
-                f"[TEST DEBUG] Authenticator received by HttpClient.request: {authenticator_received}",
+                f"[TEST DEBUG] Authenticator received by HttpClient.request: "
+                f"{authenticator_received}",
                 flush=True,
             )
             print(
-                f"[TEST DEBUG] Is it api.authenticator? {authenticator_received is api.authenticator}",
+                f"[TEST DEBUG] Is it api.authenticator? "
+                f"{authenticator_received is api.authenticator}",
                 flush=True,
             )
             print(
