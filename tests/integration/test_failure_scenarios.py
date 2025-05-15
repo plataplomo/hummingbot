@@ -179,9 +179,8 @@ class TestFailureScenarios:
             rejected_result.error_message is not None
             and expected_breaker_name_in_message in rejected_result.error_message
         ), (
-            # Correctly formatted multi-line f-string
-            f"Error message '{rejected_result.error_message}' should mention "
-            f"the tripped breaker '{expected_breaker_name_in_message}'"
+            f"Error message '{rejected_result.error_message}' does not mention "
+            f"the originally failing exchange breaker '{expected_breaker_name_in_message}'"
         )
 
         # 5. Verify Other Exchange Unaffected
@@ -272,9 +271,9 @@ class TestFailureScenarios:
             )
             # Optionally check it *does* mention the original failing exchange
             assert target_exchange in str(other_result.error_message), (
-                # Correctly formatted multi-line f-string
-                f"Error message '{other_result.error_message}' doesn't mention "
-                f"the originally failing exchange breaker '{target_exchange}'"
+                f"Error message '{other_result.error_message}' "
+                f"doesn't mention the originally failing "
+                f"exchange breaker '{target_exchange}'"
             )
         elif other_result.status == ExecutionStatus.REJECTED:
             # Add None check before 'in'
@@ -310,7 +309,8 @@ class TestFailureScenarios:
         # mock_bp_api.clear_error_simulation("place_order")
         # reset_success_result = await execution_handler.execute_opportunity(sized_opportunity)
         # assert reset_success_result.status == ExecutionStatus.SUCCESS, \
-        #     f"Execution failed after reset and error removal: {reset_success_result.error_message}"
+        #     f"Execution failed after reset and error removal: " \
+        #     f"{reset_success_result.error_message}"
         # logger.info("Execution successful after manual reset and error removal.")
 
         # --- Cleanup ---
@@ -428,6 +428,23 @@ class TestFailureScenarios:
         # Setup: Trip a breaker (e.g., API errors)
         # Trigger: Simulate successful operations
         # Verify: Check breaker transitions OPEN -> HALF_OPEN -> CLOSED
+        pass
+
+    @pytest.mark.asyncio
+    async def test_global_api_error_breaker_trips_and_recovers(
+        self,
+        mock_config: Config,  # Added Config type hint
+        mock_hl_api: MockExchangeAPI,
+        mock_bp_api: MockExchangeAPI,
+        real_portfolio_tracker: PortfolioTracker,
+        circuit_breaker_system: CircuitBreakerSystem,
+        execution_handler: ExecutionHandler,
+        basic_opportunity: ArbitrageOpportunity,
+    ) -> None:  # Added return type hint
+        """Tests that a global API error triggers the global API error circuit breaker."""
+        # Setup: Configure global API error breaker
+        # Trigger: Simulate a global API error
+        # Verify: Check breaker state, check execution rejection
         pass
 
 

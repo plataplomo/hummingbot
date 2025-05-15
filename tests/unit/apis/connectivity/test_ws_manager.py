@@ -131,14 +131,17 @@ def mock_ws_connection_factory() -> Callable[..., AsyncMock]:
                     current_task_anext.get_name() if current_task_anext else "UnknownTask"
                 )
                 test_logger.info(
-                    f"[TestAnextBlockIndefinitely::{task_name_anext}] Entering: await asyncio.Future(). Cancelled state: {current_task_anext.cancelled() if current_task_anext else 'N/A'}"
+                    f"[TestAnextBlockIndefinitely::{task_name_anext}] Entering: await "
+                    f"asyncio.Future(). Cancelled state: "
+                    f"{current_task_anext.cancelled() if current_task_anext else 'N/A'}"
                 )
                 try:
                     await asyncio.Future()
                     # This path is not expected to be reached if Future() blocks and the task
                     # awaiting it is cancelled, as CancelledError should propagate.
                     test_logger.warning(
-                        f"[TestAnextBlockIndefinitely::{task_name_anext}] asyncio.Future() COMPLETED "
+                        f"[TestAnextBlockIndefinitely::{task_name_anext}] asyncio.Future() "
+                        f"COMPLETED "
                         "WITHOUT CancelledError. This is unexpected."
                     )
                     raise StopAsyncIteration(
@@ -146,7 +149,8 @@ def mock_ws_connection_factory() -> Callable[..., AsyncMock]:
                     )
                 except asyncio.CancelledError:
                     test_logger.info(
-                        f"[TestAnextBlockIndefinitely::{task_name_anext}] asyncio.Future() was CANCELLED as expected. About to re-raise."
+                        f"[TestAnextBlockIndefinitely::{task_name_anext}] asyncio.Future() "
+                        f"was CANCELLED as expected. About to re-raise."
                     )
                     raise  # Crucial re-raise
                 except Exception as e_anext:
@@ -564,7 +568,8 @@ class TestWebSocketManager:
         # first_connection_mock = mock_ws_connection_factory( # No longer used
         #     receive_sequence=[
         #         (WSMsgType.TEXT, json.dumps(test_message_payload), None),
-        #         # (WSMsgType.ERROR, simulated_connection_drop_exception, None), # Remove error for now
+        #         # (WSMsgType.ERROR, simulated_connection_drop_exception, None),
+        #         # Remove error for now
         #         StopAsyncIteration(), # Stop iteration after one message
         #     ],
         #     closed=False,
@@ -597,7 +602,8 @@ class TestWebSocketManager:
                 )
 
             test_case_logger.info(
-                f"[dynamic_ws_connect_side_effect] Attempt {connect_attempt_count}: Returning second_connection_mock."
+                f"[dynamic_ws_connect_side_effect] Attempt {connect_attempt_count}: "
+                f"Returning second_connection_mock."
             )
             return second_connection_mock
 
@@ -642,12 +648,15 @@ class TestWebSocketManager:
                 )
                 await initial_connect_task
                 test_case_logger.info(
-                    f"Initial connect task awaited. State: done={initial_connect_task.done()}, cancelled={initial_connect_task.cancelled()}"
+                    f"Initial connect task awaited. State: "
+                    f"done={initial_connect_task.done()}, "
+                    f"cancelled={initial_connect_task.cancelled()}"
                 )
                 await asyncio.sleep(0.05)
                 test_case_logger.info("Slept 0.05s after initial connect.")
 
-                # mock_user_message_handler.assert_called_once_with(test_message_payload) # Will not be called
+                # mock_user_message_handler.assert_called_once_with(test_message_payload)
+                # Will not be called
                 mock_user_message_handler.assert_not_called()  # MODIFIED ASSERTION
 
                 # Check logs for the *first* connection attempt failing
@@ -672,29 +681,38 @@ class TestWebSocketManager:
                             found_first_attempt_fail_log = True
                             break
                 assert found_first_attempt_fail_log, (
-                    f"Expected log for first connection attempt failing with 'Cannot connect to host' not found. Warnings: {mock_logger_patch.warning.call_args_list}, Errors: {mock_logger_patch.error.call_args_list}"
+                    f"Expected log for first connection attempt failing with 'Cannot connect to "
+                    f"host' not found. Warnings: {mock_logger_patch.warning.call_args_list}, "
+                    f"Errors: {mock_logger_patch.error.call_args_list}"
                 )
 
                 # Check calls to mock_sleep
                 # Expected calls:
                 # 1. From test: asyncio.sleep(0.05)
-                # 2. From _establish_connection retry: asyncio.sleep(actual_delay) where actual_delay >= 1.0
+                # 2. From _establish_connection retry: asyncio.sleep(actual_delay)
+                #    where actual_delay >= 1.0
                 assert mock_sleep.call_count == 2, (
-                    f"Expected 2 calls to sleep, got {mock_sleep.call_count}. Calls: {mock_sleep.call_args_list}"
+                    f"Expected 2 calls to sleep, got {mock_sleep.call_count}. "
+                    f"Calls: {mock_sleep.call_args_list}"
                 )
 
                 found_retry_sleep = False
                 found_test_sleep = False
 
-                # Calculate expected retry sleep min/max based on reconnect_delay and jitter possibility
+                # Calculate expected retry sleep min/max based on reconnect_delay
+                # and jitter possibility
                 # actual_delay = max(1.0, backoff_base + jitter)
                 # backoff_base = reconnect_delay * (2**(attempt-1)) -> 0.01 for first retry
-                # jitter = backoff_base * 0.2 * (random.random() - 0.5) -> max jitter is 0.01 * 0.2 * 0.5 = 0.001
-                # min_expected_retry_sleep_from_calc = test_config.reconnect_delay - (test_config.reconnect_delay * 0.2 * 0.5) # Unused
-                # max_expected_retry_sleep_from_calc = test_config.reconnect_delay + (test_config.reconnect_delay * 0.2 * 0.5) # Unused
+                # jitter = backoff_base * 0.2 * (random.random() - 0.5)
+                # -> max jitter is 0.01 * 0.2 * 0.5 = 0.001
+                # min_expected_retry_sleep_from_calc = test_config.reconnect_delay
+                # - (test_config.reconnect_delay * 0.2 * 0.5) # Unused
+                # max_expected_retry_sleep_from_calc = test_config.reconnect_delay
+                # + (test_config.reconnect_delay * 0.2 * 0.5) # Unused
                 # However, actual_delay = max(1.0, calculated_value)
                 effective_min_retry_sleep = 1.0
-                # Max possible jitter effect on 0.01 is tiny, so max(1.0, ...) will dominate. Consider 1.0 + small epsilon for float comparisons.
+                # Max possible jitter effect on 0.01 is tiny, so max(1.0, ...)
+                # will dominate. Consider 1.0 + small epsilon for float comparisons.
                 effective_max_retry_sleep = (
                     1.0 + abs(test_config.reconnect_delay * 0.2 * 0.5) + 0.01
                 )  # add small epsilon for safety, use test_config.reconnect_delay
@@ -708,7 +726,8 @@ class TestWebSocketManager:
                         found_test_sleep = True
 
                 assert found_retry_sleep, (
-                    f"Expected a retry sleep (approx {effective_min_retry_sleep}-{effective_max_retry_sleep}s). Calls: {mock_sleep.call_args_list}"
+                    f"Expected a retry sleep (approx {effective_min_retry_sleep}-"
+                    f"{effective_max_retry_sleep}s). Calls: {mock_sleep.call_args_list}"
                 )
                 assert found_test_sleep, (
                     f"Expected a test sleep (0.05s). Calls: {mock_sleep.call_args_list}"
@@ -749,8 +768,10 @@ class TestWebSocketManager:
                 assert manager.is_connected is False
                 test_case_logger.info("Asserted manager.is_connected is False.")
         finally:
+            # This ensures that the finally block in _listen_loop is reached upon cancellation
             test_case_logger.info(
-                "--- Test: test_listen_loop_processes_message_and_reconnects_on_close entering finally block ---"
+                "--- Test: test_listen_loop_processes_message_and_reconnects_on_close "
+                "entering finally block ---"
             )
             print("\n--- Captured logs for listen_reconnect_test ---")
             for record in caplog.records:

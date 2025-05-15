@@ -41,7 +41,8 @@ def mock_account() -> MagicMock:
 def authenticator_instance() -> HyperliquidEip712Authenticator:
     """Fixture for a HyperliquidEip712Authenticator instance with a valid private key.
     This uses a real key to create a real LocalAccount internally.
-    For tests needing to mock account creation or behavior, patch Account.from_key or the account instance directly.
+    For tests needing to mock account creation or behavior, patch Account.from_key
+    or the account instance directly.
     """
     return HyperliquidEip712Authenticator(
         wallet_private_key=VALID_PRIVATE_KEY_HEX,
@@ -390,8 +391,8 @@ class TestHyperliquidEip712Authenticator:
         assert auth.chain_id == self.CHAIN_ID
         assert auth._account is mock_account  # pyright: ignore [reportPrivateUsage]
         mock_logger.info.assert_any_call(
-            f"HyperliquidEip712Authenticator initialized for address: {self.MOCKED_ACCOUNT_WALLET_ADDRESS} "
-            f"on chain_id: {self.CHAIN_ID}"
+            f"HyperliquidEip712Authenticator initialized for address: "
+            f"{self.MOCKED_ACCOUNT_WALLET_ADDRESS} on chain_id: {self.CHAIN_ID}"
         )
 
     def test_instantiation_with_private_key(
@@ -545,7 +546,8 @@ class TestHyperliquidEip712Authenticator:
         assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
         assert "Failed to sign EIP-712 Agent request" in str(excinfo.value.message)
         auth.logger.error.assert_called_with(  # type: ignore[attr-defined]
-            "HyperliquidEip712Authenticator: Failed to sign Hyperliquid EIP-712 Agent message: Crypto error",
+            "HyperliquidEip712Authenticator: Failed to sign Hyperliquid EIP-712 Agent "
+            "message: Crypto error",
             exc_info=True,
         )
 
@@ -554,33 +556,44 @@ class TestHyperliquidEip712Authenticator:
         self, authenticator_instance: HyperliquidEip712Authenticator, mock_logger: MagicMock
     ) -> None:
         """
-        Test prepare_request raises APIError if _account is None (e.g., due to a bug or unexpected state).
+        Test prepare_request raises APIError if _account is None
+        (e.g., due to a bug or unexpected state).
         This simulates a scenario where the account object becomes None after initialization.
         """
         # Intentionally set _account to None to simulate an internal error state
         # This is for testing a defensive check within prepare_request or its callees.
-        # Note: authenticator_instance here might be different from the one used by auth_with_mock_account
-        # if the class uses a separate instance for its tests. We need to ensure this test has access
+        # Note: authenticator_instance here might be different from the one used by
+        # auth_with_mock_account
+        # if the class uses a separate instance for its tests. We need to ensure this
+        # test has access
         # to an authenticator instance and a mock_logger.
-        # For this test to work correctly within the class, it should probably use self.auth_with_mock_account
-        # or receive an authenticator instance that's properly set up with self.mock_logger.
+        # For this test to work correctly within the class, it should probably use
+        # self.auth_with_mock_account
+        # or receive an authenticator instance that's properly set up with
+        # self.mock_logger.
 
-        # If using a general authenticator_instance fixture, ensure it's configured with a logger.
+        # If using a general authenticator_instance fixture, ensure it's configured
+        # with a logger.
         # Let's assume authenticator_instance IS from a fixture that includes logging.
         if not hasattr(authenticator_instance, "logger") or not isinstance(
             authenticator_instance.logger, MagicMock
         ):
-            # This indicates a potential issue with fixture setup for this test if it relies on a shared logger.
-            # Forcing a mock logger onto it for the sake of this specific test if not present.
+            # This indicates a potential issue with fixture setup for this test if it
+            # relies on a shared logger.
+            # Forcing a mock logger onto it for the sake of this specific test if not
+            # present.
             # This is not ideal and suggests test/fixture structure might need review.
             authenticator_instance.logger = mock_logger  # Assign the class fixture mock_logger
 
-        # current_auth_instance = authenticator_instance  # Default to provided fixture # Removed unused variable
+        # current_auth_instance = authenticator_instance  # Default to provided fixture
+        # # Removed unused variable
 
         # If this test is intended to use the class-scoped authenticator:
-        # current_auth_instance = self.auth_with_mock_account(self.mock_account(), self.mock_logger()) # example if it were a method call
+        # current_auth_instance = self.auth_with_mock_account(self.mock_account(),
+        # self.mock_logger()) # example if it were a method call
 
-        # Reverting to original intent, assuming `authenticator_instance` is passed and logger is `mock_logger`
+        # Reverting to original intent, assuming `authenticator_instance` is passed and
+        # logger is `mock_logger`
         auth_to_test = authenticator_instance
         logger_to_check = mock_logger
 
@@ -594,9 +607,12 @@ class TestHyperliquidEip712Authenticator:
             await auth_to_test.prepare_request(method, path, None, data_payload, None)
 
         assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
-        # The actual error message for account being None is now "Account not initialized, cannot sign message."
-        # as per _sign_eip712_agent_request. If prepare_request itself had a check, it might be different.
-        # The previous log showed this test asserted for: "Account object is None, cannot sign message."
+        # The actual error message for account being None is now "Account not initialized,
+        # cannot sign message."
+        # as per _sign_eip712_agent_request. If prepare_request itself had a check,
+        # it might be different.
+        # The previous log showed this test asserted for: "Account object is None,
+        # cannot sign message."
         # Let's use the message from the actual `_sign_eip712_agent_request`
         logger_to_check.error.assert_called_with(
             "HyperliquidEip712Authenticator: Account not initialized, cannot sign message.",

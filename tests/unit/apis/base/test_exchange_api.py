@@ -294,7 +294,8 @@ async def test_exchange_api_request_delegates_to_http_client_and_handles_respons
     assert result == mock_response_content
     mock_http_client_request.assert_called_once_with(
         method=method,
-        endpoint_path=f"{default_config['rest_endpoint']}{endpoint}",  # Ensure leading slash is removed for http_client
+        endpoint_path=f"{default_config['rest_endpoint']}{endpoint}",
+        # Ensure leading slash is removed for http_client
         rate_limiter_service=api._rate_limiter_service,  # pyright: ignore [reportPrivateUsage]
         authenticator=mock_authenticator,
         params=params,

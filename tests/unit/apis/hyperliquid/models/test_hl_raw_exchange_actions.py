@@ -268,7 +268,8 @@ def test_batch_place_order_payload_invalid_fields(
 ) -> None:
     # Base valid data structure for a batch order item
     # Note: `order_type_details` is a simplified key for testing setup convenience here.
-    # The actual model HyperliquidRawOrderItemSpec expects `order_type` which is HyperliquidRawOrderType.
+    # The actual model HyperliquidRawOrderItemSpec expects `order_type` which is
+    # HyperliquidRawOrderType.
     base_order_item_data: dict[str, Any] = {
         "asset_index": 0,  # Using alias directly for test data setup simplicity
         "is_buy": True,
@@ -292,13 +293,15 @@ def test_batch_place_order_payload_invalid_fields(
                 if isinstance(key_or_index, str):
                     if not isinstance(current_level, dict):
                         raise TypeError(
-                            f"Path key '{key_or_index}' requires dict level, but found {type(current_level)}."
+                            f"Path key '{key_or_index}' requires dict level, but found "
+                            f"{type(current_level)}."
                         )
                     current_level[key_or_index] = val
                 elif isinstance(key_or_index, int):
                     if not isinstance(current_level, list):
                         raise TypeError(
-                            f"Path index {key_or_index} requires list level, but found {type(current_level)}."
+                            f"Path index {key_or_index} requires list level, but found "
+                            f"{type(current_level)}."
                         )
                     current_level[key_or_index] = val
                 else:
@@ -310,13 +313,15 @@ def test_batch_place_order_payload_invalid_fields(
                 if isinstance(key_or_index, str):
                     if not isinstance(current_level, dict):
                         raise TypeError(
-                            f"Path key '{key_or_index}' requires dict level for traversal, but found {type(current_level)}."
+                            f"Path key '{key_or_index}' requires dict level for traversal, "
+                            f"but found {type(current_level)}."
                         )
                     current_level = current_level[key_or_index]
                 elif isinstance(key_or_index, int):
                     if not isinstance(current_level, list):
                         raise TypeError(
-                            f"Path index {key_or_index} requires list level for traversal, but found {type(current_level)}."
+                            f"Path index {key_or_index} requires list level for traversal, "
+                            f"but found {type(current_level)}."
                         )
                     current_level = current_level[key_or_index]
                 else:
