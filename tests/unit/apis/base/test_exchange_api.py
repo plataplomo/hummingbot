@@ -233,7 +233,7 @@ def test_exchange_api_initialization_creates_rate_limiter_service(
     MockRateLimiterService.assert_called_once_with(
         exchange_name=exchange_name, config=current_config, loop=mock_loop
     )
-    assert api._rate_limiter_service == MockRateLimiterService.return_value
+    assert api._rate_limiter_service == MockRateLimiterService.return_value  # pyright: ignore [reportPrivateUsage]
 
 
 @pytest.mark.asyncio
@@ -287,7 +287,7 @@ async def test_exchange_api_request_delegates_to_http_client_and_handles_respons
     api.authenticator = mock_authenticator
 
     # Call _request (as a signed request for this test part)
-    result = await api._request(
+    result = await api._request(  # pyright: ignore [reportPrivateUsage]
         method, endpoint, params=params, data=data_payload, headers=custom_headers, is_signed=True
     )
 
@@ -295,7 +295,7 @@ async def test_exchange_api_request_delegates_to_http_client_and_handles_respons
     mock_http_client_request.assert_called_once_with(
         method=method,
         endpoint_path=endpoint.lstrip("/"),  # Ensure leading slash is removed for http_client
-        rate_limiter_service=api._rate_limiter_service,
+        rate_limiter_service=api._rate_limiter_service,  # pyright: ignore [reportPrivateUsage]
         authenticator=mock_authenticator,
         params=params,
         data=data_payload,
@@ -356,7 +356,7 @@ async def test_request_error_mapping_from_http_request_failed_error(
     mock_error_mapper.map_exchange_error.return_value = expected_mapped_api_error
 
     with pytest.raises(APIError) as exc_info:
-        await api._request(method="POST", endpoint=request_path_sent.lstrip("/"))
+        await api._request(method="POST", endpoint=request_path_sent.lstrip("/"))  # pyright: ignore [reportPrivateUsage]
 
     # Assert that the raised exception is the one returned by our mocked map_exchange_error
     assert exc_info.value is expected_mapped_api_error
@@ -404,7 +404,7 @@ async def test_request_handles_client_error_from_http_client(
 
     request_path_sent = "/test/conn_error"
     with pytest.raises(APIError) as exc_info:
-        await api._request(method="GET", endpoint=request_path_sent.lstrip("/"))
+        await api._request(method="GET", endpoint=request_path_sent.lstrip("/"))  # pyright: ignore [reportPrivateUsage]
 
     assert exc_info.value is expected_mapped_api_error
     mock_error_mapper.map_exchange_error.assert_called_once_with(
@@ -447,7 +447,7 @@ async def test_request_handles_timeout_error_from_http_client(
 
     request_path_sent = "/test/timeout"
     with pytest.raises(APIError) as exc_info:
-        await api._request(
+        await api._request(  # pyright: ignore [reportPrivateUsage]
             method="GET", endpoint=request_path_sent.lstrip("/")
         )  # Removed type: ignore
 
@@ -482,7 +482,7 @@ class TestExchangeAPIWebSocketIntegration:
 
             api = ConcreteTestExchangeAPI("test_ws", current_config, {}, mock_error_mapper)
 
-            assert api._ws_manager == mock_ws_instance
+            assert api._ws_manager == mock_ws_instance  # pyright: ignore [reportPrivateUsage]
             ws_config_params_from_current = {
                 "ws_url": current_config["ws_endpoint"],
                 "ping_interval": current_config.get("ws_ping_interval"),
@@ -498,8 +498,8 @@ class TestExchangeAPIWebSocketIntegration:
             MockWebSocketManagerClass.assert_called_once_with(
                 exchange_name="test_ws",
                 config=expected_ws_config,  # Expect WebSocketManagerConfig instance
-                message_handler=api._handle_websocket_message,
-                on_connected_callback=api._on_ws_connected,
+                message_handler=api._handle_websocket_message,  # pyright: ignore [reportPrivateUsage]
+                on_connected_callback=api._on_ws_connected,  # pyright: ignore [reportPrivateUsage]
             )
         finally:
             if api:
@@ -517,7 +517,7 @@ class TestExchangeAPIWebSocketIntegration:
         api = None
         try:
             api = ConcreteTestExchangeAPI("test_no_ws", config_no_ws, {}, mock_error_mapper)
-            assert api._ws_manager is None
+            assert api._ws_manager is None  # pyright: ignore [reportPrivateUsage]
             MockWebSocketManagerClass.assert_not_called()  # Ensure WS Manager wasn't called
         finally:
             if api:
@@ -582,9 +582,9 @@ class TestExchangeAPIWebSocketIntegration:
 
         mock_ws_instance.close = AsyncMock()
 
-        if api._http_client:
+        if api._http_client:  # pyright: ignore [reportPrivateUsage]
             with patch.object(
-                api._http_client,
+                api._http_client,  # pyright: ignore [reportPrivateUsage]
                 "close_session",
                 new_callable=AsyncMock,
             ) as mock_close_session:
@@ -619,7 +619,7 @@ class TestExchangeAPIWebSocketIntegration:
 
         api.mock_construct_subscription_payload_method.assert_called_once_with(topic)
         mock_ws_instance.send_json.assert_awaited_once_with(payload)
-        assert api._ws_handlers[topic] == mock_handler
+        assert api._ws_handlers[topic] == mock_handler  # pyright: ignore [reportPrivateUsage]
 
     @pytest.mark.asyncio
     async def test_subscribe_logs_warning_if_not_connected(
@@ -650,7 +650,7 @@ class TestExchangeAPIWebSocketIntegration:
             "WebSocket not connected. Subscription to "
             "test.topic.notconnected will be attempted upon connection." in caplog.text
         )
-        assert api._ws_handlers[topic] == mock_handler
+        assert api._ws_handlers[topic] == mock_handler  # pyright: ignore [reportPrivateUsage]
 
     @pytest.mark.asyncio
     async def test_resubscribe_sends_for_all_handlers_if_connected(
@@ -672,7 +672,7 @@ class TestExchangeAPIWebSocketIntegration:
         topic1, topic2 = "topic1", "topic2"
         payload1, payload2 = {"sub": topic1}, {"sub": topic2}
 
-        api._ws_handlers = {topic1: handler1, topic2: handler2}
+        api._ws_handlers = {topic1: handler1, topic2: handler2}  # pyright: ignore [reportPrivateUsage]
 
         def side_effect_construct_payload(topic_arg: str) -> dict[str, Any] | None:
             if topic_arg == topic1:
@@ -683,7 +683,7 @@ class TestExchangeAPIWebSocketIntegration:
 
         api.mock_construct_subscription_payload_method.side_effect = side_effect_construct_payload
 
-        await api._resubscribe()
+        await api._resubscribe()  # pyright: ignore [reportPrivateUsage]
 
         assert mock_ws_instance.send_json.await_count == 2
         mock_ws_instance.send_json.assert_any_await(payload1)
@@ -705,7 +705,7 @@ class TestExchangeAPIWebSocketIntegration:
 
         # Patch the _resubscribe method on this specific instance for this test
         with patch.object(api, "_resubscribe", new_callable=AsyncMock) as instance_resubscribe_mock:
-            await api._on_ws_connected()
+            await api._on_ws_connected()  # pyright: ignore [reportPrivateUsage]
             instance_resubscribe_mock.assert_awaited_once()
 
 

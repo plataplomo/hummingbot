@@ -1643,7 +1643,10 @@ class HyperliquidAPI(ExchangeAPI):
                 f"[{self.exchange_name}] Wallet address not available, cannot fetch "
                 f"user state/account summary."
             )
-            return None
+            raise APIError(
+                message=f"HLAPI: Wallet address required for get_account_summary. Exchange: {self.exchange_name}",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
 
         payload_model = HyperliquidRequestBuilder.build_user_state_payload(self._wallet_address)
         payload_dict = payload_model.model_dump(by_alias=True, exclude_none=True)

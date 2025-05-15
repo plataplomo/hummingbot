@@ -982,7 +982,7 @@ async def test_get_account_summary_success(
     patched_handler.assert_called_once_with(
         raw_response_content=raw_user_state_dict_from_api, user_address=TEST_WALLET_ADDRESS
     )
-    mock_map_to_margin_summary.assert_called_once_with(mock_raw_user_state_fixture)
+    mock_map_to_margin_summary.assert_called_once_with(raw_state=mock_raw_user_state_fixture)
 
 
 @pytest.mark.asyncio
@@ -1046,7 +1046,9 @@ async def test_get_account_summary_handler_fails(
     assert "Validation error processing account summary (user_state)" in str(exc_info.value.message)
     assert "Pydantic ValidationError in get_account_summary (user_state)" in caplog.text
     mock_api_request.assert_awaited_once()
-    patched_handler.assert_called_once_with(raw_user_state_dict_from_api, TEST_WALLET_ADDRESS)
+    patched_handler.assert_called_once_with(
+        raw_response_content=raw_user_state_dict_from_api, user_address=TEST_WALLET_ADDRESS
+    )
 
 
 @pytest.mark.asyncio
@@ -1084,4 +1086,21 @@ async def test_get_account_summary_mapper_fails(
     assert "Unexpected error getting account summary (user_state)" in str(exc_info.value.message)
     assert "Mapper transformation error" in str(exc_info.value.original_exception)
     assert "Unexpected error in get_account_summary (user_state)" in caplog.text
-    patched_mapper.assert_called_once_with(mock_raw_user_state_fixture)
+    patched_mapper.assert_called_once_with(raw_state=mock_raw_user_state_fixture)
+
+
+@pytest.mark.asyncio
+async def test_get_account_summary_no_wallet_address(
+    mock_hl_auth_init: tuple[MagicMock, MagicMock], caplog: LogCaptureFixture
+) -> None:
+    """Test get_account_summary when the wallet address is missing."""
+    caplog.set_level(logging.ERROR, logger="cyberdelta.apis.hyperliquid.hl_api")
+    _mock_auth_class, _mock_auth_instance = mock_hl_auth_init
+    api = HyperliquidAPI(BASE_API_CONFIG, SECRETS_NO_ADDRESS)
+
+    with pytest.raises(APIError) as exc_info:
+        await api.get_account_summary()
+
+    assert exc_info.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
+    assert "HLAPI: Wallet address required" in str(exc_info.value)
+    assert "API Error getting account summary (user_state)" in caplog.text
