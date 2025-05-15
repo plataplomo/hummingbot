@@ -202,7 +202,8 @@ class FundingRateArbitrageStrategy(Strategy):
         # Skip if expected profit is below threshold
         if expected_profit < self.min_profit_threshold:
             logger.debug(
-                f"Expected profit (${expected_profit:.2f}) below threshold (${self.min_profit_threshold:.2f})"
+                f"Expected profit (${expected_profit:.2f}) below threshold "
+                f"(${self.min_profit_threshold:.2f})"
             )
             return None
 
@@ -257,7 +258,8 @@ class FundingRateArbitrageStrategy(Strategy):
         try:
             if variance < 0:
                 logger.warning(
-                    f"Calculated negative variance ({variance}) for basis volatility of {symbol}. Returning default."
+                    f"Calculated negative variance ({variance}) for basis volatility of {symbol}. "
+                    "Returning default."
                 )
                 return Decimal("0.01")
             return variance.sqrt()
@@ -285,7 +287,8 @@ class FundingRateArbitrageStrategy(Strategy):
             size_ratio = size / ref_size
             if size_ratio < 0:
                 logger.warning(
-                    f"Calculated negative size ratio ({size_ratio}) for slippage of {symbol}. Using base."
+                    f"Calculated negative size ratio ({size_ratio}) for slippage of {symbol}. "
+                    "Using base."
                 )
                 return base_slippage
             slippage_scaling = size_ratio.sqrt()
@@ -386,8 +389,8 @@ class FundingRateArbitrageStrategy(Strategy):
         opportunity: ArbitrageOpportunity,
         sized_opportunity: SizedOpportunity | None = None,
     ) -> list[TradeSignal]:
-        """
-        Generate trade signals for a new opportunity (one per leg).
+        """Generate entry signals (long/short on perp and spot) if trades should be executed, or an
+        empty list if no opportunity is found.
         """
         nfd = opportunity.net_funding_differential
         if nfd is None:

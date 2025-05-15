@@ -104,7 +104,9 @@ def generate_synthetic_data(
         # Ensure columns are Decimal
         # for col in df_symbol.columns:
         #     try:
-        #         df_symbol[col] = df_symbol[col].apply(lambda x: Decimal(str(x)) if pd.notna(x) else None)
+        #         df_symbol[col] = df_symbol[col].apply(
+        #             lambda x: Decimal(str(x)) if pd.notna(x) else None
+        #         )
         #     except Exception as e:
         #         logger.error(f"Error converting column {col} to Decimal: {e}")
         #         # Handle error appropriately, maybe skip column or raise

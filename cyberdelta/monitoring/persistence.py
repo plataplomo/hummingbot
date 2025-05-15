@@ -170,7 +170,8 @@ class PerformanceDataPersistence:
                                 )
                         else:
                             logger.warning(
-                                f"Non-string timestamp key '{ts_str}' found in returns for {strategy}"
+                                f"Non-string timestamp key '{ts_str}' found in returns for "
+                                f"{strategy}"
                             )
                 else:
                     logger.warning(
@@ -261,7 +262,8 @@ class PerformanceDataPersistence:
                         #     )
                 else:
                     logger.warning(
-                        f"Loaded data for {strategy_name} returns is not a dict: {type(loaded_data)}"
+                        f"Loaded data for {strategy_name} returns is not a dict: "
+                        f"{type(loaded_data)}"
                     )
         return all_returns
 

@@ -180,8 +180,8 @@ class PerformanceTracker:
                     self.trades[i]["exit_time"] = exit_time
                     self.trades[i]["pnl"] = pnl
                     self.trades[i]["is_completed"] = True
-                    # entry_time and exit_time are expected to be datetime; isinstance check is redundant
-                    # (Removed per linter warning)
+                    # entry_time and exit_time are expected to be datetime; isinstance check
+                    # is redundant
                     self.trades[i]["duration"] = (
                         exit_time - trade["entry_time"]
                     ).total_seconds() / 60
@@ -410,7 +410,8 @@ class PerformanceTracker:
 
             # Create DataFrame with all timestamps
             sorted_timestamps: list[datetime] = sorted(list(all_timestamps))
-            # The following pd.to_datetime usage may trigger linter warnings due to pandas type stubs
+            # The following pd.to_datetime usage may trigger linter warnings due to pandas
+            # type stubs
             # These are not actionable and are safe in this context
             df = pd.DataFrame(index=pd.to_datetime(sorted_timestamps))  # type: ignore[arg-type]
 
@@ -419,7 +420,8 @@ class PerformanceTracker:
                 if strategy in self.returns:
                     # Create Series with datetime index before assigning
                     strategy_returns = self.returns[strategy]
-                    # The following pd.to_datetime usage may trigger linter warnings due to pandas type stubs
+                    # The following pd.to_datetime usage may trigger linter warnings due to pandas
+                    # type stubs
                     # These are not actionable and are safe in this context
                     series = pd.Series(
                         strategy_returns,

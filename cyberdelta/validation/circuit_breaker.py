@@ -1155,12 +1155,14 @@ class CircuitBreakerSystem:
     ) -> CircuitBreaker | None:
         try:
             # Final name for the breaker instance
-            name = breaker_name_or_key  # This name should be unique, e.g., "exchange/type" or "exchange/type/symbol"
+            name = breaker_name_or_key  # This name should be unique, e.g., "exchange/type" \
+            # or "exchange/type/symbol"
 
             # Determine cooldown:
             # 1. From this specific breaker's config (`breaker_specific_config`)
             # 2. If not, from `default_cooldown_override` (passed from exchange's defaults)
-            # 3. If not, from global config's default for this exchange (less direct, covered by override)
+            # 3. If not, from global config's default for this exchange (less direct,
+            # covered by override)
             # 4. If not, from a hardcoded system-wide default (e.g., 300)
 
             cooldown_raw = breaker_specific_config.get("cooldown_seconds")

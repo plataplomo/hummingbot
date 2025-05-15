@@ -469,7 +469,7 @@ async def test_happy_path_full_cycle(
     caplog: LogCaptureFixture,
     mocker: MockerFixture,
 ) -> None:
-    """Tests the full arbitrage cycle: data -> signal -> validation -> execution -> \
+    """Tests the full arbitrage cycle: data -> signal -> validation -> execution ->
     portfolio update."""
     # --- Force DEBUG logging for this test ---
     caplog.set_level(logging.DEBUG)
@@ -707,8 +707,9 @@ async def test_happy_path_full_cycle(
     )
     # Let's assume RM uses get_total_capital directly from balances for now
     logger.info(
-        f"Portfolio Total Capital for Sizing (from getter): {await portfolio_tracker.get_total_capital()}"  # Added await
-    )
+        f"Portfolio Total Capital for Sizing (from getter): "
+        f"{await portfolio_tracker.get_total_capital()}"
+    )  # Added await
 
     logger.info("Validating and sizing opportunities with RiskManager...")
 
@@ -1390,7 +1391,9 @@ async def test_execution_failure_compensation(
     # mocker.patch.object(mock_bp_api, "get_order_status", side_effect=get_order_status_side_effect_bp)
     if not hasattr(mock_bp_api.get_order_status, "call_args_list"):
         mocker.patch.object(
-            mock_bp_api, "get_order_status", side_effect=get_order_status_side_effect_bp
+            mock_bp_api,
+            "get_order_status",
+            side_effect=get_order_status_side_effect_bp,
         )
 
     # HL (Short) - Fills completely initially, then needs compensation
