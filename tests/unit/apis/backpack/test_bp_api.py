@@ -262,14 +262,26 @@ class TestBackpackAPI_Authentication:
         assert exc_info.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
         assert "Backpack authenticator not initialized" in exc_info.value.message
 
+    @patch(
+        "cyberdelta.apis.backpack.bp_order_mapper.BackpackOrderMapper.transform_raw_order_to_internal"
+    )
+    @patch(
+        "cyberdelta.apis.connectivity.http_client.HttpClient.request",
+        new_callable=AsyncMock,
+    )
+    @patch("cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder.build_place_order_payload")
+    @patch("cyberdelta.apis.backpack.bp_api.BackpackAPI._authenticate", new_callable=AsyncMock)
     @pytest.mark.asyncio
     async def test_signed_public_method_uses_authenticator(
         self,
+        mock_backpack_api_authenticate: AsyncMock,
+        mock_build_payload: MagicMock,
+        mock_http_client_request: AsyncMock,
+        mock_transform_order_on_mapper_class: MagicMock,
         default_bp_config: dict[str, Any],
         bp_secrets_valid: dict[str, str | None],
     ) -> None:
         """Test that a signed public method uses the authenticator correctly."""
-        # Define expected payloads and responses
         expected_builder_payload = {
             "symbol": "SOL_USDC",
             "side": "buy",
@@ -279,97 +291,87 @@ class TestBackpackAPI_Authentication:
             "timeInForce": "GTC",
             "origin": None,
         }
+        mock_order_response_content = {  # More complete raw order response
+            "id": "ord-12345",
+            "symbol": "SOL_USDC",
+            "side": "buy",
+            "orderType": "LIMIT",
+            "status": "NEW",
+            "quantity": "1.0",
+            "price": "100.0",
+            "executedQuantity": "0.0",
+            "executedQuoteQuantity": "0.0",
+            "timeInForce": "GTC",
+            "createdAt": 1672531200000,
+            "clientId": "client-id-example-123",
+            "relatedOrderId": None,
+            "triggerPrice": None,
+            "avgFillPrice": None,
+            "triggerBy": None,
+            "reduceOnly": False,
+            "postOnly": False,
+            "selfTradePrevention": "NONE",
+            "updatedAt": None,
+            "triggeredAt": None,
+            "expiryReason": None,
+            "origin": None,
+        }
 
-        with (
-            patch(
-                "cyberdelta.apis.backpack.bp_auth.BackpackHmacAuthenticator.prepare_request",
-                new_callable=AsyncMock,
-            ) as mock_prepare_request,
-            patch(
-                "cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder.build_place_order_payload"
-            ) as mock_build_payload,
-            patch(
-                "cyberdelta.apis.backpack.bp_api.BackpackAPI._request", new_callable=AsyncMock
-            ) as mock_class_api_request,
-            patch(
-                "cyberdelta.apis.backpack.bp_order_mapper.BackpackOrderMapper.transform_raw_order_to_internal"
-            ) as mock_transform_order_on_mapper_class,
-        ):
-            api = BackpackAPI(default_bp_config, bp_secrets_valid)
-            assert api.authenticator is not None
-            assert isinstance(api.authenticator, BackpackHmacAuthenticator)
+        api = BackpackAPI(default_bp_config, bp_secrets_valid)
+        assert api.authenticator is not None
 
-            # Define these *after* api is created, as they might depend on api instance properties (e.g., default_headers)
-            authenticated_components = AuthenticatedRequestComponents(
-                headers={**api.default_headers, "X-BP-Signature": "mock_signature"},
-                params=None,
-                data=expected_builder_payload,  # expected_builder_payload is defined outside
-            )
-            mock_order_response_content = {  # More complete raw order response
-                "id": "ord-12345",
-                "symbol": "SOL_USDC",
-                "side": "buy",
-                "orderType": "LIMIT",
-                "status": "NEW",
-                "quantity": "1.0",
-                "price": "100.0",
-                "executedQuantity": "0.0",
-                "executedQuoteQuantity": "0.0",
-                "timeInForce": "GTC",
-                "createdAt": 1672531200000,
-                "clientId": "client-id-example-123",
-                "relatedOrderId": None,
-                "triggerPrice": None,
-                "avgFillPrice": None,
-                "triggerBy": None,
-                "reduceOnly": False,
-                "postOnly": False,
-                "selfTradePrevention": "NONE",
-                "updatedAt": None,
-                "triggeredAt": None,
-                "expiryReason": None,
-                "origin": None,
-            }
+        expected_auth_result_components = AuthenticatedRequestComponents(
+            headers={**api.default_headers, "X-BP-Signature": "mock_signature_from_auth"},
+            params=None,
+            data=expected_builder_payload,
+        )
 
-            mock_build_payload.return_value = expected_builder_payload
-            mock_prepare_request.return_value = authenticated_components
-            mock_class_api_request.return_value = mock_order_response_content
-            mock_transform_order_on_mapper_class.return_value = MagicMock(spec=Order)
+        mock_backpack_api_authenticate.return_value = expected_auth_result_components
 
-            await api.place_order(
-                symbol="SOL_USDC",
-                side=OrderSide.BUY,
-                order_type=OrderType.LIMIT,
-                quantity=Decimal("1"),
-                price=Decimal("100"),
-                time_in_force=TimeInForce.GTC,
-            )
+        mock_build_payload.return_value = expected_builder_payload
+        mock_http_client_request.return_value = (
+            mock_order_response_content,
+            MagicMock(),  # mock processed_headers
+            MagicMock(),  # mock raw_headers
+        )
+        mock_transform_order_on_mapper_class.return_value = MagicMock(spec=Order)
 
-            mock_build_payload.assert_called_once_with(
-                symbol="SOL_USDC",
-                side=OrderSide.BUY,
-                order_type=OrderType.LIMIT,
-                quantity=Decimal("1"),
-                price=Decimal("100"),
-                time_in_force=TimeInForce.GTC,
-                client_order_id=None,
-                post_only=False,
-                trigger_price=None,
-            )
-            mock_prepare_request.assert_called_once_with(
-                method="POST",
-                path="/api/v1/order",
-                params=None,
-                data=expected_builder_payload,
-            )
-            mock_class_api_request.assert_awaited_once_with(
-                method="POST",
-                endpoint="/api/v1/order",
-                data=expected_builder_payload,
-                headers=authenticated_components["headers"],
-                is_signed=True,
-            )
-            mock_transform_order_on_mapper_class.assert_called_once()
+        await api.place_order(
+            symbol="SOL_USDC",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=Decimal("1"),
+            price=Decimal("100"),
+            time_in_force=TimeInForce.GTC,
+        )
+
+        mock_build_payload.assert_called_once_with(
+            symbol="SOL_USDC",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=Decimal("1"),
+            price=Decimal("100"),
+            time_in_force=TimeInForce.GTC,
+            client_order_id=None,
+            post_only=False,
+            trigger_price=None,
+        )
+
+        mock_backpack_api_authenticate.assert_called_once_with(
+            api, method="POST", path="/api/v1/order", params=None, data=expected_builder_payload
+        )
+
+        mock_http_client_request.assert_awaited_once_with(
+            method="POST",
+            endpoint_path="api/v1/order",
+            rate_limiter_service=api._rate_limiter_service,  # pyright: ignore [reportPrivateUsage]
+            authenticator=api.authenticator,
+            params=expected_auth_result_components["params"],
+            data=expected_auth_result_components["data"],
+            headers=expected_auth_result_components["headers"],
+            is_signed=True,
+        )
+        mock_transform_order_on_mapper_class.assert_called_once()
 
 
 class TestBackpackAPIMethodErrors:
@@ -401,7 +403,7 @@ class TestBackpackAPIMethodErrors:
         # Patch HttpClient.request, which is called inside api._request
         with (
             patch(
-                "cyberdelta.apis.connectivity.http_client.HttpClient.request",  # Changed patch target
+                "cyberdelta.apis.connectivity.http_client.HttpClient.request",  # Changed patch
                 side_effect=http_failure,
             ) as mock_http_client_request,  # Renamed mock
             patch(
@@ -426,7 +428,8 @@ class TestBackpackAPIMethodErrors:
             # mock_http_client_request.assert_called_once_with(
             #     method="GET",
             #     endpoint_path="api/v1/ticker", # Relative path
-            #     # ... other expected args like rate_limiter_service, authenticator (None here), etc.
+            #     # ... other expected args like rate_limiter_service,
+            #     # authenticator (None here), etc.
             #     params=expected_params_from_builder,
             #     data=None, # for GET
             #     headers=api.default_headers, # Or whatever headers _request prepares
@@ -464,7 +467,7 @@ class TestBackpackAPIMethodErrors:
         # Patch HttpClient.request
         with (
             patch(
-                "cyberdelta.apis.connectivity.http_client.HttpClient.request",  # Changed patch target
+                "cyberdelta.apis.connectivity.http_client.HttpClient.request",  # Changed patch
                 side_effect=http_failure,
             ) as mock_http_client_request,  # Renamed mock
             patch(
@@ -715,7 +718,7 @@ class TestBackpackAPIGetAccountSummary:
                 spot_balances_raw=mock_raw_balances_dict_fixture,
                 derivative_positions_raw=mock_raw_positions_list_fixture,
             )
-            # mock_mapper_dt.utcnow.assert_called_once() # Removed as the target method is fully mocked
+            # mock_mapper_dt.utcnow.assert_called_once() # Removed: target method fully mocked
 
     @pytest.mark.asyncio
     async def test_get_account_summary_handles_get_account_info_failure(

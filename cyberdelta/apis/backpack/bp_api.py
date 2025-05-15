@@ -225,23 +225,11 @@ class BackpackAPI(ExchangeAPI):
         # Add other necessary headers like X-BP-Timestamp, X-BP-Window
         # These are typically added by the authenticator, but let's ensure the call is right.
 
-        # --- DEBUG PRINT --- #
-        print(
-            f"[DEBUG BP_API _authenticate] About to await prepare_request. "
-            f"Authenticator: {self._bp_authenticator}",
-            flush=True,
-        )
-        # --- END DEBUG --- #
-
         auth_components: AuthenticatedRequestComponents = (
             await self._bp_authenticator.prepare_request(
                 method=method, path=path, params=params, data=data, headers=current_headers
             )
         )
-
-        # --- DEBUG PRINT --- #
-        print("[DEBUG BP_API _authenticate] Finished awaiting prepare_request.", flush=True)
-        # --- END DEBUG --- #
 
         # _authenticate should return a dict matching the structure expected by _request
         return {

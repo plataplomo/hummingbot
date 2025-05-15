@@ -8,6 +8,7 @@ from collections.abc import Callable, Coroutine, Mapping
 from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urljoin
 
 import aiohttp
 
@@ -233,57 +234,7 @@ class ExchangeAPI(ABC):
         Raises:
             APIError: For mapped exchange-specific errors or unrecoverable issues.
         """
-        path_for_http_client: str
-        request_path_for_mapper: str  # For error mapping context
-
-        # Hyperliquid specific: if endpoint is full URL for /info, it bypasses _http_client
-        # This logic should ideally be within HyperliquidAPI or HttpClient should handle full URLs.
-        # For now, assume if it's a full URL, the concrete API handles it or this isn't
-        # the method called.
-        # Let's assume `endpoint` is typically a path.
-        if endpoint.startswith("http://") or endpoint.startswith("https://"):
-            # If endpoint is a full URL, this method might be called by a concrete API that
-            # wants to use the common error handling but not the standard _http_client
-            # path construction.
-            # In this case, path_for_http_client might not be used directly if the call
-            # is different.
-            path_for_http_client = (
-                endpoint  # This implies HttpClient can take full URLs, or this path won't be used
-            )
-            request_path_for_mapper = endpoint
-            # This scenario (full URL to _request) suggests a need for more flexible HttpClient
-            # or direct calling.
-            # For now, we assume _http_client.request is called with a *relative* path.
-            # If Hyperliquid calls _request with a full INFO_URL, it must handle it differently
-            # (e.g., not using self._http_client, or _http_client needs to support it)
-            # Given the current HttpClient design, it expects endpoint_path.
-            # Let's clarify that `endpoint` to this method is typically a relative path.
-            # Hyperliquid API needs to ensure its calls to /info are handled appropriately.
-            # For now, we'll assume if it's a full URL, it is passed to the mapper correctly.
-            # And path_for_http_client will likely be the relative part if extracted.
-            # This part is tricky. For now, if full URL, we set path_for_http_client to it, but
-            # it may not be what HttpClient expects if it strictly prepends its own base_url.
-            # Let's assume `endpoint` is always a relative path for calls going through
-            # `_http_client`.
-            # If a concrete API calls this `_request` with a full URL, it implies it has its own
-            # HTTP execution logic
-            # but wants to use this method for error mapping and rate limit header updates.
-            # This case needs to be very carefully handled by the concrete API.
-            # A safer assumption: `endpoint` here is always a relative path when `_http_client`
-            # is used.
-            logger.warning(
-                f"[{self.exchange_name}] _request called with full URL endpoint '{endpoint}'. "
-                f"Ensure HTTP execution logic is appropriate. HttpClient expects a relative path."
-            )
-            # Attempt to derive a relative path if possible, otherwise use full.
-            if self.rest_endpoint and endpoint.startswith(self.rest_endpoint):
-                path_for_http_client = endpoint.replace(self.rest_endpoint, "", 1).lstrip("/")
-            else:
-                path_for_http_client = endpoint  # Fallback, but HttpClient might misbehave.
-        else:
-            path_for_http_client = endpoint.lstrip("/")
-            request_path_for_mapper = f"/{path_for_http_client}"
-
+        request_url = urljoin(self.rest_endpoint, endpoint.lstrip("/"))
         effective_authenticator = self.authenticator if is_signed else None
 
         response_content: ParsedJsonResponse | str | None = None
@@ -293,7 +244,7 @@ class ExchangeAPI(ABC):
             # HttpClient.request returns a tuple: (content, processed_headers, raw_headers)
             content, _processed_headers, raw_headers_multidict = await self._http_client.request(
                 method=method,
-                endpoint_path=path_for_http_client,  # This must be a relative path
+                endpoint_path=request_url,
                 rate_limiter_service=self._rate_limiter_service,
                 authenticator=effective_authenticator,
                 params=params,
@@ -304,15 +255,13 @@ class ExchangeAPI(ABC):
             response_content = content
             # Assign the raw headers for rate limit processing
             response_headers_dict = raw_headers_multidict
-            self._update_rate_limit_from_headers(
-                response_headers_dict, method, path_for_http_client
-            )
+            self._update_rate_limit_from_headers(response_headers_dict, method, request_url)
             return response_content
 
         except HttpRequestFailedError as e_http_failed:
             logger.warning(
                 f"[{self.exchange_name}] HTTP request failed for {method} "
-                f"{request_path_for_mapper}: Status={e_http_failed.http_status}, "
+                f"{request_url}: Status={e_http_failed.http_status}, "
                 f"Body='{e_http_failed.exchange_message}'"
             )
             # Error is already HttpRequestFailedError (subclass of APIError)
@@ -331,7 +280,7 @@ class ExchangeAPI(ABC):
                 status_code=e_http_failed.http_status or 500,  # Ensure status_code is int
                 error_body=e_http_failed.exchange_message or "",
                 error_data=parsed_error_data,
-                request_path=request_path_for_mapper,
+                request_path=request_url,
             )
             # Preserve original exception if map_exchange_error doesn't already do it
             # (current IErrorMapper signature doesn't take original_exception)
@@ -343,8 +292,7 @@ class ExchangeAPI(ABC):
             # These are already raised by HttpClient after its retries
             logger.error(
                 f"[{self.exchange_name}] Unrecoverable client error for {method} "
-                f"[{self.exchange_name}] Unrecoverable client error for {method} "
-                f"{request_path_for_mapper}: {e_client}"
+                f"{request_url}: {e_client}"
             )
             # Map to a generic APIError
             # Here, we don't have a specific exchange error body, so pass what we have.
@@ -352,7 +300,7 @@ class ExchangeAPI(ABC):
                 status_code=503,  # Service Unavailable or similar for network issues
                 error_body=str(e_client),
                 error_data=None,
-                request_path=request_path_for_mapper,
+                request_path=request_url,
             )
             raise mapped_error from e_client
 
@@ -361,14 +309,14 @@ class ExchangeAPI(ABC):
         except Exception as e_unhandled:
             logger.exception(
                 f"[{self.exchange_name}] Unhandled exception during request {method} "
-                f"{request_path_for_mapper}: {e_unhandled}"
+                f"{request_url}: {e_unhandled}"
             )
             # Map to a generic unknown APIError
             mapped_error = self.error_mapper.map_exchange_error(
                 status_code=500,  # Internal Server Error equivalent
                 error_body=str(e_unhandled),
                 error_data=None,
-                request_path=request_path_for_mapper,
+                request_path=request_url,
             )
             raise mapped_error from e_unhandled
 
