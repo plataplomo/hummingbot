@@ -105,7 +105,7 @@ async def test_circuit_breaker_global_halts_execution(
     mock_hl_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts_dt))
 
     # 2. Trigger Global Circuit Breaker Directly
-    global_breaker_name = "global/api_error"  # Name used by system for the global API error breaker
+    global_breaker_name = "global/api_error"  # Reverted to singular, Name used by system for the global API error breaker
     trip_reason = "Test global trip"
     global_breaker = circuit_breaker_system.get_breaker(global_breaker_name)
     assert global_breaker is not None, f"Global breaker '{global_breaker_name}' not found."
@@ -412,37 +412,9 @@ async def test_position_reconciler_detects_discrepancy(
     position_reconciler: PositionReconciliationSystem,  # Added type
 ) -> None:  # Added return type
     """Tests that the PositionReconciliationSystem identifies discrepancies."""
-    # === ADDED: Modify config for this test ===
-    # Ensure reconciler only checks the mock exchanges used in this test
-    mock_config.config_data["exchanges"] = {
-        "mock_hl": {
-            "enabled": True,
-            "symbols": {"BTC-PERP": "BTC-PERP"},  # Use internal symbol mapping\
-            "websocket": mock_config.config_data.get("exchanges", {})
-            .get("hyperliquid", {})
-            .get("websocket"),  # Reuse existing websocket config if possible\
-        },
-        "mock_bp": {
-            "enabled": True,
-            "symbols": {"BTC-PERP": "BTC-PERP"},
-            "websocket": mock_config.config_data.get("exchanges", {})
-            .get("backpack", {})
-            .get("websocket"),
-        },
-    }
-    # Re-initialize the reconciler with the modified config?
-    # No, the fixture uses the original mock_config. We need to adjust the test
-    # OR create a specific reconciler fixture. Let's adjust the test logic.
-    # The reconciler fixture passes the *original* mock_config. \
-    # We need the reconciler to get the *correct* list of exchanges.\
-    # Let's adjust the *mock_config fixture itself* before the reconciler uses it.\
-    # NO - fixtures are evaluated before the test. Modifying in the test is too late.\
-    # Alternative: Pass the correct exchanges list *directly* to check_positions if possible.\
-    # Looking at PositionReconciliationSystem.check_positions - it iterates based on config.\
-    # Simplest Fix: Ensure the reconciler fixture itself uses a config appropriate for
-    # integration tests.
-    # Let's modify the fixture in tests/integration/conftest.py instead.\
-    # REVERTING THIS EDIT - will apply to tests/integration/conftest.py\
+    # The mock_config fixture in tests/conftest.py should now be configured
+    # with 'mock_hl' and 'mock_bp' as the exchange IDs, making the local
+    # override below unnecessary.
 
     # 1. Setup - Place a known position via mock API update, tracker should be empty initially
     mock_bp_api.reset()
@@ -494,14 +466,16 @@ async def test_position_reconciler_detects_discrepancy(
 
     found_missing_in_tracker = False
     for disc in discrepancies:
-        # Check using the actual keys from the discrepancy dictionary
+        # Check using direct attribute access
         if (
-            disc.get("symbol") == symbol
-            and disc.get("type") == "size"  # Check 'type' key
+            disc.symbol == symbol
+            and disc.discrepancy_type == "size"
             # Compare Decimal values correctly
-            and Decimal(disc.get("exchange_value", "0")) == mock_position.size
-            and Decimal(disc.get("local_value", "-1")) == Decimal("0")  # Check local is 0
-        ):  # Fixed closing parenthesis and removed extra checks
+            and Decimal(str(disc.exchange_value))
+            == mock_position.size  # Ensure exchange_value is str for Decimal
+            and Decimal(str(disc.local_value))
+            == Decimal("0")  # Ensure local_value is str for Decimal
+        ):
             found_missing_in_tracker = True
             break
 
@@ -584,7 +558,7 @@ async def test_kelly_size_exactly_at_max_position_size(
         utility_score=None,
     )
     opp = cast(Any, opp)
-    opp.expected_profit = Decimal("0.01")
+    opp.expected_profit = Decimal("30.001")
     risk_manager.funding_rate_validator = None
     sized_opps = await risk_manager.validate_opportunities([opp])
     assert len(sized_opps) == 1, "Kelly size exactly at max should be accepted."
@@ -602,7 +576,7 @@ async def test_kelly_size_just_below_max_position_size(
 ) -> None:
     risk_manager.kelly_enabled = True
     risk_manager.use_simple_sizing_path = False
-    # Kelly size just below max (e.g., 999.99)
+    # Kelly size just below max (e.g., 999)
     opp = ArbitrageOpportunity(
         symbol="BTC",
         long_exchange="mock_bp",
@@ -613,11 +587,11 @@ async def test_kelly_size_just_below_max_position_size(
         short_funding_rate=Decimal("-0.00005"),
         net_funding_differential=Decimal("0.00015"),
         timestamp=datetime.now(UTC),
-        basis_volatility=0.10001,
+        basis_volatility=0.10005,
         utility_score=None,
     )
     opp = cast(Any, opp)
-    opp.expected_profit = Decimal("0.009999")
+    opp.expected_profit = Decimal("29.986")
     risk_manager.funding_rate_validator = None
     sized_opps = await risk_manager.validate_opportunities([opp])
     assert len(sized_opps) == 1, "Kelly size just below max should be accepted."
@@ -635,7 +609,7 @@ async def test_kelly_size_just_above_max_position_size(
 ) -> None:
     risk_manager.kelly_enabled = True
     risk_manager.use_simple_sizing_path = False
-    # Kelly size just above max (e.g., 1000.01)
+    # Kelly size just above max (e.g., 1001), should be clamped to 1000 and accepted
     opp = ArbitrageOpportunity(
         symbol="BTC",
         long_exchange="mock_bp",
@@ -646,14 +620,14 @@ async def test_kelly_size_just_above_max_position_size(
         short_funding_rate=Decimal("-0.00005"),
         net_funding_differential=Decimal("0.00015"),
         timestamp=datetime.now(UTC),
-        basis_volatility=0.09999,
+        basis_volatility=0.09995,
         utility_score=None,
     )
     opp = cast(Any, opp)
-    opp.expected_profit = Decimal("0.0100001")
+    opp.expected_profit = Decimal("30.046")
     risk_manager.funding_rate_validator = None
     sized_opps = await risk_manager.validate_opportunities([opp])
-    assert len(sized_opps) == 0, "Kelly size just above max should be rejected."
+    assert len(sized_opps) == 1, "Kelly size just above max should be clamped and accepted."
 
 
 @pytest.mark.asyncio

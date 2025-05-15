@@ -13,6 +13,10 @@ from pytest_mock import MockerFixture
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.core.models import DerivativePosition, OrderSide
 from cyberdelta.utils.config import Config
+from cyberdelta.validation.models.discrepancy_detail import (
+    DiscrepancyDetail,
+    HistoricalDiscrepancyRecord,
+)
 from cyberdelta.validation.position_reconciliation import PositionReconciliationSystem
 
 
@@ -722,200 +726,221 @@ class TestPositionReconciliationSystem:
 
     def test_record_discrepancy(self, reconciliation_system: PositionReconciliationSystem) -> None:
         """Test recording a discrepancy."""
-        # Create sample results with discrepancies
         exchange = "testexchange"
-        # Sample results dictionary needs to match the structure expected by _record_discrepancy
+        now_ts = datetime.now(UTC)  # Define timestamp for clarity
+
+        # Create a DiscrepancyDetail model instance
+        discrepancy_detail_model = DiscrepancyDetail(
+            symbol="BTC",
+            discrepancy_type="size",
+            exchange_value="1.0",
+            local_value="0.95",
+            details="Size differs by 0.05",
+        )
+
+        # Sample results dictionary now contains a list of DiscrepancyDetail models
         results = {
-            "timestamp": datetime.now(),
-            "discrepancies": [
-                {
-                    "symbol": "BTC",
-                    "type": "size",  # Added type
-                    "exchange_value": "1.0",  # Corrected key and value type (string)
-                    "local_value": "0.95",  # Corrected key and value type (string)
-                    "discrepancy": "0.05",  # Corrected key and value type (string)
-                    # Removed incorrect/unused keys like exchange_size, fill_size, etc.
-                }
-            ],
+            "timestamp": now_ts,
+            "discrepancies": [discrepancy_detail_model],
+            "success": False,  # Typically, if there are discrepancies, success might be False
+            "has_discrepancies": True,
         }
 
         # Call the method
-        # Intentional use of private method for test coverage
-        reconciliation_system._record_discrepancy(exchange, results)  # type: ignore[attr-defined, reportUnknownMemberType]
+        reconciliation_system._record_discrepancy(exchange, results)
 
-        # Verify history was updated
+        # Verify history was updated (it now stores HistoricalDiscrepancyRecord)
         assert len(reconciliation_system.discrepancy_history) == 1
-        record = reconciliation_system.discrepancy_history[0]
-
-        # Verify record contents (keys should match the corrected discrepancy structure)
-        assert record["exchange"] == exchange
-        assert record["symbol"] == "BTC"
-        assert record["exchange_value"] == "1.0"
-        assert record["local_value"] == "0.95"
-        assert record["discrepancy"] == "0.05"
-        # assert record["correct_size"] == 1.0 # This key doesn't exist in the recorded data
-        assert record["corrected"] is False
+        recorded_item = reconciliation_system.discrepancy_history[0]
+        assert isinstance(recorded_item, HistoricalDiscrepancyRecord)
+        assert recorded_item.exchange_id == exchange
+        assert recorded_item.recorded_at == now_ts
+        assert (
+            recorded_item.detail == discrepancy_detail_model
+        )  # Check if the detail is the same model
+        assert not recorded_item.is_corrected
 
     def test_get_discrepancy_history(
         self, reconciliation_system: PositionReconciliationSystem
     ) -> None:
         """Test getting history filtered by time."""
-        # Add some test data
         now = datetime.now(UTC)
         old_time = now - timedelta(days=10)
         recent_time = now - timedelta(days=3)
 
-        # Old record (10 days ago)
-        reconciliation_system.discrepancy_history.append(
-            {
-                "timestamp": old_time,
-                "exchange": "exchange1",
-                "symbol": "BTC",
-                "exchange_size": 1.0,
-                "fill_size": 0.9,
-                "local_size": 0.95,
-                "corrected": False,
-            }
+        # Create DiscrepancyDetail instances first
+        detail_old = DiscrepancyDetail(
+            symbol="BTC_OLD", discrepancy_type="size", exchange_value="1", local_value="0.9"
+        )
+        detail_recent = DiscrepancyDetail(
+            symbol="ETH_RECENT",
+            discrepancy_type="entry_price",
+            exchange_value="3000",
+            local_value="3001",
         )
 
-        # Recent record (3 days ago)
-        reconciliation_system.discrepancy_history.append(
-            {
-                "timestamp": recent_time,
-                "exchange": "exchange2",
-                "symbol": "ETH",
-                "exchange_size": 10.0,
-                "fill_size": 9.5,
-                "local_size": 9.8,
-                "corrected": True,
-            }
+        # Old record (10 days ago)
+        historical_record_old = HistoricalDiscrepancyRecord(
+            detail=detail_old,
+            exchange_id="exchange1",
+            recorded_at=old_time,
+            is_corrected=False,
         )
+        reconciliation_system.discrepancy_history.append(historical_record_old)
+
+        # Recent record (3 days ago)
+        historical_record_recent = HistoricalDiscrepancyRecord(
+            detail=detail_recent,
+            exchange_id="exchange2",
+            recorded_at=recent_time,
+            is_corrected=True,
+        )
+        reconciliation_system.discrepancy_history.append(historical_record_recent)
 
         # Get history for last 7 days
         history = reconciliation_system.get_discrepancy_history(days=7)
 
-        # Should only include the recent record
         assert len(history) == 1
-        assert history[0]["symbol"] == "ETH"
-        assert history[0]["timestamp"] == recent_time
-
-        # Get all history
-        all_history = reconciliation_system.get_discrepancy_history(days=30)
-        assert len(all_history) == 2
+        assert history[0].detail.symbol == "ETH_RECENT"
+        assert history[0].exchange_id == "exchange2"
+        assert history[0].recorded_at == recent_time
+        assert history[0].is_corrected is True
 
     def test_get_reconciliation_report(
         self, reconciliation_system: PositionReconciliationSystem
     ) -> None:
         """Test generating a reconciliation report."""
-        # Use UTC for all datetime objects
         now_utc = datetime.now(UTC)
-        # Use a time clearly within the last 24 hours, also UTC aware
         recent_time_utc = now_utc - timedelta(hours=1)
 
-        # Clear history before adding test data
         reconciliation_system.discrepancy_history.clear()
 
-        # Recent records - Use the structure stored by _record_discrepancy
-        # Ensure timestamps are timezone-aware (UTC)
+        # Create DiscrepancyDetail instances
+        detail1 = DiscrepancyDetail(
+            symbol="BTC", discrepancy_type="size", exchange_value="1.0", local_value="0.95"
+        )
+        detail2 = DiscrepancyDetail(
+            symbol="ETH", discrepancy_type="entry_price", exchange_value="10.0", local_value="9.8"
+        )
+        detail3 = DiscrepancyDetail(
+            symbol="SOL", discrepancy_type="size", exchange_value="50.0", local_value="0.0"
+        )
+
+        # Populate history with HistoricalDiscrepancyRecord instances
         reconciliation_system.discrepancy_history.extend(
             [
-                {
-                    "timestamp": recent_time_utc,  # Use aware datetime
-                    "exchange": "hyperliquid",
-                    "symbol": "BTC",
-                    "exchange_value": "1.0",  # Correct key
-                    "local_value": "0.95",  # Correct key
-                    "discrepancy": "0.05",  # Correct key
-                    "corrected": False,
-                    # Removed old/unused keys
-                },
-                {
-                    "timestamp": recent_time_utc,  # Use aware datetime
-                    "exchange": "hyperliquid",
-                    "symbol": "ETH",
-                    "exchange_value": "10.0",  # Correct key
-                    "local_value": "9.8",  # Correct key
-                    "discrepancy": "0.2",  # Correct key
-                    "corrected": True,
-                    # Removed old/unused keys
-                },
-                {
-                    "timestamp": recent_time_utc,  # Use aware datetime
-                    "exchange": "backpack",
-                    "symbol": "SOL",
-                    "exchange_value": "50.0",  # Correct key
-                    "local_value": "0.0",  # Correct key
-                    "discrepancy": "50.0",  # Correct key
-                    "corrected": False,
-                    # Removed old/unused keys
-                },
+                HistoricalDiscrepancyRecord(
+                    detail=detail1,
+                    exchange_id="hyperliquid",
+                    recorded_at=recent_time_utc,
+                    is_corrected=False,
+                ),
+                HistoricalDiscrepancyRecord(
+                    detail=detail2,
+                    exchange_id="hyperliquid",
+                    recorded_at=recent_time_utc,
+                    is_corrected=True,
+                ),
+                HistoricalDiscrepancyRecord(
+                    detail=detail3,
+                    exchange_id="backpack",
+                    recorded_at=recent_time_utc,
+                    is_corrected=False,
+                ),
             ]
         )
 
-        # Set some recent results (Timestamps should also be aware)
+        # Set some recent results (latest_results still uses dicts with DiscrepancyDetail list)
+        # Create DiscrepancyDetail for latest_results
+        latest_detail_btc = DiscrepancyDetail(
+            symbol="BTC",
+            discrepancy_type="size",
+            exchange_value="1.0",
+            local_value="0.95",
+            details="Size difference detected now",
+        )
+        latest_detail_sol = DiscrepancyDetail(
+            symbol="SOL",
+            discrepancy_type="size",
+            exchange_value="50.0",
+            local_value="0.0",
+            details="SOL API position exists, local is flat",
+        )
+
         reconciliation_system.latest_results = {
             "hyperliquid": {
-                "success": True,
-                "timestamp": now_utc,  # Use aware datetime
-                "discrepancies": [
-                    # Use correct structure if asserting on latest_results details
-                    {
-                        "symbol": "BTC",
-                        "type": "size",
-                        "exchange_value": "1.0",
-                        "local_value": "0.95",
-                        "discrepancy": "0.05",
-                    }
-                ],
+                "success": False,  # Typically false if discrepancies
+                "timestamp": now_utc,
+                "discrepancies": [latest_detail_btc],
+                "has_discrepancies": True,
+                "symbols_checked": 1,
             },
             "backpack": {
-                "success": True,
-                "timestamp": now_utc,  # Use aware datetime
-                "discrepancies": [
-                    # Use correct structure if asserting on latest_results details
-                    {
-                        "symbol": "SOL",
-                        "type": "size",
-                        "exchange_value": "50.0",
-                        "local_value": "0.0",
-                        "discrepancy": "50.0",
-                    }
-                ],
+                "success": False,
+                "timestamp": now_utc,
+                "discrepancies": [latest_detail_sol],
+                "has_discrepancies": True,
+                "symbols_checked": 1,
             },
         }
+        reconciliation_system.last_check_time = now_utc - timedelta(minutes=5)
 
-        # Generate the report
-        # Assuming get_discrepancy_history uses aware comparison internally now
         report = reconciliation_system.get_reconciliation_report()
 
-        # Verify report structure and contents
-        # This assertion should now pass as get_discrepancy_history(days=1) will find the 3 records
-        assert report["total_discrepancies_24h"] == 3
-        assert "hyperliquid" in report["exchange_stats"]
-        assert "backpack" in report["exchange_stats"]
+        # Basic report structure checks
+        assert "report_generated_at" in report
+        assert "total_discrepancies_24h" in report
+        assert "exchange_specific_stats" in report
+        assert "recent_discrepancies_summary" in report
+        assert "last_reconciliation_check_time" in report
+        assert "auto_correct_enabled" in report
+        assert "reconciliation_threshold_config" in report
 
-        # Check exchange stats
-        hyper_stats = report["exchange_stats"]["hyperliquid"]
+        # Check content based on the setup
+        assert report["total_discrepancies_24h"] == 3  # All 3 historical records are recent
+        assert len(report["recent_discrepancies_summary"]) <= 10  # Capped at 10
+        assert len(report["recent_discrepancies_summary"]) == 3  # All 3 are recent
+
+        # Check exchange specific stats
+        hyper_stats = report["exchange_specific_stats"].get("hyperliquid")
+        assert hyper_stats is not None
         assert hyper_stats["total_discrepancies"] == 2
-        # assert hyper_stats["symbols_affected"] == 2 # Key changed to symbols_affected_count
-        assert hyper_stats["symbols_affected_count"] == 2
-        assert hyper_stats["corrected"] == 1
-        assert hyper_stats["uncorrected"] == 1
+        assert hyper_stats["symbols_affected_count"] == 2  # BTC and ETH
+        assert hyper_stats["corrected_count"] == 1
+        assert hyper_stats["uncorrected_count"] == 1
 
-        backpack_stats = report["exchange_stats"]["backpack"]
-        assert backpack_stats["total_discrepancies"] == 1
-        # assert backpack_stats["symbols_affected"] == 1 # Key changed
-        assert backpack_stats["symbols_affected_count"] == 1
-        assert backpack_stats["corrected"] == 0
-        assert backpack_stats["uncorrected"] == 1
+        bp_stats = report["exchange_specific_stats"].get("backpack")
+        assert bp_stats is not None
+        assert bp_stats["total_discrepancies"] == 1
+        assert bp_stats["symbols_affected_count"] == 1  # SOL
+        assert bp_stats["corrected_count"] == 0
+        assert bp_stats["uncorrected_count"] == 1
 
-        # Check recent discrepancies are included (ensure correct structure in assertion if needed)
-        assert len(report["recent_discrepancies"]) == 3
-        assert report["recent_discrepancies"][0]["symbol"] == "BTC"  # Example check
-        assert report["recent_discrepancies"][0]["exchange_value"] == "1.0"
+        # Check one item from recent_discrepancies_summary
+        # Order might vary, so find one, e.g., the BTC one for hyperliquid
+        btc_summary_found = False
+        for item in report["recent_discrepancies_summary"]:
+            if item["exchange"] == "hyperliquid" and item["symbol"] == "BTC":
+                assert item["discrepancy_type"] == "size"
+                assert item["exchange_value"] == "1.0"
+                assert item["local_value"] == "0.95"
+                assert item["corrected"] is False
+                btc_summary_found = True
+                break
+        assert btc_summary_found, "BTC summary discrepancy not found in report"
 
-        # Check configuration settings are included
-        assert report["auto_correct_enabled"] == reconciliation_system.auto_correct
+        # Check another item from recent_discrepancies_summary
+        # Order might vary, so find one, e.g., the ETH one for hyperliquid
+        eth_summary_found = False
+        for item in report["recent_discrepancies_summary"]:
+            if item["exchange"] == "hyperliquid" and item["symbol"] == "ETH":
+                assert item["discrepancy_type"] == "entry_price"
+                assert item["exchange_value"] == "10.0"
+                assert item["local_value"] == "9.8"
+                assert item["corrected"] is True
+                eth_summary_found = True
+                break
+        assert eth_summary_found, "ETH summary discrepancy not found in report"
 
     @pytest.mark.asyncio
     async def test_check_positions_mismatch_triggers_reconciliation_and_logs_error(

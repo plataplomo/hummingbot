@@ -6,7 +6,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import TracebackType  # Import TracebackType
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
@@ -47,18 +47,38 @@ class MockResponse:
         status: int = 200,
         headers: dict[str, str] | None = None,
         content_type: str = "application/json",
+        text_data: str | None = None,  # Added for direct initialization
     ) -> None:
         self._data = data
         self.status = status
-        self.headers = headers or {}
+        self.headers = headers if headers is not None else {}  # Ensure headers is a dict
         self.content_type = content_type
         self._raise_for_status_called = False
 
+        # Attributes for mocking
+        effective_text_data = text_data if text_data is not None else str(self._data)
+        self.text: AsyncMock = AsyncMock(return_value=effective_text_data)
+        self.raise_for_status: MagicMock = MagicMock()
+        if self.status >= 400:
+            # aiohttp's ClientResponseError headers expect a MultiMapping or None.
+            # For simplicity in mock, we pass our dict; aiohttp might handle basic dicts.
+            # Or, pass `None` if type issues persist: `headers=None`
+            minimal_request_info = MagicMock()
+            minimal_request_info.url = "mock://url"
+            minimal_request_info.method = "GET"
+            minimal_request_info.headers = self.headers
+            minimal_request_info.real_url = "mock://real_url"
+
+            self.raise_for_status.side_effect = aiohttp.ClientResponseError(
+                request_info=minimal_request_info,
+                history=(),
+                status=self.status,
+                message="Mock ResponseError",
+                headers=cast(Any, self.headers),
+            )
+
     async def json(self) -> Any:  # noqa: ANN401 - Mock data can be anything for tests
         return self._data
-
-    async def text(self) -> str:
-        return str(self._data)
 
     async def __aenter__(self) -> MockResponse:
         return self
@@ -70,13 +90,6 @@ class MockResponse:
         exc_tb: TracebackType | None,
     ) -> None:
         pass
-
-    def raise_for_status(self) -> None:
-        self._raise_for_status_called = True
-        if self.status >= 400:
-            raise aiohttp.ClientResponseError(
-                request_info=MagicMock(), history=(), status=self.status
-            )
 
 
 class MockClientSession:
@@ -207,7 +220,7 @@ def mock_config() -> MagicMock:
     """Create a mock Config object with test settings."""
     config_data = {
         "exchanges": {
-            "hyperliquid": {
+            "mock_hl": {
                 "enabled": True,
                 "symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP"},
                 "websocket": {
@@ -216,8 +229,10 @@ def mock_config() -> MagicMock:
                     "ping_interval": 10,
                 },
                 "risk_modifier": 0.9,
+                "collateral_asset": "USD",
+                "quote_asset": "USD",
             },
-            "backpack": {
+            "mock_bp": {
                 "enabled": True,
                 "symbols": {"BTC": "BTCUSDC", "ETH": "ETHUSDC"},
                 "websocket": {
@@ -226,6 +241,8 @@ def mock_config() -> MagicMock:
                     "ping_interval": 10,
                 },
                 "risk_modifier": 1.0,
+                "collateral_asset": "USDC",
+                "quote_asset": "USDC",
             },
         },
         "portfolio": {
@@ -257,7 +274,7 @@ def mock_config() -> MagicMock:
                     }
                 },
                 "exchanges": {
-                    "hyperliquid": {
+                    "mock_hl": {
                         "enabled": True,
                         "api_errors": {
                             "enabled": True,
@@ -270,7 +287,7 @@ def mock_config() -> MagicMock:
                         "volatility": {"enabled": False},
                         "liquidity": {"enabled": False},
                     },
-                    "backpack": {
+                    "mock_bp": {
                         "enabled": True,
                         "api_errors": {
                             "enabled": True,
@@ -600,15 +617,26 @@ def create_mock_response(
     text_data: str | None = None,
     headers: dict[str, str] | None = None,
 ) -> MockResponse:
-    # Simplified mock logic
-    mock_resp = MockResponse(json_data, status, headers, "application/json")
-    # Assign AsyncMock instances directly to the attributes
-    mock_resp.text = AsyncMock(return_value=text_data if text_data is not None else "")
-    mock_resp.raise_for_status = MagicMock()  # Assign MagicMock to the attribute
-    if status >= 400:
-        # Configure the mock to raise if needed
+    mock_resp = MockResponse(
+        json_data,
+        status,
+        headers,
+        "application/json",
+        text_data=text_data if text_data is not None else str(json_data),
+    )
+    # Attributes are now set in MockResponse.__init__
+    if status >= 400 and mock_resp.raise_for_status.side_effect is None:
+        minimal_request_info = MagicMock()
+        minimal_request_info.url = "mock://url"
+        minimal_request_info.method = "GET"
+        minimal_request_info.headers = headers
+        minimal_request_info.real_url = "mock://real_url"
         mock_resp.raise_for_status.side_effect = aiohttp.ClientResponseError(
-            MagicMock(), (), status=status
+            minimal_request_info,
+            (),
+            status=status,
+            message="Mock Response Error",
+            headers=cast(Any, headers),
         )
     return mock_resp
 
@@ -621,18 +649,26 @@ async def mock_request(
     data: Any | None = None,  # noqa: ANN401 - Data can be Any for mock
     json: Any | None = None,  # noqa: ANN401 - Json can be Any for mock
     headers: dict[str, Any] | None = None,  # noqa: ANN401 - Headers can be Any for mock
-    status_code: int = 200,  # Added status_code parameter
-    **kwargs: Any,  # noqa: ANN401 - Allow Any extra kwargs for flexibility
+    status_code: int = 200,
+    **kwargs: Any,
 ) -> MockResponse:
-    # Simplified mock logic
-    text_data = str(json) if json else ""  # Define text_data based on json
-    mock_resp = MockResponse(json, status_code, headers, "application/json")  # Use status_code
-    # Assign AsyncMock instances directly to the attributes
-    mock_resp.text = AsyncMock(return_value=text_data)
-    mock_resp.raise_for_status = MagicMock()  # Assign MagicMock to the attribute
-    if status_code >= 400:  # Use status_code
-        # Configure the mock to raise if needed
+    text_data = str(json) if json else ""
+    actual_headers = headers if headers else {}
+    mock_resp = MockResponse(
+        json, status_code, actual_headers, "application/json", text_data=text_data
+    )
+    # Attributes are now set in MockResponse.__init__
+    if status_code >= 400 and mock_resp.raise_for_status.side_effect is None:
+        minimal_request_info = MagicMock()
+        minimal_request_info.url = "mock://url"
+        minimal_request_info.method = "GET"
+        minimal_request_info.headers = actual_headers
+        minimal_request_info.real_url = "mock://real_url"
         mock_resp.raise_for_status.side_effect = aiohttp.ClientResponseError(
-            MagicMock(), (), status=status_code
+            minimal_request_info,
+            (),
+            status=status_code,
+            message="Mock Response Error",
+            headers=cast(Any, actual_headers),
         )
     return mock_resp

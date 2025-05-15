@@ -10,7 +10,7 @@ import logging
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime, timedelta
 from enum import Enum, auto
-from typing import Any
+from typing import Any, cast
 
 from cyberdelta.utils.config import Config
 
@@ -596,48 +596,58 @@ class CircuitBreakerSystem:
             )
 
         # === Load Exchange-Specific Breakers ===
-        exchanges_config_data = self.config.get("exchanges")
-        if not isinstance(exchanges_config_data, dict):
+        exchanges_config_data_raw = self.config.get("exchanges")
+        if not isinstance(exchanges_config_data_raw, dict):
             logger.warning(
                 "No 'exchanges' config found or it is not a dictionary. "
                 "Cannot load exchange-specific circuit breakers."
             )
             return
 
-        for exchange_id, exchange_specific_cfg_data in exchanges_config_data.items():
-            if not isinstance(exchange_specific_cfg_data, dict):
+        exchanges_config_data = cast(dict[str, Any], exchanges_config_data_raw)
+
+        for exchange_id_str, exchange_specific_cfg_data_raw in exchanges_config_data.items():
+            exchange_id = cast(str, exchange_id_str)  # Ensure exchange_id is str
+            if not isinstance(exchange_specific_cfg_data_raw, dict):
                 logger.warning(f"Config for exchange '{exchange_id}' is not a dict. Skipping.")
                 continue
+            exchange_specific_cfg_data = cast(dict[str, Any], exchange_specific_cfg_data_raw)
 
-            breakers_config_for_exchange = exchange_specific_cfg_data.get("circuit_breakers")
-            if not isinstance(breakers_config_for_exchange, dict):
+            breakers_config_for_exchange_raw = exchange_specific_cfg_data.get("circuit_breakers")
+            if not isinstance(breakers_config_for_exchange_raw, dict):
                 logger.debug(
                     f"No 'circuit_breakers' dict found for exchange '{exchange_id}'. Skipping."
                 )
                 continue
+            breakers_config_for_exchange = cast(dict[str, Any], breakers_config_for_exchange_raw)
 
-            # Default cooldown for this specific exchange, falls back to a hardcoded 300 if not set
-            default_cooldown_for_exchange = breakers_config_for_exchange.get("defaults", {}).get(
+            default_cooldown_for_exchange_config = breakers_config_for_exchange.get("defaults", {})
+            default_cooldown_for_exchange_raw = default_cooldown_for_exchange_config.get(
                 "cooldown_seconds", 300
             )
+            default_cooldown_for_exchange = cast(int, default_cooldown_for_exchange_raw)
 
             for (
-                breaker_type_key,
-                config_data_for_this_breaker_type,
+                breaker_type_key_str,
+                config_data_for_this_breaker_type_raw,
             ) in breakers_config_for_exchange.items():
+                breaker_type_key = cast(str, breaker_type_key_str)  # Ensure breaker_type_key is str
                 if breaker_type_key in ["defaults", "global"]:  # Skip meta-configuration keys
                     continue
 
-                if not isinstance(config_data_for_this_breaker_type, dict):
+                if not isinstance(config_data_for_this_breaker_type_raw, dict):
                     logger.warning(
                         f"Configuration for breaker type '{breaker_type_key}' under exchange "
                         f"'{exchange_id}' is not a dict "
-                        f"(found {type(config_data_for_this_breaker_type)}). "
+                        f"(found {type(config_data_for_this_breaker_type_raw)}). "
                         "Skipping."
                     )
                     continue
+                config_data_for_this_breaker_type = cast(
+                    dict[str, Any], config_data_for_this_breaker_type_raw
+                )
 
-                is_enabled = config_data_for_this_breaker_type.get("enabled", True)
+                is_enabled = cast(bool, config_data_for_this_breaker_type.get("enabled", True))
                 if not is_enabled:
                     logger.info(
                         f"Breaker type '{breaker_type_key}' for exchange '{exchange_id}' "
@@ -1059,13 +1069,55 @@ class CircuitBreakerSystem:
         Returns:
             Number of breakers reset
         """
-        if exchange not in self.exchange_breakers:
+        exchange_level_breakers_map = self.exchange_breakers.get(exchange)
+        if not exchange_level_breakers_map:
+            logger.info(f"No breakers found for exchange '{exchange}' to reset.")
             return 0
 
         reset_count = 0
-        for breaker in self.exchange_breakers[exchange].values():
-            breaker.reset()
-            reset_count += 1
+        # Iterate over a copy of values in case of future modifications during iteration
+        for breaker_or_symbol_map in list(exchange_level_breakers_map.values()):
+            if isinstance(breaker_or_symbol_map, CircuitBreaker):
+                # This is a non-symbol-specific breaker for the exchange
+                was_open = breaker_or_symbol_map.state == BreakerState.OPEN
+                breaker_or_symbol_map.reset()
+                if isinstance(breaker_or_symbol_map, APIErrorBreaker):
+                    breaker_or_symbol_map.errors.clear()
+                logger.info(
+                    f"Exchange breaker '{breaker_or_symbol_map.name}' reset. "
+                    f"Was open: {was_open}, New state: {breaker_or_symbol_map.state.name}"
+                )
+                reset_count += 1
+            elif isinstance(breaker_or_symbol_map, dict):
+                # This is a map of symbol-specific breakers (e.g., for volatility, liquidity)
+                for symbol, specific_breaker in breaker_or_symbol_map.items():
+                    if isinstance(specific_breaker, CircuitBreaker):  # Should always be true
+                        was_open = specific_breaker.state == BreakerState.OPEN
+                        specific_breaker.reset()
+                        # APIErrorBreakers are typically not symbol-specific in current config,
+                        # but handle defensively.
+                        if isinstance(specific_breaker, APIErrorBreaker):
+                            specific_breaker.errors.clear()
+                        logger.info(
+                            f"Symbol-specific breaker '{specific_breaker.name}' for exchange '{exchange}', symbol '{symbol}' reset. "
+                            f"Was open: {was_open}, New state: {specific_breaker.state.name}"
+                        )
+                        reset_count += 1
+                    else:
+                        logger.warning(
+                            f"Unexpected item in symbol-specific breaker map for exchange '{exchange}': {specific_breaker}"
+                        )
+            else:
+                logger.warning(
+                    f"Unexpected item in exchange breaker structure for '{exchange}': {breaker_or_symbol_map}"
+                )
+
+        if reset_count > 0:
+            logger.info(f"Reset {reset_count} breakers for exchange '{exchange}'.")
+        else:
+            logger.info(
+                f"No breakers were actively reset for exchange '{exchange}' (they might have been already closed or map was empty)."
+            )
         return reset_count
 
     def update_critical_systems_status(self, status_updates: dict[str, bool]) -> None:

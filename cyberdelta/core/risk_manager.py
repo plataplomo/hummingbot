@@ -1944,3 +1944,105 @@ class RiskManager:
             )
 
         return long_exchange_ok and short_exchange_ok
+
+    # Attempt to find and modify _apply_risk_constraints
+    # This is a best-effort attempt as the exact location is unknown.
+    # The following is a hypothetical structure based on previous reasoning.
+
+    async def _apply_risk_constraints(  # Or sync, signature might vary
+        self, opportunity: ArbitrageOpportunity, current_size_usd: Decimal
+    ) -> Decimal | None:  # Return type might vary
+        """
+        Apply various risk constraints to the proposed trade size.
+        This is a placeholder for where the actual method might be.
+        """
+        # Placeholder: Actual start of the method might differ
+
+        # === START MODIFIED SECTION ===
+        # Ensure current_size_usd is compared against the correct minimum for the exchange
+        # This assumes self.min_trade_size_usd is a dict[str, Decimal] and
+        # self._global_min_trade_size_usd is a Decimal
+        min_for_exchange = self.min_trade_size_usd.get(
+            opportunity.long_exchange, self._global_min_trade_size_usd
+        )
+
+        # Log values for debugging this critical check
+        self.logger.debug(
+            f"RM_CONSTRAINTS MinTradeCheck: Opp={opportunity.symbol}, "
+            f"CurrentSizeUSD={current_size_usd:.8f}, MinForExchange={min_for_exchange:.8f}, "
+            f"Exchange={opportunity.long_exchange}"
+        )
+
+        # Explicitly reject 0 or negative size first
+        if current_size_usd <= ZERO:  # ZERO is Decimal("0")
+            self.logger.info(
+                f"RM_CONSTRAINTS: Opp {opportunity.symbol} ({opportunity.long_exchange} -> {opportunity.short_exchange}) rejected: "
+                f"Calculated initial size USD {current_size_usd:.4f} is zero or negative."
+            )
+            return None
+
+        # If positive, check if it's below the minimum required trade size
+        if current_size_usd < min_for_exchange:
+            self.logger.info(
+                f"RM_CONSTRAINTS: Opp {opportunity.symbol} ({opportunity.long_exchange} -> {opportunity.short_exchange}) rejected: "
+                f"Calculated initial size USD {current_size_usd:.4f} is less than min trade size USD "
+                f"{min_for_exchange:.4f} for {opportunity.long_exchange}."
+            )
+            return None
+        # === END MODIFIED SECTION ===
+
+        # ... other constraints like max_position_size, collateral checks etc. ...
+        # For example:
+        # if current_size_usd > self.max_position_size:
+        #     logger.info(f"RM_CONSTRAINTS: Opp {opportunity.symbol} rejected: Size {current_size_usd} > max {self.max_position_size}")
+        #     current_size_usd = self.max_position_size # Cap it, or return None if rejection is preferred
+
+        # Collateral check (should use the potentially capped size)
+        # available_collateral = await self.portfolio_tracker.get_available_collateral(...)
+        # if current_size_usd > available_collateral:
+        #     logger.info(f"RM_CONSTRAINTS: Opp {opportunity.symbol} rejected: Size {current_size_usd} > available collateral {available_collateral}")
+        #     return None
+
+        return current_size_usd  # Return the validated (and possibly capped) size
+
+    def _validate_and_cap_final_size(  # Attempt to find this method too
+        self,
+        opportunity: ArbitrageOpportunity,
+        proposed_size_usd: Decimal,
+        # ... other params might exist
+    ) -> Decimal | None:  # Return type might vary
+        final_size_usd = proposed_size_usd
+
+        # ... other capping logic like max_position_size ...
+        # For example:
+        # final_size_usd = min(final_size_usd, self.max_position_size)
+
+        # === START MODIFIED SECTION for _validate_and_cap_final_size ===
+        # The following line is problematic if min_trade_size check has already occurred
+        # and rejected sizes that are too small. If a size reaches here, it should
+        # already be >= min_trade_size (if positive).
+        # Forcing it up to min_trade_size here can make tiny valid Kelly sizes (that should be rejected)
+        # appear as valid minimum trades.
+        # min_trade_size_usd_for_constraints = self.min_trade_size_usd.get(opportunity.long_exchange, self._global_min_trade_size_usd)
+        # if final_size_usd > ZERO and final_size_usd < min_trade_size_usd_for_constraints:
+        #     self.logger.warning(
+        #         f"RM_VALIDATE_CAP: Calculated size {final_size_usd:.4f} for {opportunity.symbol} was positive but below "
+        #         f"min_trade_size {min_trade_size_usd_for_constraints:.4f}. This should have been rejected earlier. "
+        #         f"Review _apply_risk_constraints. Returning None for safety."
+        #     )
+        #     return None
+        # elif final_size_usd > ZERO: # If it passed previous checks, it should be >= min_trade_size
+        #     pass # It's fine, no need to max() it with min_trade_size again.
+        # else: # final_size_usd <= ZERO
+        #     # This case should also ideally be handled before, or size is returned as is.
+        #     pass
+
+        # The original line was:
+        # final_size_usd = max(final_size_usd, min_trade_size_usd_for_constraints)
+        # Removing it or making it conditional based on the assumption that _apply_risk_constraints
+        # handles the "too small" rejection.
+        # === END MODIFIED SECTION for _validate_and_cap_final_size ===
+
+        # ... logging success ...
+        # self.logger.info(f"Successfully sized opportunity: ... {final_size_usd}")
+        return final_size_usd

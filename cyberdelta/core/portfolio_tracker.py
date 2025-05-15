@@ -195,7 +195,10 @@ class PortfolioTracker:
             client: ExchangeAPI implementation
         """
         self.api_clients[exchange_id] = client
-        logger.info(f"Registered API client for {exchange_id} in PortfolioTracker")
+        self.logger.info(
+            f"PT_REGISTER: Registered API client for {exchange_id}. \
+            Current api_clients keys: {list(self.api_clients.keys())}"
+        )
 
     async def initialize(self) -> None:
         """Initialize portfolio state from exchanges."""
@@ -1687,3 +1690,24 @@ class PortfolioTracker:
         except Exception as e:
             logger.exception(f"Error fetching account summary for {exchange_id}: {e}")
             return None
+
+    def get_all_derivative_positions_for_exchange(
+        self, exchange_id: str
+    ) -> dict[Symbol, DerivativePosition] | None:
+        """Returns all derivative positions for a given exchange."""
+        normalized_exchange_id = exchange_id.lower()
+
+        # ADDED DETAILED LOGGING (NOW AS WARNING)
+        self.logger.warning(
+            f"PT_GET_ALL_DERIV_POS_CRITICAL_DEBUG: id(self)={id(self)}, id(self.api_clients)={id(self.api_clients)}, \
+            self.api_clients={self.api_clients}, \
+            exchange_id='{exchange_id}', normalized_exchange_id='{normalized_exchange_id}'"
+        )
+
+        if normalized_exchange_id not in self.api_clients:
+            self.logger.warning(
+                f"PT_GET_ALL_DERIV_POS: Attempted to get positions for unknown or unregistered exchange: '{exchange_id}' (normalized: '{normalized_exchange_id}')."
+            )
+            return None
+
+        return self.positions[normalized_exchange_id]
