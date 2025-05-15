@@ -305,7 +305,8 @@ class FundingRateArbitrageStrategy(Strategy):
             data: Market data to process
 
         Returns:
-            List of TradeSignals (multi-leg, e.g., for both perp and spot) if trades should be executed, or an empty list if no opportunity is found.
+            List of TradeSignals (multi-leg, e.g., for both perp and spot) if trades should be
+            executed, or an empty list if no opportunity is found.
             The returned list may be empty if no valid signals are generated.
         """
         self.update_historical_data(data)

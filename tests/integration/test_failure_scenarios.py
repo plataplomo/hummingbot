@@ -281,7 +281,8 @@ class TestFailureScenarios:
                 other_result.error_message is not None
                 and f"exchange:{target_exchange}:" in other_result.error_message
             ), (
-                f"Execution rejected, but error message '{other_result.error_message}' doesn't mention the originally failing exchange breaker '{target_exchange}'"
+                f"Execution rejected, but error message '{other_result.error_message}' doesn't mention "
+                f"the originally failing exchange breaker '{target_exchange}'"
             )
         else:
             # If it somehow succeeded, it means the target_exchange API didn't fail this time

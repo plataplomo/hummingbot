@@ -275,7 +275,8 @@ class SignalGenerator:
                     )
 
                     # Ensure market data and price are valid
-                    # if market_data is not None and hasattr(market_data, "close"): # Old check for Candle
+                    # if market_data is not None and hasattr(market_data, "close"):
+                    # # Old check for Candle
                     if (
                         ticker_data is not None and ticker_data.price is not None
                     ):  # New check for Ticker
@@ -284,7 +285,9 @@ class SignalGenerator:
                             # price_decimal = ( # Old logic for Candle
                             #     market_data.close
                             # )
-                            # price_decimal = ticker_data.price # Ticker.price is already Decimal | None, checked above - REMOVED UNUSED VARIABLE
+                            # price_decimal = ticker_data.price
+                            # Ticker.price is already Decimal | None, checked above
+                            # REMOVED UNUSED VARIABLE
 
                             valid_exchanges_for_symbol.append(exchange_id)
                             # Create a Ticker object from MarketData for consistency
@@ -533,7 +536,8 @@ class SignalGenerator:
             current_symbol_funding_data = funding_data.get(internal_symbol, {})
 
             # Check opportunities for the current internal_symbol
-            # Ensure current_symbol_funding_data contains actual FundingRate objects, not None where expected
+            # Ensure current_symbol_funding_data contains actual FundingRate objects,
+            # not None where expected
             valid_funding_for_symbol: dict[str, FundingRate] = {
                 ex: fr
                 for ex, fr in current_symbol_funding_data.items()
@@ -659,7 +663,8 @@ class SignalGenerator:
                 if expected_profit < self.min_profit_threshold:
                     continue
 
-                # Determine actual long/short rates and the pure rate differential for the opportunity
+                # Determine actual long/short rates and the pure rate differential
+                # for the opportunity
                 # funding_differential was rate_b - rate_a
                 if funding_differential > Decimal("0"):  # rate_b > rate_a: Long B, Short A
                     actual_long_rate = rate_b
@@ -667,7 +672,8 @@ class SignalGenerator:
                     current_long_price = ask_b
                     current_short_price = bid_a
                     # Explicitly recalculate for clarity and to ensure types
-                    # actual_long_rate and actual_short_rate are already Decimal | None, and checked for None.
+                    # actual_long_rate and actual_short_rate are already Decimal | None,
+                    # and checked for None.
                     # The explicit Decimal(str(...)) is for hyper-explicitness, though redundant.
                     opportunity_nfd_calculated = Decimal(str(actual_long_rate)) - Decimal(
                         str(actual_short_rate)
@@ -680,7 +686,8 @@ class SignalGenerator:
                         short_price=current_short_price,
                         long_funding_rate=actual_long_rate,
                         short_funding_rate=actual_short_rate,
-                        net_funding_differential=opportunity_nfd_calculated,  # Use the explicitly calculated value
+                        net_funding_differential=opportunity_nfd_calculated,
+                        # Use the explicitly calculated value
                         expected_profit=expected_profit,
                         timestamp=datetime.now(UTC),
                     )
@@ -690,7 +697,8 @@ class SignalGenerator:
                     current_long_price = ask_a
                     current_short_price = bid_b
                     # Explicitly recalculate for clarity and to ensure types
-                    # actual_long_rate and actual_short_rate are already Decimal | None, and checked for None.
+                    # actual_long_rate and actual_short_rate are already Decimal | None,
+                    # and checked for None.
                     opportunity_nfd_calculated = Decimal(str(actual_long_rate)) - Decimal(
                         str(actual_short_rate)
                     )
@@ -702,7 +710,8 @@ class SignalGenerator:
                         short_price=current_short_price,
                         long_funding_rate=actual_long_rate,
                         short_funding_rate=actual_short_rate,
-                        net_funding_differential=opportunity_nfd_calculated,  # Use the explicitly calculated value
+                        net_funding_differential=opportunity_nfd_calculated,
+                        # Use the explicitly calculated value
                         expected_profit=expected_profit,
                         timestamp=datetime.now(UTC),
                     )

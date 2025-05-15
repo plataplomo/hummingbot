@@ -35,8 +35,9 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 # NOTE: CyberDeltaEngine Order model uses 'client_order_id' as the unique identifier,
-# 'quantity_requested' for order size, 'quantity_filled' for filled size, and 'average_fill_price'
-# for fill price. There is no 'id', 'quantity', or 'avg_fill_price' attribute.
+# 'quantity_requested' for order size, 'quantity_filled' for filled size, and
+# 'average_fill_price' for fill price. There is no 'id', 'quantity',
+# or 'avg_fill_price' attribute.
 
 
 class ExecutionStatus(Enum):
@@ -278,7 +279,8 @@ class ExecutionHandler:
         # expected_short_price: Decimal | None = None # Commented out due to PT.get_ticker removal
         # try:
         #     # Get latest ticker for price check
-        #     # ticker: Ticker | None = await self.portfolio_tracker.get_ticker( # PT does not have get_ticker
+        #     # ticker: Ticker | None = await self.portfolio_tracker.get_ticker(
+        #     # PT does not have get_ticker
         #     #     opportunity.opportunity.long_exchange, long_symbol
         #     # )
         #     # # DEFENSIVE CHECK: ticker.price is Optional[Decimal]
@@ -297,7 +299,8 @@ class ExecutionHandler:
         #     #     expected_short_price = ticker.price * (Decimal(\"1\") - self.max_slippage)
         #     # else:
         #     #     logger.warning(
-        #     #         f\"Execution {execution.id}: Could not get ticker for short slippage check.\"
+        #     #         f\"Execution {execution.id}: Could not get ticker for short \"
+        #     #         f\"slippage check.\"
         #     #     )
         # except Exception as ticker_err:
         #     logger.warning(
@@ -589,7 +592,8 @@ class ExecutionHandler:
         # If the reason for exhausting retries was specifically an APIError,
         # re-raise it as per test expectation.
         if last_api_error_for_reraise:
-            # Ensure error_message reflects this final attempt if not already set by non-retryable path
+            # Ensure error_message reflects this final attempt if not already set by
+            # non-retryable path
             if not execution.error_message or "Non-retryable" not in execution.error_message:
                 execution.error_message = (
                     f"Failed to place order on {exchange_id} after "
@@ -806,15 +810,18 @@ class ExecutionHandler:
                         order_type = OrderType.LIMIT
                     else:
                         logger.warning(
-                            f"Execution {execution.id}: Could not determine limit price for compensation on {exchange_id} for {symbol}. Missing bid/ask."
+                            f"Execution {execution.id}: Could not determine limit price for "
+                            f"compensation on {exchange_id} for {symbol}. Missing bid/ask."
                         )
                 else:
                     logger.warning(
-                        f"Execution {execution.id}: Could not get ticker for {exchange_id} {symbol} to calculate compensation limit price."
+                        f"Execution {execution.id}: Could not get ticker for "
+                        f"{exchange_id} {symbol} to calculate compensation limit price."
                     )
             except (InvalidOperation, APIError, ValueError) as e:
                 logger.warning(
-                    f"Execution {execution.id}: Error processing limit price for compensation on {exchange_id} for {symbol}: {e}. Defaulting to MARKET."
+                    f"Execution {execution.id}: Error processing limit price for compensation "
+                    f"on {exchange_id} for {symbol}: {e}. Defaulting to MARKET."
                 )
                 order_type = OrderType.MARKET  # Fallback to MARKET on error
                 price = None
@@ -834,7 +841,8 @@ class ExecutionHandler:
 
         if compensation_order:
             logger.info(
-                f"Execution {execution.id}: Compensation order placed: {compensation_order.exchange_order_id}"
+                f"Execution {execution.id}: Compensation order placed: "
+                f"{compensation_order.exchange_order_id}"
             )
             # Basic check: If status is already filled, assume compensation worked
             # A more robust check would monitor the compensation order status
@@ -844,7 +852,8 @@ class ExecutionHandler:
             # If not filled immediately, we assume it might fill. A better implementation
             # would monitor this order's status properly.
             logger.warning(
-                f"Execution {execution.id}: Compensation order {compensation_order.exchange_order_id} "
+                f"Execution {execution.id}: Compensation order "
+                f"{compensation_order.exchange_order_id} "
                 f"not immediately filled (Status: {compensation_order.status}). Monitoring needed."
             )
             # For now, optimistically return True if placed, but log warning
@@ -940,9 +949,6 @@ class ExecutionHandler:
                 return True
             return False
 
-        # Fallback ensures a boolean is always returned
-        return False
-
     async def _update_pnl(self, execution: TradeExecution) -> None:
         """
         Calculate and update the realized PnL for a completed execution.
@@ -999,13 +1005,15 @@ class ExecutionHandler:
             expected_short_price: Optional min expected fill price for short.
         """
         logger.info(
-            f"Processing filled order {order.exchange_order_id} on {exchange_id} for execution {execution.id}"
+            f"Processing filled order {order.exchange_order_id} on {exchange_id} "
+            f"for execution {execution.id}"
         )
 
         # Validate required fields for a filled order
         if order.average_fill_price is None or order.quantity_filled == Decimal(0):
             logger.error(
-                f"Filled order {order.exchange_order_id} is missing average fill price or has zero filled quantity."
+                f"Filled order {order.exchange_order_id} is missing average fill price "
+                f"or has zero filled quantity."
             )
             # Potentially mark execution as failed or requires investigation
             return
@@ -1063,11 +1071,13 @@ class ExecutionHandler:
                     )
 
             # Add trade to execution history
-            # execution.opportunity.trades.append(trade) # Redundant if portfolio tracker handles this?
+            # execution.opportunity.trades.append(trade)
+        # Redundant if portfolio tracker handles this?
 
         except Exception as e:
             logger.exception(
-                f"Execution {execution.id}: Error processing filled order {order.exchange_order_id}: {e}"
+                f"Execution {execution.id}: Error processing filled order "
+                f"{order.exchange_order_id}: {e}"
             )
             # Consider how to handle this - potentially fail the execution
 
@@ -1097,7 +1107,8 @@ class ExecutionHandler:
         """
         if order_id is None:
             logger.error(
-                f"Execution {execution.id}: Cannot monitor order on {exchange_id}, order ID is None."
+                f"Execution {execution.id}: Cannot monitor order on {exchange_id}, "
+                f"order ID is None."
             )
             return None  # Or perhaps OrderStatus.REJECTED?
 

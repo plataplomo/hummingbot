@@ -2,7 +2,8 @@
 OrderManager: Business Logic Layer for Order State Management
 ------------------------------------------------------------
 
-Handles all order state mutation, fill reconciliation, average fill price calculation, and status transitions.
+Handles all order state mutation, fill reconciliation, average fill price calculation,
+and status transitions.
 This is the only place where order state mutation, snapping, and status transitions occur.
 
 - Applies new fills/trades to an order
@@ -37,7 +38,8 @@ class OrderManager:
     @staticmethod
     def apply_fill(order: "Order", trade: "Trade") -> None:
         """
-        Apply a new fill/trade to the order, updating filled quantity, average fill price, and status.
+        Apply a new fill/trade to the order, updating filled quantity, average fill price,
+        and status.
         Handles overfill (snapping) and logs inconsistencies.
         Args:
             order (Order): The order to update.

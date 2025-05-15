@@ -115,13 +115,15 @@ class Ticker(BaseModel):
                     return mid
                 else:
                     logger.warning(
-                        f"Mid-price calculation for {self.symbol} resulted in non-finite value from bid={self.bid}, ask={self.ask}"
+                        f"Mid-price calculation for {self.symbol} resulted in non-finite value "
+                        f"from bid={self.bid}, ask={self.ask}"
                     )
                     return None
             except InvalidOperation:  # Catch only InvalidOperation for calculation issues
                 # Should not happen if inputs are finite Decimals, but defensive
                 logger.error(
-                    f"Error calculating mid-price for {self.symbol} from bid={self.bid}, ask={self.ask}",
+                    f"Error calculating mid-price for {self.symbol} "
+                    f"from bid={self.bid}, ask={self.ask}",
                     exc_info=True,
                 )
                 return None

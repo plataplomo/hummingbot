@@ -261,7 +261,8 @@ def mock_config_dict() -> dict[str, Any]:
                 # For RiskManager.min_opportunity_profitability (uses first found)
                 "min_net_funding_differential": "0.00005",  # More specific path for this
                 # For RiskManager.min_net_funding_differential attribute
-                # "min_net_funding_differential": "0.0001", # If separate, or ensure the one above is used
+                # "min_net_funding_differential": "0.0001", # If separate, or ensure
+                # the one above is used
                 "max_single_position_exposure_ratio": "0.1",  # Default, but can be set
             },
             "kelly": {
@@ -271,12 +272,14 @@ def mock_config_dict() -> dict[str, Any]:
                 "min_volatility": "0.0005",
             },
             # This key is specific and correctly structured for RiskManager._load_config
-            "min_exchange_balance": "20.0",  # This key was previously under "risk_manager", moving to "risk" as per direct load.
+            "min_exchange_balance": "20.0",  # This key was previously under "risk_manager",
+            # moving to "risk" as per direct load.
             # Actually, RiskManager loads this as "risk_manager.min_exchange_balance".
             # Keeping it separate for now to see if it loads, might need adjustment
         },
         "risk_manager": {  # Keeping this key for settings specific to "risk_manager.*" path
-            "min_exchange_balance": "20.0"  # This will be loaded by risk_manager.min_exchange_balance
+            "min_exchange_balance": "20.0"  # This will be loaded by
+            # risk_manager.min_exchange_balance
         },
         "data_handler": {"max_staleness_seconds": 30},
         "execution_handler": {
@@ -587,10 +590,14 @@ async def test_happy_path_full_cycle(
     )
     # Configure mock APIs to return these order books
     # Assign AsyncMock directly to the method for mocking purposes
-    # mock_hl_api.get_order_book = AsyncMock(return_value=mock_hl_ob)  # type: ignore[assignment] # Replaced with configure_mock
-    # mock_bp_api.get_order_book = AsyncMock(return_value=mock_bp_ob)  # type: ignore[assignment] # Replaced with configure_mock
-    # mock_hl_api.get_order_book.return_value = mock_hl_ob # Assuming get_order_book is already an AsyncMock - Incorrect
-    # mock_bp_api.get_order_book.return_value = mock_bp_ob # Assuming get_order_book is already an AsyncMock - Incorrect
+    # mock_hl_api.get_order_book = AsyncMock(return_value=mock_hl_ob)  # type: ignore[assignment]
+    # Replaced with configure_mock
+    # mock_bp_api.get_order_book = AsyncMock(return_value=mock_bp_ob)  # type: ignore[assignment]
+    # Replaced with configure_mock
+    # mock_hl_api.get_order_book.return_value = mock_hl_ob # Assuming get_order_book
+    # is already an AsyncMock - Incorrect
+    # mock_bp_api.get_order_book.return_value = mock_bp_ob # Assuming get_order_book
+    # is already an AsyncMock - Incorrect
     mocker.patch.object(mock_hl_api, "get_order_book", return_value=mock_hl_ob)
     mocker.patch.object(mock_bp_api, "get_order_book", return_value=mock_bp_ob)
 
@@ -993,7 +1000,8 @@ async def test_partial_fill(
             logger.warning(f"MOCK BP get_order_status: Unknown order ID {order_id}")
             return None
 
-    # mock_bp_api.get_order_status.side_effect = get_order_status_side_effect_bp # Replaced by mocker.patch
+    # mock_bp_api.get_order_status.side_effect = get_order_status_side_effect_bp
+    # Replaced by mocker.patch
     mocker.patch.object(
         mock_bp_api, "get_order_status", side_effect=get_order_status_side_effect_bp
     )
@@ -1069,7 +1077,8 @@ async def test_partial_fill(
             logger.warning(f"MOCK HL get_order_status: Unknown order ID {order_id}")
             return None
 
-    # mock_hl_api.get_order_status.side_effect = get_order_status_side_effect_hl # Replaced by mocker.patch
+    # mock_hl_api.get_order_status.side_effect = get_order_status_side_effect_hl
+    # Replaced by mocker.patch
     mocker.patch.object(
         mock_hl_api, "get_order_status", side_effect=get_order_status_side_effect_hl
     )
@@ -1235,7 +1244,8 @@ async def test_execution_failure_compensation(
     mock_hl_api.set_mock_ticker(mock_usd_usdc_hl_ticker)  # Add to Hyperliquid mock API
 
     mock_bp_api.set_mock_ticker(mock_bp_ticker)
-    # mock_bp_api.set_mock_ticker(mock_usdc_usd_ticker) # Old name, renamed to mock_usdc_usd_bp_ticker
+    # mock_bp_api.set_mock_ticker(mock_usdc_usd_ticker)
+    # Old name, renamed to mock_usdc_usd_bp_ticker
     mock_bp_api.set_mock_ticker(mock_usdc_usd_bp_ticker)  # Add to Backpack mock API
 
     # Funding Rates (Flipped to make BP long)
@@ -1388,7 +1398,8 @@ async def test_execution_failure_compensation(
             logger.warning(f"MOCK BP get_order_status: Unknown order ID {order_id}")
             return None
 
-    # mocker.patch.object(mock_bp_api, "get_order_status", side_effect=get_order_status_side_effect_bp)
+    # mocker.patch.object(mock_bp_api, "get_order_status",
+    # side_effect=get_order_status_side_effect_bp)
     if not hasattr(mock_bp_api.get_order_status, "call_args_list"):
         mocker.patch.object(
             mock_bp_api,
@@ -1469,7 +1480,8 @@ async def test_execution_failure_compensation(
             logger.warning(f"MOCK HL get_order_status: Unknown order ID {order_id}")
             return None
 
-    # mocker.patch.object(mock_hl_api, "get_order_status", side_effect=get_order_status_side_effect_hl)
+    # mocker.patch.object(mock_hl_api, "get_order_status",
+    # side_effect=get_order_status_side_effect_hl)
     if not hasattr(mock_hl_api.get_order_status, "call_args_list"):
         mocker.patch.object(
             mock_hl_api, "get_order_status", side_effect=get_order_status_side_effect_hl
@@ -1756,7 +1768,8 @@ async def test_failed_execution(
     assert "Simulated placement error" in trade_execution_result.error_message
     # BP leg (long) would not be attempted if short leg fails first in sequential placement.
     # If parallel, its status might differ. Current EH logic seems sequential short then long.
-    # Thus, if short_order_id is None due to pre-placement failure, long_order_id should also be None.
+    # Thus, if short_order_id is None due to pre-placement failure,
+    # long_order_id should also be None.
     assert trade_execution_result.short_order_id is None  # HL leg (short) failed placement
     assert trade_execution_result.long_order_id is None  # BP leg (long) should not have been placed
 

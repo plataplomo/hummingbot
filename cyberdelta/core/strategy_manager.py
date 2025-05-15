@@ -217,7 +217,7 @@ class StrategyManager:
                         "Malformed signal received from strategy",
                         strategy_name=strategy.name,
                         signal_data=signal_data_dict,  # Log the dict
-                        error_details="Signal object missing required attributes or not a TradeSignal",  # Provide specific reason
+                        error_details="Signal object missing required attributes or not a TradeSignal",
                     )
                     continue  # Skip to the next signal
 

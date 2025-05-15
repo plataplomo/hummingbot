@@ -961,15 +961,19 @@ async def test_max_total_exposure_constraint_prevents_trade(
 
     logger.info(
         f"Test: RM Configs: max_total_exposure_usd={risk_manager.max_total_exposure_usd}, "
-        f"max_position_size={risk_manager.max_position_size}, kelly_fraction={risk_manager.kelly_fraction}, "
+        f"max_position_size={risk_manager.max_position_size}, "
+        f"kelly_fraction={risk_manager.kelly_fraction}, "
         f"max_single_position_exposure={risk_manager.max_single_position_exposure}"
     )
     logger.info(
-        f"Test: PT mock total_capital: {risk_manager.portfolio_tracker.get_total_capital.return_value}, "
-        f"PT mock total_exposure: {risk_manager.portfolio_tracker.get_total_exposure_usd.return_value}"
+        f"Test: PT mock total_capital: "
+        f"{risk_manager.portfolio_tracker.get_total_capital.return_value}, "
+        f"PT mock total_exposure: "
+        f"{risk_manager.portfolio_tracker.get_total_exposure_usd.return_value}"
     )
     logger.info(
-        f"Test: Sizing opportunity (volatility={basic_opportunity.basis_volatility}): {basic_opportunity}"
+        f"Test: Sizing opportunity "
+        f"(volatility={basic_opportunity.basis_volatility}): {basic_opportunity}"
     )
 
     sized_opportunity = await risk_manager.size_opportunity(basic_opportunity)
@@ -979,8 +983,8 @@ async def test_max_total_exposure_constraint_prevents_trade(
 
     assert sized_opportunity is None
     assert (
-        "rejected due to portfolio constraints: Adding $2500.00 would exceed max total exposure ($100.00)"
-        in caplog.text
+        "rejected due to portfolio constraints: Adding $2500.00 would exceed "
+        "max total exposure ($100.00)" in caplog.text
     ), "Specific constraint failure message for max total exposure not found in logs."
 
 
@@ -996,7 +1000,8 @@ async def test_min_trade_size_constraint_prevents_trade(
     risk_manager.max_trade_size_usd = Decimal("100000")  # Ensure this doesn't interfere
 
     # Configure the portfolio_tracker *that risk_manager is using*
-    # risk_manager.portfolio_tracker is the mock created by create_autospec in the risk_manager fixture
+    # risk_manager.portfolio_tracker is the mock created by create_autospec
+    # in the risk_manager fixture
 
     assert hasattr(risk_manager.portfolio_tracker, "get_total_capital"), (
         "RiskManager's portfolio_tracker mock is missing get_total_capital attribute"

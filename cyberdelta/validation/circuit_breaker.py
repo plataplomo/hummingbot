@@ -472,8 +472,9 @@ class APIErrorBreaker(CircuitBreaker):
             return True
         elif success_recovery:
             logger.info(
-                f"APIErrorBreaker {self.name} recovery check: Despite {len(recent_errors)} recent errors, "
-                f"has {self.consecutive_success_count} consecutive successes - recovery allowed"
+                f"APIErrorBreaker {self.name} recovery check: Despite {len(recent_errors)} "
+                f"recent errors, has {self.consecutive_success_count} consecutive successes "
+                f"- recovery allowed"
             )
             return True
         else:
@@ -630,7 +631,8 @@ class CircuitBreakerSystem:
                 if not isinstance(config_data_for_this_breaker_type, dict):
                     logger.warning(
                         f"Configuration for breaker type '{breaker_type_key}' under exchange "
-                        f"'{exchange_id}' is not a dict (found {type(config_data_for_this_breaker_type)}). "
+                        f"'{exchange_id}' is not a dict "
+                        f"(found {type(config_data_for_this_breaker_type)}). "
                         "Skipping."
                     )
                     continue
@@ -698,13 +700,12 @@ class CircuitBreakerSystem:
                                     f"{created_breaker_instance.name}"
                                 )
                     else:
-                        # No symbols provided for a type that is usually symbol-specific.
-                        # Depending on policy, could create a "global for exchange" version or warn.
                         # For now, let's assume Volatility/Liquidity require symbols.
                         logger.warning(
-                            f"No symbols list found or list is empty for symbol-specific breaker type "
-                            f"'{breaker_type_key}' on exchange '{exchange_id}'. "
-                            "No non-symbol-specific version will be created automatically by default for this type."
+                            f"No symbols list found or list is empty for symbol-specific "
+                            f"breaker type '{breaker_type_key}' on exchange '{exchange_id}'. "
+                            "No non-symbol-specific version will be created automatically "
+                            "by default for this type."
                         )
                 else:  # For non-symbol-specific types like api_error, drawdown
                     created_breaker_instance = self._create_breaker_from_config(

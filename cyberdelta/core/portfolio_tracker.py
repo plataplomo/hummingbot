@@ -80,7 +80,8 @@ class PortfolioTracker:
         # Balances: dict[exchange_id, dict[asset_symbol, SpotBalance]]
         self.balances: defaultdict[str, defaultdict[str, SpotBalance]] = defaultdict(
             lambda: defaultdict(
-                # Ensure a default SpotBalance that makes sense if an asset is queried before it's set
+                # Ensure a default SpotBalance that makes sense if an asset is queried
+                # before it's set
                 lambda: SpotBalance(
                     exchange="",  # Should be overridden or considered invalid
                     asset="",  # Should be overridden or considered invalid
@@ -362,14 +363,16 @@ class PortfolioTracker:
                             f"due to mismatched exchange ID ({balance_obj.exchange}) "
                             f"in received SpotBalance object (from dict)."
                         )
-            else:  # DEFENSIVE CHECK: Handle unexpected types for balances_data_raw. Mypy=[unreachable]
+            else:  # DEFENSIVE CHECK: Handle unexpected types for balances_data_raw.
+                # Mypy=[unreachable]
                 logger.error(
                     f"[{exchange_id}] Unexpected type for balances_data_raw: "
                     f"{type(balances_data_raw)}"
                 )
                 return False  # Indicate failure due to unexpected data type
 
-            # Update internal state if new valid balances were found or if an empty list/dict signified clearing
+            # Update internal state if new valid balances were found or if an empty list/dict
+            # signified clearing
             if (
                 updated_balances
                 or (
@@ -1041,7 +1044,8 @@ class PortfolioTracker:
                         entry_price_in_base = None  # Explicitly set to None if conversion fails
 
                 # 5. Calculate Unrealized PNL if possible
-                # DEFENSIVE CHECK: Add explicit None checks for mark_price_in_base and entry_price_in_base
+                # DEFENSIVE CHECK: Add explicit None checks for mark_price_in_base
+                # and entry_price_in_base
                 if (
                     mark_price_in_base is not None
                     and entry_price_in_base is not None
@@ -1208,7 +1212,8 @@ class PortfolioTracker:
                                 )
                             except ValidationError as e:
                                 logger.error(
-                                    f"Error validating SpotBalance for {asset_str} on {ex_id_str}: {e}"
+                                    f"Error validating SpotBalance for {asset_str} "
+                                    f"on {ex_id_str}: {e}"
                                 )
                         elif isinstance(bal_data_any, SpotBalance):  # If already an object
                             tracker.balances[ex_id_str][asset_str] = bal_data_any
@@ -1231,7 +1236,8 @@ class PortfolioTracker:
                                 )
                             except ValidationError as e:
                                 logger.error(
-                                    f"Error validating DerivativePosition for {sym_str} on {ex_id_str_pos}: {e}"
+                                    f"Error validating DerivativePosition for {sym_str} "
+                                    f"on {ex_id_str_pos}: {e}"
                                 )
                         elif isinstance(pos_data_any, DerivativePosition):
                             tracker.positions[ex_id_str_pos][sym_str] = pos_data_any

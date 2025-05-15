@@ -190,8 +190,10 @@ class PrioritySignalQueue:
                     self.logger.error(
                         "Failed to trim queue after adding signal. State might be inconsistent."
                     )
-                    # Decide behavior: raise error, remove added signal, or just log? Logging for now.
-                    # Attempt removal of the just added signal (based on counter) might be complex if heap reordered.
+                    # Decide behavior: raise error, remove added signal, or just log?
+                    # Logging for now.
+                    # Attempt removal of the just added signal (based on counter) might be complex
+                    # if heap reordered.
                     # Let's return False for now, though the signal *is* in the queue.
                     return False  # Indicate potential issue post-add
 
@@ -627,7 +629,8 @@ class PrioritySignalQueue:
     def _check_circuit_breakers_post_get(self, signal: TradeSignal) -> bool:
         """Check circuit breakers just before returning a signal from get_next_signal."""
         # This method simply reuses the pre-add logic.
-        # If the pre-add check passes, the signal is considered okay from CB perspective *at this moment*.
+        # If the pre-add check passes, the signal is considered okay from CB perspective
+        # *at this moment*.
         # The pre-add logic already handles logging for rejections.
         if not self.circuit_breaker_system:
             return True  # No CB system, always allow
@@ -943,7 +946,8 @@ class PrioritySignalQueue:
         for exchange_name in set(exchanges_to_check):  # Use set to avoid redundant checks
             # Assume a generic breaker type like "main" for get_exchange_breaker
             # Or, if checking for specific types like "api_errors", that should be specified.
-            # For a general check, let's assume a primary exchange breaker type, e.g., "main_exchange_operations"
+            # For a general check, let's assume a primary exchange breaker type, e.g.,
+            # "main_exchange_operations"
             exchange_breaker = self.circuit_breaker_system.get_exchange_breaker(
                 exchange_name, "main_exchange_operations"
             )
