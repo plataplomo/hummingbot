@@ -469,7 +469,8 @@ async def test_happy_path_full_cycle(
     caplog: LogCaptureFixture,
     mocker: MockerFixture,
 ) -> None:
-    """Tests the full arbitrage cycle: data -> signal -> validation -> execution -> portfolio update."""
+    """Tests the full arbitrage cycle: data -> signal -> validation -> execution -> \
+    portfolio update."""
     # --- Force DEBUG logging for this test ---
     caplog.set_level(logging.DEBUG)
     # Also configure the specific loggers if needed (optional)

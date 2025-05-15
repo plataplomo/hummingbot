@@ -29,7 +29,8 @@ class TestRiskManagerSizingStandard:
         # --- Arrange ---
         # Ensure simple path is off (should be default from mock_config_values)
         assert not mock_config.get("risk.use_simple_sizing_path")
-        # max_position_cap = risk_manager.max_position_size  # e.g., 1000.0 # No longer used in assertion logic
+        # max_position_cap = risk_manager.max_position_size  # e.g., 1000.0
+        # No longer used in assertion logic
 
         # Patch protected methods for test isolation (intentional for unit test)
         def portfolio_level_controls_side_effect(

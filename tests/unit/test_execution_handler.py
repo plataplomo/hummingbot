@@ -493,8 +493,10 @@ class TestExecutionHandler:
             mock_place_comp.assert_called_once()
 
             pos_args, kwargs = mock_place_comp.call_args
-            # _place_order_with_retry(execution, exchange_id, symbol, side, quantity, order_type, price, ...)
-            # Indices:                  0          1            2       3     4         5           6
+            # _place_order_with_retry(
+            #     execution, exchange_id, symbol, side, quantity, order_type, price, ...
+            # )
+            # Indices: 0 1 2 3 4 5 6
             assert pos_args[3] == OrderSide.SELL  # side
             assert pos_args[5] == OrderType.LIMIT  # order_type (derived in _compensate_position)
             assert pos_args[6] == comp_price  # price (derived in _compensate_position)
@@ -788,7 +790,8 @@ class TestExecutionHandler:
                     return OrderStatus.FILLED
                 else:
                     print(
-                        f"MonitorSideEffect WARN: Long leg, order_id '{order_id}' mismatch '{trade_exec.long_order_id}'"
+                        f"MonitorSideEffect WARN: Long leg, order_id '{order_id}' mismatch "
+                        f"'{trade_exec.long_order_id}'"
                     )
                     return None
             else:  # Short leg
@@ -825,7 +828,8 @@ class TestExecutionHandler:
                     return OrderStatus.FILLED
                 else:
                     print(
-                        f"MonitorSideEffect WARN: Short leg, order_id '{order_id}' mismatch '{trade_exec.short_order_id}'"
+                        f"MonitorSideEffect WARN: Short leg, order_id '{order_id}' mismatch "
+                        f"'{trade_exec.short_order_id}'"
                     )
                     return None
 
@@ -850,8 +854,8 @@ class TestExecutionHandler:
         assert execution_result.short_order_id == "EX127"
         assert execution_result.long_fill_quantity == sized_opportunity.long_size
         assert execution_result.short_fill_quantity == sized_opportunity.short_size
-        assert execution_result.long_fill_price == hl_ticker.ask  # type: ignore[attr-defined]
-        assert execution_result.short_fill_price == bp_ticker.bid  # type: ignore[attr-defined]
+        assert execution_result.long_fill_price == hl_ticker.ask
+        assert execution_result.short_fill_price == bp_ticker.bid
         assert execution_result.error_message is None
         assert mock_place_retry.call_count == 2
         mock_circuit_breaker_system.record_success.assert_called()

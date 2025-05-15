@@ -146,7 +146,7 @@ class PositionReconciliationSystem:
 
         self.last_check_time = now  # Update last check time *before* starting
 
-        tasks = {}
+        tasks: dict[str, asyncio.Task[dict[str, Any]]] = {}
         if api_clients:
             for exchange in api_clients.keys():
                 tasks[exchange] = self._reconcile_exchange(exchange)
@@ -156,13 +156,13 @@ class PositionReconciliationSystem:
 
         # Run reconciliation for all exchanges concurrently
         # Original gather logic (may need adjustment later)
-        results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+        results: list[Any] = await asyncio.gather(*tasks.values(), return_exceptions=True)
 
         # Original result processing logic (may need adjustment later)
         results_dict: dict[str, Any] = {}
-        exchange_keys = list(tasks.keys())
+        exchange_keys: list[str] = list(tasks.keys())
         for i, task_result in enumerate(results):
-            exchange_name = exchange_keys[i]
+            exchange_name: str = exchange_keys[i]
             if isinstance(task_result, Exception):
                 logger.error(f"Reconciliation task for {exchange_name} failed: {task_result}")
                 results_dict[exchange_name] = {
@@ -414,7 +414,8 @@ class PositionReconciliationSystem:
                 reconciliation_tasks.append(self._reconcile_exchange(exchange_id))
         else:
             logger.warning(
-                "PortfolioTracker has no api_clients attribute or it's not a dict. Skipping reconciliation."
+                "PortfolioTracker has no api_clients attribute or it's not a dict. "
+                "Skipping reconciliation."
             )
             overall_results["success"] = False
             overall_results["error"] = "PortfolioTracker missing or invalid api_clients"
@@ -626,7 +627,8 @@ class PositionReconciliationSystem:
                 )
         else:
             logger.warning(
-                "PortfolioTracker has no api_clients attribute or it's not a dict. Skipping reconciliation."
+                "PortfolioTracker has no api_clients attribute or it's not a dict. "
+                "Skipping reconciliation."
             )
             overall_results["success"] = False
             overall_results["error"] = "PortfolioTracker missing or invalid api_clients"

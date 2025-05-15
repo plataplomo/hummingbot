@@ -22,7 +22,7 @@ class TradingStrategy:
     def analyze_market(self, market_data: dict[str, Any]) -> dict[str, int]:
         raise NotImplementedError
 
-    def execute_trades(  # E501 Fix: Reformat signature
+    def execute_trades(
         self,
         signals: dict[str, int],
         market_data: dict[str, Any],
@@ -30,8 +30,10 @@ class TradingStrategy:
     ) -> dict[str, dict[str, Any]]:
         raise NotImplementedError
 
-    def calculate_metrics(  # E501 Fix: Reformat signature
-        self, trades: dict[str, dict[str, Any]], market_data: dict[str, Any]
+    def calculate_metrics(
+        self,
+        trades: dict[str, dict[str, Any]],
+        market_data: dict[str, Any],
     ) -> dict[str, Any]:
         raise NotImplementedError
 
@@ -122,7 +124,7 @@ class MockTradingStrategy(TradingStrategy):
                 signals[asset] = 1 if np.random.random() > 0.5 else -1
         return signals
 
-    def execute_trades(  # E501 Fix: Reformat signature
+    def execute_trades(
         self,
         signals: dict[str, int],
         market_data: dict[str, Any],
@@ -140,8 +142,10 @@ class MockTradingStrategy(TradingStrategy):
                 }
         return trades
 
-    def calculate_metrics(  # E501 Fix: Reformat signature
-        self, trades: dict[str, dict[str, Any]], market_data: dict[str, Any]
+    def calculate_metrics(
+        self,
+        trades: dict[str, dict[str, Any]],
+        market_data: dict[str, Any],
     ) -> dict[str, Any]:
         self.calculate_metrics_called = True
         # Mock implementation that returns basic metrics

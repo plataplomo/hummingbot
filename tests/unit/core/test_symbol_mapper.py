@@ -96,8 +96,8 @@ def test_symbol_mapper_init_skips_invalid_entries(caplog: LogCaptureFixture) -> 
         "Skipping (123: BTC-INVALID). Both must be strings."
     ) in caplog.text
     assert (
-        "Invalid symbol mapping entry for exchange 'invalid_value_type': Skipping (ETH: 456). Both must be strings."
-        in caplog.text
+        "Invalid symbol mapping entry for exchange 'invalid_value_type': "
+        "Skipping (ETH: 456). Both must be strings." in caplog.text
     )
 
 

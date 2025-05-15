@@ -107,7 +107,8 @@ class TestDataHandler:
 
     @pytest.mark.asyncio
     async def test_initialize_and_start_connections(self, data_handler: DataHandler) -> None:
-        """Test DataHandler initialization and that start_connections schedules connection maintenance."""
+        """Test DataHandler initialization and that start_connections schedules
+        connection maintenance."""
         # Initial state assertions (after __init__ from fixture)
         # These verify that _setup_data_structures in __init__ worked as expected
         # based on the mock_config in the data_handler fixture.
@@ -135,7 +136,8 @@ class TestDataHandler:
             assert mock_maintain_ws.call_count == 2
 
             # Check that it was called with the correct arguments for each exchange
-            # The symbols ["SYM1", "SYM2"] come from the fixture's default_get_side_effect for *.symbols
+            # The symbols ["SYM1", "SYM2"] come from the fixture's default_get_side_effect
+            # for *.symbols
             hyperliquid_client = data_handler.api_clients["hyperliquid"]
             backpack_client = data_handler.api_clients["backpack"]
 
@@ -220,11 +222,14 @@ class TestDataHandler:
             "BTC": test_funding_rate  # Store the FundingRate object directly
         }
         # Ensure last_update_time reflects the stale timestamp for the test
-        # The last_update_time for funding rates should be associated with the FundingRate object's timestamp
-        # or the time it was fetched. For this stale test, ensuring the FundingRate object itself
-        # has a stale timestamp is key. DataHandler's get_latest_funding_rate uses the object's timestamp.
-        # So, directly setting last_update_time["hyperliquid"]["BTC"] to stale_timestamp might be redundant
-        # if test_funding_rate.timestamp is already stale, but let's keep it for explicitness if the test relied on it.
+        # The last_update_time for funding rates should be associated with the FundingRate
+        # object's timestamp
+        # or the time it was fetched. For this stale test, ensuring the FundingRate object
+        # itself has a stale timestamp is key. DataHandler's get_latest_funding_rate uses the object's timestamp.
+        # So, directly setting last_update_time["hyperliquid"]["BTC"] to stale_timestamp
+        # might be redundant
+        # if test_funding_rate.timestamp is already stale, but let's keep it for explicitness
+        # if the test relied on it.
         data_handler.last_update_time["hyperliquid"]["BTC"] = stale_timestamp
 
         # Attempt to get the funding rate
@@ -306,7 +311,8 @@ class TestDataHandler:
         # Mock receive_ws_message to return our test message, then None to stop the loop
         mock_exchange_api.receive_ws_message = AsyncMock(side_effect=[test_message, None])
         # Mock is_connected to control the loop in _process_websocket_messages
-        # It should be True initially, then False after the message is processed (or when receive_ws_message returns None)
+        # It should be True initially, then False after the message is processed (or when
+        # receive_ws_message returns None)
         mock_exchange_api.is_connected = True
 
         async def SemicolonAwaitable() -> None:
@@ -329,7 +335,8 @@ class TestDataHandler:
             side_effect=set_is_connected_false_after_call,
         ) as mock_update_notify:
             # Call the handler
-            # _process_websocket_messages will loop internally based on client.is_connected and client.receive_ws_message()
+            # _process_websocket_messages will loop internally based on client.is_connected and
+            # client.receive_ws_message()
             await data_handler._process_websocket_messages("hyperliquid", mock_exchange_api)
 
             # Assert that _update_and_notify was called with correct args
@@ -497,7 +504,6 @@ class TestDataHandler:
                     await asyncio.wait_for(process_task, timeout=2.0)
                 except TimeoutError:
                     # This might happen if the loop in _process_websocket_messages doesn't terminate as expected
-                    # or if receive_ws_message mock isn't exhausted.
                     if not message_received.is_set():
                         pytest.fail(
                             "WebSocket message was not processed (receive_ws_message not called enough or loop issue)."
@@ -604,7 +610,6 @@ class TestDataHandler:
         # DataHandler.start_connections calls _maintain_websocket_connection which calls _connect_and_subscribe.
 
         # To gracefully stop the test after the intended behavior (reconnect attempt and then CancelledError from receive_ws_message):
-        # Change is_connected to False after CancelledError is raised by receive_ws_message.
         # We need to wrap the receive_ws_message_mock.side_effect if we want to change is_connected from there.
         # However, CancelledError from receive_ws_message should already stop the _process_websocket_messages loop.
 

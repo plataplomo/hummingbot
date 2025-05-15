@@ -22,7 +22,8 @@ from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.strategy import Strategy
 
-# from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy # Keep commented if causing issues
+# from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy \
+#     # Keep commented if causing issues
 from cyberdelta.testing import data_generation as synthetic_data
 
 # Configure logging

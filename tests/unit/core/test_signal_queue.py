@@ -223,7 +223,8 @@ async def test_add_signal_full_queue(signal_queue: PrioritySignalQueue) -> None:
     )  # Lowest score, should be trimmed if logic is correct
     result = await queue.add_signal(signal_extra)
     assert result is True  # Add should be successful, even if it triggers trimming
-    # The queue should be trimmed back to 3, and signal_extra (lowest score) should be the one removed.
+    # The queue should be trimmed back to 3, and signal_extra (lowest score)
+    # should be the one removed.
     assert await queue.count() == 3
 
     # Verify that signal_extra was NOT added (or was added then trimmed)
@@ -385,7 +386,8 @@ async def test_clean_expired_signals_direct_patch(
     mock_config: MagicMock,
     mock_circuit_breaker: MagicMock,
 ) -> None:  # Needs to be async
-    """Test cleaning expired signals using patched datetime (decorators replaced by context managers)."""
+    """Test cleaning expired signals using patched datetime (decorators replaced by
+    context managers)."""
     real_start_time = datetime.now(UTC)
     future_time_for_expirations = real_start_time + timedelta(seconds=100)
 
@@ -449,7 +451,9 @@ async def test_clean_expired_signals_direct_patch(
             await asyncio.sleep(0.1)  # Short real sleep, cleanup uses mocked time
 
             # Explicitly call cleanup (using mocked time)
-            queue._clean_expired_signals()  # DEFENSIVE CHECK: [Testing protected method]. Mypy=[] Ruff=[BLE001]
+            queue._clean_expired_signals(
+                # DEFENSIVE CHECK: [Testing protected method]. Mypy=[] Ruff=[BLE001]
+            )
 
             # Assertions after explicit cleanup
             current_signals = await queue.get_signals()
@@ -583,7 +587,9 @@ async def test_signal_expiration_logic(
             # --- Test Case 3: Explicitly clean and verify ---
             # Advance time further to ensure signal_not_to_expire also expires
             mock_dt_sq.now.return_value = real_current_time + timedelta(seconds=15)
-            queue._clean_expired_signals()  # DEFENSIVE CHECK: [Testing protected method]. Mypy=[] Ruff=[BLE001]
+            queue._clean_expired_signals(
+                # DEFENSIVE CHECK: [Testing protected method]. Mypy=[] Ruff=[BLE001]
+            )
 
             current_signals_after_manual_clean = await queue.get_signals()
             assert not current_signals_after_manual_clean, (
@@ -656,7 +662,9 @@ async def test_clean_expired_signals_with_helper(
         await queue.add_signal(signal_expired)
 
         # *** Explicitly call cleanup AFTER adding signals ***
-        queue._clean_expired_signals()  # DEFENSIVE CHECK: [Testing protected method]. Mypy=[] Ruff=[BLE001]
+        queue._clean_expired_signals(
+            # DEFENSIVE CHECK: [Testing protected method]. Mypy=[] Ruff=[BLE001]
+        )
 
         # Assertions after explicit cleanup
         current_signals = await queue.get_signals()

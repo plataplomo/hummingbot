@@ -103,7 +103,8 @@ class MockExchangeAPI(ExchangeAPI):
 
         if not is_valid_url:
             logger.warning(
-                f"[{exchange_name}] MockExchangeAPI overriding api_base_url '{current_api_base_url}' "
+                f"[{exchange_name}] MockExchangeAPI overriding api_base_url "
+                f"'{current_api_base_url}' "
                 f"with 'http://fixedmock.exchange' for HttpClientConfig stability."
             )
             config_copy["api_base_url"] = "http://fixedmock.exchange"  # Force a valid one
@@ -199,7 +200,8 @@ class MockExchangeAPI(ExchangeAPI):
         """Sets a mock balance for a specific asset."""
         if balance.exchange != self.exchange_name:
             logger.warning(
-                f"Attempted to set balance for {balance.exchange} on {self.exchange_name} mock. Ignoring."
+                f"Attempted to set balance for {balance.exchange} on "
+                f"{self.exchange_name} mock. Ignoring."
             )
             return
         self._balances[balance.asset] = balance
@@ -214,14 +216,16 @@ class MockExchangeAPI(ExchangeAPI):
         """Sets a mock funding rate for a specific symbol."""
         self._mock_funding_rates[funding_rate.symbol] = funding_rate
         logger.debug(
-            f"Mock funding rate set for {self.exchange_name} - {funding_rate.symbol}: {funding_rate}"
+            f"Mock funding rate set for {self.exchange_name} - "
+            f"{funding_rate.symbol}: {funding_rate}"
         )
 
     def set_mock_position(self, position: DerivativePosition) -> None:
         """Sets a mock derivative position for a specific symbol."""
         if position.exchange != self.exchange_name:
             logger.warning(
-                f"Attempted to set position for {position.exchange} on {self.exchange_name} mock. Ignoring."
+                f"Attempted to set position for {position.exchange} on "
+                f"{self.exchange_name} mock. Ignoring."
             )
             return
         self._positions[position.symbol] = (
@@ -235,7 +239,8 @@ class MockExchangeAPI(ExchangeAPI):
         self._check_error("get_account_summary")
         await self._simulate_latency()
 
-        # For simplicity, return a generic summary. Tests can override by mocking this method further if needed.
+        # For simplicity, return a generic summary. Tests can override by mocking this
+        # method further if needed.
         # Or, could store a self._mock_account_summary and allow tests to set it.
         now = datetime.now(UTC)
         # Basic mock summary, can be expanded or made configurable
@@ -736,8 +741,10 @@ class MockExchangeAPI(ExchangeAPI):
             logger.warning(
                 f"Mock {self.exchange_name}: Order {order_key_to_find} not found for cancellation."
             )
-            # Consistent with ExchangeAPI, should return False if order not found or already terminal.
-            # Raising APIError for not found might be too strict for a simple cancel call unless specified.
+            # Consistent with ExchangeAPI, should return False if order not found or
+            # already terminal.
+            # Raising APIError for not found might be too strict for a simple cancel call
+            # unless specified.
             return False  # Order not found
 
         order_to_cancel = self.open_orders[order_key_to_find]
@@ -918,7 +925,8 @@ class MockExchangeAPI(ExchangeAPI):
             if order_id in self.open_orders:
                 del self.open_orders[order_id]
         logger.info(
-            f"MockExchange {self.exchange_name}: Cancelled all orders ({len(orders_to_cancel_ids)})"
+            f"MockExchange {self.exchange_name}: Cancelled all orders "
+            f"({len(orders_to_cancel_ids)})"
             f"{' for symbol ' + symbol if symbol else ''}."
         )
         pass

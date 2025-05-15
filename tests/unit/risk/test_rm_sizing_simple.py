@@ -497,8 +497,8 @@ class TestRiskManagerSizingSimple:
                     # This part of the original side_effect might need careful thought
                     # if the dynamic changes are supposed to affect keys not initially present.
                     # For now, assume dynamic changes only affect existing keys in live_test_config_data.
-                    # If a key is not in live_test_config_data, it will use the initial state of test_specific_config
-                    # which was derived from live_test_config_data's initial state.
+                    # If a key is not in live_test_config_data, it will use the initial state of
+                    # test_specific_config which was derived from live_test_config_data's initial state.
                     # To be robust, we might need to re-create a Config from the original mock_config_dict
                     # if a key isn't found in live_test_config_data.
                     # However, the test modifies existing keys, so this should be okay.
@@ -519,6 +519,13 @@ class TestRiskManagerSizingSimple:
         mock_funding_validator.get_symbol_metrics = MagicMock(
             return_value={"rmse": 0.0, "bias": 0.0}
         )
+
+        # Mock safety systems: Low validation factor (get_symbol_metrics part)
+        mock_funding_validator.get_symbol_metrics.return_value = {
+            "rmse": 1.0,  # Values don't matter as FV is not directly used by
+            # _apply_portfolio_level_controls
+            "bias": 1.0,
+        }
 
         # Patch the 'get' method of the test_specific_config instance
         with patch.object(test_specific_config, "get", side_effect=dynamic_config_get):

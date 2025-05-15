@@ -533,7 +533,8 @@ def mock_config_with_exchanges() -> Config:
                     "drawdown": {
                         "enabled": True,
                         "max_drawdown_percentage": 0.10,
-                        "peak_lookback_periods": 100,  # Note: peak_lookback_periods is not used by current DrawdownBreaker constructor
+                        "peak_lookback_periods": 100,  # Note: peak_lookback_periods is not used by
+                        # current DrawdownBreaker constructor
                     },
                     "liquidity": {
                         "enabled": True,

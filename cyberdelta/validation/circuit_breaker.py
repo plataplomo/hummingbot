@@ -583,7 +583,8 @@ class CircuitBreakerSystem:
                     self.global_api_error_breaker = created_global_api_breaker
                     self.register_breaker(self.global_api_error_breaker)  # Register in flat list
                     logger.info(
-                        f"Initialized global API error breaker: {self.global_api_error_breaker.name}"
+                        f"Initialized global API error breaker: "
+                        f"{self.global_api_error_breaker.name}"
                     )
             else:
                 logger.info("Global API error breaker is disabled in config.")
@@ -628,15 +629,17 @@ class CircuitBreakerSystem:
 
                 if not isinstance(config_data_for_this_breaker_type, dict):
                     logger.warning(
-                        f"Configuration for breaker type '{breaker_type_key}' under exchange '{exchange_id}' "
-                        f"is not a dict (found {type(config_data_for_this_breaker_type)}). Skipping."
+                        f"Configuration for breaker type '{breaker_type_key}' under exchange "
+                        f"'{exchange_id}' is not a dict (found {type(config_data_for_this_breaker_type)}). "
+                        "Skipping."
                     )
                     continue
 
                 is_enabled = config_data_for_this_breaker_type.get("enabled", True)
                 if not is_enabled:
                     logger.info(
-                        f"Breaker type '{breaker_type_key}' for exchange '{exchange_id}' is disabled in config."
+                        f"Breaker type '{breaker_type_key}' for exchange '{exchange_id}' "
+                        "is disabled in config."
                     )
                     continue
 
@@ -671,7 +674,8 @@ class CircuitBreakerSystem:
                         for symbol_str in symbols_list:
                             if not isinstance(symbol_str, str) or not symbol_str.strip():
                                 logger.warning(
-                                    f"Invalid symbol '{symbol_str}' in config for {base_name_for_breaker}. Skipping."
+                                    f"Invalid symbol '{symbol_str}' in config for "
+                                    f"{base_name_for_breaker}. Skipping."
                                 )
                                 continue
 
@@ -690,7 +694,8 @@ class CircuitBreakerSystem:
                                     breaker_type_key, {}
                                 )[symbol_str.strip()] = created_breaker_instance
                                 logger.info(
-                                    f"Initialized {target_class.__name__} for {created_breaker_instance.name}"
+                                    f"Initialized {target_class.__name__} for "
+                                    f"{created_breaker_instance.name}"
                                 )
                     else:
                         # No symbols provided for a type that is usually symbol-specific.
@@ -698,7 +703,8 @@ class CircuitBreakerSystem:
                         # For now, let's assume Volatility/Liquidity require symbols.
                         logger.warning(
                             f"No symbols list found or list is empty for symbol-specific breaker type "
-                            f"'{breaker_type_key}' on exchange '{exchange_id}'. No non-symbol-specific version will be created automatically by default for this type."
+                            f"'{breaker_type_key}' on exchange '{exchange_id}'. "
+                            "No non-symbol-specific version will be created automatically by default for this type."
                         )
                 else:  # For non-symbol-specific types like api_error, drawdown
                     created_breaker_instance = self._create_breaker_from_config(
@@ -720,11 +726,13 @@ class CircuitBreakerSystem:
                             created_breaker_instance
                         )
                         logger.info(
-                            f"Initialized {target_class.__name__} for {created_breaker_instance.name}"
+                            f"Initialized {target_class.__name__} for "
+                            f"{created_breaker_instance.name}"
                         )
 
         logger.info(
-            f"CircuitBreakerSystem: Finished loading configurations. Total registered breakers: {len(self.breakers)}"
+            f"CircuitBreakerSystem: Finished loading configurations. "
+            f"Total registered breakers: {len(self.breakers)}"
         )
         logger.debug(f"CircuitBreakerSystem: Exchange breakers structure: {self.exchange_breakers}")
 
@@ -904,8 +912,8 @@ class CircuitBreakerSystem:
                             f"successful check."
                         )
                         # Keep state HALF_OPEN, reset success count
-                        # Assumes _recovery_success_counts exists, which might be incorrect
-                        # self._recovery_success_counts[exchange_breaker_name] = 0 # Commenting out potentially incorrect line
+                        # Commenting out potentially incorrect line
+                        # self._recovery_success_counts[exchange_breaker_name] = 0
                 else:
                     # Correctly formatted multi-line f-string
                     logger.info(
@@ -1026,7 +1034,10 @@ class CircuitBreakerSystem:
             # Specific handling for APIErrorBreaker to also reset its internal error tracking
             if isinstance(breaker, APIErrorBreaker):
                 breaker.errors.clear()  # Corrected: use .errors attribute
-            logger.info(f"Breaker '{name}' has been reset.")
+            logger.info(
+                f"Breaker '{name}' reset. "
+                f"Previous state: {was_open}, New state: {breaker.state.name}"
+            )
             # Log if it was previously open and now closed
             if was_open and breaker.state == BreakerState.CLOSED:
                 logger.info(f"Breaker '{name}' successfully transitioned from OPEN to CLOSED.")
@@ -1078,14 +1089,17 @@ class CircuitBreakerSystem:
                 if breaker.state != BreakerState.OPEN:
                     breaker.trip(f"Critical system '{system_name}' reported as unhealthy.")
                     logger.critical(
-                        f"Critical system breaker '{breaker_name}' tripped due to {system_name} unhealthiness."
+                        f"Critical system breaker '{breaker_name}' tripped due to "
+                        f"{system_name} unhealthiness."
                     )
             else:  # System is healthy
                 if breaker.state == BreakerState.OPEN or breaker.state == BreakerState.HALF_OPEN:
-                    # If the system is reported healthy and breaker was open/half-open, attempt reset.
+                    # If the system is reported healthy and breaker was open/half-open,
+                    # attempt reset.
                     # For critical systems, we might reset more assertively if health is confirmed.
                     logger.info(
-                        f"Critical system '{system_name}' reported as healthy. Resetting breaker '{breaker_name}'."
+                        f"Critical system '{system_name}' reported as healthy. "
+                        f"Resetting breaker '{breaker_name}'."
                     )
                     breaker.reset()
                     # For APIErrorBreaker types, ensure internal error counts are also cleared
@@ -1109,7 +1123,8 @@ class CircuitBreakerSystem:
             reset_count += 1
             logger.info(
                 f"Breaker '{breaker.name}' reset. "
-                f"Previous state: {current_state_before_reset.name}, New state: {breaker.state.name}"
+                f"Previous state: {current_state_before_reset.name}, "
+                f"New state: {breaker.state.name}"
             )
         if reset_count > 0:
             logger.info(f"Reset {reset_count} total breakers.")
@@ -1152,25 +1167,27 @@ class CircuitBreakerSystem:
             if cooldown_raw is None and default_cooldown_override is not None:
                 cooldown_raw = default_cooldown_override
 
-            # If still None, try a more general default from config (e.g. global default) or hardcode
+            # If still None, try a more general default from config (e.g. global default)
+            # or hardcode
             if cooldown_raw is None:
-                # Attempt to get a global default cooldown from the main config if exchange_name_context is 'global'
-                # or a very generic fallback.
+                # Attempt to get a global default cooldown from the main config if
+                # exchange_name_context is 'global' or a very generic fallback.
                 if exchange_name_context == "global":  # Special case for global API breaker
                     global_default_cooldown_path = (
                         "validation.circuit_breaker.global.api_errors.cooldown_seconds"
                     )
                     cooldown_raw = self.config.get(global_default_cooldown_path, 300)
                 else:  # For exchange breakers, if no specific or exchange default, use hardcoded.
-                    cooldown_raw = self.config.get(  # Fallback to a general system default if exists
+                    cooldown_raw = self.config.get(
+                        # Fallback to a general system default if exists
                         f"exchanges.{exchange_name_context}.circuit_breakers.defaults.cooldown_seconds",
                         300,
                     )
 
             if not isinstance(cooldown_raw, (int, float, str)):
                 logger.error(
-                    f"Cooldown value for breaker '{name}' is of an unexpected type: {cooldown_raw} (type: {type(cooldown_raw)}). "
-                    "Using system default 300s."
+                    f"Cooldown value for breaker '{name}' is of an unexpected type: {cooldown_raw} "
+                    f"(type: {type(cooldown_raw)}). Using system default 300s."
                 )
                 cooldown_raw = 300  # Fallback
 
@@ -1178,7 +1195,8 @@ class CircuitBreakerSystem:
                 cooldown = int(float(str(cooldown_raw)))  # Robust parsing: str -> float -> int
             except ValueError:
                 logger.error(
-                    f"Could not parse cooldown value '{cooldown_raw}' for breaker '{name}'. Using system default 300s."
+                    f"Could not parse cooldown value '{cooldown_raw}' for breaker '{name}'. "
+                    "Using system default 300s."
                 )
                 cooldown_raw = 300
                 cooldown = 300
@@ -1198,11 +1216,13 @@ class CircuitBreakerSystem:
                     breaker_specific_config.get("volatility_threshold", 0.05)
                 )
                 # Note: VolatilityBreaker's `name` might include the symbol if it's symbol-specific.
-                # The `symbol` arg to this function is for context, not directly used in constructor unless VolatilityBreaker changes.
+                # The `symbol` arg to this function is for context, not directly used in constructor
+                # unless VolatilityBreaker changes.
                 return VolatilityBreaker(name, lookback_periods, volatility_threshold, cooldown)
 
             elif breaker_class == DrawdownBreaker:
-                # Key for drawdown percentage might be "max_drawdown_percentage" or "drawdown_threshold"
+                # Key for drawdown percentage might be "max_drawdown_percentage" or
+                # "drawdown_threshold"
                 drawdown_threshold_val = breaker_specific_config.get(
                     "max_drawdown_percentage",
                     breaker_specific_config.get("drawdown_threshold", 0.10),
@@ -1219,22 +1239,26 @@ class CircuitBreakerSystem:
 
             else:
                 logger.error(
-                    f"Attempted to create unknown or unhandled breaker class: {breaker_class.__name__} for config key '{name}'"
+                    f"Attempted to create unknown or unhandled breaker class: "
+                    f"{breaker_class.__name__} for config key '{name}'"
                 )
                 return None
 
         except KeyError as e:
             logger.error(
-                f"Configuration key error for {name} (expected key: {e}). Details: {breaker_specific_config}"
+                f"Configuration key error for {name} (expected key: {e}). Details: "
+                f"{breaker_specific_config}"
             )
             return None
         except ValueError as e:
             logger.error(
-                f"Configuration value error for {name} (e.g., type conversion failed: {e}). Details: {breaker_specific_config}"
+                f"Configuration value error for {name} (e.g., type conversion failed: {e}). "
+                f"Details: {breaker_specific_config}"
             )
             return None
         except Exception as e:
             logger.error(
-                f"Generic error creating breaker {name} of type {breaker_class.__name__}: {e} (Config: {breaker_specific_config})"
+                f"Generic error creating breaker {name} of type {breaker_class.__name__}: {e} "
+                f"(Config: {breaker_specific_config})"
             )
             return None
