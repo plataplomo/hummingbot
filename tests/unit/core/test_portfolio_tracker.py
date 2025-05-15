@@ -322,30 +322,25 @@ class TestPortfolioTracker:
     ) -> None:
         """Test portfolio tracker initialization."""
         # Mock API responses for initialization
-        # Note: These need to return lists of model instances now
 
-        # Mock for get_balances
+        # Mock for get_balances - should return dict[str, SpotBalance]
         now_init = datetime.now(UTC)
-        mock_hl_balances = [
-            SpotBalance(
-                exchange="hyperliquid",
-                asset="USDC",
-                total_quantity=sample_balances_raw["hyperliquid"]["USDC"],
-                available_quantity=sample_balances_raw["hyperliquid"]["USDC"],
-                timestamp=now_init,
-            )
-        ]
-        mock_bp_balances = [
-            SpotBalance(
-                exchange="backpack",
-                asset="USDC",
-                total_quantity=sample_balances_raw["backpack"]["USDC"],
-                available_quantity=sample_balances_raw["backpack"]["USDC"],
-                timestamp=now_init,
-            )
-        ]
-        api_clients["hyperliquid"].get_balances.return_value = mock_hl_balances
-        api_clients["backpack"].get_balances.return_value = mock_bp_balances
+        mock_hl_usdc_balance = SpotBalance(
+            exchange="hyperliquid",
+            asset="USDC",
+            total_quantity=sample_balances_raw["hyperliquid"]["USDC"],
+            available_quantity=sample_balances_raw["hyperliquid"]["USDC"],
+            timestamp=now_init,
+        )
+        mock_bp_usdc_balance = SpotBalance(
+            exchange="backpack",
+            asset="USDC",
+            total_quantity=sample_balances_raw["backpack"]["USDC"],
+            available_quantity=sample_balances_raw["backpack"]["USDC"],
+            timestamp=now_init,
+        )
+        api_clients["hyperliquid"].get_balances.return_value = {"USDC": mock_hl_usdc_balance}
+        api_clients["backpack"].get_balances.return_value = {"USDC": mock_bp_usdc_balance}
 
         # Mock for get_positions
         mock_hl_positions = list(sample_positions["hyperliquid"].values())
@@ -554,15 +549,13 @@ class TestPortfolioTracker:
 
         # Setup mock API responses for reconciliation
         now_reconcile = datetime.now(UTC)
-        mock_hl_balances_rec = [
-            SpotBalance(
-                exchange="hyperliquid",
-                asset="USDC",
-                total_quantity=Decimal("10000"),
-                available_quantity=Decimal("9000"),
-                timestamp=now_reconcile,
-            )
-        ]
+        mock_hl_usdc_balance_rec = SpotBalance(
+            exchange="hyperliquid",
+            asset="USDC",
+            total_quantity=Decimal("10000"),
+            available_quantity=Decimal("9000"),
+            timestamp=now_reconcile,
+        )
         mock_hl_positions_rec = [
             DerivativePosition(
                 exchange="hyperliquid",
@@ -585,21 +578,20 @@ class TestPortfolioTracker:
                 created_at=now_reconcile,
                 order_type=OrderType.LIMIT,
                 time_in_force=TimeInForce.GTC,
-                # Explicitly provide all optional fields that default to None or specific values
                 exchange_order_id=None,
                 related_order_id=None,
                 quote_quantity_requested=None,
-                quantity_filled=Decimal("0"),  # Default
+                quantity_filled=Decimal("0"),
                 stop_price=None,
                 average_fill_price=None,
                 trigger_by=None,
-                reduce_only=False,  # Default
-                post_only=False,  # Default
+                reduce_only=False,
+                post_only=False,
                 updated_at=None,
                 triggered_at=None,
                 strategy_name=None,
                 signal_id=None,
-                trades=[],  # Default
+                trades=[],
                 hl_details=None,
                 bp_details=None,
             )
@@ -615,7 +607,8 @@ class TestPortfolioTracker:
             total_unrealized_pnl=Decimal("0"),
         )
 
-        api_clients["hyperliquid"].get_balances.return_value = mock_hl_balances_rec
+        # Ensure get_balances returns a dict
+        api_clients["hyperliquid"].get_balances.return_value = {"USDC": mock_hl_usdc_balance_rec}
         api_clients["hyperliquid"].get_positions.return_value = mock_hl_positions_rec
         api_clients["hyperliquid"].get_open_orders.return_value = mock_hl_orders_rec
         api_clients["hyperliquid"].get_account_summary.return_value = mock_hl_summary_rec

@@ -271,20 +271,25 @@ class PortfolioTracker:
                 return False
 
             logger.debug(f"[FETCH_BALANCES:{exchange_id}] Fetching balances from API...")
-            balances_data_raw: (
-                dict[str, SpotBalance] | list[SpotBalance] | None
-            ) = await client.get_balances()
+            # Revert to client.get_balances() and adjust type hint accordingly
+            # ExchangeAPI.get_balances() returns dict[str, SpotBalance] | None (if err implies None)
+            # However, the ABC defines -> dict[str, SpotBalance]. Assume None for safety.
+            balances_data: dict[str, SpotBalance] | None
+            balances_data = await client.get_balances()  # Changed from get_balances_raw
             logger.debug(
                 (
-                    f"[FETCH_BALANCES:{exchange_id}] Raw API response: {balances_data_raw} "
-                    f"(Type: {type(balances_data_raw)})"
+                    f"[FETCH_BALANCES:{exchange_id}] Raw API response: {balances_data} "  # Use data
+                    f"(Type: {type(balances_data)})"
                 ),
                 stacklevel=2,
             )
 
             updated_balances: dict[str, SpotBalance] = {}
 
-            if balances_data_raw is None:  # Explicitly handle None case
+            # DEFENSIVE CHECK: Balances from API can be None despite stricter ABC type hints,
+            # due to network/API errors.
+            # Pyright=[reportUnnecessaryIsInstance] Mypy=[unreachable]
+            if balances_data is None:  # Check for None first
                 logger.info(
                     f"[{exchange_id}] API returned None for balances. Clearing local cache."
                 )
@@ -296,62 +301,14 @@ class PortfolioTracker:
                             f"as API returned None."
                         )
                         self.last_update_time[exchange_id] = datetime.now(UTC)
-                # Early return if balances_data_raw is None, after handling cache clearing.
-                # This also satisfies Pyright's desire to not have the `is None` check later.
-                return True  # Or False if this is considered a failure to fetch
+                return True
 
-            elif isinstance(balances_data_raw, list):
-                balances_list: list[Any] = (
-                    balances_data_raw  # Temporarily Any to allow isinstance check
-                )
-                processed_new_balance = False
-                for item_any in balances_list:
-                    if not isinstance(item_any, SpotBalance):
-                        logger.warning(
-                            f"[{exchange_id}] Skipping non-SpotBalance item in "
-                            f"balances list: {item_any}"
-                        )
-                        continue
-                    item: SpotBalance = item_any  # Now item is confirmed SpotBalance
-
-                    if item.exchange == exchange_id:
-                        updated_balances[item.asset] = item
-                        processed_new_balance = True
-                    else:
-                        logger.warning(
-                            f"[{exchange_id}] Skipping balance for asset {item.asset} "
-                            f"due to mismatched exchange ID ({item.exchange}) "
-                            f"in received SpotBalance object."
-                        )
-                if not processed_new_balance and not balances_list:  # Empty list received
-                    logger.info(
-                        f"[FETCH_BALANCES:{exchange_id}] API returned an empty list of balances."
-                    )
-                    async with self._lock:
-                        if exchange_id in self.balances:
-                            self.balances[exchange_id].clear()
-                            logger.info(
-                                f"[FETCH_BALANCES:{exchange_id}] Cleared existing balance entries "
-                                f"as API returned an empty list."
-                            )
-                            self.last_update_time[exchange_id] = datetime.now(UTC)
-
-            else:  # balances_data_raw must be a dict here
-                balances_dict: dict[str, SpotBalance] = balances_data_raw
-                if not balances_dict:  # Empty dict received
-                    logger.info(f"[{exchange_id}] API returned an empty dictionary of balances.")
-                    async with self._lock:
-                        if exchange_id in self.balances:
-                            self.balances[exchange_id].clear()
-                            logger.info(
-                                f"[FETCH_BALANCES:{exchange_id}] Cleared existing balance entries "
-                                f"as API returned an empty dict."
-                            )
-                            self.last_update_time[exchange_id] = datetime.now(UTC)
-
-                for asset, balance_obj_any in balances_dict.items():
-                    balance_obj: SpotBalance = balance_obj_any
-
+            # If balances_data is not None, it must be dict[str, SpotBalance]
+            # No need for isinstance(list) or isinstance(dict) checks if type hint is accurate.
+            if not balances_data:  # Empty dict received
+                logger.info(f"[{exchange_id}] API returned an empty dictionary of balances.")
+            else:
+                for asset, balance_obj in balances_data.items():
                     if balance_obj.exchange == exchange_id:
                         updated_balances[asset] = balance_obj
                     else:
@@ -361,15 +318,8 @@ class PortfolioTracker:
                             f"in received SpotBalance object (from dict)."
                         )
 
-            # Update internal state if new valid balances were found or if an empty list/dict
-            # signified clearing
-            if (
-                updated_balances
-                # If balances_data_raw was not None (handled above),
-                # and not updated_balances, it implies balances_data_raw was an empty list/dict.
-                # The isinstance check here is redundant given the flow.
-                or (not updated_balances and not balances_data_raw)
-            ):
+            # Update internal state if new valid balances were found
+            if updated_balances:
                 async with self._lock:
                     current_assets_for_exchange = set(self.balances[exchange_id].keys())
                     newly_updated_asset_symbols = set(updated_balances.keys())
@@ -396,15 +346,15 @@ class PortfolioTracker:
                     f"Assets removed: {len(assets_to_remove)}."
                 )
             elif not updated_balances:
-                # This implies that balances_data_raw was not None,
+                # This implies that balances_data was not None,
                 # and if it was a list or dict, it was empty,
                 # and no balances were processed into updated_balances.
-                # If balances_data_raw was some other unexpected type,
+                # If balances_data was some other unexpected type,
                 # it would have been caught by an earlier `else`
                 # or the initial type hint for `client.get_balances()` would be violated.
                 logger.warning(
                     f"[FETCH_BALANCES:{exchange_id}] No valid balances processed or "
-                    f"API returned empty data. Type: {type(balances_data_raw)}"
+                    f"API returned empty data. Type: {type(balances_data)}"
                 )
                 # Not returning False here, as an empty (but valid) response is not an error.
 
@@ -1405,16 +1355,17 @@ class PortfolioTracker:
                             items_to_process.append(cast(dict[str, Any], item_val))
                         else:
                             self.logger.warning(
-                                f"Skipping unexpected value type in orders_data dict: {type(item_val)}"
+                                f"Skipping unexpected value type in orders_data dict: "
+                                f"{type(item_val)}"
                             )
-                # If not a dict, it must be list[Order] per type hint: list[Order] | dict[str, Any]
+                # If not a dict, it must be list[Order] per type hint
                 else:  # orders_data is list[Order]
-                    # orders_data is known to be list[Order] here, no further isinstance check needed.
+                    # orders_data is list[Order] here, no further isinstance check needed.
                     item_in_list: Order
                     for item_in_list in orders_data:
                         items_to_process.append(item_in_list)
-                # The original final else for unexpected orders_data type becomes effectively unreachable
-                # if the input strictly matches the type hint. This is acceptable.
+                # Original final else for unexpected orders_data type is effectively unreachable
+                # if input strictly matches type hint. This is acceptable.
 
                 for order_data_item in items_to_process:
                     if isinstance(order_data_item, dict):
@@ -1458,9 +1409,9 @@ class PortfolioTracker:
                                 f"Error validating Order for {client_id_for_log} "
                                 f"on {exchange_id}: {e}"
                             )
-                    # If not a dict, it must be an Order because items_to_process contains only Order | dict[str, Any]
-                    # and items that are not Order or dict were filtered out when building items_to_process.
-                    # The pre-filtering ensures that if it's not a dict here, it must be an Order.
+                    # If not dict, must be Order (items_to_process has Order | dict[str, Any],
+                    # and non-Order/dict items were filtered).
+                    # Pre-filtering ensures: if not dict here, it must be Order.
                     else:  # order_data_item must be an Order
                         order_obj_from_list: Order = order_data_item  # Renamed variable
                         # Process order object
@@ -1500,7 +1451,7 @@ class PortfolioTracker:
                 self.orders[exchange_id] = current_orders
                 self.logger.info(
                     f"Parsed {len(items_to_process)} order items for {exchange_id}. "
-                    f"{new_count} new (processed as Order objects), {updated_count} updated (from dict)."
+                    f"{new_count} new (as Order objects), {updated_count} updated (from dict)."
                 )
 
         asyncio.create_task(_do_parse())
