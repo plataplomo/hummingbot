@@ -417,11 +417,14 @@ class TestPortfolioTracker:
         # Initialize first to set reconciliation times and make initial API calls
         await portfolio_tracker.initialize()
 
-        # Reset mocks for specific methods AFTER initialize() to test the first update() call behavior
+        # Reset mocks for specific methods AFTER initialize() to test the first
+        # update() call behavior
         api_clients["hyperliquid"].get_balances.reset_mock()
         api_clients["hyperliquid"].get_positions.reset_mock()
-        # get_open_orders is always called by update(), so we don't reset it if we want to check its call for this update.
-        # However, the first assertion block only cares about get_balances for hyperliquid not being called.
+        # get_open_orders is always called by update(), so we don't reset it if we want
+        # to check its call for this update.
+        # However, the first assertion block only cares about get_balances for hyperliquid
+        # not being called.
         # For backpack, get_open_orders is asserted.
         api_clients["backpack"].get_open_orders.reset_mock()
         # Reset other backpack mocks that should NOT be called by the first update
@@ -433,7 +436,8 @@ class TestPortfolioTracker:
         now_update = datetime.now(UTC)
         # mock_hl_balances_update = [...] # Not needed if get_balances isn't called for HL
         mock_bp_orders_update = [sample_orders["backpack"]["bp-order-2"]]
-        # api_clients["hyperliquid"].get_balances.return_value = mock_hl_balances_update # Not expecting call
+        # api_clients["hyperliquid"].get_balances.return_value = mock_hl_balances_update
+        # # Not expecting call
         api_clients["backpack"].get_open_orders.return_value = mock_bp_orders_update
 
         # Set reconciliation times to be recent so NO reconciliation is needed initially
@@ -447,7 +451,8 @@ class TestPortfolioTracker:
         # Verify Hyperliquid did NOT fetch balances/positions (because no reconciliation)
         api_clients["hyperliquid"].get_balances.assert_not_awaited()
         api_clients["hyperliquid"].get_positions.assert_not_awaited()
-        # Hyperliquid will still fetch orders as part of the general update, so check its call count if needed
+        # Hyperliquid will still fetch orders as part of the general update, so check its
+        # call count if needed
         # For now, focusing on the reconciliation-dependent calls.
 
         # Verify Backpack ONLY fetched orders (because no reconciliation)
@@ -508,7 +513,8 @@ class TestPortfolioTracker:
             )
         ]
         api_clients["hyperliquid"].get_balances.return_value = mock_hl_balances_reconcile
-        # Similar mocks for get_positions, get_open_orders, get_account_summary for hyperliquid if their data is checked
+        # Similar mocks for get_positions, get_open_orders, get_account_summary
+        # for hyperliquid if their data is checked
         # For backpack, only get_open_orders will be called
         mock_bp_orders_second_update = [
             sample_orders["backpack"]["bp-order-1"]
@@ -635,12 +641,14 @@ class TestPortfolioTracker:
         assert portfolio_tracker.last_reconciliation_time["hyperliquid"] > old_time
 
         # Verify Backpack (not reconciled in this call directly, but update fetches orders)
-        # Backpack should not have called get_balances, get_positions, get_account_summary during the update()
+        # Backpack should not have called get_balances, get_positions, get_account_summary
+        # during the update()
         # because initialize() made its reconciliation time recent.
         # It would have been called once during initialize() though.
         assert api_clients["backpack"].get_balances.call_count == 1  # Called during initialize()
         assert api_clients["backpack"].get_positions.call_count == 1  # Called during initialize()
-        # get_open_orders for backpack IS called during portfolio_tracker.update() regardless of reconciliation status
+        # get_open_orders for backpack IS called during portfolio_tracker.update()
+        # regardless of reconciliation status
         # and also once during initialize(). So, 2 calls.
         assert api_clients["backpack"].get_open_orders.call_count == 2
         assert (
@@ -786,7 +794,8 @@ class TestPortfolioTracker:
         if new_quantity_filled > 0 and updated_order_data_dict.get("price") is not None:
             updated_order_data_dict["average_fill_price"] = updated_order_data_dict["price"]
         elif new_quantity_filled > 0 and updated_order_data_dict.get("price") is None:
-            # This state (filled order with no price to derive avg_fill_price) should cause validation error
+            # This state (filled order with no price to derive avg_fill_price) should
+            # cause validation error
             # or be explicitly handled if it's a market order that filled.
             # For this test (hl-order-2 is LIMIT), price is available.
             pass  # Let Pydantic catch it if avg_fill_price remains None & is required
@@ -866,7 +875,9 @@ class TestPortfolioTracker:
 
         # Call the internal method we want to test.
         # This method is usually called by other processes like event handlers.
-        portfolio_tracker._update_balance(exchange_id, new_balance_data)  # noqa: SLF001
+        portfolio_tracker._update_balance(
+            exchange_id, new_balance_data
+        )  # DEFENSIVE CHECK: [Testing protected method _update_balance]. Mypy=[]. Ruff=[BLE001]
 
         updated_balance_obj = portfolio_tracker.balances[exchange_id].get(asset_to_update, None)
         assert updated_balance_obj is not None, "Updated balance must exist"
@@ -906,9 +917,12 @@ class TestPortfolioTracker:
         """Test calculating total portfolio capital."""
         # Setup initial state: balances and mock API clients
         portfolio_tracker.balances.update(sample_balances_state)  # type: ignore
-        # Positions also contribute to capital via PnL, so mock them too if not using sample_positions
-        # For simplicity, let's assume PnL part is tested separately or positions are zero for this test.
-        # If positions are non-zero, ensure get_pnl (and its dependency _get_asset_price_in_base) is mocked
+        # Positions also contribute to capital via PnL, so mock them too if not using
+        # sample_positions
+        # For simplicity, let's assume PnL part is tested separately or positions are
+        # zero for this test.
+        # If positions are non-zero, ensure get_pnl (and its dependency
+        # _get_asset_price_in_base) is mocked
         # or correctly functioning with api_clients.
 
         # Mock get_pnl to simplify this test and focus on balance valuation
@@ -918,7 +932,8 @@ class TestPortfolioTracker:
         # Ensure api_clients are registered if not done by portfolio_tracker fixture
         # This is typically handled by the portfolio_tracker fixture itself
         # for client in api_clients.values():
-        #     if isinstance(client, AsyncMock) and hasattr(client, 'exchange_id'): # Hypothetical attr
+        #     if isinstance(client, AsyncMock) and hasattr(client, 'exchange_id'):
+        # # Hypothetical attr
         #        portfolio_tracker.register_api_client(client.exchange_id, client)
 
         # Expected total capital based on sample_balances_state and mocked prices
@@ -928,9 +943,12 @@ class TestPortfolioTracker:
         # Total expected = 10000 + 20000 + 25000 = 55000.0
         # This calculation depends on _get_asset_price_in_base using api_clients correctly.
 
-        # Verify the mocked get_ticker within api_clients works as expected by _get_asset_price_in_base
-        # Example: direct call to the helper if possible, or rely on get_total_capital's internal use.
-        # price_btc_usdc = await portfolio_tracker._get_asset_price_in_base("backpack", "BTC", "USDC") # noqa: SLF001 - Testing helper
+        # Verify the mocked get_ticker within api_clients works as expected
+        # by _get_asset_price_in_base
+        # Example: direct call to the helper if possible, or rely on get_total_capital's
+        # internal use.
+        # price_btc_usdc = await portfolio_tracker._get_asset_price_in_base("backpack",
+        # "BTC", "USDC")  , SLF001
         # print(f"Debug: Price BTC-USDC from helper: {price_btc_usdc}") # Should be 50000.0
 
         total_capital = await portfolio_tracker.get_total_capital(base_currency="USDC")
@@ -943,7 +961,8 @@ class TestPortfolioTracker:
         # HyperLiquid ETH
         price_eth_in_usdc = await portfolio_tracker._get_asset_price_in_base(
             "hyperliquid", "ETH", "USDC"
-        )  # noqa: SLF001
+        )  # DEFENSIVE CHECK: [Testing protected method _get_asset_price_in_base].
+        # Mypy=[]. Ruff=[BLE001]
         assert price_eth_in_usdc is not None, "Price for ETH in USDC should be available"
         hl_eth_val = sample_balances_state["hyperliquid"]["ETH"].total_quantity * price_eth_in_usdc
 
@@ -952,10 +971,12 @@ class TestPortfolioTracker:
         # Backpack BTC
         # Ensure the mock ticker provides the correct BTC-USDC price
         # The api_clients fixture is set up to provide 50000 for BTC-USDC
-        # This access might be an issue if _get_asset_price_in_base is truly private and not testable
+        # This access might be an issue if _get_asset_price_in_base is truly private
+        # and not testable
         price_btc_in_usdc = await portfolio_tracker._get_asset_price_in_base(
             "backpack", "BTC", "USDC"
-        )  # noqa: SLF001
+        )  # DEFENSIVE CHECK: [Testing protected method _get_asset_price_in_base].
+        # Mypy=[]. Ruff=[BLE001]
         assert price_btc_in_usdc is not None, (
             "Price for BTC in USDC should be available from mock ticker"
         )
@@ -973,15 +994,18 @@ class TestPortfolioTracker:
 
         # Test with a different base currency if _get_asset_price_in_base supports it
         # For example, if BTC is base currency (this requires USDC-BTC ticker mock)
-        # price_usdc_btc = await portfolio_tracker._get_asset_price_in_base("hyperliquid", "USDC", "BTC") # noqa: SLF001
+        # price_usdc_btc = await portfolio_tracker._get_asset_price_in_base(
+        #     "hyperliquid", "USDC", "BTC")  , SLF001
         # print(f"Debug: Price USDC-BTC from helper: {price_usdc_btc}") # Should be 0.00002
 
-        # total_capital_btc = await portfolio_tracker.get_total_capital(base_currency="BTC")
-        # hl_usdc_in_btc = sample_balances_state["hyperliquid"]["USDC"].total_quantity * price_usdc_btc
-        # bp_usdc_in_btc = sample_balances_state["backpack"]["USDC"].total_quantity * price_usdc_btc
-        # bp_btc_in_btc = sample_balances_state["backpack"]["BTC"].total_quantity * Decimal("1.0")
-        # expected_total_capital_btc = hl_usdc_in_btc + bp_usdc_in_btc + bp_btc_in_btc
-        # assert total_capital_btc == expected_total_capital_btc
+        # total_capital_btc = await portfolio_tracker.get_total_capital(
+        # base_currency="BTC")
+        # hl_usdc_in_btc = sample_balances_state["hyperliquid"]["USDC"].total_quantity *
+        # price_usdc_btc
+        # bp_usdc_in_btc = sample_balances_state["backpack"]["USDC"].total_quantity *
+        # price_usdc_btc
+        # bp_btc_in_btc = sample_balances_state["backpack"]["BTC"].total_quantity *
+        # Decimal("1.0")
 
         # Test with an asset that has no price (should be skipped)
         # Add a balance for an unpriced asset
@@ -993,8 +1017,10 @@ class TestPortfolioTracker:
             timestamp=datetime.now(UTC),
         )
         # Ensure _get_asset_price_in_base returns None for "UNPRICED"
-        # The api_clients fixture's mock_get_ticker_side_effect should return None for it.
-        # unpriced_price = await portfolio_tracker._get_asset_price_in_base("hyperliquid", "UNPRICED", "USDC") # noqa: SLF001
+        # The api_clients fixture's mock_get_ticker_side_effect should return None
+        # for it.
+        # unpriced_price = await portfolio_tracker._get_asset_price_in_base(
+        #     "hyperliquid", "UNPRICED", "USDC")  , SLF001
         # print(f"Debug: Price UNPRICED-USDC: {unpriced_price}") # Should be None
 
         total_capital_with_unpriced = await portfolio_tracker.get_total_capital(
@@ -1036,8 +1062,10 @@ class TestPortfolioTracker:
         assert btc_positions[0].size == sample_positions["hyperliquid"]["BTC"].size
 
         # Add another BTC position on the same exchange to test multiple results
-        # Fields for another_btc_pos should be complete for DerivativePosition constructor
-        # This variable is assigned but not used, it was part of a commented out section for multiple positions
+        # Fields for another_btc_pos should be complete for DerivativePosition
+        # constructor
+        # This variable is assigned but not used, it was part of a commented out
+        # section for multiple positions
         # another_btc_pos = DerivativePosition(
         #     exchange="hyperliquid",
         #     symbol="BTC", # Same symbol
@@ -1069,17 +1097,24 @@ class TestPortfolioTracker:
         # on the *same exchange* might not be directly testable by simply adding to the dict
         # if the key is just the plain symbol.
         # Let's adjust the test or clarify the assumption.
-        # If the dict key could be more complex (e.g., "BTC_long", "BTC_short"), then it could work.
-        # For now, let's assume the test expects that if stored_positions was a list, it would find all.
-        # Since it's a dict keyed by symbol, this part of the test for multiple "BTC" positions
+        # If the dict key could be more complex (e.g., "BTC_long", "BTC_short"),
+        # then it could work.
+        # For now, let's assume the test expects that if stored_positions was a list,
+        # it would find all.
+        # Since it's a dict keyed by symbol, this part of the test for multiple "BTC"
+        # positions
         # on "hyperliquid" will effectively test the single entry.
 
-        # To test multiple distinct positions for the same base asset (e.g. BTC-PERP, BTC-SPOT if differentiated by full symbol)
+        # To test multiple distinct positions for the same base asset (e.g. BTC-PERP,
+        # BTC-SPOT if differentiated by full symbol)
         # one would add them with their full unique symbols.
-        # If the question is about multiple "BTC" positions (e.g. from different strategies, or sub-accounts not yet modeled)
-        # then the model `DerivativePosition` or the storage in `PortfolioTracker` needs adjustment.
+        # If the question is about multiple "BTC" positions (e.g. from different
+        # strategies, or sub-accounts not yet modeled)
+        # then the model `DerivativePosition` or the storage in `PortfolioTracker`
+        # needs adjustment.
 
-        # For now, the test for `get_positions_by_symbol("hyperliquid", "BTC")` will return 1 result.
+        # For now, the test for `get_positions_by_symbol("hyperliquid", "BTC")`
+        # will return 1 result.
         # If we want to test it finding *no* results:
         eth_positions_hl = portfolio_tracker.get_positions_by_symbol("hyperliquid", "ETH")
         assert len(eth_positions_hl) == 0  # No ETH position on hyperliquid in sample_positions
@@ -1173,7 +1208,8 @@ class TestPortfolioTracker:
         assert open_orders_bp[0].client_order_id == "bp-order-2"
 
         # Test with symbol filter
-        # open_btc_orders_hl = portfolio_tracker.get_open_orders("hyperliquid", "BTC") # No BTC orders now
+        # open_btc_orders_hl = portfolio_tracker.get_open_orders(
+        #     "hyperliquid", "BTC") # No BTC orders now
         # assert len(open_btc_orders_hl) == 0
 
         open_eth_orders_hl = portfolio_tracker.get_open_orders("hyperliquid", "ETH")
@@ -1221,7 +1257,7 @@ class TestPortfolioTracker:
         # Mock the _get_asset_price_in_base to return 1.0 for simplicity,
         # so PNL values are taken as is without conversion.
         # This isolates the test to summing existing PNL values.
-        portfolio_tracker._get_asset_price_in_base = AsyncMock(return_value=Decimal("1.0"))  # type: ignore # noqa: SLF001
+        portfolio_tracker._get_asset_price_in_base = AsyncMock(return_value=Decimal("1.0"))  # type: ignore # DEFENSIVE CHECK: [Testing protected method _get_asset_price_in_base by assignment]. Mypy=[]. Ruff=[BLE001]
 
         # Calculate PNL
         # Must be awaited as get_pnl is async
@@ -1233,9 +1269,11 @@ class TestPortfolioTracker:
 
         # For simplicity, let's make this test async if get_pnl is to be tested directly.
         # However, the original test was synchronous.
-        # Let's assume `get_pnl` sums `position.unrealized_pnl` and `position.realized_pnl`.
+        # Let's assume `get_pnl` sums `position.unrealized_pnl` and
+        # `position.realized_pnl`.
         # The fixture `sample_positions` has:
-        # HL BTC: unrealized_pnl=Decimal("1000.0"), realized_pnl=None (defaults to 0 in model or getter)
+        # HL BTC: unrealized_pnl=Decimal("1000.0"), realized_pnl=None (defaults to 0
+        # in model or getter)
         # BP ETH: unrealized_pnl=Decimal("-1000.0"), realized_pnl=None
 
         # Re-evaluating: test_calculate_pnl seems to be intended for synchronous logic if possible,
@@ -1277,6 +1315,7 @@ class TestPortfolioTracker:
         portfolio_tracker.realized_pnl = Decimal("50.0")
         # Then get_pnl should include this.
 
-        # This test should be rewritten as an async test to properly call `await portfolio_tracker.get_pnl()`
+        # This test should be rewritten as an async test to properly call
+        # `await portfolio_tracker.get_pnl()`
         # and mock its dependencies (`_get_asset_price_in_base`).
         pass  # Marking as pass due to need for async rewrite.

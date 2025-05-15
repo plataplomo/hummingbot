@@ -149,7 +149,13 @@ def _wrap_validate_raw_int(
     field_name_default: str,
     allow_negative: bool = False,
 ) -> int:
-    """Wrapper for validating integers. MUST be int type."""
+    """
+    Validates that the input is an integer and optionally non-negative.
+
+    This is a `mode='before'` validator.
+    Ensures the raw input is strictly `int` type (no coercion from str/float).
+    Complies with RULE-ARCH-MODEL-DESIGN-V2 for Raw Models (Ints/Floats: Check isinstance).
+    """
     field_name = info.field_name or field_name_default
     val_int: int
     if isinstance(v, int):
@@ -367,7 +373,12 @@ RawOptionalString = Annotated[
     str | None,  # The type itself includes None
     WrapValidator(  # The validator will only be called if value is not None
         lambda v, h, i: _wrap_validate_general_str(
-            v, h, i, field_name_default="optional_string_field", max_length=128, allow_empty=True
+            v,
+            h,
+            i,
+            field_name_default="optional_string_field",
+            max_length=128,
+            allow_empty=True,
         )
     ),
 ]

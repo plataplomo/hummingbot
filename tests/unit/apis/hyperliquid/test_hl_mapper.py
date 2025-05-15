@@ -60,7 +60,8 @@ def mapper() -> HyperliquidMapper:
 def raw_user_state_empty_positions_no_balances(
     raw_margin_summary_fixture: HyperliquidRawMarginSummary,  # Re-use for consistency
 ) -> HyperliquidRawClearinghouseState:
-    """Provides a HyperliquidRawClearinghouseState with no asset positions and basic margin summary."""
+    """Provides a HyperliquidRawClearinghouseState with no asset positions
+    and basic margin summary."""
     # Create a zeroed-out or minimal valid margin summary for this fixture
     empty_margin_summary = HyperliquidRawMarginSummary(
         accountValue="0", totalRawUsd="0", totalMarginUsed="0", totalNtlPos="0"
@@ -236,7 +237,6 @@ class TestMapRawClearinghouseStateToMarginSummary:
 
         # Check that fields not in update dict remain from original base fixture
         # (assetPositions will be empty, cross/isolated MMRs will be original)
-        # assert not current_raw_state.asset_positions, "asset_positions should be from base (empty)"
         assert len(current_raw_state.asset_positions) == 2, (
             "asset_positions should now be populated"
         )
@@ -249,8 +249,9 @@ class TestMapRawClearinghouseStateToMarginSummary:
             "Validated isolated_maintenance_margin_used mismatch"
         )
 
-        # The original assertions for summary will likely fail now because other parts of current_raw_state are not updated,
-        # but the goal is to see if the debug assertions for current_raw_state.margin_summary pass.
+        # The original assertions for summary will likely fail now because other parts of
+        # current_raw_state are not updated, but the goal is to see if the debug
+        # assertions for current_raw_state.margin_summary pass.
         summary = HyperliquidMapper.map_raw_clearinghouse_state_to_margin_summary(current_raw_state)
 
         assert isinstance(summary, MarginAccountSummary)
@@ -309,7 +310,8 @@ class TestMapRawClearinghouseStateToMarginSummary:
     def test_invalid_numeric_strings_in_raw_state(
         self, raw_clearinghouse_state_base_fixture: HyperliquidRawClearinghouseState
     ) -> None:
-        """Test that creating/copying raw_state with invalid numeric strings raises ValidationError."""
+        """Test that creating/copying raw_state with invalid numeric strings
+        raises ValidationError."""
         invalid_margin_summary_data = {
             "accountValue": "not-a-number",
             "totalRawUsd": "still-bad",
@@ -346,7 +348,8 @@ class TestMapRawClearinghouseStateToMarginSummary:
         self, raw_clearinghouse_state_base_fixture: HyperliquidRawClearinghouseState
     ) -> None:
         """Test mapping with problematic crossMaintenanceMarginUsed."""
-        # Case 1: Invalid numeric string for crossMaintenanceMarginUsed - should raise ValidationError on model_validate
+        # Case 1: Invalid numeric string for crossMaintenanceMarginUsed
+        # should raise ValidationError on model_validate
         with pytest.raises(ValidationError, match="crossMaintenanceMarginUsed"):
             data_to_validate = raw_clearinghouse_state_base_fixture.model_dump(by_alias=True)
             data_to_validate["crossMaintenanceMarginUsed"] = "bad-value"
@@ -369,7 +372,7 @@ class TestMapRawClearinghouseStateToMarginSummary:
         assert summary_updated_mmr.total_maintenance_margin_required == Decimal("25.0")
 
     def test_direct_validation_of_cross_maintenance_margin_used_invalid(self) -> None:
-        """Test that HyperliquidRawClearinghouseState directly raises ValidationError for bad crossMaintenanceMarginUsed."""
+        """Test HyperliquidRawClearinghouseState validation for bad crossMaintenanceMarginUsed."""
         valid_margin_summary_data = {
             "accountValue": "100",
             "totalRawUsd": "100",
@@ -654,7 +657,7 @@ def hyperliquid_raw_fill_buy_fixture() -> HyperliquidRawFill:
         oid=67890,
         startPosition="0.0",
         dir="Open Long",
-        hash="0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",  # Corrected length
+        hash="0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         fee="1.50275",  # 0.5 * 3005.50 * 0.001 (example fee rate)
         isMaker=False,
         liquidationMarkPx=None,
@@ -675,7 +678,7 @@ def hyperliquid_raw_fill_sell_maker_fixture() -> HyperliquidRawFill:
         oid=98760,
         startPosition="0.1",  # Had a long position before this sell
         dir="Close Long",
-        hash="0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",  # Corrected length
+        hash="0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         fee="0.00",  # Maker trade, zero fee
         isMaker=True,
         liquidationMarkPx="50000.00",  # Example, may not be relevant for all fills
@@ -1226,11 +1229,15 @@ def test_map_raw_trades_with_transformation_error(
         # For non-error cases, delegate to the *actual* method on the *actual* mapper instance.
         # The `mapper` fixture is an instance of HyperliquidMapper.
         # Check if the actual method should be called or if it's already the mocked one.
-        # If we are mocking the method on the class HyperliquidMapper directly, then it's simple.
-        # If we are mocking on an instance, we need to be careful not to call the mock recursively.
-        # The current patch is on `mapper` (an instance), so calling mapper.transform_raw_public_trade_to_internal
-        # would call the mock itself. We need the original behavior for non-error cases.
-        # For this test structure, the best way is to explicitly return a valid Trade instance for the good case.
+        # If we are mocking the method on the class HyperliquidMapper directly,
+        # then it's simple.
+        # If we are mocking on an instance, we need to be careful not to call the mock
+        # recursively.
+        # The current patch is on `mapper` (an instance), so calling
+        # mapper.transform_raw_public_trade_to_internal would call the mock itself.
+        # We need the original behavior for non-error cases.
+        # For this test structure, the best way is to explicitly return a valid
+        # Trade instance for the good case.
         if raw_trade_arg.coin != "ERR-PERP":
             # Simulate a successful transformation for the non-problematic trade
             return Trade(
@@ -1380,7 +1387,8 @@ def test_map_raw_ctx_to_funding_rate_parsing_error_returns_none(
 
     result = mapper.map_raw_ctx_to_funding_rate(raw_ctx_problematic_funding)
     assert result is not None, (
-        "RE-APPLY: map_raw_ctx_to_funding_rate should return a FundingRate object even if funding parsing fails"
+        "RE-APPLY: map_raw_ctx_to_funding_rate should return a FundingRate object "
+        "even if funding parsing fails"
     )
     assert result.funding_rate is None, (
         "RE-APPLY: FundingRate.funding_rate should be None if raw funding parsing failed"
