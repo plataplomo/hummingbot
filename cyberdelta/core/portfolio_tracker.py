@@ -1260,7 +1260,8 @@ class PortfolioTracker:
                                 )
                             except ValidationError as e:
                                 logger.error(
-                                    f"Error validating Order for {ord_id_str} on {ex_id_str_ord}: {e}"
+                                    f"Error validating Order for {ord_id_str} "
+                                    f"on {ex_id_str_ord}: {e}"
                                 )
                         elif isinstance(order_data_any, Order):
                             tracker.orders[ex_id_str_ord][ord_id_str] = order_data_any
@@ -1310,7 +1311,8 @@ class PortfolioTracker:
                                 tracker.last_reconciliation_time[ex_id_str_lrt] = parsed_ts
                         else:
                             logger.warning(
-                                f"Received None for last_reconciliation_time for {ex_id_str_lrt}, skipping."
+                                f"Received None for last_reconciliation_time for "
+                                f"{ex_id_str_lrt}, skipping."
                             )
                 except Exception as e:
                     logger.error(
@@ -1405,7 +1407,8 @@ class PortfolioTracker:
                     order_data_iterable = orders_data  # Iterate directly if list
                 else:
                     logger.error(
-                        f"_parse_orders received unexpected type for orders_data: {type(orders_data)}"
+                        f"_parse_orders received unexpected type for orders_data: "
+                        f"{type(orders_data)}"
                     )
                     return
 
@@ -1444,13 +1447,15 @@ class PortfolioTracker:
                             current_orders[order.client_order_id] = order
                             updated_count += 1
                         except ValidationError as e:
-                            # Accessing order.client_order_id might fail if model_validate failed early
+                            # Accessing order.client_order_id might fail if model_validate
+                            # failed early
                             client_id_for_log = order_dict_data.get(
                                 "clientOrderId",
                                 order_dict_data.get("client_order_id", "UnknownClientOrderID"),
                             )
                             logger.error(
-                                f"Error validating Order for {client_id_for_log} on {exchange_id}: {e}"
+                                f"Error validating Order for {client_id_for_log} "
+                                f"on {exchange_id}: {e}"
                             )
                     elif isinstance(order_data_item, Order):
                         # order_data_item is already an Order object
@@ -1482,7 +1487,8 @@ class PortfolioTracker:
                                 order.status = OrderStatus.UNKNOWN
                             current_orders[order.client_order_id] = order
                             new_count += 1
-                    else:  # DEFENSIVE CHECK: Handle unexpected item types in order_data_iterable. Mypy=[unreachable]
+                    else:  # DEFENSIVE CHECK: Handle unexpected item types in order_data_iterable.
+                        # Mypy=[unreachable]
                         logger.warning(f"Invalid order format for {order_data_item}")
                 # Explicitly update the dictionary for the exchange
                 # This ensures the defaultdict behavior isn't bypassed if it was empty
@@ -1575,11 +1581,14 @@ class PortfolioTracker:
                 f"[{exchange_id}] _get_asset_price_in_base: ticker_direct.price "
                 f"for {symbol_direct}: {getattr(ticker_direct, 'price', 'N/A')}"
             )
+            # Debug logging for ticker price checks
+            has_valid_price = (
+                ticker_direct
+                and ticker_direct.price is not None
+                and ticker_direct.price > Decimal("0")
+            )
             logger.debug(
-                f"[{exchange_id}] _get_asset_price_in_base: "
-                f"ticker_direct.price > 0 for {symbol_direct}: "
-                f"{ticker_direct.price > Decimal('0') if ticker_direct and ticker_direct.price is not None else 'N/A'}"
-                # Added check for ticker_direct and ticker_direct.price not being None
+                f"[{exchange_id}] Ticker direct price check for {symbol_direct}: {has_valid_price}"
             )
 
         if ticker_direct and ticker_direct.price is not None and ticker_direct.price > Decimal("0"):
@@ -1605,11 +1614,15 @@ class PortfolioTracker:
                 f"[{exchange_id}] _get_asset_price_in_base: ticker_inverse.price "
                 f"for {symbol_inverse}: {getattr(ticker_inverse, 'price', 'N/A')}"
             )
+            # Debug logging for inverse ticker price checks
+            has_valid_inverse_price = (
+                ticker_inverse
+                and ticker_inverse.price is not None
+                and ticker_inverse.price > Decimal("0")
+            )
             logger.debug(
-                f"[{exchange_id}] _get_asset_price_in_base: "
-                f"ticker_inverse.price > 0 for {symbol_inverse}: "
-                f"{ticker_inverse.price > Decimal('0') if ticker_inverse and ticker_inverse.price is not None else 'N/A'}"
-                # Added check for ticker_inverse and ticker_inverse.price not being None
+                f"[{exchange_id}] Ticker inverse price check for {symbol_inverse}: "
+                f"{has_valid_inverse_price}"
             )
 
         if (
