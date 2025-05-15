@@ -187,16 +187,6 @@ class PositionReconciliationSystem:
         self.latest_results = results_dict
         return results_dict
 
-    def _reconcile_positions(
-        self,
-        exchange: str,
-        exchange_positions: list[DerivativePosition],
-        fill_positions: list[DerivativePosition],
-        local_positions: list[DerivativePosition],
-    ) -> dict[str, Any]:
-        """Reconcile positions for a single exchange."""
-        pass  # Placeholder needs implementation
-
     def _record_discrepancy(self, exchange: str, results: dict[str, Any]) -> None:
         """
         Record a discrepancy for historical tracking.
@@ -475,32 +465,35 @@ class PositionReconciliationSystem:
             # 3. Local state tracking
             local_positions = self._portfolio_tracker.get_positions_by_exchange(exchange)
 
-            # Perform the reconciliation (pass empty fill_positions)
-            exchange_results = self._reconcile_positions(
-                exchange, exchange_positions, fill_positions, local_positions
+            # Convert lists to maps by symbol for reconcile_positions
+            api_positions_map = {pos.symbol: pos for pos in exchange_positions if pos}
+            local_positions_map = {pos.symbol: pos for pos in local_positions if pos}
+
+            # Call the method that takes maps and iterates symbols
+            exchange_results_dict = await self.reconcile_positions(
+                exchange, api_positions_map, local_positions_map
             )
 
             # Store the results
-            results = exchange_results
+            results = exchange_results_dict
 
             # Record any discrepancies
-            if exchange_results["discrepancies"]:
-                self._record_discrepancy(exchange, exchange_results)
+            if exchange_results_dict.get("discrepancies"):
+                self._record_discrepancy(exchange, exchange_results_dict)
 
                 # Auto-correct if enabled
                 if self.auto_correct:
-                    self._apply_corrections(exchange, exchange_results)
+                    self._apply_corrections(exchange, exchange_results_dict)
 
             return results
 
         except Exception as e:
-            logger.error(f"Error reconciling positions for {exchange}: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e),
-                "timestamp": now,
-                "discrepancies": [],
-            }
+            logger.error(
+                f"Error reconciling positions for {exchange} in _reconcile_exchange: {e}",
+                exc_info=True,
+            )
+            # Re-raise the exception to get the full traceback in the test output
+            raise
 
     async def _fetch_api_positions(self, api_clients: dict[str, ExchangeAPI]) -> dict[str, Any]:
         """Fetch positions from all API clients concurrently."""

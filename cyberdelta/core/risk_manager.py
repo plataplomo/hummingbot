@@ -5,7 +5,7 @@ import logging
 from collections.abc import Sequence
 from decimal import ROUND_DOWN, Decimal, InvalidOperation, getcontext
 from enum import Enum  # Ensure Enum is imported
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from cyberdelta.core.models import SpotBalance
 from cyberdelta.utils.config import Config  # Ensure Config is imported
@@ -400,7 +400,7 @@ class RiskManager:
             self.exchange_risk_modifiers: dict[str, float] = {}
             exchanges_config_any = self.config.get("exchanges", {})
             if isinstance(exchanges_config_any, dict):
-                exchanges_config: dict[str, Any] = exchanges_config_any
+                exchanges_config: dict[str, Any] = cast(dict[str, Any], exchanges_config_any)
                 for exchange_id_raw in exchanges_config.keys():
                     exchange_id: str = str(exchange_id_raw)
                     if self.config.get(f"exchanges.{exchange_id}.enabled", False):
@@ -408,7 +408,7 @@ class RiskManager:
                             f"exchanges.{exchange_id}.risk_modifier", 1.0
                         )
                         # Ensure modifier_val_any is float or int before direct conversion
-                        if isinstance(modifier_val_any, (float, int)):
+                        if isinstance(modifier_val_any, float | int):
                             self.exchange_risk_modifiers[exchange_id] = float(modifier_val_any)
                         else:  # Try to parse if it's a string representation of a float
                             try:
@@ -826,10 +826,12 @@ class RiskManager:
         """Check that portfolio leverage is within allowed limits."""
         total_capital = await self.portfolio_tracker.get_total_capital()
 
-        # DEFENSIVE CHECK: total_capital could be None if portfolio_tracker hasn't initialized
-        # or if a mock in a test returns None. Mypy=[condition-is-always-false]
+        # DEFENSIVE CHECK: total_capital from a mock might be None.
+        # Mypy=[unreachable] Pyright=[conditionTrueOrFalse]
         if total_capital is None:
-            self.logger.warning("Total capital is None. Cannot calculate or check leverage.")
+            self.logger.warning(
+                f"Total capital from portfolio_tracker is None for {opportunity.symbol}. Cannot check leverage."
+            )
             return False
 
         if total_capital <= ZERO:

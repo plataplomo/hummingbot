@@ -195,6 +195,8 @@ def risk_manager(
     # Create a protocol-compliant mock for PortfolioTrackerProtocol
     mock_portfolio_tracker = create_autospec(PortfolioTrackerProtocol, instance=True)
     mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
+    mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0")
+    mock_portfolio_tracker.get_current_drawdown.return_value = Decimal("0")
     # mock_balance = type("ExchangeBalance", (), {"available": Decimal("1000.0")})() # OLD
     # mock_portfolio_tracker.get_exchange_balance.return_value = mock_balance # OLD
     # NEW: Use SpotBalance

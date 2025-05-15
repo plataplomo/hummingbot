@@ -458,7 +458,7 @@ async def test_position_reconciler_detects_discrepancy(
     )
 
     # Accessing protected member _positions for test setup is intentional and safe in this context.
-    mock_bp_api._positions[symbol] = mock_position  # noqa: SLF001
+    mock_bp_api._positions[symbol] = mock_position  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
 
     # 2. Run Reconciliation
     # Assume reconciler uses portfolio_tracker.api_clients
@@ -470,10 +470,21 @@ async def test_position_reconciler_detects_discrepancy(
 
     # Correct method name: check_positions()
     # Force the check to bypass interval caching
-    discrepancies_result = await position_reconciler.check_positions(force=True)
+    discrepancies_result: dict[str, Any] = {}
+    error_during_check: Exception | None = None
+    try:
+        discrepancies_result = await position_reconciler.check_positions(force=True)
+    except Exception as e:
+        logger.error(f"Exception during position_reconciler.check_positions: {e}", exc_info=True)
+        error_during_check = e
+
     discrepancies = discrepancies_result.get(exchange_id, {}).get("discrepancies", [])
 
     # 3. Verify Discrepancy Detection
+    if error_during_check:
+        logger.error(f"Original test error: {error_during_check}")
+        pytest.fail(f"Error during check_positions: {error_during_check}")
+
     assert len(discrepancies) > 0, "Expected reconciler to find discrepancies"
 
     found_missing_in_tracker = False
@@ -509,7 +520,9 @@ async def test_position_reconciler_detects_discrepancy(
     # Get all positions and filter by the target exchange
     all_local_positions = real_portfolio_tracker.get_all_positions()
     local_positions_after_update = {
-        pos.symbol: pos for ex_id, pos in all_local_positions if ex_id == exchange_id
+        pos.symbol: pos
+        for pos in all_local_positions
+        if pos.exchange == exchange_id and pos.symbol == symbol
     }
     logger.info(f"Local positions after update: {local_positions_after_update}")
     logger.info("--- End Reverse Scenario State Check ---")
@@ -549,6 +562,8 @@ async def test_kelly_size_exactly_at_max_position_size(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
+    risk_manager.kelly_enabled = True
+    risk_manager.use_simple_sizing_path = False
     # Set up so Kelly size = max_position_size = 1000
     opp = ArbitrageOpportunity(
         symbol="BTC",
@@ -580,6 +595,8 @@ async def test_kelly_size_just_below_max_position_size(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
+    risk_manager.kelly_enabled = True
+    risk_manager.use_simple_sizing_path = False
     # Kelly size just below max (e.g., 999.99)
     opp = ArbitrageOpportunity(
         symbol="BTC",
@@ -611,6 +628,8 @@ async def test_kelly_size_just_above_max_position_size(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
+    risk_manager.kelly_enabled = True
+    risk_manager.use_simple_sizing_path = False
     # Kelly size just above max (e.g., 1000.01)
     opp = ArbitrageOpportunity(
         symbol="BTC",
@@ -642,6 +661,8 @@ async def test_kelly_size_near_zero(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
+    risk_manager.kelly_enabled = True
+    risk_manager.use_simple_sizing_path = False
     # Kelly size near zero (very high volatility)
     opp = ArbitrageOpportunity(
         symbol="BTC",
@@ -673,6 +694,8 @@ async def test_kelly_negative_expected_return(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
+    risk_manager.kelly_enabled = True
+    risk_manager.use_simple_sizing_path = False
     # Negative expected return
     opp = ArbitrageOpportunity(
         symbol="BTC",
@@ -682,7 +705,7 @@ async def test_kelly_negative_expected_return(
         short_price=Decimal("30010"),
         long_funding_rate=Decimal("0.0001"),
         short_funding_rate=Decimal("-0.00005"),
-        net_funding_differential=Decimal("0.00015"),
+        net_funding_differential=Decimal("-0.00015"),
         timestamp=datetime.now(UTC),
         basis_volatility=0.1,
         utility_score=None,
@@ -704,7 +727,9 @@ async def test_kelly_zero_or_negative_volatility(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
-    # Zero volatility
+    risk_manager.kelly_enabled = True
+    risk_manager.use_simple_sizing_path = False
+    # Test with zero volatility
     opp = ArbitrageOpportunity(
         symbol="BTC",
         long_exchange="mock_bp",
@@ -753,6 +778,8 @@ async def test_kelly_insufficient_balance(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
+    risk_manager.kelly_enabled = True
+    risk_manager.use_simple_sizing_path = False
     # Kelly size valid, but balance is too low
     opp = ArbitrageOpportunity(
         symbol="BTC",
@@ -805,6 +832,8 @@ async def test_kelly_zero_total_capital(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
+    risk_manager.kelly_enabled = True
+    risk_manager.use_simple_sizing_path = False
     # Set all balances to zero
     mock_bp_api.set_mock_balance(
         SpotBalance(
@@ -826,6 +855,7 @@ async def test_kelly_zero_total_capital(
     )
     await real_portfolio_tracker.initialize()
     await real_portfolio_tracker.update()  # Ensure total capital is calculated
+
     opp = ArbitrageOpportunity(
         symbol="BTC",
         long_exchange="mock_bp",
@@ -856,6 +886,8 @@ async def test_kelly_max_position_size_zero(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
+    risk_manager.kelly_enabled = True
+    risk_manager.use_simple_sizing_path = False
     # Override max_position_size to zero
     risk_manager.max_position_size = Decimal("0")
     opp = ArbitrageOpportunity(
@@ -888,6 +920,8 @@ async def test_kelly_max_position_size_very_large(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
+    risk_manager.kelly_enabled = True
+    risk_manager.use_simple_sizing_path = False
     # Override max_position_size to a very large value
     risk_manager.max_position_size = Decimal("1000000")
     opp = ArbitrageOpportunity(
@@ -935,10 +969,9 @@ async def test_max_total_exposure_constraint_prevents_trade(
     # Configure RiskManager for this specific test
     risk_manager.max_total_exposure_usd = Decimal("100")
     risk_manager.min_trade_size_usd = Decimal("1")
-    risk_manager.max_trade_size_usd = Decimal("100000")
     risk_manager.max_position_size = Decimal("20000")
-    risk_manager.max_single_position_exposure = Decimal("1.0")
-    risk_manager.max_drawdown_limit = Decimal("0.2")  # Default, ensure it passes
+    risk_manager.max_single_position_exposure_ratio = Decimal("1.0")
+    risk_manager.max_drawdown_limit_ratio = Decimal("0.2")  # Default, ensure it passes
 
     # Configure mock portfolio tracker
     assert hasattr(risk_manager.portfolio_tracker, "get_total_capital")
@@ -956,14 +989,14 @@ async def test_max_total_exposure_constraint_prevents_trade(
     # Effective max_total_exposure_usd for the check will be 10000 * 0.01 = 100 USD
 
     basic_opportunity.net_funding_differential = Decimal("0.001")
-    risk_manager.kelly_fraction = Decimal("1.0")
+    risk_manager.kelly_fraction_config = Decimal("1.0")
     basic_opportunity.basis_volatility = 0.01
 
     logger.info(
         f"Test: RM Configs: max_total_exposure_usd={risk_manager.max_total_exposure_usd}, "
         f"max_position_size={risk_manager.max_position_size}, "
-        f"kelly_fraction={risk_manager.kelly_fraction}, "
-        f"max_single_position_exposure={risk_manager.max_single_position_exposure}"
+        f"kelly_fraction={risk_manager.kelly_fraction_config}, "
+        f"max_single_position_exposure_ratio={risk_manager.max_single_position_exposure_ratio}"
     )
     logger.info(
         f"Test: PT mock total_capital: "
@@ -995,9 +1028,10 @@ async def test_min_trade_size_constraint_prevents_trade(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test that min_trade_size constraint prevents sizing if capital is low."""
-    risk_manager.max_total_exposure_ratio = Decimal("0.1")  # 10% of capital
-    risk_manager.min_trade_size_usd = Decimal("1")
-    risk_manager.max_trade_size_usd = Decimal("100000")  # Ensure this doesn't interfere
+    risk_manager.max_total_exposure_usd = Decimal("5000.0")
+    risk_manager.min_trade_size_usd = Decimal("1000")
+    risk_manager.max_position_size = Decimal("20000")
+    risk_manager.max_single_position_exposure_ratio = Decimal("1.0")
 
     # Configure the portfolio_tracker *that risk_manager is using*
     # risk_manager.portfolio_tracker is the mock created by create_autospec
@@ -1008,12 +1042,18 @@ async def test_min_trade_size_constraint_prevents_trade(
     )
     # Ensure it's an AsyncMock, as get_total_capital is an async method in the protocol
     assert isinstance(risk_manager.portfolio_tracker.get_total_capital, AsyncMock), (
-        f"RiskManager's portfolio_tracker.get_total_capital is not an AsyncMock, but {type(risk_manager.portfolio_tracker.get_total_capital)}"
+        f"RM PT.get_total_capital is not AsyncMock, but "
+        f"{type(risk_manager.portfolio_tracker.get_total_capital)}"
     )
 
     risk_manager.portfolio_tracker.get_total_capital.return_value = Decimal(
         "1000"
     )  # Capital is 1000
+
+    # ADDED: Ensure get_total_exposure_usd is also mocked
+    assert hasattr(risk_manager.portfolio_tracker, "get_total_exposure_usd")
+    assert isinstance(risk_manager.portfolio_tracker.get_total_exposure_usd, AsyncMock)
+    risk_manager.portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0")
 
     # Max exposure allowed is 0.1 * 1000 = 100 USD
     # Based on sample_opportunity_scaled from integration/conftest.py:
@@ -1021,7 +1061,7 @@ async def test_min_trade_size_constraint_prevents_trade(
     # So, 120 USD > 100 USD limit. Should be rejected.
 
     logger.info(
-        f"Test: RM Config max_total_exposure_ratio: {risk_manager.max_total_exposure_ratio}, "
+        f"Test: RM Config max_total_exposure_usd: {risk_manager.max_total_exposure_usd}, "
         f"PT mock total_capital: {risk_manager.portfolio_tracker.get_total_capital.return_value}"
     )
     logger.info(f"Test: Sizing opportunity: {basic_opportunity}")
@@ -1032,10 +1072,7 @@ async def test_min_trade_size_constraint_prevents_trade(
     logger.info(f"Test: Caplog contents: {caplog.text}")
 
     assert sized_opportunity is None
-    assert "Constraint failed: _check_constraint_min_trade_size" in caplog.text, (
-        "Specific constraint failure message not found in logs."
-    )
-    assert "Proposed size" in caplog.text, "'Proposed size' not found in constraint failure log."
-    assert "exceeds min allowed exposure based on total capital" in caplog.text, (
-        "Exposure limit reason not found in constraint failure log."
-    )
+    assert (
+        f"Kelly calculated size ($150.00) for BTC below min size (${risk_manager.min_trade_size_usd}). Rejecting."
+        in caplog.text
+    ), "Min trade size rejection (from optimal_size) not found."

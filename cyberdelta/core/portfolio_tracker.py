@@ -263,45 +263,23 @@ class PortfolioTracker:
         logger.info("Portfolio state initialized")
 
     async def _fetch_exchange_balances(self, exchange_id: str) -> bool:
-        logger.debug(f"[FETCH_BALANCES:{exchange_id}] Entering function.")
+        client = self.api_clients.get(exchange_id)
+        if not client:
+            logger.error(f"No API client found for {exchange_id} in fetch_balances")
+            return False
         try:
-            client = self.api_clients.get(exchange_id)
-            if not client:
-                logger.error(f"[FETCH_BALANCES:{exchange_id}] No API client found.")
-                return False
+            balances_data = await client.get_balances()  # Returns dict[str, SpotBalance] | None
 
-            logger.debug(f"[FETCH_BALANCES:{exchange_id}] Fetching balances from API...")
-            # Revert to client.get_balances() and adjust type hint accordingly
-            # ExchangeAPI.get_balances() returns dict[str, SpotBalance] | None (if err implies None)
-            # However, the ABC defines -> dict[str, SpotBalance]. Assume None for safety.
-            balances_data: dict[str, SpotBalance] | None
-            balances_data = await client.get_balances()  # Changed from get_balances_raw
-            logger.debug(
-                (
-                    f"[FETCH_BALANCES:{exchange_id}] Raw API response: {balances_data} "  # Use data
-                    f"(Type: {type(balances_data)})"
-                ),
-                stacklevel=2,
-            )
+            # DEFENSIVE CHECK: client.get_balances() can return None as per ExchangeAPI interface.
+            # Mypy=[unreachable] Pyright=[conditionTrueOrFalse]
+            if balances_data is None:
+                logger.warning(f"Received None for balances_data from {exchange_id}.")
+                # Allow partial success, don't wipe existing balances if fetch fails temporarily
+                # self.balances[exchange_id].clear() # Option: clear if None means no balances
+                self.last_update_time[exchange_id] = datetime.now(UTC)
+                return True
 
             updated_balances: dict[str, SpotBalance] = {}
-
-            # DEFENSIVE CHECK: Balances from API can be None despite stricter ABC type hints,
-            # due to network/API errors.
-            # Pyright=[reportUnnecessaryIsInstance] Mypy=[unreachable]
-            if balances_data is None:  # Check for None first
-                logger.info(
-                    f"[{exchange_id}] API returned None for balances. Clearing local cache."
-                )
-                async with self._lock:
-                    if exchange_id in self.balances:
-                        self.balances[exchange_id].clear()
-                        logger.info(
-                            f"[FETCH_BALANCES:{exchange_id}] Cleared existing balance entries "
-                            f"as API returned None."
-                        )
-                        self.last_update_time[exchange_id] = datetime.now(UTC)
-                return True
 
             # If balances_data is not None, it must be dict[str, SpotBalance]
             # No need for isinstance(list) or isinstance(dict) checks if type hint is accurate.
@@ -442,10 +420,30 @@ class PortfolioTracker:
             logger.error(f"No API client registered for {exchange_id} in fetch_positions")
             return False
         try:
-            # Assuming get_positions now returns List[DerivativePosition]
-            positions_data: list[DerivativePosition] = await client.get_positions()
+            positions_data_raw = (
+                await client.get_positions()
+            )  # -> list[DerivativePosition] | dict[str, DerivativePosition]
+
+            processed_positions_list: list[DerivativePosition] = []
+            # DEFENSIVE CHECK: client.get_positions() can return list OR dict as per ExchangeAPI.
+            # This isinstance check is necessary to differentiate.
+            # Pyright incorrectly flags this as unnecessary if it prematurely narrows type.
+            if isinstance(positions_data_raw, list):  # type: ignore[reportUnnecessaryIsinstance]
+                processed_positions_list = (
+                    positions_data_raw  # Pyright infers list[DerivativePosition]
+                )
+            elif isinstance(positions_data_raw, dict):
+                processed_positions_list = list(
+                    positions_data_raw.values()
+                )  # Pyright infers list[DerivativePosition]
+            else:
+                logger.error(
+                    f"Unexpected data type for positions_data from {exchange_id}: {type(positions_data_raw)}"
+                )
+                return False
+
             updated_positions: dict[str, DerivativePosition] = {}
-            for position_info in positions_data:
+            for position_info in processed_positions_list:
                 # Use symbol as the key for now
                 # TODO: Revisit position identification strategy
                 pos_key = position_info.symbol
@@ -487,7 +485,8 @@ class PortfolioTracker:
             if not client:
                 logger.error(f"No API client found for {exchange_id}")
                 return False
-            orders_data = await client.get_open_orders()  # Assuming this returns a list
+            # ExchangeAPI.get_open_orders returns list[Order], Pyright should infer this.
+            orders_data: list[Order] = await client.get_open_orders()
             updated_orders: dict[str, Order] = {}
             for order_info in orders_data:
                 order_instance = None
@@ -1150,13 +1149,23 @@ class PortfolioTracker:
                         asset_str = str(k_asset_raw)
                         if isinstance(bal_data_any, dict):
                             try:
+                                # Ensure keys are str for model_validate
+                                # Cast bal_data_any to dict[Any, Any] to help Pyright with k,v types
+                                temp_bal_dict_for_comp = cast(dict[Any, Any], bal_data_any)
+                                validated_bal_dict: dict[str, Any] = {
+                                    str(k): v for k, v in temp_bal_dict_for_comp.items()
+                                }
                                 tracker.balances[ex_id_str][asset_str] = SpotBalance.model_validate(
-                                    bal_data_any
+                                    validated_bal_dict
                                 )
                             except ValidationError as e:
                                 logger.error(
                                     f"Error validating SpotBalance for {asset_str} "
                                     f"on {ex_id_str}: {e}"
+                                )
+                            except Exception as e:  # Catch other potential errors from str(k)
+                                logger.warning(
+                                    f"Type error processing balance {ex_id_str}/{asset_str} in from_dict: {e}"
                                 )
                         elif isinstance(bal_data_any, SpotBalance):  # If already an object
                             tracker.balances[ex_id_str][asset_str] = bal_data_any
@@ -1174,13 +1183,23 @@ class PortfolioTracker:
                     for sym_str, pos_data_any in syms_dict_typed.items():
                         if isinstance(pos_data_any, dict):
                             try:
+                                # Ensure keys are str for model_validate
+                                # Cast pos_data_any to dict[Any, Any] to help Pyright with k,v types
+                                temp_pos_dict_for_comp = cast(dict[Any, Any], pos_data_any)
+                                validated_pos_dict_for_model: dict[str, Any] = {
+                                    str(k): v for k, v in temp_pos_dict_for_comp.items()
+                                }
                                 tracker.positions[ex_id_str_pos][sym_str] = (
-                                    DerivativePosition.model_validate(pos_data_any)
+                                    DerivativePosition.model_validate(validated_pos_dict_for_model)
                                 )
                             except ValidationError as e:
                                 logger.error(
                                     f"Error validating DerivativePosition for {sym_str} "
                                     f"on {ex_id_str_pos}: {e}"
+                                )
+                            except Exception as e:  # Catch other potential errors from str(k)
+                                logger.warning(
+                                    f"Type error processing position {ex_id_str_pos}/{sym_str} in from_dict: {e}"
                                 )
                         elif isinstance(pos_data_any, DerivativePosition):
                             tracker.positions[ex_id_str_pos][sym_str] = pos_data_any
@@ -1198,13 +1217,23 @@ class PortfolioTracker:
                     for ord_id_str, order_data_any in ords_dict_typed.items():
                         if isinstance(order_data_any, dict):
                             try:
+                                # Ensure keys are str for model_validate
+                                # Cast order_data_any to dict[Any, Any] to help Pyright with k,v types
+                                temp_order_dict_for_comp = cast(dict[Any, Any], order_data_any)
+                                validated_order_dict_for_model: dict[str, Any] = {
+                                    str(k): v for k, v in temp_order_dict_for_comp.items()
+                                }
                                 tracker.orders[ex_id_str_ord][ord_id_str] = Order.model_validate(
-                                    order_data_any
+                                    validated_order_dict_for_model
                                 )
                             except ValidationError as e:
                                 logger.error(
                                     f"Error validating Order for {ord_id_str} "
                                     f"on {ex_id_str_ord}: {e}"
+                                )
+                            except Exception as e:  # Catch other potential errors from str(k)
+                                logger.warning(
+                                    f"Type error processing order {ex_id_str_ord}/{ord_id_str} in from_dict: {e}"
                                 )
                         elif isinstance(order_data_any, Order):
                             tracker.orders[ex_id_str_ord][ord_id_str] = order_data_any
