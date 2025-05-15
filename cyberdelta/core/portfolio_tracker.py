@@ -333,7 +333,7 @@ class PortfolioTracker:
                             )
                             self.last_update_time[exchange_id] = datetime.now(UTC)
 
-            elif isinstance(balances_data_raw, dict):
+            else:  # balances_data_raw must be a dict here
                 balances_dict: dict[str, SpotBalance] = balances_data_raw
                 if not balances_dict:  # Empty dict received
                     logger.info(f"[{exchange_id}] API returned an empty dictionary of balances.")
@@ -347,13 +347,7 @@ class PortfolioTracker:
                             self.last_update_time[exchange_id] = datetime.now(UTC)
 
                 for asset, balance_obj_any in balances_dict.items():
-                    if not isinstance(balance_obj_any, SpotBalance):
-                        logger.warning(
-                            f"[{exchange_id}] Skipping non-SpotBalance value for asset "
-                            f"{asset} in balances dict: {balance_obj_any}"
-                        )
-                        continue
-                    balance_obj: SpotBalance = balance_obj_any  # Confirmed SpotBalance
+                    balance_obj: SpotBalance = balance_obj_any
 
                     if balance_obj.exchange == exchange_id:
                         updated_balances[asset] = balance_obj
@@ -363,21 +357,15 @@ class PortfolioTracker:
                             f"due to mismatched exchange ID ({balance_obj.exchange}) "
                             f"in received SpotBalance object (from dict)."
                         )
-            else:  # DEFENSIVE CHECK: Handle unexpected types for balances_data_raw.
-                # Mypy=[unreachable]
-                logger.error(
-                    f"[{exchange_id}] Unexpected type for balances_data_raw: "
-                    f"{type(balances_data_raw)}"
-                )
-                return False  # Indicate failure due to unexpected data type
 
             # Update internal state if new valid balances were found or if an empty list/dict
             # signified clearing
             if (
                 updated_balances
-                or (
-                    isinstance(balances_data_raw, list | dict) and not balances_data_raw
-                )  # Keep this check for empty list/dict
+                # If balances_data_raw was not None (handled above),
+                # and not updated_balances, it implies balances_data_raw was an empty list/dict.
+                # The isinstance check here is redundant given the flow.
+                or (not updated_balances and not balances_data_raw)
             ):
                 async with self._lock:
                     current_assets_for_exchange = set(self.balances[exchange_id].keys())
@@ -1400,17 +1388,22 @@ class PortfolioTracker:
                 current_orders = self.orders.get(exchange_id, {})
                 updated_count = 0
                 new_count = 0
-                order_data_iterable: list[Order] | dict[str, Any]
+                order_data_iterable: (
+                    list[Order] | dict[str, Any]
+                )  # This should be list[Order | dict[str, Any]]
                 if isinstance(orders_data, dict):
                     order_data_iterable = list(orders_data.values())  # Iterate over values if dict
-                elif isinstance(orders_data, list):
+                # If orders_data is not a dict, it must be a list[Order]
+                # due to the type hint: list[Order] | dict[str, Any]
+                # So, the isinstance(orders_data, list) check is redundant.
+                else:  # orders_data must be a list[Order] here
                     order_data_iterable = orders_data  # Iterate directly if list
-                else:
-                    logger.error(
-                        f"_parse_orders received unexpected type for orders_data: "
-                        f"{type(orders_data)}"
-                    )
-                    return
+                # else: # This else branch is unreachable due to type hint
+                #     logger.error(
+                #         f"_parse_orders received unexpected type for orders_data: "
+                #         f"{type(orders_data)}"
+                #     )
+                #     return
 
                 order_data_item: Order | dict[str, Any]  # Type hint for loop variable
                 for order_data_item in order_data_iterable:
@@ -1457,7 +1450,10 @@ class PortfolioTracker:
                                 f"Error validating Order for {client_id_for_log} "
                                 f"on {exchange_id}: {e}"
                             )
-                    elif isinstance(order_data_item, Order):
+                    # If order_data_item is not a dict, it must be an Order object
+                    # due to the type hint: Order | dict[str, Any]
+                    # So, the isinstance(order_data_item, Order) check is redundant.
+                    else:  # order_data_item must be an Order object here
                         # order_data_item is already an Order object
                         order = order_data_item
                         # Process order object
@@ -1487,9 +1483,9 @@ class PortfolioTracker:
                                 order.status = OrderStatus.UNKNOWN
                             current_orders[order.client_order_id] = order
                             new_count += 1
-                    else:  # DEFENSIVE CHECK: Handle unexpected item types in order_data_iterable.
-                        # Mypy=[unreachable]
-                        logger.warning(f"Invalid order format for {order_data_item}")
+                    # else: # This else branch is unreachable
+                    #     # Mypy=[unreachable]
+                    #     logger.warning(f"Invalid order format for {order_data_item}")
                 # Explicitly update the dictionary for the exchange
                 # This ensures the defaultdict behavior isn't bypassed if it was empty
                 self.orders[exchange_id] = current_orders

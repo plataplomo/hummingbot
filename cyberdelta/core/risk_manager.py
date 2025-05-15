@@ -826,8 +826,8 @@ class RiskManager:
         """Check that portfolio leverage is within allowed limits."""
         total_capital = await self.portfolio_tracker.get_total_capital()
 
-        # DEFENSIVE CHECK: Runtime check for None.
-        # Linter_Error=[Condition_always_False_due_to_Decimal_vs_None_type_overlap]
+        # DEFENSIVE CHECK: total_capital could be None if portfolio_tracker hasn't initialized
+        # or if a mock in a test returns None. Mypy=[condition-is-always-false]
         if total_capital is None:
             self.logger.warning("Total capital is None. Cannot calculate or check leverage.")
             return False
@@ -1171,11 +1171,9 @@ class RiskManager:
         # This combined_factor will be used directly.
         final_factor = combined_factor
 
-        if (
-            final_factor < ONE
-        ):  # Log if the factor is still less than 1 (i.e., applying some reduction)
-            self.logger.info(  # Changed to info as it's an expected reduction,
-                # not necessarily a warning
+        # Log if the factor is low but still usable for sizing
+        if final_factor < ONE:
+            self.logger.info(
                 f"Validation metrics for {exchange}/{symbol} result in factor: {final_factor:.3f} "
                 f"(RMSE={rmse_dec}, Bias={bias_dec}). Applying factor."
             )
@@ -1185,6 +1183,7 @@ class RiskManager:
                 f"RMSE={rmse_dec}, Bias={bias_dec}. Factor: {final_factor:.3f}"
             )
 
+        # Ensure it's not excessively precise if it's ONE
         return final_factor.quantize(Decimal("0.001"))
 
     async def _check_portfolio_constraints(
@@ -1250,7 +1249,7 @@ class RiskManager:
             f"Configured Method: {self.simple_sizing_method_str}, "
             f"Passed LVal: {long_val_factor}, "
             f"Passed SVal: {short_val_factor}"
-        )  # MODIFIED: Use parameters long_val_factor, short_val_factor
+        )
 
         if opportunity.net_funding_differential <= self.min_nfd_for_sizing:
             self.logger.warning(
@@ -1260,61 +1259,59 @@ class RiskManager:
             )
             return None
 
-        method = self.config.get("risk.simple_sizing_method", "fixed_fraction")
-        max_position = Decimal(str(self.config.get("risk.global.max_position_usd", "1000.0")))
         size = ZERO
-        if method == "fixed_fraction":
-            fraction = Decimal(str(self.config.get("risk.simple_fixed_fraction", "0.05")))
-            size = (total_capital * fraction).quantize(Decimal("0.01"))
-        elif method == "fixed_usd":
-            size = Decimal(str(self.config.get("risk.simple_fixed_usd_size", "100.0")))
-        # Cap at max position size
-        size = min(size, max_position)
+        # Use attributes loaded from config in __init__ / _load_config
+        if self.simple_sizing_method_str == SimpleSizingMethod.FIXED_FRACTION.value:
+            size = (total_capital * self.simple_fixed_fraction).quantize(Decimal("0.01"))
+        elif self.simple_sizing_method_str == SimpleSizingMethod.FIXED_USD.value:
+            size = self.simple_fixed_usd_size  # This is already a Decimal
+
         # Cap at available capital
         size = min(size, total_capital)
-        # --- Apply Validation Factor (if validator exists) ---
-        # REMOVED: Validation factors are now passed as arguments
-        # long_validation_factor = self._get_validation_metrics(
-        #     opportunity.long_exchange, opportunity.symbol
-        # )
-        # short_validation_factor = self._get_validation_metrics(
-        #     opportunity.short_exchange, opportunity.symbol
-        # )
 
-        # if long_validation_factor is None or short_validation_factor is None:
-        #     self.logger.warning(
-        #         f"Validation metrics failed for {opportunity.symbol} (Simple Path). "
-        #         f"Rejecting opportunity."
-        #     )
-        #     return None
-
-        # Apply the pre-calculated validation factors
+        # --- Apply Validation Factor ---
         validation_factor = min(long_val_factor, short_val_factor)
+        # self.logger.info(
+        #     f"RM_DEBUG_CSS: symbol={opportunity.symbol}, initial_size_calc=${size:.2f}, "
+        #     f"long_val_factor={long_val_factor}, short_val_factor={short_val_factor}, "
+        #     f"effective_validation_factor={validation_factor}"
+        # )
         if validation_factor < ONE:
-            self.logger.info(
-                f"Applying validation factor {validation_factor:.3f} to size for "
-                f"{opportunity.symbol} (simple path)."
-            )
-            size *= validation_factor  # Apply factor to size
+            # self.logger.info(
+            #     f"RM_DEBUG_CSS: Applying validation factor {validation_factor:.3f} to size ${size:.2f}"
+            # ) # Log before multiplication
+            # size_before_vf = size # This variable is no longer used as the log is commented out
+            size *= validation_factor
+            # self.logger.info(
+            #     f"RM_DEBUG_CSS: Size after validation_factor {validation_factor:.3f}: "
+            #     f"${size_before_vf:.2f} -> ${size:.2f}" # This log used size_before_vf
+            # ) # Log after
             size = size.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
             if size <= ZERO:  # Check if size became zero or negative
                 self.logger.info(
                     f"Size reduced to zero or less after validation factor for "
-                    f"{opportunity.symbol} (simple path). Rejecting."
+                    f"{opportunity.symbol} (simple path). Rejecting.\n"
                 )
                 return None
             self.logger.debug(
                 f"Size after validation factor for {opportunity.symbol} (simple path): ${size:.2f}"
             )
-        # --- END MODIFIED VALIDATION FACTOR LOGIC ---
 
-        # Enforce portfolio constraints
+        if size <= self.min_trade_size_usd:
+            self.logger.info(
+                f"SOS: Calculated size ${size:.2f} for {opportunity.symbol} "
+                f"is <= min_trade_size_usd ${self.min_trade_size_usd:.2f}. Rejecting.\n"
+            )
+            return None
+
+        # Enforce portfolio constraints (this will check max_position_size, etc.)
         is_valid, reason = await self._check_portfolio_constraints(size, opportunity)
         if not is_valid:
             self.logger.info(
-                f"Opportunity {opportunity.symbol} rejected due to portfolio constraints: {reason}",
+                f"SOS: Opportunity {opportunity.symbol} with size ${size:.2f} rejected due to portfolio constraints: {reason}",
             )
             return None
+
         # Calculate expected profit/return (use expected_return if present, else 0)
         original_expected_return = getattr(opportunity, "expected_return", ZERO)
         if not isinstance(original_expected_return, Decimal):

@@ -22,9 +22,11 @@ class TestRiskManagerInit:
         assert risk_manager.max_position_size == Decimal("5000.0")
         assert risk_manager.max_total_exposure_usd == Decimal("10000.0")
         assert risk_manager.max_leverage == Decimal("5.0")
-        assert risk_manager.min_exchange_balance == Decimal("10.0")
-        assert risk_manager.min_net_funding_differential == Decimal("0.0001")
-        assert risk_manager.min_opportunity_profitability == Decimal("0.0001")
+        assert risk_manager.min_exchange_balance == Decimal("50.0")
+        assert risk_manager.min_nfd_for_sizing == Decimal("0.0001")
+        assert risk_manager.min_nfd_for_sizing == Decimal(
+            "0.0001"
+        )  # Used by is_opportunity_profitable
         # Verify references to dependencies
         assert risk_manager.config == mock_config
         assert risk_manager.portfolio_tracker == mock_portfolio_tracker
