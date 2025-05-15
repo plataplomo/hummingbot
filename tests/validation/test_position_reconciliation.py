@@ -322,8 +322,20 @@ class TestPositionReconciliationSystem:
         assert reconciliation_system.auto_correct == config.get(
             "validation.position_reconciliation.auto_correct"
         )
-        assert reconciliation_system.check_interval == config.get(
-            "validation.position_reconciliation.check_interval"
+        # Compare total_seconds for timedelta with the int/float from config
+        check_interval_config_val = config.get("validation.position_reconciliation.check_interval")
+        assert isinstance(reconciliation_system.check_interval, timedelta)
+        assert reconciliation_system.check_interval.total_seconds() == float(
+            check_interval_config_val
+        )
+
+        # Also check reconciliation_interval setup if it differs or uses a different config key
+        reconciliation_interval_config_val = config.get(
+            "validation.position_reconciliation.interval_seconds"
+        )
+        assert isinstance(reconciliation_system.reconciliation_interval, timedelta)
+        assert reconciliation_system.reconciliation_interval.total_seconds() == float(
+            reconciliation_interval_config_val
         )
 
         # Test __init__ robustness to config.get returning None for specific keys
@@ -382,8 +394,8 @@ class TestPositionReconciliationSystem:
         system_config_mock = reconciliation_system._config
         portfolio_tracker_mock = reconciliation_system._portfolio_tracker
 
-        original_get_side_effect = system_config_mock.get.side_effect
-        original_get_call_count = system_config_mock.get.call_count
+        # original_get_side_effect = system_config_mock.get.side_effect # Not strictly needed if side_effect is replaced
+        # original_get_call_count = system_config_mock.get.call_count
 
         portfolio_tracker_mock.api_clients = {
             "hyperliquid": AsyncMock(spec=ExchangeAPI),
@@ -391,76 +403,106 @@ class TestPositionReconciliationSystem:
         }
 
         # Scenario 1: Interval has passed, should run
-        # Explicitly configure system_config_mock.get for this scenario
-        # to return True for enabled flags and delegate other calls.
         def scenario_1_specific_get(key: str, default: Any = None) -> Any:
             if key == "exchanges.hyperliquid.enabled":
-                return True
+                return True  # This config is checked inside the original _reconcile_exchange
             if key == "exchanges.backpack.enabled":
-                return True
-            # Delegate to the original side_effect for other keys like threshold, check_interval, etc.
-            if callable(original_get_side_effect):
-                return original_get_side_effect(key, default)
-            # Fallback if original_get_side_effect is not callable (e.g., was a simple return_value)
-            # This relies on the main config fixture to provide other necessary values.
-            # Or, more robustly, query the main fixture's behavior for other keys.
-            # For this test, other values are set by class attributes directly on reconciliation_system by __init__.
-            return default  # Default fallback
+                return True  # This config is checked inside the original _reconcile_exchange
+            # Configs relevant for PositionReconciliationSystem.__init__ or check_positions itself
+            if key == "validation.position_reconciliation.check_interval":
+                return 100  # Used by check_positions to determine if interval passed
+            if key == "validation.position_reconciliation.interval_seconds":
+                return 100  # Used by __init__ for self.reconciliation_interval setup
+            # Fallback for other config gets if PositionReconciliationSystem init needs them
+            # For this test, direct attributes like check_interval are also set on the instance.
+            return default
 
         system_config_mock.get.side_effect = scenario_1_specific_get
-
-        # Verify the side_effect is immediately active
-        assert system_config_mock.get("exchanges.hyperliquid.enabled", False) is True
-        assert system_config_mock.get("exchanges.backpack.enabled", False) is True
+        # Ensure reconciliation_system uses this updated config behavior for intervals
+        reconciliation_system.check_interval = timedelta(
+            seconds=system_config_mock.get("validation.position_reconciliation.check_interval")
+        )
+        reconciliation_system.reconciliation_interval = timedelta(
+            seconds=system_config_mock.get("validation.position_reconciliation.interval_seconds")
+        )
 
         reconciliation_system.last_check_time = datetime.now(UTC) - timedelta(seconds=200)
-        # reconciliation_system.check_interval is set by __init__ from config, ensure it's what we expect for test
-        # Default from config fixture is 3600. Let's override for this test scenario if needed for clarity.
-        reconciliation_system.check_interval = timedelta(
-            seconds=100
-        )  # Ensure interval logic will trigger
+
+        # Use a list to record calls to the mock, similar to test_auto_correct
+        reconcile_exchange_calls = []
+
+        async def mock_reconcile_exchange_side_effect(exchange: str) -> dict[str, Any]:
+            reconcile_exchange_calls.append(exchange)
+            # Return the expected dictionary structure
+            return {
+                "success": True,
+                "discrepancies": [],
+                "timestamp": datetime.now(UTC),
+                "message": f"Mocked reconcile for {exchange}",
+            }
 
         with patch.object(
-            reconciliation_system, "_reconcile_exchange_positions", new_callable=AsyncMock
-        ) as mock_check_s1:
+            reconciliation_system,
+            "_reconcile_exchange",
+            side_effect=mock_reconcile_exchange_side_effect,
+        ) as mock_check_s1_method:  # This is the MagicMock object for the patch
             await reconciliation_system.check_positions(force=False)
-            system_config_mock.get.assert_any_call("exchanges.hyperliquid.enabled", False)
-            system_config_mock.get.assert_any_call("exchanges.backpack.enabled", False)
-            assert mock_check_s1.call_count == 2, (
-                f"Scenario 1: Expected 2 calls, got {mock_check_s1.call_count}"
+
+            # system_config_mock.get.assert_any_call("exchanges.hyperliquid.enabled", False) # These are not called by check_positions directly
+            # system_config_mock.get.assert_any_call("exchanges.backpack.enabled", False)
+
+            assert mock_check_s1_method.call_count == 2, (
+                f"Scenario 1: Expected _reconcile_exchange to be called 2 times, got {mock_check_s1_method.call_count}"
             )
+            assert "hyperliquid" in reconcile_exchange_calls
+            assert "backpack" in reconcile_exchange_calls
 
-        # Restore mock for other scenarios
-        system_config_mock.get.side_effect = original_get_side_effect
-        system_config_mock.get.call_count = original_get_call_count  # Approximate restoration
-
-        # Scenario 2: Interval not passed, should not run
-        reconciliation_system.last_check_time = datetime.now(UTC) - timedelta(seconds=50)
-        reconciliation_system.check_interval = timedelta(seconds=100)
-        with patch.object(
-            reconciliation_system, "_reconcile_exchange_positions", new_callable=AsyncMock
-        ) as mock_check_s2:
-            await reconciliation_system.check_positions(force=False)
-            mock_check_s2.assert_not_called()
-
-        # Scenario 3: Forced, should run (still needs .enabled to be True)
+        # Scenario 2: Interval has not passed, should not run
         system_config_mock.get.side_effect = (
-            scenario_1_specific_get  # Reuse S1's side_effect for enabled flags
+            scenario_1_specific_get  # Keep same config get behavior
         )
-        reconciliation_system.last_check_time = datetime.now(UTC) - timedelta(seconds=50)
-        reconciliation_system.check_interval = timedelta(seconds=100)
-        with patch.object(
-            reconciliation_system, "_reconcile_exchange_positions", new_callable=AsyncMock
-        ) as mock_check_s3:
-            await reconciliation_system.check_positions(force=True)
-            system_config_mock.get.assert_any_call("exchanges.hyperliquid.enabled", False)
-            system_config_mock.get.assert_any_call("exchanges.backpack.enabled", False)
-            assert mock_check_s3.call_count == 2, (
-                f"Scenario 3: Expected 2 calls, got {mock_check_s3.call_count}"
-            )
+        reconciliation_system.check_interval = timedelta(seconds=300)  # Ensure interval is longer
+        reconciliation_system.reconciliation_interval = timedelta(seconds=300)
+        reconciliation_system.last_check_time = datetime.now(UTC) - timedelta(
+            seconds=100
+        )  # Only 100s passed
 
-        system_config_mock.get.side_effect = original_get_side_effect  # Final restoration
-        system_config_mock.get.call_count = original_get_call_count
+        reconcile_exchange_calls_s2 = []
+
+        async def mock_reconcile_exchange_side_effect_s2(exchange: str) -> dict[str, Any]:
+            reconcile_exchange_calls_s2.append(exchange)
+            return {"success": True, "discrepancies": [], "timestamp": datetime.now(UTC)}
+
+        with patch.object(
+            reconciliation_system,
+            "_reconcile_exchange",
+            side_effect=mock_reconcile_exchange_side_effect_s2,
+        ) as mock_check_s2_method:
+            await reconciliation_system.check_positions(force=False)
+            mock_check_s2_method.assert_not_called()
+            assert len(reconcile_exchange_calls_s2) == 0
+
+        # Scenario 3: force=True, should run even if interval hasn't passed
+        system_config_mock.get.side_effect = scenario_1_specific_get
+        reconciliation_system.check_interval = timedelta(seconds=300)
+        reconciliation_system.reconciliation_interval = timedelta(seconds=300)
+        reconciliation_system.last_check_time = datetime.now(UTC) - timedelta(seconds=100)
+
+        reconcile_exchange_calls_s3 = []
+
+        async def mock_reconcile_exchange_side_effect_s3(exchange: str) -> dict[str, Any]:
+            reconcile_exchange_calls_s3.append(exchange)
+            return {"success": True, "discrepancies": [], "timestamp": datetime.now(UTC)}
+
+        with patch.object(
+            reconciliation_system,
+            "_reconcile_exchange",
+            side_effect=mock_reconcile_exchange_side_effect_s3,
+        ) as mock_check_s3_method:
+            await reconciliation_system.check_positions(force=True)
+            assert mock_check_s3_method.call_count == 2
+            assert "hyperliquid" in reconcile_exchange_calls_s3
+            assert "backpack" in reconcile_exchange_calls_s3
 
     @pytest.mark.asyncio
     async def test_check_positions_no_portfolio_tracker(self, config: Config) -> None:
@@ -532,8 +574,8 @@ class TestPositionReconciliationSystem:
             "backpack": mock_bp_api_client,
         }
 
-        # Patch _reconcile_exchange_positions to return a known structure to avoid internal errors
-        # This helps test check_positions's aggregation logic rather than _reconcile_exchange_positions itself here.
+        # Patch _reconcile_exchange to return a known structure to avoid internal errors
+        # This helps test check_positions's aggregation logic rather than _reconcile_exchange itself here.
         mock_reconcile_result = {
             "success": True,
             "discrepancies": [],
@@ -543,7 +585,7 @@ class TestPositionReconciliationSystem:
         }
         with patch.object(
             reconciliation_system,
-            "_reconcile_exchange_positions",
+            "_reconcile_exchange",
             return_value=mock_reconcile_result,
         ) as patched_reconcile_pos:
             results = await reconciliation_system.check_positions()
@@ -552,7 +594,7 @@ class TestPositionReconciliationSystem:
         assert "backpack" in results
         assert (
             results["hyperliquid"] == mock_reconcile_result
-        )  # As _reconcile_exchange directly returns _reconcile_exchange_positions result if no error
+        )  # As _reconcile_exchange directly returns _reconcile_exchange result if no error
         assert results["backpack"] == mock_reconcile_result
         assert patched_reconcile_pos.call_count == 2  # Called for hyperliquid and backpack
 
@@ -565,76 +607,114 @@ class TestPositionReconciliationSystem:
             if key == "validation.position_reconciliation.auto_correct":
                 return True
             if key == "validation.position_reconciliation.check_interval":
-                return 0  # Force check
+                # Setting to a low value or 0 to ensure the check runs if not forced,
+                # but force=True is used in this test.
+                return 0
             if key == "exchanges.hyperliquid.enabled":
                 return True
             if key == "exchanges.backpack.enabled":
                 return True
+            # Ensure other necessary config values are provided for PositionReconciliationSystem init
+            if key == "validation.position_reconciliation.interval_seconds":
+                return 600.0
+            if key == "validation.position_reconciliation.threshold_percent":
+                return "5.0"
+            if key == "validation.position_reconciliation.action_mode":
+                return "log"
+            if key == "validation.position_reconciliation.use_fill_history":  # Added
+                return False
             return default
 
-        config.get.side_effect = config_get  # Assign side_effect to the mock object's method
+        config.get.side_effect = config_get
 
         system = PositionReconciliationSystem(config, portfolio_tracker)
 
-        # Mock _reconcile_exchange_positions to track calls
+        # Mock _reconcile_exchange to track calls and simulate its return
         reconcile_calls = []
 
-        def side_effect_reconcile_exchange_positions(
-            exchange_name, api_pos_list, fill_pos_list, local_pos_list
-        ):
-            reconcile_calls.append(
-                {
-                    "exchange": exchange_name,
-                    "api_pos_count": len(api_pos_list),
-                    "fill_pos_count": len(fill_pos_list),
-                    "local_pos_count": len(local_pos_list),
-                }
-            )
-            # Simulate _reconcile_exchange_positions returning some corrections
-            # or an empty list if no corrections needed
-            return []  # Assume no actual corrections for this mock test
+        async def mock_side_effect_reconcile_exchange(exchange: str) -> dict[str, Any]:
+            reconcile_calls.append({"exchange": exchange})  # Record the call
+
+            # Simulate return structure of _reconcile_exchange
+            # This should include discrepancies if we want auto-correct to do something.
+            # For this test, we mainly care that it was called.
+            # If auto-correct logic depends on specific discrepancy details, mock them here.
+            mock_discrepancies = []
+            if exchange == "hyperliquid":  # Simulate a discrepancy for hyperliquid
+                mock_discrepancies.append(
+                    {
+                        "symbol": "BTC",
+                        "exchange_value": "1.1",  # API has 1.1
+                        "local_value": "1.0",  # Local has 1.0
+                        "discrepancy": "0.1",
+                        "action_taken": "logged",  # or "corrected" if auto_correct was to run
+                    }
+                )
+
+            return {
+                "success": True,
+                "discrepancies": mock_discrepancies,
+                "timestamp": datetime.now(UTC),
+                "message": f"Mock reconciliation for {exchange}",
+            }
 
         with patch.object(
             system,
-            "_reconcile_exchange_positions",
-            side_effect=side_effect_reconcile_exchange_positions,
-        ) as mock_reconcile:
+            "_reconcile_exchange",  # Patching the correct method name
+            side_effect=mock_side_effect_reconcile_exchange,
+        ) as mock_reconcile_method:
             # Mock portfolio_tracker.api_clients to return mock ExchangeAPI instances
             mock_hl_api_client = AsyncMock(spec=ExchangeAPI)
             mock_bp_api_client = AsyncMock(spec=ExchangeAPI)
 
-            # Configure mock API clients to return some positions to trigger reconciliation
-            mock_hl_api_client.get_positions.return_value = [
-                DerivativePosition(
-                    exchange="hyperliquid",
-                    symbol="BTC",
-                    side=OrderSide.BUY,
-                    size=Decimal("1.0"),
-                    entry_price=Decimal("50000"),
-                    timestamp=datetime.now(UTC),
-                )
-            ]
-            mock_bp_api_client.get_positions.return_value = []
-
+            # Configure mock API clients (get_positions is called by the real _reconcile_exchange,
+            # but _reconcile_exchange itself is mocked here, so get_positions won't be hit via this path)
+            # However, portfolio_tracker.api_clients itself needs to be set for check_positions to iterate
             portfolio_tracker.api_clients = {
                 "hyperliquid": mock_hl_api_client,
                 "backpack": mock_bp_api_client,
             }
 
-            # Call check_positions, which should trigger _reconcile_exchange_positions if auto_correct is True
+            # Mock methods on portfolio_tracker that auto_correct might call if discrepancies were processed
+            portfolio_tracker.update_position = AsyncMock()
+            portfolio_tracker.create_position_from_exchange_data = AsyncMock()
+
+            # Call check_positions, which should trigger the mocked _reconcile_exchange
             await system.check_positions(force=True)
 
-            # Assert that _reconcile_exchange_positions was called for each enabled exchange
-            # The exact number of calls depends on how many exchanges are enabled and have positions
-            # For this test, we expect it to be called for "hyperliquid"
-            assert mock_reconcile.called
-            assert any(call["exchange"] == "hyperliquid" for call in reconcile_calls)
-            # If backpack has no positions, _reconcile_exchange_positions might not be called for it,
-            # or it might be called with empty lists. This depends on the internal logic.
-            # For simplicity, we'll just check hyperliquid here.
+            # Assert that _reconcile_exchange (our mock_reconcile_method) was called
+            assert mock_reconcile_method.called, "_reconcile_exchange was not called"
+
+            # Assert it was called for each enabled exchange
+            # Call args list contains tuples of (args, kwargs) for each call
+            called_exchanges = {
+                call_args[0][0] for call_args in mock_reconcile_method.call_args_list
+            }
+            assert "hyperliquid" in called_exchanges, "hyperliquid was not reconciled"
+            assert "backpack" in called_exchanges, "backpack was not reconciled"
+
+            assert any(call["exchange"] == "hyperliquid" for call in reconcile_calls), (
+                "Did not record a reconcile call for hyperliquid"
+            )
+            assert any(call["exchange"] == "backpack" for call in reconcile_calls), (
+                "Did not record a reconcile call for backpack"
+            )
+
+            # Further assertions could check if portfolio_tracker.update_position was called
+            # if mock_discrepancies was non-empty and auto_correct logic was fully exercised.
+            # For example, if hyperliquid had a discrepancy:
+            # Await the coroutine to get its result (the dictionary)
+            reconcile_result_hyperliquid = await mock_side_effect_reconcile_exchange("hyperliquid")
+            if any(d["symbol"] == "BTC" for d in reconcile_result_hyperliquid["discrepancies"]):
+                # This part of assertion depends on _apply_corrections being called by _reconcile_exchange
+                # Since _reconcile_exchange is fully mocked, _apply_corrections is not called by our mock.
+                # To test auto-correction fully, one might need to mock _apply_corrections or
+                # make the _reconcile_exchange mock more complex to call it.
+                # For now, we've confirmed _reconcile_exchange is called.
+                pass
 
     def test_reconcile_positions(self, reconciliation_system: PositionReconciliationSystem) -> None:
-        """Test the core _reconcile_exchange_positions logic (if directly testable)."""
+        """Test the core _reconcile_exchange logic (if directly testable)."""
         # This test might be difficult to set up without extensive mocking if
         # the method is not yet implemented or relies heavily on internal state.
         # For now, if the method is private or complex to isolate, this test might be a placeholder.
@@ -888,8 +968,8 @@ class TestPositionReconciliationSystem:
             "backpack": mock_bp_api_client,
         }
 
-        # Patch _reconcile_exchange_positions to return a known structure to avoid internal errors
-        # This helps test check_positions's aggregation logic rather than _reconcile_exchange_positions itself here.
+        # Patch _reconcile_exchange to return a known structure to avoid internal errors
+        # This helps test check_positions's aggregation logic rather than _reconcile_exchange itself here.
         mock_reconcile_result = {
             "success": True,
             "discrepancies": [],
@@ -899,7 +979,7 @@ class TestPositionReconciliationSystem:
         }
         with patch.object(
             reconciliation_system,
-            "_reconcile_exchange_positions",
+            "_reconcile_exchange",
             return_value=mock_reconcile_result,
         ) as patched_reconcile_pos:
             results = await reconciliation_system.check_positions()
@@ -908,6 +988,6 @@ class TestPositionReconciliationSystem:
         assert "backpack" in results
         assert (
             results["hyperliquid"] == mock_reconcile_result
-        )  # As _reconcile_exchange directly returns _reconcile_exchange_positions result if no error
+        )  # As _reconcile_exchange directly returns _reconcile_exchange result if no error
         assert results["backpack"] == mock_reconcile_result
         assert patched_reconcile_pos.call_count == 2  # Called for hyperliquid and backpack

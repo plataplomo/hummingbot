@@ -64,9 +64,11 @@ async def test_circuit_breaker_global_halts_execution(
     mock_hl_api.reset()
     # real_portfolio_tracker.reset() # Method does not exist, rely on fixture for fresh state
     # Explicitly reset breakers associated with the system
-    circuit_breaker_system.reset_breaker("api_errors")  # Reset global, using config key name
-    circuit_breaker_system.reset_exchange_breakers("mock_bp")  # Reset exchange specific
+    circuit_breaker_system.reset_breaker("global/api_error")
+    circuit_breaker_system.reset_exchange_breakers("mock_bp")  # This method iterates internal keys
     circuit_breaker_system.reset_exchange_breakers("mock_hl")
+    circuit_breaker_system.reset_exchange_breakers("backpack")
+    circuit_breaker_system.reset_exchange_breakers("hyperliquid")
 
     mock_bp_api.set_mock_balance(
         SpotBalance(
@@ -103,7 +105,7 @@ async def test_circuit_breaker_global_halts_execution(
     mock_hl_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts_dt))
 
     # 2. Trigger Global Circuit Breaker Directly
-    global_breaker_name = "api_errors"  # Name used in config and reset
+    global_breaker_name = "global/api_error"  # Name used by system for the global API error breaker
     trip_reason = "Test global trip"
     global_breaker = circuit_breaker_system.get_breaker(global_breaker_name)
     assert global_breaker is not None, f"Global breaker '{global_breaker_name}' not found."
@@ -172,9 +174,11 @@ async def test_circuit_breaker_exchange_halts_execution(
     mock_hl_api.reset()
     # real_portfolio_tracker.reset() # Method does not exist
     # Explicitly reset breakers associated with the system
-    circuit_breaker_system.reset_breaker("api_errors")  # Reset global, using config key name
+    circuit_breaker_system.reset_breaker("global/api_error")
     circuit_breaker_system.reset_exchange_breakers("mock_bp")  # Reset exchange specific
     circuit_breaker_system.reset_exchange_breakers("mock_hl")
+    circuit_breaker_system.reset_exchange_breakers("backpack")
+    circuit_breaker_system.reset_exchange_breakers("hyperliquid")
 
     mock_bp_api.set_mock_balance(
         SpotBalance(
@@ -215,11 +219,12 @@ async def test_circuit_breaker_exchange_halts_execution(
     breaker_type = "api_errors"  # Type implied by config/reset/record calls
     trip_reason = f"Test exchange trip for {target_exchange}"
 
-    exchange_breaker = circuit_breaker_system.get_exchange_breaker(target_exchange, breaker_type)
-    assert exchange_breaker is not None, (
-        f"Exchange breaker '{target_exchange}/{breaker_type}' not found."
+    exchange_breaker_name = (
+        f"{target_exchange}/api_errors"  # Name based on exchange_id and key in config
     )
-    logger.info(f"Tripping exchange breaker: {target_exchange}/{breaker_type}")
+    exchange_breaker = circuit_breaker_system.get_exchange_breaker(target_exchange, breaker_type)
+    assert exchange_breaker is not None, f"Exchange breaker '{exchange_breaker_name}' not found."
+    logger.info(f"Tripping exchange breaker: {exchange_breaker_name}")
     exchange_breaker.trip(trip_reason)
 
     # Verify the specific exchange breaker is open using can_execute
@@ -962,8 +967,10 @@ async def test_max_drawdown_halts_execution(
 async def test_max_total_exposure_constraint_prevents_trade(
     risk_manager: RiskManager,  # RiskManager instance from fixture
     basic_opportunity: ArbitrageOpportunity,
+    real_portfolio_tracker: PortfolioTracker,  # Added portfolio_tracker
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    """Test that max_total_exposure constraint rejects an opportunity that would exceed it."""
     caplog.set_level(logging.DEBUG, logger="cyberdelta.core.risk_manager.RiskManager")
     """Test that max_total_exposure constraint prevents sizing if capital is low."""
     # Configure RiskManager for this specific test
@@ -1025,9 +1032,10 @@ async def test_max_total_exposure_constraint_prevents_trade(
 async def test_min_trade_size_constraint_prevents_trade(
     risk_manager: RiskManager,  # RiskManager instance from fixture
     basic_opportunity: ArbitrageOpportunity,
+    real_portfolio_tracker: PortfolioTracker,  # Added portfolio_tracker
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test that min_trade_size constraint prevents sizing if capital is low."""
+    """Test that min_trade_size_usd constraint rejects an opportunity smaller than it."""
     risk_manager.max_total_exposure_usd = Decimal("5000.0")
     risk_manager.min_trade_size_usd = Decimal("1000")
     risk_manager.max_position_size = Decimal("20000")

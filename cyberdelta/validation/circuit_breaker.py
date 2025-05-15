@@ -648,14 +648,16 @@ class CircuitBreakerSystem:
                 target_class: type[CircuitBreaker] | None = None
                 is_symbol_specific_by_default = False  # True for Volatility, Liquidity
 
-                if breaker_type_key == "api_error":
+                # Allow both singular "api_error" and plural "api_errors" as valid keys from config
+                # to map to APIErrorBreaker, as "api_errors" is more natural for a dict key.
+                if breaker_type_key.lower() in ["api_error", "api_errors"]:
                     target_class = APIErrorBreaker
-                elif breaker_type_key == "drawdown":
+                elif breaker_type_key.lower() == "drawdown":
                     target_class = DrawdownBreaker
-                elif breaker_type_key == "volatility":
+                elif breaker_type_key.lower() == "volatility":
                     target_class = VolatilityBreaker
                     is_symbol_specific_by_default = True
-                elif breaker_type_key == "liquidity":
+                elif breaker_type_key.lower() == "liquidity":
                     target_class = LiquidityBreaker
                     is_symbol_specific_by_default = True
                 else:
@@ -720,8 +722,10 @@ class CircuitBreakerSystem:
                         self.register_breaker(created_breaker_instance)
                         # Determine the key for storage in exchange_breakers
                         storage_key = breaker_type_key
-                        if breaker_type_key == "api_error":
-                            storage_key = "api_errors"  # Use plural form for consistency with tests
+                        # Ensure storage in exchange_breakers consistently uses "api_errors" (plural)
+                        # if the original key was "api_error" or "api_errors".
+                        if target_class == APIErrorBreaker:
+                            storage_key = "api_errors"
 
                         self.exchange_breakers.setdefault(exchange_id, {})[storage_key] = (
                             created_breaker_instance
@@ -808,11 +812,10 @@ class CircuitBreakerSystem:
         # Check exchange-specific breakers
         if exchange in self.exchange_breakers:
             for breaker_type, breaker in self.exchange_breakers[exchange].items():
-                breaker_name = f"exchange:{exchange}:{breaker_type}"
-
+                # Use breaker.name which is the fully qualified name like "backpack/api_errors"
                 if not breaker.allow_operation():
                     reason = (
-                        f"Exchange breaker '{breaker_name}' for {exchange} is OPEN due to: "
+                        f"Exchange breaker '{breaker.name}' for {exchange} is OPEN due to: "
                         f"{breaker.trip_reason}"
                     )
                     logger.warning(f"Execution blocked for {exchange}: {reason}")
@@ -823,14 +826,14 @@ class CircuitBreakerSystem:
                     if now >= breaker.trip_time + cooldown_time:
                         if not breaker.test_recovery():
                             reason = (
-                                f"Exchange breaker '{breaker_name}' for {exchange} failed "
+                                f"Exchange breaker '{breaker.name}' for {exchange} failed "
                                 f"recovery test."
                             )
                             logger.warning(f"Execution blocked for {exchange}: {reason}")
                             return False, reason
                         else:
                             logger.info(
-                                f"Exchange breaker '{breaker_name}' for {exchange} recovered "
+                                f"Exchange breaker '{breaker.name}' for {exchange} recovered "
                                 f"and is now CLOSED."
                             )
 
@@ -859,14 +862,14 @@ class CircuitBreakerSystem:
                 )
 
         # Record with exchange-specific breaker
-        breaker = self.get_exchange_breaker(exchange, "api_errors")
-        if isinstance(breaker, APIErrorBreaker):
-            breaker.record_error(error_message)
-            # Check if exchange breaker tripped
-            if not breaker.allow_operation():
-                logger.warning(
-                    f"API Error circuit breaker for {exchange} tripped: {breaker.trip_reason}"
+        exchange_breaker = self.get_exchange_breaker(exchange, "api_errors")
+        if exchange_breaker and exchange_breaker.is_enabled:
+            if not exchange_breaker.allow_operation():
+                reason = (
+                    f"Exchange breaker '{exchange_breaker.name}' is OPEN "
+                    f"due to: {exchange_breaker.last_trip_reason}"
                 )
+                logger.warning(f"Execution blocked: {reason}")
         else:
             logger.debug(f"No APIErrorBreaker configured for exchange: {exchange}")
 

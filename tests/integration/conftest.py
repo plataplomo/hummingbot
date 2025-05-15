@@ -274,9 +274,73 @@ def position_reconciler(
 
 @pytest.fixture
 def circuit_breaker_system(mock_config: Config) -> CircuitBreakerSystem:
-    """Provides a CircuitBreakerSystem instance."""
+    """Provides a CircuitBreakerSystem instance initialized with mock config."""
 
-    # Pass mock_config to ensure it uses the test configuration
+    # Clear/Re-initialize relevant config sections to ensure a clean slate for this fixture
+
+    # 1. Global API Error Breaker Configuration
+    # CircuitBreakerSystem._load_config specifically looks for this path for the global API breaker.
+    # It will internally name it "global/api_error" (singular).
+    global_cb_path_parts = ["validation", "circuit_breaker", "global", "api_errors"]
+    current_level = mock_config.config_data
+    for part in global_cb_path_parts[:-1]:
+        if part not in current_level:
+            current_level[part] = {}
+        current_level = current_level[part]
+    current_level[global_cb_path_parts[-1]] = {
+        "enabled": True,
+        "type": "api_error",  # Type is used by older _create_breaker if called directly, but _load_config maps key
+        "error_threshold": 3,
+        "window_seconds": 60,
+        "cooldown_seconds": 180,
+    }
+
+    # 2. Exchange-Specific Breaker Configurations
+    # CircuitBreakerSystem._load_config looks under `exchanges.<exchange_name>.circuit_breakers.<breaker_key>`
+    if "exchanges" not in mock_config.config_data:
+        mock_config.config_data["exchanges"] = {}
+
+    exchange_breaker_config_base = {
+        # "type": "api_error", # Type is implied by the key "api_errors" in the new logic
+        "enabled": True,
+        "error_threshold": 2,
+        "window_seconds": 45,
+        "cooldown_seconds": 120,
+    }
+
+    for exchange_key in ["hyperliquid", "backpack", "mock_hl", "mock_bp"]:
+        if exchange_key not in mock_config.config_data["exchanges"]:
+            mock_config.config_data["exchanges"][exchange_key] = {}
+
+        # Ensure 'circuit_breakers' sub-dictionary exists for the exchange
+        if "circuit_breakers" not in mock_config.config_data["exchanges"][exchange_key]:
+            mock_config.config_data["exchanges"][exchange_key]["circuit_breakers"] = {}
+
+        # The key here (e.g., "api_errors") becomes part of the breaker name: <exchange_key>/api_errors
+        mock_config.config_data["exchanges"][exchange_key]["circuit_breakers"]["api_errors"] = (
+            exchange_breaker_config_base.copy()
+        )
+        # Example for other types if needed by tests later:
+        # mock_config.config_data["exchanges"][exchange_key]["circuit_breakers"]["max_drawdown"] = {
+        #     "enabled": True, "drawdown_threshold": 0.15, "cooldown_seconds": 300
+        # }
+
+    logger.debug(
+        "Circuit Breaker System Fixture: Modified mock_config.validation.circuit_breaker.global.api_errors: %s",
+        mock_config.config_data.get("validation", {})
+        .get("circuit_breaker", {})
+        .get("global", {})
+        .get("api_errors"),
+    )
+    for ex_key in ["hyperliquid", "backpack", "mock_hl", "mock_bp"]:
+        logger.debug(
+            f"Circuit Breaker System Fixture: Modified mock_config.exchanges.{ex_key}.circuit_breakers.api_errors: %s",
+            mock_config.config_data.get("exchanges", {})
+            .get(ex_key, {})
+            .get("circuit_breakers", {})
+            .get("api_errors"),
+        )
+
     return CircuitBreakerSystem(mock_config)
 
 
