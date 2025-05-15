@@ -3,7 +3,7 @@
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -104,19 +104,18 @@ class TestRiskManagerSizingSimple:
         }
         current_test_config_dict = mock_config_dict.copy()
         # Ensure 'risk' key exists and is a dictionary
-        if "risk" not in current_test_config_dict or not isinstance(
-            current_test_config_dict["risk"], dict
-        ):
-            current_test_config_dict[
-                "risk"
-            ] = {}  # Should not be reached with MINIMAL_MOCK_CONFIG_DICT
-        # Apply general risk overrides
-        current_test_config_dict["risk"].update(test_risk_overrides)
+        if not isinstance(current_test_config_dict.get("risk"), dict):
+            current_test_config_dict["risk"] = {}
+
+        # Explicitly define and type the 'risk' sub-dictionary
+        risk_config_to_update: dict[str, Any] = current_test_config_dict["risk"]
+        risk_config_to_update.update(test_risk_overrides)
+
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
         if "global" not in current_test_config_dict["risk"] or not isinstance(
             current_test_config_dict["risk"]["global"], dict
         ):
-            current_test_config_dict["risk"]["global"] = {}  # Create if overridden or missing
+            current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "5000.0"
         current_test_config_dict["risk"]["min_nfd_bps"] = "1"  # Allow NFD of 0.0003 to pass
 
@@ -164,12 +163,13 @@ class TestRiskManagerSizingSimple:
         }
         current_test_config_dict = mock_config_dict.copy()
         # Ensure 'risk' key exists and is a dictionary
-        if "risk" not in current_test_config_dict or not isinstance(
-            current_test_config_dict["risk"], dict
-        ):
+        if not isinstance(current_test_config_dict.get("risk"), dict):
             current_test_config_dict["risk"] = {}
-        # Apply general risk overrides
-        current_test_config_dict["risk"].update(test_risk_overrides)
+
+        # Explicitly define and type the 'risk' sub-dictionary
+        risk_config_to_update: dict[str, Any] = current_test_config_dict["risk"]
+        risk_config_to_update.update(test_risk_overrides)
+
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
         if "global" not in current_test_config_dict["risk"] or not isinstance(
             current_test_config_dict["risk"]["global"], dict
@@ -221,12 +221,13 @@ class TestRiskManagerSizingSimple:
         }
         current_test_config_dict = mock_config_dict.copy()
         # Ensure 'risk' key exists and is a dictionary
-        if "risk" not in current_test_config_dict or not isinstance(
-            current_test_config_dict["risk"], dict
-        ):
+        if not isinstance(current_test_config_dict.get("risk"), dict):
             current_test_config_dict["risk"] = {}
-        # Apply general risk overrides
-        current_test_config_dict["risk"].update(test_risk_overrides)
+
+        # Explicitly define and type the 'risk' sub-dictionary
+        risk_config_to_update: dict[str, Any] = current_test_config_dict["risk"]
+        risk_config_to_update.update(test_risk_overrides)
+
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
         if "global" not in current_test_config_dict["risk"] or not isinstance(
             current_test_config_dict["risk"]["global"], dict
@@ -279,12 +280,13 @@ class TestRiskManagerSizingSimple:
         }
         current_test_config_dict = mock_config_dict.copy()
         # Ensure 'risk' key exists and is a dictionary
-        if "risk" not in current_test_config_dict or not isinstance(
-            current_test_config_dict["risk"], dict
-        ):
+        if not isinstance(current_test_config_dict.get("risk"), dict):
             current_test_config_dict["risk"] = {}
-        # Apply general risk overrides
-        current_test_config_dict["risk"].update(test_risk_overrides)
+
+        # Explicitly define and type the 'risk' sub-dictionary
+        risk_config_to_update: dict[str, Any] = current_test_config_dict["risk"]
+        risk_config_to_update.update(test_risk_overrides)
+
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
         if "global" not in current_test_config_dict["risk"] or not isinstance(
             current_test_config_dict["risk"]["global"], dict
@@ -336,14 +338,14 @@ class TestRiskManagerSizingSimple:
         }
         current_test_config_dict = mock_config_dict.copy()
         # Ensure 'risk' key exists and is a dictionary
-        if "risk" not in current_test_config_dict or not isinstance(
-            current_test_config_dict["risk"], dict
-        ):
+        if not isinstance(current_test_config_dict.get("risk"), dict):
             current_test_config_dict["risk"] = {}
-        # Apply general risk overrides
-        current_test_config_dict["risk"].update(test_risk_overrides)
 
-        def config_get_side_effect(key: str, default: object | None = None) -> Any:
+        # Explicitly define and type the 'risk' sub-dictionary
+        risk_config_to_update_safety: dict[str, Any] = current_test_config_dict["risk"]
+        risk_config_to_update_safety.update(test_risk_overrides)
+
+        def config_get_side_effect(key: str, default: object | None = None) -> object:
             keys = key.split(".")
             value = current_test_config_dict
             for k_part in keys:
@@ -400,14 +402,14 @@ class TestRiskManagerSizingSimple:
         }
         current_test_config_dict = mock_config_dict.copy()
         # Ensure 'risk' key exists and is a dictionary
-        if "risk" not in current_test_config_dict or not isinstance(
-            current_test_config_dict["risk"], dict
-        ):
+        if not isinstance(current_test_config_dict.get("risk"), dict):
             current_test_config_dict["risk"] = {}
-        # Apply general risk overrides
-        current_test_config_dict["risk"].update(test_risk_overrides)
 
-        def config_get_side_effect(key: str, default: object | None = None) -> Any:
+        # Explicitly define and type the 'risk' sub-dictionary
+        risk_config_to_update: dict[str, Any] = current_test_config_dict["risk"]
+        risk_config_to_update.update(test_risk_overrides)
+
+        def config_get_side_effect(key: str, default: object | None = None) -> object:
             keys = key.split(".")
             value = current_test_config_dict
             for k_part in keys:
@@ -462,14 +464,14 @@ class TestRiskManagerSizingSimple:
         }
         current_test_config_dict = mock_config_dict.copy()
         # Ensure 'risk' key exists and is a dictionary
-        if "risk" not in current_test_config_dict or not isinstance(
-            current_test_config_dict["risk"], dict
-        ):
+        if not isinstance(current_test_config_dict.get("risk"), dict):
             current_test_config_dict["risk"] = {}
-        # Apply general risk overrides
-        current_test_config_dict["risk"].update(test_risk_overrides)
 
-        def config_get_side_effect(key: str, default: object | None = None) -> Any:
+        # Explicitly define and type the 'risk' sub-dictionary
+        risk_config_to_update: dict[str, Any] = current_test_config_dict["risk"]
+        risk_config_to_update.update(test_risk_overrides)
+
+        def config_get_side_effect(key: str, default: object | None = None) -> object:
             keys = key.split(".")
             value = current_test_config_dict
             for k_part in keys:
@@ -506,10 +508,13 @@ class TestRiskManagerSizingSimple:
             sized_opp = await risk_manager.size_opportunity(sample_opportunity)
 
         # Behavior depends on whether RM sizes down or rejects.
-        # Assuming simple_fixed_usd_size is a hard target for now, it should be rejected if capital is less.
+        # Assuming simple_fixed_usd_size is a hard target for now,
+        # it should be rejected if capital is less.
         # Or, if it sizes down to available capital (100), then check for 100.
-        # Current _size_simple uses min(calculated_size, capital_for_sizing) for fixed_fraction
-        # For fixed_usd, it uses fixed_usd_size. If this is > capital, it should likely be rejected.
+        # Current _size_simple uses min(calculated_size, capital_for_sizing)
+        # for fixed_fraction
+        # For fixed_usd, it uses fixed_usd_size.
+        # If this is > capital, it should likely be rejected.
         # Let's assume rejection for now.
         assert sized_opp is None, (
             "Opportunity should be rejected or sized to zero due to insufficient capital"
@@ -535,9 +540,7 @@ class TestRiskManagerSizingSimple:
 
         live_test_config_data = mock_config_dict.copy()
         # Ensure 'risk' and 'risk.global' exist and are dicts
-        if "risk" not in live_test_config_data or not isinstance(
-            live_test_config_data["risk"], dict
-        ):
+        if not isinstance(live_test_config_data.get("risk"), dict):
             live_test_config_data["risk"] = {}
         if "global" not in live_test_config_data["risk"] or not isinstance(
             live_test_config_data["risk"]["global"], dict
@@ -546,13 +549,16 @@ class TestRiskManagerSizingSimple:
         # Set initial max_position_usd high enough for the first trade to pass this constraint
         live_test_config_data["risk"]["global"]["max_position_usd"] = "500.0"
         # Apply initial_risk_config_overrides to the 'risk' level
-        live_test_config_data["risk"].update(initial_risk_config_overrides)
+        if not isinstance(live_test_config_data.get("risk"), dict):
+            live_test_config_data["risk"] = {}
+        risk_config_live_update_target: dict[str, Any] = live_test_config_data["risk"]
+        risk_config_live_update_target.update(initial_risk_config_overrides)
         # Lower min_nfd_bps for this test to allow sizing
         live_test_config_data["risk"]["min_nfd_bps"] = "1"  # Allow NFD of 0.0003 to pass
 
         test_specific_config = Config(config_path_or_data=live_test_config_data)
 
-        def dynamic_config_get(key: str, default: object | None = None) -> Any:
+        def dynamic_config_get(key: str, default: object | None = None) -> object:
             # Traverse live_test_config_data for the key
             value = live_test_config_data
             try:
@@ -579,51 +585,67 @@ class TestRiskManagerSizingSimple:
 
         with patch.object(
             test_specific_config, "get", side_effect=dynamic_config_get
-        ) as patched_get:
+        ):  # patched_get removed
             risk_manager = RiskManager(
                 test_specific_config,
                 mock_portfolio_tracker,
                 mock_circuit_breaker,
                 mock_funding_validator,
             )
-            # risk_manager.use_simple_sizing_path = True # Already set by config "sizing_method": "simple"
+            # risk_manager.use_simple_sizing_path = True
+            # Already set by config "sizing_method": "simple"
 
             # First sizing: should pass with size 200, max_pos_usd is 500
             sized_opp1 = await risk_manager.size_opportunity(sample_opportunity)
             assert isinstance(sized_opp1, SizedOpportunity), (
-                f"sized_opp1 was None, expected SizedOpportunity. Config: {live_test_config_data['risk']}"
+                f"sized_opp1 was None, expected SizedOpportunity. "
+                f"Config: {live_test_config_data['risk']}"
             )
             assert sized_opp1.long_size == Decimal("200.0")
 
             # Modify config for the second run: reduce max_position_usd
             # Ensure 'risk' and 'risk.global' exist for modification
-            if "risk" not in live_test_config_data or not isinstance(
-                live_test_config_data["risk"], dict
+            if not isinstance(live_test_config_data.get("risk"), dict):
+                live_test_config_data["risk"] = {}
+
+            # The problematic isinstance check was removed from here previously, which was correct.
+            # live_test_config_data["risk"] is now ensured to be a dict.
+            risk_config_dict_for_opp2: dict[str, Any] = cast(
+                dict[str, Any], live_test_config_data["risk"]
+            )
+
+            if "global" not in risk_config_dict_for_opp2 or not isinstance(
+                risk_config_dict_for_opp2["global"], dict
             ):
-                live_test_config_data["risk"] = {}  # Should ideally not be needed if properly init
-            if "global" not in live_test_config_data["risk"] or not isinstance(
-                live_test_config_data["risk"]["global"], dict
-            ):
-                live_test_config_data["risk"]["global"] = {}  # Should not be needed
-            live_test_config_data["risk"]["global"]["max_position_usd"] = "10.0"
+                risk_config_dict_for_opp2["global"] = {}  # Should not be needed
+            # Direct assignment to the typed dict
+            global_config_for_opp2: dict[str, Any] = risk_config_dict_for_opp2["global"]
+            global_config_for_opp2["max_position_usd"] = "10.0"
+
             config_for_opp2 = Config(config_path_or_data=live_test_config_data)
 
-            # Patch the new config object's get method (though not strictly necessary for max_position_usd as it's read in _load_config)
-            # Re-instantiate RiskManager to pick up changes that are loaded during __init__ / _load_config
+            # Patch the new config object's get method
+            # (though not strictly necessary for max_position_usd as it's read in _load_config)
+            # Re-instantiate RiskManager to pick up changes
+            # that are loaded during __init__ / _load_config
             risk_manager_2 = RiskManager(
                 config_for_opp2,
                 mock_portfolio_tracker,
                 mock_circuit_breaker,
                 mock_funding_validator,
             )
-            # Ensure it also uses the simple path if not implicitly set by "sizing_method": "simple" in config_for_opp2
-            # risk_manager_2.use_simple_sizing_path = True # Config should handle this via "sizing_method"
+            # Ensure it also uses the simple path if not implicitly set by
+            # "sizing_method": "simple" in config_for_opp2
+            # risk_manager_2.use_simple_sizing_path = True
+            # Config should handle this via "sizing_method"
 
             sized_opp2 = await risk_manager_2.size_opportunity(sample_opportunity)
-            # Now, with max_position_usd at 10.0, a proposed size of 200.0 (from simple_fixed_usd_size)
+            # Now, with max_position_usd at 10.0, a proposed size of 200.0
+            # (from simple_fixed_usd_size)
             # should be rejected by _check_constraint_max_position_size.
             assert sized_opp2 is None, (
-                f"sized_opp2 was {sized_opp2}, expected None. MaxPos for RM2: {risk_manager_2.max_position_size}"
+                f"sized_opp2 was {sized_opp2}, expected None. "
+                f"MaxPos for RM2: {risk_manager_2.max_position_size}"
             )
 
     @pytest.mark.asyncio
@@ -644,9 +666,7 @@ class TestRiskManagerSizingSimple:
         }
         current_test_config_dict = mock_config_dict.copy()
         # Ensure 'risk' key exists and is a dictionary
-        if "risk" not in current_test_config_dict or not isinstance(
-            current_test_config_dict["risk"], dict
-        ):
+        if not isinstance(current_test_config_dict.get("risk"), dict):
             current_test_config_dict["risk"] = {}
         current_test_config_dict["risk"].update(test_risk_overrides)
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
@@ -680,7 +700,8 @@ class TestRiskManagerSizingSimple:
 
         assert isinstance(sized_opp, SizedOpportunity)
         assert sized_opp.long_size == Decimal("5000.0")  # Base size * 1.0 factor
-        # assert sized_opp.validation_factor == Decimal("1.0") # Removed due to SizedOpportunity not having this field
+        # assert sized_opp.validation_factor == Decimal("1.0")
+        # Removed due to SizedOpportunity not having this field
 
     @pytest.mark.asyncio
     async def test_size_opportunity_validation_factor_safety_path(
@@ -701,9 +722,7 @@ class TestRiskManagerSizingSimple:
         }
         current_test_config_dict = mock_config_dict.copy()
         # Ensure 'risk' key exists and is a dictionary
-        if "risk" not in current_test_config_dict or not isinstance(
-            current_test_config_dict["risk"], dict
-        ):
+        if not isinstance(current_test_config_dict.get("risk"), dict):
             current_test_config_dict["risk"] = {}
         current_test_config_dict["risk"].update(test_risk_overrides)
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
@@ -728,9 +747,10 @@ class TestRiskManagerSizingSimple:
 
         expected_metrics = {"rmse": Decimal("0.04"), "bias": Decimal("0.0")}
 
-        def mock_get_symbol_metrics_side_effect(exchange: str, symbol: str):
+        def mock_get_symbol_metrics_side_effect(exchange: str, symbol: str) -> dict[str, Decimal]:
             print(
-                f"MOCK_GSYM_METRICS CALLED: exchange={exchange}, symbol={symbol}, returning {expected_metrics}"
+                f"MOCK_GSYM_METRICS CALLED: exchange={exchange}, symbol={symbol}, "
+                f"returning {expected_metrics}"
             )
             return expected_metrics
 

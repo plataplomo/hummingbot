@@ -69,7 +69,8 @@ class PrioritySignalQueue:
         self.counter = 0
 
         # Define a TypeVar for the helper function
-        ConfigValueType = TypeVar("ConfigValueType")
+        # Constrain ConfigValueType to common types that support conversion via type(value)
+        ConfigValueType = TypeVar("ConfigValueType", str, int, float, Decimal, bool)
 
         # Helper function to safely get and cast config values
         def get_config_value(
@@ -88,6 +89,13 @@ class PrioritySignalQueue:
                     return value
                 else:
                     # Value is not default and not the correct type, attempt conversion
+                    # It could be Any. We need to handle None before conversion.
+                    if value is None:
+                        self.logger.error(
+                            f"Config value for '{key}' resolved to None unexpectedly "
+                            f"after type checks. Using default: {default}."
+                        )
+                        return default
                     converted_value = target_type(value)
                     return converted_value
             except (ValueError, TypeError) as e:
@@ -453,7 +461,7 @@ class PrioritySignalQueue:
         valid_signals: list[tuple[float, int, TradeSignal]] = []  # Add type hint
         removed_count_local = 0
         for item in self.signal_queue:
-            priority, counter, signal = item  # noqa: F841
+            priority, _, signal = item  # Replaced counter with _
             is_valid = signal.is_valid()  # Removed 'now' argument
             self.logger.debug(
                 f"[_clean_expired] Checking signal {signal.signal_id} (score={-priority:.4f}, "

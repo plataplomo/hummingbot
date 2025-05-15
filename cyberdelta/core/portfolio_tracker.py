@@ -6,7 +6,7 @@ from collections import defaultdict
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -125,10 +125,12 @@ class PortfolioTracker:
         # Ensure pt_config_dict is dict[str, Any]
         temp_pt_config_dict: dict[str, Any] = {}
         if isinstance(pt_config_dict_raw, dict):
-            k_str: str
+            # Explicitly type the items from the raw dict
+            items_raw: dict[Any, Any] = pt_config_dict_raw
+            k_raw: Any
             v_any: Any
-            for k_str, v_any in pt_config_dict_raw.items():  # Add type hints for k, v
-                temp_pt_config_dict[str(k_str)] = v_any
+            for k_raw, v_any in items_raw.items():  # Add type hints for k, v
+                temp_pt_config_dict[str(k_raw)] = v_any
         pt_config_dict = temp_pt_config_dict
 
         # Ensure data_freshness_seconds has a default if not in pt_config_dict
@@ -282,20 +284,21 @@ class PortfolioTracker:
 
             updated_balances: dict[str, SpotBalance] = {}
 
-            if balances_data_raw is None:
+            if balances_data_raw is None:  # Explicitly handle None case
                 logger.info(
-                    f"[FETCH_BALANCES:{exchange_id}] API call returned None. No balances to update."
+                    f"[{exchange_id}] API returned None for balances. Clearing local cache."
                 )
-                # Assuming "zero balances" for now as it's safer for risk.
                 async with self._lock:
-                    if exchange_id in self.balances:  # Check if exchange_id itself exists
-                        self.balances[exchange_id].clear()  # Clear assets for this exchange
+                    if exchange_id in self.balances:
+                        self.balances[exchange_id].clear()
                         logger.info(
                             f"[FETCH_BALANCES:{exchange_id}] Cleared existing balance entries "
                             f"as API returned None."
                         )
-                        self.last_update_time[exchange_id] = datetime.now(UTC)  # Mark as updated
-                return True
+                        self.last_update_time[exchange_id] = datetime.now(UTC)
+                # Early return if balances_data_raw is None, after handling cache clearing.
+                # This also satisfies Pyright's desire to not have the `is None` check later.
+                return True  # Or False if this is considered a failure to fetch
 
             elif isinstance(balances_data_raw, list):
                 balances_list: list[Any] = (
@@ -1190,9 +1193,11 @@ class PortfolioTracker:
             assets_dict_any: Any
             for ex_id_str, assets_dict_any in balances_data_typed.items():
                 if isinstance(assets_dict_any, dict):
-                    asset_str: str
+                    current_assets_items: dict[Any, Any] = assets_dict_any
+                    k_asset_raw: Any
                     bal_data_any: Any
-                    for asset_str, bal_data_any in assets_dict_any.items():
+                    for k_asset_raw, bal_data_any in current_assets_items.items():
+                        asset_str = str(k_asset_raw)
                         if isinstance(bal_data_any, dict):
                             try:
                                 tracker.balances[ex_id_str][asset_str] = SpotBalance.model_validate(
@@ -1388,28 +1393,32 @@ class PortfolioTracker:
                 current_orders = self.orders.get(exchange_id, {})
                 updated_count = 0
                 new_count = 0
-                order_data_iterable: (
-                    list[Order] | dict[str, Any]
-                )  # This should be list[Order | dict[str, Any]]
-                if isinstance(orders_data, dict):
-                    order_data_iterable = list(orders_data.values())  # Iterate over values if dict
-                # If orders_data is not a dict, it must be a list[Order]
-                # due to the type hint: list[Order] | dict[str, Any]
-                # So, the isinstance(orders_data, list) check is redundant.
-                else:  # orders_data must be a list[Order] here
-                    order_data_iterable = orders_data  # Iterate directly if list
-                # else: # This else branch is unreachable due to type hint
-                #     logger.error(
-                #         f"_parse_orders received unexpected type for orders_data: "
-                #         f"{type(orders_data)}"
-                #     )
-                #     return
 
-                order_data_item: Order | dict[str, Any]  # Type hint for loop variable
-                for order_data_item in order_data_iterable:
+                items_to_process: list[Order | dict[str, Any]] = []
+                if isinstance(orders_data, dict):
+                    item_val: Any  # Values from dict[str, Any] are Any
+                    for item_val in orders_data.values():
+                        if isinstance(item_val, Order):
+                            items_to_process.append(item_val)
+                        elif isinstance(item_val, dict):
+                            # Explicitly cast to the expected dict type for the list
+                            items_to_process.append(cast(dict[str, Any], item_val))
+                        else:
+                            self.logger.warning(
+                                f"Skipping unexpected value type in orders_data dict: {type(item_val)}"
+                            )
+                # If not a dict, it must be list[Order] per type hint: list[Order] | dict[str, Any]
+                else:  # orders_data is list[Order]
+                    # orders_data is known to be list[Order] here, no further isinstance check needed.
+                    item_in_list: Order
+                    for item_in_list in orders_data:
+                        items_to_process.append(item_in_list)
+                # The original final else for unexpected orders_data type becomes effectively unreachable
+                # if the input strictly matches the type hint. This is acceptable.
+
+                for order_data_item in items_to_process:
                     if isinstance(order_data_item, dict):
-                        # Order data is a dictionary, attempt to validate
-                        order_dict_data: dict[str, Any] = order_data_item
+                        order_dict_data: dict[str, Any] = order_data_item  # Now this is safe
                         try:
                             order = Order.model_validate(order_dict_data)
                             # Process validated order
@@ -1432,7 +1441,7 @@ class PortfolioTracker:
                                 try:
                                     order.status = OrderStatus(order.status)
                                 except ValueError:
-                                    logger.warning(
+                                    self.logger.warning(
                                         f"Invalid status string '{order.status}' for "
                                         f"order {order.client_order_id}"
                                     )
@@ -1440,58 +1449,58 @@ class PortfolioTracker:
                             current_orders[order.client_order_id] = order
                             updated_count += 1
                         except ValidationError as e:
-                            # Accessing order.client_order_id might fail if model_validate
-                            # failed early
+                            # Ensure order_dict_data is used for logging if it's a dict
                             client_id_for_log = order_dict_data.get(
                                 "clientOrderId",
                                 order_dict_data.get("client_order_id", "UnknownClientOrderID"),
                             )
-                            logger.error(
+                            self.logger.error(
                                 f"Error validating Order for {client_id_for_log} "
                                 f"on {exchange_id}: {e}"
                             )
-                    # If order_data_item is not a dict, it must be an Order object
-                    # due to the type hint: Order | dict[str, Any]
-                    # So, the isinstance(order_data_item, Order) check is redundant.
-                    else:  # order_data_item must be an Order object here
-                        # order_data_item is already an Order object
-                        order = order_data_item
+                    # If not a dict, it must be an Order because items_to_process contains only Order | dict[str, Any]
+                    # and items that are not Order or dict were filtered out when building items_to_process.
+                    # The pre-filtering ensures that if it's not a dict here, it must be an Order.
+                    else:  # order_data_item must be an Order
+                        order_obj_from_list: Order = order_data_item  # Renamed variable
                         # Process order object
-                        order.price = self._safe_decimal_convert(
-                            order.price, "price", order.symbol, exchange_id
+                        order_obj_from_list.price = self._safe_decimal_convert(
+                            order_obj_from_list.price,
+                            "price",
+                            order_obj_from_list.symbol,
+                            exchange_id,
                         )
-                        order.quantity_requested = self._safe_decimal_convert(
-                            order.quantity_requested,
+                        order_obj_from_list.quantity_requested = self._safe_decimal_convert(
+                            order_obj_from_list.quantity_requested,
                             "quantity_requested",
-                            order.symbol,
+                            order_obj_from_list.symbol,
                             exchange_id,
                         ) or Decimal("0")
-                        order.quantity_filled = self._safe_decimal_convert(
-                            order.quantity_filled,
+                        order_obj_from_list.quantity_filled = self._safe_decimal_convert(
+                            order_obj_from_list.quantity_filled,
                             "quantity_filled",
-                            order.symbol,
+                            order_obj_from_list.symbol,
                             exchange_id,
                         ) or Decimal("0")
-                        if isinstance(order.status, str):
+                        if isinstance(order_obj_from_list.status, str):
                             try:
-                                order.status = OrderStatus(order.status)
+                                order_obj_from_list.status = OrderStatus(order_obj_from_list.status)
                             except ValueError:
-                                logger.warning(
-                                    f"Invalid status string '{order.status}' for "
-                                    f"order {order.client_order_id}"
+                                self.logger.warning(
+                                    f"Invalid status string '{order_obj_from_list.status}' for "
+                                    f"order {order_obj_from_list.client_order_id}"
                                 )
-                                order.status = OrderStatus.UNKNOWN
-                            current_orders[order.client_order_id] = order
+                                order_obj_from_list.status = OrderStatus.UNKNOWN
+                            current_orders[order_obj_from_list.client_order_id] = (
+                                order_obj_from_list
+                            )
                             new_count += 1
-                    # else: # This else branch is unreachable
-                    #     # Mypy=[unreachable]
-                    #     logger.warning(f"Invalid order format for {order_data_item}")
-                # Explicitly update the dictionary for the exchange
-                # This ensures the defaultdict behavior isn't bypassed if it was empty
+                    # No else needed as items_to_process is already filtered
+
                 self.orders[exchange_id] = current_orders
-                logger.info(
-                    f"Parsed {len(orders_data)} orders for {exchange_id}. "
-                    f"{new_count} new, {updated_count} updated."
+                self.logger.info(
+                    f"Parsed {len(items_to_process)} order items for {exchange_id}. "
+                    f"{new_count} new (processed as Order objects), {updated_count} updated (from dict)."
                 )
 
         asyncio.create_task(_do_parse())
