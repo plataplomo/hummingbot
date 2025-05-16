@@ -450,8 +450,8 @@ class TestWebSocketManager:
             await local_ws_manager.close()
 
             assert local_ws_manager.is_connected is False
-            assert local_ws_manager._ws_connection is None  # pyright: ignore [reportPrivateUsage]
-            assert not local_ws_manager._should_reconnect  # pyright: ignore [reportPrivateUsage]
+            assert local_ws_manager._ws_connection is None
+            assert not local_ws_manager._should_reconnect
 
             # Assert that ws_connect was not called AGAIN during or after close
             mock_aiohttp_session_ws_connect_method.assert_called_once()
@@ -464,7 +464,7 @@ class TestWebSocketManager:
                 assert listener_task_for_close.cancelled()
             if ping_task_for_close:
                 assert ping_task_for_close.done()
-            assert local_ws_manager._session is None  # pyright: ignore [reportPrivateUsage]
+            assert local_ws_manager._session is None
 
         finally:
             if local_ws_manager.is_connected:

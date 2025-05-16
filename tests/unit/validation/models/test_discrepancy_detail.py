@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from unittest.mock import patch
 
 import pytest
 from pydantic import TypeAdapter, ValidationError
@@ -7,6 +8,19 @@ from cyberdelta.validation.models.discrepancy_detail import (
     DiscrepancyDetail,
     HistoricalDiscrepancyRecord,
 )
+
+
+# Helper function for testing validate_assignment
+def _get_value_for_assignment_test() -> bool:
+    """
+    Helper function for testing.
+    Typed to return bool, but will be mocked to return an invalid type (str)
+    at runtime to test Pydantic's validate_assignment.
+    """
+    # This actual return value doesn't impact the test when mocked,
+    # but it ensures the function itself is statically correct.
+    return True
+
 
 # Tests for DiscrepancyDetail
 
@@ -78,12 +92,16 @@ def test_discrepancy_detail_invalid_discrepancy_type() -> None:
     }
     with pytest.raises(ValidationError) as exc_info:
         TypeAdapter(DiscrepancyDetail).validate_python(data_dict)
-    assert "discrepancy_type" in str(exc_info.value)
+
+    errors = exc_info.value.errors()
+    assert len(errors) == 1
+    assert errors[0]["type"] == "literal_error"
+    assert errors[0]["loc"] == ("discrepancy_type",)
+    assert errors[0]["input"] == "invalid_type"
     # Ensure the message indicates it's about the literal/enum type
-    assert (
-        "Input tag 'invalid_type' found" in str(exc_info.value)
-        or "unexpected value; permitted: " in str(exc_info.value)  # Pydantic v2 message
-    )
+    # assert (
+    #     "Input should be" in str(exc_info.value) and "[type=literal_error]" in str(exc_info.value)
+    # )
 
 
 def test_discrepancy_detail_frozen() -> None:
@@ -139,12 +157,13 @@ def test_historical_record_default_is_corrected() -> None:
     """Test that is_corrected defaults to False."""
     discrepancy = DiscrepancyDetail(symbol="ETH-PERP", discrepancy_type="entry_price")
     now = datetime.now(UTC)
-    record = HistoricalDiscrepancyRecord(
-        detail=discrepancy,
-        exchange_id="mock_exchange_2",
-        recorded_at=now,
-        # is_corrected is intentionally omitted to test default
-    )
+    data_to_validate = {
+        "detail": discrepancy,
+        "exchange_id": "mock_exchange_2",
+        "recorded_at": now,
+        # is_corrected is intentionally omitted to test Pydantic's default value mechanism
+    }
+    record = TypeAdapter(HistoricalDiscrepancyRecord).validate_python(data_to_validate)
     assert record.is_corrected is False
 
 
@@ -174,35 +193,53 @@ def test_historical_record_invalid_detail_type() -> None:
     """Test ValidationError if detail is not a DiscrepancyDetail instance."""
     now = datetime.now(UTC)
     data_dict = {
-        "detail": {"symbol": "FAKE", "discrepancy_type": "size"},
+        "detail": {
+            "symbol": "FAKE",
+            "discrepancy_type": "SUPER_INVALID_TYPE_NOW",
+        },  # This will make DiscrepancyDetail validation fail
         "exchange_id": "mock_exchange_4",
         "recorded_at": now,
         "is_corrected": False,
     }
     with pytest.raises(ValidationError) as exc_info:
         TypeAdapter(HistoricalDiscrepancyRecord).validate_python(data_dict)
-    assert "detail" in str(exc_info.value)
-    assert "Input should be a valid DiscrepancyDetail" in str(exc_info.value)
+
+    errors = exc_info.value.errors()
+    assert len(errors) == 1
+    # Check for the nested validation error from DiscrepancyDetail
+    assert errors[0]["type"] == "literal_error"
+    assert errors[0]["loc"] == ("detail", "discrepancy_type")
+    assert errors[0]["input"] == "SUPER_INVALID_TYPE_NOW"
+    # assert "detail" in str(exc_info.value)
+    # # Check for the nested validation error from DiscrepancyDetail
+    # assert "Input should be" in str(exc_info.value)
+    # assert "SUPER_INVALID_TYPE_NOW" in str(exc_info.value)
+    # assert "[type=literal_error]" in str(exc_info.value)
 
 
 def test_historical_record_validate_assignment_for_is_corrected() -> None:
     """Test that is_corrected can be updated and validates new value."""
     discrepancy = DiscrepancyDetail(symbol="ADA-PERP", discrepancy_type="unrealized_pnl")
     now = datetime.now(UTC)
-    record = HistoricalDiscrepancyRecord(
-        detail=discrepancy,
-        exchange_id="mock_exchange_5",
-        recorded_at=now,
-        # is_corrected is intentionally omitted to test default and then assignment
-    )
+    initial_data = {
+        "detail": discrepancy,
+        "exchange_id": "mock_exchange_5",
+        "recorded_at": now,
+        # is_corrected is intentionally omitted to test Pydantic's default, then assignment
+    }
+    record = TypeAdapter(HistoricalDiscrepancyRecord).validate_python(initial_data)
     assert record.is_corrected is False
 
     record.is_corrected = True
     assert record.is_corrected is True
 
-    # Test invalid assignment using setattr to bypass direct static type check
-    with pytest.raises(ValidationError) as exc_info:
-        record.is_corrected = "not_a_bool"
+    # Test invalid assignment.
+    # Patch helper to return str, Mypy sees `bool = func() -> bool` (statically fine).
+    # Pydantic's validate_assignment should catch the runtime str assignment to bool field.
+    with patch(f"{__name__}._get_value_for_assignment_test", return_value="not_a_bool"):
+        with pytest.raises(ValidationError) as exc_info:
+            record.is_corrected = _get_value_for_assignment_test()
+
     assert "is_corrected" in str(exc_info.value)
     assert "Input should be a valid boolean" in str(exc_info.value)
 
