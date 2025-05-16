@@ -8,8 +8,8 @@ import pytest
 
 from cyberdelta.core.models import (
     SignalType,
-    TradeSignal,
     Ticker,
+    TradeSignal,
 )
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
@@ -122,8 +122,12 @@ async def test_position_sizing_integration(
     # Ensure _should_rebalance returns False to avoid TypeError in logger
     mock_position_with_zero_size = MagicMock()
     mock_position_with_zero_size.size = Decimal("0")
-    setup_dependencies["portfolio_tracker"].get_position = MagicMock(return_value=mock_position_with_zero_size)
-    setup_dependencies["data_handler"].get_latest_ticker = MagicMock(return_value=MagicMock(spec=Ticker, price=Decimal("30000")))
+    setup_dependencies["portfolio_tracker"].get_position = MagicMock(
+        return_value=mock_position_with_zero_size
+    )
+    setup_dependencies["data_handler"].get_latest_ticker = MagicMock(
+        return_value=MagicMock(spec=Ticker, price=Decimal("30000"))
+    )
 
     # Mock _check_opportunity to return our test opportunity
     strategy_with_risk_manager._check_opportunity = AsyncMock(return_value=mock_opportunity)
@@ -215,8 +219,12 @@ async def test_risk_manager_rejection(
     # Ensure _should_rebalance returns False cleanly for this test
     mock_position_with_zero_size = MagicMock()
     mock_position_with_zero_size.size = Decimal("0")
-    setup_dependencies["portfolio_tracker"].get_position = MagicMock(return_value=mock_position_with_zero_size)
-    setup_dependencies["data_handler"].get_latest_ticker = MagicMock(return_value=MagicMock(spec=Ticker, price=Decimal("30000")))
+    setup_dependencies["portfolio_tracker"].get_position = MagicMock(
+        return_value=mock_position_with_zero_size
+    )
+    setup_dependencies["data_handler"].get_latest_ticker = MagicMock(
+        return_value=MagicMock(spec=Ticker, price=Decimal("30000"))
+    )
 
     # Mock _check_opportunity to return our test opportunity
     strategy_with_risk_manager._check_opportunity = AsyncMock(return_value=mock_opportunity)
@@ -235,8 +243,7 @@ async def test_risk_manager_rejection(
 
     # Verify that the warning was logged
     expected_log_message = (
-        f"Opportunity {mock_opportunity.id} not sized or size is zero, no entry "
-        f"signals generated."
+        f"Opportunity {mock_opportunity.id} not sized or size is zero, no entry signals generated."
     )
     mock_logger.info.assert_called_with(expected_log_message)
 

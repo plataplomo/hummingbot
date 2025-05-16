@@ -9,14 +9,15 @@ from typing import Any
 
 import structlog
 
-from cyberdelta.apis.backpack_api import BackpackAPI
+# Corrected imports for API clients
+from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.exchange_names import ExchangeName
-from cyberdelta.apis.hyperliquid_api import HyperliquidAPI
-from cyberdelta.apis.models.exchange_api_config import ExchangeAPIConfig
+from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.engine import Engine
 from cyberdelta.core.execution_handler import ExecutionHandler
-from cyberdelta.core.portfolio_tracker import PortfolioTracker, PortfolioTrackerProtocol
+from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import ConfigError, RiskManager
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy import Strategy
@@ -143,22 +144,21 @@ async def main() -> None:
         state_manager = StateManager(config)
         app_state["state_manager"] = state_manager
 
-        # PortfolioTracker expects Config
-        portfolio_tracker: PortfolioTrackerProtocol = PortfolioTracker(config)
+        # SymbolMapper is required by PortfolioTracker and ExecutionHandler
+        exchanges_conf = config.get("exchanges", {})
+        if not isinstance(exchanges_conf, dict):  # Add a type check for robustness
+            logger.error("CRITICAL: 'exchanges' configuration is missing or not a dict.")
+            exchanges_conf = {}
+        symbol_mapper = SymbolMapper(exchanges_conf)
+        app_state["symbol_mapper"] = symbol_mapper
+
+        # PortfolioTracker expects Config and SymbolMapper
+        portfolio_tracker: PortfolioTracker = PortfolioTracker(config, symbol_mapper=symbol_mapper)
         app_state["portfolio_tracker"] = portfolio_tracker
 
         # CircuitBreakerSystem expects Config
         circuit_breaker = CircuitBreakerSystem(config)
         app_state["circuit_breaker"] = circuit_breaker
-
-        # SymbolMapper is required for ExecutionHandler (assume import and instantiation)
-        exchanges_conf = config.get("exchanges", {})
-        if not isinstance(exchanges_conf, dict):  # Add a type check for robustness
-            logger.error("CRITICAL: 'exchanges' configuration is missing or not a dict.")
-            # Decide on error handling: exit, or let SymbolMapper handle empty/default
-            exchanges_conf = {}
-        symbol_mapper = SymbolMapper(exchanges_conf)
-        app_state["symbol_mapper"] = symbol_mapper
 
         # ExecutionHandler expects:
         #   (Config, PortfolioTracker, SymbolMapper, CircuitBreakerSystem|None)
@@ -213,7 +213,7 @@ async def main() -> None:
         sys.exit(1)
 
     # 2. Initialize API Clients and link to components
-    api_clients: dict[str, ExchangeAPIConfig] = {}
+    api_clients: dict[str, ExchangeAPI] = {}
     try:
         logger.info("Initializing API clients...")
         secrets: dict[str, dict[str, str | None]] = {
@@ -350,7 +350,7 @@ async def main() -> None:
     logger.info("Added and enabled strategies in Engine", count=len(strategies))
 
     # 5. Start Components and Main Loop
-    main_tasks = []
+    main_tasks: list[asyncio.Task[Any]] = []
     try:
         logger.info("Loading initial state...")
         await portfolio_tracker.load_state()

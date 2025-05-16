@@ -679,16 +679,16 @@ class TestExecutionHandler:
 
         # --- Mock for _place_order_with_retry ---
         async def place_order_retry_side_effect(**kwargs: Any) -> Order:
-            await asyncio.sleep(0.001) # Simulate async call
+            await asyncio.sleep(0.001)  # Simulate async call
 
             # Extract all necessary parameters from kwargs
-            execution: TradeExecution = kwargs["execution"] # noqa: F841 - used implicitly
+            execution: TradeExecution = kwargs["execution"]  # noqa: F841 - used implicitly
             exchange_id: str = kwargs["exchange_id"]
-            symbol_from_kwargs: str = kwargs["symbol"] # noqa: F841 - For validation/debugging
+            symbol_from_kwargs: str = kwargs["symbol"]  # noqa: F841 - For validation/debugging
             side: OrderSide = kwargs["side"]
-            order_type_from_kwargs: OrderType = kwargs["order_type"] # noqa: F841
-            quantity_from_kwargs: Decimal = kwargs["quantity"] # noqa: F841
-            
+            order_type_from_kwargs: OrderType = kwargs["order_type"]  # noqa: F841
+            quantity_from_kwargs: Decimal = kwargs["quantity"]  # noqa: F841
+
             sut_generated_client_oid = kwargs.get("client_order_id")
             if sut_generated_client_oid is None:
                 sut_generated_client_oid = f"fallback-oid-{datetime.now(UTC).timestamp()}"
@@ -696,10 +696,10 @@ class TestExecutionHandler:
             if exchange_id == "hyperliquid" and side == OrderSide.BUY:
                 return base_long_order.model_copy(
                     update={
-                        "client_order_id": sut_generated_client_oid, 
-                        "status": OrderStatus.FILLED, 
+                        "client_order_id": sut_generated_client_oid,
+                        "status": OrderStatus.FILLED,
                         "quantity_filled": sized_opportunity.long_size,
-                        "average_fill_price": hl_ticker.ask, 
+                        "average_fill_price": hl_ticker.ask,
                         "updated_at": datetime.now(UTC),
                         "trades": [
                             Trade(
@@ -708,24 +708,24 @@ class TestExecutionHandler:
                                 side=OrderSide.BUY,
                                 order_id=str(base_long_order.exchange_order_id),
                                 exchange=exchange_id,
-                                client_order_id=sut_generated_client_oid, 
+                                client_order_id=sut_generated_client_oid,
                                 price=hl_ticker.ask or Decimal(0),
                                 quantity=sized_opportunity.long_size,
                                 fee=Decimal("0"),
                                 fee_asset=None,
                                 executed_at=datetime.now(UTC),
-                                is_maker=False, 
+                                is_maker=False,
                             )
-                        ]
+                        ],
                     }
                 )
             elif exchange_id == "backpack" and side == OrderSide.SELL:
                 return base_short_order.model_copy(
                     update={
                         "client_order_id": sut_generated_client_oid,
-                        "status": OrderStatus.FILLED, 
+                        "status": OrderStatus.FILLED,
                         "quantity_filled": sized_opportunity.short_size,
-                        "average_fill_price": bp_ticker.bid, 
+                        "average_fill_price": bp_ticker.bid,
                         "updated_at": datetime.now(UTC),
                         "trades": [
                             Trade(
@@ -740,9 +740,9 @@ class TestExecutionHandler:
                                 fee=Decimal("0"),
                                 fee_asset=None,
                                 executed_at=datetime.now(UTC),
-                                is_maker=False, 
+                                is_maker=False,
                             )
-                        ]
+                        ],
                     }
                 )
             # Ensure all paths return or raise
@@ -754,7 +754,7 @@ class TestExecutionHandler:
         # We are testing execute_opportunity, which calls _place_orders_for_opportunity,
         # which in turn calls _place_order_with_retry.
         # If _place_order_with_retry returns FILLED orders (as our mock now does for success),
-        # _monitor_order_status (and thus _get_order_status) might not be called explicitly 
+        # _monitor_order_status (and thus _get_order_status) might not be called explicitly
         # afterwards by _place_orders_for_opportunity.
         # So, we only mock _place_order_with_retry.
         with patch.object(
@@ -780,7 +780,7 @@ class TestExecutionHandler:
 
         # _place_order_with_retry should be called twice (once per leg)
         assert mock_place_retry_patcher.call_count == 2
-        # _get_order_status (via _monitor_order_status) is no longer asserted here for this 
+        # _get_order_status (via _monitor_order_status) is no longer asserted here for this
         # success path
         # assert mock_get_status_patcher.call_count >= 2 # Removed this assertion
 
@@ -973,7 +973,9 @@ class TestExecutionHandler:
         ) -> Order:
             await asyncio.sleep(0.01)
             # Ensure this mock handles the compensation call correctly
-            if exchange_id == "hyperliquid" and side == OrderSide.BUY and not reduce_only:  # Initial long leg
+            if (
+                exchange_id == "hyperliquid" and side == OrderSide.BUY and not reduce_only
+            ):  # Initial long leg
                 # Return a FILLED order directly to bypass _monitor_order_status for this leg
                 filled_long_order_dict = long_order.model_dump()
                 filled_long_order_dict.update(
@@ -1001,53 +1003,67 @@ class TestExecutionHandler:
                     }
                 )
                 return Order(**filled_long_order_dict)
-            elif exchange_id == "backpack" and side == OrderSide.SELL and not reduce_only and is_long_leg is False:  # Short leg expected to fail
+            elif (
+                exchange_id == "backpack"
+                and side == OrderSide.SELL
+                and not reduce_only
+                and is_long_leg is False
+            ):  # Short leg expected to fail
                 raise short_order_failure
             elif (
                 exchange_id == "hyperliquid" and side == OrderSide.SELL and reduce_only is True
             ):  # Compensation leg
                 # --- DEBUG --- Print mock arguments for compensation leg
-                print(f"DEBUG MOCK place_retry_side_effect COMP LEG RECEIVED:"
-                      f" exchange_id={exchange_id!r}, symbol={symbol!r}, side={side!r}, "
-                      f" order_type={order_type!r} (type: {type(order_type)}), "
-                      f" quantity={quantity!r} (type: {type(quantity)}), "
-                      f" price={price!r}, time_in_force={time_in_force!r}, "
-                      f" client_order_id={client_order_id!r}, reduce_only={reduce_only!r}, "
-                      f" post_only={post_only!r}, is_long_leg={is_long_leg!r}")
+                print(
+                    f"DEBUG MOCK place_retry_side_effect COMP LEG RECEIVED:"
+                    f" exchange_id={exchange_id!r}, symbol={symbol!r}, side={side!r}, "
+                    f" order_type={order_type!r} (type: {type(order_type)}), "
+                    f" quantity={quantity!r} (type: {type(quantity)}), "
+                    f" price={price!r}, time_in_force={time_in_force!r}, "
+                    f" client_order_id={client_order_id!r}, reduce_only={reduce_only!r}, "
+                    f" post_only={post_only!r}, is_long_leg={is_long_leg!r}"
+                )
                 # --- END DEBUG ---
 
                 # Use the parameters passed by the SUT for the compensation order
                 # The `comp_order` fixture can serve as a base for any non-overridden fields
                 # but critical parameters must come from the SUT's call.
-                compensation_details = comp_order.model_dump() # Start with base defaults
-                compensation_details.update({
-                    "client_order_id": client_order_id or comp_order.client_order_id, # SUT might provide one
-                    "order_type": order_type, # From SUT
-                    "price": price,           # From SUT (could be None for MARKET)
-                    "time_in_force": time_in_force, # From SUT (should be IOC via default)
-                    "quantity_requested": quantity,    # From SUT
-                    "reduce_only": reduce_only, # Should be True from SUT
-                    "post_only": post_only,     # Should be False from SUT
-                    # Ensure other fields like symbol, exchange, side are consistent or also from SUT if necessary
-                    "symbol": symbol, # From SUT
-                    "exchange": exchange_id, # From SUT
-                    "side": side, # From SUT (SELL)
-                    "status": OrderStatus.NEW, # Mock assumes it's newly placed
-                    "updated_at": datetime.now(UTC),
-                    "created_at": datetime.now(UTC),
-                    "quantity_filled": Decimal("0.0"), # New order, not filled yet
-                    "average_fill_price": None # New order
-                })
+                compensation_details = comp_order.model_dump()  # Start with base defaults
+                compensation_details.update(
+                    {
+                        "client_order_id": client_order_id
+                        or comp_order.client_order_id,  # SUT might provide one
+                        "order_type": order_type,  # From SUT
+                        "price": price,  # From SUT (could be None for MARKET)
+                        "time_in_force": time_in_force,  # From SUT (should be IOC via default)
+                        "quantity_requested": quantity,  # From SUT
+                        "reduce_only": reduce_only,  # Should be True from SUT
+                        "post_only": post_only,  # Should be False from SUT
+                        # Ensure other fields like symbol, exchange, side are consistent or also from SUT if necessary
+                        "symbol": symbol,  # From SUT
+                        "exchange": exchange_id,  # From SUT
+                        "side": side,  # From SUT (SELL)
+                        "status": OrderStatus.NEW,  # Mock assumes it's newly placed
+                        "updated_at": datetime.now(UTC),
+                        "created_at": datetime.now(UTC),
+                        "quantity_filled": Decimal("0.0"),  # New order, not filled yet
+                        "average_fill_price": None,  # New order
+                    }
+                )
                 return Order(**compensation_details)
-            
+
             # --- DEBUG --- Print received arguments before raising ValueError
-            print(f"DEBUG place_retry_side_effect UNEXPECTED CALL. ARGS:"
-                  f" exchange_id={exchange_id!r}, symbol={symbol!r}, side={side!r}, order_type={order_type!r}, "
-                  f" quantity={quantity!r}, price={price!r}, time_in_force={time_in_force!r}, "
-                  f" client_order_id={client_order_id!r}, reduce_only={reduce_only!r}, "
-                  f" post_only={post_only!r}, is_long_leg={is_long_leg!r}")
+            print(
+                f"DEBUG place_retry_side_effect UNEXPECTED CALL. ARGS:"
+                f" exchange_id={exchange_id!r}, symbol={symbol!r}, side={side!r}, order_type={order_type!r}, "
+                f" quantity={quantity!r}, price={price!r}, time_in_force={time_in_force!r}, "
+                f" client_order_id={client_order_id!r}, reduce_only={reduce_only!r}, "
+                f" post_only={post_only!r}, is_long_leg={is_long_leg!r}"
+            )
             # --- END DEBUG ---
-            raise ValueError(f"Unexpected place call: {exchange_id=} {side=} {reduce_only=} {is_long_leg=}")
+            raise ValueError(
+                f"Unexpected place call: {exchange_id=} {side=} {reduce_only=} {is_long_leg=}"
+            )
 
         # Re-added: This mock is essential for testing the monitoring of orders, esp. compensation
         async def get_status_side_effect(
@@ -1131,7 +1147,7 @@ class TestExecutionHandler:
         # Check for the specific error message from the failed short leg and successful compensation
         expected_error_msg = "Insufficient funds | Long leg compensated."
         assert execution_result.error_message == expected_error_msg
-    
+
         # Ensure _compensate_position was called
         mock_compensate.assert_called_once()
 
@@ -1140,7 +1156,7 @@ class TestExecutionHandler:
         # Expected calls to _place_order_with_retry:
         # 1. Long leg (hyperliquid, BUY) - returns FILLED order
         # 2. Short leg (backpack, SELL) - raises APIError("Insufficient funds")
-        # 3. Compensation leg (hyperliquid, SELL, reduce_only=True) - returns NEW order 
+        # 3. Compensation leg (hyperliquid, SELL, reduce_only=True) - returns NEW order
         #    (then monitored)
         assert mock_place_retry.call_count == 3
 
@@ -1164,20 +1180,26 @@ class TestExecutionHandler:
         assert comp_leg_call.args[1] == "hyperliquid"  # exchange_id
         assert comp_leg_call.args[2] == "BTC-PERP"  # symbol (original long symbol)
         assert comp_leg_call.args[3] == OrderSide.SELL  # side (opposite of original long)
-        
+
         # Calculate the expected base quantity for compensation
         # This should match how _place_orders_for_opportunity calculates it before calling _compensate_position
         # sized_opportunity.long_size is quote. opportunity.long_price is the target entry for long.
-        assert sized_opportunity.opportunity.long_price is not None # Ensure price is available
-        expected_comp_base_quantity = sized_opportunity.long_size / sized_opportunity.opportunity.long_price
+        assert sized_opportunity.opportunity.long_price is not None  # Ensure price is available
+        expected_comp_base_quantity = (
+            sized_opportunity.long_size / sized_opportunity.opportunity.long_price
+        )
 
-        assert comp_leg_call.args[4] == expected_comp_base_quantity # quantity (base asset quantity)
-        assert comp_leg_call.args[5] == comp_order_type # order_type (LIMIT or MARKET based on config)
-        assert comp_leg_call.args[6] == comp_price # price (calculated or None)
-        
+        assert (
+            comp_leg_call.args[4] == expected_comp_base_quantity
+        )  # quantity (base asset quantity)
+        assert (
+            comp_leg_call.args[5] == comp_order_type
+        )  # order_type (LIMIT or MARKET based on config)
+        assert comp_leg_call.args[6] == comp_price  # price (calculated or None)
+
         assert comp_leg_call.kwargs.get("time_in_force") == TimeInForce.GTC
         assert comp_leg_call.kwargs.get("reduce_only") is True
-    
+
         # Verify that portfolio_tracker.process_trade was called for the initial filled long leg
         assert len(mock_portfolio_tracker.process_trade_call_tracker) == 1
         tracked_trade_info = mock_portfolio_tracker.process_trade_call_tracker[0]

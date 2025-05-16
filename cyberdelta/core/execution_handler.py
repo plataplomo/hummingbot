@@ -464,7 +464,7 @@ class ExecutionHandler:
             is_long_leg=True,
             time_in_force=default_tif,
             reduce_only=False,
-            post_only=False
+            post_only=False,
         )
 
         if long_order_result is None or long_order_result.status != OrderStatus.FILLED:
@@ -506,7 +506,7 @@ class ExecutionHandler:
                 is_long_leg=False,
                 time_in_force=default_tif,
                 reduce_only=False,
-                post_only=False
+                post_only=False,
             )
         except APIError as e_short_leg:
             err_msg = (
@@ -523,7 +523,7 @@ class ExecutionHandler:
                 self.circuit_breaker_system.record_api_error(
                     opportunity.short_exchange, str(e_short_leg.code)
                 )
-        
+
         if short_order_result is None or short_order_result.status != OrderStatus.FILLED:
             # This block will be entered if _place_order_with_retry returned None
             # (e.g. max retries exhausted without non-APIError failure, unlikely with current logic)
