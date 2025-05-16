@@ -3,7 +3,7 @@ from __future__ import annotations  # Enable postponed evaluation
 import asyncio
 from builtins import BaseException
 from collections import defaultdict
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
@@ -278,11 +278,9 @@ class PortfolioTracker:
             balances_data = await client.get_balances()  # Returns dict[str, SpotBalance] | None
 
             # DEFENSIVE CHECK: client.get_balances() can return None as per ExchangeAPI interface.
-            # Mypy=[unreachable] Pyright=[conditionTrueOrFalse]
             if balances_data is None:
                 logger.warning(f"Received None for balances_data from {exchange_id}.")
                 # Allow partial success, don't wipe existing balances if fetch fails temporarily
-                # self.balances[exchange_id].clear() # Option: clear if None means no balances
                 self.last_update_time[exchange_id] = datetime.now(UTC)
                 return True
 
@@ -434,8 +432,7 @@ class PortfolioTracker:
             processed_positions_list: list[DerivativePosition] = []
             # DEFENSIVE CHECK: client.get_positions() can return list OR dict as per ExchangeAPI.
             # This isinstance check is necessary to differentiate.
-            # Pyright incorrectly flags this as unnecessary if it prematurely narrows type.
-            if isinstance(positions_data_raw, list):  # type: ignore[reportUnnecessaryIsinstance]
+            if isinstance(positions_data_raw, list):
                 processed_positions_list = (
                     positions_data_raw  # Pyright infers list[DerivativePosition]
                 )
@@ -833,22 +830,17 @@ class PortfolioTracker:
         # Iterate over values() as key is unused
         return [pos for pos in exchange_positions.values() if pos.symbol == symbol]
 
-    def get_all_positions(self) -> list[DerivativePosition]:
-        """Returns a list of all derivative positions across all exchanges."""
-        all_positions: list[DerivativePosition] = []
-        for (
-            _exchange_id_loop,
-            positions_on_exchange_loop,
-        ) in self.positions.items():  # Use _ if var not used
-            # symbol_loop: str # Hint for loop variable
-            # position_loop: DerivativePosition # Hint for loop variable
-            for (
-                _symbol_loop,
-                position_loop,
-            ) in positions_on_exchange_loop.items():  # Use _ if var not used
-                if position_loop.size != Decimal(0):  # Exclude placeholders
-                    all_positions.append(position_loop)
-        return all_positions
+    def get_all_positions(self) -> Sequence[tuple[str, DerivativePosition]]:
+        """Retrieves all derivative positions across all exchanges.
+        Conforms to PortfolioTrackerProtocol (DerivativePosition implements Position protocol implicitly).
+        """
+        all_positions_list: list[tuple[str, DerivativePosition]] = []
+        for exchange_id, symbol_positions_map in self.positions.items():
+            for _symbol, position_obj in symbol_positions_map.items():
+                # Only include positions with non-zero size
+                if position_obj.size != Decimal(0):
+                    all_positions_list.append((exchange_id, position_obj))
+        return all_positions_list
 
     def get_positions_by_exchange(self, exchange_id: str) -> list[DerivativePosition]:
         """Get all positions for a specific exchange."""
@@ -859,7 +851,7 @@ class PortfolioTracker:
         return [pos for pos in self.positions[exchange_id].values() if pos.size != Decimal(0)]
 
     async def get_total_capital(self, base_currency: str = "USDC") -> Decimal:
-        """Calculate the total portfolio value in the specified base currency."""
+        """Calculates the total portfolio capital in the specified base currency."""
         logger.debug(f"Calculating total capital in {base_currency}...")
         total_value = Decimal("0.0")
 
@@ -1113,8 +1105,8 @@ class PortfolioTracker:
         )
         return finite_realized, finite_unrealized
 
-    async def get_current_drawdown(self, base_currency: str = "USDC") -> Decimal:
-        """Calculate the current drawdown from the portfolio's high watermark."""
+    async def get_current_drawdown(self, base_currency: str = "USDC") -> Decimal | None:
+        """Calculates the current drawdown from the high watermark."""
         current_capital = await self.get_total_capital()
 
         if self.high_watermark <= Decimal("0.0"):
@@ -1237,7 +1229,7 @@ class PortfolioTracker:
                             try:
                                 # Ensure keys are str for model_validate
                                 # Cast bal_data_any to dict[Any, Any] to help Pyright with k,v types
-                                temp_bal_dict_for_comp = cast(dict[Any, Any], bal_data_any)
+                                temp_bal_dict_for_comp = bal_data_any
                                 validated_bal_dict: dict[str, Any] = {
                                     str(k): v for k, v in temp_bal_dict_for_comp.items()
                                 }
@@ -1271,7 +1263,7 @@ class PortfolioTracker:
                             try:
                                 # Ensure keys are str for model_validate
                                 # Cast pos_data_any to dict[Any, Any] to help Pyright with k,v types
-                                temp_pos_dict_for_comp = cast(dict[Any, Any], pos_data_any)
+                                temp_pos_dict_for_comp = pos_data_any
                                 validated_pos_dict_for_model: dict[str, Any] = {
                                     str(k): v for k, v in temp_pos_dict_for_comp.items()
                                 }
@@ -1305,7 +1297,7 @@ class PortfolioTracker:
                             try:
                                 # Ensure keys are str for model_validate
                                 # Cast order_data_any to dict[Any, Any] to help Pyright with k,v types
-                                temp_order_dict_for_comp = cast(dict[Any, Any], order_data_any)
+                                temp_order_dict_for_comp = order_data_any
                                 validated_order_dict_for_model: dict[str, Any] = {
                                     str(k): v for k, v in temp_order_dict_for_comp.items()
                                 }
@@ -1715,21 +1707,15 @@ class PortfolioTracker:
         )
         return None
 
-    def get_exchange_balance(self, exchange_id: str, asset: str) -> SpotBalance | None:
-        """Retrieve the SpotBalance for a specific asset on a specific exchange."""
-        # --- BEGIN ADDED LOGGING ---
-        logger.info(f"[PT_GET_EX_BAL_START] Called for exchange='{exchange_id}', asset='{asset}'")
-        exchange_balances = self.balances.get(exchange_id)  # Get the inner dict for the exchange
-        if exchange_balances is None:  # Exchange itself might not exist yet
-            logger.info(f"[PT_GET_EX_BAL_RESULT] No balances found for exchange '{exchange_id}'.")
-            return None
-        balance_obj = exchange_balances.get(asset)  # Get balance from inner dict
-        logger.info(
-            f"[PT_GET_EX_BAL_RESULT] Found balance object for {asset} "
-            f"on {exchange_id}: {balance_obj}"
-        )
-        # --- END ADDED LOGGING ---
-        return balance_obj
+    def get_exchange_balance(self, exchange: str, asset: str) -> SpotBalance | None:
+        """Retrieves the balance for a specific asset on a specific exchange.
+        Conforms to PortfolioTrackerProtocol.
+        """
+        # Internally, self.balances uses exchange_id which is equivalent to 'exchange' here.
+        if exchange in self.balances and asset in self.balances[exchange]:
+            return self.balances[exchange][asset]
+        self.logger.debug(f"Balance for {asset} on exchange '{exchange}' not found.")  # DEBUG log
+        return None
 
     def _initialize_from_config(self) -> None:
         logger.info("Initializing PortfolioTracker from config...")

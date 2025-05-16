@@ -761,16 +761,33 @@ class StrategyAdapter(BacktestStrategy):
             elif signal_timestamp.tzinfo is None:
                 signal_timestamp = signal_timestamp.replace(tzinfo=UTC)  # Assume UTC if naive
 
-            signal_dict: dict[str, Any] = {
-                "timestamp": signal_timestamp,
-                "symbol": signal.symbol,
-                "type": signal.signal_type.name,  # Use Enum name string
-                "side": signal.side.name,  # Use Enum name string
-                "size": signal.quantity,  # Use quantity instead of size
-                "price": signal.price,  # Execution price estimate from strategy
-                "pnl": Decimal("0.0"),  # Initialize PnL as Decimal
-                "commission": Decimal("0.0"),  # Initialize commission as Decimal
-            }
+            # Pydantic's model_dump() is preferred for robust serialization
+            signal_dict = signal.model_dump(
+                mode="python", exclude_none=True
+            )  # Use mode="python" for Decimal etc.
+
+            # --- Legacy fields for BacktestEngine compatibility (if needed) ---
+            # The BacktestEngine might expect certain fields like 'action' or 'type'.
+            # Map SignalType to an action string if required by the engine.
+            # This is where the 'action' key should be derived.
+
+            logger.debug(
+                f"ADAPTER_CONVERT_SIGNALS: Original signal_type: {signal.signal_type} (type: {type(signal.signal_type)})"
+            )
+            logger.debug(f"ADAPTER_CONVERT_SIGNALS: signal_dict before action: {signal_dict}")
+
+            # Example: Map SignalType to a simple action string
+            # Ensure signal.signal_type is an Enum member before accessing .name
+            if isinstance(signal.signal_type, SignalType):
+                signal_dict["action"] = signal.signal_type.name.upper()
+            else:
+                # Handle cases where signal_type might be a string already (should not happen with Pydantic)
+                signal_dict["action"] = str(signal.signal_type).upper()
+
+            logger.debug(f"ADAPTER_CONVERT_SIGNALS: signal_dict after action: {signal_dict}")
+
+            # Ensure 'type' (if used by engine) is consistent with 'action' or SignalType
+            signal_dict["type"] = signal_dict["action"]  # Or signal.signal_type.value
 
             # Get current price for PnL calculation if needed
             current_price: Decimal | None = get_current_price(signal.symbol, current_data)

@@ -897,8 +897,17 @@ async def test_partial_fill(
     portfolio_tracker.reset()
 
     # Tickers
-    mock_hl_ticker = create_mock_ticker(hl_symbol, 40000.0, 40002.0, 40001.0, now)
-    mock_bp_ticker = create_mock_ticker(bp_symbol, 40004.0, 40006.0, 40005.0, now)
+    # Original: mock_hl_ticker = create_mock_ticker(hl_symbol, 40000.0, 40002.0, 40001.0, now)
+    # Original: mock_bp_ticker = create_mock_ticker(bp_symbol, 40004.0, 40006.0, 40005.0, now)
+    # New prices for better spread: Short HL (sell at HL bid), Long BP (buy at BP ask)
+    # We want HL_bid >= BP_ask for positive price component of profit
+    mock_hl_ticker = create_mock_ticker(
+        hl_symbol, "40005.0", "40007.0", "40006.0", now
+    )  # bid, ask, price
+    mock_bp_ticker = create_mock_ticker(
+        bp_symbol, "40000.0", "40002.0", "40001.0", now
+    )  # bid, ask, price
+
     mock_hl_api.set_mock_ticker(mock_hl_ticker)
     mock_bp_api.set_mock_ticker(mock_bp_ticker)
 
@@ -1346,7 +1355,7 @@ async def test_execution_failure_compensation(
     # --- Configure Mock Behavior for Execution Failure ---
     target_qty = Decimal("1.0")
     long_order_id_bp = "bp_long_success"
-    # short_order_id_hl = "hl_short_fails" # Unused variable removed
+    short_order_id_hl = "hl_short_fails"  # Define short_order_id_hl
     compensating_order_id_bp = "bp_compensate_sell"
 
     # BP (Long) - Succeeds initially - Use helper

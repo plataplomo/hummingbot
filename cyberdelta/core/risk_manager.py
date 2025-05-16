@@ -155,7 +155,7 @@ class ConstraintViolationError(RiskManagerError):
 class Position(Protocol):
     symbol: str
     size: Decimal
-    entry_price: Decimal
+    entry_price: Decimal | None  # Changed to Optional[Decimal]
     mark_price: Decimal | None
     liquidation_price: Decimal | None
 
@@ -225,6 +225,12 @@ class RiskManager:
         self.simple_fixed_usd_size: Decimal = ZERO
         self.simple_fixed_fraction: Decimal = ZERO
         self.simple_sizing_method_str: str = SimpleSizingMethod.FIXED_USD.value
+
+        # Initialize attributes for min trade size
+        self._global_min_trade_size_usd: Decimal = ZERO  # Initialize global min trade size
+        self.min_trade_size_usd_per_exchange: dict[
+            str, Decimal
+        ] = {}  # Initialize per-exchange dict
 
         # Load core boolean flags first, robustly
         try:
@@ -568,6 +574,66 @@ class RiskManager:
             if not hasattr(self, "simple_sizing_method_str"):  # Should be redundant
                 self.simple_sizing_method_str = SimpleSizingMethod.FIXED_USD.value
 
+            # Initialize attributes for min trade size
+            self._global_min_trade_size_usd: Decimal = ZERO  # Initialize global min trade size
+            self.min_trade_size_usd_per_exchange: dict[
+                str, Decimal
+            ] = {}  # Initialize per-exchange dict
+
+            # Load min trade size configuration
+            min_trade_size_config_raw = self.config.get(
+                "risk.constraints.min_trade_size_usd", "1.0"
+            )
+            if isinstance(min_trade_size_config_raw, dict):
+                # Per-exchange configuration
+                # Cast to dict[Any, Any] for type safety with .items() and .get()
+                min_trade_size_dict_any: dict[Any, Any] = min_trade_size_config_raw
+                ex_id_raw: Any
+                size_str_raw: Any
+                for ex_id_raw, size_str_raw in min_trade_size_dict_any.items():
+                    if ex_id_raw == "global":  # Skip the global key if it's processed separately
+                        continue
+                    ex_id = str(ex_id_raw)
+                    size_val = parse_decimal_value(
+                        size_str_raw,  # This will be Any, parse_decimal_value should handle
+                        allow_none=True,
+                        field_name=f"min_trade_size_usd for {ex_id}",
+                    )
+                    if size_val is not None and size_val > ZERO:
+                        self.min_trade_size_usd_per_exchange[ex_id] = size_val
+                    else:
+                        self.logger.warning(
+                            f"RM_INIT: Invalid or non-positive min_trade_size_usd '{size_str_raw}' "
+                            f"for exchange '{ex_id}'. It will not have a specific minimum."
+                        )
+                # Set a global fallback if not explicitly defined under a general key like "global"
+                global_fallback_val = parse_decimal_value(
+                    min_trade_size_dict_any.get("global", "1.0"),  # Default global fallback
+                    allow_none=False,
+                    field_name="global min_trade_size_usd fallback",
+                )
+                if global_fallback_val is None:  # Should not happen with allow_none=False
+                    raise ConfigError("RM_INIT: Global min_trade_size_usd fallback is None")
+                self._global_min_trade_size_usd = global_fallback_val
+
+            elif isinstance(min_trade_size_config_raw, (str, int, float, Decimal)):
+                # Global configuration as a single value
+                global_val = parse_decimal_value(
+                    min_trade_size_config_raw,
+                    allow_none=False,
+                    field_name="global min_trade_size_usd",
+                )
+                if global_val is None:  # Should not happen
+                    raise ConfigError("RM_INIT: Global min_trade_size_usd is None")
+                self._global_min_trade_size_usd = global_val
+                # No per-exchange values in this case, dict remains empty
+            else:
+                self.logger.error(
+                    f"RM_INIT: Invalid type for 'risk.constraints.min_trade_size_usd': "
+                    f"{type(min_trade_size_config_raw)}. Using default global min size '1.0'."
+                )
+                self._global_min_trade_size_usd = Decimal("1.0")
+
         except (InvalidOperation, ValueError, TypeError, KeyError) as e:
             self.logger.error(
                 f"RM_INIT: Error loading configuration in _load_config: {e}", exc_info=True
@@ -825,14 +891,6 @@ class RiskManager:
     async def _check_leverage(self, opportunity: ArbitrageOpportunity) -> bool:
         """Check that portfolio leverage is within allowed limits."""
         total_capital = await self.portfolio_tracker.get_total_capital()
-
-        # DEFENSIVE CHECK: total_capital from a mock might be None.
-        # Mypy=[unreachable] Pyright=[conditionTrueOrFalse]
-        if total_capital is None:
-            self.logger.warning(
-                f"Total capital from portfolio_tracker is None for {opportunity.symbol}. Cannot check leverage."
-            )
-            return False
 
         if total_capital <= ZERO:
             self.logger.warning("Total capital is zero or negative. Cannot calculate leverage.")
@@ -1962,7 +2020,7 @@ class RiskManager:
         # Ensure current_size_usd is compared against the correct minimum for the exchange
         # This assumes self.min_trade_size_usd is a dict[str, Decimal] and
         # self._global_min_trade_size_usd is a Decimal
-        min_for_exchange = self.min_trade_size_usd.get(
+        min_for_exchange = self.min_trade_size_usd_per_exchange.get(
             opportunity.long_exchange, self._global_min_trade_size_usd
         )
 
@@ -2024,23 +2082,16 @@ class RiskManager:
         # Forcing it up to min_trade_size here can make tiny valid Kelly sizes (that should be rejected)
         # appear as valid minimum trades.
         # min_trade_size_usd_for_constraints = self.min_trade_size_usd.get(opportunity.long_exchange, self._global_min_trade_size_usd)
-        # if final_size_usd > ZERO and final_size_usd < min_trade_size_usd_for_constraints:
-        #     self.logger.warning(
-        #         f"RM_VALIDATE_CAP: Calculated size {final_size_usd:.4f} for {opportunity.symbol} was positive but below "
-        #         f"min_trade_size {min_trade_size_usd_for_constraints:.4f}. This should have been rejected earlier. "
-        #         f"Review _apply_risk_constraints. Returning None for safety."
-        #     )
-        #     return None
-        # elif final_size_usd > ZERO: # If it passed previous checks, it should be >= min_trade_size
-        #     pass # It's fine, no need to max() it with min_trade_size again.
-        # else: # final_size_usd <= ZERO
-        #     # This case should also ideally be handled before, or size is returned as is.
-        #     pass
-
-        # The original line was:
-        # final_size_usd = max(final_size_usd, min_trade_size_usd_for_constraints)
-        # Removing it or making it conditional based on the assumption that _apply_risk_constraints
-        # handles the "too small" rejection.
+        min_trade_size_usd_for_constraints = self.min_trade_size_usd_per_exchange.get(
+            opportunity.long_exchange, self._global_min_trade_size_usd
+        )
+        if final_size_usd > ZERO and final_size_usd < min_trade_size_usd_for_constraints:
+            self.logger.warning(
+                f"RM_VALIDATE_CAP: Calculated size {final_size_usd:.4f} for {opportunity.symbol} was positive but below "
+                f"min_trade_size {min_trade_size_usd_for_constraints:.4f}. This should have been rejected earlier. "
+                f"Review _apply_risk_constraints. Returning None for safety."
+            )
+            return None
         # === END MODIFIED SECTION for _validate_and_cap_final_size ===
 
         # ... logging success ...

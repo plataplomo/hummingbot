@@ -145,10 +145,25 @@ async def main() -> None:
         app_state["state_manager"] = state_manager
 
         # SymbolMapper is required by PortfolioTracker and ExecutionHandler
-        exchanges_conf = config.get("exchanges", {})
-        if not isinstance(exchanges_conf, dict):  # Add a type check for robustness
+        exchanges_conf_raw = config.get("exchanges", {})
+        # Ensure exchanges_conf is dict[str, Any] for SymbolMapper
+        exchanges_conf: dict[str, Any] = {}
+        if isinstance(exchanges_conf_raw, dict):
+            k_raw: Any  # Declare type for k_raw
+            v_raw: Any  # Declare type for v_raw
+            for k_raw, v_raw in exchanges_conf_raw.items():
+                if isinstance(k_raw, str) and isinstance(
+                    v_raw, dict
+                ):  # Ensure keys are str and values are dicts
+                    exchanges_conf[k_raw] = v_raw
+                else:
+                    logger.warning(
+                        f"SymbolMapper: Skipping invalid exchange config entry: ({k_raw}: {v_raw})"
+                    )
+        else:
             logger.error("CRITICAL: 'exchanges' configuration is missing or not a dict.")
-            exchanges_conf = {}
+            # exchanges_conf remains {}
+
         symbol_mapper = SymbolMapper(exchanges_conf)
         app_state["symbol_mapper"] = symbol_mapper
 
@@ -175,7 +190,7 @@ async def main() -> None:
         #    FundingRateValidatorProtocol|None)
         risk_manager = RiskManager(
             config,
-            portfolio_tracker,  # PortfolioTracker implements the protocol
+            portfolio_tracker,  # PortfolioTracker instance
             circuit_breaker,
             None,  # No funding rate validator for now
         )
@@ -199,10 +214,10 @@ async def main() -> None:
         # Initialize StrategyManager
         strategy_manager = StrategyManager(
             config=config,
-            signal_queue=engine.signal_queue,  # Pass signal queue
-            risk_manager=risk_manager,
+            execution_handler=execution_handler,  # Pass execution_handler
             portfolio_tracker=portfolio_tracker,
-            symbol_mapper=symbol_mapper,  # Pass symbol_mapper
+            risk_manager=risk_manager,
+            signal_queue=signal_queue,  # Pass the initialized signal_queue
         )
         app_state["strategy_manager"] = strategy_manager
 
@@ -214,6 +229,7 @@ async def main() -> None:
 
     # 2. Initialize API Clients and link to components
     api_clients: dict[str, ExchangeAPI] = {}
+    client: ExchangeAPI  # Declare type of client here
     try:
         logger.info("Initializing API clients...")
         secrets: dict[str, dict[str, str | None]] = {
@@ -233,24 +249,30 @@ async def main() -> None:
         exchanges: dict[str, dict[str, Any]] = _exchanges
         for (
             exchange_name,
-            api_config,
-        ) in exchanges.items():  # exchange_name: str, api_config: dict[str, Any]
-            if not api_config.get("enabled", False):
+            api_config_data,
+        ) in exchanges.items():
+            # The following isinstance check is redundant because 'exchanges' is typed as dict[str, dict[str, Any]],
+            # so api_config_data will always be a dict[str, Any].
+            # if not isinstance(api_config_data, dict): # REMOVING THIS CHECK
+            #     logger.warning(f"Skipping exchange {exchange_name}: config data is not a dict.")
+            #     continue
+
+            if not api_config_data.get("enabled", False):
                 logger.info("Skipping disabled exchange", exchange=exchange_name)
                 continue
+
+            # Ensure api_config passed to clients is dict[str, Any]
+            current_api_config: dict[str, Any] = api_config_data
+
             logger.debug(f"Attempting to initialize API for {exchange_name}...")
             if exchange_name == ExchangeName.HYPERLIQUID:
-                client = HyperliquidAPI(
-                    exchange_name, api_config, secrets[ExchangeName.HYPERLIQUID], config
-                )
+                client = HyperliquidAPI(current_api_config, secrets[ExchangeName.HYPERLIQUID])
             elif exchange_name == ExchangeName.BACKPACK:
-                client = BackpackAPI(
-                    exchange_name, api_config, secrets[ExchangeName.BACKPACK], config
-                )
+                client = BackpackAPI(current_api_config, secrets[ExchangeName.BACKPACK])
             else:
                 logger.warning(f"Unsupported exchange: {exchange_name}")
                 continue
-            await client.connect()  # Connect during setup
+            await client.connect_websocket()  # CORRECTED: Call connect_websocket()
             api_clients[exchange_name] = client
             # Register API client with relevant components
             data_handler.register_api_client(exchange_name, client)
@@ -360,7 +382,9 @@ async def main() -> None:
         logger.info("Starting background component tasks...")
         # Start data streams and processing
         main_tasks.append(
-            asyncio.create_task(data_handler.run(cancellation_token), name="DataHandler_run")
+            asyncio.create_task(
+                data_handler.start_connections(), name="DataHandler_start_connections"
+            )
         )
         # Start signal queue processing
         main_tasks.append(
@@ -371,15 +395,27 @@ async def main() -> None:
         # Start the engine (now ready to receive data and forward signals)
         logger.info("Starting Trading Engine...")
         # engine.run() # This would block if run directly
-        asyncio.run(engine.run_async())  # Run the async version
+        # asyncio.run(engine.run_async())  # asyncio.run cannot be called when a loop is running
+        engine.start()  # Call the synchronous start method
         logger.info("Engine started. Entering main monitoring loop.")
 
         # Set up signal handling for graceful shutdown
         loop = asyncio.get_running_loop()
-        for sig in (signal.SIGINT, signal.SIGTERM):
+
+        # Define the coroutine that will be scheduled by the signal handler
+        async def _shutdown_coro_for_signal() -> None:
+            logger.info("Signal received, initiating shutdown via app_state.")
+            await shutdown(app_state)
+
+        for sig_name_enum in (signal.SIGINT, signal.SIGTERM):
+            # loop.add_signal_handler expects a regular callable.
+            # asyncio.create_task will be called when the signal is received.
             loop.add_signal_handler(
-                sig,
-                lambda s=sig: asyncio.create_task(shutdown(app_state), name=f"ShutdownHandler_{s}"),
+                sig_name_enum,
+                lambda: asyncio.create_task(
+                    _shutdown_coro_for_signal(),
+                    name=f"ShutdownHandler_{signal.Signals(sig_name_enum).name}",
+                ),
             )
         logger.debug("Signal handlers registered.")
 

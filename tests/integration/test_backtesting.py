@@ -163,7 +163,7 @@ class TestBacktestingIntegration:
             f"got {len(result['signals'])}"
         )
         if expected_signal_count > 0:
-            assert result["signals"][0]["action"] == "ENTRY_LONG"
+            assert result["signals"][0]["action"] == "ENTER_LONG"
 
     def test_funding_rate_strategy_integration(self) -> None:
         """Test integration with the FundingRateArbitrageStrategy"""
