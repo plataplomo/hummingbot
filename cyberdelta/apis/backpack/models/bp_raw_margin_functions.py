@@ -24,39 +24,77 @@ structure of Backpack's margin function components, specifically the `imfFunctio
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .bp_common_raw_types import RawBpParsableFiniteDecimalString
+from .bp_common_raw_types import (
+    RawBpMarginFactorString,  # For ImfFunction and MmfFunction
+    RawBpNonEmptyStringMax64,  # For general non-empty string usage if any
+    RawBpParsableFiniteDecimalString,
+    RawBpStringMax64,  # For general string usage like 'type'
+)
 
 
 class BackpackRawImfFunction(BaseModel):
-    """
-    Strict boundary model for the IMF (Initial Margin Fraction) function data.
-    Represents the `SqrtFunction` structure used by Backpack.
-
-    Fields:
-        base (str): Base value (validated as a parsable decimal string).
-        factor (str): Factor value (validated as a parsable decimal string).
-    """
+    """Raw model for Initial Margin Fraction (IMF) function components."""
 
     base: RawBpParsableFiniteDecimalString = Field(..., alias="base")
+    factor: RawBpMarginFactorString = Field(..., alias="factor")
+
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+
+
+class BackpackRawMmfFunction(BaseModel):
+    """Raw model for Maintenance Margin Fraction (MMF) function components."""
+
+    base: RawBpParsableFiniteDecimalString = Field(..., alias="base")
+    factor: RawBpMarginFactorString = Field(..., alias="factor")
+
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+
+
+class BackpackRawPositionImfFunction(BaseModel):
+    """
+    Raw model for Position-Specific Initial Margin Fraction (IMF) function.
+    This reflects the nested 'imfFunction' object within a position's details.
+    The 'type' field, often "sqrt", seems to be part of this nested structure,
+    though API responses can vary. We use `extra='ignore'` to be robust.
+    """
+
+    # Type for 'type' field, e.g., "sqrt", typically a short non-empty string.
+    # Using RawBpStringMax64 as a general validated string type.
+    type: RawBpStringMax64 = Field(..., alias="type")
+    base: RawBpParsableFiniteDecimalString = Field(..., alias="base")
+    # The 'factor' in this context is a numeric string, not the one needing special error message.
     factor: RawBpParsableFiniteDecimalString = Field(..., alias="factor")
+
     # NOTE: The PositionImfFunction in the spec has a 'type' field ("sqrt"),
     # but it seems nested within the 'imfFunction' object itself.
     # We use extra='ignore' here to handle potential nesting differences.
     model_config = ConfigDict(populate_by_name=True, extra="ignore", frozen=True)
 
 
-class BackpackRawMmfFunction(BaseModel):
+class BackpackRawPositionMmfFunction(BaseModel):
     """
-    Strict boundary model for the MMF (Maintenance Margin Fraction) function data.
-    Represents the `SqrtFunction` structure used by Backpack.
-
-    Fields:
-        base (str): Base value (validated as a parsable decimal string).
-        factor (str): Factor value (validated as a parsable decimal string).
+    Raw model for Position-Specific Maintenance Margin Fraction (MMF) function.
+    Similar to ImfFunction, this reflects the nested 'mmfFunction'.
     """
 
+    type: RawBpStringMax64 = Field(..., alias="type")
     base: RawBpParsableFiniteDecimalString = Field(..., alias="base")
+    # The 'factor' in this context is a numeric string.
     factor: RawBpParsableFiniteDecimalString = Field(..., alias="factor")
+
     # NOTE: The PositionImfFunction (also used for MMF) in the spec has a 'type' field ("sqrt").
     # We use extra='ignore' here to handle potential nesting differences.
     model_config = ConfigDict(populate_by_name=True, extra="ignore", frozen=True)
+
+
+class BackpackRawMarginCoverage(BaseModel):
+    """
+    Raw model for margin coverage data, indicating if current margin covers requirements.
+    Example: `{"type": "marginCoverage", "marginCoverage": "good"}`
+    """
+
+    type: RawBpStringMax64 = Field(..., alias="type")
+    # marginCoverage is a simple string, e.g. "good", "bad"
+    margin_coverage: RawBpNonEmptyStringMax64 = Field(..., alias="marginCoverage")
+
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)

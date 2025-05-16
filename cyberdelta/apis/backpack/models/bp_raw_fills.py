@@ -98,7 +98,6 @@ class BackpackRawFillsList(RootModel[list[BackpackRawFill]]):
     # No need for: root: list[BackpackRawFill]
 
     model_config = ConfigDict(
-        extra="forbid",
         frozen=True,
     )
 

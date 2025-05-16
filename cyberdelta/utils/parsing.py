@@ -38,8 +38,16 @@ def parse_datetime_utc(
         return value if value.tzinfo else value.replace(tzinfo=UTC)
     elif isinstance(value, int | float):
         try:
-            timestamp = value / 1000.0 if value > 1e11 else float(value)
-            return datetime.fromtimestamp(timestamp, tz=UTC)
+            # Determine scale: ns, us, ms, or s
+            if value > 2e17:  # Heuristic: likely nanoseconds (e.g., current date ~1.7e18)
+                timestamp_s = value / 1e9
+            elif value > 2e14:  # Heuristic: likely microseconds (e.g., current date ~1.7e15)
+                timestamp_s = value / 1e6
+            elif value > 2e11:  # Heuristic: likely milliseconds (e.g., current date ~1.7e12)
+                timestamp_s = value / 1e3
+            else:  # Heuristic: likely seconds (e.g., current date ~1.7e9)
+                timestamp_s = float(value)
+            return datetime.fromtimestamp(timestamp_s, tz=UTC)
         except (TypeError, ValueError, OSError) as e:
             raise ValueError(f"{prefix}Invalid timestamp value '{value}': {e}") from e
     # ---
@@ -53,8 +61,24 @@ def parse_datetime_utc(
         try:
             dt = datetime.fromisoformat(value)
             return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
-        except ValueError as e:
-            raise ValueError(f"{prefix}Cannot parse ISO datetime string '{value}': {e}") from e
+        except ValueError as e_iso:
+            # If ISO parsing fails, try to convert to float and then parse as numeric timestamp
+            try:
+                float_val = float(value)
+                # Reuse the int/float logic to determine if it's ms/ns etc.
+                # Common case: timestamp > 1e11 is likely ms, otherwise seconds.
+                # This threshold (1e11, approx 3.17 years in ms) helps distinguish.
+                # For very large numbers (like nanoseconds for recent dates), this might need refinement
+                # if direct nanosecond/microsecond interpretation is required from string.
+                # Example: 1678886400123 (ms) -> 1678886400.123 (s)
+                # Example: 1234567890 (s) -> 1234567890.0 (s)
+                timestamp_s = float_val / 1000.0 if float_val > 1e11 else float_val
+                return datetime.fromtimestamp(timestamp_s, tz=UTC)
+            except (ValueError, TypeError, OSError) as e_num:
+                raise ValueError(
+                    f"{prefix}Cannot parse string '{value}' as ISO datetime ({e_iso}) "
+                    f"or as numeric timestamp ({e_num})"
+                ) from e_num
     else:
         raise ValueError(f"{prefix}Unsupported datetime type: {type(value)}")
 

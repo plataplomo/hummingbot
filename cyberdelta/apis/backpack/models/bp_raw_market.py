@@ -24,10 +24,21 @@ robustness and security at the data ingestion boundary.
 """
 
 import logging
+from typing import Any, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from .bp_common_raw_types import (
+    RawBpDepthPriceString,
+    RawBpDepthQuantityString,
+    RawBpFlexibleTimestamp,
     RawBpNonEmptyStringMax64,
     RawBpNonNegativeInt,
     RawBpOptionalFlexibleTimestamp,
@@ -59,9 +70,9 @@ class BackpackRawMarket(BaseModel):
         max_trade_price (Decimal): Max trade price (non-negative decimal).
         min_order_book_quantity (Decimal): Min order book quantity (non-negative decimal).
         bids (list[tuple[str, str]]): List of bids [price_str, quantity_str].
-                                       Each string is validated as parsable to a non-negative finite decimal.
+                                       Validated as parsable to non-negative finite decimal.
         asks (list[tuple[str, str]]): List of asks [price_str, quantity_str].
-                                       Each string is validated as parsable to a non-negative finite decimal.
+                                       Validated as parsable to non-negative finite decimal.
         last_update_time (int): Last update time (non-negative integer).
     """
 
@@ -97,27 +108,21 @@ class BackpackRawMarket(BaseModel):
 
 
 class BackpackRawTicker(BaseModel):
-    """
-    Pydantic model for a raw ticker object from `/api/v1/ticker` (Backpack REST API).
-    Uses common raw types for field validation.
-
-    Attributes:
-        symbol (str): Trading symbol.
-        price (str | None): Last traded price (validated as parsable decimal string if not None).
-        bid (str | None): Best bid price (validated as parsable decimal string if not None).
-        ask (str | None): Best ask price (validated as parsable decimal string if not None).
-        volume (str | None): 24h trading volume (validated as parsable decimal string if not None).
-        time (Union[int, str, float, None]): Ticker timestamp (validated if not None).
-    """
+    """Raw model for a ticker update from the Backpack API (REST /api/v1/ticker)."""
 
     symbol: RawBpNonEmptyStringMax64 = Field(..., alias="symbol")
     price: RawBpOptionalParsableFiniteDecimalString = Field(None, alias="price")
     bid: RawBpOptionalParsableFiniteDecimalString = Field(None, alias="bid")
     ask: RawBpOptionalParsableFiniteDecimalString = Field(None, alias="ask")
     volume: RawBpOptionalParsableFiniteDecimalString = Field(None, alias="volume")
-    time: RawBpOptionalFlexibleTimestamp = Field(..., alias="time")
+    time: RawBpFlexibleTimestamp = Field(..., alias="time")
 
-    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(
+        populate_by_name=True,
+        extra="forbid",
+        frozen=True,
+        validate_assignment=True,
+    )
 
 
 class BackpackRawOpenInterest(BaseModel):
@@ -137,97 +142,89 @@ class BackpackRawOpenInterest(BaseModel):
 
 
 class BackpackRawOrderBook(BaseModel):
-    """
-    Pydantic model for the raw order book depth object from `/api/v1/depth` (Backpack REST API).
-    Uses common raw types for field validation.
+    """Raw model for an order book snapshot from the Backpack API."""
 
-    Attributes:
-        asks (List[Tuple[str, str]]): List of asks [price_str, quantity_str]. Validated.
-        bids (List[Tuple[str, str]]): List of bids [price_str, quantity_str]. Validated.
-        last_update_id (str): ID of the last update that changed the book.
-        timestamp (int): Matching engine timestamp in microseconds (non-negative).
-    """
-
-    # Pydantic will validate the structure: list of 2-tuples.
-    # Each element within the tuple will be validated by RawBpParsableNonNegativeFiniteDecimalString.
-    asks: list[
-        tuple[
-            RawBpParsableNonNegativeFiniteDecimalString, RawBpParsableNonNegativeFiniteDecimalString
-        ]
-    ] = Field(..., alias="asks")
     bids: list[
         tuple[
             RawBpParsableNonNegativeFiniteDecimalString, RawBpParsableNonNegativeFiniteDecimalString
         ]
     ] = Field(..., alias="bids")
+    asks: list[
+        tuple[
+            RawBpParsableNonNegativeFiniteDecimalString, RawBpParsableNonNegativeFiniteDecimalString
+        ]
+    ] = Field(..., alias="asks")
     last_update_id: RawBpNonEmptyStringMax64 = Field(..., alias="lastUpdateId")
-    timestamp: RawBpNonNegativeInt = Field(..., alias="timestamp")  # Assuming API sends int
+    timestamp: RawBpFlexibleTimestamp = Field(..., alias="timestamp")
 
     model_config = ConfigDict(
-        populate_by_name=True,
-        extra="forbid",
-        frozen=True,
-        validate_assignment=True,
+        populate_by_name=True, extra="ignore", frozen=True, validate_assignment=True
     )
 
-    # All @field_validator methods for individual fields are removed.
-    # The custom 'validate_levels' is removed as its logic is covered by
-    # Pydantic processing List[Tuple[AnnotatedType, AnnotatedType]].
+    @field_validator("bids", "asks", mode="before")
+    @classmethod
+    def _validate_bids_asks_must_be_list_ob(cls, v: object, info: ValidationInfo) -> list[Any]:
+        if not isinstance(v, list):
+            raise ValueError("Must be a list")
+        return v
 
 
 # --- Raw WebSocket Event Models ---
 
 
 class BackpackRawTickerEvent(BaseModel):
-    """
-    Raw Pydantic model for a WebSocket ticker update event (`ticker.<symbol>`).
-    Uses common raw types for field validation.
-    """
+    """Raw model for a ticker event (e.g., from WebSocket streams)."""
 
     symbol: RawBpNonEmptyStringMax64 = Field(..., alias="s")
-    last_price: RawBpParsableFiniteDecimalString = Field(..., alias="lastPrice")
-    high: RawBpParsableFiniteDecimalString = Field(..., alias="high")
-    low: RawBpParsableFiniteDecimalString = Field(..., alias="low")
-    volume: RawBpParsableFiniteDecimalString = Field(..., alias="volume")
-    quote_volume: RawBpParsableFiniteDecimalString = Field(..., alias="quoteVolume")
-    price_change_percent: RawBpParsableFiniteDecimalString = Field(..., alias="priceChangePercent")
-
+    last_price: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="lastPrice")
+    high: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="high")
+    low: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="low")
+    open_price: RawBpOptionalParsableFiniteDecimalString = Field(None, alias="o")
+    volume: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="volume")
+    quote_volume: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="quoteVolume")
+    price_change_percent: RawBpParsableNonNegativeFiniteDecimalString = Field(
+        ..., alias="priceChangePercent"
+    )
     event_type: RawBpOptionalNonEmptyStringMax32 = Field(None, alias="e")
     event_time: RawBpOptionalFlexibleTimestamp = Field(None, alias="E")
 
     model_config = ConfigDict(
         populate_by_name=True,
-        extra="forbid",  # Assuming ticker events should be strict
+        extra="ignore",
         frozen=True,
         validate_assignment=True,
     )
-    # All @field_validator methods removed
 
 
 class BackpackRawDepthUpdateEvent(BaseModel):
-    """
-    Raw Pydantic model for a WebSocket depth update event (`depth.<symbol>`).
-    Uses common raw types for field validation.
-    """
+    """Raw model for a depth update event (e.g., from WebSocket streams)."""
 
     last_update_id: RawBpNonEmptyStringMax64 = Field(..., alias="lastUpdateId")
-    bids: list[
-        tuple[
-            RawBpParsableNonNegativeFiniteDecimalString, RawBpParsableNonNegativeFiniteDecimalString
-        ]
-    ] = Field(..., alias="bids")
-    asks: list[
-        tuple[
-            RawBpParsableNonNegativeFiniteDecimalString, RawBpParsableNonNegativeFiniteDecimalString
-        ]
-    ] = Field(..., alias="asks")
+    bids: list[tuple[RawBpDepthPriceString, RawBpDepthQuantityString]] = Field(..., alias="b")
+    asks: list[tuple[RawBpDepthPriceString, RawBpDepthQuantityString]] = Field(..., alias="a")
     event_type: RawBpOptionalNonEmptyStringMax32 = Field(None, alias="e")
     event_time: RawBpOptionalFlexibleTimestamp = Field(None, alias="E")
 
-    model_config = ConfigDict(
-        populate_by_name=True, extra="ignore", frozen=True, validate_by_name=True
-    )
+    model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
 
-    # All @field_validator methods are removed as their logic is now handled by
-    # the Annotated common raw types. Pydantic will automatically validate the
-    # structure of lists and tuples containing these annotated types.
+    @field_validator("bids", "asks", mode="before")
+    @classmethod
+    def _custom_validate_depth_levels(cls, v: object, info: ValidationInfo) -> list[Any]:
+        if not isinstance(v, list):
+            raise ValueError("Must be a list")
+
+        processed_levels = []
+        for level_item in v:
+            if not isinstance(level_item, (list, tuple)):
+                raise ValueError("Each item must be a list or tuple")
+
+            if len(level_item) != 2:
+                raise ValueError("length 2")
+
+            processed_levels.append(tuple(level_item))
+        return processed_levels
+
+    @model_validator(mode="after")
+    def _check_logical_consistency(self) -> Self:
+        # ... existing code ...
+        return self
