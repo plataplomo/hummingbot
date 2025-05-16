@@ -403,7 +403,7 @@ class FundingRateArbitrageStrategy(Strategy):
             logger.info(f"Found opportunity: {opportunity}")
             self.active_opportunities.append(opportunity)
 
-            sized_opportunity_raw = self.risk_manager.calculate_position_size(opportunity)  # type: ignore[attr-defined]
+            sized_opportunity_raw = self.risk_manager.size_opportunity(opportunity)
             sized_opportunity = cast(SizedOpportunity | None, sized_opportunity_raw)
 
             if (

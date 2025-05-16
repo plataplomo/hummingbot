@@ -9,6 +9,7 @@ import pytest
 from cyberdelta.core.models import (
     SignalType,
     TradeSignal,
+    Ticker,
 )
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
@@ -118,6 +119,12 @@ async def test_position_sizing_integration(
     mock_logger.warning = MagicMock()
     mock_logger.error = MagicMock()
 
+    # Ensure _should_rebalance returns False to avoid TypeError in logger
+    mock_position_with_zero_size = MagicMock()
+    mock_position_with_zero_size.size = Decimal("0")
+    setup_dependencies["portfolio_tracker"].get_position = MagicMock(return_value=mock_position_with_zero_size)
+    setup_dependencies["data_handler"].get_latest_ticker = MagicMock(return_value=MagicMock(spec=Ticker, price=Decimal("30000")))
+
     # Mock _check_opportunity to return our test opportunity
     strategy_with_risk_manager._check_opportunity = AsyncMock(return_value=mock_opportunity)
 
@@ -161,7 +168,7 @@ async def test_position_sizing_integration(
     )
 
     # Call the method to generate a signal with position sizing
-    signals = await strategy_with_risk_manager._check_and_generate_signal()
+    signals = await strategy_with_risk_manager.evaluate_entry_opportunity()
 
     # Verify that risk manager was called
     setup_dependencies["risk_manager"].size_opportunity.assert_called_once()
@@ -178,7 +185,7 @@ async def test_position_sizing_integration(
     assert signal.signal_type == SignalType.ENTER_SHORT
 
     # Check that the sized opportunity was stored
-    opportunity_id = str(id(mock_opportunity))
+    opportunity_id = mock_opportunity.id
     assert opportunity_id in strategy_with_risk_manager.sized_opportunities
     assert strategy_with_risk_manager.sized_opportunities[opportunity_id] == mock_sized_opportunity
 
@@ -205,6 +212,12 @@ async def test_risk_manager_rejection(
     mock_logger.warning = MagicMock()
     mock_logger.error = MagicMock()
 
+    # Ensure _should_rebalance returns False cleanly for this test
+    mock_position_with_zero_size = MagicMock()
+    mock_position_with_zero_size.size = Decimal("0")
+    setup_dependencies["portfolio_tracker"].get_position = MagicMock(return_value=mock_position_with_zero_size)
+    setup_dependencies["data_handler"].get_latest_ticker = MagicMock(return_value=MagicMock(spec=Ticker, price=Decimal("30000")))
+
     # Mock _check_opportunity to return our test opportunity
     strategy_with_risk_manager._check_opportunity = AsyncMock(return_value=mock_opportunity)
 
@@ -212,7 +225,7 @@ async def test_risk_manager_rejection(
     setup_dependencies["risk_manager"].size_opportunity = MagicMock(return_value=None)
 
     # Try to generate a signal
-    signals = await strategy_with_risk_manager._check_and_generate_signal()
+    signals = await strategy_with_risk_manager.evaluate_entry_opportunity()
 
     # Verify that the risk manager was called
     setup_dependencies["risk_manager"].size_opportunity.assert_called_once()
@@ -221,7 +234,11 @@ async def test_risk_manager_rejection(
     assert signals is None
 
     # Verify that the warning was logged
-    mock_logger.warning.assert_called_with("Opportunity rejected by risk manager")
+    expected_log_message = (
+        f"Opportunity {mock_opportunity.id} not sized or size is zero, no entry "
+        f"signals generated."
+    )
+    mock_logger.info.assert_called_with(expected_log_message)
 
 
 def test_fallback_without_risk_manager(
