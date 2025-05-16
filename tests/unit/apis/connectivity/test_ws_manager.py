@@ -2,7 +2,6 @@ import asyncio
 import asyncio.tasks  # Import for direct access to create_task
 import logging
 from collections.abc import AsyncGenerator, Callable, Coroutine, Iterable
-from contextlib import suppress
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -92,7 +91,8 @@ def mock_ws_connection_factory() -> Callable[..., AsyncMock]:
         receive_sequence: Iterable[Any] | None = None,
         ping_pong_passthrough: bool = False,
         block_indefinitely: bool = False,
-        spec_arg: Any = aiohttp.ClientWebSocketResponse,  # Add spec_arg with default
+        spec_arg: type[aiohttp.ClientWebSocketResponse]
+        | None = aiohttp.ClientWebSocketResponse,  # Add spec_arg with default
     ) -> AsyncMock:
         mock_conn = AsyncMock(spec=spec_arg)  # Use spec_arg
         mock_conn.closed = closed
@@ -471,16 +471,22 @@ class TestWebSocketManager:
                 await local_ws_manager.close()
             if connection_establishment_task and not connection_establishment_task.done():
                 connection_establishment_task.cancel()
-                with suppress(asyncio.CancelledError):
+                try:
                     await connection_establishment_task
+                except asyncio.CancelledError:
+                    pass
             if listener_task_for_close and not listener_task_for_close.done():
                 listener_task_for_close.cancel()
-                with suppress(asyncio.CancelledError):
+                try:
                     await listener_task_for_close
+                except asyncio.CancelledError:
+                    pass
             if ping_task_for_close and not ping_task_for_close.done():
                 ping_task_for_close.cancel()
-                with suppress(asyncio.CancelledError):
+                try:
                     await ping_task_for_close
+                except asyncio.CancelledError:
+                    pass
 
     @pytest.mark.asyncio
     async def test_close_when_not_connected_closes_idle_internal_session(
