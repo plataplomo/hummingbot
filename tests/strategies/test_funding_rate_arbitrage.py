@@ -4,46 +4,38 @@ import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import TYPE_CHECKING, Any, TypedDict, Unpack, cast
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
-    OrderSide,
     Ticker,
     TradeSignal,
 )
 from cyberdelta.core.models.enums import OrderSide, SignalType
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.models.market.funding_rate import (
+    BackpackFundingDetails,
+    HyperliquidFundingDetails,
+)
+from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 if TYPE_CHECKING:
     pass
 
-# Configure logging for this test
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# Move TickerWithClose to module level for reuse
-default_close = Decimal("30000.0")
-
-# Define a specific type alias or use a more concrete type if possible
+default_price = Decimal("30000.0")
 PositionType = DerivativePosition | None
 
 
-# Define missing SignalType (basic version)
-# class SignalType(Enum):
-#     OPEN = auto()
-#     CLOSE = auto()
-#     REBALANCE = auto()
-#     HOLD = auto()
-
-
-# Define missing create_mock_opportunity (basic version)
 def create_mock_opportunity(
     symbol: str,
     long_exchange: str = "long_ex",
@@ -74,7 +66,6 @@ def create_mock_opportunity(
     )
 
 
-# Define missing create_mock_signal (basic version)
 def create_mock_signal(
     symbol: str,
     signal_type: SignalType = SignalType.ENTER_LONG,
@@ -100,22 +91,18 @@ def create_mock_signal(
     )
 
 
-class TickerWithClose:
-    def __init__(self, close: Decimal = default_close) -> None:
-        self.close: Decimal = close
-
-
 @pytest.fixture
 def strategy() -> FundingRateArbitrageStrategy:
-    data_handler = MagicMock()
-    data_handler.get_latest_price = MagicMock()
-    portfolio_tracker = MagicMock()
-    portfolio_tracker.get_position = MagicMock()
+    data_handler = AsyncMock()
+    portfolio_tracker = MagicMock(spec=PortfolioTracker)
+    risk_manager_mock = MagicMock(spec=RiskManager)
+
     return FundingRateArbitrageStrategy(
         name="test_funding_arb",
         symbol="BTC-PERP",
         data_handler=data_handler,
         portfolio_tracker=portfolio_tracker,
+        risk_manager=risk_manager_mock,
         params={
             "min_funding_differential": Decimal("0.01"),
             "min_profit_threshold": Decimal("1.0"),
@@ -125,12 +112,6 @@ def strategy() -> FundingRateArbitrageStrategy:
             "symbol_mapping": {"BTC-PERP": "BTC_USDC"},
         },
     )
-
-
-def fake_get_latest_price(ex: str, sym: str) -> Decimal:
-    if (ex, sym) == ("hyperliquid", "BTC-PERP"):
-        return Decimal("30000.0")
-    return Decimal("29990.0")
 
 
 def fake_get_position(ex: str, sym: str) -> PositionType:
@@ -161,26 +142,40 @@ def fake_get_position(ex: str, sym: str) -> PositionType:
     return positions.get((ex, sym))
 
 
-# Define a specific type alias or use a more concrete type if possible
-TickerType = Ticker | TickerWithClose | None
+async def fake_get_ticker(exchange_id: str, symbol: str) -> Ticker | None:
+    now = datetime.now(UTC)
+    if exchange_id == "hyperliquid" and symbol == "BTC-PERP":
+        return Ticker(
+            symbol="BTC-PERP",
+            price=Decimal("30000.0"),
+            timestamp=now,
+            bid=Decimal("29999.0"),
+            ask=Decimal("30001.0"),
+            volume=Decimal("1000"),
+        )
+    if exchange_id == "backpack" and symbol == "BTC_USDC":
+        return Ticker(
+            symbol="BTC_USDC",
+            price=Decimal("29990.0"),
+            timestamp=now,
+            bid=Decimal("29989.0"),
+            ask=Decimal("29991.0"),
+            volume=Decimal("500"),
+        )
+    return None
 
 
-def fake_get_ticker(ex: str, sym: str) -> TickerType:
-    if ex == "hyperliquid":
-        return TickerWithClose(Decimal("30000.0"))
-    return TickerWithClose(Decimal("29990.0"))
-
-
-# Define a specific type alias or use a more concrete type if possible
-ParamType = Any
-
-
-def fake_get_param(k: str, d: object | None = None) -> ParamType:
-    return {
-        "history_length": 24,
-        "hyperliquid_fee_rate": Decimal("0.0001"),
-        "backpack_fee_rate": Decimal("0.0001"),
-    }.get(k, d)
+async def fake_get_funding_rate(exchange_id: str, symbol: str) -> FundingRate | None:
+    now = datetime.now(UTC)
+    if exchange_id == "hyperliquid" and symbol == "BTC-PERP":
+        return FundingRate(
+            symbol="BTC-PERP",
+            funding_rate=Decimal("0.0001"),
+            timestamp=now,
+            next_funding_time=now + timedelta(hours=1),
+            mark_price=Decimal("30000.0"),
+        )
+    return None
 
 
 @pytest.mark.asyncio
@@ -189,16 +184,36 @@ async def test_process_data_scheduling(
     mock_create_task: MagicMock, strategy: FundingRateArbitrageStrategy
 ) -> None:
     mock_create_task.return_value.set_result(None)
-
     mock_data: Candle = create_mock_candle()
     strategy.last_opportunity_check = None
-    with patch.object(strategy.portfolio_tracker, "get_position", return_value=None):
-        with patch.object(
-            strategy.data_handler, "get_latest_price", side_effect=fake_get_latest_price
-        ):
-            result = await strategy.process_data(mock_data)
+    cast(AsyncMock, strategy.data_handler).get_latest_ticker.side_effect = fake_get_ticker
+    cast(
+        AsyncMock, strategy.data_handler
+    ).get_latest_funding_rate.side_effect = fake_get_funding_rate
+
+    with patch.object(strategy.portfolio_tracker, "get_position", return_value=None) as _:
+        await strategy.process_data(mock_data)
     mock_create_task.assert_called_once()
-    assert result == []
+
+
+@pytest.mark.asyncio
+@patch("asyncio.create_task", new_callable=lambda: MagicMock(return_value=asyncio.Future()))
+async def test_process_data_no_scheduling_if_recent_check(
+    mock_create_task: MagicMock, strategy: FundingRateArbitrageStrategy
+) -> None:
+    mock_create_task.return_value.set_result(None)
+    strategy.last_opportunity_check = datetime.now(UTC) - timedelta(
+        seconds=strategy.check_interval - 10
+    )
+    mock_data: Candle = create_mock_candle()
+    cast(AsyncMock, strategy.data_handler).get_latest_ticker.side_effect = fake_get_ticker
+    cast(
+        AsyncMock, strategy.data_handler
+    ).get_latest_funding_rate.side_effect = fake_get_funding_rate
+
+    with patch.object(strategy.portfolio_tracker, "get_position", return_value=None) as _:
+        await strategy.process_data(mock_data)
+    mock_create_task.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -207,326 +222,258 @@ async def test_process_data_rebalance_signal_generation(
     mock_create_task: MagicMock, strategy: FundingRateArbitrageStrategy
 ) -> None:
     mock_create_task.return_value.set_result(None)
+    strategy.active_opportunities = [create_mock_opportunity(symbol="BTC-PERP")]
+
+    async def rebalance_ticker_prices(ex: str, sym: str) -> Ticker | None:
+        now = datetime.now(UTC)
+        if (ex, sym) == ("hyperliquid", "BTC-PERP"):
+            return Ticker(
+                symbol="BTC-PERP",
+                price=Decimal("31000.0"),
+                timestamp=now,
+                bid=Decimal("30999.0"),
+                ask=Decimal("31001.0"),
+                volume=Decimal("1000"),
+            )
+        if (ex, sym) == ("backpack", "BTC_USDC"):
+            return Ticker(
+                symbol="BTC_USDC",
+                price=Decimal("30500.0"),
+                timestamp=now,
+                bid=Decimal("30499.0"),
+                ask=Decimal("30501.0"),
+                volume=Decimal("500"),
+            )
+        return None
+
+    cast(AsyncMock, strategy.data_handler).get_latest_ticker.side_effect = rebalance_ticker_prices
+    cast(
+        AsyncMock, strategy.data_handler
+    ).get_latest_funding_rate.side_effect = fake_get_funding_rate
+    strategy.rebalance_threshold = Decimal("0.01")
+    strategy.last_opportunity_check = datetime.now(UTC) - timedelta(
+        seconds=strategy.check_interval + 1
+    )
 
     mock_data: Candle = create_mock_candle()
-    strategy.last_opportunity_check = datetime.now(UTC)
-    strategy.rebalance_threshold = Decimal("0.00001")
-    with patch.object(strategy.portfolio_tracker, "get_position", side_effect=fake_get_position):
-        with patch.object(strategy.data_handler, "get_ticker", side_effect=fake_get_ticker):
-            result = await strategy.process_data(mock_data)
-    mock_create_task.assert_not_called()
-    assert isinstance(result, list)
-    assert len(result) == 2
-    opp_ids: set[str] = {
-        str(s.metadata["opportunity_id"])
-        for s in result
-        if s.metadata is not None and "opportunity_id" in s.metadata
-    }
-    assert len(opp_ids) == 1
-    legs: set[str] = {
-        str(s.metadata["leg"]) for s in result if s.metadata is not None and "leg" in s.metadata
-    }
-    assert legs == {"perp", "spot"}
-    for signal in result:
-        assert isinstance(signal, TradeSignal)
-        assert signal.symbol in ("BTC-PERP", "BTC_USDC")
-        if signal.metadata is not None and "leg" in signal.metadata:
-            assert signal.metadata["leg"] in ("perp", "spot")
+    with (
+        patch.object(
+            strategy.portfolio_tracker, "get_position", side_effect=fake_get_position
+        ) as _,
+        patch.object(strategy, "_should_rebalance", return_value=True) as mock_should_rebalance,
+        patch.object(
+            strategy,
+            "_generate_rebalance_signal",
+            return_value=[create_mock_signal(symbol="BTC-PERP", signal_type=SignalType.REBALANCE)],
+        ) as mock_gen_rebal_signal,
+        patch.object(
+            strategy, "evaluate_entry_opportunity", new_callable=AsyncMock, return_value=None
+        ) as mock_eval_entry_opp,
+    ):
+        signals = await strategy.process_data(mock_data)
 
-
-@pytest.mark.asyncio
-@patch("asyncio.create_task", new_callable=lambda: MagicMock(return_value=asyncio.Future()))
-async def test_opportunity_check_scheduling(
-    mock_create_task: MagicMock, strategy: FundingRateArbitrageStrategy
-) -> None:
-    mock_create_task.return_value.set_result(None)
-
-    data: Candle = Candle(
-        symbol="BTC-PERP",
-        interval="1m",
-        open_time=datetime.now(UTC),
-        open=Decimal("30000.0"),
-        high=Decimal("30100.0"),
-        low=Decimal("29900.0"),
-        close=Decimal("30050.0"),
-        volume=Decimal("10.0"),
-    )
-    with patch.object(strategy.portfolio_tracker, "get_position", return_value=None):
-        with patch.object(strategy.data_handler, "get_latest_price", return_value=None):
-            await strategy.process_data(data)
     mock_create_task.assert_called_once()
+    mock_should_rebalance.assert_called_once()
+    mock_gen_rebal_signal.assert_called_once()
+    mock_eval_entry_opp.assert_called_once()
+
+    assert signals is not None
+    assert any(s.signal_type == SignalType.REBALANCE for s in signals)
 
 
 @pytest.mark.asyncio
 @patch("cyberdelta.strategies.funding_rate_arbitrage.logger")
-async def test_check_opportunity(
+async def test_evaluate_entry_opportunity_found(
     mock_logger: MagicMock, strategy: FundingRateArbitrageStrategy
 ) -> None:
-    # Setup mocks for funding rate and ticker data
-    funding_rate: FundingRate = FundingRate(
-        symbol="BTC-PERP",
-        funding_rate=Decimal("0.1"),
-        predicted_rate=Decimal("0.1"),
-        next_funding_time=datetime.now(UTC) + timedelta(hours=1),
-        mark_price=Decimal("30000.0"),
-        index_price=Decimal("29990.0"),
-        timestamp=datetime.now(UTC),
+    cast(AsyncMock, strategy.data_handler).get_latest_ticker.side_effect = fake_get_ticker
+    cast(
+        AsyncMock, strategy.data_handler
+    ).get_latest_funding_rate.side_effect = fake_get_funding_rate
+
+    mock_opportunity = create_mock_opportunity(symbol="BTC-PERP", expected_profit=Decimal("100"))
+    ep = cast(Decimal, mock_opportunity.expected_profit)
+    mock_sized_opportunity = SizedOpportunity(
+        opportunity=mock_opportunity,
+        long_size=Decimal("10000"),
+        short_size=Decimal("10000"),
+        allocation_percentage=Decimal("0.1"),
+        expected_profit=ep,
+        expected_return=Decimal("0.01"),
+        risk_adjusted_return=Decimal("0.008"),
     )
-    # Patch async/protected and other methods for test
-    with patch.object(
-        strategy.data_handler, "get_funding_rate", new_callable=AsyncMock, return_value=funding_rate
+
+    with (
+        patch.object(strategy.portfolio_tracker, "get_position", return_value=None) as _,
+        patch.object(
+            strategy, "_check_opportunity", new_callable=AsyncMock, return_value=mock_opportunity
+        ) as mock_check_internal,
+        patch.object(
+            strategy.risk_manager, "calculate_position_size", return_value=mock_sized_opportunity
+        ) as mock_calc_size,
+        patch.object(
+            strategy, "_generate_entry_signal", return_value=[create_mock_signal(symbol="BTC-PERP")]
+        ) as mock_gen_signal,
     ):
-        with patch.object(strategy.data_handler, "get_ticker", side_effect=fake_get_ticker):
-            with patch.object(strategy, "get_param", side_effect=fake_get_param):
-                # Protected method patching is acceptable in tests
-                with patch.object(
-                    strategy, "_calculate_basis_volatility", return_value=Decimal("0.005")
-                ):
-                    # Protected method call is acceptable in tests
-                    opportunity = await strategy._check_opportunity()
-    assert opportunity is not None
-    assert opportunity.symbol == "BTC-PERP"
-    assert opportunity.net_funding_differential == Decimal("0.1")
-    assert opportunity.short_exchange == "hyperliquid"
-    assert opportunity.long_exchange == "backpack"
-    assert opportunity.expected_profit is not None and opportunity.expected_profit > Decimal("0")
+        signals = await strategy.evaluate_entry_opportunity()
+
+    mock_check_internal.assert_called_once()
+    mock_calc_size.assert_called_once_with(mock_opportunity)
+    mock_gen_signal.assert_called_once_with(mock_opportunity, mock_sized_opportunity, ANY, ANY)
+
+    assert signals is not None
+    assert len(signals) == 1
+    assert strategy.active_opportunities == [mock_opportunity]
+    mock_logger.warning.assert_not_called()
+    mock_logger.info.assert_any_call(f"Found opportunity: {mock_opportunity}")
 
 
 @pytest.mark.asyncio
-async def test_calculate_basis_volatility(
-    strategy: FundingRateArbitrageStrategy, **kwargs: object
+@patch("cyberdelta.strategies.funding_rate_arbitrage.logger")
+async def test_evaluate_entry_opportunity_no_opportunity(
+    mock_logger: MagicMock, strategy: FundingRateArbitrageStrategy
 ) -> None:
-    """Test calculation of basis volatility."""
-    strategy.historical_basis = {
-        "BTC-PERP": [
-            (datetime.now(UTC), Decimal("10.0")),
-            (datetime.now(UTC), Decimal("12.0")),
-            (datetime.now(UTC), Decimal("8.0")),
-            (datetime.now(UTC), Decimal("11.0")),
-            (datetime.now(UTC), Decimal("9.0")),
-        ]
-    }
-    volatility = strategy._calculate_basis_volatility("BTC-PERP")
-    expected = Decimal("1.4142135623730951")  # sqrt(2)
-    assert abs(volatility - expected) < Decimal("1e-6")
+    cast(AsyncMock, strategy.data_handler).get_latest_ticker.side_effect = fake_get_ticker
+    cast(
+        AsyncMock, strategy.data_handler
+    ).get_latest_funding_rate.side_effect = fake_get_funding_rate
+
+    with (
+        patch.object(strategy.portfolio_tracker, "get_position", return_value=None) as _,
+        patch.object(
+            strategy, "_check_opportunity", new_callable=AsyncMock, return_value=None
+        ) as mock_check_internal,
+        patch.object(strategy.risk_manager, "calculate_position_size") as mock_calc_size,
+        patch.object(strategy, "_generate_entry_signal") as mock_gen_signal,
+    ):
+        signals = await strategy.evaluate_entry_opportunity()
+
+    mock_check_internal.assert_called_once()
+    mock_calc_size.assert_not_called()
+    mock_gen_signal.assert_not_called()
+    assert signals is None
+    assert not strategy.active_opportunities
 
 
 # Helper functions
+class CandleKwargs(TypedDict, total=False):
+    symbol: str
+    interval: str
+    open_time: datetime
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: Decimal
 
 
-def create_mock_candle(**kwargs: Any) -> Candle:
+def create_mock_candle(**kwargs: Unpack[CandleKwargs]) -> Candle:
+    defaults: dict[str, Any] = {
+        "symbol": "BTC-PERP",
+        "open_time": datetime.now(UTC) - timedelta(minutes=1),
+        "open": Decimal("29900"),
+        "high": Decimal("30100"),
+        "low": Decimal("29800"),
+        "close": Decimal("30000"),
+        "volume": Decimal("1000"),
+        "interval": "1m",
+    }
+    merged_args = {**defaults, **kwargs}
     return Candle(
-        symbol=kwargs.get("symbol", "BTC-PERP"),
-        interval=kwargs.get("interval", "1m"),
-        open_time=kwargs.get("open_time", datetime.now(UTC)),
-        open=kwargs.get("open", Decimal("30000.0")),
-        high=kwargs.get("high", Decimal("30100.0")),
-        low=kwargs.get("low", Decimal("29900.0")),
-        close=kwargs.get("close", Decimal("30050.0")),
-        volume=kwargs.get("volume", Decimal("10.0")),
+        symbol=str(merged_args["symbol"]),
+        interval=str(merged_args["interval"]),
+        open_time=cast(datetime, merged_args["open_time"]),
+        open=Decimal(str(merged_args["open"])),
+        high=Decimal(str(merged_args["high"])),
+        low=Decimal(str(merged_args["low"])),
+        close=Decimal(str(merged_args["close"])),
+        volume=Decimal(str(merged_args["volume"])),
     )
 
 
-def create_mock_ticker(**kwargs: Any) -> Ticker:
+class TickerKwargs(TypedDict, total=False):
+    symbol: str
+    timestamp: datetime
+    price: Decimal | None
+    bid: Decimal | None
+    ask: Decimal | None
+    volume: Decimal | None
+
+
+def create_mock_ticker(**kwargs: Unpack[TickerKwargs]) -> Ticker:
+    defaults: dict[str, Any] = {
+        "symbol": "BTC-PERP",
+        "price": Decimal("30000.0"),
+        "timestamp": datetime.now(UTC),
+        "bid": Decimal("29999.0"),
+        "ask": Decimal("30001.0"),
+        "volume": Decimal("1000.0"),
+    }
+    merged_args = {**defaults, **kwargs}
     return Ticker(
-        symbol=kwargs.get("symbol", "BTC-PERP"),
-        price=kwargs.get("price", Decimal("30000.0")),
-        bid=kwargs.get("bid", Decimal("29995.0")),
-        ask=kwargs.get("ask", Decimal("30005.0")),
-        volume=kwargs.get("volume", Decimal("100.0")),
-        timestamp=kwargs.get("timestamp", datetime.now(UTC)),
+        symbol=str(merged_args["symbol"]),
+        timestamp=cast(datetime, merged_args["timestamp"]),
+        price=Decimal(str(merged_args["price"])) if merged_args.get("price") is not None else None,
+        bid=Decimal(str(merged_args["bid"])) if merged_args.get("bid") is not None else None,
+        ask=Decimal(str(merged_args["ask"])) if merged_args.get("ask") is not None else None,
+        volume=Decimal(str(merged_args["volume"]))
+        if merged_args.get("volume") is not None
+        else None,
     )
 
 
-default_funding_rate_kwargs = {
-    "symbol": "BTC-PERP",
-    "funding_rate": Decimal("0.1"),
-    "predicted_rate": Decimal("0.1"),
-    "next_funding_time": datetime.now(UTC) + timedelta(hours=1),
-    "mark_price": Decimal("30000.0"),
-    "index_price": Decimal("29990.0"),
-    "timestamp": datetime.now(UTC),
-}
+class FundingRateKwargs(TypedDict, total=False):
+    symbol: str
+    timestamp: datetime
+    funding_rate: Decimal | None
+    predicted_rate: Decimal | None
+    mark_price: Decimal | None
+    index_price: Decimal | None
+    next_funding_time: datetime | None
+    hl_details: HyperliquidFundingDetails | None
+    bp_details: BackpackFundingDetails | None
 
 
-def create_mock_funding_rate(**kwargs: Any) -> FundingRate:
-    merged_kwargs = {**default_funding_rate_kwargs, **kwargs}
+def create_mock_funding_rate(**kwargs: Unpack[FundingRateKwargs]) -> FundingRate:
+    defaults: dict[str, Any] = {
+        "symbol": "BTC-PERP",
+        "funding_rate": Decimal("0.0001"),
+        "timestamp": datetime.now(UTC),
+        "next_funding_time": datetime.now(UTC) + timedelta(hours=1),
+        "mark_price": Decimal("30000.0"),
+        "predicted_rate": None,
+        "index_price": None,
+        "hl_details": None,
+        "bp_details": None,
+    }
+    merged_args = {**defaults, **kwargs}
 
-    def to_decimal_safe(val: Any) -> Decimal | None:
-        if val is None:
-            return None
-        if isinstance(val, Decimal):
-            return val
-        try:
-            return Decimal(str(val))
-        except Exception:
-            return None  # Or raise, depending on strictness for mocks
-
-    def to_datetime_safe(val: Any) -> datetime:
-        if isinstance(val, datetime):
-            return val
-        try:
-            return datetime.fromisoformat(str(val))
-        except Exception:
-            return datetime.now(UTC)  # Fallback for mock
+    if "symbol" not in merged_args or merged_args["symbol"] is None:
+        raise ValueError(
+            "Missing or invalid value for required field: symbol in create_mock_funding_rate"
+        )
+    ts_val = merged_args.get("timestamp")
+    if ts_val is None or not isinstance(ts_val, datetime):
+        raise ValueError(
+            "Missing or invalid value for required field: timestamp in create_mock_funding_rate"
+        )
 
     return FundingRate(
-        symbol=str(merged_kwargs["symbol"]),
-        funding_rate=to_decimal_safe(merged_kwargs["funding_rate"]),
-        predicted_rate=to_decimal_safe(merged_kwargs["predicted_rate"]),
-        next_funding_time=to_datetime_safe(merged_kwargs["next_funding_time"]),
-        mark_price=to_decimal_safe(merged_kwargs["mark_price"]),
-        index_price=to_decimal_safe(merged_kwargs["index_price"]),
-        timestamp=to_datetime_safe(merged_kwargs["timestamp"]),
-        hl_details=None,
-        bp_details=None,
+        symbol=str(merged_args["symbol"]),
+        timestamp=ts_val,
+        funding_rate=Decimal(str(merged_args["funding_rate"]))
+        if merged_args.get("funding_rate") is not None
+        else None,
+        predicted_rate=Decimal(str(merged_args["predicted_rate"]))
+        if merged_args.get("predicted_rate") is not None
+        else None,
+        mark_price=Decimal(str(merged_args["mark_price"]))
+        if merged_args.get("mark_price") is not None
+        else None,
+        index_price=Decimal(str(merged_args["index_price"]))
+        if merged_args.get("index_price") is not None
+        else None,
+        next_funding_time=cast(datetime | None, merged_args.get("next_funding_time")),
+        hl_details=cast(HyperliquidFundingDetails | None, merged_args.get("hl_details")),
+        bp_details=cast(BackpackFundingDetails | None, merged_args.get("bp_details")),
     )
-
-
-# Test for potential None subscript error if parameters are missing (Defensive)
-# @pytest.mark.asyncio # Ensure this is REMOVED for the synchronous test
-def test_none_subscript(mock_strategy: FundingRateArbitrageStrategy) -> None:
-    """Test behavior when strategy parameters might be missing (synchronous)."""
-    # Simulate missing parameters
-    mock_strategy.params = {}
-    opportunity_arg = create_mock_opportunity(symbol="BTC/USDT", utility_score=0.9)
-
-    # Expect this call NOT to raise an error, even if parameters are missing
-    # The method should handle missing keys gracefully (e.g., use defaults or skip checks)
-    try:
-        # _check_and_generate_signal might be async or sync depending on mock/actual.
-        # For a synchronous test, if it were truly async, this would need different handling.
-        # However, the test name implies this specific path/mock setup is synchronous.
-        # If _check_and_generate_signal is consistently async, this test needs rethinking
-        # or the mock setup must ensure a synchronous version or result.
-        # Forcing it as a synchronous call for this test variant:
-        if asyncio.iscoroutinefunction(mock_strategy._check_and_generate_signal):
-            # This path is problematic for a test explicitly named as non-async.
-            # For now, let's assume the mock is or can be treated as synchronous here.
-            pass  # Or mock it to be synchronous for this specific test
-
-        signal = mock_strategy._check_and_generate_signal(opportunity_arg)  # type: ignore[call-arg] # noqa: SLF001
-        pass  # Placeholder: Test passes if no exception is raised
-
-    except TypeError as e:
-        pytest.fail(f"'_check_and_generate_signal' raised TypeError with missing params: {e}")
-    except KeyError as e:
-        pytest.fail(f"'_check_and_generate_signal' raised KeyError with missing params: {e}")
-
-
-@pytest.mark.asyncio
-async def test_process_data_rebalance(
-    mock_strategy: FundingRateArbitrageStrategy,
-    mock_data_manager: MagicMock,
-    mock_signal_queue: MagicMock,
-) -> None:
-    """Test processing data leading to a rebalancing signal."""
-    # Mock internal state and data
-    mock_strategy.latest_opportunities = {  # type: ignore[attr-defined]
-        "BTC/USDT": create_mock_opportunity(
-            "BTC/USDT",
-            long_exchange="hyperliquid",
-            short_exchange="backpack",
-            long_funding_rate=Decimal("0.0001"),
-            short_funding_rate=Decimal("-0.0002"),  # Large difference
-            long_price=Decimal("50000"),
-            short_price=Decimal("50000"),  # Assume same price for simplicity here
-        )
-    }
-    mock_strategy.current_positions = {  # type: ignore[attr-defined]
-        "hyperliquid": {"BTC/USDT": MagicMock(size=Decimal("-0.1"))},  # Wrong side
-        "backpack": {"BTC/USDT": MagicMock(size=Decimal("0.1"))},
-    }
-    mock_strategy.params["rebalance_threshold"] = Decimal("0.05")
-
-    # Mock _check_and_generate_signal to simulate signal generation
-    async def mock_cags(opportunity_arg: ArbitrageOpportunity):
-        return create_mock_signal(
-            "BTC/USDT",
-            confidence=0.9,
-            signal_type=SignalType.REBALANCE,
-            side=OrderSide.BUY,
-            price=opportunity_arg.long_price,
-            exchange="MULTI",
-        )
-
-    mock_strategy._check_and_generate_signal = AsyncMock(side_effect=mock_cags)
-
-    # Call process_data
-    await mock_strategy.process_data(create_mock_candle())
-
-    # Assert _check_and_generate_signal was awaited
-    mock_strategy._check_and_generate_signal.assert_awaited()
-
-    # Assert signal was added to the queue
-    mock_signal_queue.add_signal.assert_called_once()
-    call_args, _ = mock_signal_queue.add_signal.call_args
-    added_signal = call_args[0]
-    assert isinstance(added_signal, TradeSignal)
-    assert added_signal.signal_type == SignalType.REBALANCE
-
-
-@pytest.mark.asyncio
-async def test_check_opportunity_direct_signal_generation(
-    mock_strategy: FundingRateArbitrageStrategy, mock_signal_queue: MagicMock
-) -> None:
-    """Test the _check_opportunity method directly for signal generation."""
-    opportunity_arg = create_mock_opportunity(
-        symbol="ETH/USDT",
-        long_exchange="hyperliquid",
-        short_exchange="backpack",
-        long_funding_rate=Decimal("0.0002"),
-        short_funding_rate=Decimal("-0.0001"),
-        net_funding_differential=Decimal("0.0003"),
-        long_price=Decimal("3000"),
-        short_price=Decimal("3001"),
-        expected_profit=Decimal("5"),
-        utility_score=0.9,
-        basis_volatility=Decimal("0.0005"),
-    )
-    mock_strategy.params = {
-        "min_utility_score": 0.7,
-        "signal_expiration_seconds": 60,
-    }
-    mock_strategy.symbol_mapper = MagicMock()
-    mock_strategy.symbol_mapper.get_internal_symbol.return_value = "ETH"
-
-    # Await the call to the async method
-    signal = await mock_strategy._check_and_generate_signal(opportunity_arg)
-
-    assert signal is not None
-    assert signal.symbol == "ETH/USDT"
-    assert signal.signal_type == SignalType.OPEN
-    assert signal.confidence == opportunity_arg.utility_score
-    assert signal.exchange == "MULTI"
-    assert signal.price == (opportunity_arg.long_price + opportunity_arg.short_price) / 2
-    assert signal.details["long_exchange"] == "hyperliquid"
-    assert signal.details["short_exchange"] == "backpack"
-    assert signal.details["long_funding_rate"] == opportunity_arg.long_funding_rate
-    assert signal.details["short_funding_rate"] == opportunity_arg.short_funding_rate
-    assert signal.details["net_funding_differential"] == opportunity_arg.net_funding_differential
-    assert signal.details["utility_score"] == opportunity_arg.utility_score
-    assert signal.details["basis_volatility"] == opportunity_arg.basis_volatility
-    assert signal.expiration is not None
-
-
-@pytest.mark.asyncio
-async def test_none_subscript_graceful_handling(
-    mock_strategy: FundingRateArbitrageStrategy,
-) -> None:
-    """Test behavior when strategy parameters might be missing (async context)."""
-    # Simulate missing parameters
-    mock_strategy.params = {}
-    opportunity_arg = create_mock_opportunity(symbol="BTC/USDT", utility_score=0.9)
-
-    # Expect this call NOT to raise an error, even if parameters are missing
-    # The method should handle missing keys gracefully (e.g., use defaults or skip checks)
-    try:
-        # Assuming _check_and_generate_signal is async and takes an opportunity
-        signal = await mock_strategy._check_and_generate_signal(opportunity_arg)  # type: ignore[call-arg] # noqa: SLF001
-        pass  # Placeholder: Test passes if no exception is raised
-
-    except TypeError as e:
-        pytest.fail(f"'_check_and_generate_signal' raised TypeError with missing params: {e}")
-    except KeyError as e:
-        pytest.fail(f"'_check_and_generate_signal' raised KeyError with missing params: {e}")
