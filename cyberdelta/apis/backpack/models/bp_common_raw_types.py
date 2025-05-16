@@ -44,9 +44,10 @@ def _validate_raw_string_to_finite_decimal(v: object, info: ValidationInfo) -> D
     validated_str = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     decimal_value = parse_decimal_value(validated_str, field_name=field_name, allow_none=False)
     # DEFENSIVE CHECK: parse_decimal_value with allow_none=False should not return None.
-    # Mypy=[assert-type] (if it flags this due to overload not being available)
+    # Mypy=[assert-type] Ruff=[N/A]
     assert decimal_value is not None, (
-        f"Field {field_name}: parse_decimal_value unexpectedly returned None despite allow_none=False"
+        f"Field {field_name}: parse_decimal_value unexpectedly returned None"
+        f" despite allow_none=False"
     )
     return decimal_value
 
@@ -63,16 +64,18 @@ def _validate_raw_string_to_non_negative_finite_decimal(v: object, info: Validat
 
 
 def _validate_raw_parsable_finite_decimal_string(v: object, info: ValidationInfo) -> str:
-    """Input `v` is raw string. Validates it can be parsed to finite Decimal. Returns original string."""
+    """Input `v` is raw string. Validates it can be parsed to finite Decimal.
+    Returns original string."""
     field_name = info.field_name or "raw_parsable_finite_decimal_string_field"
     if not isinstance(v, str):
         raise ValueError(f"Field {field_name} raw value must be a string, got {type(v).__name__}")
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=False, field_name=field_name)
     # DEFENSIVE CHECK: parse_decimal_value with allow_none=False should not return None.
-    # Mypy=[assert-type]
+    # Mypy=[assert-type] Ruff=[N/A]
     assert d is not None, (
-        f"Field {field_name}: parse_decimal_value unexpectedly returned None for '{s}' despite allow_none=False"
+        f"Field {field_name}: parse_decimal_value unexpectedly returned None for '{s}'"
+        f" despite allow_none=False"
     )
     if not d.is_finite():
         raise ValueError(f"Field {field_name}: Value '{s}' must represent a finite decimal.")
@@ -82,16 +85,18 @@ def _validate_raw_parsable_finite_decimal_string(v: object, info: ValidationInfo
 def _validate_raw_parsable_non_negative_finite_decimal_string(
     v: object, info: ValidationInfo
 ) -> str:
-    """Input `v` is raw string. Validates it can be parsed to non-negative finite Decimal. Returns original string."""
+    """Input `v` is raw string. Validates it can be parsed to non-negative finite Decimal.
+    Returns original string."""
     field_name = info.field_name or "raw_parsable_non_negative_finite_decimal_string_field"
     # Reuse _validate_raw_parsable_finite_decimal_string for initial parsing and validation
     s = _validate_raw_parsable_finite_decimal_string(v, info)
     # Then parse again to check non-negativity (value of s is already validated as parsable)
     d = parse_decimal_value(s, allow_none=False, field_name=field_name)
     # DEFENSIVE CHECK: parse_decimal_value with allow_none=False should not return None.
-    # Mypy=[assert-type]
+    # Mypy=[assert-type] Ruff=[N/A]
     assert d is not None, (
-        f"Field {field_name}: parse_decimal_value unexpectedly returned None for non-negative check of '{s}' despite allow_none=False"
+        f"Field {field_name}: parse_decimal_value unexpectedly returned None"
+        f" for non-negative check of '{s}' despite allow_none=False"
     )
     if d < Decimal(0):
         raise ValueError(f"Field {field_name}: Value '{s}' must represent a non-negative decimal.")
@@ -160,14 +165,16 @@ def _validate_raw_flexible_timestamp(v: object, info: ValidationInfo) -> int | f
         v is None
     ):  # Explicitly disallow None as per original validator for BackpackRawFundingRate.time
         raise ValueError(f"Field {field_name}: Value cannot be None.")
-    if not isinstance(v, (int, float, str)):
+    if not isinstance(v, int | float | str):  # UP038 Fix
         raise ValueError(
-            f"Field {field_name}: Invalid type {type(v).__name__}, expected int, float, or ISO string"
+            f"Field {field_name}: Invalid type {type(v).__name__},"
+            f" expected int, float, or ISO string"
         )
     if isinstance(v, str):
         validate_str_field(v, field_name=field_name, allow_empty=False)  # Ensure non-empty string
     try:
-        # parse_datetime_utc handles int, float, and string, and will raise error for invalid formats/values.
+        # parse_datetime_utc handles int, float, and string,
+        # and will raise error for invalid formats/values.
         parse_datetime_utc(v, field_name=field_name)
     except (ValueError, NotImplementedError, TypeError) as e:  # Added TypeError for robustness
         raise ValueError(
@@ -192,7 +199,8 @@ def _validate_optional_non_empty_string_max_len(
 def _validate_optional_raw_parsable_finite_decimal_string(
     v: object, info: ValidationInfo
 ) -> str | None:
-    """Input `v` is raw string or None. Validates it can be parsed to finite Decimal if not None. Returns original string or None."""
+    """Input `v` is raw string or None. Validates it can be parsed to finite Decimal
+    if not None. Returns original string or None."""
     if v is None:
         return None
     # If not None, reuse the non-optional validator
@@ -325,7 +333,8 @@ RawBpOptionalNonEmptyStringMax32 = Annotated[
 RawBpOptionalParsableFiniteDecimalString = Annotated[
     str | None, BeforeValidator(_validate_optional_raw_parsable_finite_decimal_string)
 ]
-"""Optional raw string validated as parsable to finite Decimal. Pydantic field type is str | None."""
+"""Optional raw string validated as parsable to finite Decimal.
+Pydantic field type is str | None."""
 
 RawBpOptionalFlexibleTimestamp = Annotated[
     int | float | str | None, BeforeValidator(_validate_optional_raw_flexible_timestamp)

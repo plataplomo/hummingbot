@@ -12,13 +12,13 @@ Adheres to the Raw Model Policy:
 - Contains NO business logic.
 """
 
-from collections.abc import Iterator
 from typing import overload
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    RootModel,
 )
 
 from .bp_common_raw_types import (
@@ -49,7 +49,8 @@ class BackpackRawFill(BaseModel):
         is_maker (bool): Indicates if the fill was for a maker order.
         order_id (str): The ID of the order associated with this fill.
         price (str): The execution price of the fill (validated as a parsable decimal string).
-        quantity (str): The executed quantity for this fill (validated as a parsable decimal string).
+        quantity (str): The executed quantity for this fill
+                      (validated as a parsable decimal string).
         side (str): The side of the order ('Bid' or 'Ask').
         symbol (str): The trading symbol.
         timestamp (str): The execution timestamp in ISO 8601 format.
@@ -81,26 +82,25 @@ class BackpackRawFill(BaseModel):
 
     # All individual @field_validator methods are removed as their logic
     # is now encapsulated in the Annotated types from bp_common_raw_types.py.
-    # The RawBpOptionalNonEmptyStringMax128 handles the non-empty/non-whitespace check for client_id if provided.
+    # The RawBpOptionalNonEmptyStringMax128 handles the non-empty/non-whitespace
+    # check for client_id if provided.
 
 
 # The BackpackRawFillsList model remains structurally the same but benefits from
 # the BackpackRawFill model being refactored.
-class BackpackRawFillsList(BaseModel):
+class BackpackRawFillsList(RootModel[list[BackpackRawFill]]):
     """
     Pydantic model for a list of raw fill objects from the Backpack API.
     This typically represents the direct JSON response which is a list of fills.
     """
 
-    root: list[BackpackRawFill]
+    # The 'root' attribute is implicitly defined by RootModel[list[BackpackRawFill]]
+    # No need for: root: list[BackpackRawFill]
 
     model_config = ConfigDict(
         extra="forbid",
         frozen=True,
     )
-
-    def __iter__(self) -> Iterator[BackpackRawFill]:
-        return iter(self.root)
 
     @overload
     def __getitem__(self, item: int) -> BackpackRawFill: ...
