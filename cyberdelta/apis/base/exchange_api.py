@@ -640,17 +640,6 @@ class ExchangeAPI(ABC):
             # If 'e' were an HTTP-like error with status_code, map_exchange_error might be better.
             raise self.error_mapper.map_string_error(str(e)) from e
 
-    # Add missing ws methods here
-    @abstractmethod
-    async def receive_ws_message(self) -> Any:
-        """Receives a message from the WebSocket connection."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def parse_ws_message(self, message: Any) -> tuple[str, Any] | None:
-        """Parses a raw WebSocket message into a structured format."""
-        raise NotImplementedError
-
     async def close_websocket(self) -> None:
         """Closes the WebSocket connection."""
         if self._ws_manager and self._ws_manager.is_connected:  # Corrected: Use is_connected
