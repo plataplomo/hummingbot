@@ -272,6 +272,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "types-jsonschema" },
+    { name = "types-setuptools" },
 ]
 
 [package.metadata]
@@ -302,6 +303,7 @@ requires-dist = [
     { name = "structlog", specifier = "==25.3.0" },
     { name = "types-jsonschema", marker = "extra == 'dev'", specifier = "==4.23.0.20241208" },
     { name = "types-pyyaml", specifier = "==6.0.12.20250402" },
+    { name = "types-setuptools", marker = "extra == 'dev'", specifier = "==80.7.0.20250516" },
     { name = "uv", specifier = "==0.7.3" },
     { name = "web3", specifier = "==7.11.1" },
     { name = "websockets", specifier = "==13.1.0" },
@@ -1463,6 +1465,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/00/7d/eb174f74e3f5634eaacb38031bbe467dfe2e545bc255e5c90096ec46bc46/types_requests-2.32.0.20250328.tar.gz", hash = "sha256:c9e67228ea103bd811c96984fac36ed2ae8da87a36a633964a21f199d60baf32", size = 22995, upload-time = "2025-03-28T02:55:13.271Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cc/15/3700282a9d4ea3b37044264d3e4d1b1f0095a4ebf860a99914fd544e3be3/types_requests-2.32.0.20250328-py3-none-any.whl", hash = "sha256:72ff80f84b15eb3aa7a8e2625fffb6a93f2ad5a0c20215fc1dcfa61117bcb2a2", size = 20663, upload-time = "2025-03-28T02:55:11.946Z" },
+]
+
+[[package]]
+name = "types-setuptools"
+version = "80.7.0.20250516"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/38/b1/a52ff157d80464beabb2f0e86881eca28fbc2d519f67ad2f274ef2fe9724/types_setuptools-80.7.0.20250516.tar.gz", hash = "sha256:57274b58e05434de42088a86074c9e630e5786f759cf9cc1e3015e886297ca21", size = 41313, upload-time = "2025-05-16T03:08:01.658Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cf/64/179b136306127e755906d540558f1042ebae2e40744c0283a6e2b862a2a4/types_setuptools-80.7.0.20250516-py3-none-any.whl", hash = "sha256:c1da6c11698139c8307c6df5987592df940e956912c204e42d844ba821dd2741", size = 63262, upload-time = "2025-05-16T03:08:00.537Z" },
 ]
 
 [[package]]
