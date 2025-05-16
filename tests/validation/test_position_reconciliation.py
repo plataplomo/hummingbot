@@ -746,19 +746,34 @@ class TestPositionReconciliationSystem:
             "has_discrepancies": True,
         }
 
-        # Call the method
-        reconciliation_system._record_discrepancy(exchange, results)
-
-        # Verify history was updated (it now stores HistoricalDiscrepancyRecord)
-        assert len(reconciliation_system.discrepancy_history) == 1
-        recorded_item = reconciliation_system.discrepancy_history[0]
-        assert isinstance(recorded_item, HistoricalDiscrepancyRecord)
-        assert recorded_item.exchange_id == exchange
-        assert recorded_item.recorded_at == now_ts
-        assert (
-            recorded_item.detail == discrepancy_detail_model
-        )  # Check if the detail is the same model
-        assert not recorded_item.is_corrected
+        # Call the method using individual fields from the DiscrepancyDetail model
+        # Since results["discrepancies"] is a list, we take the first one for this test.
+        # The method _record_discrepancy is designed to record a single discrepancy event.
+        if results["discrepancies"]:
+            detail_to_record = results["discrepancies"][0]
+            recorded_historical_item = reconciliation_system._record_discrepancy(
+                exchange_id=exchange,
+                symbol=detail_to_record.symbol,
+                discrepancy_type=detail_to_record.discrepancy_type,
+                api_val=detail_to_record.exchange_value,
+                local_val=detail_to_record.local_value,
+                details=detail_to_record.details,
+            )
+            # Update assertion to check the returned item and history
+            assert recorded_historical_item is not None
+            assert len(reconciliation_system.discrepancy_history) == 1
+            recorded_item_from_history = reconciliation_system.discrepancy_history[0]
+            assert recorded_item_from_history is recorded_historical_item
+            assert recorded_item_from_history.exchange_id == exchange
+            # The recorded_at timestamp is set inside _record_discrepancy, so we can't easily compare with now_ts
+            # We can check it's a datetime and reasonably close if needed, or just trust it's set.
+            assert isinstance(recorded_item_from_history.recorded_at, datetime)
+            assert (
+                recorded_item_from_history.detail == detail_to_record
+            )  # Check if the detail is the same model
+            assert not recorded_item_from_history.is_corrected
+        else:
+            pytest.fail("Test setup error: results['discrepancies'] is empty.")
 
     def test_get_discrepancy_history(
         self, reconciliation_system: PositionReconciliationSystem

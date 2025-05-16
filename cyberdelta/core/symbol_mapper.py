@@ -37,12 +37,14 @@ class SymbolMapper:
     Includes basic validation during initialization.
     """
 
-    def __init__(self, config: dict[str, Any]) -> None:
+    def __init__(self, exchanges_config: dict[str, Any]) -> None:
         """
         Initializes the SymbolMapper and loads mappings from the provided config.
 
         Args:
-            config: The application configuration dictionary.
+            exchanges_config: A dictionary where keys are exchange_ids and values are
+                              dictionaries containing a "symbols" map.
+                              Example: {"exchange_A": {"symbols": {"BTC": "BTC-USD"}}, ...}
 
         Raises:
             SymbolMappingError: If config structure is invalid or missing essential parts.
@@ -54,18 +56,24 @@ class SymbolMapper:
             str, dict[str, str]
         ] = {}  # {exchange: {exchange_symbol: internal}}
         self._all_internal_symbols: set[str] = set()
+        self.raw_config = exchanges_config  # Store for debugging
 
-        if "exchanges" not in config:
-            raise SymbolMappingError("Invalid configuration structure: 'exchanges' key missing.")
+        if not isinstance(exchanges_config, dict):  # pyright: ignore [reportUnnecessaryIsInstance]
+            raise SymbolMappingError(
+                f"Invalid configuration: Expected a dictionary of exchanges, got {type(exchanges_config)}"
+            )
 
-        exchanges_config = config["exchanges"]
-        exchanges_config_dict: dict[str, Any] = cast(dict[str, Any], exchanges_config)
+        for exchange_id, exchange_data_any in exchanges_config.items():
+            if not isinstance(exchange_data_any, dict):
+                logger.warning(
+                    f"Skipping exchange '{exchange_id}': Expected a dictionary for exchange data, "
+                    f"got {type(exchange_data_any)}."
+                )
+                continue
 
-        if not isinstance(exchanges_config_dict, dict):
-            raise SymbolMappingError("'exchanges' must be a dictionary in the configuration.")
+            exchange_data: dict[str, Any] = cast(dict[str, Any], exchange_data_any)
 
-        for exchange_id, exchange_data in exchanges_config_dict.items():
-            if not isinstance(exchange_data, dict) or "symbols" not in exchange_data:
+            if "symbols" not in exchange_data:
                 logger.warning(
                     f"Skipping exchange '{exchange_id}': Missing 'symbols' configuration."
                 )
@@ -82,11 +90,10 @@ class SymbolMapper:
 
             self._exchange_to_internal[exchange_id] = {}
             for internal_symbol, exchange_symbol in symbol_map_dict.items():
-                # Ensure keys and values are strings before using them
-                if not isinstance(internal_symbol, str) or not isinstance(exchange_symbol, str):
+                if not isinstance(exchange_symbol, str):
                     logger.warning(
-                        f"Invalid symbol mapping entry for exchange '{exchange_id}': "
-                        f"Skipping ({internal_symbol}: {exchange_symbol}). Both must be strings."
+                        f"Invalid symbol map for ex '{exchange_id}': "
+                        f"Skip ({internal_symbol}: {exchange_symbol}). Must be str."
                     )
                     continue
 

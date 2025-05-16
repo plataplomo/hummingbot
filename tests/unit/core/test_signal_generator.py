@@ -189,16 +189,32 @@ class TestSignalGenerator:
     @pytest.fixture
     def symbol_mapper(self, config: MagicMock) -> SymbolMapper:
         """Fixture for a SymbolMapper using the mock config."""
-        config_data: dict[str, Any] = {"exchanges": {}}
-        exchanges_config = config.get("exchanges")
-        if exchanges_config:
-            for ex_id in exchanges_config:
-                exchange_details = exchanges_config.get(ex_id, {})
-                enabled = config.get(f"exchanges.{ex_id}.enabled", False)
-                symbols = exchange_details.get("symbols", {})
-                if enabled:
-                    config_data["exchanges"][ex_id] = {"enabled": enabled, "symbols": symbols}
-        return SymbolMapper(config_data)
+        exchanges_map_for_mapper: dict[str, Any] = {}
+        exchanges_config_from_main = config.get("exchanges")
+        if exchanges_config_from_main and isinstance(exchanges_config_from_main, dict):
+            for ex_id, exchange_details_any in exchanges_config_from_main.items():
+                if isinstance(exchange_details_any, dict):
+                    exchange_details: dict[str, Any] = exchange_details_any
+                    # Check for enabled status directly from the already fetched exchange_details
+                    enabled = exchange_details.get("enabled", False)
+                    symbols = exchange_details.get("symbols", {})
+                    if enabled and isinstance(symbols, dict):
+                        # SymbolMapper expects a dict of exchange_id -> { "symbols": {...}, ...other_keys_if_needed }
+                        # We only need to pass the symbols map for each enabled exchange.
+                        # The SymbolMapper itself will handle the structure if it gets the raw exchanges_config part.
+                        # Let's simplify to pass the relevant part of exchanges_config_from_main
+                        exchanges_map_for_mapper[ex_id] = (
+                            exchange_details  # Pass the whole exchange detail if it has symbols
+                        )
+                    elif enabled:  # Enabled but no symbols dict
+                        logger.warning(
+                            f"Exchange {ex_id} enabled but no valid 'symbols' map found."
+                        )
+                else:
+                    logger.warning(f"Exchange data for {ex_id} is not a dictionary.")
+        # SymbolMapper expects a dictionary where keys are exchange_ids
+        # and values are dictionaries containing at least a "symbols" map.
+        return SymbolMapper(exchanges_map_for_mapper)
 
     @pytest.fixture
     def signal_generator(

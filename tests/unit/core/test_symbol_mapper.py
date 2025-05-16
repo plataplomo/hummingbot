@@ -41,28 +41,34 @@ VALID_CONFIG = {
 
 def test_symbol_mapper_init_success() -> None:
     """Test successful initialization with a valid config."""
-    mapper = SymbolMapper(VALID_CONFIG)
+    mapper = SymbolMapper(VALID_CONFIG["exchanges"])
     assert mapper is not None
     assert len(mapper.get_all_internal_symbols()) == 3  # BTC, ETH, SOL
-    assert "hyperliquid" in mapper._exchange_to_internal
-    assert "backpack" in mapper._exchange_to_internal
-    assert "kraken" in mapper._exchange_to_internal
-    assert "disabled_exchange" not in mapper._exchange_to_internal  # Skipped
-    assert "invalid_symbols_exchange" not in mapper._exchange_to_internal  # Skipped
+    assert "hyperliquid" in mapper._exchange_to_internal  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
+    assert "backpack" in mapper._exchange_to_internal  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
+    assert "kraken" in mapper._exchange_to_internal  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
+    assert "disabled_exchange" not in mapper._exchange_to_internal  # pyright: ignore [reportPrivateUsage] # noqa: SLF001# Skipped
+    assert "invalid_symbols_exchange" not in mapper._exchange_to_internal  # pyright: ignore [reportPrivateUsage] # noqa: SLF001 # Skipped
 
 
 def test_symbol_mapper_init_missing_exchanges_key() -> None:
     """Test initialization fails if 'exchanges' key is missing."""
-    invalid_config: dict[str, Any] = {"some_other_key": {}}
-    with pytest.raises(SymbolMappingError, match="'exchanges' key missing"):
-        SymbolMapper(invalid_config)
+    # invalid_config: dict[str, Any] = {"some_other_key": {}} # This config doesn't have "exchanges"
+    # SymbolMapper expects the exchanges dict directly.
+    # This test should perhaps test that SymbolMapper raises if passed something other than a dict,
+    with pytest.raises(SymbolMappingError, match="Invalid configuration: Expected a dictionary"):
+        SymbolMapper(None)  # type: ignore[arg-type]
+    with pytest.raises(SymbolMappingError, match="Invalid configuration: Expected a dictionary"):
+        SymbolMapper("not_a_dict")  # type: ignore[arg-type]
 
 
 def test_symbol_mapper_init_exchanges_not_dict() -> None:
     """Test initialization fails if 'exchanges' value is not a dict."""
-    invalid_config: dict[str, Any] = {"exchanges": ["list", "not", "dict"]}
-    with pytest.raises(SymbolMappingError, match="'exchanges' must be a dictionary"):
-        SymbolMapper(invalid_config)
+    with pytest.raises(
+        SymbolMappingError,
+        match="Invalid configuration: Expected a dictionary of exchanges, got <class 'list'>",
+    ):
+        SymbolMapper(["list", "not", "dict"])  # type: ignore[arg-type]
 
 
 def test_symbol_mapper_init_skips_invalid_entries(caplog: LogCaptureFixture) -> None:
@@ -77,14 +83,13 @@ def test_symbol_mapper_init_skips_invalid_entries(caplog: LogCaptureFixture) -> 
         }
     }
     with caplog.at_level(logging.WARNING):  # Use logging.WARNING constant
-        mapper = SymbolMapper(config_with_invalid)
+        mapper = SymbolMapper(config_with_invalid["exchanges"])
 
     assert mapper is not None
-    assert "valid_exchange" in mapper._exchange_to_internal
-    assert "missing_symbols" not in mapper._exchange_to_internal
-    assert "invalid_symbols_type" not in mapper._exchange_to_internal
-    # assert 123 not in mapper._internal_to_exchange # Removed: Keys are strings, not int
-    assert "ETH" not in mapper._internal_to_exchange  # Check symbol with invalid value not added
+    assert "valid_exchange" in mapper._exchange_to_internal  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
+    assert "missing_symbols" not in mapper._exchange_to_internal  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
+    assert "invalid_symbols_type" not in mapper._exchange_to_internal  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
+    assert "ETH" not in mapper._internal_to_exchange  # pyright: ignore [reportPrivateUsage] # noqa: SLF001 # Check symbol with invalid value not added
 
     # Check for specific warning logs
     assert "Skipping exchange 'missing_symbols': Missing 'symbols' configuration." in caplog.text
@@ -92,13 +97,11 @@ def test_symbol_mapper_init_skips_invalid_entries(caplog: LogCaptureFixture) -> 
         "Skipping exchange 'invalid_symbols_type': 'symbols' must be a dictionary." in caplog.text
     )
     assert (
-        "Invalid symbol mapping entry for exchange 'invalid_entry_type': "
-        "Skipping (123: BTC-INVALID). Both must be strings."
+        "Invalid symbol map for ex 'invalid_entry_type': Skip (123: BTC-INVALID). Must be str."
     ) in caplog.text
     assert (
-        "Invalid symbol mapping entry for exchange 'invalid_value_type': "
-        "Skipping (ETH: 456). Both must be strings." in caplog.text
-    )
+        "Invalid symbol map for ex 'invalid_value_type': Skip (ETH: 456). Must be str."
+    ) in caplog.text
 
 
 # --- Test Mapping Methods ---
@@ -107,7 +110,7 @@ def test_symbol_mapper_init_skips_invalid_entries(caplog: LogCaptureFixture) -> 
 @pytest.fixture
 def mapper() -> SymbolMapper:
     """Fixture to provide a configured SymbolMapper instance."""
-    return SymbolMapper(VALID_CONFIG)
+    return SymbolMapper(VALID_CONFIG["exchanges"])
 
 
 def test_get_exchange_symbol_success(mapper: SymbolMapper) -> None:
@@ -201,7 +204,7 @@ def test_get_internal_symbols_for_exchange(mapper: SymbolMapper) -> None:
 
 def test_empty_config() -> None:
     """Test initialization with an empty but valid structure."""
-    mapper = SymbolMapper({"exchanges": {}})
+    mapper = SymbolMapper({})
     assert mapper.get_all_internal_symbols() == []
     assert mapper.get_exchange_symbol("BTC", "any") is None
     assert mapper.get_internal_symbol("BTC-PERP", "any") is None
@@ -209,8 +212,8 @@ def test_empty_config() -> None:
 
 def test_config_with_only_empty_symbols() -> None:
     """Test initialization where exchanges have empty symbol dicts."""
-    config: dict[str, Any] = {"exchanges": {"ex1": {"symbols": {}}, "ex2": {"symbols": {}}}}
+    config: dict[str, Any] = {"ex1": {"symbols": {}}, "ex2": {"symbols": {}}}
     mapper = SymbolMapper(config)
     assert mapper.get_all_internal_symbols() == []
-    assert "ex1" in mapper._exchange_to_internal
-    assert "ex2" in mapper._exchange_to_internal
+    assert "ex1" in mapper._exchange_to_internal  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
+    assert "ex2" in mapper._exchange_to_internal  # pyright: ignore [reportPrivateUsage] # noqa: SLF001

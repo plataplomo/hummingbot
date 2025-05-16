@@ -152,7 +152,12 @@ async def main() -> None:
         app_state["circuit_breaker"] = circuit_breaker
 
         # SymbolMapper is required for ExecutionHandler (assume import and instantiation)
-        symbol_mapper = SymbolMapper(config)
+        exchanges_conf = config.get("exchanges", {})
+        if not isinstance(exchanges_conf, dict):  # Add a type check for robustness
+            logger.error("CRITICAL: 'exchanges' configuration is missing or not a dict.")
+            # Decide on error handling: exit, or let SymbolMapper handle empty/default
+            exchanges_conf = {}
+        symbol_mapper = SymbolMapper(exchanges_conf)
         app_state["symbol_mapper"] = symbol_mapper
 
         # ExecutionHandler expects:

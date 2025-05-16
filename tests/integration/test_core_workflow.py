@@ -422,7 +422,12 @@ def data_handler(
 @pytest.fixture
 def symbol_mapper(mock_config: Config) -> SymbolMapper:
     """Provides a SymbolMapper instance initialized with the mock config."""
-    return SymbolMapper(mock_config.config_data)
+    # Ensure config_data is accessed correctly if mock_config is a MagicMock
+    exchanges_config = mock_config.get("exchanges", {})
+    # Provide a default empty dict if get returns None or not a dict
+    if not isinstance(exchanges_config, dict):
+        exchanges_config = {}
+    return SymbolMapper(exchanges_config)
 
 
 @pytest.fixture
@@ -495,7 +500,7 @@ async def test_happy_path_full_cycle(
     portfolio_tracker.reset()  # Explicitly reset state for this test
     # Directly set balances for testing via internal API (necessary for mocks)
     # Consider adding a test-specific method to PortfolioTracker if this pattern persists
-    portfolio_tracker._update_balance(
+    portfolio_tracker._update_balance(  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
         "mock_hl",
         SpotBalance(
             exchange="mock_hl",
@@ -505,7 +510,7 @@ async def test_happy_path_full_cycle(
             available_quantity=initial_usdc_balance,
         ),
     )
-    portfolio_tracker._update_balance(
+    portfolio_tracker._update_balance(  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
         "mock_bp",
         SpotBalance(
             exchange="mock_bp",
@@ -517,28 +522,34 @@ async def test_happy_path_full_cycle(
     )
 
     # --- ADDED: Set internal balances for MockExchangeAPI instances ---
-    mock_bp_api._balances["USDC"] = SpotBalance(
-        exchange="mock_bp",
-        asset="USDC",
-        timestamp=start_time,
-        total_quantity=Decimal("200000.0"),
-        available_quantity=Decimal("200000.0"),
+    mock_bp_api.set_mock_balance(
+        SpotBalance(
+            exchange="mock_bp",
+            asset="USDC",
+            timestamp=start_time,
+            total_quantity=Decimal("200000.0"),
+            available_quantity=Decimal("200000.0"),
+        )
     )
-    mock_hl_api._balances["USD"] = SpotBalance(
-        exchange="mock_hl",
-        asset="USD",
-        timestamp=start_time,
-        total_quantity=Decimal("200000.0"),
-        available_quantity=Decimal("200000.0"),
+    mock_hl_api.set_mock_balance(
+        SpotBalance(
+            exchange="mock_hl",
+            asset="USD",
+            timestamp=start_time,
+            total_quantity=Decimal("200000.0"),
+            available_quantity=Decimal("200000.0"),
+        )
     )
     # Also provide some base asset (BTC) for mock_hl for the short sell
     # The exact amount doesn't matter as much as having some for the mock logic
-    mock_hl_api._balances["BTC"] = SpotBalance(
-        exchange="mock_hl",
-        asset="BTC",
-        timestamp=start_time,
-        total_quantity=Decimal("10.0"),
-        available_quantity=Decimal("10.0"),
+    mock_hl_api.set_mock_balance(
+        SpotBalance(
+            exchange="mock_hl",
+            asset="BTC",
+            timestamp=start_time,
+            total_quantity=Decimal("10.0"),
+            available_quantity=Decimal("10.0"),
+        )
     )
     # --- END ADDED ---
 
@@ -550,8 +561,8 @@ async def test_happy_path_full_cycle(
     mock_bp_api.set_mock_ticker(mock_bp_ticker)
 
     # --- ADDED: Configure Mock APIs to fill orders immediately for this test ---
-    mock_hl_api._open_orders_behavior = "fill_immediately"
-    mock_bp_api._open_orders_behavior = "fill_immediately"
+    mock_hl_api._open_orders_behavior = "fill_immediately"  # pyright: ignore [reportPrivateUsage]
+    mock_bp_api._open_orders_behavior = "fill_immediately"  # pyright: ignore [reportPrivateUsage]
     # --- END ADDED ---
 
     # Funding Rates
@@ -796,14 +807,14 @@ async def test_happy_path_full_cycle(
     expected_hl_quantity = sized_opportunity.short_size / sized_opportunity.opportunity.short_price
 
     assert bp_pos.side == OrderSide.BUY, f"Expected Backpack ({symbol_base}) side to be BUY"
-    assert bp_pos.size == approx(expected_bp_quantity), (
+    assert bp_pos.size == approx(expected_bp_quantity), (  # type: ignore[call-arg]
         f"Backpack ({symbol_base}) position size mismatch. "
         f"Expected approx {expected_bp_quantity}, got {bp_pos.size}"
     )
 
     assert hl_pos.side == OrderSide.SELL, f"Expected Hyperliquid ({symbol_base}) side to be SELL"
     # Position size for SELL side is negative
-    assert hl_pos.size == approx(-expected_hl_quantity), (
+    assert hl_pos.size == approx(-expected_hl_quantity), (  # type: ignore[call-arg]
         f"Hyperliquid ({symbol_base}) position size mismatch. "
         f"Expected approx {-expected_hl_quantity}, got {hl_pos.size}"
     )
@@ -1137,8 +1148,8 @@ async def test_partial_fill(
 
     # --- Add Debug Logging ---
     # Get balances using internal dict for test verification
-    logger.debug(f"PT Balances before RM validation: {portfolio_tracker._balances}")
-    total_cap_debug = portfolio_tracker.get_total_capital()
+    logger.debug(f"PT Balances before RM validation: {portfolio_tracker.balances}")
+    total_cap_debug = await portfolio_tracker.get_total_capital()  # Added await
     logger.debug(f"PT get_total_capital() before RM validation: {total_cap_debug}")
     # --- End Debug Logging ---
 
@@ -1541,8 +1552,8 @@ async def test_execution_failure_compensation(
 
     # --- Add Debug Logging ---
     # Get balances using internal dict for test verification
-    logger.debug(f"PT Balances before RM validation: {portfolio_tracker._balances}")
-    total_cap_debug = portfolio_tracker.get_total_capital()
+    logger.debug(f"PT Balances before RM validation: {portfolio_tracker.balances}")
+    total_cap_debug = await portfolio_tracker.get_total_capital()  # Added await
     logger.debug(f"PT get_total_capital() before RM validation: {total_cap_debug}")
     # --- End Debug Logging ---
 
@@ -1568,8 +1579,8 @@ async def test_execution_failure_compensation(
     # Verify compensation order was placed and filled (check mocks and logs)
     # Use the mock object returned by mocker.patch.object for assertions
     bp_place_order_mock = mock_bp_api.place_order
-    mock_bp_api.place_order.assert_called()
-    calls = mock_bp_api.place_order.call_args_list
+    mock_bp_api.place_order.assert_called()  # type: ignore[attr-defined]
+    calls = mock_bp_api.place_order.call_args_list  # type: ignore[attr-defined]
     assert len(calls) == 2, "Expected 2 place_order calls on BP (initial + compensation)"
     assert calls[0].kwargs["side"] == OrderSide.BUY
     assert calls[1].kwargs["side"] == OrderSide.SELL, "Expected compensation call to be SELL"
@@ -1595,7 +1606,7 @@ async def test_execution_failure_compensation(
         f"Final mock_hl USD Balance after compensation test: "
         f"{portfolio_tracker.get_exchange_balance('mock_hl', 'USD')}"
     )
-    logger.info(f"Final Balances: {portfolio_tracker._balances}")
+    logger.info(f"Final Balances: {portfolio_tracker.balances}")
 
     # Check logs for confirmation
     expected_log_part = (
@@ -1781,12 +1792,12 @@ async def test_failed_execution(
 
     # --- Verify Portfolio State (Should be largely unchanged) ---
     # Use internal dict for test verification
-    hl_balance_dict = portfolio_tracker._balances.get("mock_hl", {})
-    bp_balance_dict = portfolio_tracker._balances.get("mock_bp", {})
+    hl_balance_dict = portfolio_tracker.balances.get("mock_hl", {})
+    bp_balance_dict = portfolio_tracker.balances.get("mock_bp", {})
     hl_balance = hl_balance_dict.get("USD")
     bp_balance = bp_balance_dict.get("USDC")
-    hl_pos = portfolio_tracker._positions.get("mock_hl", {}).get(symbol_key)
-    bp_pos = portfolio_tracker._positions.get("mock_bp", {}).get(symbol_key)
+    hl_pos = portfolio_tracker.get_position("mock_hl", symbol_key)
+    bp_pos = portfolio_tracker.get_position("mock_bp", symbol_key)
 
     assert (
         hl_balance is not None and hl_balance.total_quantity == initial_hl_balance.total_quantity
