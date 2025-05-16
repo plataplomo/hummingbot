@@ -90,10 +90,17 @@ class SymbolMapper:
 
             self._exchange_to_internal[exchange_id] = {}
             for internal_symbol, exchange_symbol in symbol_map_dict.items():
+                if not isinstance(internal_symbol, str):  # pyright: ignore [reportUnnecessaryIsInstance]
+                    logger.warning(
+                        f"Invalid symbol map key for ex '{exchange_id}': "
+                        f"Skip ({internal_symbol}). Must be str."
+                    )
+                    continue
+
                 if not isinstance(exchange_symbol, str):
                     logger.warning(
-                        f"Invalid symbol map for ex '{exchange_id}': "
-                        f"Skip ({internal_symbol}: {exchange_symbol}). Must be str."
+                        f"Invalid symbol map value for ex '{exchange_id}': "
+                        f"Skip ({internal_symbol}: {exchange_symbol}). Value must be str."
                     )
                     continue
 

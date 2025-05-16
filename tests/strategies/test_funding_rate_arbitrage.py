@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -116,10 +117,12 @@ def fake_get_param(k: str, d: object | None = None) -> ParamType:
 
 
 @pytest.mark.asyncio
-@patch("asyncio.create_task")
+@patch("asyncio.create_task", new_callable=lambda: MagicMock(return_value=asyncio.Future()))
 async def test_process_data_scheduling(
     mock_create_task: MagicMock, strategy: FundingRateArbitrageStrategy
 ) -> None:
+    mock_create_task.return_value.set_result(None)
+
     mock_data: Candle = create_mock_candle()
     strategy.last_opportunity_check = None
     with patch.object(strategy.portfolio_tracker, "get_position", return_value=None):
@@ -132,10 +135,12 @@ async def test_process_data_scheduling(
 
 
 @pytest.mark.asyncio
-@patch("asyncio.create_task")
+@patch("asyncio.create_task", new_callable=lambda: MagicMock(return_value=asyncio.Future()))
 async def test_process_data_rebalance(
     mock_create_task: MagicMock, strategy: FundingRateArbitrageStrategy
 ) -> None:
+    mock_create_task.return_value.set_result(None)
+
     mock_data: Candle = create_mock_candle()
     strategy.last_opportunity_check = datetime.now(UTC)
     strategy.rebalance_threshold = Decimal("0.00001")
@@ -163,10 +168,12 @@ async def test_process_data_rebalance(
 
 
 @pytest.mark.asyncio
-@patch("asyncio.create_task")
+@patch("asyncio.create_task", new_callable=lambda: MagicMock(return_value=asyncio.Future()))
 async def test_opportunity_check_scheduling(
     mock_create_task: MagicMock, strategy: FundingRateArbitrageStrategy
 ) -> None:
+    mock_create_task.return_value.set_result(None)
+
     data: Candle = Candle(
         symbol="BTC-PERP",
         interval="1m",

@@ -97,10 +97,10 @@ def test_symbol_mapper_init_skips_invalid_entries(caplog: LogCaptureFixture) -> 
         "Skipping exchange 'invalid_symbols_type': 'symbols' must be a dictionary." in caplog.text
     )
     assert (
-        "Invalid symbol map for ex 'invalid_entry_type': Skip (123: BTC-INVALID). Must be str."
+        "Invalid symbol map key for ex 'invalid_entry_type': Skip (123). Must be str."
     ) in caplog.text
     assert (
-        "Invalid symbol map for ex 'invalid_value_type': Skip (ETH: 456). Must be str."
+        "Invalid symbol map value for ex 'invalid_value_type': Skip (ETH: 456). Value must be str."
     ) in caplog.text
 
 

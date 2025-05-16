@@ -249,7 +249,16 @@ class ExecutionHandler:
 
         try:
             if not long_client or not short_client:
-                raise ValueError("API client not registered for one or both exchanges")
+                op_error_msg = (
+                    f"Execution {execution.id} failed: Missing API client for "
+                    f"{opportunity.opportunity.long_exchange if not long_client else opportunity.opportunity.short_exchange}"
+                )
+                logger.error(op_error_msg)
+                execution.error_message = op_error_msg
+                execution.status = ExecutionStatus.FAILED
+                execution.end_time = datetime.now(UTC)
+                self._add_to_history(execution)
+                return execution
 
             # Get exchange-specific symbols
             long_symbol = self.symbol_mapper.get_exchange_symbol(
@@ -259,217 +268,266 @@ class ExecutionHandler:
                 opportunity.opportunity.symbol, opportunity.opportunity.short_exchange
             )
             if not long_symbol or not short_symbol:
-                raise ValueError(
-                    f"Failed to map symbol '{opportunity.opportunity.symbol}' "
-                    f"for one or both exchanges"
+                missing_leg = (
+                    "long" if not long_symbol else "short"
+                )  # Determine which leg is missing
+                op_error_msg = (
+                    f"Execution {execution.id} failed: Could not map symbol "
+                    f"'{opportunity.opportunity.symbol}' for {missing_leg} leg on exchange "
+                    f"'{opportunity.opportunity.long_exchange if not long_symbol else opportunity.opportunity.short_exchange}'."
                 )
-        except ValueError as e:
+                logger.error(op_error_msg)
+                execution.error_message = op_error_msg
+                execution.status = ExecutionStatus.FAILED
+                execution.end_time = datetime.now(UTC)
+                self._add_to_history(execution)
+                return execution
+
+        except (
+            APIError
+        ) as e:  # Catches errors from symbol_mapper or client.get if they raised APIError
             op_error_msg = (
-                f"Execution {execution.id} failed during setup (API client/symbol mapping): {e}"
+                f"APIError during pre-check/setup for execution {execution.id} "
+                f"for {opportunity.opportunity.symbol}: {e}"
             )
-            logger.error(op_error_msg)
+            logger.error(op_error_msg, exc_info=True)
+            execution.error_message = str(e)
+            execution.status = ExecutionStatus.FAILED
+            if self.circuit_breaker_system:
+                # Determine which exchange string ID to use for recording the error
+                # e.exchange_code is an int/str code, not the exchange_id string.
+                # Default to long_exchange if unclear, as this is a pre-check phase error.
+                failed_exchange_str = opportunity.opportunity.long_exchange
+                logger.warning(
+                    f"APIError in pre-check for exec {execution.id}. Attributing to: {failed_exchange_str}"
+                )
+                self.circuit_breaker_system.record_api_error(failed_exchange_str, str(e))
+            execution.end_time = datetime.now(UTC)
+            self._add_to_history(execution)
+            return execution
+        except Exception as e:
+            op_error_msg = (
+                f"Unexpected error during pre-check/setup for execution {execution.id} "
+                f"for {opportunity.opportunity.symbol}: {e}"
+            )
+            logger.exception(op_error_msg)
             execution.error_message = str(e)
             execution.status = ExecutionStatus.FAILED
             execution.end_time = datetime.now(UTC)
             self._add_to_history(execution)
             return execution
 
-        # Calculate expected prices with slippage
-        # expected_long_price: Decimal | None = None # Commented out due to PT.get_ticker removal
-        # expected_short_price: Decimal | None = None # Commented out due to PT.get_ticker removal
-        # try:
-        #     # Get latest ticker for price check
-        #     # ticker: Ticker | None = await self.portfolio_tracker.get_ticker(
-        #     # PT does not have get_ticker
-        #     #     opportunity.opportunity.long_exchange, long_symbol
-        #     # )
-        #     # # DEFENSIVE CHECK: ticker.price is Optional[Decimal]
-        #     # if ticker and ticker.price is not None and ticker.price.is_finite():
-        #     #     expected_long_price = ticker.price * (Decimal(\"1\") + self.max_slippage)
-        #     # else:
-        #     #     logger.warning(
-        #     #         f\"Execution {execution.id}: Could not get ticker for long slippage check.\"
-        #     #     )
-        #     #
-        #     # ticker = await self.portfolio_tracker.get_ticker( # PT does not have get_ticker
-        #     #     opportunity.opportunity.short_exchange, short_symbol
-        #     # )
-        #     # # DEFENSIVE CHECK: ticker.price is Optional[Decimal]
-        #     # if ticker and ticker.price is not None and ticker.price.is_finite():
-        #     #     expected_short_price = ticker.price * (Decimal(\"1\") - self.max_slippage)
-        #     # else:
-        #     #     logger.warning(
-        #     #         f\"Execution {execution.id}: Could not get ticker for short \"
-        #     #         f\"slippage check.\"
-        #     #     )
-        # except Exception as ticker_err:
-        #     logger.warning(
-        #         f\"Execution {execution.id}: Error getting ticker for slippage "
-        #         f"checks: {ticker_err}\"
-        #     )
-        #     # Continue without slippage checks if tickers fail
-        #     expected_long_price = None
-        #     expected_short_price = None
+        # If pre-checks pass, proceed to place orders
+        # This is the main execution logic that interacts with exchanges.
+        try:
+            await self._place_orders_for_opportunity(execution, long_symbol, short_symbol)
+            # _place_orders_for_opportunity should update execution.status and error_message internally.
+        except APIError as e:
+            # This catch block handles API errors specifically from _place_orders_for_opportunity
+            op_error_msg = (
+                f"APIError during order placement for execution {execution.id} "
+                f"for {opportunity.opportunity.symbol}: {e}"
+            )
+            logger.error(op_error_msg, exc_info=True)  # Log with traceback for APIError
+            execution.error_message = str(e)
+            execution.status = ExecutionStatus.FAILED
+            if self.circuit_breaker_system:
+                # Determine which exchange caused the error
+                long_not_filled = False
+                if execution.long_order_response is not None:
+                    long_not_filled = not execution.long_order_response.get("is_filled", True)
+
+                short_not_filled = False
+                if execution.short_order_response is not None:
+                    short_not_filled = not execution.short_order_response.get("is_filled", True)
+
+                if execution.long_order_id and not execution.short_order_id and long_not_filled:
+                    failed_exchange_str = opportunity.opportunity.long_exchange
+                elif execution.short_order_id and short_not_filled:
+                    failed_exchange_str = opportunity.opportunity.short_exchange
+                else:
+                    failed_exchange_str = opportunity.opportunity.long_exchange  # Default to long
+                    logger.warning(
+                        f"Could not definitively determine failing exchange for APIError in exec {execution.id} "
+                        f"(Error: {e}). Defaulting to long exchange: {failed_exchange_str}"
+                    )
+                self.circuit_breaker_system.record_api_error(failed_exchange_str, str(e))
+        except Exception as e:
+            # Catch-all for other unexpected errors from _place_orders_for_opportunity
+            op_error_msg = (
+                f"Unexpected error during order placement for execution {execution.id} "
+                f"for {opportunity.opportunity.symbol}: {e}"
+            )
+            logger.exception(op_error_msg)  # Use logger.exception for full traceback
+            execution.error_message = str(e)
+            execution.status = ExecutionStatus.FAILED
+
+        # --- Post-Execution Processing ---
+        # Ensure end_time is set if not already by failure paths
+        if execution.end_time is None:
+            execution.end_time = datetime.now(UTC)
+
+        # Log final status before adding to history
+        if execution.status == ExecutionStatus.FAILED:
+            logger.error(
+                f"Execution {execution.id} ultimately FAILED. Reason: {execution.error_message}"
+            )
+        elif execution.status == ExecutionStatus.REJECTED:
+            logger.warning(
+                f"Execution {execution.id} was REJECTED. Reason: {execution.error_message}"
+            )
+        else:
+            logger.info(f"Execution {execution.id} finished with status: {execution.status.name}")
+
+        self._add_to_history(execution)
+        return execution
+
+    async def _place_orders_for_opportunity(
+        self, execution: TradeExecution, long_symbol: str, short_symbol: str
+    ) -> None:
+        """
+        Places orders for both legs of the opportunity.
+        Handles sequential placement and compensation.
+        This is a reconstructed method body.
+        """
+        logger.info(
+            f"Execution {execution.id}: Placing orders for {execution.opportunity.opportunity.symbol}"
+        )
+        opportunity = execution.opportunity.opportunity  # Convenience
+        sized_opp = execution.opportunity  # Convenience
 
         # --- Calculate Base Asset Quantities ---
-        # opportunity.long_size and opportunity.short_size are in USD value.
-        # We need to convert them to base asset quantity (e.g., BTC quantity).
-        # opportunity.opportunity.long_price is the ask price on the long exchange.
-        # opportunity.opportunity.short_price is the bid price on the short exchange.
-
         base_asset_quantity_long: Decimal | None = None
-        if opportunity.opportunity.long_price and opportunity.opportunity.long_price > Decimal("0"):
-            base_asset_quantity_long = opportunity.long_size / opportunity.opportunity.long_price
+        if opportunity.long_price and opportunity.long_price > Decimal("0"):
+            base_asset_quantity_long = sized_opp.long_size / opportunity.long_price
         else:
-            logger.error(
-                f"Execution {execution.id}: Cannot derive base asset quantity from request size "
-                f"({opportunity.long_size}, price {opportunity.opportunity.long_price}) "
-                f"for calculating base asset quantity. Aborting long leg."
+            err_msg = (
+                f"Execution {execution.id}: Cannot derive long base asset quantity. "
+                f"Size: {sized_opp.long_size}, Price: {opportunity.long_price}"
             )
-            # Handle error: maybe mark execution as failed or skip this leg
+            logger.error(err_msg)
+            execution.error_message = err_msg
+            execution.status = ExecutionStatus.FAILED
+            return
 
         base_asset_quantity_short: Decimal | None = None
-        if opportunity.opportunity.short_price and opportunity.opportunity.short_price > Decimal(
-            "0"
-        ):
-            base_asset_quantity_short = opportunity.short_size / opportunity.opportunity.short_price
+        if opportunity.short_price and opportunity.short_price > Decimal("0"):
+            base_asset_quantity_short = sized_opp.short_size / opportunity.short_price
         else:
-            logger.error(
-                f"Execution {execution.id}: Cannot derive base asset quantity from request size "
-                f"({opportunity.short_size}, price {opportunity.opportunity.short_price}) "
-                f"for calculating base asset quantity. Aborting short leg."
+            err_msg = (
+                f"Execution {execution.id}: Cannot derive short base asset quantity. "
+                f"Size: {sized_opp.short_size}, Price: {opportunity.short_price}"
             )
-            # Handle error
-
-        # --- Place Orders ---
-        # Try placing the long order first (more liquid leg usually)
-        execution.status = ExecutionStatus.EXECUTING
-        long_order_result: Order | None = None  # Initialize
-        if base_asset_quantity_long is not None and base_asset_quantity_long > Decimal("0"):
-            long_order_result = await self._place_order_with_retry(
-                execution,
-                opportunity.opportunity.long_exchange,
-                long_symbol,
-                OrderSide.BUY,
-                base_asset_quantity_long,  # Use calculated base asset quantity
-                OrderType.MARKET,  # TODO: Consider LIMIT orders
-            )
-        else:
-            logger.error(
-                f"Execution {execution.id}: Skipping long order placement due to "
-                f"invalid base asset quantity."
-            )
-
-        # If long order failed, mark execution failed and return
-        if long_order_result is None:
-            op_error_msg = f"Execution {execution.id} failed: Long order placement failed."
-            logger.error(op_error_msg)
-            execution.error_message = (
-                execution.error_message or "Long order placement failed after retries"
-            )
+            logger.error(err_msg)
+            execution.error_message = err_msg
             execution.status = ExecutionStatus.FAILED
-            execution.end_time = datetime.now(UTC)
-            self._add_to_history(execution)
-            return execution
+            return
+
+        # DEFENSIVE CHECK: base_asset_quantity_long/short can be None if prices are invalid (e.g. zero or None).
+        # The variables are initialized to `Decimal | None = None`.
+        if base_asset_quantity_long is None or base_asset_quantity_short is None:  # type: ignore[redundant-expr]
+            # This case should be covered by the above checks, but as a safeguard:
+            err_msg = f"Execution {execution.id}: Failed to calculate valid base asset quantities."
+            logger.error(err_msg)
+            execution.error_message = execution.error_message or err_msg
+            execution.status = ExecutionStatus.FAILED
+            return
+
+        # --- Place Long Order ---
+        execution.status = ExecutionStatus.EXECUTING
+        long_order_result: Order | None = await self._place_order_with_retry(
+            execution=execution,
+            exchange_id=opportunity.long_exchange,
+            symbol=long_symbol,
+            side=OrderSide.BUY,
+            quantity=base_asset_quantity_long,
+            order_type=OrderType.MARKET,  # TODO: Configurable order type
+            is_long_leg=True,
+        )
+
+        if long_order_result is None or long_order_result.status != OrderStatus.FILLED:
+            err_msg = (
+                f"Execution {execution.id}: Long order placement failed or not filled. "
+                f"Status: {long_order_result.status if long_order_result else 'None'}"
+            )
+            logger.error(err_msg)
+            execution.error_message = execution.error_message or err_msg
+            execution.status = ExecutionStatus.FAILED
+            # No compensation needed if the first leg fails before any fill
+            return
 
         execution.long_order_id = long_order_result.exchange_order_id
         execution.long_order_response = long_order_result.model_dump(mode="json")
-        logger.info(f"Execution {execution.id}: Long order placed: {execution.long_order_id}")
+        execution.long_fill_price = long_order_result.average_fill_price
+        execution.long_fill_quantity = long_order_result.quantity_filled
+        logger.info(
+            f"Execution {execution.id}: Long order placed and filled: {execution.long_order_id}"
+        )
 
-        # Place short order
-        short_order_result: Order | None = None  # Initialize
-        if base_asset_quantity_short is not None and base_asset_quantity_short > Decimal("0"):
-            short_order_result = await self._place_order_with_retry(
-                execution,
-                opportunity.opportunity.short_exchange,
-                short_symbol,
-                OrderSide.SELL,
-                base_asset_quantity_short,  # Use calculated base asset quantity
-                OrderType.MARKET,  # TODO: Consider LIMIT orders
-                is_long_leg=False,
-            )
-        else:
-            logger.error(
-                f"Execution {execution.id}: Skipping short order placement due to "
-                f"invalid base asset quantity."
-            )
+        # --- Place Short Order ---
+        short_order_result: Order | None = await self._place_order_with_retry(
+            execution=execution,
+            exchange_id=opportunity.short_exchange,
+            symbol=short_symbol,
+            side=OrderSide.SELL,
+            quantity=base_asset_quantity_short,
+            order_type=OrderType.MARKET,  # TODO: Configurable order type
+            is_long_leg=False,
+        )
 
-        # If short order failed, try to compensate the long leg
-        if short_order_result is None:
-            op_error_msg = f"Execution {execution.id} failed: Short order placement failed."
-            logger.error(op_error_msg)
-            execution.error_message = (
-                execution.error_message or "Short order placement failed after retries"
+        if short_order_result is None or short_order_result.status != OrderStatus.FILLED:
+            err_msg = (
+                f"Execution {execution.id}: Short order placement failed or not filled. "
+                f"Status: {short_order_result.status if short_order_result else 'None'}"
             )
-            execution.status = ExecutionStatus.COMPENSATING
-            if base_asset_quantity_long is not None and base_asset_quantity_long > Decimal(
-                "0"
-            ):  # Added check
-                if await self._compensate_position(
-                    execution,
-                    opportunity.opportunity.long_exchange,
-                    long_symbol,
-                    OrderSide.SELL,
-                    base_asset_quantity_long,  # Use base_asset_quantity_long
-                    # for compensation quantity as well
-                ):
-                    execution.status = ExecutionStatus.FAILED  # Compensation succeeded
-                else:
-                    # Compensation failed, manual intervention needed
-                    logger.critical(
-                        f"Execution {execution.id} FAILED TO COMPENSATE long position! "
-                        f"Manual intervention required for symbol {long_symbol} on "
-                        f"{opportunity.opportunity.long_exchange}."
-                    )
-                    execution.error_message += " | COMPENSATION FAILED!"
-                    execution.status = ExecutionStatus.FAILED
+            logger.error(err_msg)
+            execution.error_message = execution.error_message or err_msg
+            execution.status = ExecutionStatus.COMPENSATING  # Mark for compensation
+
+            logger.info(f"Execution {execution.id}: Attempting to compensate long leg...")
+            compensated = await self._compensate_position(
+                execution=execution,
+                exchange_id=opportunity.long_exchange,
+                symbol=long_symbol,
+                side=OrderSide.SELL,  # Compensate by selling the long
+                quantity=base_asset_quantity_long,
+            )
+            if compensated:
+                logger.info(f"Execution {execution.id}: Compensation of long leg successful.")
+                execution.error_message += " | Long leg compensated."
             else:
-                logger.error(
-                    f"Execution {execution.id}: Cannot compensate long leg as "
-                    f"base_asset_quantity_long is invalid: {base_asset_quantity_long}"
+                logger.critical(
+                    f"Execution {execution.id}: COMPENSATION OF LONG LEG FAILED! "
+                    f"Manual intervention required for {long_symbol} on {opportunity.long_exchange}."
                 )
-                execution.error_message += " | COMPENSATION SKIPPED (invalid qty)!"
-                execution.status = (
-                    ExecutionStatus.FAILED
-                )  # Mark as failed if compensation cannot be attempted
-
-            execution.end_time = datetime.now(UTC)
-            self._add_to_history(execution)
-            return execution
+                execution.error_message += " | COMPENSATION FAILED!"
+            execution.status = ExecutionStatus.FAILED  # Final status is FAILED regardless of comp.
+            return
 
         execution.short_order_id = short_order_result.exchange_order_id
         execution.short_order_response = short_order_result.model_dump(mode="json")
-        logger.info(f"Execution {execution.id}: Short order placed: {execution.short_order_id}")
-
-        # --- Monitor Order Status (Basic Example) ---
-        # TODO: Implement more robust monitoring (WebSockets preferred)
-        logger.info(f"Execution {execution.id}: Monitoring order status...")
-        long_status = await self._monitor_order_status(
-            execution, opportunity.opportunity.long_exchange, execution.long_order_id, True
-        )
-        short_status = await self._monitor_order_status(
-            execution, opportunity.opportunity.short_exchange, execution.short_order_id, False
+        execution.short_fill_price = short_order_result.average_fill_price
+        execution.short_fill_quantity = short_order_result.quantity_filled
+        logger.info(
+            f"Execution {execution.id}: Short order placed and filled: {execution.short_order_id}"
         )
 
-        # --- Process Results ---
-        if long_status == OrderStatus.FILLED and short_status == OrderStatus.FILLED:
-            execution.status = ExecutionStatus.COMPLETED
-            logger.info(f"Execution {execution.id} completed successfully.")
-            await self._update_pnl(execution)
-            # Record success with circuit breaker system
+        # Both legs successful
+        execution.status = ExecutionStatus.COMPLETED  # Or PENDING_MONITORING if separate
+        logger.info(f"Execution {execution.id}: Both legs placed and filled successfully.")
+        # Monitoring and PNL calculation might happen outside this method after it returns
+
+        if execution.status == ExecutionStatus.COMPLETED:
             if self.circuit_breaker_system:
-                self.circuit_breaker_system.record_success(opportunity.opportunity.long_exchange)  # type: ignore[attr-defined]
-                self.circuit_breaker_system.record_success(opportunity.opportunity.short_exchange)  # type: ignore[attr-defined]
-        else:
-            execution.status = ExecutionStatus.FAILED  # Or PARTIALLY_COMPLETED
-            op_error_msg = f"Execution {execution.id} failed: Orders not fully filled."
-            execution.error_message = op_error_msg
-            logger.error(op_error_msg)
-            # TODO: Implement compensation for partial fills
-
-        execution.end_time = datetime.now(UTC)
-        self._add_to_history(execution)
-        return execution
+                # Record success for both exchanges involved in the opportunity
+                self.circuit_breaker_system.record_api_success(
+                    opportunity.opportunity.long_exchange,
+                    context=f"Execution {execution.id} completed for long leg on {opportunity.opportunity.long_exchange}",
+                )
+                self.circuit_breaker_system.record_api_success(
+                    opportunity.opportunity.short_exchange,
+                    context=f"Execution {execution.id} completed for short leg on {opportunity.opportunity.short_exchange}",
+                )
 
     async def _handle_api_error(
         self, e: APIError, exchange_id: str, context: str, is_retryable: bool = True
@@ -562,6 +620,11 @@ class ExecutionHandler:
                     f"Execution {execution.id}: Order placed successfully on {exchange_id}. "
                     f"Exchange ID: {order_result.exchange_order_id}, Status: {order_result.status}"
                 )
+                # Record success with circuit breaker if configured
+                if self.circuit_breaker_system:
+                    self.circuit_breaker_system.record_api_success(
+                        exchange_id, context=f"Order {order_result.exchange_order_id} placed"
+                    )
                 return order_result
             except APIError as e:
                 last_api_error_for_reraise = e  # Store the API error

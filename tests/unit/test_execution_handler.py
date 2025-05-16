@@ -254,9 +254,14 @@ class TestExecutionHandler:
         mock_symbol_mapper.get_exchange_symbol.side_effect = get_symbol_side_effect
         execution = await execution_handler.execute_opportunity(sized_opportunity)
         assert execution is not None and execution.status == ExecutionStatus.FAILED
+        assert execution.error_message is not None
+        # Check for more specific parts of the error message
+        assert "Could not map symbol" in execution.error_message
+        assert f"'{sized_opportunity.opportunity.symbol}'" in execution.error_message
+        assert "for short leg" in execution.error_message
         assert (
-            execution.error_message is not None
-            and "Failed to map symbol" in execution.error_message
+            f"on exchange '{sized_opportunity.opportunity.short_exchange}'"
+            in execution.error_message
         )
         mock_hl_api.place_order.assert_not_called()
         mock_bp_api.place_order.assert_not_called()
@@ -1084,13 +1089,53 @@ class TestExecutionHandler:
                 wraps=execution_handler._compensate_position,
             ) as mock_compensate,
         ):
-            with pytest.raises(APIError) as exc_info:
-                await execution_handler.execute_opportunity(sized_opportunity)
+            execution_result = await execution_handler.execute_opportunity(sized_opportunity)
 
-            assert exc_info.value.message == "Insufficient funds"
-            assert exc_info.value.code == APIErrorCode.INSUFFICIENT_FUNDS.value
-            _ = mock_place_retry  # Mark as unused
-            _ = mock_compensate  # Mark as unused
+        assert execution_result is not None
+        assert execution_result.status == ExecutionStatus.FAILED
+        assert execution_result.error_message is not None
+        assert short_order_failure.message in execution_result.error_message
+
+        place_retry_call_args_list = mock_place_retry.call_args_list
+        long_leg_call = next(
+            (
+                c
+                for c in place_retry_call_args_list
+                if c.kwargs.get("exchange_id") == "hyperliquid"
+                and c.kwargs.get("side") == OrderSide.BUY
+            ),
+            None,
+        )
+        assert long_leg_call is not None
+        actual_execution_object_for_long = long_leg_call.kwargs.get("execution")
+        assert actual_execution_object_for_long is execution_result
+
+        short_leg_call = next(
+            (
+                c
+                for c in place_retry_call_args_list
+                if c.kwargs.get("exchange_id") == "backpack"
+                and c.kwargs.get("side") == OrderSide.SELL
+            ),
+            None,
+        )
+        assert short_leg_call is not None
+        actual_execution_object_for_short = short_leg_call.kwargs.get("execution")
+        assert actual_execution_object_for_short is execution_result
+
+        mock_compensate.assert_called_once()
+        compensate_call_args = mock_compensate.call_args
+        assert compensate_call_args is not None
+        actual_execution_object_for_comp = compensate_call_args.kwargs.get("execution")
+        assert actual_execution_object_for_comp is execution_result
+        assert compensate_call_args.kwargs.get("exchange_id") == "hyperliquid"
+        assert compensate_call_args.kwargs.get("symbol") == "BTC-PERP"
+        assert compensate_call_args.kwargs.get("side") == OrderSide.SELL
+        assert compensate_call_args.kwargs.get("quantity") == sized_opportunity.long_size
+
+        mock_circuit_breaker_system.record_api_error.assert_called_once_with(
+            "backpack", str(short_order_failure)
+        )
 
     def test_get_execution_history(
         self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity
