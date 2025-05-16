@@ -2,16 +2,19 @@ from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
 from collections.abc import Awaitable, Callable, Coroutine
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, timedelta
+from datetime import datetime as dt_real
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, cast
 
+import structlog
+
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.config import ConfigManager
 from cyberdelta.core.models import FundingRate, Order, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.symbol_mapper import SymbolMapper
-from cyberdelta.utils.config import Config
-from cyberdelta.utils.logging_config import get_logger
 
 if TYPE_CHECKING:
     # This can remain for linters/type checkers if desired, but isn't strictly needed now
@@ -21,7 +24,7 @@ if TYPE_CHECKING:
 
     pass
 
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Type alias for the observer callback
 type MarketDataObserver = Callable[[Candle], Coroutine[Any, Any, None]]
@@ -44,17 +47,36 @@ class DataHandler:
     - Handle connection management and reconnections.
     """
 
-    def __init__(self, config: Config, symbol_mapper: SymbolMapper) -> None:
+    def __init__(
+        self,
+        config: ConfigManager,
+        api_clients: dict[str, ExchangeAPI],
+        portfolio_tracker: PortfolioTracker,
+        symbol_mapper: SymbolMapper,
+        loop: asyncio.AbstractEventLoop | None = None,
+        clock: Callable[[Any], dt_real] | None = None,  # Add clock parameter
+    ) -> None:
         """
         Initialize the DataHandler.
 
         Args:
             config: Application configuration object.
+            api_clients: Dictionary of ExchangeAPI instances.
+            portfolio_tracker: PortfolioTracker instance.
             symbol_mapper: SymbolMapper instance.
+            loop: Event loop for async operations.
+            clock: Callable for getting current datetime.
         """
         self.config = config
+        self.api_clients = api_clients
+        self.portfolio_tracker = portfolio_tracker
         self.symbol_mapper = symbol_mapper
-        self.api_clients: dict[str, ExchangeAPI] = {}
+        self.loop = loop or asyncio.get_event_loop()
+        self.datetime_alias = (
+            dt_real  # Keep for now if other parts use it, but _is_data_stale will use self.clock
+        )
+        self.clock = clock or dt_real.now  # Store the clock
+
         self.ws_connections: dict[str, Any] = {}  # Placeholder for WebSocket clients
         self.ws_tasks: dict[str, asyncio.Task[Any]] = {}
         self._running: bool = True  # Initialize _running attribute
@@ -66,7 +88,7 @@ class DataHandler:
         self.funding_rates: dict[str, dict[str, FundingRate]] = {}
         self.user_fills: dict[str, dict[str, list[Trade]]] = {}
         self.open_orders: dict[str, dict[str, list[Order]]] = {}
-        self.last_update_time: dict[str, dict[str, datetime]] = {}
+        self.last_update_time: dict[str, dict[str, dt_real]] = {}
 
         # Observer pattern implementation
         self._market_data_observers: list[MarketDataObserver] = []
@@ -91,14 +113,12 @@ class DataHandler:
         default_ticker_sec = 60.0
 
         ticker_val = defaults.get("ticker", 60.0)
-        default_ticker_sec = float(ticker_val) if isinstance(ticker_val, (int, float)) else 60.0
+        default_ticker_sec = float(ticker_val) if isinstance(ticker_val, int | float) else 60.0
 
         default_funding_sec = 3600.0
 
         funding_val = defaults.get("funding_rate", 3600.0)
-        default_funding_sec = (
-            float(funding_val) if isinstance(funding_val, (int, float)) else 3600.0
-        )
+        default_funding_sec = float(funding_val) if isinstance(funding_val, int | float) else 3600.0
 
         exchanges_conf_raw = self.config.get("exchanges", {})
         if not isinstance(exchanges_conf_raw, dict):
@@ -128,7 +148,7 @@ class DataHandler:
                 try:
                     ticker_thresh = (
                         float(ticker_override)
-                        if isinstance(ticker_override, (int, float, str))
+                        if isinstance(ticker_override, int | float | str)
                         else default_ticker_sec
                     )
                 except (ValueError, TypeError):
@@ -141,7 +161,7 @@ class DataHandler:
                 try:
                     funding_thresh = (
                         float(funding_override)
-                        if isinstance(funding_override, (int, float, str))
+                        if isinstance(funding_override, int | float | str)
                         else default_funding_sec
                     )
                 except (ValueError, TypeError):
@@ -196,7 +216,7 @@ class DataHandler:
                 symbol: FundingRate(
                     symbol=symbol,
                     funding_rate=None,
-                    timestamp=datetime.min.replace(tzinfo=UTC),  # Provide default timestamp
+                    timestamp=dt_real.min.replace(tzinfo=UTC),  # Provide default timestamp
                     next_funding_time=None,  # Default next_funding_time
                 )
                 for symbol in symbols
@@ -204,7 +224,7 @@ class DataHandler:
             self.user_fills[exchange_id] = {symbol: [] for symbol in symbols}
             self.open_orders[exchange_id] = {}
             self.last_update_time[exchange_id] = {
-                symbol: datetime.min.replace(tzinfo=UTC) for symbol in symbols
+                symbol: dt_real.min.replace(tzinfo=UTC) for symbol in symbols
             }
 
             logger.debug(f"Initialized data structures for {exchange_id} with symbols: {symbols}")
@@ -440,7 +460,7 @@ class DataHandler:
             )
             return
 
-        now = datetime.now(UTC)  # Consistent timestamp for updates from this message batch
+        now = dt_real.now(UTC)  # Consistent timestamp for updates from this message batch
 
         try:
             # Delegate parsing to the specific API client
@@ -567,7 +587,7 @@ class DataHandler:
     # --- Internal Update Methods ---
 
     def _update_ticker(
-        self, exchange_id: str, symbol: str, data: Ticker, timestamp: datetime
+        self, exchange_id: str, symbol: str, data: Ticker, timestamp: dt_real
     ) -> None:
         """Update the ticker data for a given exchange and symbol."""
         if exchange_id not in self.tickers or symbol not in self.tickers[exchange_id]:
@@ -583,7 +603,7 @@ class DataHandler:
         logger.debug(f"Updated ticker: {exchange_id}/{symbol} - {data.price}")
 
     def _update_order_book(
-        self, exchange_id: str, symbol: str, data: OrderBook, timestamp: datetime
+        self, exchange_id: str, symbol: str, data: OrderBook, timestamp: dt_real
     ) -> None:
         """Update the order book data."""
         if exchange_id not in self.order_books or symbol not in self.order_books[exchange_id]:
@@ -598,7 +618,7 @@ class DataHandler:
         logger.debug(f"Updated order book: {exchange_id}/{symbol}")
 
     def _update_funding_rate(
-        self, exchange_id: str, symbol: str, data: FundingRate, timestamp: datetime
+        self, exchange_id: str, symbol: str, data: FundingRate, timestamp: dt_real
     ) -> None:
         """Update the latest funding rate for a symbol on an exchange."""
         if exchange_id not in self.funding_rates or symbol not in self.funding_rates[exchange_id]:
@@ -709,7 +729,7 @@ class DataHandler:
 
         # Check if data is stale
         # Use the timestamp from the FundingRate object for staleness check
-        if timestamp < datetime.now(UTC) - self.staleness_thresholds.get(
+        if timestamp < dt_real.now(UTC) - self.staleness_thresholds.get(
             f"{exchange_id}_funding", self.default_staleness_threshold
         ):
             logger.warning(
@@ -823,26 +843,63 @@ class DataHandler:
     # --- Staleness Check ---
 
     def _is_data_stale(self, exchange_id: str, symbol: str, data_type: str) -> bool:
-        """Check if data for a given type, exchange, and symbol is stale."""
-        last_update = self.last_update_time.get(exchange_id, {}).get(
-            symbol, datetime.min.replace(tzinfo=UTC)
-        )
+        """Check if data for a given exchange, symbol, and type is stale."""
+        # Construct the specific key for staleness_thresholds
+        # e.g., "mock_hl_ticker", "mock_bp_funding"
+        staleness_key = f"{exchange_id}_{data_type.lower()}"
+        threshold = self.staleness_thresholds.get(staleness_key)
 
-        # Construct the key for staleness_thresholds, e.g., "hyperliquid_ticker", "backpack_funding"
-        # This must match how keys are created in _load_staleness_config
-        # Currently, _load_staleness_config uses "_funding" not "_funding_rate"
-        # and doesn't explicitly handle "_order_book".
-        # For now, adjust to match observed keys and add a fallback for other types.
-        config_data_type_key = data_type
-        if data_type == "funding_rate":
-            config_data_type_key = "funding"  # Matches _load_staleness_config
-        # Add handling for order_book if its staleness is configured similarly
-        # if data_type == "order_book": config_data_type_key = "orderbook"
+        if threshold is None:
+            # Fallback to a general threshold for the data_type if specific one not found
+            general_data_type_key = data_type.lower()
+            threshold = self.staleness_thresholds.get(general_data_type_key)
 
-        threshold_key = f"{exchange_id}_{config_data_type_key}"
-        threshold = self.staleness_thresholds.get(threshold_key, self.default_staleness_threshold)
+        if threshold is None:
+            # Fallback to the absolute default if no type-specific default found
+            threshold = self.default_staleness_threshold
+            logger.debug(
+                f"No specific or general staleness threshold for {staleness_key} or {general_data_type_key}, "
+                f"using absolute default: {threshold.total_seconds()}s"
+            )
+        else:
+            logger.debug(
+                f"Using staleness threshold for {staleness_key}: {threshold.total_seconds()}s"
+            )
 
-        return last_update < datetime.now(UTC) - threshold
+        last_update = self.last_update_time.get(exchange_id, {}).get(symbol)
+        if last_update is None:
+            logger.debug(
+                f"No last_update_time for {exchange_id}/{symbol}/{data_type}, considering NOT stale."
+            )
+            return False  # No data yet, so not stale
+
+        if not isinstance(last_update, dt_real):
+            logger.error(
+                f"[{exchange_id}] Timestamp for {data_type} symbol {symbol} is not a datetime object: {type(last_update)}"
+            )
+            return True  # Treat as stale if timestamp is invalid
+
+        if last_update.tzinfo is None:
+            last_update = last_update.replace(tzinfo=UTC)
+            logger.warning(
+                f"Timestamp for {exchange_id}/{symbol}/{data_type} was naive, assumed UTC."
+            )
+
+        current_time = self.clock(UTC)  # Use the injectable clock
+
+        is_stale_result = last_update < (current_time - threshold)
+        if is_stale_result:
+            time_since_last_update = current_time - last_update  # Define time_since_last_update
+            logger.warning(
+                f"[{exchange_id}] Data for '{staleness_key}' is stale. Last: {last_update.isoformat()}, Now: {current_time.isoformat()}, Diff: {time_since_last_update}, Threshold: {threshold}",
+                exchange=exchange_id,
+                key=staleness_key,
+                last_update_ts=last_update.isoformat(),
+                current_time_ts=current_time.isoformat(),
+                diff_seconds=time_since_last_update.total_seconds(),
+                threshold_seconds=threshold.total_seconds(),
+            )
+        return is_stale_result
 
     async def _maintain_websocket_connection(
         self, exchange_id: str, client: ExchangeAPI, symbols: list[str]
@@ -858,11 +915,11 @@ class DataHandler:
         )
 
         reconnect_delay = (
-            float(reconnect_delay_raw) if isinstance(reconnect_delay_raw, (int, float)) else 5.0
+            float(reconnect_delay_raw) if isinstance(reconnect_delay_raw, int | float) else 5.0
         )
         max_reconnect_delay = (
             float(max_reconnect_delay_raw)
-            if isinstance(max_reconnect_delay_raw, (int, float))
+            if isinstance(max_reconnect_delay_raw, int | float)
             else 60.0
         )
         max_attempts = int(max_attempts_raw) if isinstance(max_attempts_raw, int) else 0
@@ -931,7 +988,7 @@ class DataHandler:
     def _get_default_ticker(self, symbol: str) -> Ticker:
         """Return a default Ticker object for initialization."""
         # Ensure timestamp is timezone-aware (UTC)
-        default_time = datetime.min.replace(tzinfo=UTC)
+        default_time = dt_real.min.replace(tzinfo=UTC)
         return Ticker(
             symbol=symbol,
             timestamp=default_time,
@@ -945,7 +1002,7 @@ class DataHandler:
         """Return a default OrderBook object for initialization."""
         return OrderBook(
             symbol=symbol,
-            timestamp=datetime.min.replace(tzinfo=UTC),  # Use fixed past time
+            timestamp=dt_real.min.replace(tzinfo=UTC),  # Use fixed past time
             bids=[],
             asks=[],
         )

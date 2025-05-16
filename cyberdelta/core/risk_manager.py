@@ -574,11 +574,9 @@ class RiskManager:
             if not hasattr(self, "simple_sizing_method_str"):  # Should be redundant
                 self.simple_sizing_method_str = SimpleSizingMethod.FIXED_USD.value
 
-            # Initialize attributes for min trade size
-            self._global_min_trade_size_usd: Decimal = ZERO  # Initialize global min trade size
-            self.min_trade_size_usd_per_exchange: dict[
-                str, Decimal
-            ] = {}  # Initialize per-exchange dict
+            # Attributes for min trade size are initialized in __init__
+            # self._global_min_trade_size_usd: Decimal = ZERO
+            # self.min_trade_size_usd_per_exchange: dict[str, Decimal] = {}
 
             # Load min trade size configuration
             min_trade_size_config_raw = self.config.get(

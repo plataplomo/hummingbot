@@ -614,47 +614,55 @@ class ExchangeAPI(ABC):
 
     @abstractmethod
     async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
-        """
-        Fetch a single order by its ID, potentially specific to a symbol.
-        Returns None if the order is not found.
-        """
+        """Get a specific order by its ID."""
         raise NotImplementedError
 
-    # --- WebSocket Management & Subscriptions --- #
-
+    # --- WebSocket Connection Management Methods ---
     async def connect_websocket(self) -> None:
-        """Connects the WebSocket client if it's initialized."""
-        if self._ws_manager:
-            logger.info(f"[{self.exchange_name}] Explicit WebSocket connection requested.")
+        """Establishes a WebSocket connection with the exchange."""
+        if not self._ws_manager:
+            logger.error(
+                f"[{self.exchange_name}] WebSocket manager not initialized. "
+                f"Cannot connect WebSocket."
+            )
+            raise APIError(
+                message=f"[{self.exchange_name}] WebSocket not configured or enabled.",
+                code=APIErrorCode.EXCHANGE_SPECIFIC.value,  # Corrected: Use .value and an existing code
+            )
+        try:
             connect_task = self._ws_manager.connect()
-            if connect_task:
-                # Ensure task is not None before awaiting, for stricter type checking
-                assert (
-                    connect_task is not None
-                )  # DEFENSIVE CHECK: Mypy/Pyright sometimes miss the if-guard.
-                try:
-                    await connect_task
-                except Exception as e:
-                    logger.error(
-                        f"[{self.exchange_name}] Error during WebSocket connect task: {e}",
-                        exc_info=True,
-                    )
-                    # Optionally re-raise or handle as an APIError
-                    raise APIError(
-                        message=f"WebSocket connection task failed: {e}",
-                        code=APIErrorCode.CONNECTION_ERROR.value,
-                    ) from e
+            if connect_task:  # ADDED: Check if task is not None
+                await connect_task
+        except Exception as e:
+            logger.error(f"[{self.exchange_name}] Error connecting WebSocket: {e}")
+            # Corrected: Use map_string_error or map_exchange_error based on available info
+            # Assuming 'e' is primarily a string representation of the error here.
+            # If 'e' were an HTTP-like error with status_code, map_exchange_error might be better.
+            raise self.error_mapper.map_string_error(str(e)) from e
+
+    # Add missing ws methods here
+    @abstractmethod
+    async def receive_ws_message(self) -> Any:
+        """Receives a message from the WebSocket connection."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def parse_ws_message(self, message: Any) -> tuple[str, Any] | None:
+        """Parses a raw WebSocket message into a structured format."""
+        raise NotImplementedError
+
+    async def close_websocket(self) -> None:
+        """Closes the WebSocket connection."""
+        if self._ws_manager and self._ws_manager.is_connected:  # Corrected: Use is_connected
+            await self._ws_manager.close()
         else:
-            logger.warning(
-                f"[{self.exchange_name}] WebSocket connection requested but manager not "
-                f"initialized."
+            logger.info(
+                f"[{self.exchange_name}] WebSocket manager not active or not initialized. "
+                f"No WebSocket to close."
             )
 
     async def ping_websocket(self) -> None:
-        """Send a WebSocket ping.
-        Default WebSocketManager handles standard pings automatically if ping_interval > 0.
-        This method can be used for custom application-level pings if required by the exchange.
-        """
+        """Sends a ping frame over the WebSocket to keep the connection alive."""
         if self._ws_manager and self.is_connected:  # Check is_connected for active session
             # Custom ping logic would go here if needed, e.g., sending a specific JSON message
             # For now, log that standard ping is handled by WebSocketManager

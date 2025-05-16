@@ -1229,9 +1229,10 @@ class PortfolioTracker:
                             try:
                                 # Ensure keys are str for model_validate
                                 # Cast bal_data_any to dict[Any, Any] to help Pyright with k,v types
-                                temp_bal_dict_for_comp = bal_data_any
+                                temp_bal_dict_for_comp: dict[Any, Any] = bal_data_any
                                 validated_bal_dict: dict[str, Any] = {
-                                    str(k): v for k, v in temp_bal_dict_for_comp.items()
+                                    str(k): v
+                                    for k, v in temp_bal_dict_for_comp.items()  # k, v are Any
                                 }
                                 tracker.balances[ex_id_str][asset_str] = SpotBalance.model_validate(
                                     validated_bal_dict
@@ -1263,9 +1264,10 @@ class PortfolioTracker:
                             try:
                                 # Ensure keys are str for model_validate
                                 # Cast pos_data_any to dict[Any, Any] to help Pyright with k,v types
-                                temp_pos_dict_for_comp = pos_data_any
+                                temp_pos_dict_for_comp: dict[Any, Any] = pos_data_any
                                 validated_pos_dict_for_model: dict[str, Any] = {
-                                    str(k): v for k, v in temp_pos_dict_for_comp.items()
+                                    str(k): v
+                                    for k, v in temp_pos_dict_for_comp.items()  # k, v are Any
                                 }
                                 tracker.positions[ex_id_str_pos][sym_str] = (
                                     DerivativePosition.model_validate(validated_pos_dict_for_model)
@@ -1297,9 +1299,10 @@ class PortfolioTracker:
                             try:
                                 # Ensure keys are str for model_validate
                                 # Cast order_data_any to dict[Any, Any] to help Pyright with k,v types
-                                temp_order_dict_for_comp = order_data_any
+                                temp_order_dict_for_comp: dict[Any, Any] = order_data_any
                                 validated_order_dict_for_model: dict[str, Any] = {
-                                    str(k): v for k, v in temp_order_dict_for_comp.items()
+                                    str(k): v
+                                    for k, v in temp_order_dict_for_comp.items()  # k, v are Any
                                 }
                                 tracker.orders[ex_id_str_ord][ord_id_str] = Order.model_validate(
                                     validated_order_dict_for_model

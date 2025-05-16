@@ -1,9 +1,10 @@
 import asyncio
 import logging  # Import logging
+from collections import defaultdict
 from datetime import UTC, datetime, timedelta
+from datetime import datetime as dt_real  # ADDED dt_real import
 from decimal import Decimal
 from typing import Any, cast
-from unittest.mock import MagicMock  # RE-ADD MagicMock
 
 import pytest
 from _pytest.logging import LogCaptureFixture  # Added for caplog typing
@@ -192,159 +193,172 @@ def populate_data_handler(
 @pytest.fixture(scope="module")
 def mock_config_dict() -> dict[str, Any]:
     """Provides a base configuration dictionary for integration tests."""
-    # Combined and cleaned config from previous versions
     return {
         "general": {
             "log_level": "DEBUG",
             "safe_mode": False,
+            "base_currency": "USDC",
+            "initial_capital_base_ccy": 100000,
+            "max_total_capital_base_ccy": 200000,
+            "max_capital_per_exchange_pct": 0.75,
+            "max_capital_per_strategy_pct": 0.50,
+            "max_capital_per_symbol_pct": 0.25,
+            "max_leverage_per_exchange": 2.0,
+            "max_total_drawdown_pct": 0.10,
+            "max_daily_drawdown_pct": 0.05,
+            "max_concurrent_strategies": 5,
+            "event_loop_policy": "uvloop_if_available",
+            "trading_session_id_format": "ts_id_{timestamp:%Y%m%d_%H%M%S}",
+            "max_open_orders_per_symbol_per_exchange": 10,
+            "max_total_open_orders": 50,
+            "default_staleness_threshold_seconds": 60,
+            "staleness_thresholds_seconds": {
+                "mock_hl_ticker": 10,
+                "mock_bp_ticker": 10,
+                "mock_hl_orderbook": 15,
+                "mock_bp_orderbook": 15,
+                "mock_hl_funding_rate": 3600,
+                "mock_bp_funding_rate": 3600,
+                "funding_rate": 7200,
+            },
         },
-        "cyberdelta": {
-            "base_currency": "USD",
-            "logging": {"level": "DEBUG"},
-            "performance": {"update_interval": 60},
-        },
-        "exchanges": {
+        "api_clients": {
             "mock_hl": {
                 "enabled": True,
-                "api_key": "mock_hl_key",
-                "api_secret": "mock_hl_secret",
-                "api_base_url": "http://mock.hl.exchange",
-                "ws_url": "ws://mock.hl.exchange/ws",
-                "symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP"},
-                "collateral_asset": "USD",
-                "fee_asset": "USD",  # Added for consistency
-                "maker_fee": "0.0002",  # Use string for Decimal init
-                "taker_fee": "0.0005",  # Use string for Decimal init
-                "rate_limit": 10,  # Added from previous config
+                "api_key_name": "MOCK_HL_API_KEY",
+                "base_url": "https://api.hyperliquid.xyz",
+                "ws_url": "wss://api.hyperliquid.xyz/ws",
+                "rate_limits": {"default_rate": 10, "default_bucket_size": 10},
             },
             "mock_bp": {
                 "enabled": True,
-                "api_key": "mock_bp_key",
-                "api_secret": "mock_bp_secret",
-                "api_base_url": "http://mock.bp.exchange",
-                "ws_url": "ws://mock.bp.exchange/ws",
+                "api_key_name": "MOCK_BP_API_KEY",
+                "base_url": "https://api.backpack.exchange/",
+                "ws_url": "wss://ws.backpack.exchange/",
+                "rate_limits": {"default_rate": 10, "default_bucket_size": 10},
+            },
+        },
+        "exchanges": {
+            "mock_hl": {
+                "trading_fee_pct": 0.001,
+                "min_order_size_usd": 1.0,
+                "symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP"},
+                "base_currencies": ["USD"],
+                "quote_currencies": {"BTC-PERP": "USD", "ETH-PERP": "USD"},
+                "collateral_assets": ["USD"],
+            },
+            "mock_bp": {
+                "trading_fee_pct": 0.00075,
+                "min_order_size_usd": 0.5,
                 "symbols": {"BTC": "BTC-USDC", "ETH": "ETH-USDC"},
-                "collateral_asset": "USDC",
-                "fee_asset": "USDC",  # Added for consistency
-                "maker_fee": "0.0001",  # Use string for Decimal init
-                "taker_fee": "0.0004",  # Use string for Decimal init
-                "rate_limit": 10,  # Added from previous config
+                "base_currencies": ["USDC"],
+                "quote_currencies": {"BTC-USDC": "USDC", "ETH-USDC": "USDC"},
+                "collateral_assets": ["USDC"],
             },
         },
-        "strategy": {
-            "name": "funding_rate_arbitrage",  # Added from previous
-            "update_interval": 5,  # Added from previous
-            "rebalance_interval": 3600,  # Added from previous
-            "symbols": ["BTC", "ETH"],  # Added internal symbols list
-            "funding_rate": {
-                "min_funding_differential": 0.0001,  # Float ok if handled
-                "min_profit_threshold": 0.1,  # Float ok if handled
-                "max_basis_volatility": 0.02,  # Added from previous
-                "staleness_threshold_seconds": 60,
-                "risk_aversion": 1.0,  # Moved from old location
-            },
-        },
+        "strategies": [
+            {
+                "name": "FundingRateArbitrage_ETH",
+                "enabled": True,
+                "module": "cyberdelta.strategies.funding_rate_arbitrage",
+                "class": "FundingRateArbitrageStrategy",
+                "parameters": {
+                    "internal_symbol": "ETH",
+                    "exchange_pair": ["mock_hl", "mock_bp"],
+                    "min_nfd_threshold_bps": 5,
+                    "max_basis_threshold_pct": 0.10,
+                    "min_trade_size_usd": 10,
+                    "max_trade_size_usd": 1000,
+                    "rebalance_threshold_pct": 0.05,
+                    "max_position_usd": 5000,
+                    "funding_rate_lookback_periods": 5,
+                    "order_book_depth_for_slippage": 3,
+                    "slippage_tolerance_pct": 0.02,
+                    "min_funding_rate_trust_level": 0.75,
+                },
+            }
+        ],
         "portfolio_tracker": {
-            "update_interval": 5,
-            "reconciliation_interval": 60,
-            "initial_capital": 100000.0,
+            "reconciliation_interval_seconds": 300,
+            "max_reconciliation_attempts": 3,
+            "reconciliation_backoff_factor": 2,
+            "allow_external_balance_updates": True,
         },
-        "risk": {  # Restructured to match RiskManager._load_config expectations
-            "global": {
-                "max_position_usd": "100000.0",
-                "max_total_exposure_usd": "500000.0",
-                "min_position_usd": "5.0",
-                "max_portfolio_leverage": "3.0",
-                "max_drawdown_limit_ratio": "0.15",
+        "risk_manager": {
+            "max_total_exposure_pct_capital": 0.80,
+            "max_single_position_exposure_pct_capital": 0.20,
+            "max_exposure_per_symbol_pct_capital": 0.30,
+            "max_exposure_per_exchange_pct_capital": 0.60,
+            "default_kelly_fraction": 0.1,
+            "min_kelly_fraction": 0.001,
+            "max_kelly_fraction": 0.25,
+            "volatility_lookback_days": 14,
+            "min_volatility_value": 0.001,
+            "max_drawdown_kill_switch_enabled": True,
+            "max_total_drawdown_limit_pct": 0.15,
+            "max_daily_drawdown_limit_pct": 0.07,
+            "circuit_breaker_nfd_threshold_bps": -100,
+            "circuit_breaker_basis_threshold_pct": 2.0,
+            "circuit_breaker_slippage_threshold_pct": 0.5,
+            "funding_rate_validator_config": {
+                "enabled": False,
+                "min_history_required": 10,
+                "max_std_dev_multiplier": 3.0,
             },
-            "strategy": {
-                # For RiskManager.min_opportunity_profitability (uses first found)
-                "min_net_funding_differential": "0.00005",  # More specific path for this
-                # For RiskManager.min_net_funding_differential attribute
-                # "min_net_funding_differential": "0.0001", # If separate, or ensure
-                # the one above is used
-                "max_single_position_exposure_ratio": "0.3",  # Default, but can be set # INCREASED FROM 0.1 for happy path
-            },
-            "kelly": {
-                "fraction": "0.1",
-                "min_acceptable_fraction": "0.0001",
-                "max_acceptable_fraction": "0.1",
-                "min_volatility": "0.0005",
-            },
-            # This key is specific and correctly structured for RiskManager._load_config
-            "min_exchange_balance": "20.0",  # This key was previously under "risk_manager",
-            # moving to "risk" as per direct load.
-            # Actually, RiskManager loads this as "risk_manager.min_exchange_balance".
-            # Keeping it separate for now to see if it loads, might need adjustment
         },
-        "risk_manager": {  # Keeping this key for settings specific to "risk_manager.*" path
-            "min_exchange_balance": "20.0"  # This will be loaded by
-            # risk_manager.min_exchange_balance
-        },
-        "data_handler": {"max_staleness_seconds": 30},
         "execution_handler": {
-            "max_retries": 3,
-            "retry_delay": 5,
-            "order_timeout_seconds": 60,
+            "default_order_type": "LIMIT",
+            "default_tif": "GTC",
+            "market_order_slippage_pct": 0.05,
+            "limit_order_offset_pct": 0.01,
+            "max_order_retries": 3,
+            "retry_delay_seconds": 5,
+            "compensation_max_retries": 2,
+            "compensation_retry_delay_seconds": 10,
+            "use_immediate_compensation": True,
+            "max_outstanding_orders_per_leg": 2,
         },
-        "circuit_breaker": {
-            "enabled": True,
-            "global_config": {
-                "failure_threshold": 5,
-                "recovery_timeout": 300,
-                "half_open_attempts": 3,
-            },
-            "exchanges": {
-                "mock_hl": {
-                    "APIErrorBreaker": {"enabled": True, "failure_threshold": 3},
-                    "LiquidityBreaker": {"enabled": False},
-                },
-                "mock_bp": {
-                    "APIErrorBreaker": {"enabled": True, "failure_threshold": 3},
-                    "LiquidityBreaker": {"enabled": False},
-                },
-            },
+        "symbol_mapping": {
+            "BTC": {"mock_hl": "BTC-PERP", "mock_bp": "BTC-USDC"},
+            "ETH": {"mock_hl": "ETH-PERP", "mock_bp": "ETH-USDC"},
         },
-        # Removed the old "risk_manager" block that was flat
     }
 
 
 @pytest.fixture
-def mock_config(mock_config_dict: dict[str, Any]) -> Config:
-    """Provides a Config object based on the dictionary."""
-    cfg = MagicMock(spec=Config)
+def mock_config(mock_config_dict: dict[str, Any], mocker: MockerFixture) -> ConfigManager:
+    """Provides a mock ConfigManager instance for integration tests."""
+    manager = ConfigManager()
 
-    # Define the getter function separately for clarity
-    def getter(key: str, default: object | None = None) -> object | None:
-        return _deep_get(mock_config_dict, key, default)
-
-    cfg.get = getter
-    cfg.config_data = mock_config_dict
-    return cfg  # No longer needs type: ignore
-
-
-def _deep_get(
-    d: dict[str, Any], keys: str, default: object | None = None
-) -> Any:  # MODIFIED return type
-    """Helper to get a value from a nested dictionary."""
-    key_parts = keys.split(".")
-    val: Any = d  # MODIFIED type of val
-    try:
-        for key_part in key_parts:
-            if isinstance(val, dict):
-                # Check if key_part exists before trying to get it
-                if key_part not in val:
-                    return default  # Key part missing, return default immediately
-                val = val[key_part]  # Access directly since we know it exists
-            else:
-                # val is not a dictionary, so we can't go deeper
+    def mock_get_side_effect(key: str, default: Any = None) -> Any:
+        try:
+            keys_list = key.split(".")
+            current_value = mock_config_dict
+            for k_part in keys_list:
+                if isinstance(current_value, dict):
+                    current_value = current_value[k_part]
+                else:
+                    raise KeyError(
+                        f"Key part '{k_part}' implies further nesting, but value is not a dict."
+                    )
+            return current_value
+        except KeyError:
+            if default is not None:
                 return default
-        # If the loop completes, val holds the final value.
-        # If val is None at this point, it means the last key_part resolved to None in the dict,
-        # which is different from the key path not existing. In this case, None is the actual value.
-        return val
-    except (TypeError, IndexError):  # Should be less likely with current checks
-        return default
+            raise KeyError(
+                f"Full key '{key}' not found in mock_config_dict config and no default provided."
+            )
+        except Exception as e:
+            # Using the module-level logger if `logger` is defined in this file scope
+            # If not, import logging and use logging.error
+            # For now, assuming `logger` is available as per previous context
+            logger.error(f"Unexpected error accessing key '{key}' in mock_config: {e}")
+            if default is not None:
+                return default
+            raise
+
+    mocker.patch.object(manager, "get", side_effect=mock_get_side_effect)
+    return manager
 
 
 @pytest.fixture
@@ -413,11 +427,28 @@ def data_handler(
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     symbol_mapper: SymbolMapper,
+    mocker: MockerFixture,
 ) -> DataHandler:
-    """Data Handler instance with mock APIs registered."""
-    dh = DataHandler(mock_config, symbol_mapper)
-    dh.register_api_client("mock_hl", mock_hl_api)
-    dh.register_api_client("mock_bp", mock_bp_api)
+    """Provides a DataHandler instance for integration tests, with a mockable clock."""
+    mock_clock = mocker.MagicMock(spec=dt_real.now)  # Create a mock clock
+
+    # Pass the mock_clock to the DataHandler constructor
+    # Assuming ExchangeAPI instances are correctly passed as a dict
+    api_clients = {
+        mock_hl_api.exchange_name: mock_hl_api,
+        mock_bp_api.exchange_name: mock_bp_api,
+    }
+    dh = DataHandler(
+        config=mock_config,
+        api_clients=api_clients,
+        portfolio_tracker=mocker.MagicMock(
+            spec=PortfolioTracker
+        ),  # Mock PortfolioTracker if not used directly
+        symbol_mapper=symbol_mapper,
+        clock=mock_clock,  # Inject the mock clock
+    )
+    # Store the mock_clock on the instance for tests to set its return_value
+    dh.mock_clock = mock_clock  # type: ignore[attr-defined]
     return dh
 
 
@@ -667,46 +698,49 @@ async def test_happy_path_full_cycle(
     logger.info("Generating opportunities...")
     # Construct data structures expected by SignalGenerator
     # Construct FundingRate data structure (symbol -> exchange -> FundingRate | None)
-    sg_funding_data: dict[str, dict[str, FundingRate | None]] = {}
-    for ex, sym_data in data_handler.funding_rates.items():
-        for sym, rate_data_obj in sym_data.items():  # rate_data_obj is FundingRate
-            internal_sym = symbol_base  # Use the internal symbol defined in the test
-            # rate, time_int = rate_data  # Unpack the tuple # Old logic
-            rate = rate_data_obj.funding_rate
-            time_val = rate_data_obj.next_funding_time
+    sg_funding_data: dict[str, dict[str, FundingRate | None]] = defaultdict(dict)
+    for ex_id_key, sym_data_map in data_handler.funding_rates.items():
+        # ex_id_key is exchange_id (e.g., 'mock_hl')
+        # sym_data_map is dict[exchange_specific_symbol, FundingRate]
+        for ex_specific_sym, rate_data_obj in sym_data_map.items():
+            # We need to map ex_specific_sym back to internal_sym for sg_funding_data
+            internal_sym = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
+            if internal_sym is None:
+                logger.warning(
+                    f"TEST_FUNDING_PREP: Could not map {ex_id_key}/{ex_specific_sym} to internal symbol. Skipping."
+                )
+                continue
 
-            # time_dt = datetime.fromtimestamp(time_int / 1000, UTC)
-            #   if isinstance(time_int, int) else time_int
-            # time_dt = time_int  # Assume it's already datetime # Old logic
-            funding_timestamp = (
-                time_val if time_val is not None else start_time
-            )  # Use time_val (datetime | None)
+            # The rate_data_obj is already a FundingRate instance, so no need to reconstruct it.
+            # Ensure the structure is: internal_symbol -> exchange_id -> FundingRate
+            sg_funding_data[internal_sym][ex_id_key] = rate_data_obj
 
-            funding_rate_obj = FundingRate(
-                symbol=sym,
-                funding_rate=rate,
-                next_funding_time=time_val,
-                timestamp=funding_timestamp,  # Add timestamp
-            )
-            sg_funding_data.setdefault(internal_sym, {})[ex] = funding_rate_obj
+    # Remove the old market_data_obj creation
+    # market_data_obj = data_handler.tickers[first_exchange][first_symbol]
 
-    # Construct a MarketData object for the expected type
-    # This assumes generate_arbitrage_opportunities expects a MarketData instance, not a dict
-    # If it expects a list or another structure, adjust accordingly
-    # Here, we use the first available MarketData from data_handler.tickers
-    first_exchange = next(iter(data_handler.tickers))
-    first_symbol = next(iter(data_handler.tickers[first_exchange]))
-    market_data_obj = data_handler.tickers[first_exchange][first_symbol]
+    # Mock datetime.now by patching the 'dt_real' alias in data_handler.py used by self.datetime_alias
+    with mocker.patch("cyberdelta.core.data_handler.dt_real.now") as mock_dt_real_now:
+        mock_dt_real_now.return_value = start_time  # Use start_time for this test
 
-    opportunities = signal_generator.generate_arbitrage_opportunities(
-        funding_data=sg_funding_data  # Removed market_data argument
-    )
-    logger.info(f"Generated opportunities: {opportunities}")
-    assert len(opportunities) >= 1, "No opportunities generated"
+        opportunities = await signal_generator.generate_arbitrage_opportunities(
+            funding_data=sg_funding_data
+        )
+
+    # --- Logging and Assertions for Opportunities ---
+    logger.info(f"Generated {len(opportunities)} opportunities.")
+    if not opportunities:
+        logger.warning("No opportunities generated. This is unexpected.")
+        return
+
+    # --- Restore original logger level for signal_generator ---
+    sg_logger = logging.getLogger("cyberdelta.core.signal_generator")
+    original_sg_level = sg_logger.level
+    sg_logger.setLevel(logging.DEBUG)
+    # for handler, level in original_handler_levels.items():
+    # handler.setLevel(level)
+
+    assert len(opportunities) >= 1
     opportunity = opportunities[0]
-
-    # 4. Validate Opportunity Details (Basic Checks)
-    # Note: SignalGenerator now uses the *internal* symbol for the opportunity
     assert opportunity.symbol == symbol_base  # Check against internal symbol
     assert opportunity.long_exchange == "mock_bp"  # Check opportunity details
     assert opportunity.short_exchange == "mock_hl"
@@ -720,7 +754,9 @@ async def test_happy_path_full_cycle(
     assert bp_rate is not None, "Mock BP funding rate is None, cannot calculate NFD"
     assert hl_rate is not None, "Mock HL funding rate is None, cannot calculate NFD"
     expected_nfd = bp_rate - hl_rate
-    assert opportunity.net_funding_differential == approx(expected_nfd)  # type: ignore[call-arg] # Mypy struggles with approx typing
+    assert opportunity.net_funding_differential == approx(
+        expected_nfd
+    )  # Mypy struggles with approx typing
     assert opportunity.expected_profit is not None
     assert opportunity.expected_profit > 0
 
@@ -824,12 +860,14 @@ async def test_happy_path_full_cycle(
 
     assert hl_pos.side == OrderSide.SELL, f"Expected Hyperliquid ({symbol_base}) side to be SELL"
     # Position size for SELL side is negative
-    assert hl_pos.size == approx(-expected_hl_quantity), (  # type: ignore[call-arg]
+    assert hl_pos.size == approx(-expected_hl_quantity), (
         f"Hyperliquid ({symbol_base}) position size mismatch. "
         f"Expected approx {-expected_hl_quantity}, got {hl_pos.size}"
     )
 
     logger.info("Happy path integration test completed successfully!")
+    # --- Restore original logger level for signal_generator ---
+    sg_logger.setLevel(original_sg_level)
 
 
 # --- test_api_error_during_placement needs significant rework ---
@@ -947,8 +985,38 @@ async def test_partial_fill(
     # Let's stick to mocker.patch.object for clarity and robustness.
     # Re-adding mocker and using patch.object for get_order_book in test_partial_fill
 
-    # For test_partial_fill, we need to add mocker to its signature
-    # And then use mocker.patch.object for get_order_book, place_order, get_order_status
+    # --- Populate DataHandler with Tickers for SignalGenerator to use ---
+    # The SignalGenerator now reads directly from data_handler.tickers via get_latest_ticker
+    populate_data_handler(
+        data_handler,
+        mock_hl_api.exchange_name,
+        hl_symbol,
+        mock_hl_ticker,  # ticker
+        mock_hl_funding,  # funding_rate
+        mock_hl_ob,  # order_book
+        now,  # timestamp
+    )
+    populate_data_handler(
+        data_handler,
+        mock_bp_api.exchange_name,
+        bp_symbol,
+        mock_bp_ticker,  # ticker
+        mock_bp_funding,  # funding_rate
+        mock_bp_ob,  # order_book
+        now,  # timestamp
+    )
+
+    # --- Explicitly set logger level for signal_generator for this test ---
+    sg_logger = logging.getLogger("cyberdelta.core.signal_generator")
+    original_sg_level = sg_logger.level
+    sg_logger.setLevel(logging.DEBUG)
+    # Ensure handlers can also see DEBUG messages if they have their own levels
+    # This might be needed if pytest's caplog handler has a higher level set
+    # Forcing all handlers of this logger to DEBUG temporarily
+    # original_handler_levels = {}
+    # for handler in sg_logger.handlers:
+    #     original_handler_levels[handler] = handler.level
+    #     handler.setLevel(logging.DEBUG)
 
     # --- Configure Mock Behavior for Partial Fill ---
     target_qty = Decimal("0.1")
@@ -1118,40 +1186,47 @@ async def test_partial_fill(
     # --- Execute Test ---
     # 1. Generate Signal
     # Construct FundingRate data structure (symbol -> exchange -> FundingRate | None)
-    sg_funding_data: dict[str, dict[str, FundingRate | None]] = {}
-    for ex, sym_data in data_handler.funding_rates.items():
-        for sym, rate_data_obj in sym_data.items():  # rate_data_obj is FundingRate
-            internal_sym = symbol_key  # Use the internal symbol defined in the test
-            # rate, time_int = rate_data  # Unpack the tuple # Old logic
-            rate = rate_data_obj.funding_rate
-            time_val = rate_data_obj.next_funding_time
+    sg_funding_data: dict[str, dict[str, FundingRate | None]] = defaultdict(dict)
+    for ex_id_key, sym_data_map in data_handler.funding_rates.items():
+        # ex_id_key is exchange_id (e.g., 'mock_hl')
+        # sym_data_map is dict[exchange_specific_symbol, FundingRate]
+        for ex_specific_sym, rate_data_obj in sym_data_map.items():
+            # We need to map ex_specific_sym back to internal_sym for sg_funding_data
+            internal_sym = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
+            if internal_sym is None:
+                logger.warning(
+                    f"TEST_FUNDING_PREP: Could not map {ex_id_key}/{ex_specific_sym} to internal symbol. Skipping."
+                )
+                continue
 
-            # time_dt = datetime.fromtimestamp(time_int / 1000, UTC)
-            #   if isinstance(time_int, int) else time_int
-            # time_dt = time_int  # Assume it's already datetime # Old logic
-            funding_timestamp = (
-                time_val if time_val is not None else now
-            )  # Use time_val (datetime | None)
+            # The rate_data_obj is already a FundingRate instance, so no need to reconstruct it.
+            # Ensure the structure is: internal_symbol -> exchange_id -> FundingRate
+            sg_funding_data[internal_sym][ex_id_key] = rate_data_obj
 
-            funding_rate_obj = FundingRate(
-                symbol=sym,
-                funding_rate=rate,
-                next_funding_time=time_val,
-                timestamp=funding_timestamp,  # Add timestamp
-            )
-            sg_funding_data.setdefault(internal_sym, {})[ex] = funding_rate_obj
-
-    # Construct a MarketData object for the expected type
-    # This assumes generate_arbitrage_opportunities expects a MarketData instance, not a dict
-    # If it expects a list or another structure, adjust accordingly
-    # Here, we use the first available MarketData from data_handler.tickers
-    # first_exchange = next(iter(data_handler.tickers))
-    # first_symbol = next(iter(data_handler.tickers[first_exchange]))
+    # Remove the old market_data_obj creation
     # market_data_obj = data_handler.tickers[first_exchange][first_symbol]
 
-    opportunities = signal_generator.generate_arbitrage_opportunities(
-        funding_data=sg_funding_data  # Removed market_data argument
-    )
+    # Mock datetime.now by patching the 'dt_real' alias in data_handler.py used by self.datetime_alias
+    with mocker.patch("cyberdelta.core.data_handler.dt_real.now") as mock_dt_real_now:
+        mock_dt_real_now.return_value = now  # Use now for this test
+
+        opportunities = await signal_generator.generate_arbitrage_opportunities(
+            funding_data=sg_funding_data
+        )
+
+    # --- Logging and Assertions for Opportunities ---
+    logger.info(f"Generated {len(opportunities)} opportunities.")
+    if not opportunities:
+        logger.warning("No opportunities generated. This is unexpected.")
+        return
+
+    # --- Restore original logger level for signal_generator ---
+    sg_logger = logging.getLogger("cyberdelta.core.signal_generator")
+    original_sg_level = sg_logger.level
+    sg_logger.setLevel(logging.DEBUG)
+    # for handler, level in original_handler_levels.items():
+    # handler.setLevel(level)
+
     assert len(opportunities) >= 1
     opportunity = opportunities[0]
     assert opportunity.symbol == symbol_key  # Use internal symbol key for comparison
@@ -1165,7 +1240,9 @@ async def test_partial_fill(
     assert bp_rate is not None, "Mock BP funding rate is None, cannot calculate NFD"
     assert hl_rate is not None, "Mock HL funding rate is None, cannot calculate NFD"
     expected_nfd = bp_rate - hl_rate
-    assert opportunity.net_funding_differential == approx(expected_nfd)  # type: ignore[call-arg] # Mypy struggles with approx typing
+    assert opportunity.net_funding_differential == approx(
+        expected_nfd
+    )  # Mypy struggles with approx typing
 
     # --- Add Debug Logging ---
     # Get balances using internal dict for test verification
@@ -1223,14 +1300,12 @@ async def test_partial_fill(
     # (which doesn't wait for full fills/compensation)
     assert bp_final_pos is not None
     assert bp_final_pos.size is not None  # Ensure not None before approx
-    assert abs(bp_final_pos.size) == approx(  # type: ignore[call-arg] # Mypy struggles with approx typing
+    assert abs(bp_final_pos.size) == approx(
         partial_fill_qty
     )  # Should reflect the partial fill recorded
     assert hl_final_pos is not None
     assert hl_final_pos.size is not None  # Ensure not None before approx
-    assert abs(hl_final_pos.size) == approx(  # type: ignore[call-arg] # Mypy struggles with approx typing
-        target_qty
-    )  # Should reflect the full fill recorded
+    assert abs(hl_final_pos.size) == approx(target_qty)  # Should reflect the full fill recorded
 
     # Assert that compensation was NOT triggered in logs (as neither leg initially FAILED)
     assert "compensation" not in caplog.text.lower(), (
@@ -1530,40 +1605,47 @@ async def test_execution_failure_compensation(
     # --- Execute Test ---
     # 1. Generate Signal
     # Construct FundingRate data structure (symbol -> exchange -> FundingRate | None)
-    sg_funding_data: dict[str, dict[str, FundingRate | None]] = {}
-    for ex, sym_data in data_handler.funding_rates.items():
-        for sym, rate_data_obj in sym_data.items():  # rate_data_obj is FundingRate
-            internal_sym = symbol_key  # Use the internal symbol defined in the test
-            # rate, time_int = rate_data  # Unpack the tuple # Old logic
-            rate = rate_data_obj.funding_rate
-            time_val = rate_data_obj.next_funding_time
+    sg_funding_data: dict[str, dict[str, FundingRate | None]] = defaultdict(dict)
+    for ex_id_key, sym_data_map in data_handler.funding_rates.items():
+        # ex_id_key is exchange_id (e.g., 'mock_hl')
+        # sym_data_map is dict[exchange_specific_symbol, FundingRate]
+        for ex_specific_sym, rate_data_obj in sym_data_map.items():
+            # We need to map ex_specific_sym back to internal_sym for sg_funding_data
+            internal_sym = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
+            if internal_sym is None:
+                logger.warning(
+                    f"TEST_FUNDING_PREP: Could not map {ex_id_key}/{ex_specific_sym} to internal symbol. Skipping."
+                )
+                continue
 
-            # time_dt = datetime.fromtimestamp(time_int / 1000, UTC)
-            #   if isinstance(time_int, int) else time_int
-            # time_dt = time_int  # Assume it's already datetime # Old logic
-            funding_timestamp = (
-                time_val if time_val is not None else now
-            )  # Use time_val (datetime | None)
+            # The rate_data_obj is already a FundingRate instance, so no need to reconstruct it.
+            # Ensure the structure is: internal_symbol -> exchange_id -> FundingRate
+            sg_funding_data[internal_sym][ex_id_key] = rate_data_obj
 
-            funding_rate_obj = FundingRate(
-                symbol=sym,
-                funding_rate=rate,
-                next_funding_time=time_val,
-                timestamp=funding_timestamp,  # Add timestamp
-            )
-            sg_funding_data.setdefault(internal_sym, {})[ex] = funding_rate_obj
-
-    # Construct a MarketData object for the expected type
-    # This assumes generate_arbitrage_opportunities expects a MarketData instance, not a dict
-    # If it expects a list or another structure, adjust accordingly
-    # Here, we use the first available MarketData from data_handler.tickers
-    # first_exchange = next(iter(data_handler.tickers))
-    # first_symbol = next(iter(data_handler.tickers[first_exchange]))
+    # Remove the old market_data_obj creation
     # market_data_obj = data_handler.tickers[first_exchange][first_symbol]
 
-    opportunities = signal_generator.generate_arbitrage_opportunities(
-        funding_data=sg_funding_data  # Removed market_data argument
-    )
+    # Mock datetime.now by patching the 'dt_real' alias in data_handler.py used by self.datetime_alias
+    with mocker.patch("cyberdelta.core.data_handler.dt_real.now") as mock_dt_real_now:
+        mock_dt_real_now.return_value = now  # Use now for this test
+
+        opportunities = await signal_generator.generate_arbitrage_opportunities(
+            funding_data=sg_funding_data
+        )
+
+    # --- Logging and Assertions for Opportunities ---
+    logger.info(f"Generated {len(opportunities)} opportunities.")
+    if not opportunities:
+        logger.warning("No opportunities generated. This is unexpected.")
+        return
+
+    # --- Restore original logger level for signal_generator ---
+    sg_logger = logging.getLogger("cyberdelta.core.signal_generator")
+    original_sg_level = sg_logger.level
+    sg_logger.setLevel(logging.DEBUG)
+    # for handler, level in original_handler_levels.items():
+    # handler.setLevel(level)
+
     assert len(opportunities) >= 1
     opportunity = opportunities[0]
     assert opportunity.symbol == symbol_key  # Use internal symbol key for comparison
@@ -1577,7 +1659,9 @@ async def test_execution_failure_compensation(
     assert bp_rate is not None, "Mock BP funding rate is None, cannot calculate NFD"
     assert hl_rate is not None, "Mock HL funding rate is None, cannot calculate NFD"
     expected_nfd = bp_rate - hl_rate
-    assert opportunity.net_funding_differential == approx(expected_nfd)  # type: ignore[call-arg] # Mypy struggles with approx typing
+    assert opportunity.net_funding_differential == approx(
+        expected_nfd
+    )  # Mypy struggles with approx typing
 
     # --- Add Debug Logging ---
     # Get balances using internal dict for test verification
@@ -1754,10 +1838,22 @@ async def test_failed_execution(
 
     # --- Generate Signal (Changed to ArbitrageOpportunity) ---
     populate_data_handler(
-        data_handler, "mock_hl", hl_symbol, mock_hl_ticker, mock_hl_funding, mock_hl_ob, now
+        data_handler,
+        "mock_hl",
+        hl_symbol,
+        mock_hl_ticker,
+        mock_hl_funding,
+        mock_hl_ob,
+        now,  # REMOVE None for candle
     )
     populate_data_handler(
-        data_handler, "mock_bp", bp_symbol, mock_bp_ticker, mock_bp_funding, mock_bp_ob, now
+        data_handler,
+        "mock_bp",
+        bp_symbol,
+        mock_bp_ticker,
+        mock_bp_funding,
+        mock_bp_ob,
+        now,  # REMOVE None for candle
     )
 
     # Pre-calculate values to ensure they are Decimal for ArbitrageOpportunity
