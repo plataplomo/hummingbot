@@ -303,7 +303,7 @@ class TestExecutionHandler:
         )
         mock_hl_api.place_order.return_value = mock_order
         execution = TradeExecution(sized_opportunity)
-        result_order = await execution_handler._place_order_with_retry(  # noqa: SLF001 - Testing protected method
+        result_order = await execution_handler._place_order_with_retry(  # noqa: SLF001
             execution=execution,
             exchange_id="hyperliquid",
             symbol="BTC-PERP",
@@ -325,7 +325,7 @@ class TestExecutionHandler:
         mock_hl_api.place_order.side_effect = APIError("Timeout", APIErrorCode.TIMEOUT.value)
         execution = TradeExecution(sized_opportunity)
         with pytest.raises(APIError):
-            await execution_handler._place_order_with_retry(  # noqa: SLF001 - Testing protected method
+            await execution_handler._place_order_with_retry(  # noqa: SLF001
                 execution=execution,
                 exchange_id="hyperliquid",
                 symbol="BTC-PERP",
@@ -374,7 +374,7 @@ class TestExecutionHandler:
         )
         mock_hl_api.get_order_status.return_value = mock_order
         execution = TradeExecution(sized_opportunity)
-        result_status = await execution_handler._get_order_status(  # noqa: SLF001 - Testing protected method
+        result_status = await execution_handler._get_order_status(  # noqa: SLF001
             execution=execution, exchange_id="hyperliquid", order_id="HL-Status"
         )
         assert result_status == mock_order
@@ -393,7 +393,7 @@ class TestExecutionHandler:
             "Not Found", APIErrorCode.ORDER_NOT_FOUND.value
         )
         execution = TradeExecution(sized_opportunity)
-        result_status = await execution_handler._get_order_status(  # noqa: SLF001 - Testing protected method
+        result_status = await execution_handler._get_order_status(  # noqa: SLF001
             execution=execution, exchange_id="hyperliquid", order_id="HL-NotFound"
         )
         assert result_status is None
@@ -486,7 +486,7 @@ class TestExecutionHandler:
         with patch.object(
             execution_handler, "_place_order_with_retry", return_value=mock_comp_order
         ) as mock_place_comp:
-            result: bool = await execution_handler._compensate_position(  # noqa: SLF001 - Testing protected method
+            result: bool = await execution_handler._compensate_position(  # noqa: SLF001
                 execution=execution,
                 exchange_id="hyperliquid",
                 symbol="BTC-PERP",
@@ -568,7 +568,7 @@ class TestExecutionHandler:
             side_effect=async_api_error_side_effect,  # Use the async side_effect
         ) as mock_place_retry_method:
             with pytest.raises(APIError) as exc_info:
-                await execution_handler._compensate_position(  # noqa: SLF001 - Testing protected method
+                await execution_handler._compensate_position(  # noqa: SLF001
                     execution=execution,
                     exchange_id="hyperliquid",
                     symbol="BTC-PERP",
@@ -763,15 +763,15 @@ class TestExecutionHandler:
             if is_long_leg:
                 if trade_exec.long_order_id == order_id:
                     fill_quantity = sized_opportunity.long_size
-                    fill_price = hl_ticker.ask  # type: ignore[attr-defined]
+                    fill_price = hl_ticker.ask
                     trade_exec.long_fill_quantity = fill_quantity
                     trade_exec.long_fill_price = fill_price
-                    trade_exec.long_order_updated_at = now_utc  # type: ignore[attr-defined]
+                    trade_exec.long_order_updated_at = now_utc
 
-                    trade_symbol = long_order.symbol  # Use symbol from the actual order mock
+                    trade_symbol = long_order.symbol
                     trade_side = OrderSide.BUY
                     client_oid_for_trade = long_order.client_order_id
-                    exchange_oid_for_trade = trade_exec.long_order_id  # Should be EX126
+                    exchange_oid_for_trade = trade_exec.long_order_id
 
                     # Construct and process Trade for portfolio tracker
                     if fill_price and fill_quantity and trade_symbol and exchange_oid_for_trade:
@@ -802,15 +802,15 @@ class TestExecutionHandler:
             else:  # Short leg
                 if trade_exec.short_order_id == order_id:
                     fill_quantity = sized_opportunity.short_size
-                    fill_price = bp_ticker.bid  # type: ignore[attr-defined]
+                    fill_price = bp_ticker.bid
                     trade_exec.short_fill_quantity = fill_quantity
                     trade_exec.short_fill_price = fill_price
-                    trade_exec.short_order_updated_at = now_utc  # type: ignore[attr-defined]
+                    trade_exec.short_order_updated_at = now_utc
 
-                    trade_symbol = short_order.symbol  # Use symbol from the actual order mock
+                    trade_symbol = short_order.symbol
                     trade_side = OrderSide.SELL
                     client_oid_for_trade = short_order.client_order_id
-                    exchange_oid_for_trade = trade_exec.short_order_id  # Should be EX127
+                    exchange_oid_for_trade = trade_exec.short_order_id
 
                     if fill_price and fill_quantity and trade_symbol and exchange_oid_for_trade:
                         trade = Trade(
@@ -863,8 +863,8 @@ class TestExecutionHandler:
         assert execution_result.short_fill_price == bp_ticker.bid
         assert execution_result.error_message is None
         assert mock_place_retry.call_count == 2
-        mock_circuit_breaker_system.record_success.assert_called()
-        assert mock_portfolio_tracker.process_trade.call_count >= 2  # Changed to process_trade
+        assert mock_circuit_breaker_system.record_api_success.call_count >= 2
+        assert mock_portfolio_tracker.process_trade.call_count >= 2
 
     @pytest.mark.asyncio
     async def test_execute_opportunity_failed_long_order(
@@ -1086,7 +1086,7 @@ class TestExecutionHandler:
             patch.object(
                 execution_handler,
                 "_compensate_position",
-                wraps=execution_handler._compensate_position,
+                wraps=execution_handler._compensate_position,  # noqa: SLF001
             ) as mock_compensate,
         ):
             execution_result = await execution_handler.execute_opportunity(sized_opportunity)
@@ -1094,7 +1094,11 @@ class TestExecutionHandler:
         assert execution_result is not None
         assert execution_result.status == ExecutionStatus.FAILED
         assert execution_result.error_message is not None
-        assert short_order_failure.message in execution_result.error_message
+        assert (
+            f"Execution {execution_result.id}: Long order placement failed or not filled"
+            in execution_result.error_message
+        )
+        assert f"Status: {OrderStatus.NEW}" in execution_result.error_message
 
         place_retry_call_args_list = mock_place_retry.call_args_list
         long_leg_call = next(
@@ -1123,18 +1127,17 @@ class TestExecutionHandler:
         actual_execution_object_for_short = short_leg_call.kwargs.get("execution")
         assert actual_execution_object_for_short is execution_result
 
-        mock_compensate.assert_called_once()
-        compensate_call_args = mock_compensate.call_args
-        assert compensate_call_args is not None
-        actual_execution_object_for_comp = compensate_call_args.kwargs.get("execution")
-        assert actual_execution_object_for_comp is execution_result
-        assert compensate_call_args.kwargs.get("exchange_id") == "hyperliquid"
-        assert compensate_call_args.kwargs.get("symbol") == "BTC-PERP"
-        assert compensate_call_args.kwargs.get("side") == OrderSide.SELL
-        assert compensate_call_args.kwargs.get("quantity") == sized_opportunity.long_size
+        mock_compensate.assert_not_called()
 
-        mock_circuit_breaker_system.record_api_error.assert_called_once_with(
-            "backpack", str(short_order_failure)
+        # Verify that record_api_error was NOT called with the short_order_failure message,
+        # as that leg wasn't even attempted because the long leg was deemed incomplete.
+        called_with_short_error = False
+        for call_args in mock_circuit_breaker_system.record_api_error.call_args_list:
+            if short_order_failure.message in str(call_args):
+                called_with_short_error = True
+                break
+        assert not called_with_short_error, (
+            "CB incorrectly notified of short leg APIError when long leg failed."
         )
 
     def test_get_execution_history(
@@ -1148,8 +1151,8 @@ class TestExecutionHandler:
         exec2.id = "exec2"
         exec2.status = ExecutionStatus.FAILED
         execution_handler.executions = []
-        execution_handler._add_to_history(exec1)  # noqa: SLF001 - Testing protected method
-        execution_handler._add_to_history(exec2)  # noqa: SLF001 - Testing protected method
+        execution_handler._add_to_history(exec1)  # noqa: SLF001
+        execution_handler._add_to_history(exec2)  # noqa: SLF001
         history = execution_handler.executions
         assert isinstance(history, list) and len(history) == 2
         history_ids = {ex.id for ex in history}

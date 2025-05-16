@@ -691,7 +691,6 @@ class CircuitBreakerSystem:
                     symbols_list_any = config_data_for_this_breaker_type.get("symbols", [])
                     symbols_list: list[str] = []
                     if isinstance(symbols_list_any, list):
-                        # Ensure s is treated as Any, then check isinstance for safety.
                         symbols_list = [
                             str(s_item)
                             for s_item in cast(list[Any], symbols_list_any)

@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import UTC, datetime
 from decimal import Decimal, getcontext
-from typing import Any
+from typing import Any, cast
 
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models import (
     # MarketData, # Removed
+    FundingRate,
     OrderSide,
     SignalType,
+    Ticker,
     TradeSignal,
 )
 from cyberdelta.core.models.market import Candle  # Import Candle
@@ -45,7 +46,7 @@ class FundingRateArbitrageStrategy(Strategy):
         portfolio_tracker: PortfolioTracker,
         risk_manager: RiskManager | None = None,
         params: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         Initialize the funding rate arbitrage strategy.
 
@@ -114,7 +115,7 @@ class FundingRateArbitrageStrategy(Strategy):
         value = self.get_param(key, default)
         if value is None:
             return default
-        if isinstance(value, (int, float, str)):
+        if isinstance(value, int | float | str):
             try:
                 return int(value)
             except Exception:
@@ -130,10 +131,10 @@ class FundingRateArbitrageStrategy(Strategy):
         """
         # Get max_history at the start so it's always defined
         max_history = self._get_int_param("history_length", 24)
-        # Get funding rate from perp exchange (synchronous call)
-        funding_rate = self.data_handler.get_funding_rate(self.perp_exchange, self.symbol)
-        if asyncio.iscoroutine(funding_rate):
-            funding_rate = await funding_rate
+
+        # Get funding rate from perp exchange
+        funding_rate = await self.data_handler.get_funding_rate(self.perp_exchange, self.symbol)  # type: ignore[attr-defined]
+        funding_rate = cast(FundingRate | None, funding_rate)
         if funding_rate is None:
             logger.warning(f"Could not get funding rate for {self.symbol} on {self.perp_exchange}")
             return None
@@ -141,21 +142,30 @@ class FundingRateArbitrageStrategy(Strategy):
         # Get current time
         now = datetime.now(UTC)
 
-        # Get prices for basis calculation (synchronous calls)
-        perp_ticker = self.data_handler.get_ticker(self.perp_exchange, self.symbol)
+        # Get prices for basis calculation
+        perp_ticker = await self.data_handler.get_ticker(self.perp_exchange, self.symbol)  # type: ignore[attr-defined]
+        perp_ticker = cast(Ticker | None, perp_ticker)
         spot_symbol = self.symbol_mapping.get(self.symbol)
         if spot_symbol is None:
             logger.warning(f"No spot symbol mapping for {self.symbol}")
             return None
-        spot_ticker = self.data_handler.get_ticker(self.spot_exchange, spot_symbol)
+        spot_ticker = await self.data_handler.get_ticker(self.spot_exchange, spot_symbol)  # type: ignore[attr-defined]
+        spot_ticker = cast(Ticker | None, spot_ticker)
 
         if perp_ticker is None or spot_ticker is None:
             logger.warning(f"Could not get prices for {self.symbol} or {spot_symbol}")
             return None
 
         # Calculate basis (price differential)
-        perp_price = perp_ticker.close
-        spot_price = spot_ticker.close
+        # Ensure .close is accessed only if tickers are not None (already checked)
+        if perp_ticker.price is None or spot_ticker.price is None:  # pyright: ignore [reportUnnecessaryComparison]
+            logger.warning(
+                f"Ticker price is None for {self.symbol} or {spot_symbol}. "
+                f"Perp: {perp_ticker.price}, Spot: {spot_ticker.price}"
+            )
+            return None
+        perp_price = perp_ticker.price
+        spot_price = spot_ticker.price
         basis = perp_price - spot_price
 
         # Update historical basis data
@@ -172,8 +182,11 @@ class FundingRateArbitrageStrategy(Strategy):
 
         # Calculate Net Funding Differential (NFD)
         nfd = funding_rate.funding_rate
-        if nfd is None:
-            logger.warning(f"Funding rate is None for {self.symbol}")
+        if nfd is None:  # pyright: ignore [reportUnnecessaryComparison]
+            logger.warning(
+                f"Funding rate value is None for {self.symbol} on "
+                f"{self.perp_exchange} from {funding_rate}"
+            )
             return None
 
         # Skip if NFD is below threshold
@@ -216,8 +229,16 @@ class FundingRateArbitrageStrategy(Strategy):
         # Determine entry prices based on Candle close prices
         # A real strategy might estimate entry better (e.g., mid-price, or consider liquidity)
         # For simplicity, use the close price of the respective tickers
-        long_price = perp_ticker.close if perp_side == "LONG" else spot_ticker.close
-        short_price = spot_ticker.close if perp_side == "LONG" else perp_ticker.close
+
+        # Ensure prices are not None before using them
+        if perp_ticker.price is None or spot_ticker.price is None:  # pyright: ignore [reportUnnecessaryComparison]
+            logger.warning(
+                f"Cannot determine entry prices due to None ticker price for {self.symbol} or {spot_symbol}."
+            )
+            return None
+
+        long_price = perp_ticker.price if perp_side == "LONG" else spot_ticker.price
+        short_price = spot_ticker.price if perp_side == "LONG" else perp_ticker.price
 
         # Create opportunity object
         opportunity = ArbitrageOpportunity(
@@ -234,7 +255,6 @@ class FundingRateArbitrageStrategy(Strategy):
             utility_score=float(utility_score),
             basis_volatility=float(basis_volatility),
             optimal_size=None,
-            confidence=None,
         )
 
         logger.info(f"Found opportunity: {opportunity}")
@@ -311,279 +331,407 @@ class FundingRateArbitrageStrategy(Strategy):
         """
         self.update_historical_data(data)
         now = datetime.now(UTC)
+        signals: list[TradeSignal] = []
+
+        # Time-based check for funding opportunities
         if (
             self.last_opportunity_check is None
             or (now - self.last_opportunity_check).total_seconds() >= self.check_interval
         ):
-            asyncio.create_task(self._check_and_generate_signal())
-            self.last_opportunity_check = now
-        if self._should_rebalance():
-            return self._generate_rebalance_signal()
-        return []
+            opportunity_signals = await self._check_and_generate_signal()
+            if opportunity_signals:
+                signals.extend(opportunity_signals)
+            # self.last_opportunity_check is updated within _check_and_generate_signal
+
+        # Rebalance check (can be independent or related to opportunity checks)
+        # Fetch live tickers for rebalance check
+        # data_handler is guaranteed by __init__ to be non-None
+        perp_ticker_live = await self.data_handler.get_ticker(self.perp_exchange, self.symbol)  # type: ignore[attr-defined]
+        perp_ticker_live = cast(Ticker | None, perp_ticker_live)
+
+        spot_symbol_mapped = self.symbol_mapping.get(self.symbol)
+        spot_ticker_live: Ticker | None = None
+        if spot_symbol_mapped:
+            spot_ticker_live = await self.data_handler.get_ticker(
+                self.spot_exchange, spot_symbol_mapped
+            )  # type: ignore[attr-defined]
+            spot_ticker_live = cast(Ticker | None, spot_ticker_live)
+
+        if self._should_rebalance(perp_ticker_live, spot_ticker_live):
+            rebalance_signals = self._generate_rebalance_signal(perp_ticker_live, spot_ticker_live)
+            if rebalance_signals:
+                signals.extend(rebalance_signals)
+
+        return signals
 
     async def _check_and_generate_signal(self) -> list[TradeSignal] | None:
-        try:
-            opportunity = await self._check_opportunity()
-            if opportunity:
-                sized_opportunity = None
-                if self.risk_manager:
-                    sized_opportunity = self.risk_manager.size_opportunity(opportunity)
-                    if sized_opportunity:
-                        logger.info(f"Sized opportunity: {sized_opportunity}")
-                        opportunity_id = str(id(opportunity))
-                        self.sized_opportunities[opportunity_id] = sized_opportunity
-                    else:
-                        logger.warning("Opportunity rejected by risk manager")
-                        return None
-                self.active_opportunities.append(opportunity)
-                signals = self._generate_entry_signal(opportunity, sized_opportunity)
-                logger.info(f"Generated trade signals: {signals}")
+        """Core logic to check for opportunities and generate trading signals."""
+        self.last_opportunity_check = datetime.now(UTC)
+        signals: list[TradeSignal] = []
+
+        if self.risk_manager is None:
+            logger.error(
+                f"RiskManager not initialized in {self.name} for _check_and_generate_signal"
+            )
+            return None
+
+        # Fetch current tickers needed by helper methods first
+        # data_handler is guaranteed by __init__ to be non-None
+        perp_ticker_live = await self.data_handler.get_ticker(self.perp_exchange, self.symbol)  # type: ignore[attr-defined]
+        perp_ticker_live = cast(Ticker | None, perp_ticker_live)
+
+        spot_symbol_mapped = self.symbol_mapping.get(self.symbol)
+        spot_ticker_live: Ticker | None = None
+        if spot_symbol_mapped:
+            spot_ticker_live = await self.data_handler.get_ticker(
+                self.spot_exchange, spot_symbol_mapped
+            )  # type: ignore[attr-defined]
+            spot_ticker_live = cast(Ticker | None, spot_ticker_live)
+
+        # Check for rebalancing first
+        if self._should_rebalance(perp_ticker_live, spot_ticker_live):
+            rebalance_signals = self._generate_rebalance_signal(perp_ticker_live, spot_ticker_live)
+            if rebalance_signals:
+                signals.extend(rebalance_signals)
+                # Potentially return early or manage state to avoid conflicting entry signals
+                logger.info(
+                    f"Generated {len(rebalance_signals)} rebalance signals for {self.symbol}."
+                )
                 return signals
-        except Exception as e:
-            logger.error(f"Error checking opportunities: {e}", exc_info=True)
-        return None
 
-    def _should_rebalance(self) -> bool:
-        """
-        Check if positions need rebalancing.
+        opportunity = await self._check_opportunity()
+        if opportunity:
+            logger.info(f"Found opportunity: {opportunity}")
+            self.active_opportunities.append(opportunity)
 
-        Returns:
-            True if rebalancing is needed, False otherwise
-        """
-        # Check if we have active positions
-        perp_position = None
-        spot_position = None
-        if hasattr(self.portfolio_tracker, "get_position"):
-            perp_position = self.portfolio_tracker.get_position(self.perp_exchange, self.symbol)
-            spot_symbol = self.symbol_mapping.get(self.symbol)
-            if spot_symbol is not None:
-                spot_position = self.portfolio_tracker.get_position(self.spot_exchange, spot_symbol)
-        if not perp_position or not spot_position:
-            return False
+            sized_opportunity_raw = self.risk_manager.calculate_position_size(opportunity)  # type: ignore[attr-defined]
+            sized_opportunity = cast(SizedOpportunity | None, sized_opportunity_raw)
 
-        # Get latest prices using get_ticker().close as fallback
-        perp_ticker = self.data_handler.get_ticker(self.perp_exchange, self.symbol)
+            if (
+                sized_opportunity
+                and sized_opportunity.long_size > Decimal(0)
+                and sized_opportunity.short_size > Decimal(0)
+            ):
+                self.sized_opportunities[opportunity.id] = sized_opportunity
+                entry_signals = self._generate_entry_signal(
+                    opportunity, sized_opportunity, perp_ticker_live, spot_ticker_live
+                )
+                if entry_signals:
+                    signals.extend(entry_signals)
+                    logger.info(
+                        f"Generated {len(entry_signals)} entry signals for {opportunity.id}."
+                    )
+            else:
+                logger.info(
+                    f"Opportunity {opportunity.id} not sized or size is zero, no entry signals generated."
+                )
+        return signals if signals else None
+
+    def _should_rebalance(
+        self, perp_ticker_live: Ticker | None, spot_ticker_live: Ticker | None
+    ) -> bool:
+        """Determine if rebalancing is needed based on current positions and market prices."""
+        # The portfolio_tracker is guaranteed non-None by __init__.
+        # The check for has_active_positions was problematic, subsequent logic handles position existence.
+        # if not self.portfolio_tracker or not self.portfolio_tracker.has_active_positions(self.name): # REMOVED
+        #     return False # REMOVED
+
+        # Get current positions
+        perp_position = self.portfolio_tracker.get_position(self.perp_exchange, self.symbol)
         spot_symbol = self.symbol_mapping.get(self.symbol)
-        spot_ticker = None
-        if spot_symbol is not None:
-            spot_ticker = self.data_handler.get_ticker(self.spot_exchange, spot_symbol)
-        perp_price = perp_ticker.close if perp_ticker is not None else None
-        spot_price = spot_ticker.close if spot_ticker is not None else None
-        if perp_price is None or spot_price is None:
+        if not spot_symbol:
+            logger.error(f"Spot symbol not mapped for {self.symbol} in _should_rebalance")
+            return False
+        spot_position = self.portfolio_tracker.get_position(self.spot_exchange, spot_symbol)
+
+        # Ensure positions are not None before accessing .size or using in calculations
+        if perp_position is None or spot_position is None:
+            logger.warning("Perp or spot position is None, cannot evaluate rebalance.")
+            return False
+        # Assuming DerivativePosition.size is Decimal (not Decimal | None)
+        # If .size itself can be None, further checks are needed here.
+
+        if (
+            perp_ticker_live is None
+            or spot_ticker_live is None
+            or perp_ticker_live.price is None
+            or spot_ticker_live.price is None
+        ):  # pyright: ignore [reportUnnecessaryComparison]
+            logger.warning("Live ticker data unavailable for rebalance check.")
             return False
 
-        # Calculate position values
-        perp_value = abs(perp_position.size * perp_price)
-        spot_value = abs(spot_position.size * spot_price)
+        perp_price_val = perp_ticker_live.price
+        spot_price_val = spot_ticker_live.price
 
-        # Calculate imbalance
-        if perp_value == 0 or spot_value == 0:
-            return False
+        # Values can now be calculated as positions are confirmed to be not None
+        perp_value = perp_position.size * perp_price_val
+        spot_value = spot_position.size * spot_price_val
 
-        imbalance = abs(perp_value - spot_value) / max(perp_value, spot_value)
+        # Check imbalance (simplified: absolute difference in values)
+        imbalance = abs(perp_value + spot_value)  # Assuming one is short, one is long
+        total_value = abs(perp_value) + abs(spot_value)
 
-        # Rebalance if imbalance exceeds threshold
-        return imbalance > self.rebalance_threshold
+        if total_value == Decimal(0):
+            return False  # Avoid division by zero if no value
+
+        imbalance_ratio = imbalance / total_value
+        logger.debug(f"Rebalance check: Imbalance ratio {imbalance_ratio:.4f} for {self.symbol}")
+        return imbalance_ratio > self.rebalance_threshold
 
     def _generate_entry_signal(
         self,
         opportunity: ArbitrageOpportunity,
         sized_opportunity: SizedOpportunity | None = None,
+        perp_ticker_entry: Ticker | None = None,  # ADDED param
+        spot_ticker_entry: Ticker | None = None,  # ADDED param
     ) -> list[TradeSignal]:
-        """Generate entry signals (long/short on perp and spot) if trades should be executed, or an
-        empty list if no opportunity is found.
-        """
-        nfd = opportunity.net_funding_differential
-        if nfd is None:
-            logger.warning("Opportunity net_funding_differential is None, cannot generate signals.")
-            return []
-        perp_side = OrderSide.SELL if nfd > 0 else OrderSide.BUY
-        spot_symbol = self.symbol_mapping.get(self.symbol)
-        default_size = Decimal("1000.0")
+        """Generate entry signals for a given opportunity."""
+        signals: list[TradeSignal] = []
+        default_size = Decimal("0")  # Default for quantity if price is zero
+
+        perp_side = OrderSide.BUY if opportunity.net_funding_differential > 0 else OrderSide.SELL
+        spot_side = OrderSide.SELL if opportunity.net_funding_differential > 0 else OrderSide.BUY
+
+        perp_exchange_name = (
+            opportunity.long_exchange if perp_side == OrderSide.BUY else opportunity.short_exchange
+        )
+        spot_exchange_name = (
+            opportunity.short_exchange if perp_side == OrderSide.BUY else opportunity.long_exchange
+        )
+
+        # Use live tickers passed as arguments
+        # perp_ticker_entry was passed
+        # spot_ticker_entry was passed
+
+        perp_price_entry = (
+            perp_ticker_entry.price
+            if perp_ticker_entry is not None and perp_ticker_entry.price is not None
+            else default_size
+        )  # pyright: ignore [reportUnnecessaryComparison]
+        spot_price_entry = (
+            spot_ticker_entry.price
+            if spot_ticker_entry is not None and spot_ticker_entry.price is not None
+            else default_size
+        )  # pyright: ignore [reportUnnecessaryComparison]
+
+        # Determine quantities
         perp_quantity = default_size
         spot_quantity = default_size
+
         if sized_opportunity:
-            if opportunity.long_exchange == self.perp_exchange:
-                perp_size = sized_opportunity.long_size
-                spot_size = sized_opportunity.short_size
-            else:
-                perp_size = sized_opportunity.short_size
-                spot_size = sized_opportunity.long_size
-            perp_ticker = self.data_handler.get_ticker(self.perp_exchange, self.symbol)
-            spot_ticker = None
-            if spot_symbol is not None:
-                spot_ticker = self.data_handler.get_ticker(self.spot_exchange, spot_symbol)
-            perp_price = perp_ticker.close if perp_ticker is not None else default_size
-            spot_price = spot_ticker.close if spot_ticker is not None else default_size
-            perp_quantity = perp_size / perp_price if perp_price else default_size
-            spot_quantity = spot_size / spot_price if spot_price else default_size
+            # Use sized opportunity details if available
+            perp_size = (
+                sized_opportunity.long_size
+                if perp_side == OrderSide.BUY
+                else sized_opportunity.short_size
+            )
+            spot_size = (
+                sized_opportunity.short_size
+                if perp_side == OrderSide.BUY
+                else sized_opportunity.long_size
+            )
+
+            perp_quantity = (
+                perp_size / perp_price_entry if perp_price_entry > Decimal(0) else default_size
+            )
+            spot_quantity = (
+                spot_size / spot_price_entry if spot_price_entry > Decimal(0) else default_size
+            )
         else:
-            perp_ticker = self.data_handler.get_ticker(self.perp_exchange, self.symbol)
-            spot_ticker = None
-            if spot_symbol is not None:
-                spot_ticker = self.data_handler.get_ticker(self.spot_exchange, spot_symbol)
-            perp_price = perp_ticker.close if perp_ticker is not None else default_size
-            spot_price = spot_ticker.close if spot_ticker is not None else default_size
-        self.signals_generated += 1
-        self.last_signal_time = datetime.now(UTC)
-        opportunity_id = str(id(opportunity))
-        now = datetime.now(UTC)
-        signals = [
-            TradeSignal(
-                symbol=self.symbol,
-                signal_type=SignalType.ENTER_SHORT
-                if perp_side == OrderSide.SELL
-                else SignalType.ENTER_LONG,
-                side=perp_side,
-                price=perp_price,
-                quantity=perp_quantity,
-                timestamp=now,
-                metadata={
-                    "opportunity_id": opportunity_id,
-                    "leg": "perp",
-                    "net_funding_differential": opportunity.net_funding_differential,
-                    "expected_profit": opportunity.expected_profit,
-                    "position_sizing": {
-                        "long_size": getattr(sized_opportunity, "long_size", None),
-                        "short_size": getattr(sized_opportunity, "short_size", None),
-                        "allocation_percentage": getattr(
-                            sized_opportunity, "allocation_percentage", None
-                        ),
-                        "risk_adjusted_return": getattr(
-                            sized_opportunity, "risk_adjusted_return", None
-                        ),
-                    }
-                    if sized_opportunity
-                    else {},
-                },
-                signal_id=f"{self.name}_{self.signals_generated}_perp",
-            ),
-        ]
-        if spot_symbol is not None:
+            # Fallback if no sized_opportunity (should ideally not happen if risk_manager is used properly)
+            # For non-sized opportunity, perhaps use a default quantity or skip if prices are zero
+            if perp_price_entry <= Decimal(0) or spot_price_entry <= Decimal(0):  # pyright: ignore [reportUnnecessaryComparison]
+                logger.warning(
+                    "Prices for non-sized opportunity are zero/None or invalid, cannot determine quantity."
+                )
+                return []  # Return empty list if quantities can't be determined
+            # Simplified: use a nominal quantity based on opportunity target if not sized
+            # This part needs careful consideration for a real strategy.
+            # For now, we assume sizing is always done by risk manager if opportunity is pursued.
+            logger.warning(
+                f"No sized_opportunity for {opportunity.id}, using fallback quantities might be risky."
+            )
+            # Example fallback (not recommended for live trading without proper sizing logic):
+            # nominal_trade_value = Decimal("100") # e.g., $100 USD
+            # perp_quantity = nominal_trade_value / perp_price_entry if perp_price_entry > Decimal(0) else default_size
+            # spot_quantity = nominal_trade_value / spot_price_entry if spot_price_entry > Decimal(0) else default_size
+            return []  # For safety, do not proceed if not properly sized.
+
+        if perp_quantity > Decimal(0):
             signals.append(
                 TradeSignal(
-                    symbol=spot_symbol,
-                    signal_type=SignalType.ENTER_LONG if nfd > 0 else SignalType.ENTER_SHORT,
-                    side=OrderSide.BUY if nfd > 0 else OrderSide.SELL,
-                    price=spot_price,
-                    quantity=spot_quantity,
-                    timestamp=now,
+                    strategy_name=self.name,
+                    symbol=opportunity.symbol,  # This should be the exchange-specific symbol for perp_exchange_name
+                    exchange=perp_exchange_name,  # Use the correct exchange for this leg
+                    side=perp_side,
+                    price=opportunity.long_price
+                    if perp_side == OrderSide.BUY
+                    else opportunity.short_price,
+                    quantity=perp_quantity,
+                    signal_type=SignalType.ENTRY,
+                    timestamp=datetime.now(UTC),
+                    confidence=opportunity.confidence_score,  # Pass confidence
                     metadata={
-                        "opportunity_id": opportunity_id,
-                        "leg": "spot",
-                        "net_funding_differential": opportunity.net_funding_differential,
-                        "expected_profit": opportunity.expected_profit,
-                        "position_sizing": {
-                            "long_size": getattr(sized_opportunity, "long_size", None),
-                            "short_size": getattr(sized_opportunity, "short_size", None),
-                            "allocation_percentage": getattr(
-                                sized_opportunity, "allocation_percentage", None
-                            ),
-                            "risk_adjusted_return": getattr(
-                                sized_opportunity, "risk_adjusted_return", None
-                            ),
-                        }
-                        if sized_opportunity
-                        else {},
+                        "strategy_name": self.name,
+                        "opportunity_id": opportunity.id,
                     },
-                    signal_id=f"{self.name}_{self.signals_generated}_spot",
                 )
             )
+        if spot_quantity > Decimal(0):
+            # Map to spot symbol for the spot exchange signal
+            spot_symbol_for_signal = self.symbol_mapping.get(opportunity.symbol, opportunity.symbol)
+            signals.append(
+                TradeSignal(
+                    strategy_name=self.name,
+                    symbol=spot_symbol_for_signal,  # Use the mapped spot symbol
+                    exchange=spot_exchange_name,  # Use the correct exchange for this leg
+                    side=spot_side,
+                    price=opportunity.short_price
+                    if perp_side == OrderSide.BUY
+                    else opportunity.long_price,
+                    quantity=spot_quantity,
+                    signal_type=SignalType.ENTRY,
+                    timestamp=datetime.now(UTC),
+                    confidence=opportunity.confidence_score,  # Pass confidence
+                    metadata={
+                        "strategy_name": self.name,
+                        "opportunity_id": opportunity.id,
+                    },
+                )
+            )
+        self.signals_generated += len(signals)
         return signals
 
-    def _generate_rebalance_signal(self) -> list[TradeSignal]:
-        """
-        Generate trade signals for rebalancing positions (one per leg).
-        """
+    def _generate_rebalance_signal(
+        self, perp_ticker_live: Ticker | None, spot_ticker_live: Ticker | None
+    ) -> list[TradeSignal]:
+        """Generate rebalancing signals based on current positions and target delta."""
+        signals: list[TradeSignal] = []
+        if not self.portfolio_tracker:
+            logger.error(f"PortfolioTracker not set for {self.name}")
+            return signals
+
         perp_position = self.portfolio_tracker.get_position(self.perp_exchange, self.symbol)
         spot_symbol = self.symbol_mapping.get(self.symbol)
-        if spot_symbol is None:
-            return []
+        if not spot_symbol:
+            logger.error(f"Spot symbol not mapped for {self.symbol} in _generate_rebalance_signal")
+            return signals
         spot_position = self.portfolio_tracker.get_position(self.spot_exchange, spot_symbol)
-        perp_ticker = self.data_handler.get_ticker(self.perp_exchange, self.symbol)
-        spot_ticker = self.data_handler.get_ticker(self.spot_exchange, spot_symbol)
-        perp_price = perp_ticker.close if perp_ticker is not None else Decimal("1")
-        spot_price = spot_ticker.close if spot_ticker is not None else Decimal("1")
-        perp_value = abs(perp_position.size * perp_price) if perp_position else Decimal("0")
-        spot_value = abs(spot_position.size * spot_price) if spot_position else Decimal("0")
-        if perp_value == 0 or spot_value == 0:
-            target_value = Decimal("0")
+
+        if (
+            perp_ticker_live is None
+            or spot_ticker_live is None
+            or perp_ticker_live.price is None
+            or spot_ticker_live.price is None
+        ):  # pyright: ignore [reportUnnecessaryComparison]
+            logger.warning("Live ticker data unavailable for rebalance signal generation.")
+            return signals
+
+        perp_price_rebal = perp_ticker_live.price
+        spot_price_rebal = spot_ticker_live.price
+
+        # Check if positions are None before accessing .size
+        if perp_position is None or spot_position is None:
+            logger.warning("Perp or spot position is None, cannot rebalance.")
+            return signals
+        # Assuming DerivativePosition.size is Decimal (not Decimal | None)
+        # The original check also had: or perp_position.size is None or spot_position.size is None
+        # If .size can be None, that check needs to be here too.
+        # For now, assuming .size is non-optional if position object exists.
+
+        # Simplified rebalancing: aim for market-neutral by value
+        # Positive size = long, negative size = short
+        perp_value = perp_position.size * perp_price_rebal
+        spot_value = spot_position.size * spot_price_rebal
+        net_exposure = perp_value + spot_value
+
+        # If net exposure is significant, rebalance
+        # Example: rebalance if exposure is > 1% of the smaller leg's absolute value
+        # This threshold logic can be much more sophisticated
+        threshold_value = min(abs(perp_value), abs(spot_value)) * Decimal("0.01")
+        if threshold_value == Decimal(0) and net_exposure != Decimal(0):
+            logger.info(
+                f"Rebalance needed for {self.symbol} due to zero threshold and non-zero exposure: {net_exposure}"
+            )
+        elif abs(net_exposure) > threshold_value and threshold_value > Decimal(0):
+            logger.info(
+                f"Rebalance triggered for {self.symbol}. Net exposure: {net_exposure}, Threshold: {threshold_value}"
+            )
         else:
-            target_value = (abs(perp_value) + abs(spot_value)) / 2
-        perp_adjustment = target_value - abs(perp_value)
-        spot_adjustment = target_value - abs(spot_value)
-        perp_side = (
-            OrderSide.BUY
-            if (
-                perp_position
-                and (
-                    (perp_position.size > 0 and perp_adjustment > 0)
-                    or (perp_position.size < 0 and perp_adjustment < 0)
+            return signals  # No rebalancing needed
+
+        # Determine which leg to adjust and by how much (simplified)
+        # This logic assumes we want to bring net_exposure closer to zero.
+        # A more robust approach would consider transaction costs, minimum order sizes etc.
+
+        if abs(net_exposure) < Decimal("0.01"):  # Effectively zero, no rebalance needed
+            return signals
+
+        if net_exposure > Decimal(0):  # Net long, need to sell something or buy less
+            # Option 1: Sell some of the leg that made it net long (e.g. if perp_value is more positive)
+            # Option 2: Increase the short leg
+            # Simplified: Adjust the perpetual leg by the net exposure amount
+            if perp_position.size > 0:  # If perp is long, sell some
+                side = OrderSide.SELL
+                exchange_to_adjust = self.perp_exchange
+                symbol_to_adjust = self.symbol
+                price_to_use = perp_price_rebal
+            else:  # Perp is short, sell more of spot (if spot is long)
+                side = OrderSide.SELL
+                exchange_to_adjust = self.spot_exchange
+                symbol_to_adjust = spot_symbol
+                price_to_use = spot_price_rebal
+        else:  # Net short, need to buy something or sell less
+            if perp_position.size < 0:  # If perp is short, buy some back
+                side = OrderSide.BUY
+                exchange_to_adjust = self.perp_exchange
+                symbol_to_adjust = self.symbol
+                price_to_use = perp_price_rebal
+            else:  # Perp is long, buy more of spot (if spot is short)
+                side = OrderSide.BUY
+                exchange_to_adjust = self.spot_exchange
+                symbol_to_adjust = spot_symbol
+                price_to_use = spot_price_rebal
+
+        if price_to_use <= Decimal(0):  # pyright: ignore [reportUnnecessaryComparison]
+            logger.warning(
+                f"Price for rebalancing {symbol_to_adjust} is zero or None, cannot calculate quantity."
+            )
+            return signals
+
+        quantity_to_rebalance = abs(net_exposure) / price_to_use
+
+        if quantity_to_rebalance > Decimal("0"):  # Ensure non-zero quantity
+            signals.append(
+                TradeSignal(
+                    strategy_name=self.name,
+                    symbol=symbol_to_adjust,
+                    exchange=exchange_to_adjust,
+                    side=side,
+                    price=price_to_use,  # Use current market price for rebalance
+                    quantity=quantity_to_rebalance,
+                    signal_type=SignalType.REBALANCE,
+                    timestamp=datetime.now(UTC),
+                    # Confidence for rebalance might be different or not applicable
+                    confidence=1.0,  # MODIFIED: Decimal to float
+                    metadata={
+                        "strategy_name": self.name,
+                        "opportunity_id": "REBALANCE-" + datetime.now(UTC).isoformat(),
+                    },
                 )
             )
-            else OrderSide.SELL
-        )
-        spot_side = (
-            OrderSide.BUY
-            if (
-                spot_position
-                and (
-                    (spot_position.size > 0 and spot_adjustment > 0)
-                    or (spot_position.size < 0 and spot_adjustment < 0)
-                )
+            logger.info(
+                f"Generated rebalance signal: {side} {quantity_to_rebalance} {symbol_to_adjust} on {exchange_to_adjust}"
             )
-            else OrderSide.SELL
-        )
-        self.signals_generated += 1
-        self.last_signal_time = datetime.now(UTC)
-        now = datetime.now(UTC)
-        opportunity_id = f"rebalance_{int(now.timestamp() * 1e6)}"
-        signals = [
-            TradeSignal(
-                symbol=self.symbol,
-                signal_type=SignalType.REBALANCE,
-                side=perp_side,
-                price=perp_price,
-                quantity=abs(perp_adjustment) / perp_price if perp_price else Decimal("0"),
-                timestamp=now,
-                metadata={
-                    "opportunity_id": opportunity_id,
-                    "rebalance_reason": "delta_neutral_adjustment",
-                    "leg": "perp",
-                    "perp_value_before": perp_value,
-                    "spot_value_before": spot_value,
-                    "target_value": target_value,
-                },
-                signal_id=f"{self.name}_rebalance_{self.signals_generated}_perp",
-            ),
-            TradeSignal(
-                symbol=spot_symbol,
-                signal_type=SignalType.REBALANCE,
-                side=spot_side,
-                price=spot_price,
-                quantity=abs(spot_adjustment) / spot_price if spot_price else Decimal("0"),
-                timestamp=now,
-                metadata={
-                    "opportunity_id": opportunity_id,
-                    "rebalance_reason": "delta_neutral_adjustment",
-                    "leg": "spot",
-                    "perp_value_before": perp_value,
-                    "spot_value_before": spot_value,
-                    "target_value": target_value,
-                },
-                signal_id=f"{self.name}_rebalance_{self.signals_generated}_spot",
-            ),
-        ]
+
         return signals
 
     def on_start(self) -> None:
-        """Called when the strategy is started"""
-        logger.info(f"Starting funding rate arbitrage strategy '{self.name}'")
-        self.last_opportunity_check = None
-        self.active_opportunities = []
-        self.sized_opportunities = {}
+        """Called when the strategy is started."""
+        logger.info(f"Strategy {self.name} started for symbol {self.symbol}.")
+        # Potentially load historical data or prime initial state
 
     def on_stop(self) -> None:
-        """Called when the strategy is stopped"""
-        logger.info(f"Stopping funding rate arbitrage strategy '{self.name}'")
-        # Clean up any resources if needed
+        """Called when the strategy is stopped."""
+        logger.info(f"Strategy {self.name} stopped for symbol {self.symbol}.")
+        # Perform any cleanup, like cancelling open orders (if strategy manages them directly)

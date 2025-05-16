@@ -427,10 +427,10 @@ class ExecutionHandler:
         # The variables are initialized to `Decimal | None = None`.
         if base_asset_quantity_long is None or base_asset_quantity_short is None:  # type: ignore[redundant-expr]
             # This case should be covered by the above checks, but as a safeguard:
-            err_msg = f"Execution {execution.id}: Failed to calculate valid base asset quantities."
-            logger.error(err_msg)
-            execution.error_message = execution.error_message or err_msg
-            execution.status = ExecutionStatus.FAILED
+            err_msg = f"Execution {execution.id}: Failed to calculate valid base asset quantities."  # pyright: ignore [reportUnreachable]
+            logger.error(err_msg)  # pyright: ignore [reportUnreachable]
+            execution.error_message = execution.error_message or err_msg  # pyright: ignore [reportUnreachable]
+            execution.status = ExecutionStatus.FAILED  # pyright: ignore [reportUnreachable]
             return
 
         # --- Place Long Order ---
@@ -521,12 +521,12 @@ class ExecutionHandler:
             if self.circuit_breaker_system:
                 # Record success for both exchanges involved in the opportunity
                 self.circuit_breaker_system.record_api_success(
-                    opportunity.opportunity.long_exchange,
-                    context=f"Execution {execution.id} completed for long leg on {opportunity.opportunity.long_exchange}",
+                    opportunity.long_exchange,
+                    context=f"Execution {execution.id} completed for long leg on {opportunity.long_exchange}",
                 )
                 self.circuit_breaker_system.record_api_success(
-                    opportunity.opportunity.short_exchange,
-                    context=f"Execution {execution.id} completed for short leg on {opportunity.opportunity.short_exchange}",
+                    opportunity.short_exchange,
+                    context=f"Execution {execution.id} completed for short leg on {opportunity.short_exchange}",
                 )
 
     async def _handle_api_error(
