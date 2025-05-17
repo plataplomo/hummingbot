@@ -31,6 +31,12 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
     HyperliquidRawOrderStatusRequestPayload,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
+    HyperliquidRawL2BookRequestPayload,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
+    HyperliquidRawRecentTradesRequestPayload,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
     HyperliquidRawL2UsdTransferPayload,
     HyperliquidRawWithdrawalToL1ActionPayload,
@@ -58,6 +64,24 @@ class HyperliquidRequestBuilder:
         Returns None, representing no specific payload body.
         """
         return None
+
+    @staticmethod
+    def build_l2_book_request_payload(symbol: str) -> HyperliquidRawL2BookRequestPayload:
+        """
+        Builds the Pydantic model for fetching L2 order book data.
+        Payload: {"type": "l2Book", "coin": "SYMBOL"}
+        """
+        return HyperliquidRawL2BookRequestPayload(type="l2Book", coin=symbol.upper())
+
+    @staticmethod
+    def build_recent_trades_request_payload(
+        symbol: str,
+    ) -> HyperliquidRawRecentTradesRequestPayload:
+        """
+        Builds the Pydantic model for fetching recent public trades.
+        Payload: {"type": "recentTrades", "coin": "SYMBOL"}
+        """
+        return HyperliquidRawRecentTradesRequestPayload(type="recentTrades", coin=symbol.upper())
 
     @staticmethod
     def build_l2_usd_transfer_payload(

@@ -31,13 +31,13 @@ from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 from cyberdelta.apis.backpack.bp_response_handler import (
     BackpackResponseHandler,
-    RawJson,
     RawJsonResponse,
 )
 from cyberdelta.apis.backpack.bp_ws_raw_message_handler import BackpackWsRawMessageHandler
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
 from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
+from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
@@ -45,6 +45,7 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import (
     BackpackRawWithdrawalResponse,
 )
+from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
 from cyberdelta.apis.base.exchange_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.models.api_error import APIError
@@ -54,18 +55,14 @@ from cyberdelta.core.models import (
     FundingRate,
     MarginAccountSummary,
     SpotBalance,
-    Ticker,
     Trade,
 )
 from cyberdelta.core.models.enums import (
     OrderSide,
-    OrderStatus,
     OrderType,
     TimeInForce,
 )
-from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.market.order import Order
-from cyberdelta.core.models.market.order_book import OrderBook
 from cyberdelta.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -108,6 +105,8 @@ class BackpackAPI(ExchangeAPI):
 
         self._backpack_error_mapper = BackpackErrorMapper()
         self._bp_mapper = BackpackOrderMapper()
+        self._bp_response_handler = BackpackResponseHandler()
+        self._bp_request_builder = BackpackRequestBuilder()
 
         super().__init__(
             exchange_name="backpack",
@@ -115,6 +114,14 @@ class BackpackAPI(ExchangeAPI):
             secrets=secrets,
             authenticator=self._bp_authenticator,
             error_mapper=self._backpack_error_mapper,
+        )
+
+        self.market_data = BackpackMarketDataService(
+            http_client=self._http_client,
+            request_builder=self._bp_request_builder,
+            response_handler=self._bp_response_handler,
+            rate_limiter_service=self._rate_limiter_service,
+            exchange_name=self.exchange_name,
         )
 
         self.default_headers: dict[str, str] = {
@@ -289,59 +296,11 @@ class BackpackAPI(ExchangeAPI):
 
     # --- Core API Implementation --- #
 
-    async def get_ticker(self, symbol: str) -> Ticker:
+    async def get_ticker(self, symbol: str) -> BackpackRawTicker:
         """Fetches the latest ticker information for a specific symbol."""
-        endpoint = "/api/v1/ticker"
-        params = BackpackRequestBuilder.build_get_ticker_params(symbol=symbol)
-        response_data_raw: RawJsonResponse | None = None
-        try:
-            response_data_raw = await self._request("GET", endpoint, params=params)
+        return await self.market_data.get_ticker(symbol)
 
-            if not isinstance(response_data_raw, dict):
-                logger.error(
-                    f"[{self.exchange_name}] Unexpected ticker response format for "
-                    f"{symbol}: {type(response_data_raw)}"
-                )
-                # Use the new APIErrorCode.INVALID_RESPONSE
-                raise APIError(
-                    message=f"Unexpected ticker response format: {type(response_data_raw)}",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
-
-            # Validate using the handler
-            raw_ticker: BackpackRawTicker = BackpackResponseHandler.handle_get_ticker_response(
-                response_data_raw, symbol
-            )
-            # Transform using the instance mapper method
-            return self._bp_mapper.transform_raw_ticker_to_internal(
-                raw_ticker, symbol_override=symbol
-            )
-
-        except ValueError as e_transform:  # Catch ValueErrors from transform_raw_ticker_to_internal
-            logger.error(
-                f"[{self.exchange_name}] Ticker transformation failed for {symbol}: "
-                f"{e_transform}. Raw: {response_data_raw!r}"
-            )
-            raise APIError(
-                message=f"Failed to transform ticker data for {symbol}: {e_transform}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                original_exception=e_transform,
-            ) from e_transform
-        except APIError:  # Re-raise APIErrors directly (e.g., from _request)
-            raise
-        except Exception as e_unhandled:  # Catch any other unexpected errors
-            logger.error(
-                f"[{self.exchange_name}] Unhandled error fetching ticker for {symbol}: "
-                f"{e_unhandled}",
-                exc_info=True,
-            )
-            raise APIError(
-                message=f"Unexpected error processing ticker for {symbol}: {e_unhandled}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e_unhandled,
-            ) from e_unhandled
-
-    async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
+    async def get_order_book(self, symbol: str, depth: int = 20) -> BackpackRawOrderBook:
         """Fetch the order book for a symbol, validated via Raw model and transformed via Mapper.
 
         Args:
@@ -354,46 +313,11 @@ class BackpackAPI(ExchangeAPI):
         Raises:
             APIError: If the order book cannot be fetched or validated.
         """
-        endpoint = "/api/v1/depth"
-        params = BackpackRequestBuilder.build_get_order_book_params(symbol=symbol, limit=depth)
-        response_raw: RawJsonResponse | None = None
-        try:
-            response_raw = await self._request("GET", endpoint, params=params)
-            # Validate raw order book data using Pydantic model
-            validated_book: BackpackRawOrderBook = (
-                BackpackResponseHandler.handle_get_order_book_response(response_raw, symbol)
-            )
-            # Transform validated raw data to internal model using instance mapper
-            internal_book = self._bp_mapper.transform_raw_orderbook_to_internal(
-                symbol=symbol, raw=validated_book
-            )
-            # TODO: Apply depth limit if needed (Backpack provides full depth)
-            # For now, return the full book as mapped
-            return internal_book
-        except ValueError as e:  # Catches errors from transform method
-            logger.error(
-                f"[{self.exchange_name}] Order book transformation failed for {symbol}: {e}. "
-                f"Raw Data: {response_raw}"
-            )
-            raise APIError(
-                f"Order book transformation failed for {symbol}: {e}",
-                code=APIErrorCode.UNKNOWN.value,
-            ) from e
-        except APIError as e:
-            logger.error(f"[{self.exchange_name}] API Error getting order book for {symbol}: {e}")
-            raise e
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error in get_order_book: {e}", exc_info=True
-            )
-            # Re-raise as a generic APIError
-            raise APIError(
-                f"Unexpected error fetching order book for {symbol}: {e}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
+        return await self.market_data.get_order_book(symbol, depth)
 
-    async def get_recent_trades(self, symbol: str, limit: int | None = 50) -> list[Trade]:
+    async def get_recent_trades(
+        self, symbol: str, limit: int | None = 50
+    ) -> list[BackpackRawTrade]:
         """
         Get recent trades for a symbol, mapping all required fields for the Trade model.
 
@@ -404,68 +328,7 @@ class BackpackAPI(ExchangeAPI):
         Returns:
             List of Trade objects
         """
-        endpoint = "/api/v1/trades"
-        params = BackpackRequestBuilder.build_get_recent_trades_params(symbol=symbol, limit=limit)
-        try:
-            response_raw: RawJsonResponse = await self._request("GET", endpoint, params=params)
-
-            # DEFENSIVE CHECK: Runtime check before processing
-            if not isinstance(response_raw, list):
-                logger.warning(
-                    f"[{self.exchange_name}] Unexpected trades response type: "
-                    f"{type(response_raw)}. Expected list. Returning empty list."
-                )
-                return []
-
-            # Validate using the handler (handles list structure and item validation)
-            validated_trades: list[BackpackRawTrade] = (
-                BackpackResponseHandler.handle_get_recent_trades_response(response_raw, symbol)
-            )
-
-            # Transformation logic remains here
-            trades: list[Trade] = []
-            for raw_trade in validated_trades:
-                try:
-                    # Transform validated raw trade to internal Trade using instance mapper
-                    internal_trade = self._bp_mapper.transform_raw_trade_to_internal(raw=raw_trade)
-
-                    # Append only if transformation succeeded (returned Trade, not None)
-                    if internal_trade:
-                        trades.append(internal_trade)
-
-                except ValidationError as e:
-                    logger.warning(
-                        f"[{self.exchange_name}] Skipping trade due to validation error: {e}. "
-                        f"Data: {raw_trade.model_dump_json()}"
-                    )
-                    continue
-                except ValueError as e:
-                    logger.warning(
-                        f"[{self.exchange_name}] Skipping trade due to transformation error: {e}. "
-                        f"Raw Data: {raw_trade.model_dump_json()}"
-                    )
-                    continue
-                except Exception as e:
-                    logger.error(
-                        f"[{self.exchange_name}] Unexpected error processing trade: {e}. "
-                        f"Data: {raw_trade.model_dump_json()}",
-                        exc_info=True,
-                    )
-                    continue
-            return trades
-        except APIError as e:
-            logger.error(
-                f"[{self.exchange_name}] API Error getting recent trades for {symbol}: {e}"
-            )
-            raise e
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error in get_recent_trades: {e}", exc_info=True
-            )
-            # Let _request handle mapping via overridden _map_error_response
-            raise APIError(
-                f"Unexpected error getting recent trades: {e}", code=APIErrorCode.UNKNOWN.value
-            ) from e
+        return await self.market_data.get_recent_trades(symbol, limit)
 
     async def get_balances(self) -> dict[str, SpotBalance]:
         """Get account balances, validated via Raw models and transformed via Mapper."""
@@ -723,125 +586,37 @@ class BackpackAPI(ExchangeAPI):
             ) from e
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
-        request_path = "/api/v1/orders"
+        """Get open orders, mapping all required fields."""
+        endpoint = "/api/v1/orders"
         params = BackpackRequestBuilder.build_get_open_orders_params(symbol=symbol)
-        try:
-            response = await self._request("GET", request_path, params=params, is_signed=True)
-            response_raw: RawJsonResponse = await self._request(
-                "GET", request_path, params=params, is_signed=True
-            )
-            orders: list[Order] = []
-            if not isinstance(response, list):
+        response_data_raw: RawJsonResponse = await self._request(
+            method="GET", endpoint=endpoint, params=params, is_signed=True
+        )
+
+        # Validate using the handler
+        raw_orders: list[BackpackRawOrder] = (
+            BackpackResponseHandler.handle_get_open_orders_response(response_data_raw, symbol)
+        )
+
+        # Transformation logic remains here
+        orders: list[Order] = []
+        for raw_order in raw_orders:
+            try:
+                # Transform validated raw order to internal Order using instance mapper
+                internal_order = self._bp_mapper.transform_raw_order_to_internal(raw=raw_order)
+                if internal_order:
+                    orders.append(internal_order)
+            except Exception as e:
                 logger.warning(
-                    f"[{self.exchange_name}] Unexpected open orders response type: {type(response)}"
+                    f"[{self.exchange_name}] Skipping order due to transformation error: {e}. "
+                    f"Data: {raw_order.model_dump_json()}"
                 )
-                return []
-            # Validate using the handler
-            validated_orders: list[BackpackRawOrder] = (
-                BackpackResponseHandler.handle_get_open_orders_response(response_raw, symbol)
-            )
-            for raw_order in validated_orders:
-                try:
-                    internal_order: Order = self._bp_mapper.transform_raw_order_to_internal(
-                        raw_order
-                    )
-                    if internal_order.status in [
-                        OrderStatus.NEW,
-                        OrderStatus.OPEN,
-                        OrderStatus.PARTIALLY_FILLED,
-                    ]:
-                        orders.append(internal_order)
-                except ValidationError as e:
-                    msg = (
-                        f"[{self.exchange_name}] Skipping order due to "
-                        f"Pydantic validation error: {e}. "
-                        f"Data: {raw_order.model_dump_json()}"
-                    )
-                    logger.warning(msg)
-                except APIError as e:
-                    msg = (
-                        f"[{self.exchange_name}] Skipping order due to "
-                        f"transformation error: {e}. "
-                        f"Data: {raw_order.model_dump_json()}"
-                    )
-                    logger.warning(msg)
-                except Exception as e:
-                    logger.error(
-                        f"[{self.exchange_name}] Unexpected error processing single order: {e}",
-                        exc_info=True,
-                    )
-            return orders
-        except APIError as e:
-            logger.error(f"[{self.exchange_name}] API Error getting open orders: {e}")
-            raise e
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error in get_open_orders: {e}", exc_info=True
-            )
-            raise APIError(
-                f"Failed to get open orders: {e}", code=APIErrorCode.UNKNOWN.value
-            ) from e
+                continue
+        return orders
 
-    async def get_funding_rate(self, symbol: str) -> FundingRate:
+    async def get_funding_rate(self, symbol: str) -> BackpackRawFundingRate:
         """Fetches the current funding rate for a given perpetual market."""
-        endpoint = f"/api/v1/markets/{BackpackRequestBuilder.format_symbol(symbol)}/funding"
-        params = BackpackRequestBuilder.build_get_funding_rate_params(symbol=symbol)  # Returns {}
-        response_raw: RawJsonResponse | None = None
-        try:
-            response_raw = await self._request(method="GET", endpoint=endpoint, params=params)
-            if not isinstance(response_raw, dict):
-                logger.error(
-                    f"[{self.exchange_name}] Unexpected funding rate response format for "
-                    f"{symbol}: {type(response_raw)}"
-                )
-                # Use the new APIErrorCode.INVALID_RESPONSE
-                raise APIError(
-                    message=f"Unexpected funding rate response format: {type(response_raw)}",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
-
-            # Validate with BackpackRawFundingRate
-            raw_funding_rate: BackpackRawFundingRate = (
-                BackpackResponseHandler.handle_get_funding_rate_response(response_raw, symbol)
-            )
-            # Transform using the instance mapper method
-            return self._bp_mapper.transform_raw_funding_rate_to_internal(raw_funding_rate)
-
-        except ValidationError as e_val:
-            logger.error(
-                f"[{self.exchange_name}] Funding rate validation failed for {symbol}: "
-                f"{e_val}. Raw: {response_raw!r}"
-            )
-            raise APIError(
-                message=f"Invalid funding rate data from exchange for {symbol}: {e_val}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                original_exception=e_val,
-            ) from e_val
-        except (
-            ValueError
-        ) as e_transform:  # Catch ValueErrors from transform_raw_funding_rate_to_internal
-            logger.error(
-                f"[{self.exchange_name}] Funding rate transformation failed for {symbol}: "
-                f"{e_transform}. Raw: {response_raw!r}"
-            )
-            raise APIError(
-                message=f"Failed to transform funding rate data for {symbol}: {e_transform}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                original_exception=e_transform,
-            ) from e_transform
-        except APIError:  # Re-raise APIErrors directly (e.g., from _request)
-            raise
-        except Exception as e_unhandled:  # Catch any other unexpected errors
-            logger.error(
-                f"[{self.exchange_name}] Unhandled error fetching funding rate for "
-                f"{symbol}: {e_unhandled}",
-                exc_info=True,
-            )
-            raise APIError(
-                message=f"Unexpected error processing funding rate for {symbol}: {e_unhandled}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e_unhandled,
-            ) from e_unhandled
+        return await self.market_data.get_funding_rate(symbol)
 
     # --- Placeholder for required abstract method --- #
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
@@ -1498,57 +1273,11 @@ class BackpackAPI(ExchangeAPI):
         logger.info(f"[{self.exchange_name}] Resubscribe called. Delegating to base.")
         await super()._resubscribe()
 
-    async def get_market_data(self, symbol: str, timeframe: str, limit: int = 100) -> list[Candle]:
+    async def get_market_data(
+        self, symbol: str, timeframe: str, limit: int = 100
+    ) -> list[BackpackRawKline]:
         """Fetch historical market data (OHLCV/Kline) for a specific symbol and timeframe."""
-        endpoint = "/api/v1/klines"
-        params = BackpackRequestBuilder.build_get_market_data_params(
-            symbol=symbol,
-            timeframe_str=timeframe,
-            start_time_ms=None,
-            end_time_ms=None,
-            limit=limit,
-        )
-        try:
-            response_data: Any = await self._request(method="GET", endpoint=endpoint, params=params)
-            # Validate using the handler (returns raw list if structure valid)
-            validated_kline_list: list[RawJson] = (
-                BackpackResponseHandler.handle_get_market_data_response(
-                    response_data, symbol, timeframe
-                )
-            )
-
-            # Transformation logic (placeholder) remains here
-            if validated_kline_list:
-                # Placeholder: Need actual mapping logic here
-                # candles = [Candle(...) for item in response_data]
-                # return candles
-                logger.warning(
-                    f"[{self.exchange_name}] Market data mapping not fully implemented "
-                    f"for Backpack."
-                )
-                # Returning [] for now to satisfy list[Candle] return type until implemented
-                # return response_data # This caused the Mypy error [no-any-return]
-                return []  # Return empty list matching the required type
-            else:
-                logger.error(
-                    f"[{self.exchange_name}] Unexpected market data response type: "
-                    f"{type(response_data)}"
-                )
-                return []  # Return empty list on unexpected type
-
-        except APIError as e:
-            logger.error(f"[{self.exchange_name}] API Error getting market data: {e}")
-            raise e
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error in get_market_data: {e}",
-                exc_info=True,
-            )
-            raise APIError(
-                f"Error getting market data for {symbol}: {e}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
+        return await self.market_data.get_market_data(symbol, timeframe, limit)
 
     async def get_historical_trades(
         self, symbol: str, limit: int = 100, from_id: str | None = None
