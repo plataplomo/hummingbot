@@ -504,9 +504,37 @@ class BackpackRequestBuilder:
             return {"symbol": BackpackRequestBuilder.format_symbol(symbol)}
         return None  # No params means all, if API supports that for DELETE /orders
 
-    # get_order_status, get_order methods in BackpackAPI use GET with path parameters
-    # (e.g., /api/v1/orders/{orderIdOrClientId}).
-    # So, the builder would return None or {} for params for these.
+    @staticmethod
+    def build_internal_transfer_payload(
+        asset_symbol: str,
+        amount_str: str,  # Quantity as string
+        from_account: str,  # e.g., "SPOT", "MARGIN", "FUTURES"
+        to_account: str,  # e.g., "SPOT", "MARGIN", "FUTURES"
+        client_transfer_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Builds the payload for an internal capital transfer.
+
+        Args:
+            asset_symbol: The symbol of the asset to transfer (e.g., "USDC").
+            amount_str: The quantity of the asset to transfer, as a string.
+            from_account: The source account type.
+            to_account: The destination account type.
+            client_transfer_id: Optional client-provided ID for the transfer.
+
+        Returns:
+            dict[str, Any]: The request payload dictionary.
+        """
+        payload: dict[str, Any] = {
+            "symbol": BackpackRequestBuilder.format_symbol(asset_symbol),
+            "quantity": amount_str,
+            "fromAccount": from_account,
+            "toAccount": to_account,
+        }
+        if client_transfer_id:
+            payload["clientId"] = client_transfer_id
+        return payload
+
     @staticmethod
     def build_get_order_params() -> dict[str, Any] | None:
         """GET /api/v1/orders/{orderIdOrClientId} - no query params or body."""

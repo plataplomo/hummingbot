@@ -426,37 +426,81 @@ class BackpackAccountService:
     ) -> RawJsonResponse:
         """Initiates a transfer between account types on Backpack (RAW response).
 
-        Note: This method is a placeholder as the exact Backpack API endpoint and
-        request/response structure for transfers needs to be confirmed from their
-        official documentation or OpenAPI spec if available. The response handler
-        for this would also need to be defined.
-
         Args:
-            asset: The asset to transfer.
+            asset: The asset to transfer (e.g., "USDC").
             amount: The amount to transfer.
-            from_account_type: Source account type.
-            to_account_type: Destination account type.
+            from_account_type: Source account type (e.g., "SPOT").
+            to_account_type: Destination account type (e.g., "FUTURES").
             client_transfer_id: Optional client-provided ID.
 
         Returns:
-            The raw JSON response from the server, or raises NotImplementedError.
+            The raw JSON response from the server.
 
         Raises:
-            NotImplementedError: This functionality is not yet fully defined for Backpack.
+            APIError: If the request fails or the response is invalid.
         """
-        logger.warning(
-            f"[{self._exchange_name}] transfer_raw called but is not fully implemented for Backpack."
+        endpoint = "/wapi/v1/capital/transfer/internal"  # Confirmed endpoint
+        logger.info(
+            f"[{self._exchange_name}] Initiating raw transfer: {amount} {asset} "
+            f"from {from_account_type} to {to_account_type}"
         )
-        # Placeholder logic - actual endpoint, params, response handling TBD
-        # params = self._request_builder.build_transfer_params(...)
-        # response_data_raw, _, _ = await self._http_client_requester(
-        #     method="POST", endpoint_path="/api/v1/transfer", data=params, is_signed=True
-        # )
-        # raw_response = self._response_handler.handle_transfer_response(response_data_raw)
-        # return raw_response
-        raise NotImplementedError(
-            "Backpack transfer_raw functionality is not yet implemented/defined."
+
+        payload = self._request_builder.build_internal_transfer_payload(
+            asset_symbol=asset,
+            amount_str=str(amount),
+            from_account=from_account_type,
+            to_account=to_account_type,
+            client_transfer_id=client_transfer_id,
         )
+        response_data_raw: RawJsonResponse | None = None
+        try:
+            response_data_raw, _, _ = await self._http_client_requester(
+                method="POST",
+                endpoint_path=endpoint,
+                data=payload,
+                authenticator=self._authenticator,
+                rate_limiter_service=self._rate_limiter_service,
+                is_signed=True,
+            )
+
+            if response_data_raw is None:
+                logger.warning(
+                    f"[{self._exchange_name}] Transfer response was None for {amount} {asset}."
+                )
+                raise APIError(
+                    message="No response data received for transfer request.",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                )
+
+            # For transfers, Backpack might return a simple confirmation or an ID.
+            # The response_handler might have a specific handle_transfer_response or a generic one.
+            # If a specific handler exists and validates to a Pydantic model, use it:
+            # Example: return self._response_handler.handle_transfer_response(response_data_raw)
+            # If not, and the response is just JSON, return it directly as RawJsonResponse.
+            return response_data_raw  # Assuming it's JSON compatible as per RawJsonResponse
+
+        except APIError:  # Re-raise APIErrors from http_client_requester
+            raise
+        except ValidationError as e_val:  # If a handler were used and caused validation error
+            logger.error(
+                f"[{self._exchange_name}] Transfer response validation failed: {e_val}. "
+                f"Raw: {response_data_raw!r}"
+            )
+            raise APIError(
+                message=f"Transfer response validation failed: {e_val}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                original_exception=e_val,
+            ) from e_val
+        except Exception as e_unhandled:
+            logger.error(
+                f"[{self._exchange_name}] Unexpected error in transfer_raw: {e_unhandled}",
+                exc_info=True,
+            )
+            raise APIError(
+                message=f"Unexpected error processing transfer: {e_unhandled}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e_unhandled,
+            ) from e_unhandled
 
     async def withdraw_raw(
         self,
