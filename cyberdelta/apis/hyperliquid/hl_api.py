@@ -48,6 +48,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRaw
 # Import HyperliquidRawL2Book
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import HyperliquidRawUserFillsResponse
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawClearinghouseState
+
+# ADDED IMPORT FOR ACCOUNT SERVICE
+from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -81,6 +84,8 @@ class HyperliquidAPI(ExchangeAPI):
     INFO_URL = "https://info.hyperliquid.xyz"
     WS_URL = "wss://api.hyperliquid.xyz/ws"
     CHAIN_ID = 1337
+
+    account_service: HyperliquidAccountService
 
     def __init__(self, api_config: dict[str, Any], secrets: dict[str, str | None]) -> None:
         """
@@ -139,6 +144,17 @@ class HyperliquidAPI(ExchangeAPI):
             secrets=secrets,
             authenticator=self._hl_authenticator,
             error_mapper=self._hyperliquid_error_mapper,
+        )
+
+        self.account_service = HyperliquidAccountService(
+            http_client_requester=self._request,
+            request_builder=self._hl_request_builder,
+            response_handler=self._hl_response_handler,
+            authenticator=self._hl_authenticator,
+            rate_limiter_service=self._rate_limiter_service,
+            exchange_name=self.exchange_name,
+            info_url_base=self.INFO_URL,
+            wallet_address=self._wallet_address,
         )
 
         # Create HttpClientConfig for the INFO_URL client
@@ -637,34 +653,30 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def get_balances(self) -> dict[str, SpotBalance]:
         """Get account balances."""
-        if not self._wallet_address:
+        if not self._wallet_address:  # Keep pre-condition check for clarity if service relies on it
             raise APIError(
                 "Wallet address required for get_balances.",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
         try:
-            request_payload_data = HyperliquidRequestBuilder.build_info_request_payload()
-            response: object = await self._request(
-                "POST",
-                f"{self.INFO_URL.rstrip('/')}/info",
-                data=request_payload_data,  # This is already None or dict
+            # Delegate to service to get raw data
+            raw_clearinghouse_state: HyperliquidRawClearinghouseState = (
+                await self.account_service.get_balances_raw()
             )
-            validated_state: HyperliquidRawClearinghouseState = (
-                HyperliquidResponseHandler.handle_info_user_state_response(
-                    cast(RawJsonResponse, response), self._wallet_address
-                )
+            # Transform raw data to internal domain model
+            return self._hl_mapper.map_raw_clearinghouse_state_to_spot_balances(
+                raw_clearinghouse_state
             )
-            return self._hl_mapper.map_raw_clearinghouse_state_to_spot_balances(validated_state)
         except ValidationError as e:
             logger.error(
-                f"[{self.exchange_name}] Error validating clearinghouseState for balances: {e}"
+                f"[{self.exchange_name}] Error validating/mapping clearinghouseState for balances: {e}"
             )
             raise APIError(
-                f"Failed to validate balance data structure: {e}",
+                f"Failed to validate/map balance data structure: {e}",
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e,
             ) from e
-        except APIError:
+        except APIError:  # Re-raise APIErrors from service or mapper
             raise
         except Exception as e:
             logger.error(
@@ -678,25 +690,19 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         """Get current positions."""
-        if not self._wallet_address:
+        if not self._wallet_address:  # Keep pre-condition check
             raise APIError(
                 "Wallet address required for get_positions.",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
         try:
-            request_payload_data = HyperliquidRequestBuilder.build_info_request_payload()
-            response: object = await self._request(
-                "POST",
-                f"{self.INFO_URL.rstrip('/')}/info",
-                data=request_payload_data,  # This is already None or dict
+            # Delegate to service to get raw data
+            raw_clearinghouse_state: HyperliquidRawClearinghouseState = (
+                await self.account_service.get_positions_raw()
             )
-            validated_state: HyperliquidRawClearinghouseState = (
-                HyperliquidResponseHandler.handle_info_user_state_response(
-                    cast(RawJsonResponse, response), self._wallet_address
-                )
-            )
+            # Transform raw data to internal domain model
             positions_dict = self._hl_mapper.map_raw_clearinghouse_state_to_derivative_positions(
-                validated_state
+                raw_clearinghouse_state
             )
             positions_list: list[DerivativePosition] = list(positions_dict.values())
             if symbol:
@@ -711,7 +717,7 @@ class HyperliquidAPI(ExchangeAPI):
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e,
             ) from e
-        except APIError:
+        except APIError:  # Re-raise APIErrors from service or mapper
             raise
         except Exception as e:
             logger.error(
@@ -719,31 +725,25 @@ class HyperliquidAPI(ExchangeAPI):
             )
             raise APIError(
                 f"Unexpected error getting positions: {e}",
-                code=APIErrorCode.SERVER_ERROR.value,
+                code=APIErrorCode.SERVER_ERROR.value,  # Or UNKNOWN
                 original_exception=e,
             ) from e
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Get open orders."""
-        if not self._wallet_address:
+        if not self._wallet_address:  # Keep pre-condition check
             raise APIError(
                 "Wallet address required for get_open_orders.",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
         try:
-            request_payload_data = HyperliquidRequestBuilder.build_info_request_payload()
-            response: object = await self._request(
-                "POST",
-                f"{self.INFO_URL.rstrip('/')}/info",
-                data=request_payload_data,  # This is already None or dict
+            # Delegate to service to get raw data
+            raw_open_orders_response: HyperliquidRawOpenOrdersResponse = (
+                await self.account_service.get_open_orders_raw()
             )
-            validated_response_wrapper: HyperliquidRawOpenOrdersResponse = (
-                HyperliquidResponseHandler.handle_info_open_orders_response(
-                    cast(RawJsonResponse, response), self._wallet_address
-                )
-            )
+            # Transform raw data to internal domain model
             open_orders: list[Order] = []
-            for order_obj in validated_response_wrapper.items:
+            for order_obj in raw_open_orders_response.items:
                 order_data = order_obj.order
                 trigger_info = order_obj.trigger
                 order_symbol: str = order_data.asset
@@ -758,13 +758,13 @@ class HyperliquidAPI(ExchangeAPI):
                     ]:
                         open_orders.append(mapped_order)
             return open_orders
-        except APIError:
+        except APIError:  # Re-raise APIErrors from service or mapper
             raise
         except Exception as e:
             logger.error(f"[{self.exchange_name}] Error getting open orders: {e}", exc_info=True)
             raise APIError(
                 f"Failed to get open orders: {e}",
-                code=APIErrorCode.SERVER_ERROR.value,
+                code=APIErrorCode.SERVER_ERROR.value,  # Or UNKNOWN
                 original_exception=e,
             ) from e
 
@@ -807,7 +807,10 @@ class HyperliquidAPI(ExchangeAPI):
     async def transfer(
         self, asset: str, amount: Decimal, from_account: str, to_account: str
     ) -> dict[str, Any]:
-        """Initiates an L2 USDC transfer on Hyperliquid."""
+        """Initiates an L2 USDC transfer on Hyperliquid.
+        `from_account` is ignored as Hyperliquid L2 transfers are from the main account.
+        Returns the raw exchange response, which is typically a dict.
+        """
         if asset.upper() != "USDC":
             raise ValueError("Hyperliquid L2 transfers are currently only supported for USDC.")
         if not to_account:
@@ -815,63 +818,49 @@ class HyperliquidAPI(ExchangeAPI):
                 "Destination address (to_account) is required for Hyperliquid L2 transfer."
             )
 
-        request_model = HyperliquidRequestBuilder.build_l2_usd_transfer_payload(
-            destination_address=to_account, amount=amount
-        )
-        request_data_dict = request_model.model_dump(by_alias=True, exclude_none=True)
-
-        response_raw: object = None
+        response_raw_model: HyperliquidRawExchangeResponse | None = None
         try:
-            response_raw = await self._request(
-                "POST", "/exchange", data=request_data_dict, is_signed=True
-            )
-            validated_response: HyperliquidRawExchangeResponse = (
-                HyperliquidResponseHandler.handle_exchange_response(response_raw, "L2 Transfer")
+            # Delegate to service
+            response_raw_model = await self.account_service.transfer_raw(
+                asset=asset, amount=amount, to_account=to_account
             )
 
-            if not validated_response.data or not validated_response.data.statuses:
+            if (
+                not response_raw_model
+                or not response_raw_model.data
+                or not response_raw_model.data.statuses
+            ):
                 logger.warning(
-                    f"[{self.exchange_name}] L2 Transfer response 'ok' but data or statuses "
-                    f"list is missing/empty. Raw: {response_raw!r}"
+                    f"[{self.exchange_name}] L2 Transfer response 'ok' via service, but data or "
+                    f"statuses list is missing/empty. Raw: {response_raw_model!r}"
                 )
                 raise APIError(
                     "L2 Transfer 'ok' but no status details returned.",
                     code=APIErrorCode.UNKNOWN.value,
                 )
 
-            first_status_obj_raw = validated_response.data.statuses[0]
+            first_status_obj_raw = response_raw_model.data.statuses[0]
             error_to_raise_from_status: APIError | None = None
 
-            # Prepare argument for the handler
             arg_for_handler: dict[str, Any] | str
             if isinstance(first_status_obj_raw, str):
                 arg_for_handler = first_status_obj_raw
             elif isinstance(first_status_obj_raw, HyperliquidRawExchangeStatusObject):  # pyright: ignore[reportUnnecessaryIsInstance]
-                # first_status_obj_raw is now known to be HyperliquidRawExchangeStatusObject
-                # The handler expects a raw dict for validation if it's not a string
                 arg_for_handler = first_status_obj_raw.model_dump(by_alias=True, exclude_none=True)
             else:
-                # This path should be theoretically unreachable due to the Union type of
-                # first_status_obj_raw: RawStatusStringHL | HyperliquidRawExchangeStatusObject
-                # and Pydantic validation of HyperliquidRawExchangeResponse.
-                # Adding this to satisfy linters about arg_for_handler potentially being unbound.
                 err_msg = (  # type: ignore[unreachable]
                     f"[{self.exchange_name}] Unexpected type for first_status_obj_raw in Transfer: "
                     f"{type(first_status_obj_raw)}. Raw: {first_status_obj_raw!r}. "
                     f"Indicates flaw in Pydantic validation or unexpected API response."
                 )
                 logger.critical(err_msg)
-                raise RuntimeError(err_msg)  # Should not happen
+                raise RuntimeError(err_msg)
 
             processed_status = HyperliquidResponseHandler.process_first_exchange_status(
                 arg_for_handler, "L2 Transfer"
             )
 
             if isinstance(processed_status, HyperliquidSuccessfulOrderStatus):
-                # For L2 Transfer, we typically expect a generic success or specific info.
-                # HyperliquidSuccessfulOrderStatus is primarily for order states.
-                # If status_type is 'canceled_str', it implies the raw input was a benign string
-                # like "canceled", which might be an acceptable non-error status for some actions.
                 if processed_status.status_type == "canceled_str":
                     logger.info(
                         f"[{self.exchange_name}] L2 Transfer received benign status: "
@@ -882,22 +871,12 @@ class HyperliquidAPI(ExchangeAPI):
                         "status": "success_with_info",
                         "data": f"Status: {processed_status.status_type}",
                     }
-
-                # Other HyperliquidSuccessfulOrderStatus types (resting, filled, oid-based canceled)
-                # are generally not expected for L2 Transfer. If process_first_exchange_status
-                # mapped the raw L2 transfer success to one of these, it might be unexpected.
-                # However, any non-error HyperliquidSuccessfulOrderStatus is
-                # treated as success here.
                 logger.info(
                     f"[{self.exchange_name}] L2 Transfer appears successful. Processed status: "
                     f"{processed_status.model_dump_json(exclude_none=True)!r}"
                 )
                 return {"status": "success", "data": processed_status.model_dump(exclude_none=True)}
-
-            # If not HyperliquidSuccessfulOrderStatus, it must be HyperliquidErrorStatus
-            # assuming process_first_exchange_status strictly returns one of these two types.
-            else:
-                # processed_status is now known to be HyperliquidErrorStatus
+            else:  # HyperliquidErrorStatus
                 logger.warning(
                     f"[{self.exchange_name}] L2 Transfer failed with error: "
                     f"{processed_status.message}"
@@ -907,14 +886,10 @@ class HyperliquidAPI(ExchangeAPI):
                     http_status=200,  # Assuming 200 OK if we got this far
                 )
 
-            # If error_to_raise_from_status was set in the HyperliquidErrorStatus branch
             if error_to_raise_from_status:
                 raise error_to_raise_from_status
 
-            # Fallback: This should ideally not be reached if the logic for
-            # HyperliquidSuccessfulOrderStatus and HyperliquidErrorStatus is exhaustive
-            # and process_first_exchange_status is robust.
-            # If it is reached, it means processed_status was neither of the expected types OR
+            # Fallback: This should ideally not be reached
             logger.warning(
                 f"[{self.exchange_name}] L2 Transfer status unclear after processing logic. "
                 f"Processed: {processed_status!r}. Raw response used for handler: "
@@ -925,15 +900,15 @@ class HyperliquidAPI(ExchangeAPI):
                 code=APIErrorCode.UNKNOWN.value,
             )
 
-        except ValidationError as e:
+        except ValidationError as e:  # Should be caught by service ideally
             logger.error(
-                f"[{self.exchange_name}] Failed to validate L2 transfer response: {e}. "
-                f"Raw: {response_raw!r}"
+                f"[{self.exchange_name}] Failed to validate L2 transfer response (service error?): {e}. "
+                f"Raw from service: {response_raw_model!r}"
             )
             raise APIError(
                 f"Invalid response after L2 transfer: {e}", code=APIErrorCode.UNKNOWN.value
             ) from e
-        except APIError:
+        except APIError:  # Re-raise APIErrors from service
             raise
         except Exception as e:
             logger.error(
@@ -948,35 +923,35 @@ class HyperliquidAPI(ExchangeAPI):
     async def withdraw(
         self, asset: str, amount: Decimal, address: str, network: str | None = None
     ) -> dict[str, Any]:
-        """Initiates a withdrawal to L1 on Hyperliquid."""
+        """Initiates a withdrawal to L1 on Hyperliquid.
+        Returns the raw exchange response, which is typically a dict.
+        `network` parameter is not used by Hyperliquid for withdrawals.
+        """
         if not address:
             raise ValueError("Destination address is required for withdrawal.")
 
-        request_model = HyperliquidRequestBuilder.build_withdrawal_payload(
-            asset=asset, amount=amount, destination_address=address
-        )
-        request_data_dict = request_model.model_dump(by_alias=True, exclude_none=True)
-
-        response_raw: object = None
+        response_raw_model: HyperliquidRawExchangeResponse | None = None
         try:
-            response_raw = await self._request(
-                "POST", "/exchange", data=request_data_dict, is_signed=True
-            )
-            validated_response: HyperliquidRawExchangeResponse = (
-                HyperliquidResponseHandler.handle_exchange_response(response_raw, "Withdrawal")
+            # Delegate to service
+            response_raw_model = await self.account_service.withdraw_raw(
+                asset=asset, amount=amount, address=address
             )
 
-            if not validated_response.data or not validated_response.data.statuses:
+            if (
+                not response_raw_model
+                or not response_raw_model.data
+                or not response_raw_model.data.statuses
+            ):
                 logger.warning(
-                    f"[{self.exchange_name}] Withdraw response 'ok' but data or statuses list "
-                    f"is missing/empty. Raw: {response_raw!r}"
+                    f"[{self.exchange_name}] Withdraw response 'ok' via service but data or statuses "
+                    f"list is missing/empty. Raw: {response_raw_model!r}"
                 )
                 raise APIError(
                     "Withdrawal status unclear: 'ok' but no status details provided.",
                     code=APIErrorCode.EXCHANGE_SPECIFIC.value,
                 )
 
-            first_status_obj_raw = validated_response.data.statuses[0]
+            first_status_obj_raw = response_raw_model.data.statuses[0]
             if isinstance(first_status_obj_raw, str):
                 if "error" in first_status_obj_raw.lower():
                     logger.warning(
@@ -996,7 +971,7 @@ class HyperliquidAPI(ExchangeAPI):
                     "message": first_status_obj_raw,
                     "tx_hash": None,
                 }
-            else:
+            else:  # HyperliquidRawExchangeStatusObject
                 status_object = first_status_obj_raw
                 if status_object.error:
                     logger.warning(f"[{self.exchange_name}] Withdraw failed: {status_object.error}")
@@ -1012,7 +987,7 @@ class HyperliquidAPI(ExchangeAPI):
                         f"TxHash: {tx_hash}"
                     )
                     return {"status": "success", "tx_hash": tx_hash}
-                elif status_object.success:
+                elif status_object.success:  # General success message
                     logger.info(
                         f"[{self.exchange_name}] Withdraw successful with message: "
                         f"{status_object.success}"
@@ -1025,29 +1000,30 @@ class HyperliquidAPI(ExchangeAPI):
                 else:
                     logger.warning(
                         f"[{self.exchange_name}] Withdraw status 'ok' but unrecognized obj "
-                        f"structure: {status_object.model_dump_json()!r}. Raw: {response_raw!r}"
+                        f"structure: {status_object.model_dump_json()!r}. Raw: {response_raw_model!r}"
                     )
                     raise APIError(
                         "Withdrawal status unclear: Unrecognized success object structure.",
                         code=APIErrorCode.EXCHANGE_SPECIFIC.value,
                     )
-        except ValidationError as e:
+        except ValidationError as e:  # Should be caught by service ideally
             logger.error(
-                f"[{self.exchange_name}] Validation error processing withdraw response: {e}. "
-                f"Raw: {response_raw!r}"
+                f"[{self.exchange_name}] Validation error processing withdraw response (service error?): {e}. "
+                f"Raw from service: {response_raw_model!r}"
             )
             raise APIError(
                 f"Failed to validate withdraw response: {e}",
-                code=APIErrorCode.EXCHANGE_SPECIFIC.value,
+                code=APIErrorCode.EXCHANGE_SPECIFIC.value,  # Or UNKNOWN
                 original_exception=e,
             ) from e
-        except APIError:
+        except APIError:  # Re-raise APIErrors from service
             raise
         except Exception as e:
             logger.error(
                 f"[{self.exchange_name}] Unexpected error during withdraw for {asset} "
                 f"to {address}: "
-                f"{e}. Raw: {response_raw!r}"
+                f"{e}. Raw from service: {response_raw_model!r}",
+                exc_info=True,
             )
             raise APIError(
                 f"Unexpected error during withdraw: {e}",
@@ -1154,45 +1130,29 @@ class HyperliquidAPI(ExchangeAPI):
     ) -> list[Order]:
         """Fetches historical orders from Hyperliquid."""
         start_time_ms = int(start_time.timestamp() * 1000) if start_time else 0
+        # Ensure end_time_ms is current if not provided, matching original logic
         end_time_ms = int(end_time.timestamp() * 1000) if end_time else int(time.time() * 1000)
 
-        if self._wallet_address is None:
+        if self._wallet_address is None:  # Keep pre-condition check
             raise APIError(
                 "Wallet address is required for order history.",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
-        request_model = HyperliquidRequestBuilder.build_order_history_payload(
-            wallet_address=self._wallet_address,
-            start_time_ms=start_time_ms,
-            end_time_ms=end_time_ms,
+        raw_order_history_list_from_service: list[HyperliquidRawHistoricalOrderResponse] | None = (
+            None  # For logging in except
         )
-        request_data_dict = request_model.model_dump(by_alias=True, exclude_none=True)
-
-        response_raw: object = None
         orders_list: list[Order] = []
         try:
-            response_raw = await self._request(
-                "POST",
-                f"{self.INFO_URL.rstrip('/')}/info",
-                data=request_data_dict,
+            # Delegate to service. Service is typed to return list, not Optional[list].
+            raw_order_history_list_from_service = await self.account_service.get_order_history_raw(
+                start_time_ms=start_time_ms, end_time_ms=end_time_ms
             )
-            if not isinstance(response_raw, list):
-                raise APIError(
-                    f"Invalid response type for queryOrderHistory: expected list, "
-                    f"got {type(response_raw)}",
-                    code=APIErrorCode.UNKNOWN.value,
-                )
-
-            validated_history_list: list[HyperliquidRawHistoricalOrderResponse] = (
-                HyperliquidResponseHandler.handle_query_order_history_response(
-                    response_raw, self._wallet_address
-                )
-            )
-
-            for raw_status_response in validated_history_list:
+            # Iterate directly, assuming service returns a list (empty if no history)
+            for raw_status_response in raw_order_history_list_from_service:
                 try:
                     raw_order = raw_status_response.order
+                    # Historical orders from this endpoint might not have separate trigger info
                     trigger_info = None
                     internal_order = (
                         self._hl_order_mapper.transform_raw_historical_order_to_internal(
@@ -1202,28 +1162,35 @@ class HyperliquidAPI(ExchangeAPI):
                     )
                     if internal_order:
                         orders_list.append(internal_order)
-                except (ValidationError, ValueError) as e_item:
+                except (
+                    ValidationError,
+                    ValueError,
+                ) as e_item:  # Catch mapping/validation errors per item
                     logger.warning(
                         f"[{self.exchange_name}] Skipping order history item due to "
-                        f"validation/transform error: {e_item}. Raw: {raw_status_response}"
+                        f"validation/transform error: {e_item}. Raw: {raw_status_response!r}"
                     )
                     continue
 
+            # Apply filters after fetching and transforming all orders from the time range
             if symbol:
                 orders_list = [o for o in orders_list if o.symbol == symbol]
-            if order_id:
+            if order_id:  # Filter by exchange_order_id
                 orders_list = [o for o in orders_list if o.exchange_order_id == order_id]
             if client_order_id:
                 orders_list = [o for o in orders_list if o.client_order_id == client_order_id]
             if limit is not None and limit > 0:
-                orders_list = orders_list[:limit]
+                orders_list = orders_list[:limit]  # Apply limit after other filters
             return orders_list
-        except APIError:
+        except APIError:  # Re-raise APIErrors from service or mapper
             raise
-        except (ValidationError, ValueError) as e_outer:
+        except (
+            ValidationError,
+            ValueError,
+        ) as e_outer:  # Catch validation/value errors during service call / initial processing
             logger.error(
-                f"[{self.exchange_name}] Error processing order history response: {e_outer}. "
-                f"Raw: {response_raw!r}",
+                f"[{self.exchange_name}] Error processing order history response (service error?): {e_outer}. "
+                f"Raw from service (if available): {raw_order_history_list_from_service!r}",
                 exc_info=True,
             )
             raise APIError(
@@ -1242,54 +1209,53 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
         """Fetch user trade history (fills)."""
-        if not self._wallet_address:
+        if not self._wallet_address:  # Keep pre-condition check
             raise APIError(
                 "Wallet address required for fetching trade history",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
-        response_raw: object = None
+        raw_fills_response: HyperliquidRawUserFillsResponse | None = None
         try:
-            request_payload_data = HyperliquidRequestBuilder.build_info_request_payload()
-            response_raw = await self._request(
-                "POST",
-                f"{self.INFO_URL.rstrip('/')}/info",
-                data=request_payload_data,  # This is already None or dict
-            )
-            if not isinstance(response_raw, list):
-                logger.warning(
-                    f"[{self.exchange_name}] Unexpected userFills response type: "
-                    f"{type(response_raw)}. Expected list. Empty list."
-                )
-                return []
-            validated_fills_response: HyperliquidRawUserFillsResponse = (
-                HyperliquidResponseHandler.handle_info_user_fills_response(
-                    cast(RawJsonResponse, response_raw), self._wallet_address
-                )
-            )
+            # Delegate to service
+            raw_fills_response = await self.account_service.get_trade_history_raw()
+
             trades: list[Trade] = []
-            for raw_fill in validated_fills_response.root:
-                try:
-                    if symbol is not None and raw_fill.coin != symbol:
+            # Ensure raw_fills_response and its root attribute are not None before iteration
+            if raw_fills_response and raw_fills_response.root:
+                for raw_fill in (
+                    raw_fills_response.root
+                ):  # raw_fills_response is HyperliquidRawUserFillsResponse
+                    try:
+                        if symbol is not None and raw_fill.coin != symbol:
+                            continue
+                        # Cast raw_fill (HyperliquidRawUserFill) to HyperliquidRawFill for the mapper
+                        internal_trade = self._hl_mapper.transform_raw_fill_to_internal(
+                            cast(
+                                HyperliquidRawFill, raw_fill
+                            )  # Service returns HLRawUserFillsResponse(root:list[HLRawUserFill])
+                            # Mapper expects HLRawFill.
+                            # They are very similar, but this cast is key.
+                        )
+                        trades.append(internal_trade)
+                    except (ValidationError, ValueError) as e_item:
+                        logger.warning(
+                            f"[{self.exchange_name}] Skipping fill due to validation/transform "
+                            f"error: {e_item}. Data: {raw_fill!r}"
+                        )
                         continue
-                    # Cast raw_fill (HyperliquidRawUserFill) to HyperliquidRawFill
-                    # for the mapper
-                    internal_trade = self._hl_mapper.transform_raw_fill_to_internal(
-                        cast(HyperliquidRawFill, raw_fill)
-                    )
-                    trades.append(internal_trade)
-                except (ValidationError, ValueError) as e_item:
-                    logger.warning(
-                        f"[{self.exchange_name}] Skipping fill due to validation/transform "
-                        f"error: {e_item}. Data: {raw_fill}"
-                    )
-                    continue
+            else:  # Handle case where raw_fills_response or raw_fills_response.root is None
+                logger.warning(
+                    f"[{self.exchange_name}] No trade history data received from service or data is empty."
+                )
+
             trades.sort(key=lambda t: t.executed_at, reverse=True)
             return trades[:limit]
-        except APIError:
+        except APIError:  # Re-raise APIErrors from service or mapper
             raise
-        except Exception as e_unexp:
+        except Exception as e_unexp:  # Catch any other unexpected error
             logger.error(
-                f"[{self.exchange_name}] Unexpected error getting trade history: {e_unexp}",
+                f"[{self.exchange_name}] Unexpected error getting trade history: {e_unexp}. "
+                f"Raw from service: {raw_fills_response!r}",  # Log raw data if available
                 exc_info=True,
             )
             raise APIError(
@@ -1737,63 +1703,81 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
-    ) -> Order:
+    ) -> Order:  # Changed return type to Order, as ORDER_NOT_FOUND is an APIError
         """Fetches the status of a specific order."""
-        if not self._wallet_address:
+        if not self._wallet_address:  # Keep pre-condition check
             raise APIError(
                 "Wallet address required for fetching order status",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
-        request_model = HyperliquidRequestBuilder.build_order_status_payload(
-            wallet_address=self._wallet_address, order_id=int(order_id)
-        )
-        request_data_dict = request_model.model_dump(by_alias=True, exclude_none=True)
+        if not order_id:  # Ensure order_id is provided
+            raise ValueError("order_id is required for get_order_status on Hyperliquid.")
+
+        converted_order_id: int
         try:
-            response_data_raw = await self._request(
-                "POST",
-                f"{self.INFO_URL.rstrip('/')}/info",
-                data=request_data_dict,
-            )
-            response_data: Any = response_data_raw
-
-            if not response_data or not isinstance(response_data, list) or not response_data:
-                raise APIError(
-                    f"Order not found (empty/invalid response): id={order_id}",
-                    code=APIErrorCode.ORDER_NOT_FOUND.value,
-                )
-
-            validated_status_response: HyperliquidRawHistoricalOrderResponse = (
-                HyperliquidResponseHandler.handle_info_order_status_response(
-                    response_data_raw, self._wallet_address, int(order_id)
-                )
-            )
-            # Use the correct mapper for HyperliquidRawHistoricalOrder
-            return self._hl_order_mapper.transform_raw_historical_order_to_internal(
-                raw_historical_order=validated_status_response.order,
-                trigger=None,  # Assuming no separate trigger info here
-            )
-        except APIError:
-            raise
-        except ValidationError as e_val:
+            converted_order_id = int(order_id)
+        except ValueError as e_val_int:  # Catches if int(order_id) fails
             logger.error(
-                f"[{self.exchange_name}] Validation error in get_order_status: {e_val}. "
-                f"Payload: {request_data_dict!r}"
+                f"[{self.exchange_name}] Invalid order_id format for get_order_status: '{order_id}'. Error: {e_val_int}"
+            )
+            raise APIError(
+                f"Invalid order_id format: '{order_id}'",
+                code=APIErrorCode.INVALID_PARAMS.value,
+                original_exception=e_val_int,
+            ) from e_val_int
+
+        try:
+            # Delegate to service. The service expects an int for order_id.
+            raw_historical_order_response: HyperliquidRawHistoricalOrderResponse = (
+                await self.account_service.get_order_status_raw(order_id=converted_order_id)
+            )
+
+            # The service method get_order_status_raw handles ORDER_NOT_FOUND by raising APIError.
+            # Map the raw order data to the internal Order model.
+            return self._hl_order_mapper.transform_raw_historical_order_to_internal(
+                raw_historical_order=raw_historical_order_response.order,
+                trigger=None,  # Assuming no separate trigger info from this specific endpoint
+            )
+        except APIError as e:  # Re-raise APIErrors from service or mapper (incl. ORDER_NOT_FOUND)
+            logger.error(
+                f"[{self.exchange_name}] API error in get_order_status for "
+                f"order_id '{order_id}': {e.message}",
+                exc_info=(e.code not in [APIErrorCode.ORDER_NOT_FOUND.value]),
+            )
+            raise
+        except (
+            ValidationError
+        ) as e_val:  # Catches Pydantic errors from service raw model validation or mapping
+            logger.error(
+                f"[{self.exchange_name}] Validation error in get_order_status (service/mapper): {e_val}. "
             )
             raise APIError(
                 "Pydantic validation error processing order status.",
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e_val,
             ) from e_val
+        # General ValueError should now be less likely here if int() conversion is separate
+        # and ValidationError is caught. But kept for broader unexpected value issues.
+        except ValueError as e_gen_val:  # Catch other ValueErrors not from int()
+            logger.error(
+                f"[{self.exchange_name}] Unexpected ValueError in get_order_status for "
+                f"order_id '{order_id}': {e_gen_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                f"Unexpected ValueError processing order status for order_id '{order_id}': {e_gen_val}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e_gen_val,
+            ) from e_gen_val
         except Exception as e_unexp:
             logger.error(
                 f"[{self.exchange_name}] Unhandled error fetching order status for "
-                f"{order_id or client_order_id}: {e_unexp}",
+                f"order_id '{order_id}': {e_unexp}",
                 exc_info=True,
             )
             raise APIError(
                 message=(
-                    f"Unexpected error processing order status for "
-                    f"{order_id or client_order_id}: {e_unexp}"
+                    f"Unexpected error processing order status for order_id '{order_id}': {e_unexp}"
                 ),
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e_unexp,
@@ -1801,7 +1785,7 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def get_account_summary(self) -> MarginAccountSummary | None:
         """Fetches user state and maps it to MarginAccountSummary."""
-        if not self._wallet_address:
+        if not self._wallet_address:  # Keep pre-condition check
             logger.error(
                 f"[{self.exchange_name}] Wallet address not available, cannot fetch "
                 f"user state/account summary."
@@ -1814,67 +1798,51 @@ class HyperliquidAPI(ExchangeAPI):
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
-        payload_model = HyperliquidRequestBuilder.build_user_state_payload(self._wallet_address)
-        payload_dict = payload_model.model_dump(by_alias=True, exclude_none=True)
-        response_raw: RawJsonResponse | None = None
+        raw_user_state_from_service: HyperliquidRawClearinghouseState | None = (
+            None  # For logging in except
+        )
         try:
-            response_raw = await self._request(
-                method="POST",
-                endpoint=self.INFO_URL,  # User state is on the INFO_URL
-                data=payload_dict,  # Use the dumped dictionary
-                is_signed=False,  # User state is a public endpoint if wallet address is known
-            )
+            # Delegate to service. Service is typed to return HyperliquidRawClearinghouseState,
+            # and should raise APIError on failure rather than returning None.
+            raw_user_state_from_service = await self.account_service.get_account_summary_raw()
 
-            if not isinstance(response_raw, dict):
-                logger.error(
-                    f"[{self.exchange_name}] Unexpected user_state response format: "
-                    f"{type(response_raw)}. Raw: {response_raw}"
-                )
-                raise APIError(
-                    "Invalid user_state response format (not a dict)",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
+            # According to type hints, raw_user_state_from_service should not be None here if the service call succeeded.
+            # The service is expected to raise an APIError if it cannot fetch the data.
+            # If it somehow returns None without an error, the mapper will likely fail.
 
-            validated_user_state: HyperliquidRawClearinghouseState = (
-                HyperliquidResponseHandler.handle_info_user_state_response(
-                    raw_response_content=response_raw, user_address=self._wallet_address
-                )
-            )
-
-            # Transform to MarginAccountSummary using the instance mapper
             margin_summary = self._hl_mapper.map_raw_clearinghouse_state_to_margin_summary(
-                raw_state=validated_user_state
+                raw_state=raw_user_state_from_service  # This is HyperliquidRawClearinghouseState
             )
             return margin_summary
 
-        except APIError as e:
-            logger.error(
-                f"[{self.exchange_name}] API Error getting account summary (user_state): {e}"
-            )
-            # Depending on error, might return None or re-raise
-            if (
-                e.code == APIErrorCode.AUTHENTICATION_FAILED.value
-            ):  # Should not happen for public endpoint
+        except APIError as e:  # Re-raise APIErrors from service or mapper
+            logger.error(f"[{self.exchange_name}] API Error getting account summary: {e.message}")
+            if e.code == APIErrorCode.AUTHENTICATION_FAILED.value:
+                logger.warning(
+                    f"[{self.exchange_name}] Authentication failed for account summary (service reported), returning None."
+                )
                 return None
-            raise e
-        except ValidationError as ve:  # ADDED BLOCK
+            raise  # Re-raise other APIErrors
+        except ValidationError as ve:  # Handles errors from the mapper primarily.
             logger.error(
-                f"[{self.exchange_name}] Pydantic ValidationError in get_account_summary "
-                f"(user_state): {ve}",
+                f"[{self.exchange_name}] Pydantic ValidationError mapping account summary: {ve}. Raw from service: {raw_user_state_from_service!r}",
                 exc_info=True,
             )
             raise APIError(
-                f"Validation error processing account summary (user_state): {ve}",
-                code=APIErrorCode.INVALID_RESPONSE.value,  # Or a more specific code
+                f"Validation error mapping account summary: {ve}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
                 original_exception=ve,
             ) from ve
-        except Exception as e:  # Keep this for other unexpected errors
+        except (
+            Exception
+        ) as e:  # Catch any other unexpected error during mapping or other logic here.
             logger.error(
-                f"[{self.exchange_name}] Unexpected error in get_account_summary (user_state): {e}",
+                f"[{self.exchange_name}] Unexpected error in get_account_summary: {e}. "
+                f"Raw from service (if available): {raw_user_state_from_service!r}",
                 exc_info=True,
             )
             raise APIError(
-                f"Unexpected error getting account summary (user_state): {e}",
+                f"Unexpected error getting account summary: {e}",
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e,
             ) from e

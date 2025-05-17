@@ -354,26 +354,14 @@ class BackpackAPI(ExchangeAPI):
 
     async def get_balances(self) -> dict[str, SpotBalance]:
         """Get account balances, validated via Raw models and transformed via Mapper."""
-        endpoint = "/api/v1/capital"
-        params = BackpackRequestBuilder.build_get_balances_params()
-        response_data_raw: RawJsonResponse = await self._request("GET", endpoint, params=params)
+        # Step 1-3 (Build, Request, Raw Validate) delegated to service
+        raw_balances_dict: dict[
+            str, BackpackRawBalance
+        ] = await self.account_service.get_balances_raw()
 
-        # DEFENSIVE CHECK: Runtime check before processing
-        if not isinstance(response_data_raw, dict):
-            logger.warning(
-                f"[{self.exchange_name}] Unexpected response type for balances "
-                f"({type(response_data_raw)}). Expected dict. Returning empty balances."
-            )
-            return {}
-
-        # Validate using the handler
-        validated_balances: dict[str, BackpackRawBalance] = (
-            BackpackResponseHandler.handle_get_balances_response(response_data_raw)
-        )
-
-        # Transformation logic remains here
+        # Step 4 (Transform - still in API client for now)
         processed_balances: dict[str, SpotBalance] = {}
-        for asset_symbol, raw_balance in validated_balances.items():
+        for asset_symbol, raw_balance in raw_balances_dict.items():
             try:
                 # Transform validated raw balance to internal SpotBalance using instance mapper
                 internal_balance = self._bp_mapper.transform_raw_balance_to_internal(
@@ -384,13 +372,13 @@ class BackpackAPI(ExchangeAPI):
             except ValidationError as e:
                 logger.error(
                     f"[{self.exchange_name}] Failed Pydantic validation for balance "
-                    f"{asset_symbol}: {e}. Data: {raw_balance}"
+                    f"{asset_symbol}: {e}. Data: {raw_balance.model_dump_json()}"
                 )
                 continue  # Skip this asset if validation fails
             except ValueError as e:  # Catches errors from transform_raw_balance_to_internal
                 logger.error(
                     f"[{self.exchange_name}] Failed transformation for balance "
-                    f"{asset_symbol}: {e}. Raw Data: {raw_balance}"
+                    f"{asset_symbol}: {e}. Raw Data: {raw_balance.model_dump_json()}"
                 )
                 continue  # Skip this asset if transformation fails
             except Exception as e:
@@ -404,76 +392,42 @@ class BackpackAPI(ExchangeAPI):
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         """Fetches current open positions, optionally filtered by symbol."""
-        endpoint: str
-        if symbol:
-            endpoint = f"/api/v1/positions/{BackpackRequestBuilder.format_symbol(symbol)}"
-        else:
-            endpoint = "/api/v1/positions"
+        # Step 1-3 (Build, Request, Raw Validate) delegated to service
+        raw_positions_list: list[
+            BackpackRawPosition
+        ] = await self.account_service.get_positions_raw(symbol=symbol)
 
-        # build_get_positions_params returns None, which is correct as symbol is in path
-        # or not used.
-        # So, explicitly pass None if that was the intent, or ensure builder returns {}.
-        # The current builder returns None. self._request handles params=None.
-        request_params = BackpackRequestBuilder.build_get_positions_params(symbol=symbol)
-        response_raw: RawJsonResponse | None = None
-        positions: list[DerivativePosition] = []  # Initialize outside try for return path
-        try:
-            response_raw = await self._request(
-                method="GET", endpoint=endpoint, params=request_params, is_signed=True
-            )
-            # DEFENSIVE CHECK: Ensure response is list
-            if not isinstance(response_raw, list):
-                logger.warning(
-                    f"[{self.exchange_name}] Unexpected response type for positions: "
-                    f"{type(response_raw)}. Returning empty list."
+        # Step 4 (Transform - still in API client for now)
+        positions: list[DerivativePosition] = []
+        for raw_position in raw_positions_list:
+            try:
+                # Transform validated raw position to internal DerivativePosition
+                # using the instance mapper
+                internal_position = self._bp_mapper.transform_raw_position_to_internal(
+                    raw=raw_position
                 )
-                return []
+                positions.append(internal_position)
 
-            # Validate using the handler
-            validated_positions: list[BackpackRawPosition] = (
-                BackpackResponseHandler.handle_get_positions_response(response_raw, symbol)
-            )
-
-            # Transformation logic remains here
-            for raw_position in validated_positions:
-                try:
-                    # Transform validated raw position to internal DerivativePosition
-                    # using the instance mapper
-                    internal_position = self._bp_mapper.transform_raw_position_to_internal(
-                        raw=raw_position
-                    )
-                    positions.append(internal_position)
-
-                except ValidationError as e:
-                    logger.warning(
-                        f"[{self.exchange_name}] Skipping position due to validation error: "
-                        f"{e}. Data: {raw_position.model_dump_json()}"
-                    )
-                    continue
-                except ValueError as e:  # Catches errors from transform_raw_position_to_internal
-                    logger.warning(
-                        f"[{self.exchange_name}] Skipping position due to transformation "
-                        f"error: {e}. Raw Data: {raw_position.model_dump_json()}"
-                    )
-                    continue
-                except Exception as e:
-                    logger.error(
-                        f"[{self.exchange_name}] Unexpected error processing position: "
-                        f"{e}. Data: {raw_position.model_dump_json()}",
-                        exc_info=True,
-                    )
-                    continue
-            return positions
-        except APIError as e:
-            logger.error(f"[{self.exchange_name}] API Error getting positions: {e}")
-            raise e
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error in get_positions: {e}", exc_info=True
-            )
-            raise APIError(
-                f"Unexpected error getting positions: {e}", code=APIErrorCode.UNKNOWN.value
-            ) from e
+            except ValidationError as e:
+                logger.warning(
+                    f"[{self.exchange_name}] Skipping position due to validation error: "
+                    f"{e}. Data: {raw_position.model_dump_json()}"
+                )
+                continue
+            except ValueError as e:  # Catches errors from transform_raw_position_to_internal
+                logger.warning(
+                    f"[{self.exchange_name}] Skipping position due to transformation "
+                    f"error: {e}. Raw Data: {raw_position.model_dump_json()}"
+                )
+                continue
+            except Exception as e:
+                logger.error(
+                    f"[{self.exchange_name}] Unexpected error processing position: "
+                    f"{e}. Data: {raw_position.model_dump_json()}",
+                    exc_info=True,
+                )
+                continue
+        return positions
 
     async def place_order(
         self,
@@ -676,42 +630,25 @@ class BackpackAPI(ExchangeAPI):
     async def get_account_info(self) -> BackpackRawAccountSummary | None:
         """Fetches raw account settings and fee structures from Backpack.
         Returns the validated raw Pydantic model or None if an error occurs.
+        Delegates to BackpackAccountService.
         """
-        # Construct the full endpoint URL for the account info
-        # Backpack's account endpoint is typically /api/v1/account relative to base URL
-        if not self.rest_endpoint:
-            logger.error(f"[{self.exchange_name}] REST endpoint not configured.")
-            return None
-
-        # endpoint_path = "account" # Unused variable
-
-        api_path = "/api/v1/account"  # The specific path for this endpoint
-
+        logger.info(f"[{self.exchange_name}] Fetching raw account info via service.")
         try:
-            response_raw = await self._request(  # Call the _request method from ExchangeAPI
-                method="GET",
-                endpoint=api_path,  # Pass the relative path
-                is_signed=True,  # This is a private, signed endpoint
-            )
-
-            validated_account_summary = BackpackResponseHandler.handle_get_account_info_response(
-                response_raw
-            )
-            return validated_account_summary
-
+            # Delegate to service, which returns the Raw Model or None
+            return await self.account_service.get_account_info_raw()
         except APIError as e:
-            logger.error(f"[{self.exchange_name}] API Error fetching account info: {e}")
-            # if e.code == APIErrorCode.RESOURCE_NOT_FOUND.value: # Temporarily commented out
-            #     logger.warning(f"[{self.exchange_name}] Account info not found on Backpack.")
-            #     return None
+            logger.error(f"[{self.exchange_name}] API Error fetching account info via service: {e}")
+            # The service method get_account_info_raw already handles 404 to return None.
+            # Re-raise other APIErrors that might come from the service.
             raise
         except Exception as e_unhandled:
             logger.error(
-                f"[{self.exchange_name}] Unexpected error fetching account info: {e_unhandled}",
+                f"[{self.exchange_name}] Unexpected error fetching account info via service: {e_unhandled}",
                 exc_info=True,
             )
+            # Ensure APIError is raised for unhandled exceptions
             raise APIError(
-                message=f"Unexpected error getting account info: {e_unhandled}",
+                message=f"Unexpected error getting account info via service: {e_unhandled}",
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e_unhandled,
             ) from e_unhandled
@@ -939,59 +876,36 @@ class BackpackAPI(ExchangeAPI):
         Raises:
             APIError: If the request fails or the response is invalid.
         """
-        endpoint = "/api/v1/ordersHistory"
-        params: dict[str, str | int | None] = {}
-        # Initialize limit first if not None
-        if limit is not None:
-            # Mypy struggles with conditional assignment to Union type dict value
-            params["limit"] = limit
-        # Add other params
-        if symbol:
-            params["symbol"] = symbol
-        if order_id:
-            params["orderId"] = order_id
-        if client_order_id:
-            params["clientId"] = client_order_id
-        if start_time:
-            params["startTime"] = int(start_time.timestamp() * 1000)
-        if end_time:
-            params["endTime"] = int(end_time.timestamp() * 1000)
+        # Step 1-3 (Build, Request, Raw Validate) delegated to service
+        raw_orders_list: list[BackpackRawOrder] = await self.account_service.get_order_history_raw(
+            symbol=symbol,
+            start_time=start_time,
+            end_time=end_time,
+            limit=limit,
+            order_id=order_id,
+            client_order_id=client_order_id,
+        )
 
-        response_raw: RawJsonResponse | None = None
+        # Step 4 (Transform - still in API client for now)
         orders: list[Order] = []
-        try:
-            response_raw = await self._request("GET", endpoint, params=params, is_signed=True)
-
-            # Validate using the handler
-            validated_orders: list[BackpackRawOrder] = (
-                BackpackResponseHandler.handle_get_order_history_response(response_raw, symbol)
-            )
-
-            # Transformation remains here
-            for raw_order in validated_orders:
-                try:
-                    internal_order = self._bp_mapper.transform_raw_order_to_internal(raw_order)
-                    orders.append(internal_order)
-                except ValueError as e_transform:  # Catch transformation errors per item
-                    logger.warning(
-                        f"[{self.exchange_name}] Skipping order in history due to "
-                        f"transformation error: {e_transform}. Data: {raw_order.model_dump_json()}"
-                    )
-                    continue
-            return orders
-
-        except APIError as e:  # Catches validation errors from handler too
-            logger.error(f"[{self.exchange_name}] API Error getting order history: {e}")
-            raise e
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error getting order history: {e}",
-                exc_info=True,
-            )
-            raise APIError(
-                f"Error getting order history for {symbol or 'all'}: {e}",
-                code=APIErrorCode.UNKNOWN.value,
-            ) from e
+        for raw_order in raw_orders_list:
+            try:
+                internal_order = self._bp_mapper.transform_raw_order_to_internal(raw_order)
+                orders.append(internal_order)
+            except ValueError as e_transform:  # Catch transformation errors per item
+                logger.warning(
+                    f"[{self.exchange_name}] Skipping order in history due to "
+                    f"transformation error: {e_transform}. Data: {raw_order.model_dump_json()}"
+                )
+                continue
+            except Exception as e:  # Catch any other unexpected error during mapping
+                logger.error(
+                    f"[{self.exchange_name}] Unexpected error mapping order history item: {e}. "
+                    f"Raw: {raw_order.model_dump_json()}",
+                    exc_info=True,
+                )
+                continue
+        return orders
 
     async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
         """Fetches recent trade history for a symbol or all symbols.

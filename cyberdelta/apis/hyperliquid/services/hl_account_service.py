@@ -1,0 +1,571 @@
+"""
+CyberDeltaEngine: Hyperliquid Account Management Service (Raw Model Focused)
+-------------------------------------------------------------------------
+
+This service encapsulates the logic for fetching and validating raw account-specific
+data from the Hyperliquid Exchange. This includes balances, positions,
+order history, trade history, and account information.
+
+It uses the passed-in HTTP requester, HyperliquidRequestBuilder, and HyperliquidResponseHandler
+to interact with the API and validate responses into Raw Pydantic Models.
+
+The service methods return these validated Raw Pydantic Models.
+Transformation to internal domain models is handled by the calling API client.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
+
+from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
+from cyberdelta.apis.hyperliquid.hl_response_handler import (
+    HyperliquidResponseHandler,
+)
+
+# Raw Model Imports will be added as methods are implemented
+from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
+    HyperliquidRawExchangeResponse,  # For transfer/withdraw
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
+    HyperliquidRawHistoricalOrderResponse,  # For order history, order status
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawOpenOrdersResponse
+from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import HyperliquidRawUserFillsResponse
+from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawClearinghouseState
+from cyberdelta.apis.models.api_error import APIError
+from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.utils.logging_config import get_logger
+
+if TYPE_CHECKING:
+    from decimal import Decimal
+
+    from cyberdelta.apis.base.authenticator_interface import IAuthenticator
+    from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
+
+
+logger = get_logger(__name__)
+
+
+class HyperliquidAccountService:
+    """
+    Service class for Hyperliquid account management operations, returning Raw Pydantic Models.
+    """
+
+    def __init__(
+        self,
+        http_client_requester: Callable[..., Any],  # Main API client's _request
+        request_builder: HyperliquidRequestBuilder,
+        response_handler: HyperliquidResponseHandler,
+        authenticator: IAuthenticator | None,
+        rate_limiter_service: RateLimiterService,
+        exchange_name: str,
+        info_url_base: str,  # e.g., https://info.hyperliquid.xyz
+        wallet_address: str | None,
+        # Asset to index cache might not be needed directly if place/cancel are not here
+        # but some info endpoints might implicitly use it if they return all assets.
+        # For now, let's assume it's not directly used by account services for raw data fetching.
+    ) -> None:
+        """
+        Initialize the HyperliquidAccountService.
+        """
+        self._http_client_requester = http_client_requester
+        self._request_builder = request_builder
+        self._response_handler = response_handler
+        self._authenticator = authenticator
+        self._rate_limiter_service = rate_limiter_service
+        self._exchange_name = exchange_name
+        self._info_url_base = info_url_base.rstrip("/")
+        self._wallet_address = wallet_address
+
+    async def get_account_summary_raw(self) -> HyperliquidRawClearinghouseState:
+        """Fetches the raw clearinghouse state for the user (basis for account summary).
+
+        This data is also used for balances and positions.
+
+        Returns:
+            HyperliquidRawClearinghouseState: The raw state of the clearinghouse for the user.
+
+        Raises:
+            APIError: If the wallet address is not set, or if the API request fails.
+        """
+        if not self._wallet_address:
+            logger.error(
+                f"[{self._exchange_name}] Wallet address not set. Cannot fetch user state."
+            )
+            raise APIError(
+                message="Wallet address is required to fetch user state.",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+
+        endpoint_path = f"{self._info_url_base}/info"  # Full path for info endpoint
+        # Payload built by request_builder
+        payload = self._request_builder.build_user_state_payload(self._wallet_address)
+
+        response_data_raw: Any | None = None
+        try:
+            response_data_raw, _, _ = await self._http_client_requester(
+                method="POST",
+                endpoint_path=endpoint_path,
+                data=payload.model_dump(),  # Use model_dump for Pydantic v2
+                authenticator=None,  # Info endpoint, not signed
+                rate_limiter_service=self._rate_limiter_service,
+                is_signed=False,  # Explicitly False for info endpoint
+            )
+
+            if response_data_raw is None:
+                raise APIError(
+                    message="No response data received for user state request.",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                )
+
+            return self._response_handler.handle_info_user_state_response(
+                raw_response_content=response_data_raw, user_address=self._wallet_address
+            )
+        except APIError:  # Re-raise APIErrors from http_client_requester or handler
+            raise
+        except Exception as e_unhandled:  # Catch any other unexpected errors
+            logger.error(
+                f"[{self._exchange_name}] Unexpected error in get_account_summary_raw: {e_unhandled}",
+                exc_info=True,
+            )
+            raise APIError(
+                message=f"Unexpected error processing raw account summary: {e_unhandled}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e_unhandled,
+            ) from e_unhandled
+
+    async def get_balances_raw(self) -> HyperliquidRawClearinghouseState:
+        # Corresponds to HyperliquidAPI.get_balances
+        # Uses INFO_URL, non-signed (but needs wallet address for response handler)
+        # This will use the same underlying data as get_account_summary_raw
+        return await self.get_account_summary_raw()
+
+    async def get_positions_raw(self) -> HyperliquidRawClearinghouseState:
+        # Corresponds to HyperliquidAPI.get_positions
+        # Uses INFO_URL, non-signed (but needs wallet address for response handler)
+        # This will also use the same underlying data as get_account_summary_raw
+        return await self.get_account_summary_raw()
+
+    async def get_open_orders_raw(self) -> HyperliquidRawOpenOrdersResponse:
+        """Fetches raw open orders for the user.
+
+        Returns:
+            HyperliquidRawOpenOrdersResponse: The raw open orders for the user.
+
+        Raises:
+            APIError: If the wallet address is not set, or if the API request fails.
+        """
+        if not self._wallet_address:
+            logger.error(
+                f"[{self._exchange_name}] Wallet address not set. Cannot fetch open orders."
+            )
+            raise APIError(
+                message="Wallet address is required to fetch open orders.",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+
+        endpoint_path = f"{self._info_url_base}/info"
+        # Payload definition based on HyperliquidAPI.get_open_orders
+        # No specific builder method for this exact payload, so construct it here or add to builder.
+        # For now, construct here as it's simple and specific to this account service method context.
+        payload_data = {"type": "openOrders", "user": self._wallet_address}
+
+        response_data_raw: Any | None = None
+        try:
+            response_data_raw, _, _ = await self._http_client_requester(
+                method="POST",
+                endpoint_path=endpoint_path,
+                data=payload_data,  # Pass the dict directly
+                authenticator=None,  # Info endpoint, not signed
+                rate_limiter_service=self._rate_limiter_service,
+                is_signed=False,
+            )
+
+            if response_data_raw is None:
+                raise APIError(
+                    message="No response data received for open orders request.",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                )
+
+            return self._response_handler.handle_info_open_orders_response(
+                raw_response_content=response_data_raw, user_address=self._wallet_address
+            )
+        except APIError:
+            raise
+        except Exception as e_unhandled:
+            logger.error(
+                f"[{self._exchange_name}] Unexpected error in get_open_orders_raw: {e_unhandled}",
+                exc_info=True,
+            )
+            raise APIError(
+                message=f"Unexpected error processing raw open orders: {e_unhandled}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e_unhandled,
+            ) from e_unhandled
+
+    async def transfer_raw(
+        self,
+        asset: str,  # Should be USDC for HL
+        amount: Decimal,
+        to_account: str,  # Destination L2 address
+    ) -> HyperliquidRawExchangeResponse:
+        """Executes an L2 USD(C) transfer and returns the raw exchange response.
+
+        Args:
+            asset: The asset to transfer (must be "USDC" for Hyperliquid L2 transfers).
+            amount: The amount to transfer.
+            to_account: The destination L2 wallet address.
+
+        Returns:
+            HyperliquidRawExchangeResponse: The raw response from the exchange.
+
+        Raises:
+            ValueError: If asset is not USDC.
+            APIError: If the request fails or authenticator is not available.
+        """
+        if asset.upper() != "USDC":
+            raise ValueError("Hyperliquid L2 transfers only support USDC.")
+        if not self._authenticator:
+            logger.error(
+                f"[{self._exchange_name}] Authenticator not available for signed request: transfer_raw"
+            )
+            raise APIError(
+                message="Authenticator required for L2 transfer.",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+
+        # Endpoint for exchange actions
+        actual_endpoint_path_for_request = "/exchange"
+        # Path to be used for signature generation by HL EIP712 authenticator
+        path_for_signature_logic = "/exchange"  # HL always signs literal "/exchange"
+
+        payload_model = self._request_builder.build_l2_usd_transfer_payload(
+            destination_address=to_account, amount=amount
+        )
+        request_data_dict = payload_model.model_dump()
+
+        # Signed request, requires authenticator
+        # The IAuthenticator expects `path` to be the conceptual path for signing.
+        # The HyperliquidEip712Authenticator needs to correctly interpret this.
+        auth_components = await self._authenticator.prepare_request(
+            method="POST",
+            path=path_for_signature_logic,  # Pass the path used for signature
+            params=None,  # No query params for this POST
+            data=request_data_dict,  # Data to be signed/included
+            headers=None,  # No pre-existing headers to modify for this typically
+        )
+
+        response_data_raw: Any | None = None
+        try:
+            response_data_raw, _, _ = await self._http_client_requester(
+                method="POST",
+                endpoint_path=actual_endpoint_path_for_request,  # e.g., "/exchange"
+                data=auth_components["data"],  # Use processed/signed data from authenticator
+                headers=auth_components["headers"],  # Use headers from authenticator
+                authenticator=self._authenticator,  # Pass authenticator for context if needed by _request
+                rate_limiter_service=self._rate_limiter_service,
+                is_signed=True,  # This is a signed request
+            )
+
+            if response_data_raw is None:
+                raise APIError(
+                    message="No response data received for L2 transfer request.",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                )
+
+            return self._response_handler.handle_exchange_response(
+                raw_response_content=response_data_raw,
+                action_type=payload_model.type,  # context for handler (e.g., "usdTransfer")
+            )
+        except APIError:
+            raise
+        except Exception as e_unhandled:
+            logger.error(
+                f"[{self._exchange_name}] Unexpected error in transfer_raw: {e_unhandled}",
+                exc_info=True,
+            )
+            raise APIError(
+                message=f"Unexpected error processing L2 transfer: {e_unhandled}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e_unhandled,
+            ) from e_unhandled
+
+    async def withdraw_raw(
+        self,
+        asset: str,
+        amount: Decimal,
+        address: str,  # L1 destination address
+    ) -> HyperliquidRawExchangeResponse:
+        """Executes a withdrawal to L1 and returns the raw exchange response.
+
+        Args:
+            asset: The asset to withdraw (e.g., "ETH", "USDC").
+            amount: The amount to withdraw.
+            address: The destination L1 wallet address.
+
+        Returns:
+            HyperliquidRawExchangeResponse: The raw response from the exchange.
+
+        Raises:
+            APIError: If the request fails or authenticator is not available.
+        """
+        if not self._authenticator:
+            logger.error(
+                f"[{self._exchange_name}] Authenticator not available for signed request: withdraw_raw"
+            )
+            raise APIError(
+                message="Authenticator required for withdrawal.",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+
+        actual_endpoint_path_for_request = "/exchange"
+        path_for_signature_logic = "/exchange"
+
+        payload_model = self._request_builder.build_withdrawal_payload(
+            asset=asset, amount=amount, destination_address=address
+        )
+        request_data_dict = payload_model.model_dump()
+
+        auth_components = await self._authenticator.prepare_request(
+            method="POST",
+            path=path_for_signature_logic,
+            params=None,
+            data=request_data_dict,
+            headers=None,
+        )
+
+        response_data_raw: Any | None = None
+        try:
+            response_data_raw, _, _ = await self._http_client_requester(
+                method="POST",
+                endpoint_path=actual_endpoint_path_for_request,
+                data=auth_components["data"],
+                headers=auth_components["headers"],
+                authenticator=self._authenticator,
+                rate_limiter_service=self._rate_limiter_service,
+                is_signed=True,
+            )
+
+            if response_data_raw is None:
+                raise APIError(
+                    message="No response data received for withdrawal request.",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                )
+
+            return self._response_handler.handle_exchange_response(
+                raw_response_content=response_data_raw,
+                action_type=payload_model.type,  # context for handler (e.g., "withdraw" or "withdrawEth")
+            )
+        except APIError:
+            raise
+        except Exception as e_unhandled:
+            logger.error(
+                f"[{self._exchange_name}] Unexpected error in withdraw_raw: {e_unhandled}",
+                exc_info=True,
+            )
+            raise APIError(
+                message=f"Unexpected error processing withdrawal: {e_unhandled}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e_unhandled,
+            ) from e_unhandled
+
+    async def get_order_history_raw(
+        self,
+        start_time_ms: int,
+        end_time_ms: int,
+    ) -> list[HyperliquidRawHistoricalOrderResponse]:
+        """Fetches raw order history for the user within a time range.
+
+        Args:
+            start_time_ms: Start time in milliseconds since epoch.
+            end_time_ms: End time in milliseconds since epoch.
+
+        Returns:
+            list[HyperliquidRawHistoricalOrderResponse]: List of raw historical orders.
+
+        Raises:
+            APIError: If the wallet address is not set, or if the API request fails.
+        """
+        if not self._wallet_address:
+            logger.error(
+                f"[{self._exchange_name}] Wallet address not set. Cannot fetch order history."
+            )
+            raise APIError(
+                message="Wallet address is required to fetch order history.",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+
+        endpoint_path = f"{self._info_url_base}/info"
+        payload = self._request_builder.build_order_history_payload(
+            wallet_address=self._wallet_address,
+            start_time_ms=start_time_ms,
+            end_time_ms=end_time_ms,
+        )
+
+        response_data_raw: Any | None = None
+        try:
+            response_data_raw, _, _ = await self._http_client_requester(
+                method="POST",
+                endpoint_path=endpoint_path,
+                data=payload.model_dump(),
+                authenticator=None,
+                rate_limiter_service=self._rate_limiter_service,
+                is_signed=False,
+            )
+
+            if response_data_raw is None:
+                raise APIError(
+                    message="No response data received for order history request.",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                )
+
+            return self._response_handler.handle_query_order_history_response(
+                raw_response_content=response_data_raw, user_address=self._wallet_address
+            )
+        except APIError:
+            raise
+        except Exception as e_unhandled:
+            logger.error(
+                f"[{self._exchange_name}] Unexpected error in get_order_history_raw: {e_unhandled}",
+                exc_info=True,
+            )
+            raise APIError(
+                message=f"Unexpected error processing raw order history: {e_unhandled}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e_unhandled,
+            ) from e_unhandled
+
+    async def get_trade_history_raw(
+        self,
+    ) -> HyperliquidRawUserFillsResponse:
+        """Fetches raw user fills (trade history) for the user.
+
+        Hyperliquid's userFills endpoint returns all fills; filtering by limit
+        should be done by the caller if needed.
+
+        Returns:
+            HyperliquidRawUserFillsResponse: The raw user fills.
+
+        Raises:
+            APIError: If the wallet address is not set, or if the API request fails.
+        """
+        if not self._wallet_address:
+            logger.error(
+                f"[{self._exchange_name}] Wallet address not set. Cannot fetch trade history."
+            )
+            raise APIError(
+                message="Wallet address is required to fetch trade history.",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+
+        endpoint_path = f"{self._info_url_base}/info"
+        # Payload for userFills
+        # No specific builder method for this exact payload, construct here.
+        payload_data = {"type": "userFills", "user": self._wallet_address}
+
+        response_data_raw: Any | None = None
+        try:
+            response_data_raw, _, _ = await self._http_client_requester(
+                method="POST",
+                endpoint_path=endpoint_path,
+                data=payload_data,
+                authenticator=None,
+                rate_limiter_service=self._rate_limiter_service,
+                is_signed=False,
+            )
+
+            if response_data_raw is None:
+                raise APIError(
+                    message="No response data received for trade history request.",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                )
+
+            return self._response_handler.handle_info_user_fills_response(
+                raw_response_content=response_data_raw, user_address=self._wallet_address
+            )
+        except APIError:
+            raise
+        except Exception as e_unhandled:
+            logger.error(
+                f"[{self._exchange_name}] Unexpected error in get_trade_history_raw: {e_unhandled}",
+                exc_info=True,
+            )
+            raise APIError(
+                message=f"Unexpected error processing raw trade history: {e_unhandled}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e_unhandled,
+            ) from e_unhandled
+
+    async def get_order_status_raw(self, order_id: int) -> HyperliquidRawHistoricalOrderResponse:
+        """Fetches the raw status of a specific order by its ID.
+
+        Args:
+            order_id: The integer order ID.
+
+        Returns:
+            HyperliquidRawHistoricalOrderResponse: The raw historical order data, used for status.
+
+        Raises:
+            APIError: If the wallet address is not set, or if the API request fails.
+        """
+        if not self._wallet_address:
+            logger.error(
+                f"[{self._exchange_name}] Wallet address not set. Cannot fetch order status."
+            )
+            raise APIError(
+                message="Wallet address is required to fetch order status.",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+
+        endpoint_path = f"{self._info_url_base}/info"
+        payload = self._request_builder.build_order_status_payload(
+            wallet_address=self._wallet_address, order_id=order_id
+        )
+
+        response_data_raw: Any | None = None
+        try:
+            response_data_raw, _, _ = await self._http_client_requester(
+                method="POST",
+                endpoint_path=endpoint_path,
+                data=payload.model_dump(),
+                authenticator=None,
+                rate_limiter_service=self._rate_limiter_service,
+                is_signed=False,
+            )
+
+            if response_data_raw is None:
+                # Hyperliquid returns a 404 string if order not found, which _request might parse as non-JSON
+                # or return None if it can't parse. The handler expects a dict for success.
+                logger.warning(
+                    f"[{self._exchange_name}] No response data or non-JSON for order status "
+                    f"oid {order_id}. It might not exist or was invalid."
+                )
+                raise APIError(
+                    message=f"No valid response data received for order status (oid {order_id}).",
+                    code=APIErrorCode.ORDER_NOT_FOUND.value,  # More specific if possible
+                )
+
+            return self._response_handler.handle_info_order_status_response(
+                raw_response_content=response_data_raw,
+                user_address=self._wallet_address,  # Context for handler
+                order_id=order_id,  # Context for handler
+            )
+        except APIError as e:
+            # If ORDER_NOT_FOUND was already raised, re-raise it.
+            # Otherwise, if a different APIError, re-raise that.
+            if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
+                logger.info(
+                    f"[{self._exchange_name}] Order oid {order_id} not found, as reported by service call."
+                )
+            raise
+        except Exception as e_unhandled:
+            logger.error(
+                f"[{self._exchange_name}] Unexpected error in get_order_status_raw for oid {order_id}: {e_unhandled}",
+                exc_info=True,
+            )
+            raise APIError(
+                message=f"Unexpected error processing raw order status (oid {order_id}): {e_unhandled}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e_unhandled,
+            ) from e_unhandled
