@@ -104,15 +104,29 @@ def _validate_raw_parsable_non_negative_finite_decimal_string(
 
 
 def _validate_raw_non_negative_int(v: object, info: ValidationInfo) -> int:
-    """Validates that integer fields are non-negative. Input must be an int."""
+    """Validates that integer fields are non-negative.
+    Input can be an int or a string parsable to int."""
     field_name = info.field_name or "raw_non_negative_int_field"
-    if not isinstance(v, int):
-        # If API might send int-as-string, this validator would need to handle conversion first.
-        # For now, strictly expects int based on typical API behavior for counts/ids.
-        raise ValueError(f"Field {field_name} must be an integer, got {type(v).__name__}")
-    if v < 0:
-        raise ValueError(f"Field {field_name} must be non-negative, got {v}")
-    return v
+    val_int: int
+
+    if isinstance(v, str):
+        try:
+            val_int = int(v)
+        except ValueError:
+            raise ValueError(f"Field {field_name}: Cannot parse '{v}' to an integer.") from None
+    elif isinstance(v, int):
+        val_int = v
+    elif isinstance(v, float) and v.is_integer():  # Allow floats that are whole numbers
+        val_int = int(v)
+    else:
+        raise ValueError(
+            f"Field {field_name}: Expected an integer or an integer-like string/float, "
+            f"got {type(v).__name__}."
+        )
+
+    if val_int < 0:
+        raise ValueError(f"Field {field_name}: Must be non-negative, got {val_int}")
+    return val_int
 
 
 def _validate_raw_strict_bool(v: object, info: ValidationInfo) -> bool:
@@ -443,14 +457,14 @@ def _validate_raw_depth_price_string(v: object, info: ValidationInfo) -> str:
         d = Decimal(v)
         if not d.is_finite():
             raise ValueError("Price must be finite")
-    except InvalidOperation:
+    except InvalidOperation as e:
         # This case might arise if string is not a valid decimal format at all, e.g. "abc"
         # The test suite might expect "Price must be finite" even for this.
-        # For now, let specific non-finite check handle it. If tests need more specific error for unparseable,
-        # this would need adjustment.
+        # For now, let specific non-finite check handle it. If tests need more specific
+        # error for unparseable, this would need adjustment.
         raise ValueError(
             "Price must be finite"
-        )  # Aligning with general finite check as per test expectation
+        ) from e  # Aligning with general finite check as per test expectation
     return v
 
 
@@ -474,12 +488,135 @@ def _validate_raw_depth_quantity_string(v: object, info: ValidationInfo) -> str:
             raise ValueError("Quantity must be finite")
         if d < Decimal(0):
             raise ValueError("Quantity cannot be negative")
-    except InvalidOperation:
+    except InvalidOperation as e:
         # Consistent with price, if not parsable, treat as not finite for test message purposes.
-        raise ValueError("Quantity must be finite")
+        raise ValueError("Quantity must be finite") from e
     return v
 
 
 RawBpDepthQuantityString = Annotated[str, BeforeValidator(_validate_raw_depth_quantity_string)]
 
 # Additional types will be added as needed.
+
+
+def _validate_kline_int_field(v: object, info: ValidationInfo, field_alias: str) -> int:
+    """Validate an integer field for Kline data, matching specific test error types/messages."""
+    field_name_for_msg = info.field_name or "kline_int_field"
+
+    val_int: int
+
+    if isinstance(v, str):
+        # Test expects TypeError for any string input, even if parsable as an int.
+        # This aligns with test_bp_raw_kline.py::test_field_validation_failures:
+        # (0, "start_time_ms", "1700000000000", TypeError, "Raw value must be an integer"),
+        # (6, "end_time_ms", "1700000059999", TypeError, "Raw value must be an integer"),
+        # (8, "trade_count", "50", TypeError, "Raw value must be an integer"),
+        raise TypeError(f"Field {field_name_for_msg}: Raw value must be an integer")
+    elif isinstance(v, int):
+        val_int = v
+    elif isinstance(
+        v, float
+    ):  # Handles: (0, "start_time_ms", 1700000000000.5, TypeError, "Raw value must be an integer")
+        raise TypeError(f"Field {field_name_for_msg}: Raw value must be an integer")
+    else:  # Handles other types like bool, list, None
+        raise TypeError(f"Field {field_name_for_msg}: Raw value must be an integer")
+
+    if val_int < 0:  # Handles: (0, "start_time_ms", -1, ValueError, "Value must be non-negative")
+        raise ValueError(f"Field {field_name_for_msg}: Value must be non-negative, got {val_int}.")
+    return val_int
+
+
+# For start_time_ms, end_time_ms, trade_count in Kline
+# These fields are given as strings in the valid raw list data, then converted by structure_to_dict
+# and then should be validated. The alias is passed to the validator.
+RawBpKlineIntStringField = Annotated[
+    int,
+    BeforeValidator(
+        lambda v_ann, info_ann: _validate_kline_int_field(
+            v_ann,
+            info_ann,
+            field_alias=str(info_ann.field_name),  # field_name is fine here
+        )
+    ),
+]
+
+
+def _validate_kline_decimal_str_field(v: object, info: ValidationInfo, field_alias: str) -> str:
+    """Validate a decimal-string field for Kline, matching specific test error types/messages."""
+    field_name_for_msg = info.field_name or "kline_decimal_str_field"
+
+    if not isinstance(v, str):
+        # Handles: (1, "open_price", 100.0, TypeError, "Raw value must be a string")
+        # Test wants "Raw value must be a string, got {type_name}" for None.
+        type_name = type(v).__name__
+        if v is None:
+            raise TypeError(
+                f"Field {field_name_for_msg}: Raw value must be a string, got {type_name}"
+            )
+        else:
+            raise TypeError(f"Field {field_name_for_msg}: Raw value must be a string")
+
+    # Now apply string content validations
+    # (reusing parts of _validate_raw_string_to_finite_decimal logic)
+    # Max length from RawBpStringToFiniteDecimal is 64
+    # Use allow_empty=False from validate_str_field for kline decimal strings as per tests
+    parsed_val = validate_str_field(v, field_name_for_msg, max_length=64, allow_empty=False)
+
+    try:
+        d = Decimal(parsed_val)
+        if not d.is_finite():
+            # Handles: (1, "open_price", "NaN", ValueError, "must represent a finite decimal")
+            raise ValueError(f"Field {field_name_for_msg}: must represent a finite decimal")
+    except InvalidOperation as e:
+        # Handles: (1, "open_price", "not_a_decimal", ValueError,
+        # "Cannot convert 'not_a_decimal' to Decimal")
+        # Removed extra backslashes around parsed_val for exact message match
+        raise ValueError(
+            f"Field {field_name_for_msg}: Cannot convert '{parsed_val}' to Decimal"
+        ) from e
+
+    return parsed_val  # Return the validated string, Pydantic will make it Decimal
+
+
+# This type expects a string, validates it, and the final field type is Decimal
+RawBpKlineDecimalString = Annotated[
+    Decimal,
+    BeforeValidator(
+        lambda v_ann, info_ann: _validate_kline_decimal_str_field(
+            v_ann, info_ann, field_alias=str(info_ann.field_name)
+        )
+    ),
+]
+
+
+def _validate_kline_string_field(
+    v: object, info: ValidationInfo, field_alias: str, max_length: int, allow_empty: bool
+) -> str:
+    """Validate a string field for Kline, matching specific test error types/messages."""
+    field_name_for_msg = info.field_name or "kline_string_field"
+
+    if not isinstance(v, str):
+        # Test case: (11, "ignored", 0, TypeError, "Raw value must be a string")
+        raise TypeError(f"Field {field_name_for_msg}: Raw value must be a string")
+
+    # Reuse validate_str_field for content validation (emptiness, length)
+    # This will raise ValueError with its own messages for content issues, which tests expect.
+    return validate_str_field(v, field_name_for_msg, max_length=max_length, allow_empty=allow_empty)
+
+
+# For 'ignored' field in Kline
+RawBpKlineNonEmptyStringMax64 = Annotated[
+    str,
+    BeforeValidator(
+        lambda v_ann, info_ann: _validate_kline_string_field(
+            v_ann,
+            info_ann,
+            field_alias=str(info_ann.field_name),
+            max_length=64,
+            allow_empty=False,
+        )
+    ),
+]
+
+# --- Standard Raw Types (more flexible parsing) ---
+# ... existing code ...

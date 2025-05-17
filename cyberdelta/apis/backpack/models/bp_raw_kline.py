@@ -21,9 +21,9 @@ from pydantic import (
 )
 
 from .bp_common_raw_types import (
-    RawBpNonEmptyStringMax8,
-    RawBpNonNegativeInt,
-    RawBpStringToFiniteDecimal,
+    RawBpKlineDecimalString,
+    RawBpKlineIntStringField,
+    RawBpKlineNonEmptyStringMax64,
 )
 
 
@@ -50,18 +50,18 @@ class BackpackRawKline(BaseModel):
 
     # Fields will use Annotated types. The input to their validators
     # will be the raw values (int, str) from the dictionary created by structure_to_dict.
-    start_time_ms: RawBpNonNegativeInt = Field(..., alias="startTimeMs")
-    open_price: RawBpStringToFiniteDecimal = Field(..., alias="openPrice")
-    high_price: RawBpStringToFiniteDecimal = Field(..., alias="highPrice")
-    low_price: RawBpStringToFiniteDecimal = Field(..., alias="lowPrice")
-    close_price: RawBpStringToFiniteDecimal = Field(..., alias="closePrice")
-    volume: RawBpStringToFiniteDecimal = Field(...)
-    end_time_ms: RawBpNonNegativeInt = Field(..., alias="endTimeMs")
-    quote_volume: RawBpStringToFiniteDecimal = Field(..., alias="quoteVolume")
-    trade_count: RawBpNonNegativeInt = Field(..., alias="tradeCount")
-    taker_buy_base_volume: RawBpStringToFiniteDecimal = Field(..., alias="takerBuyBaseVolume")
-    taker_buy_quote_volume: RawBpStringToFiniteDecimal = Field(..., alias="takerBuyQuoteVolume")
-    ignored: RawBpNonEmptyStringMax8 = Field(...)  # Assuming max_length=8 for ignored field
+    start_time_ms: RawBpKlineIntStringField = Field(alias="startTimeMs")
+    open_price: RawBpKlineDecimalString = Field(alias="openPrice")
+    high_price: RawBpKlineDecimalString = Field(alias="highPrice")
+    low_price: RawBpKlineDecimalString = Field(alias="lowPrice")
+    close_price: RawBpKlineDecimalString = Field(alias="closePrice")
+    volume: RawBpKlineDecimalString = Field(alias="volume")
+    end_time_ms: RawBpKlineIntStringField = Field(alias="endTimeMs")
+    quote_volume: RawBpKlineDecimalString = Field(alias="quoteVolume")
+    trade_count: RawBpKlineIntStringField = Field(alias="tradeCount")
+    taker_buy_base_volume: RawBpKlineDecimalString = Field(alias="takerBuyBaseVolume")
+    taker_buy_quote_volume: RawBpKlineDecimalString = Field(alias="takerBuyQuoteVolume")
+    ignored: RawBpKlineNonEmptyStringMax64 = Field(alias="ignored")
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -78,12 +78,14 @@ class BackpackRawKline(BaseModel):
         Ensures that `data` is a sequence type before checking its length.
         """
         if len(data) != 12:
-            raise ValueError(f"Expected 12 elements in kline data, got {len(data)}")
+            # Match test message for test_invalid_structure_list_length
+            raise ValueError(f"Expected 12 elements in kline data list/tuple, got {len(data)}")
 
         field_names: list[str] = list(cls.model_fields.keys())
         if len(field_names) != 12:
             raise RuntimeError(
-                "BackpackRawKline model definition has an incorrect number of fields (should be 12)."
+                "BackpackRawKline model definition has an incorrect number of fields "
+                "(should be 12)."
             )
         return dict(zip(field_names, data, strict=True))
 
