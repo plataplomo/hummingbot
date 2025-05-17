@@ -7,8 +7,12 @@ All parsing errors will include the field name in their messages if provided,
 greatly improving error traceability.
 """
 
+import logging
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
+
+# Get a logger instance for this module if not already configured elsewhere
+logger = logging.getLogger(__name__)
 
 
 def parse_datetime_utc(
@@ -177,3 +181,42 @@ def validate_enum_field(
         allowed_sorted_list = sorted(list(allowed))
         raise ValueError(f"{prefix}Invalid value '{s}'. Expected one of {allowed_sorted_list}")
     return s
+
+
+def timeframe_to_ms(tf_str: str, default_to_minutes: int | None = 1) -> int:
+    """Converts a timeframe string (e.g., "1m", "5m", "1h", "1d") to milliseconds.
+
+    Args:
+        tf_str: The timeframe string to parse.
+        default_to_minutes: The default duration in minutes to return if parsing fails.
+                            If None, raises ValueError on parse failure.
+
+    Returns:
+        The timeframe duration in milliseconds.
+
+    Raises:
+        ValueError: If tf_str is unparseable and default_to_minutes is None.
+    """
+    tf_str_lower = tf_str.lower().strip()
+    if not tf_str_lower:
+        message = "Timeframe string cannot be empty."
+        if default_to_minutes is None:
+            raise ValueError(message)
+        logger.warning(f"{message} Defaulting to {default_to_minutes} minute(s).")
+        return default_to_minutes * 60 * 1000
+
+    try:
+        if "m" in tf_str_lower:
+            return int(tf_str_lower.replace("m", "")) * 60 * 1000
+        if "h" in tf_str_lower:
+            return int(tf_str_lower.replace("h", "")) * 60 * 60 * 1000
+        if "d" in tf_str_lower:
+            return int(tf_str_lower.replace("d", "")) * 24 * 60 * 60 * 1000
+        # Attempt to parse as raw minutes if no suffix
+        return int(tf_str_lower) * 60 * 1000
+    except ValueError as e:
+        message = f"Could not parse timeframe string '{tf_str}' as integer or known unit: {e}"
+        if default_to_minutes is None:
+            raise ValueError(message) from e
+        logger.warning(f"{message} Defaulting to {default_to_minutes} minute(s).")
+        return default_to_minutes * 60 * 1000

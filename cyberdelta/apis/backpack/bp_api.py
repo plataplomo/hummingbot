@@ -36,9 +36,6 @@ from cyberdelta.apis.backpack.bp_response_handler import (
 from cyberdelta.apis.backpack.bp_ws_raw_message_handler import BackpackWsRawMessageHandler
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
-from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
-from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
-from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
@@ -55,6 +52,7 @@ from cyberdelta.core.models import (
     FundingRate,
     MarginAccountSummary,
     SpotBalance,
+    Ticker,
     Trade,
 )
 from cyberdelta.core.models.enums import (
@@ -62,6 +60,7 @@ from cyberdelta.core.models.enums import (
     OrderType,
     TimeInForce,
 )
+from cyberdelta.core.models.market import Candle, OrderBook
 from cyberdelta.core.models.market.order import Order
 from cyberdelta.utils.logging_config import get_logger
 
@@ -296,11 +295,13 @@ class BackpackAPI(ExchangeAPI):
 
     # --- Core API Implementation --- #
 
-    async def get_ticker(self, symbol: str) -> BackpackRawTicker:
+    async def get_ticker(self, symbol: str) -> Ticker:
         """Fetches the latest ticker information for a specific symbol."""
-        return await self.market_data.get_ticker(symbol)
+        raw_ticker = await self.market_data.get_ticker(symbol)
+        # Assuming symbol in raw_ticker is correct; pass explicitly if needed
+        return self._bp_mapper.transform_raw_ticker_to_internal(raw_ticker, symbol_override=symbol)
 
-    async def get_order_book(self, symbol: str, depth: int = 20) -> BackpackRawOrderBook:
+    async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
         """Fetch the order book for a symbol, validated via Raw model and transformed via Mapper.
 
         Args:
@@ -313,11 +314,11 @@ class BackpackAPI(ExchangeAPI):
         Raises:
             APIError: If the order book cannot be fetched or validated.
         """
-        return await self.market_data.get_order_book(symbol, depth)
+        # Depth parameter is unused by Backpack service, but kept for interface compatibility
+        raw_order_book = await self.market_data.get_order_book(symbol, depth)
+        return self._bp_mapper.transform_raw_orderbook_to_internal(symbol, raw_order_book)
 
-    async def get_recent_trades(
-        self, symbol: str, limit: int | None = 50
-    ) -> list[BackpackRawTrade]:
+    async def get_recent_trades(self, symbol: str, limit: int | None = 50) -> list[Trade]:
         """
         Get recent trades for a symbol, mapping all required fields for the Trade model.
 
@@ -328,7 +329,20 @@ class BackpackAPI(ExchangeAPI):
         Returns:
             List of Trade objects
         """
-        return await self.market_data.get_recent_trades(symbol, limit)
+        raw_trades = await self.market_data.get_recent_trades(symbol, limit)
+        internal_trades: list[Trade] = []
+        for raw_trade in raw_trades:
+            # transform_raw_trade_to_internal might return None if critical info is missing
+            # from raw REST API trade data.
+            trade = self._bp_mapper.transform_raw_trade_to_internal(raw_trade)
+            if trade:
+                internal_trades.append(trade)
+            else:
+                logger.warning(
+                    f"[{self.exchange_name}] Failed to transform raw trade to internal model "
+                    f"for symbol {symbol}. Raw trade: {raw_trade.model_dump_json()}"
+                )
+        return internal_trades
 
     async def get_balances(self) -> dict[str, SpotBalance]:
         """Get account balances, validated via Raw models and transformed via Mapper."""
@@ -614,9 +628,10 @@ class BackpackAPI(ExchangeAPI):
                 continue
         return orders
 
-    async def get_funding_rate(self, symbol: str) -> BackpackRawFundingRate:
+    async def get_funding_rate(self, symbol: str) -> FundingRate:
         """Fetches the current funding rate for a given perpetual market."""
-        return await self.market_data.get_funding_rate(symbol)
+        raw_funding_rate = await self.market_data.get_funding_rate(symbol)
+        return self._bp_mapper.transform_raw_funding_rate_to_internal(raw_funding_rate)
 
     # --- Placeholder for required abstract method --- #
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
@@ -627,14 +642,15 @@ class BackpackAPI(ExchangeAPI):
         )
         rates: list[FundingRate] = []
         if symbols:
-            for symbol in symbols:
+            for symbol_item in symbols:
                 try:
-                    current_rate: FundingRate = await self.get_funding_rate(symbol)
+                    # get_funding_rate now returns internal FundingRate
+                    current_rate: FundingRate = await self.get_funding_rate(symbol_item)
                     rates.append(current_rate)
                 except APIError as e:
                     logger.error(
                         f"[{self.exchange_name}] Failed to fetch current funding rate for "
-                        f"{symbol} within get_funding_rates: {e}"
+                        f"{symbol_item} within get_funding_rates: {e}"
                     )
                     raise
         else:
@@ -1273,11 +1289,22 @@ class BackpackAPI(ExchangeAPI):
         logger.info(f"[{self.exchange_name}] Resubscribe called. Delegating to base.")
         await super()._resubscribe()
 
-    async def get_market_data(
-        self, symbol: str, timeframe: str, limit: int = 100
-    ) -> list[BackpackRawKline]:
+    async def get_market_data(self, symbol: str, timeframe: str, limit: int = 100) -> list[Candle]:
         """Fetch historical market data (OHLCV/Kline) for a specific symbol and timeframe."""
-        return await self.market_data.get_market_data(symbol, timeframe, limit)
+        raw_klines = await self.market_data.get_market_data(symbol, timeframe, limit)
+        internal_candles: list[Candle] = []
+        for raw_kline in raw_klines:
+            try:
+                candle = self._bp_mapper.transform_raw_kline_to_internal(
+                    symbol, timeframe, raw_kline
+                )
+                internal_candles.append(candle)
+            except ValueError as e:
+                logger.warning(
+                    f"[{self.exchange_name}] Failed to transform raw kline for symbol {symbol}, "
+                    f"timeframe {timeframe}. Error: {e}. Raw kline: {raw_kline.model_dump_json()}"
+                )
+        return internal_candles
 
     async def get_historical_trades(
         self, symbol: str, limit: int = 100, from_id: str | None = None

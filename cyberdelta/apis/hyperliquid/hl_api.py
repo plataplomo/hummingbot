@@ -32,7 +32,6 @@ from cyberdelta.apis.hyperliquid.models.hl_processed_exchange_responses import (
 )
 
 # Hyperliquid Raw Models
-from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeResponse,
     HyperliquidRawExchangeStatusObject,
@@ -42,14 +41,11 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
     HyperliquidRawHistoricalOrderResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
-    HyperliquidRawAssetCtx,
     HyperliquidRawMetaAndAssetCtxsResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawOpenOrdersResponse
 
 # Import HyperliquidRawL2Book
-from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import HyperliquidRawL2Book
-from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import HyperliquidRawPublicTrade
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import HyperliquidRawUserFillsResponse
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawClearinghouseState
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
@@ -62,6 +58,7 @@ from cyberdelta.core.models import (
     FundingRate,
     MarginAccountSummary,
     SpotBalance,
+    Ticker,  # Added Ticker
     Trade,
 )
 from cyberdelta.core.models.enums import (
@@ -69,8 +66,10 @@ from cyberdelta.core.models.enums import (
     OrderType,
     TimeInForce,
 )
+from cyberdelta.core.models.market import Candle, OrderBook  # Added Candle, OrderBook
 from cyberdelta.core.models.market.order import Order, OrderStatus
 from cyberdelta.utils.logging_config import get_logger
+from cyberdelta.utils.parsing import timeframe_to_ms  # Import the new helper
 
 logger = get_logger(__name__)
 
@@ -769,27 +768,41 @@ class HyperliquidAPI(ExchangeAPI):
                 original_exception=e,
             ) from e
 
-    async def get_ticker(self, symbol: str) -> HyperliquidRawAssetCtx | None:
-        """Delegates to HyperliquidMarketDataService to get ticker data."""
-        return await self.market_data.get_ticker(symbol)
+    async def get_ticker(self, symbol: str) -> Ticker:
+        """Delegates to HyperliquidMarketDataService to get ticker data, then maps to internal Ticker."""
+        raw_asset_ctx = await self.market_data.get_ticker(symbol)
+        if raw_asset_ctx:
+            return self._hl_mapper.map_raw_ctx_to_ticker(raw_asset_ctx)
+        raise APIError(
+            f"Ticker data not found for symbol {symbol}", code=APIErrorCode.SYMBOL_NOT_FOUND.value
+        )
 
-    async def get_order_book(self, symbol: str) -> HyperliquidRawL2Book:
-        """Delegates to HyperliquidMarketDataService to get L2 order book data."""
+    async def get_order_book(self, symbol: str, depth: int | None = None) -> OrderBook:
+        """Delegates to HyperliquidMarketDataService to get L2 order book data, then maps to internal OrderBook."""
         # The 'depth' parameter is not typically used by Hyperliquid's L2Book /info endpoint,
         # so it's removed from the API client facade here.
         # The service method handles the actual request structure.
-        return await self.market_data.get_order_book(symbol=symbol)
+        raw_l2_book = await self.market_data.get_order_book(symbol=symbol)
+        return self._hl_mapper.map_raw_order_book(raw_l2_book, depth=depth)
 
-    async def get_recent_trades(self, symbol: str) -> list[HyperliquidRawPublicTrade]:
-        """Delegates to HyperliquidMarketDataService to get recent public trades."""
+    async def get_recent_trades(self, symbol: str, limit: int | None = 50) -> list[Trade]:
+        """Delegates to HyperliquidMarketDataService to get recent public trades, then maps to internal Trades."""
         # The 'limit' parameter is not part of HL /info request for recentTrades.
         # The service method handles the actual request structure.
-        return await self.market_data.get_recent_trades(symbol=symbol)
+        # The service will return all available, then we limit here if needed.
+        raw_public_trades = await self.market_data.get_recent_trades(symbol=symbol)
+        internal_trades = self._hl_mapper.map_raw_trades(raw_public_trades)
+        if limit is not None and limit > 0:
+            return internal_trades[:limit]
+        return internal_trades
 
-    async def get_funding_rate(self, symbol: str) -> HyperliquidRawAssetCtx | None:
-        """Delegates to HyperliquidMarketDataService to get funding rate related data."""
+    async def get_funding_rate(self, symbol: str) -> FundingRate | None:
+        """Delegates to HyperliquidMarketDataService to get funding rate related data, then maps."""
         # HL funding rate is part of the asset context
-        return await self.market_data.get_funding_rate(symbol=symbol)
+        raw_asset_ctx = await self.market_data.get_funding_rate(symbol=symbol)
+        if raw_asset_ctx:
+            return self._hl_mapper.map_raw_ctx_to_funding_rate(raw_asset_ctx)
+        return None
 
     async def transfer(
         self, asset: str, amount: Decimal, from_account: str, to_account: str
@@ -1338,11 +1351,35 @@ class HyperliquidAPI(ExchangeAPI):
             ) from e_unexp
 
     async def get_market_data(
-        self, symbol: str, timeframe: str, start_time_ms: int, end_time_ms: int
-    ) -> HyperliquidRawCandleSnapshot:
-        """Delegates to HyperliquidMarketDataService to get candle snapshot data."""
-        return await self.market_data.get_market_data(
-            symbol=symbol, interval=timeframe, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+        self,
+        symbol: str,
+        timeframe: str,
+        limit: int = 100,  # Adhere to ExchangeAPI signature
+    ) -> list[Candle]:
+        """Fetches historical market data (OHLCV/Kline) for a specific symbol and timeframe.
+
+        Translates 'limit' into start_time_ms and end_time_ms for the Hyperliquid service call.
+        """
+
+        current_time_ms = int(time.time() * 1000)
+        # Use the imported timeframe_to_ms helper
+        timeframe_duration_ms = timeframe_to_ms(timeframe)  # Defaulting to 1 minute on parse error
+
+        # Calculate end_time_ms (now)
+        end_t_ms = current_time_ms
+
+        # Calculate start_time_ms based on limit and timeframe duration
+        # Fetches `limit` candles ending at `end_t_ms`
+        start_t_ms = end_t_ms - (limit * timeframe_duration_ms)
+
+        # The market_data service expects non-optional int for start_time_ms and end_time_ms.
+        raw_candle_snapshot = await self.market_data.get_market_data(
+            symbol=symbol, interval=timeframe, start_time_ms=start_t_ms, end_time_ms=end_t_ms
+        )
+
+        # The mapper also needs symbol and interval (timeframe)
+        return self._hl_candle_mapper.map(
+            raw_snapshot=raw_candle_snapshot, symbol=symbol, interval=timeframe
         )
 
     async def place_order(

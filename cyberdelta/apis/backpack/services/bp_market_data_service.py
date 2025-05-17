@@ -368,18 +368,39 @@ class BackpackMarketDataService:
             if not isinstance(response_data_raw, list):
                 logger.error(
                     f"[{self._exchange_name}] Unexpected klines response format for "
-                    f"{symbol}@{timeframe}: {type(response_data_raw)}"
+                    f"{(symbol)}@{(timeframe)}: {type(response_data_raw)}"
                 )
                 raise APIError(
                     message=f"Unexpected klines response format: {type(response_data_raw)}",
                     code=APIErrorCode.INVALID_RESPONSE.value,
                 )
 
-            validated_kline_list: list[BackpackRawKline] = (
-                self._response_handler.handle_get_market_data_response(
-                    response_data_raw, symbol, timeframe
-                )
+            # Assuming handle_get_market_data_response returns a list of raw kline dicts (RawJson items)
+            # based on the linter error. We need to parse them into BackpackRawKline.
+            raw_kline_data_list = self._response_handler.handle_get_market_data_response(
+                response_data_raw, symbol, timeframe
             )
+
+            validated_kline_list: list[BackpackRawKline] = []
+            for kline_data_item in raw_kline_data_list:  # Iterate directly
+                try:
+                    if isinstance(kline_data_item, dict):
+                        # Perform Pydantic validation for each item
+                        validated_kline_list.append(
+                            BackpackRawKline.model_validate(kline_data_item)
+                        )
+                    else:
+                        logger.warning(
+                            f"[{self._exchange_name}] Skipping non-dict kline item in list for "
+                            f"{(symbol)}@{(timeframe)}: {type(kline_data_item)} - {kline_data_item!r}"
+                        )
+                except ValidationError as e_item_val:
+                    logger.warning(
+                        f"[{self._exchange_name}] Failed to validate individual kline item for "
+                        f"{(symbol)}@{(timeframe)}: {e_item_val}. Item: {kline_data_item!r}"
+                    )
+                    # Optionally, decide whether to continue or raise an error for the whole batch
+
             return validated_kline_list
 
         except APIError:
