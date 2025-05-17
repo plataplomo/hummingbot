@@ -45,6 +45,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOpenOrdersResponse,
+    HyperliquidRawOrder,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
     HyperliquidRawL2Book as HyperliquidRawOrderBookResponse,
@@ -56,6 +57,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
     HyperliquidRawUserFillsResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawClearinghouseState
+from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import HyperliquidRawWsTradeEvent
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
@@ -316,7 +318,8 @@ class HyperliquidAPI(ExchangeAPI):
         topic_key_for_handler = channel
         if channel in ["l2Book", "trades"]:
             if isinstance(raw_data, dict):
-                coin_from_data_any: Any = raw_data.get("coin")
+                raw_data_dict = cast(dict[str, Any], raw_data)
+                coin_from_data_any: Any = raw_data_dict.get("coin")
                 if isinstance(coin_from_data_any, str):
                     topic_key_for_handler = f"{channel}:{coin_from_data_any}"
             else:
@@ -345,8 +348,6 @@ class HyperliquidAPI(ExchangeAPI):
             return
 
         try:
-            validated_payload: Any = None
-
             if channel == "l2Book":
                 if not isinstance(raw_data, dict):
                     logger.warning(
@@ -354,9 +355,10 @@ class HyperliquidAPI(ExchangeAPI):
                         f"Msg: {message}"
                     )
                     return
-                # raw_data is dict
-                validated_payload = HyperliquidWsRawMessageHandler.handle_l2book_payload(raw_data)
-                await app_handler(validated_payload, message)
+                validated_payload = HyperliquidWsRawMessageHandler.handle_l2book_payload(
+                    cast(dict[str, Any], raw_data)
+                )
+                await app_handler(validated_payload.model_dump(mode="json"), message)
 
             elif channel == "trades":  # Public trades
                 if not isinstance(raw_data, list):
@@ -367,15 +369,15 @@ class HyperliquidAPI(ExchangeAPI):
                     return
 
                 typed_trades_list: list[dict[str, Any]] = []
-                for item_in_trades_list_any in raw_data: # item_in_trades_list_any is Any
+                for item_in_trades_list_any in raw_data:  # raw_data is list[Any] here
                     if not isinstance(item_in_trades_list_any, dict):
                         logger.warning(
                             f"[{self.exchange_name}] Trades list item not dict: "
                             f"{item_in_trades_list_any}. Msg: {message}"
                         )
                         return
-                    # item_in_trades_list_any is dict here
-                    typed_trades_list.append(item_in_trades_list_any)
+                    item_as_dict = cast(dict[str, Any], item_in_trades_list_any)
+                    typed_trades_list.append(item_as_dict)
 
                 if not typed_trades_list and raw_data:
                     logger.warning(
@@ -384,10 +386,11 @@ class HyperliquidAPI(ExchangeAPI):
                     )
                     return
 
-                validated_payload = HyperliquidWsRawMessageHandler.handle_public_trades_payload(
-                    typed_trades_list
+                validated_trades: list[HyperliquidRawWsTradeEvent] = (
+                    HyperliquidWsRawMessageHandler.handle_public_trades_payload(typed_trades_list)
                 )
-                await app_handler(validated_payload, message)
+                for trade_event in validated_trades:
+                    await app_handler(trade_event.model_dump(mode="json"), message)
 
             elif channel == "userEvents":
                 if not isinstance(raw_data, list):
@@ -397,87 +400,79 @@ class HyperliquidAPI(ExchangeAPI):
                     )
                     return
 
-                processed_events_for_handler: list[Any] = []
-                for event_item_any in raw_data: # event_item_any is Any
+                for event_item_any in raw_data:  # raw_data is list[Any] here
                     if not isinstance(event_item_any, dict):
                         logger.warning(
                             f"[{self.exchange_name}] userEvents item not dict: "
-                            f"{event_item_any}"
+                            f"{event_item_any}, skipping."
                         )
-                        processed_events_for_handler.append(event_item_any)
                         continue
 
-                    # event_item_any is now confirmed dict
                     event_item_dict = cast(dict[str, Any], event_item_any)
                     event_type_any: Any = event_item_dict.get("type")
 
                     if not isinstance(event_type_any, str):
                         logger.warning(
                             f"[{self.exchange_name}] userEvent item no str type: "
-                            f"{event_item_dict}"
+                            f"{event_item_dict}, skipping."
                         )
-                        processed_events_for_handler.append(event_item_dict)
                         continue
 
                     event_type_str: str = event_type_any
-                    validated_sub_event: Any = event_item_dict # Still a dict here
+                    payload_for_handler: dict[str, Any] = event_item_dict
 
                     if event_type_str == "fill":
-                        validated_sub_event = (
-                            HyperliquidWsRawMessageHandler.handle_user_fill_event_payload(
-                                event_item_dict
-                            )
-                        )
-                    elif event_type_str == "order":
                         try:
-                            order_wrapper = (
-                                HyperliquidWsRawMessageHandler.
-                                handle_user_order_update_wrapper_payload(
+                            payload_for_handler = (
+                                HyperliquidWsRawMessageHandler.handle_user_fill_event_payload(
                                     event_item_dict
                                 )
-                            )
-                            # order_wrapper.data is dict[str, object] by type hint
-                            if isinstance(order_wrapper.data, dict): # pyright: ignore[reportUnnecessaryIsInstance]
-                                validated_sub_event = (
-                                    HyperliquidWsRawMessageHandler.
-                                    handle_user_order_event_payload(
-                                        order_wrapper.data
-                                    )
-                                )
-                            else:
-                                # DEFENSIVE CHECK: Mypy=[unreachable] Ruff=[none]
-                                # order_wrapper.data can be a list.
-                                logger.warning(
-                                    "User order event wrapper 'data' is not a dict: "
-                                    f"{order_wrapper.data}. Using wrapper."
-                                )
-                                validated_sub_event = order_wrapper
-                        except APIError as e_order_val:
+                            ).model_dump(mode="json")
+                        except (APIError, ValidationError) as e_fill_val:
                             logger.error(
-                                f"APIError validating user order event: {e_order_val}. "
-                                f"Event: {event_item_dict}"
+                                f"[{self.exchange_name}] Error validating user fill event: "
+                                f"{e_fill_val}. Event: {event_item_dict}. "
+                                f"Passing raw dict to handler."
+                            )
+                    elif event_type_str == "order":
+                        try:
+                            order_wrapper = HyperliquidWsRawMessageHandler.handle_user_order_update_wrapper_payload(\
+                                event_item_dict\
+                            )
+                            current_order_data = order_wrapper.data
+                            if isinstance(current_order_data, HyperliquidRawOrder):\
+                                payload_for_handler = (
+                                    HyperliquidWsRawMessageHandler.handle_user_order_event_payload(
+                                        current_order_data.model_dump(mode="json")
+                                    )
+                                ).model_dump(mode="json")
+                            elif isinstance(current_order_data, list):
+                                logger.info(
+                                    f"[{self.exchange_name}] User 'order' event contains "
+                                    f"list of fills. Passing wrapper for now. "
+                                    f"Fills: {len(current_order_data)}"
+                                )
+                                payload_for_handler = order_wrapper.model_dump(mode="json")
+                        except (APIError, ValidationError) as e_order_val:
+                            logger.error(
+                                f"[{self.exchange_name}] Error validating user order event: "
+                                f"{e_order_val}. Event: {event_item_dict}. "
+                                f"Passing raw dict to handler."
                             )
                     elif event_type_str == "positionUpdate":
-                        validated_sub_event = (
-                            HyperliquidWsRawMessageHandler.
-                            handle_user_position_update_event_payload(
-                                event_item_dict
+                        try:
+                            payload_for_handler = (
+                                HyperliquidWsRawMessageHandler.handle_user_position_update_event_payload(
+                                    event_item_dict
+                                )
+                            ).model_dump(mode="json")
+                        except (APIError, ValidationError) as e_pos_val:
+                            logger.error(
+                                f"[{self.exchange_name}] Error validating positionUpdate event: "
+                                f"{e_pos_val}. Event: {event_item_dict}. "
+                                f"Passing raw dict to handler."
                             )
-                        )
-
-                    processed_events_for_handler.append(validated_sub_event)
-
-                if processed_events_for_handler:
-                    # The handler expects List[Union[ValidatedFill, ValidatedOrder,
-                    # ValidatedPosition]]
-                    # but raw_data can contain unvalidated items if specific parsing fails.
-                    # Using type: ignore as the list is heterogeneous by design here.
-                    await app_handler(processed_events_for_handler, message)  # type: ignore[arg-type]
-                elif raw_data: # If raw_data was not empty but processed_events is
-                    logger.debug(
-                        f"[{self.exchange_name}] All userEvents items unprocessable. "
-                        f"Original: {raw_data}"
-                    )
+                    await app_handler(payload_for_handler, message)
 
             elif channel == "allMids":
                 if not isinstance(raw_data, dict):
@@ -486,24 +481,27 @@ class HyperliquidAPI(ExchangeAPI):
                         f"got {type(raw_data)}. Msg: {message}"
                     )
                     return
-                # raw_data is dict
                 logger.debug(
                     f"[{self.exchange_name}] Forwarding raw allMids data for '{channel}'. "
                     f"Validation TBD."
                 )
-                await app_handler(raw_data, message)
+                await app_handler(cast(dict[str, Any], raw_data), message)
 
             elif channel == "pong" or channel == "subscriptionResponse":
                 logger.debug(f"[{self.exchange_name}] Control message on '{channel}': {message}")
-                # raw_data can be None or dict for these, app_handler should handle Any
-                await app_handler(raw_data, message)
+                payload_for_control_handler = (
+                    cast(dict[str, Any], raw_data) if isinstance(raw_data, dict) else {}
+                )
+                await app_handler(payload_for_control_handler, message)
             else:
                 logger.debug(
                     f"[{self.exchange_name}] Unhandled channel '{channel}' by specific "
                     f"validation, passing raw. Msg: {message}"
                 )
-                # raw_data type is unknown, app_handler should handle Any
-                await app_handler(raw_data, message)
+                payload_for_unhandled_handler = (
+                    cast(dict[str, Any], raw_data) if isinstance(raw_data, dict) else {}
+                )
+                await app_handler(payload_for_unhandled_handler, message)
 
         except APIError as e:
             logger.error(
