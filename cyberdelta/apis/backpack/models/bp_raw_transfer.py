@@ -20,9 +20,15 @@ These models act as a strict shield between external API data and internal busin
 logic, ensuring robustness and security at the data ingestion boundary.
 """
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
-from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
+from cyberdelta.apis.backpack.models.bp_common_raw_types import (
+    RawBpExtendedOrderSideString,
+    RawBpNonEmptyStringMax32,
+    RawBpNonEmptyStringMax64,
+    RawBpParsableNonNegativeFiniteDecimalString,
+    RawBpTransferStatusString,
+)
 
 
 class BackpackRawWithdrawal(BaseModel):
@@ -39,37 +45,13 @@ class BackpackRawWithdrawal(BaseModel):
         status (str): Withdrawal status (e.g., 'pending', 'completed').
     """
 
-    id: str = Field(..., alias="id", max_length=64)
-    asset: str = Field(..., alias="asset", max_length=32)
-    amount: str = Field(..., alias="amount", max_length=64)
-    status: str = Field(..., alias="status", max_length=32)
+    id: RawBpNonEmptyStringMax64 = Field(..., alias="id")
+    asset: RawBpNonEmptyStringMax32 = Field(..., alias="asset")
+    amount: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="amount")
+    status: RawBpTransferStatusString = Field(..., alias="status")
     model_config = ConfigDict(
         populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True
     )
-
-    @field_validator("id", "asset", mode="before")
-    @classmethod
-    def validate_non_empty_str(cls, v: object, info: ValidationInfo) -> str:
-        field_name = info.field_name or "field"
-        return validate_str_field(v, field_name=field_name, max_length=64)
-
-    @field_validator("amount", mode="before")
-    @classmethod
-    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
-        field_name = info.field_name or "amount"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
-        if d < 0:
-            raise ValueError(f"{field_name}: Withdrawal amount cannot be negative")
-        return s
-
-    @field_validator("status", mode="before")
-    @classmethod
-    def validate_status_enum(cls, v: object, info: ValidationInfo) -> str:
-        allowed = {"pending", "completed", "failed", "cancelled"}
-        return validate_enum_field(v, allowed=allowed, field_name="status")
 
 
 class BackpackRawDeposit(BaseModel):
@@ -86,37 +68,13 @@ class BackpackRawDeposit(BaseModel):
         status (str): Deposit status (e.g., 'pending', 'completed').
     """
 
-    id: str = Field(..., alias="id", max_length=64)
-    asset: str = Field(..., alias="asset", max_length=32)
-    amount: str = Field(..., alias="amount", max_length=64)
-    status: str = Field(..., alias="status", max_length=32)
+    id: RawBpNonEmptyStringMax64 = Field(..., alias="id")
+    asset: RawBpNonEmptyStringMax32 = Field(..., alias="asset")
+    amount: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="amount")
+    status: RawBpTransferStatusString = Field(..., alias="status")
     model_config = ConfigDict(
         populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True
     )
-
-    @field_validator("id", "asset", mode="before")
-    @classmethod
-    def validate_non_empty_str(cls, v: object, info: ValidationInfo) -> str:
-        field_name = info.field_name or "field"
-        return validate_str_field(v, field_name=field_name, max_length=64)
-
-    @field_validator("amount", mode="before")
-    @classmethod
-    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
-        field_name = info.field_name or "amount"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
-        if d < 0:
-            raise ValueError(f"{field_name}: Deposit amount cannot be negative")
-        return s
-
-    @field_validator("status", mode="before")
-    @classmethod
-    def validate_status_enum(cls, v: object, info: ValidationInfo) -> str:
-        allowed = {"pending", "completed", "failed", "cancelled"}
-        return validate_enum_field(v, allowed=allowed, field_name="status")
 
 
 class BackpackRawLiquidation(BaseModel):
@@ -133,33 +91,10 @@ class BackpackRawLiquidation(BaseModel):
         side (str): Side ('buy', 'sell').
     """
 
-    symbol: str = Field(..., alias="symbol", max_length=64)
-    price: str = Field(..., alias="price", max_length=64)
-    quantity: str = Field(..., alias="quantity", max_length=64)
-    side: str = Field(..., alias="side", max_length=16)
+    symbol: RawBpNonEmptyStringMax64 = Field(..., alias="symbol")
+    price: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="price")
+    quantity: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="quantity")
+    side: RawBpExtendedOrderSideString = Field(..., alias="side")
     model_config = ConfigDict(
         populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True
     )
-
-    @field_validator("symbol", mode="before")
-    @classmethod
-    def validate_symbol(cls, v: object, info: ValidationInfo) -> str:
-        return validate_str_field(v, field_name="symbol", max_length=64)
-
-    @field_validator("price", "quantity", mode="before")
-    @classmethod
-    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
-        field_name = info.field_name or "field"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
-        if d < 0:
-            raise ValueError(f"{field_name}: Liquidation {field_name} cannot be negative")
-        return s
-
-    @field_validator("side", mode="before")
-    @classmethod
-    def validate_side_enum(cls, v: object, info: ValidationInfo) -> str:
-        allowed = {"buy", "sell"}
-        return validate_enum_field(v, allowed=allowed, field_name="side")

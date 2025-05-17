@@ -24,7 +24,8 @@ robustness and security at the data ingestion boundary.
 """
 
 import logging
-from typing import Any, Self
+from collections.abc import Sequence
+from typing import Self, cast
 
 from pydantic import (
     BaseModel,
@@ -163,10 +164,36 @@ class BackpackRawOrderBook(BaseModel):
 
     @field_validator("bids", "asks", mode="before")
     @classmethod
-    def _validate_bids_asks_must_be_list_ob(cls, v: object, info: ValidationInfo) -> list[Any]:
+    def _validate_bids_asks_must_be_list_ob(
+        cls, v: object, info: ValidationInfo
+    ) -> list[tuple[str, str]]:
         if not isinstance(v, list):
             raise ValueError("Must be a list")
-        return v
+
+        # Justification for cast:
+        # The input `v` is `object`. After `isinstance(v, list)`, `v` is a `list`.
+        # The Pydantic field that uses this validator is typed as
+        # `list[tuple[RawBpParsableNonNegativeFiniteDecimalString,  # Adjusted line break
+        #               RawBpParsableNonNegativeFiniteDecimalString]]`,
+        # where `RawBpParsableNonNegativeFiniteDecimalString` is `Annotated[str, ...]`.
+        # This means Pydantic expects this 'before' validator to return a structure
+        # compatible with `list[tuple[str, str]]` for the next validation phase
+        # of its elements.
+        # Casting `v` to `list[tuple[str, str]]` aligns the return type hint with
+        # this expectation.
+        # Alternatives like iterating `v` to build a new typed list are too complex
+        # for this simple structural check.
+        # `TypeGuard` is not suitable for refining the return type of `v` itself here.
+        # The cast is considered safe as Pydantic will immediately perform detailed
+        # validation on the elements.
+        # #[CAST-REVIEW-REQUIRED]
+
+        # Runtime Verification:
+        assert isinstance(v, list), "Input must be a list (already checked, but for cast safety)"
+        # More detailed structural assertions (e.g., on v[0]) are omitted here;
+        # Pydantic's subsequent validation on element types is comprehensive.
+
+        return cast(list[tuple[str, str]], v)
 
 
 # --- Raw WebSocket Event Models ---
@@ -209,19 +236,61 @@ class BackpackRawDepthUpdateEvent(BaseModel):
 
     @field_validator("bids", "asks", mode="before")
     @classmethod
-    def _custom_validate_depth_levels(cls, v: object, info: ValidationInfo) -> list[Any]:
+    def _custom_validate_depth_levels(
+        cls, v: object, info: ValidationInfo
+    ) -> list[tuple[str, str]]:
         if not isinstance(v, list):
             raise ValueError("Must be a list")
 
-        processed_levels = []
-        for level_item in v:
-            if not isinstance(level_item, (list, tuple)):
+        # Justification for cast (v_list):
+        # `v` is `object`, then `list`. Casting to `list[object]` allows iterating with
+        # `level_item_raw_obj` as `object`, preventing "Unknown" type from Pyright
+        # and enabling further processing.
+        # #[CAST-REVIEW-REQUIRED]
+        assert isinstance(v, list), "v must be a list for casting to list[object]"
+        v_list = cast(list[object], v)
+
+        processed_levels: list[tuple[str, str]] = []
+        for level_item_raw_obj in v_list:
+            if not isinstance(level_item_raw_obj, list | tuple):
                 raise ValueError("Each item must be a list or tuple")
 
-            if len(level_item) != 2:
+            # Justification for cast (level_item_seq):
+            # `level_item_raw_obj` is `object`. After `isinstance` check, it's `list | tuple`.
+            # Casting to `Sequence[object]` makes it a Sized collection, allowing `len()`
+            # to be type-checked correctly. This avoids Pyright errors about `len()`
+            # on `list[Unknown] | tuple[Unknown, ...]`.
+            # The cast is safe as `isinstance(list | tuple)` is already confirmed.
+            # #[CAST-REVIEW-REQUIRED]
+            assert isinstance(level_item_raw_obj, list | tuple), (
+                "Item must be a list or tuple for casting to Sequence[object]"
+            )
+            level_item_seq = cast(Sequence[object], level_item_raw_obj)
+
+            if len(level_item_seq) != 2:
                 raise ValueError("length 2")
 
-            processed_levels.append(tuple(level_item))
+            # Justification for cast (level_item_typed):
+            # `level_item_seq` is `Sequence[object]` of length 2. Converting to `tuple()`
+            # then casting to `tuple[object, object]` provides type-safe access
+            # to its elements `[0]` and `[1]`.
+            # The cast is safe because the structure (Sequence of 2 elements) is
+            # asserted by `len()`.
+            # #[CAST-REVIEW-REQUIRED]
+
+            # Runtime Verification for the cast (covered by len check and
+            # subsequent tuple conversion):
+            # Asserting len(level_item_seq) == 2 again is redundant here due to
+            # the preceding check.
+
+            # Ensure it's a tuple for consistent indexing, then cast
+            level_item_as_tuple = tuple(level_item_seq)  # Input is Sequence[object]
+            level_item_typed = cast(tuple[object, object], level_item_as_tuple)
+
+            item1 = level_item_typed[0]
+            item2 = level_item_typed[1]
+
+            processed_levels.append((str(item1), str(item2)))
         return processed_levels
 
     @model_validator(mode="after")

@@ -6,16 +6,21 @@ This module defines Pydantic models for validating the *raw* structure of
 Backpack Exchange API requests and responses related to withdrawals.
 """
 
-from datetime import datetime
-from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
-from cyberdelta.utils.parsing import (
-    parse_datetime_utc,
-    parse_decimal_value,
-    validate_str_field,
+# Removed ValidationInfo, field_validator and specific parsing utils
+from cyberdelta.apis.backpack.models.bp_common_raw_types import (
+    RawBpNonEmptyString,  # For required strings with no specific max_len in original validator
+    RawBpOptionalNonEmptyString,  # For optional strings with no specific max_len
+    RawBpOptionalParsableFiniteDecimalString,
+    RawBpOptionalStrictBool,
+    RawBpParsableFiniteDecimalString,
+    RawBpParsablePositiveFiniteDecimalString,  # For request quantity
+    RawBpStrictBool,
+    RawBpStringToDatetime,
+    RawBpWithdrawalConfirmedPendingStatusString,  # For response status
 )
 
 # --- Enums based on OpenAPI spec --- #
@@ -196,39 +201,16 @@ class BackpackRawWithdrawalRequest(BaseModel):
     Corresponds to `AccountWithdrawalPayload` in OpenAPI.
     """
 
-    address: str
+    address: RawBpNonEmptyString
     blockchain: Blockchain
-    quantity: Decimal
+    quantity: RawBpParsablePositiveFiniteDecimalString
     symbol: Asset
-    client_id: str | None = Field(default=None, alias="clientId")
-    two_factor_token: str | None = Field(default=None, alias="twoFactorToken")
-    auto_borrow: bool | None = Field(default=None, alias="autoBorrow")
-    auto_lend_redeem: bool | None = Field(default=None, alias="autoLendRedeem")
+    client_id: RawBpOptionalNonEmptyString = Field(default=None, alias="clientId")
+    two_factor_token: RawBpOptionalNonEmptyString = Field(default=None, alias="twoFactorToken")
+    auto_borrow: RawBpOptionalStrictBool = Field(default=None, alias="autoBorrow")
+    auto_lend_redeem: RawBpOptionalStrictBool = Field(default=None, alias="autoLendRedeem")
 
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-    # Field validators for request model (mostly string formats)
-    @field_validator(
-        "address", "client_id", "two_factor_token", "symbol", "blockchain", mode="before"
-    )
-    @classmethod
-    def _validate_request_strings(cls, v: object, info: ValidationInfo) -> str:
-        if not isinstance(v, str):
-            raise ValueError(f"Field {info.field_name} must be a string, got {type(v)}")
-        return validate_str_field(v, field_name=str(info.field_name))  # Ensure field_name is str
-
-    @field_validator("quantity", mode="before")
-    @classmethod
-    def _validate_request_quantity(cls, v: object, info: ValidationInfo) -> Decimal:
-        if not isinstance(v, str):
-            raise ValueError(f"Field {info.field_name} (quantity) must be a string, got {type(v)}")
-        validated_str = validate_str_field(v, field_name=str(info.field_name))
-        parsed_decimal = parse_decimal_value(validated_str, field_name=str(info.field_name))
-        if parsed_decimal is None:
-            raise ValueError(f"Field {info.field_name} could not be parsed to a valid Decimal.")
-        if parsed_decimal <= Decimal(0):
-            raise ValueError(f"Field {info.field_name} (quantity) must be positive.")
-        return parsed_decimal
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
 # --- Response Model --- #
@@ -242,80 +224,25 @@ class BackpackRawWithdrawalResponse(BaseModel):
 
     id: int
     blockchain: Blockchain
-    quantity: Decimal
-    fee: Decimal
+    quantity: RawBpParsableFiniteDecimalString
+    fee: RawBpParsableFiniteDecimalString
     symbol: Asset
-    status: WithdrawalStatus
-    to_address: str = Field(..., alias="toAddress")
-    created_at: datetime = Field(..., alias="createdAt")
-    is_internal: bool = Field(..., alias="isInternal")
+    status: RawBpWithdrawalConfirmedPendingStatusString
+    to_address: RawBpNonEmptyString = Field(..., alias="toAddress")
+    created_at: RawBpStringToDatetime = Field(..., alias="createdAt")
+    is_internal: RawBpStrictBool = Field(..., alias="isInternal")
 
     # Optional fields
-    client_id: str | None = Field(default=None, alias="clientId")
-    identifier: str | None = Field(default=None)  # tx hash if sent
-    fiat_fee: Decimal | None = Field(default=None, alias="fiatFee")
+    client_id: RawBpOptionalNonEmptyString = Field(default=None, alias="clientId")
+    identifier: RawBpOptionalNonEmptyString = Field(default=None)
+    fiat_fee: RawBpOptionalParsableFiniteDecimalString = Field(default=None, alias="fiatFee")
     fiat_state: EqualsMoneyWithdrawalState | None = Field(default=None, alias="fiatState")
     fiat_symbol: FiatAsset | None = Field(default=None, alias="fiatSymbol")
-    provider_id: str | None = Field(default=None, alias="providerId")
+    provider_id: RawBpOptionalNonEmptyString = Field(default=None, alias="providerId")
     subaccount_id: int | None = Field(default=None, alias="subaccountId")
-    transaction_hash: str | None = Field(default=None, alias="transactionHash")
-    bank_name: str | None = Field(default=None, alias="bankName")
-    bank_identifier: str | None = Field(default=None, alias="bankIdentifier")
-    account_identifier: str | None = Field(default=None, alias="accountIdentifier")
+    transaction_hash: RawBpOptionalNonEmptyString = Field(default=None, alias="transactionHash")
+    bank_name: RawBpOptionalNonEmptyString = Field(default=None, alias="bankName")
+    bank_identifier: RawBpOptionalNonEmptyString = Field(default=None, alias="bankIdentifier")
+    account_identifier: RawBpOptionalNonEmptyString = Field(default=None, alias="accountIdentifier")
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("quantity", "fee", "fiat_fee", mode="before")
-    @classmethod
-    def _validate_response_decimals(cls, v: object, info: ValidationInfo) -> Decimal | None:
-        if v is None:  # Allow optional Decimal fields to be None if not provided
-            return None
-        if not isinstance(v, str):
-            raise ValueError(f"Field {info.field_name} must be a string, got {type(v)}")
-        # Ensure field_name is str for parsing utilities
-        field_name_str = str(info.field_name)
-        validated_str = validate_str_field(v, field_name=field_name_str)
-        parsed_decimal = parse_decimal_value(validated_str, field_name=field_name_str)
-        # parse_decimal_value is expected to raise on error, but if it could return None:
-        if parsed_decimal is None:
-            raise ValueError(f"Field {field_name_str} could not be parsed to a valid Decimal.")
-        return parsed_decimal
-
-    @field_validator("created_at", mode="before")
-    @classmethod
-    def _validate_created_at(cls, v: object, info: ValidationInfo) -> datetime:
-        if not isinstance(v, str):
-            raise ValueError(
-                f"Field {info.field_name} (created_at) must be a string, got {type(v)}"
-            )
-        validated_str = validate_str_field(v, field_name=str(info.field_name))
-        dt = parse_datetime_utc(validated_str, field_name=str(info.field_name))
-        if dt is None:
-            raise ValueError(
-                f"Field {info.field_name} (created_at) could not be parsed to datetime: {v}"
-            )
-        return dt
-
-    @field_validator(
-        "blockchain",
-        "symbol",
-        "status",
-        "to_address",
-        "client_id",
-        "identifier",
-        "fiat_state",
-        "fiat_symbol",
-        "provider_id",
-        "transaction_hash",
-        "bank_name",
-        "bank_identifier",
-        "account_identifier",
-        mode="before",
-    )
-    @classmethod
-    def _validate_response_strings(cls, v: object, info: ValidationInfo) -> str | None:
-        if v is None:  # Allow optional string fields to be None
-            return None
-        if not isinstance(v, str):
-            raise ValueError(f"Field {info.field_name} must be a string, got {type(v)}")
-        return validate_str_field(v, field_name=str(info.field_name))

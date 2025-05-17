@@ -7,6 +7,7 @@ encountered in Backpack API responses. These types will centralize validation lo
 for raw models, ensuring consistency and adhering to project rules.
 """
 
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Annotated
 
@@ -32,6 +33,9 @@ BP_ORDER_TYPES = {"LIMIT", "MARKET", "STOP", "TRAILING_STOP", "TAKE_PROFIT"}
 
 BP_ORDER_STATUSES = {"NEW", "FILLED", "CANCELLED", "EXPIRED", "REJECTED", "PARTIALLY_FILLED"}
 """Set of allowed Backpack order statuses."""
+
+BP_TRANSFER_STATUSES = {"pending", "completed", "failed", "cancelled"}
+"""Set of allowed Backpack transfer (deposit/withdrawal) statuses."""
 
 # --- Validation Functions for Annotated Types ---
 
@@ -620,3 +624,129 @@ RawBpKlineNonEmptyStringMax64 = Annotated[
 
 # --- Standard Raw Types (more flexible parsing) ---
 # ... existing code ...
+
+
+def _validate_raw_bp_transfer_status(v: object, info: ValidationInfo) -> str:
+    """Validates Backpack transfer status string."""
+    field_name = info.field_name or "bp_transfer_status"
+    # Max length for "completed" is 9, "cancelled" is 9. Use a safe max like 16.
+    s = validate_str_field(v, field_name=field_name, max_length=16, allow_empty=False)
+    return validate_enum_field(s, allowed=BP_TRANSFER_STATUSES, field_name=field_name)
+
+
+RawBpTransferStatusString = Annotated[str, BeforeValidator(_validate_raw_bp_transfer_status)]
+"""Raw string for Backpack transfer statuses."""
+
+
+def _validate_raw_parsable_positive_finite_decimal_string(v: object, info: ValidationInfo) -> str:
+    """Input `v` is raw string. Validates it can be parsed to positive finite Decimal.
+    Returns original string."""
+    field_name = info.field_name or "raw_parsable_positive_finite_decimal_string_field"
+    # Reuse _validate_raw_parsable_finite_decimal_string for initial parsing and validation
+    s = _validate_raw_parsable_finite_decimal_string(v, info)
+    # Then parse again to check positivity (value of s is already validated as parsable)
+    d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+    # DEFENSIVE CHECK: parse_decimal_value with allow_none=False should not return None.
+    # Mypy=[assert-type] Ruff=[N/A]
+    assert d is not None, (
+        f"Field {field_name}: parse_decimal_value unexpectedly returned None"
+        f" for positive check of '{s}' despite allow_none=False"
+    )
+    if d <= Decimal(0):
+        raise ValueError(f"Field {field_name}: Value '{s}' must represent a positive decimal.")
+    return s
+
+
+RawBpParsablePositiveFiniteDecimalString = Annotated[
+    str, BeforeValidator(_validate_raw_parsable_positive_finite_decimal_string)
+]
+"""Raw string validated as parsable to positive finite Decimal. Pydantic field type is str."""
+
+BP_WITHDRAWAL_CONFIRMED_PENDING_STATUSES = {"confirmed", "pending"}
+"""Set of allowed Backpack withdrawal statuses (confirmed/pending)."""
+
+
+def _validate_raw_bp_withdrawal_confirmed_pending_status(v: object, info: ValidationInfo) -> str:
+    """Validates Backpack withdrawal status string for confirmed/pending."""
+    field_name = info.field_name or "bp_withdrawal_confirmed_pending_status"
+    # Max length for "confirmed" is 9. Use a safe max like 16.
+    s = validate_str_field(v, field_name=field_name, max_length=16, allow_empty=False)
+    return validate_enum_field(
+        s, allowed=BP_WITHDRAWAL_CONFIRMED_PENDING_STATUSES, field_name=field_name
+    )
+
+
+RawBpWithdrawalConfirmedPendingStatusString = Annotated[
+    str, BeforeValidator(_validate_raw_bp_withdrawal_confirmed_pending_status)
+]
+"""Raw string for Backpack withdrawal (confirmed/pending) statuses."""
+
+
+def _validate_raw_non_empty_string(v: object, info: ValidationInfo) -> str:
+    """Validates a non-empty string without a specific max_length."""
+    field_name = info.field_name or "raw_non_empty_string_field"
+    return validate_str_field(v, field_name=field_name, max_length=None, allow_empty=False)
+
+
+RawBpNonEmptyString = Annotated[str, BeforeValidator(_validate_raw_non_empty_string)]
+"""Raw non-empty string, no specific max length enforced by this type directly."""
+
+
+def _validate_optional_non_empty_string(v: object, info: ValidationInfo) -> str | None:
+    """Validates an optional non-empty string without a specific max_length."""
+    if v is None:
+        return None
+    field_name = info.field_name or "optional_raw_non_empty_string_field"
+    s = validate_str_field(v, field_name=field_name, max_length=None, allow_empty=False)
+    if not s.strip():  # Ensure non-None value is not just whitespace
+        raise ValueError(f"Field {field_name} cannot be only whitespace if provided.")
+    return s
+
+
+RawBpOptionalNonEmptyString = Annotated[
+    str | None, BeforeValidator(_validate_optional_non_empty_string)
+]
+"""Optional raw non-empty string (not just whitespace), no specific max_length."""
+
+
+def _validate_raw_string_to_datetime(v: object, info: ValidationInfo) -> datetime:
+    """Input `v` is raw string. Returns converted datetime if valid ISO8601-like."""
+    field_name = info.field_name or "raw_string_to_datetime_field"
+    if not isinstance(v, str):
+        raise ValueError(f"Field {field_name} raw value must be a string, got {type(v).__name__}")
+    # Ensure field_name is str for parsing utilities
+    validated_str = validate_str_field(v, field_name=field_name, allow_empty=False)
+    # parse_datetime_utc from cyberdelta.utils.parsing handles various ISO formats and Z suffix
+    dt = parse_datetime_utc(validated_str, field_name=field_name)
+    # parse_datetime_utc raises ValueError on failure, so dt should be datetime if no error.
+    # Add an assertion for defensiveness, though it should be guaranteed by parse_datetime_utc's contract.
+    # DEFENSIVE CHECK: parse_datetime_utc should return datetime or raise.
+    # Mypy=[assert-type] Ruff=[N/A]
+    assert isinstance(dt, datetime), (
+        f"Field {field_name}: parse_datetime_utc unexpectedly returned non-datetime for '{validated_str}'"
+    )
+    return dt
+
+
+RawBpStringToDatetime = Annotated[datetime, BeforeValidator(_validate_raw_string_to_datetime)]
+"""Raw string validated and parsed to a datetime object. Pydantic field type is datetime."""
+
+RawBpNonEmptyStringMax254 = Annotated[
+    str, BeforeValidator(lambda v, i: _validate_raw_non_empty_string_max_len(v, i, max_length=254))
+]
+"""Raw non-empty string, max_length=254."""
+
+BP_ACCOUNT_STATUSES = {"active", "suspended", "pending"}
+"""Set of allowed Backpack account statuses."""
+
+
+def _validate_raw_bp_account_status(v: object, info: ValidationInfo) -> str:
+    """Validates Backpack account status string."""
+    field_name = info.field_name or "bp_account_status"
+    # Max length for "suspended" is 9. Use a safe max like 16 or 32 as per original model.
+    s = validate_str_field(v, field_name=field_name, max_length=32, allow_empty=False)
+    return validate_enum_field(s, allowed=BP_ACCOUNT_STATUSES, field_name=field_name)
+
+
+RawBpAccountStatusString = Annotated[str, BeforeValidator(_validate_raw_bp_account_status)]
+"""Raw string for Backpack account statuses."""
