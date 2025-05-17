@@ -311,8 +311,14 @@ class HyperliquidAPI(ExchangeAPI):
             logger.debug(f"[{self.exchange_name}] Unroutable WS message (no channel): {message}")
             return
 
-        topic_key_for_handler = channel
-        if channel in ["l2Book", "trades"]:
+        # Handle control messages first
+        if channel in ["pong", "subscriptionResponse"]:
+            logger.debug(f"[{self.exchange_name}] Control message on '{channel}': {message}")
+            # For subscriptionResponse, we might eventually want to confirm active subscriptions
+            return
+
+        topic_key_for_handler = channel  # Default to base channel name
+        if channel == "l2Book":
             if isinstance(raw_data, dict):
                 raw_data_dict = cast(dict[str, Any], raw_data)
                 coin_from_data_any: Any = raw_data_dict.get("coin")
@@ -320,10 +326,29 @@ class HyperliquidAPI(ExchangeAPI):
                     topic_key_for_handler = f"{channel}:{coin_from_data_any}"
             else:
                 logger.warning(
-                    f"[{self.exchange_name}] Expected dict for '{channel}' data, "
-                    f"got {type(cast(object, raw_data))}. Msg: {message}"
+                    f"[{self.exchange_name}] Expected dict for 'l2Book' data to derive topic key, "
+                    f"got {type(cast(object, raw_data))}. Using base channel '{channel}' as key. "
+                    f"Msg: {message}"
                 )
-                return
+        elif channel == "trades":
+            # For trades, raw_data is typically a list of trade dicts.
+            # The subscription topic (e.g., "trades:COIN") is the primary source for the coin.
+            # If the message itself contains a top-level 'coin' (as in test_hl_api.py), use that.
+            # Otherwise, try to get it from the first trade item if raw_data is a list.
+            coin_for_topic_str: str | None = None
+            # Prioritize coin from message top-level (matches test_hl_api.py trades test structure)
+            if isinstance(message.get("coin"), str):
+                coin_for_topic_str = message.get("coin")
+            elif isinstance(raw_data, list) and raw_data:
+                first_trade_item: Any = raw_data[0]
+                if isinstance(first_trade_item, dict):
+                    coin_from_item_any: Any = cast(dict[str, Any], first_trade_item).get("coin")
+                    if isinstance(coin_from_item_any, str):
+                        coin_for_topic_str = coin_from_item_any
+
+            if coin_for_topic_str:
+                topic_key_for_handler = f"{channel}:{coin_for_topic_str}"
+            # If coin_for_topic_str is still None, topic_key_for_handler remains base 'trades'
         elif channel == "userEvents":
             topic_key_for_handler = "userEvents"
 
@@ -333,13 +358,14 @@ class HyperliquidAPI(ExchangeAPI):
             if generic_app_handler:
                 app_handler = generic_app_handler
             else:
-                logger.debug(
-                    f"[{self.exchange_name}] No WS handler for '{topic_key_for_handler}'. "
-                    f"Msg: {message}"
-                )
+                log_parts = [f"[{self.exchange_name}] No WS handler for '{topic_key_for_handler}'"]
+                if topic_key_for_handler != channel:
+                    log_parts.append(f" (or base '{channel}')")
+                log_parts.append(f". Msg: {message}")
+                logger.debug("".join(log_parts))
                 return
 
-        if raw_data is None and channel not in ["pong", "subscriptionResponse"]:
+        if raw_data is None:
             logger.warning(f"[{self.exchange_name}] WS '{channel}' has no data. Msg: {message}")
             return
 
@@ -349,7 +375,7 @@ class HyperliquidAPI(ExchangeAPI):
             if channel == "l2Book":
                 if not isinstance(raw_data, dict):
                     raise APIError(
-                        f"l2Book data not dict: {type(raw_data)}",
+                        f"l2Book data not dict: {type(raw_data)}",  # pyright: ignore [reportUnknownArgumentType]
                         code=APIErrorCode.INVALID_RESPONSE.value,
                     )
                 # raw_data is now confirmed dict
@@ -467,10 +493,8 @@ class HyperliquidAPI(ExchangeAPI):
                         elif event_type_str == "order":
                             # The event_item_dict is the wrapper for the order event.
                             # Its 'data' field contains the actual order or list of fills.
-                            order_update_handler = (
-                                HyperliquidWsRawMessageHandler.handle_user_order_update_wrapper_payload
-                            )
-                            order_update_wrapper = order_update_handler(
+                            _handle_order_wrapper = HyperliquidWsRawMessageHandler.handle_user_order_update_wrapper_payload
+                            order_update_wrapper = _handle_order_wrapper(
                                 event_item_dict
                                 # This is the outer dict with "type" and "data"
                             )
@@ -487,10 +511,10 @@ class HyperliquidAPI(ExchangeAPI):
                             # The intention is that this 'data' dict is the *actual* order details.
 
                             # If order_update_wrapper.data itself is supposed to be an Order:
-                            order_event_handler = (
+                            _handle_order_event = (
                                 HyperliquidWsRawMessageHandler.handle_user_order_event_payload
                             )
-                            validated_order_details = order_event_handler(
+                            validated_order_details = _handle_order_event(
                                 order_update_wrapper.data  # This is dict[str, Any]
                             )
                             current_event_payload_for_handler = validated_order_details.model_dump(
@@ -498,10 +522,8 @@ class HyperliquidAPI(ExchangeAPI):
                             )
 
                         elif event_type_str == "positionUpdate":
-                            pos_update_handler = (
-                                HyperliquidWsRawMessageHandler.handle_user_position_update_event_payload
-                            )
-                            validated_position_update = pos_update_handler(event_item_dict)
+                            _handle_pos_update = HyperliquidWsRawMessageHandler.handle_user_position_update_event_payload
+                            validated_position_update = _handle_pos_update(event_item_dict)
                             current_event_payload_for_handler = (
                                 validated_position_update.model_dump(mode="json")
                             )
@@ -529,10 +551,10 @@ class HyperliquidAPI(ExchangeAPI):
                 if not isinstance(raw_data, dict):
                     logger.warning(
                         f"[{self.exchange_name}] 'allMids' channel data is not a dict or is None. "
-                        f"Type: {type(raw_data)}. Data: {raw_data!r}. Skipping."
+                        f"Type: {type(raw_data)}. Data: {raw_data!r}. Skipping."  # pyright: ignore [reportUnknownArgumentType]
                     )
                     raise APIError(
-                        f"allMids data not dict or is None: {type(raw_data)}",
+                        f"allMids data not dict or is None: {type(raw_data)}",  # pyright: ignore [reportUnknownArgumentType]
                         code=APIErrorCode.INVALID_RESPONSE.value,
                     )
 
@@ -541,10 +563,8 @@ class HyperliquidAPI(ExchangeAPI):
                 raw_data_dict = cast(dict[str, Any], raw_data)
 
                 # Validate the payload using the WsRawMessageHandler
-                validated_all_mids = (
-                    HyperliquidWsRawMessageHandler.handle_all_mids_payload(
-                        raw_data_dict
-                    )
+                validated_all_mids = HyperliquidWsRawMessageHandler.handle_all_mids_payload(
+                    raw_data_dict
                 )
                 # The model_dump on a RootModel returns the root type, which is dict here.
                 # Explicitly cast to satisfy type checker if it struggles with

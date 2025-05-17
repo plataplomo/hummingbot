@@ -27,6 +27,7 @@ def test_handle_depth_payload_valid() -> None:
         "e": "depthUpdate",
         "E": 1678886400000,
         "s": "SOL_USDC",
+        "lastUpdateId": "123456789",
         "b": [["100.0", "1.0"]],  # Bids
         "a": [["101.0", "2.0"]],  # Asks
     }
@@ -41,6 +42,7 @@ def test_handle_depth_payload_invalid() -> None:
         "e": "depthUpdate",
         "E": 1678886400000,
         "s": "SOL_USDC",
+        "lastUpdateId": "123456789",
         "a": [["101.0", "2.0"]]
     }  # Missing 'b' (bids)
     with pytest.raises(APIError) as excinfo:
@@ -55,28 +57,15 @@ def test_handle_ticker_payload_valid() -> None:
     # Payload for BackpackRawTickerEvent
     valid_payload = {
         "e": "ticker",
-        "E": 1678886400000,  # Event Time
-        "s": "SOL_USDC",     # Symbol
-        "p": "150.50",       # Mark Price / Last Price (context specific, ensure model alignment)
-        "P": "0.12",         # Price change percent
-        "w": "150.00",       # Weighted average price
-        "x": "149.90",       # Previous close price
-        "c": "150.55",       # Last price
-        "Q": "1.5",          # Last quantity
-        "b": "150.45",       # Best bid price
-        "B": "10.0",         # Best bid quantity
-        "a": "150.55",       # Best ask price
-        "A": "12.0",         # Best ask quantity
-        "o": "149.00",       # Open price
-        "h": "151.00",       # High price
-        "l": "148.50",       # Low price
-        "v": "10000.0",      # Total traded base asset volume
-        "q": "1500000.0",    # Total traded quote asset volume
-        "O": 1678876400000,  # Statistics open time
-        "C": 1678886400000,  # Statistics close time
-        "F": 12345,          # First trade ID
-        "L": 12390,          # Last trade ID
-        "n": 45              # Total number of trades
+        "E": 1678886400000,
+        "s": "SOL_USDC",
+        "lastPrice": "150.55",
+        "high": "151.00",
+        "low": "148.50",
+        "o": "149.00",
+        "volume": "10000.0",
+        "quoteVolume": "1500000.0",
+        "priceChangePercent": "0.12",
     }
     expected_model = BackpackRawTickerEvent.model_validate(valid_payload)
     result = BackpackWsRawMessageHandler.handle_ticker_payload(valid_payload)
@@ -86,15 +75,16 @@ def test_handle_ticker_payload_valid() -> None:
 def test_handle_ticker_payload_invalid() -> None:
     """Test handle_ticker_payload with invalid data (wrong type for 'p')."""
     invalid_payload = {
-        "e": "ticker", 
-        "E": 1678886400000, 
-        "s": "SOL_USDC", 
-        "p": 150.50, # Price should be string
-        # other fields to make it minimally invalid
-        "P": "0.12", "w": "150.00", "x": "149.90", "c": "150.55", "Q": "1.5",
-        "b": "150.45", "B": "10.0", "a": "150.55", "A": "12.0", "o": "149.00",
-        "h": "151.00", "l": "148.50", "v": "10000.0", "q": "1500000.0",
-        "O": 1678876400000, "C": 1678886400000, "F": 12345, "L": 12390, "n": 45
+        "e": "ticker",
+        "E": 1678886400000,
+        "s": "SOL_USDC",
+        "lastPrice": 150.55,
+        "high": "151.00",
+        "low": "148.50",
+        "o": "149.00",
+        "volume": "10000.0",
+        "quoteVolume": "1500000.0",
+        "priceChangePercent": "0.12",
     }
     with pytest.raises(APIError) as excinfo:
         BackpackWsRawMessageHandler.handle_ticker_payload(invalid_payload)

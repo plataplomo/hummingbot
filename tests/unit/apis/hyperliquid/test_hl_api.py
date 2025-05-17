@@ -44,7 +44,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsBookUpdate,
     HyperliquidRawWsFillEvent,
-    HyperliquidRawWsOrderUpdate,
     HyperliquidRawWsPositionUpdateEvent,
     HyperliquidRawWsTradeEvent,
 )
@@ -54,6 +53,9 @@ from cyberdelta.core.models import MarginAccountSummary
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.margin_account import HyperliquidMarginDetails
 from cyberdelta.core.models.market.order import Order
+
+# Define HL_API_PATH at the module level
+HL_API_PATH = "cyberdelta.apis.hyperliquid.hl_api"
 
 # Constants for testing
 TEST_WALLET_ADDRESS = "0x0000000000000000000000000000000000000000"  # Corrected length (42 chars)
@@ -772,29 +774,40 @@ class TestHyperliquidAPIWebSocketRouting:
         self, api_for_ws_tests: HyperliquidAPI, caplog: LogCaptureFixture
     ) -> None:
         caplog.set_level(logging.DEBUG, logger="cyberdelta.apis.hyperliquid.hl_api")
-        test_message = {"channel": "pong"}
+        test_message = {"channel": "pong"} # Data for pong is often None or just the channel
         await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore[reportPrivateUsage]
-        assert "[hyperliquid] Received pong" in caplog.text
+        
+        # Check for key components in the log message
+        assert f"[{api_for_ws_tests.exchange_name}]" in caplog.text
+        assert "Control message on 'pong'" in caplog.text
+        assert str(test_message) in caplog.text # Ensure the message dict representation is there
 
     @pytest.mark.asyncio
     async def test_route_ws_message_error_channel(
         self, api_for_ws_tests: HyperliquidAPI, caplog: LogCaptureFixture
     ) -> None:
-        caplog.set_level(logging.ERROR, logger="cyberdelta.apis.hyperliquid.hl_api")
+        caplog.set_level(logging.DEBUG, logger="cyberdelta.apis.hyperliquid.hl_api")
         error_payload = "Connection timed out"
         test_message = {"channel": "error", "data": error_payload}
         await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore[reportPrivateUsage]
-        assert f"[hyperliquid] Received WS error message: {error_payload}" in caplog.text
+        # The log message should be: "[hyperliquid] No WS handler for 'error'. Msg: ..."
+        # Since topic_key_for_handler == channel ('error'), the "(or base ...)" part is skipped.
+        expected_log = f"[{api_for_ws_tests.exchange_name}] No WS handler for 'error'. Msg: {test_message}"
+        assert expected_log in caplog.text
 
     @pytest.mark.asyncio
     async def test_route_ws_message_subscription_response(
         self, api_for_ws_tests: HyperliquidAPI, caplog: LogCaptureFixture
     ) -> None:
-        caplog.set_level(logging.INFO, logger="cyberdelta.apis.hyperliquid.hl_api")
+        caplog.set_level(logging.DEBUG, logger="cyberdelta.apis.hyperliquid.hl_api")
         response_payload = {"subscription": {"type": "l2Book", "coin": "ETH"}, "status": "ok"}
         test_message = {"channel": "subscriptionResponse", "data": response_payload}
         await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore[reportPrivateUsage]
-        assert f"[hyperliquid] Received subscription response: {response_payload}" in caplog.text
+
+        # Check for key components in the log message
+        assert f"[{api_for_ws_tests.exchange_name}]" in caplog.text
+        assert "Control message on 'subscriptionResponse'" in caplog.text
+        assert str(test_message) in caplog.text # Ensure the message dict representation is there
 
     @pytest.mark.asyncio
     async def test_route_ws_message_no_handler(
@@ -803,35 +816,29 @@ class TestHyperliquidAPIWebSocketRouting:
         caplog.set_level(logging.DEBUG, logger="cyberdelta.apis.hyperliquid.hl_api")
         test_message = {"channel": "unknownChannel", "data": {"some": "payload"}}
         await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore[reportPrivateUsage]
-        assert "No handler registered for channel: unknownChannel" in caplog.text
+        # The log message should be: "[hyperliquid] No WS handler for 'unknownChannel'. Msg: ..."
+        # Since topic_key_for_handler == channel ('unknownChannel'), the "(or base ...)" part is skipped.
+        expected_log = (
+            f"[{api_for_ws_tests.exchange_name}] No WS handler for 'unknownChannel'. Msg: {test_message}"
+        )
+        assert expected_log in caplog.text
 
     @pytest.mark.asyncio
     async def test_route_ws_message_no_channel(
         self, api_for_ws_tests: HyperliquidAPI, caplog: LogCaptureFixture
     ) -> None:
         caplog.set_level(logging.WARNING, logger="cyberdelta.apis.hyperliquid.hl_api")
-        test_message = {"type": "someType", "data": {"other": "data"}}  # No channel
-        await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore[reportPrivateUsage]
-        assert f"Received WS message without channel: {test_message}" in caplog.text
-
-    @pytest.mark.asyncio
-    async def test_route_ws_message_channel_no_data(
-        self, api_for_ws_tests: HyperliquidAPI, caplog: LogCaptureFixture
-    ) -> None:
-        caplog.set_level(logging.WARNING, logger="cyberdelta.apis.hyperliquid.hl_api")
-        # This scenario (channel present but no data) is unlikely for most HL messages
-        # but good to test. The _route_ws_message has a check for data_payload is None.
         mock_handler: AsyncMock = AsyncMock()
         channel_name = "dataCheckChannel"
-        api_for_ws_tests._ws_handlers[channel_name] = mock_handler  # pyright: ignore[reportPrivateUsage]
+        # Register a handler so it doesn't fall into "No WS handler" path
+        api_for_ws_tests._ws_handlers[channel_name] = mock_handler # pyright: ignore[reportPrivateUsage]
         test_message: dict[str, Any] = {"channel": channel_name}  # No 'data' field
 
         await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore[reportPrivateUsage]
-        mock_handler.assert_not_called()
+        mock_handler.assert_not_called() # Handler should not be called if no data
 
         expected_log_part = (
-            f"[{api_for_ws_tests.exchange_name}] Received message from WS channel {channel_name} "
-            f"without a data field"
+            f"[{api_for_ws_tests.exchange_name}] WS '{channel_name}' has no data. Msg: {test_message}"
         )
         assert expected_log_part in caplog.text, (
             f'Expected log substring "{expected_log_part}" not found. caplog.text: {caplog.text!r}'
@@ -841,10 +848,12 @@ class TestHyperliquidAPIWebSocketRouting:
     async def test_route_ws_message_unknown_channel(
         self, api_for_ws_tests: HyperliquidAPI, caplog: LogCaptureFixture
     ) -> None:
-        caplog.set_level(logging.WARNING, logger="cyberdelta.apis.hyperliquid.hl_api")
+        caplog.set_level(logging.DEBUG, logger="cyberdelta.apis.hyperliquid.hl_api")
         test_message = {"type": "someType", "data": {"other": "data"}}  # No channel
         await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore[reportPrivateUsage]
-        assert f"Received WS message without channel: {test_message}" in caplog.text
+        assert (
+            f"[{api_for_ws_tests.exchange_name}] Unroutable WS message (no channel): {test_message}"
+        ) in caplog.text
 
     @pytest.mark.asyncio
     @patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidWsRawMessageHandler")
@@ -992,44 +1001,63 @@ class TestHyperliquidAPIWebSocketRouting:
         mock_app_handler.assert_awaited_once_with(mock_dumped_model, ws_message)
 
     @pytest.mark.asyncio
-    @patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidWsRawMessageHandler")
+    @patch(f"{HL_API_PATH}.HyperliquidWsRawMessageHandler.handle_user_order_update_wrapper_payload")
+    @patch(f"{HL_API_PATH}.HyperliquidWsRawMessageHandler.handle_user_order_event_payload")
     async def test_route_ws_message_user_event_order_calls_handlers(
-        self, mock_ws_handler_class: MagicMock, api_for_ws_tests: HyperliquidAPI
+        self,
+        mock_handle_order_event: MagicMock,
+        mock_handle_order_wrapper: MagicMock,
+        api_for_ws_tests: HyperliquidAPI,
     ) -> None:
-        """Test _route_ws_message calls handlers for userEvents of type 'order'."""
+        """Test that user 'order' events correctly call both wrapper and detail handlers."""
         mock_app_handler = AsyncMock()
-        topic = "userEvents"
-        api_for_ws_tests._ws_handlers[topic] = mock_app_handler  # pyright: ignore[reportPrivateUsage]
+        api_for_ws_tests._ws_handlers["userEvents"] = mock_app_handler  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
 
-        raw_inner_order_data = {"order": {"coin": "BTC", "sz": "1"}, "status": "open", "oid": 123}
-        raw_order_event_wrapper = {"type": "order", "data": raw_inner_order_data}
-        ws_message = {"channel": "userEvents", "data": [raw_order_event_wrapper]}
+        raw_event_data: dict[str, Any] = {  # This is the event_item_dict
+            "type": "order",
+            "data": {  # This is what the wrapper's 'data' field should contain
+                "oid": 123,
+                "cloid": "cloid123",
+                "asset": "TEST",
+                "side": "B",
+                "limitPx": "100",
+                "sz": "1",
+                "timestamp": 1000,
+                "orderType": {"limit": {"tif": "Gtc"}},
+                "reduceOnly": False,
+                "remainingSz": "1",
+                "status": "open",
+                "statusTimestamp": 1001,
+            },
+        }
+        ws_message: dict[str, Any] = {
+            "channel": "userEvents",
+            "data": [raw_event_data],  # userEvents data is a list of event items
+        }
 
-        # Mock for HyperliquidWsRawMessageHandler.handle_user_order_update_wrapper_payload
-        mock_validated_wrapper = MagicMock(spec=HyperliquidRawWsOrderUpdate)
-        mock_validated_wrapper.data = (
-            raw_inner_order_data  # This is what the API passes to the next handler
-        )
-        mock_ws_handler_class.handle_user_order_update_wrapper_payload.return_value = (
-            mock_validated_wrapper
-        )
+        # Simpler mock for HyperliquidRawWsOrderUpdateWrapper instance
+        mock_validated_order_wrapper = MagicMock()  # Removed spec
+        # The 'data' attribute of the wrapper mock should return the inner dictionary
+        # Ensure raw_event_data["data"] is treated as a dict before copying
+        inner_data_dict = cast(dict[str, Any], raw_event_data["data"])
+        mock_inner_order_data_dict = inner_data_dict.copy()
+        mock_validated_order_wrapper.data = mock_inner_order_data_dict # Direct assignment
 
-        # Mock for HyperliquidWsRawMessageHandler.handle_user_order_event_payload
-        mock_validated_order_detail = MagicMock(spec=HyperliquidRawOrder)
-        mock_dumped_order_detail = {"validated": "order_detail_data"}
+        # mock_handle_order_wrapper handles the full raw_event_data
+        mock_handle_order_wrapper.return_value = mock_validated_order_wrapper
+
+        # Mock for HyperliquidRawOrder instance (result of inner handler)
+        mock_validated_order_detail = MagicMock(spec=HyperliquidRawOrder) # Keep spec here
+        mock_dumped_order_detail = {"dumped": "order_detail_content_xyz"}
         mock_validated_order_detail.model_dump.return_value = mock_dumped_order_detail
-        mock_ws_handler_class.handle_user_order_event_payload.return_value = (
-            mock_validated_order_detail
-        )
 
-        await api_for_ws_tests._route_ws_message(ws_message)  # pyright: ignore[reportPrivateUsage]
+        # mock_handle_order_event handles the mock_inner_order_data_dict
+        mock_handle_order_event.return_value = mock_validated_order_detail
 
-        mock_ws_handler_class.handle_user_order_update_wrapper_payload.assert_called_once_with(
-            raw_order_event_wrapper
-        )
-        mock_ws_handler_class.handle_user_order_event_payload.assert_called_once_with(
-            raw_inner_order_data
-        )
+        await api_for_ws_tests._route_ws_message(ws_message)  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
+
+        mock_handle_order_wrapper.assert_called_once_with(raw_event_data)
+        mock_handle_order_event.assert_called_once_with(mock_inner_order_data_dict)
         mock_app_handler.assert_awaited_once_with(mock_dumped_order_detail, ws_message)
 
 

@@ -147,25 +147,21 @@ def test_handle_user_fill_event_payload_invalid() -> None:
 
 # --- User Order Event (Inner Detail) --- using HyperliquidRawOrder
 def test_handle_user_order_event_payload_valid() -> None:
-    """Test handle_user_order_event_payload with valid inner order data."""
-    # This is the structure HyperliquidRawOrder expects
+    """Test handle_user_order_event_payload with valid data."""
+    # This payload is for HyperliquidRawOrder (from hl_raw_open_orders.py)
     valid_payload = {
-        "order": {
-            "coin": "ETH",
-            "side": "A",
-            "limitPx": "1900.0",
-            "sz": "0.5",
-            "origSz": "0.5",
-            "reduceOnly": False,
-            "timestamp": 1678886400000,
-            "tif": "Gtc",
-            "cloid": "myOrder123",
-        },
-        "status": "filled",
-        "statusTimestamp": 1678886400100,
-        "oid": 54321,
-        "totalPx": "1899.5",
-        "totalSz": "0.5",
+        "oid": 12345,  # Added missing required field
+        "cloid": "clientOid123",
+        "asset": "ETH",
+        "side": "B",
+        "limitPx": "2000.0",
+        "sz": "1.0",
+        "timestamp": 1678886400000,
+        "orderType": {"limit": {"tif": "Gtc"}},
+        "reduceOnly": False,
+        "remainingSz": "1.0",
+        "status": "open",
+        "statusTimestamp": 1678886400001,
     }
     expected_model = HyperliquidRawOrder.model_validate(valid_payload)
     result = HyperliquidWsRawMessageHandler.handle_user_order_event_payload(valid_payload)
@@ -186,23 +182,24 @@ def test_handle_user_order_event_payload_invalid() -> None:
 
 # --- User Order Update Wrapper --- using HyperliquidRawWsOrderUpdate
 def test_handle_user_order_update_wrapper_payload_valid() -> None:
-    """Test handle_user_order_update_wrapper_payload with valid wrapper data."""
+    """Test handle_user_order_update_wrapper_payload with valid data."""
+    # Payload for HyperliquidRawWsOrderUpdateWrapper (from hl_raw_ws_events.py)
+    # Its 'data' field should be a valid HyperliquidRawOrder payload
     valid_payload = {
-        "eventType": "order",  # HyperliquidRawWsOrderUpdate expects 'eventType'
-        "data": {  # The inner data for the order
-            "order": {
-                "coin": "ETH",
-                "side": "B",
-                "limitPx": "1800",
-                "sz": "1",
-                "origSz": "1",
-                "reduceOnly": False,
-                "timestamp": 1678886400000,
-                "tif": "Gtc",
-            },
-            "status": "open",
-            "oid": 123,
-            "statusTimestamp": 1678886400100,
+        "eventType": "order",  # Corrected from "type" to "eventType"
+        "data": {
+            "oid": 56789,
+            "cloid": "clientOidEventData456",
+            "asset": "BTC",
+            "side": "A",
+            "limitPx": "30000.0",
+            "sz": "0.5",
+            "timestamp": 1678886500000,
+            "orderType": {"limit": {"tif": "Ioc"}},
+            "reduceOnly": True,
+            "remainingSz": "0.25",
+            "status": "partiallyFilled",
+            "statusTimestamp": 1678886500002,
         },
     }
     expected_model = HyperliquidRawWsOrderUpdate.model_validate(valid_payload)
@@ -225,12 +222,16 @@ def test_handle_user_position_update_event_payload_valid() -> None:
     valid_payload = {
         "asset": "ETH",
         "position": {
-            "type": "isolated",
-            "amount": "2.5",
+            "coin": "ETH",
+            "szi": "2.5",
             "entryPx": "1750.0",
             "unrealizedPnl": "125.0",
             "liquidationPx": "1600.0",
             "marginUsed": "500.0",
+            "leverage": {"type": "isolated", "value": 10},
+            "maxLeverage": 50,
+            "positionValue": "4375.0",
+            "returnOnEquity": "0.25"
         },
         "time": 1678886400000,
     }
@@ -270,9 +271,8 @@ def test_handle_all_mids_payload_invalid_not_dict() -> None:
     assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
     assert isinstance(excinfo.value.original_exception, ValidationError)
     # Check that the Pydantic error message indicates it expected a dictionary/mapping
-    assert "Input should be a valid dictionary" in str(
-        excinfo.value.original_exception
-    ) or "value is not a valid dict" in str(excinfo.value.original_exception)  # Pydantic v1/v2 diff
+    # Pydantic v2 RootModel error for wrong input type (e.g. list instead of dict)
+    assert "Field 'root': Expected a dictionary, got list" in str(excinfo.value.original_exception)
 
 
 def test_handle_all_mids_payload_invalid_value_type() -> None:
@@ -287,8 +287,9 @@ def test_handle_all_mids_payload_invalid_value_type() -> None:
     assert isinstance(excinfo.value.original_exception, ValidationError)
     # Check for specific error related to the value for "ETH"
     error_details = excinfo.value.original_exception.errors(include_input=False)
+    # Pydantic v2 RootModel error for invalid value in dict
     assert any(
-        err["loc"] == ("ETH",) and "Input should be a valid string" in err["msg"]
+        err["loc"] == ("ETH",) and "Expected string, got int" in err["msg"]
         for err in error_details
     )
 
@@ -305,8 +306,9 @@ def test_handle_all_mids_payload_invalid_key_type() -> None:
     assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
     assert isinstance(excinfo.value.original_exception, ValidationError)
     error_details = excinfo.value.original_exception.errors(include_input=False)
+    # Pydantic v2 RootModel error for invalid key in dict
     assert any(
-        err["loc"] == (long_asset_name,)
-        and "ensure this value has at most 64 characters" in err["msg"]
+        err["loc"] == (long_asset_name, "[key]") # Note: Pydantic v2 adds '[key]' to loc for dict key errors
+        and ("String value too long" in err["msg"] or "ensure this value has at most 64 characters" in err["msg"])
         for err in error_details
     )
