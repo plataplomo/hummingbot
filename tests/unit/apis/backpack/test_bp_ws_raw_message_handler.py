@@ -7,11 +7,13 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.bp_ws_raw_message_handler import BackpackWsRawMessageHandler
 from cyberdelta.apis.backpack.models import (
-    BackpackRawOrderBook,
     BackpackRawOrderUpdate,
     BackpackRawPositionUpdate,
-    BackpackRawTicker,  # Assuming this is the correct model for WS ticker
     BackpackRawTradeEvent,
+)
+from cyberdelta.apis.backpack.models.bp_raw_market import (
+    BackpackRawDepthUpdateEvent,
+    BackpackRawTickerEvent,
 )
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -20,49 +22,80 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 # Test functions are now standalone
 def test_handle_depth_payload_valid() -> None:
     """Test handle_depth_payload with valid data."""
-    # Minimal valid payload for BackpackRawOrderBook - structure may vary
-    # Based on BackpackRawMarket, which includes bids/asks/lastUpdateTime
-    # And BackpackRawOrderBook (in bp_raw_market.py) has bids, asks, lastUpdateId, timestamp
+    # Payload for BackpackRawDepthUpdateEvent
     valid_payload = {
-        "bids": [["100.0", "1.0"]],
-        "asks": [["101.0", "2.0"]],
-        "lastUpdateId": "12345",
-        "timestamp": 1678886400000,
+        "e": "depthUpdate",
+        "E": 1678886400000,
+        "s": "SOL_USDC",
+        "b": [["100.0", "1.0"]],  # Bids
+        "a": [["101.0", "2.0"]],  # Asks
     }
-    expected_model = BackpackRawOrderBook.model_validate(valid_payload)
+    expected_model = BackpackRawDepthUpdateEvent.model_validate(valid_payload)
     result = BackpackWsRawMessageHandler.handle_depth_payload(valid_payload)
     assert result == expected_model
 
 
 def test_handle_depth_payload_invalid() -> None:
     """Test handle_depth_payload with invalid data (missing field)."""
-    invalid_payload = {"asks": [["101.0", "2.0"]]}  # Missing bids, lastUpdateId, timestamp
+    invalid_payload = {
+        "e": "depthUpdate",
+        "E": 1678886400000,
+        "s": "SOL_USDC",
+        "a": [["101.0", "2.0"]]
+    }  # Missing 'b' (bids)
     with pytest.raises(APIError) as excinfo:
         BackpackWsRawMessageHandler.handle_depth_payload(invalid_payload)
     assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
     assert isinstance(excinfo.value.original_exception, ValidationError)
 
 
-# --- Ticker --- (Assuming BackpackRawTicker is used for WS)
+# --- Ticker --- (Using BackpackRawTickerEvent)
 def test_handle_ticker_payload_valid() -> None:
     """Test handle_ticker_payload with valid data."""
-    # Based on BackpackRawTicker model in bp_raw_market.py
+    # Payload for BackpackRawTickerEvent
     valid_payload = {
-        "symbol": "SOL_USDC",
-        "price": "150.50",
-        "bid": "150.45",
-        "ask": "150.55",
-        "volume": "10000.0",
-        "time": 1678886400000,
+        "e": "ticker",
+        "E": 1678886400000,  # Event Time
+        "s": "SOL_USDC",     # Symbol
+        "p": "150.50",       # Mark Price / Last Price (context specific, ensure model alignment)
+        "P": "0.12",         # Price change percent
+        "w": "150.00",       # Weighted average price
+        "x": "149.90",       # Previous close price
+        "c": "150.55",       # Last price
+        "Q": "1.5",          # Last quantity
+        "b": "150.45",       # Best bid price
+        "B": "10.0",         # Best bid quantity
+        "a": "150.55",       # Best ask price
+        "A": "12.0",         # Best ask quantity
+        "o": "149.00",       # Open price
+        "h": "151.00",       # High price
+        "l": "148.50",       # Low price
+        "v": "10000.0",      # Total traded base asset volume
+        "q": "1500000.0",    # Total traded quote asset volume
+        "O": 1678876400000,  # Statistics open time
+        "C": 1678886400000,  # Statistics close time
+        "F": 12345,          # First trade ID
+        "L": 12390,          # Last trade ID
+        "n": 45              # Total number of trades
     }
-    expected_model = BackpackRawTicker.model_validate(valid_payload)
+    expected_model = BackpackRawTickerEvent.model_validate(valid_payload)
     result = BackpackWsRawMessageHandler.handle_ticker_payload(valid_payload)
     assert result == expected_model
 
 
 def test_handle_ticker_payload_invalid() -> None:
-    """Test handle_ticker_payload with invalid data (wrong type)."""
-    invalid_payload = {"symbol": "SOL_USDC", "price": 150.50}  # Price should be string
+    """Test handle_ticker_payload with invalid data (wrong type for 'p')."""
+    invalid_payload = {
+        "e": "ticker", 
+        "E": 1678886400000, 
+        "s": "SOL_USDC", 
+        "p": 150.50, # Price should be string
+        # other fields to make it minimally invalid
+        "P": "0.12", "w": "150.00", "x": "149.90", "c": "150.55", "Q": "1.5",
+        "b": "150.45", "B": "10.0", "a": "150.55", "A": "12.0", "o": "149.00",
+        "h": "151.00", "l": "148.50", "v": "10000.0", "q": "1500000.0",
+        "O": 1678876400000, "C": 1678886400000, "F": 12345, "L": 12390, "n": 45
+    }
     with pytest.raises(APIError) as excinfo:
         BackpackWsRawMessageHandler.handle_ticker_payload(invalid_payload)
     assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value

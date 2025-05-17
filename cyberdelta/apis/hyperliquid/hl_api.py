@@ -467,7 +467,9 @@ class HyperliquidAPI(ExchangeAPI):
                         elif event_type_str == "order":
                             # The event_item_dict is the wrapper for the order event.
                             # Its 'data' field contains the actual order or list of fills.
-                            order_update_handler = HyperliquidWsRawMessageHandler.handle_user_order_update_wrapper_payload
+                            order_update_handler = (
+                                HyperliquidWsRawMessageHandler.handle_user_order_update_wrapper_payload
+                            )
                             order_update_wrapper = order_update_handler(
                                 event_item_dict
                                 # This is the outer dict with "type" and "data"
@@ -496,7 +498,9 @@ class HyperliquidAPI(ExchangeAPI):
                             )
 
                         elif event_type_str == "positionUpdate":
-                            pos_update_handler = HyperliquidWsRawMessageHandler.handle_user_position_update_event_payload
+                            pos_update_handler = (
+                                HyperliquidWsRawMessageHandler.handle_user_position_update_event_payload
+                            )
                             validated_position_update = pos_update_handler(event_item_dict)
                             current_event_payload_for_handler = (
                                 validated_position_update.model_dump(mode="json")
@@ -521,26 +525,33 @@ class HyperliquidAPI(ExchangeAPI):
                         continue  # Skip to next item in userEvents list
 
             elif channel == "allMids":
-                if not isinstance(raw_data, dict):  # allMids sends a dict of coin:mid_price
+                # Ensure raw_data is a dictionary before proceeding
+                if not isinstance(raw_data, dict):
+                    logger.warning(
+                        f"[{self.exchange_name}] 'allMids' channel data is not a dict or is None. "
+                        f"Type: {type(raw_data)}. Data: {raw_data!r}. Skipping."
+                    )
                     raise APIError(
-                        f"allMids data not dict: {type(raw_data)}",
+                        f"allMids data not dict or is None: {type(raw_data)}",
                         code=APIErrorCode.INVALID_RESPONSE.value,
                     )
-                # Assuming HyperliquidWsRawMessageHandler might have handle_all_mids_payload
-                # If not, and if allMids is just a dict[str, str] of asset:price,
-                # Pydantic validation might be in HyperliquidRawAllMids model.
-                # For now, if no specific handler, pass raw_data if it's a dict.
-                # Or, we parse it with its specific Pydantic model if available.
-                # Let's assume we want to validate it.
-                # We need to find or create a HyperliquidRawWsAllMids model
-                # and a handler for it in HyperliquidWsRawMessageHandler.
-                # For now, will pass raw if dict, else error.
-                # Revisit if `handle_all_mids_payload` exists or is added.
-                # validated_all_mids = (
-                # HyperliquidWsRawMessageHandler.handle_all_mids_payload(raw_data)
-                # )
-                # payload_for_handler = validated_all_mids.model_dump(mode="json")
-                payload_for_handler = cast(dict[str, Any], raw_data)  # Pass raw dict for now
+
+                # At this point, raw_data is confirmed to be a dict.
+                # Explicitly cast for the type checker after the runtime check.
+                raw_data_dict = cast(dict[str, Any], raw_data)
+
+                # Validate the payload using the WsRawMessageHandler
+                validated_all_mids = (
+                    HyperliquidWsRawMessageHandler.handle_all_mids_payload(
+                        raw_data_dict
+                    )
+                )
+                # The model_dump on a RootModel returns the root type, which is dict here.
+                # Explicitly cast to satisfy type checker if it struggles with
+                # RootModel.model_dump()
+                payload_for_handler = cast(
+                    dict[str, Any], validated_all_mids.model_dump(mode="json")
+                )
                 await app_handler(payload_for_handler, message)
 
             elif channel == "pong" or channel == "subscriptionResponse":
@@ -1933,3 +1944,23 @@ class HyperliquidAPI(ExchangeAPI):
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e,
             ) from e
+
+    async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
+        """Process a single message received from the WebSocket.
+
+        This method is called by the underlying WebSocketManager (via the
+        ExchangeAPI base class) when a new message arrives. It logs the
+        receipt and then delegates to the `_route_ws_message` method for
+        specific parsing, validation, and handling based on message content.
+
+        Args:
+            message: The raw dictionary message received from the WebSocket.
+        """
+        if not message:
+            logger.warning(f"[{self.exchange_name}] Received empty WebSocket message. Skipping.")
+            return
+
+        # Basic check for common error messages or unexpected top-level structure
+        # For HyperLiquid, specific error channels are handled in _route_ws_message
+
+        await self._route_ws_message(message)

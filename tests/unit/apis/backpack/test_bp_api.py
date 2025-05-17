@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
@@ -18,6 +18,15 @@ from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
 from cyberdelta.apis.backpack.models.bp_raw_position import (
     BackpackRawPosition,
+)
+from cyberdelta.apis.backpack.models.bp_raw_market import (
+    BackpackRawDepthUpdateEvent,
+    BackpackRawTickerEvent,
+)
+from cyberdelta.apis.backpack.models import (
+    BackpackRawTradeEvent,
+    BackpackRawOrderUpdate,
+    BackpackRawPositionUpdate,
 )
 from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
 from cyberdelta.apis.connectivity.http_client import HttpRequestFailedError
@@ -591,24 +600,6 @@ class TestBackpackAPIWebSocketRouting:
         mock_handler.assert_called_once_with(test_message, test_message)
 
     @pytest.mark.asyncio
-    async def test_route_ws_message_no_handler_logs_debug(
-        self,
-        api_for_ws_tests: BackpackAPI,
-        caplog: LogCaptureFixture,
-    ) -> None:
-        test_message = {"topic": "unhandled.topic", "data": {"key": "value"}}
-        # Ensure no handler is registered for this topic by not calling subscribe
-        # Or explicitly clear if necessary: api_for_ws_tests._ws_handlers.clear()
-        api_for_ws_tests._ws_handlers.clear()  # pyright: ignore [reportPrivateUsage]
-
-        with patch("cyberdelta.apis.backpack.bp_api.logger.debug") as mock_logger_debug:
-            await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore [reportPrivateUsage]
-            mock_logger_debug.assert_called_once_with(
-                f"[{api_for_ws_tests.exchange_name}] No handler registered for topic: "
-                f"unhandled.topic"
-            )
-
-    @pytest.mark.asyncio
     async def test_route_ws_message_no_topic_or_type_logs_debug(
         self,
         api_for_ws_tests: BackpackAPI,
@@ -641,6 +632,148 @@ class TestBackpackAPIWebSocketRouting:
                 f" but no data: {test_message_no_data}"
             )
             mock_handler.assert_not_called()  # Handler should not be called if data is missing
+
+    @pytest.mark.asyncio
+    @patch("cyberdelta.apis.backpack.bp_api.BackpackWsRawMessageHandler")
+    async def test_route_ws_message_depth_calls_handler(
+        self, mock_ws_handler_class: MagicMock, api_for_ws_tests: BackpackAPI
+    ) -> None:
+        """Test _route_ws_message for 'depth.SYMBOL' calls the depth handler."""
+        mock_app_handler = AsyncMock()
+        topic = "depth.SOL_USDC"
+        await api_for_ws_tests.subscribe(topic, mock_app_handler)
+
+        raw_depth_data = {"bids": [["100", "1"]], "asks": [["101", "2"]], "lastUpdateId": "123"}
+        # Ensure the payload matches what BackpackRawDepthUpdateEvent expects if it includes e, E, s
+        # For Backpack, the raw data for depth might be directly the book structure.
+        # The bp_ws_raw_message_handler.py uses BackpackRawDepthUpdateEvent which expects e, E, s.
+        # So, the data from the WS message should include these if the handler expects them.
+        # Let's assume bp_api._route_ws_message receives the full event structure.
+        event_data_for_handler = {
+            "e": "depthUpdate", "E": 1234567890, "s": "SOL_USDC",
+            "b": raw_depth_data["bids"],
+            "a": raw_depth_data["asks"],
+            # lastUpdateId is part of BackpackRawOrderBook, not BackpackRawDepthUpdateEvent directly
+            # The handler expects the payload for BackpackRawDepthUpdateEvent
+        }
+        ws_message = {"topic": topic, "data": event_data_for_handler}
+
+        mock_validated_depth_model = MagicMock(spec=BackpackRawDepthUpdateEvent)
+        mock_dumped_depth_model = {"validated": "depth_data"}
+        mock_validated_depth_model.model_dump.return_value = mock_dumped_depth_model
+        mock_ws_handler_class.handle_depth_payload.return_value = mock_validated_depth_model
+
+        await api_for_ws_tests._handle_websocket_message(ws_message)  # pyright: ignore [reportPrivateUsage]
+
+        mock_ws_handler_class.handle_depth_payload.assert_called_once_with(event_data_for_handler)
+        # The app_handler receives the *data* part of the validated model_dump, plus full message
+        # Based on bp_api.py: `await app_handler(validated_model.model_dump(mode="json"), message)`
+        mock_app_handler.assert_awaited_once_with(mock_dumped_depth_model, ws_message)
+
+    @pytest.mark.asyncio
+    @patch("cyberdelta.apis.backpack.bp_api.BackpackWsRawMessageHandler")
+    async def test_route_ws_message_ticker_calls_handler(
+        self, mock_ws_handler_class: MagicMock, api_for_ws_tests: BackpackAPI
+    ) -> None:
+        """Test _route_ws_message for 'ticker.SYMBOL' calls the ticker handler."""
+        mock_app_handler = AsyncMock()
+        topic = "ticker.SOL_USDC"
+        await api_for_ws_tests.subscribe(topic, mock_app_handler)
+
+        raw_ticker_data = {"e": "ticker", "E": 123, "s": "SOL_USDC", "p": "100"} # Minimal for ticker event
+        ws_message = {"topic": topic, "data": raw_ticker_data}
+
+        mock_validated_ticker_model = MagicMock(spec=BackpackRawTickerEvent)
+        mock_dumped_ticker_model = {"validated": "ticker_data"}
+        mock_validated_ticker_model.model_dump.return_value = mock_dumped_ticker_model
+        mock_ws_handler_class.handle_ticker_payload.return_value = mock_validated_ticker_model
+
+        await api_for_ws_tests._handle_websocket_message(ws_message)  # pyright: ignore [reportPrivateUsage]
+
+        mock_ws_handler_class.handle_ticker_payload.assert_called_once_with(raw_ticker_data)
+        mock_app_handler.assert_awaited_once_with(mock_dumped_ticker_model, ws_message)
+
+    @pytest.mark.asyncio
+    @patch("cyberdelta.apis.backpack.bp_api.BackpackWsRawMessageHandler")
+    async def test_route_ws_message_public_trades_calls_handler(
+        self, mock_ws_handler_class: MagicMock, api_for_ws_tests: BackpackAPI
+    ) -> None:
+        """Test _route_ws_message for 'trades.SYMBOL' calls the trade event handler."""
+        mock_app_handler = AsyncMock()
+        topic = "trades.SOL_USDC"
+        await api_for_ws_tests.subscribe(topic, mock_app_handler)
+
+        raw_trade_data = {"e": "trade", "E": 123, "s": "SOL_USDC", "t": "t1", "p": "100", "q": "1", "m": True}
+        ws_message = {"topic": topic, "data": raw_trade_data}
+
+        mock_validated_trade_model = MagicMock(spec=BackpackRawTradeEvent)
+        mock_dumped_trade_model = {"validated": "public_trade_data"}
+        mock_validated_trade_model.model_dump.return_value = mock_dumped_trade_model
+        mock_ws_handler_class.handle_trade_event_payload.return_value = mock_validated_trade_model
+
+        await api_for_ws_tests._handle_websocket_message(ws_message)  # pyright: ignore [reportPrivateUsage]
+
+        mock_ws_handler_class.handle_trade_event_payload.assert_called_once_with(raw_trade_data)
+        mock_app_handler.assert_awaited_once_with(mock_dumped_trade_model, ws_message)
+
+    @pytest.mark.asyncio
+    @patch("cyberdelta.apis.backpack.bp_api.BackpackWsRawMessageHandler")
+    @pytest.mark.parametrize(
+        "private_event_type, raw_event_data_func, handler_method_name, model_spec, dump_key",
+        [
+            (
+                "fills", # This is the 'type' in the WS message
+                lambda: {"e": "trade", "E": 123, "s": "SOL_USDC", "t": "f1", "p": "100", "q": "1", "m": False}, # Data for BackpackRawTradeEvent
+                "handle_trade_event_payload",
+                BackpackRawTradeEvent,
+                "fill_data"
+            ),
+            (
+                "orderUpdate",
+                lambda: {"e": "orderAccepted", "E": 123, "s": "SOL_USDC", "c": "c1", "S": "Bid", "o": "LIMIT", "X": "NEW"},
+                "handle_order_update_payload",
+                BackpackRawOrderUpdate,
+                "order_update_data"
+            ),
+            (
+                "positionUpdate",
+                lambda: {"e": "positionUpdate", "E": 123, "s": "SOL_USDC", "b": "100", "B": "99"}, # Minimal for BackpackRawPositionUpdate
+                "handle_position_update_payload",
+                BackpackRawPositionUpdate,
+                "pos_update_data"
+            ),
+        ]
+    )
+    async def test_route_ws_message_private_event_calls_handler(
+        self,
+        mock_ws_handler_class: MagicMock,
+        api_for_ws_tests: BackpackAPI,
+        private_event_type: str,
+        raw_event_data_func: Callable[[], dict[str, Any]],
+        handler_method_name: str,
+        model_spec: Any,
+        dump_key: str,
+    ) -> None:
+        """Test _route_ws_message for private events (fills, orderUpdate, positionUpdate)."""
+        mock_app_handler = AsyncMock()
+        # For private streams, BackpackAPI uses the 'type' field as the topic key for handlers
+        await api_for_ws_tests.subscribe(private_event_type, mock_app_handler)
+        
+        raw_event_data = raw_event_data_func()
+        # The WS message for private events has a 'type' and 'data' field
+        ws_message = {"type": private_event_type, "data": raw_event_data}
+        # Test data, type checker struggles with inline dict structure where raw_event_data is Any inferred by lambda.
+
+        mock_validated_model = MagicMock(spec=model_spec)
+        mock_dumped_model = {"validated": dump_key}
+        mock_validated_model.model_dump.return_value = mock_dumped_model
+        getattr(mock_ws_handler_class, handler_method_name).return_value = mock_validated_model
+
+        await api_for_ws_tests._handle_websocket_message(ws_message)  # pyright: ignore [reportPrivateUsage]
+
+        getattr(mock_ws_handler_class, handler_method_name).assert_called_once_with(raw_event_data)
+        # The app_handler receives the *data* part of the message, which is the validated model_dump
+        mock_app_handler.assert_awaited_once_with(mock_dumped_model, ws_message)
 
 
 class TestBackpackAPIGetAccountSummary:

@@ -10,6 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.hyperliquid.hl_ws_raw_message_handler import HyperliquidWsRawMessageHandler
+from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import HyperliquidRawAllMids
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrder,
 )  # For user order data
@@ -245,3 +246,67 @@ def test_handle_user_position_update_event_payload_invalid() -> None:
         HyperliquidWsRawMessageHandler.handle_user_position_update_event_payload(invalid_payload)
     assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
     assert isinstance(excinfo.value.original_exception, ValidationError)
+
+
+# --- All Mids Event ---
+def test_handle_all_mids_payload_valid() -> None:
+    """Test handle_all_mids_payload with valid data."""
+    valid_payload = {
+        "BTC": "60000.123",
+        "ETH": "3000.45",
+        "SOL_PERP": "150.99",  # Example with a perp symbol if allowed by RawAssetString64HL
+    }
+    expected_model = HyperliquidRawAllMids.model_validate(valid_payload)
+    result = HyperliquidWsRawMessageHandler.handle_all_mids_payload(valid_payload)
+    assert result.model_dump() == expected_model.model_dump()  # Compare dicts from RootModel
+
+
+def test_handle_all_mids_payload_invalid_not_dict() -> None:
+    """Test handle_all_mids_payload with non-dictionary payload."""
+    invalid_payload_list: list[str] = ["not_a_dict"]
+    with pytest.raises(APIError) as excinfo:
+        # Typing ignored as the function expects a dict, but we are testing invalid input.
+        HyperliquidWsRawMessageHandler.handle_all_mids_payload(invalid_payload_list)  # type: ignore
+    assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
+    assert isinstance(excinfo.value.original_exception, ValidationError)
+    # Check that the Pydantic error message indicates it expected a dictionary/mapping
+    assert "Input should be a valid dictionary" in str(
+        excinfo.value.original_exception
+    ) or "value is not a valid dict" in str(excinfo.value.original_exception)  # Pydantic v1/v2 diff
+
+
+def test_handle_all_mids_payload_invalid_value_type() -> None:
+    """Test handle_all_mids_payload with invalid value type (not string decimal)."""
+    invalid_payload = {
+        "BTC": "60000.0",
+        "ETH": 3000,  # Should be string "3000"
+    }
+    with pytest.raises(APIError) as excinfo:
+        HyperliquidWsRawMessageHandler.handle_all_mids_payload(invalid_payload)
+    assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
+    assert isinstance(excinfo.value.original_exception, ValidationError)
+    # Check for specific error related to the value for "ETH"
+    error_details = excinfo.value.original_exception.errors(include_input=False)
+    assert any(
+        err["loc"] == ("ETH",) and "Input should be a valid string" in err["msg"]
+        for err in error_details
+    )
+
+
+def test_handle_all_mids_payload_invalid_key_type() -> None:
+    """Test handle_all_mids_payload with invalid key type (e.g. too long)."""
+    # RawAssetString64HL implies max length 64 for asset names
+    long_asset_name = "A" * 65
+    invalid_payload = {
+        long_asset_name: "60000.0",
+    }
+    with pytest.raises(APIError) as excinfo:
+        HyperliquidWsRawMessageHandler.handle_all_mids_payload(invalid_payload)
+    assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
+    assert isinstance(excinfo.value.original_exception, ValidationError)
+    error_details = excinfo.value.original_exception.errors(include_input=False)
+    assert any(
+        err["loc"] == (long_asset_name,)
+        and "ensure this value has at most 64 characters" in err["msg"]
+        for err in error_details
+    )

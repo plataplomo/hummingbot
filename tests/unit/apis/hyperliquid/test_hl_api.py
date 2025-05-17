@@ -23,9 +23,11 @@ from cyberdelta.apis.hyperliquid.hl_mapper import (
     HyperliquidMapper,
     HyperliquidOrderMapper,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import HyperliquidRawAllMids
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
     HyperliquidApiPlaceOrderRequest,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawOrder
 from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
     HyperliquidRawLimitOrderTypeDetails,
     HyperliquidRawMarketOrderTypeDetails,
@@ -38,6 +40,13 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawLeverage,
     HyperliquidRawMarginSummary,
     HyperliquidRawPositionInfo,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
+    HyperliquidRawWsBookUpdate,
+    HyperliquidRawWsFillEvent,
+    HyperliquidRawWsOrderUpdate,
+    HyperliquidRawWsPositionUpdateEvent,
+    HyperliquidRawWsTradeEvent,
 )
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -836,6 +845,192 @@ class TestHyperliquidAPIWebSocketRouting:
         test_message = {"type": "someType", "data": {"other": "data"}}  # No channel
         await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore[reportPrivateUsage]
         assert f"Received WS message without channel: {test_message}" in caplog.text
+
+    @pytest.mark.asyncio
+    @patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidWsRawMessageHandler")
+    async def test_route_ws_message_l2book_calls_handler(
+        self, mock_ws_handler_class: MagicMock, api_for_ws_tests: HyperliquidAPI
+    ) -> None:
+        """Test _route_ws_message calls handle_l2book_payload for l2Book channel."""
+        mock_app_handler = AsyncMock()
+        topic = "l2Book:ETH"
+        api_for_ws_tests._ws_handlers[topic] = mock_app_handler  # pyright: ignore[reportPrivateUsage]
+
+        raw_l2_data = {"coin": "ETH", "levels": [[], []], "time": 123}  # pyright: ignore [reportUnknownVariableType]
+        # Test data; type checker struggles with inline dict structure for nested lists.
+        # Actual validation is done by Pydantic in the (mocked) handler.
+        ws_message = {"channel": "l2Book", "data": raw_l2_data}  # pyright: ignore [reportUnknownVariableType]
+        # Test data; type checker struggles with inline dict structure.
+
+        mock_validated_l2_model = MagicMock(spec=HyperliquidRawWsBookUpdate)
+        mock_dumped_l2_model = {"validated": "l2book_data"}
+        mock_validated_l2_model.model_dump.return_value = mock_dumped_l2_model
+        mock_ws_handler_class.handle_l2book_payload.return_value = mock_validated_l2_model
+
+        await api_for_ws_tests._route_ws_message(ws_message)  # pyright: ignore [reportPrivateUsage] # type: ignore[arg-type]
+        # Testing protected routing method directly. Arg-type ignore for ws_message due to
+        # test data structure.
+
+        mock_ws_handler_class.handle_l2book_payload.assert_called_once_with(raw_l2_data)
+        mock_app_handler.assert_awaited_once_with(mock_dumped_l2_model, ws_message)
+
+    @pytest.mark.asyncio
+    @patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidWsRawMessageHandler")
+    async def test_route_ws_message_trades_calls_handler(
+        self, mock_ws_handler_class: MagicMock, api_for_ws_tests: HyperliquidAPI
+    ) -> None:
+        """Test _route_ws_message calls handle_public_trades_payload for trades channel."""
+        mock_app_handler = AsyncMock()
+        topic = "trades:BTC"
+        api_for_ws_tests._ws_handlers[topic] = mock_app_handler  # pyright: ignore[reportPrivateUsage]
+
+        raw_trade_item = {
+            "coin": "BTC",
+            "px": "1",
+            "sz": "1",
+            "side": "B",
+            "time": 123,
+            "hash": "h1",
+        }
+        raw_trades_data = [raw_trade_item]  # trades sends a list
+        ws_message = {
+            "channel": "trades",
+            "data": raw_trades_data,
+            "coin": "BTC",
+        }  # coin in top for routing key
+
+        mock_validated_trade_model = MagicMock(spec=HyperliquidRawWsTradeEvent)
+        mock_dumped_trade_model = {"validated": "trade_data"}
+        mock_validated_trade_model.model_dump.return_value = mock_dumped_trade_model
+        mock_ws_handler_class.handle_public_trades_payload.return_value = [
+            mock_validated_trade_model
+        ]
+
+        await api_for_ws_tests._route_ws_message(ws_message)  # pyright: ignore[reportPrivateUsage]
+
+        mock_ws_handler_class.handle_public_trades_payload.assert_called_once_with([raw_trade_item])
+        mock_app_handler.assert_awaited_once_with(mock_dumped_trade_model, ws_message)
+
+    @pytest.mark.asyncio
+    @patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidWsRawMessageHandler")
+    async def test_route_ws_message_allmids_calls_handler(
+        self, mock_ws_handler_class: MagicMock, api_for_ws_tests: HyperliquidAPI
+    ) -> None:
+        """Test _route_ws_message calls handle_all_mids_payload for allMids channel."""
+        mock_app_handler = AsyncMock()
+        topic = "allMids"
+        api_for_ws_tests._ws_handlers[topic] = mock_app_handler  # pyright: ignore[reportPrivateUsage]
+
+        raw_all_mids_data = {"BTC": "60000.0", "ETH": "3000.0"}
+        ws_message = {"channel": "allMids", "data": raw_all_mids_data}
+
+        mock_validated_all_mids_model = MagicMock(spec=HyperliquidRawAllMids)
+        mock_dumped_all_mids_model = {"validated": "all_mids_data"}
+        mock_validated_all_mids_model.model_dump.return_value = mock_dumped_all_mids_model
+        mock_ws_handler_class.handle_all_mids_payload.return_value = mock_validated_all_mids_model
+
+        await api_for_ws_tests._route_ws_message(ws_message)  # pyright: ignore[reportPrivateUsage]
+
+        mock_ws_handler_class.handle_all_mids_payload.assert_called_once_with(raw_all_mids_data)
+        mock_app_handler.assert_awaited_once_with(mock_dumped_all_mids_model, ws_message)
+
+    @pytest.mark.asyncio
+    @patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidWsRawMessageHandler")
+    @pytest.mark.parametrize(
+        "event_type, raw_event_data, handler_method_name, model_spec, dump_key",
+        [
+            (
+                "fill",
+                {
+                    "type": "fill",
+                    "coin": "ETH",
+                    "px": "1",
+                    "sz": "1",
+                    "side": "B",
+                    "time": 1,
+                    "hash": "h",
+                    "oid": 1,
+                },
+                "handle_user_fill_event_payload",
+                HyperliquidRawWsFillEvent,
+                "fill_data",
+            ),
+            (
+                "positionUpdate",
+                {"type": "positionUpdate", "asset": "ETH", "position": {}, "time": 1},
+                "handle_user_position_update_event_payload",
+                HyperliquidRawWsPositionUpdateEvent,
+                "pos_update_data",
+            ),
+        ],
+    )
+    async def test_route_ws_message_user_events_simple_calls_handler(
+        self,
+        mock_ws_handler_class: MagicMock,
+        api_for_ws_tests: HyperliquidAPI,
+        event_type: str,
+        raw_event_data: dict[str, Any],
+        handler_method_name: str,
+        model_spec: Any,  # noqa: ANN401 - Parametrized test with varying model types
+        dump_key: str,
+    ) -> None:
+        """Test _route_ws_message for simple userEvents (fill, positionUpdate)."""
+        mock_app_handler = AsyncMock()
+        topic = "userEvents"
+        api_for_ws_tests._ws_handlers[topic] = mock_app_handler  # pyright: ignore[reportPrivateUsage]
+
+        ws_message = {"channel": "userEvents", "data": [raw_event_data]}
+
+        mock_validated_model = MagicMock(spec=model_spec)
+        mock_dumped_model = {"validated": dump_key}
+        mock_validated_model.model_dump.return_value = mock_dumped_model
+        getattr(mock_ws_handler_class, handler_method_name).return_value = mock_validated_model
+
+        await api_for_ws_tests._route_ws_message(ws_message)  # pyright: ignore[reportPrivateUsage]
+
+        getattr(mock_ws_handler_class, handler_method_name).assert_called_once_with(raw_event_data)
+        mock_app_handler.assert_awaited_once_with(mock_dumped_model, ws_message)
+
+    @pytest.mark.asyncio
+    @patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidWsRawMessageHandler")
+    async def test_route_ws_message_user_event_order_calls_handlers(
+        self, mock_ws_handler_class: MagicMock, api_for_ws_tests: HyperliquidAPI
+    ) -> None:
+        """Test _route_ws_message calls handlers for userEvents of type 'order'."""
+        mock_app_handler = AsyncMock()
+        topic = "userEvents"
+        api_for_ws_tests._ws_handlers[topic] = mock_app_handler  # pyright: ignore[reportPrivateUsage]
+
+        raw_inner_order_data = {"order": {"coin": "BTC", "sz": "1"}, "status": "open", "oid": 123}
+        raw_order_event_wrapper = {"type": "order", "data": raw_inner_order_data}
+        ws_message = {"channel": "userEvents", "data": [raw_order_event_wrapper]}
+
+        # Mock for HyperliquidWsRawMessageHandler.handle_user_order_update_wrapper_payload
+        mock_validated_wrapper = MagicMock(spec=HyperliquidRawWsOrderUpdate)
+        mock_validated_wrapper.data = (
+            raw_inner_order_data  # This is what the API passes to the next handler
+        )
+        mock_ws_handler_class.handle_user_order_update_wrapper_payload.return_value = (
+            mock_validated_wrapper
+        )
+
+        # Mock for HyperliquidWsRawMessageHandler.handle_user_order_event_payload
+        mock_validated_order_detail = MagicMock(spec=HyperliquidRawOrder)
+        mock_dumped_order_detail = {"validated": "order_detail_data"}
+        mock_validated_order_detail.model_dump.return_value = mock_dumped_order_detail
+        mock_ws_handler_class.handle_user_order_event_payload.return_value = (
+            mock_validated_order_detail
+        )
+
+        await api_for_ws_tests._route_ws_message(ws_message)  # pyright: ignore[reportPrivateUsage]
+
+        mock_ws_handler_class.handle_user_order_update_wrapper_payload.assert_called_once_with(
+            raw_order_event_wrapper
+        )
+        mock_ws_handler_class.handle_user_order_event_payload.assert_called_once_with(
+            raw_inner_order_data
+        )
+        mock_app_handler.assert_awaited_once_with(mock_dumped_order_detail, ws_message)
 
 
 # --- Get Account Summary Tests --- #
