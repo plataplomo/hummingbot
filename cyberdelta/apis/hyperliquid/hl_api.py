@@ -361,7 +361,12 @@ class HyperliquidAPI(ExchangeAPI):
 
             elif channel == "trades":  # Public trades
                 if not isinstance(raw_data, list):
-                    actual_type_name = type(raw_data).__name__
+                    actual_type_name = type(raw_data).__name__  # pyright: ignore[reportUnknownArgumentType]
+                    # Pyright reports actual_type_name as partially unknown due to raw_data: Any.
+                    # Mypy is satisfied. Runtime check for raw_data structure (isinstance list)
+                    # precedes this. Downstream Pydantic models in HyperliquidWsRawMessageHandler
+                    # validate specific content. Ignoring for practical reasons given
+                    # Hyperliquid's complex, nested API structure for WS data.
                     raise APIError(
                         f"Trades data not list: {actual_type_name}",
                         code=APIErrorCode.INVALID_RESPONSE.value,
@@ -369,7 +374,12 @@ class HyperliquidAPI(ExchangeAPI):
 
                 typed_trades_input_list: list[dict[str, Any]] = []
                 # raw_data is list[Any] after the check above
-                for item_loop_var in raw_data:
+                # Pyright reports item_loop_var as unknown type when iterating raw_data (list[Any]).
+                # Mypy correctly infers item_loop_var as Any. Subsequent code uses isinstance
+                # checks and casts before use. Downstream Pydantic models in
+                # HyperliquidWsRawMessageHandler perform full validation.
+                # Ignoring for practical reasons given Hyperliquid's complex, nested API structure.
+                for item_loop_var in raw_data:  # pyright: ignore[reportUnknownVariableType]
                     item_from_any_list = cast(Any, item_loop_var)
                     if not isinstance(item_from_any_list, dict):
                         logger.warning(
@@ -399,18 +409,28 @@ class HyperliquidAPI(ExchangeAPI):
                     for trade_model in validated_trade_models:
                         payload_for_handler = trade_model.model_dump(mode="json")
                         await app_handler(payload_for_handler, message)
-                # If typed_trades_input_list is empty (either initially or after filtering), do nothing further.
+                # If typed_trades_input_list is empty after filtering, do nothing.
 
             elif channel == "userEvents":
                 if not isinstance(raw_data, list):
-                    actual_type_name = type(raw_data).__name__
+                    actual_type_name = type(raw_data).__name__  # pyright: ignore[reportUnknownArgumentType]
+                    # Pyright reports actual_type_name as partially unknown due to raw_data: Any.
+                    # Mypy is satisfied. Runtime check for raw_data structure (isinstance list)
+                    # precedes this. Downstream Pydantic models in HyperliquidWsRawMessageHandler
+                    # validate specific content. Ignoring for practical reasons given
+                    # Hyperliquid's complex, nested API structure for WS data.
                     raise APIError(
                         f"userEvents data not list: {actual_type_name}",
                         code=APIErrorCode.INVALID_RESPONSE.value,
                     )
 
                 # raw_data is list[Any] after the check above
-                for event_loop_var in raw_data:
+                # Pyright reports event_loop_var unknown when iterating raw_data (list[Any]).
+                # Mypy correctly infers event_loop_var as Any. Subsequent code uses isinstance
+                # checks and casts before use. Downstream Pydantic models in
+                # HyperliquidWsRawMessageHandler perform full validation.
+                # Ignoring for practical reasons given Hyperliquid's complex, nested API structure.
+                for event_loop_var in raw_data:  # pyright: ignore[reportUnknownVariableType]
                     event_item_from_any_list = cast(Any, event_loop_var)
                     if not isinstance(event_item_from_any_list, dict):
                         logger.warning(
