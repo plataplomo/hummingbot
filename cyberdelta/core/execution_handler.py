@@ -1243,7 +1243,7 @@ class ExecutionHandler:
                             f"'{exchange_id}'. Passing '{exchange_id}' to portfolio_tracker."
                         )
 
-                    self.portfolio_tracker.process_trade(exchange_id, trade_from_order)
+                    await self.portfolio_tracker.process_trade(exchange_id, trade_from_order)
                     logger.info(
                         f"Processed trade {trade_from_order.id} from order "
                         f"{order.exchange_order_id or order.client_order_id} for exec "
@@ -1291,7 +1291,7 @@ class ExecutionHandler:
                     executed_at=order.updated_at or datetime.now(UTC),
                     is_maker=False,  # Default for synthetic trade; Trade model defaults to False
                 )
-                self.portfolio_tracker.process_trade(exchange_id, synthetic_trade)
+                await self.portfolio_tracker.process_trade(exchange_id, synthetic_trade)
                 logger.info(
                     f"Synthetic trade processed for order {synthetic_trade.order_id}, "
                     f"exec {execution.id}"

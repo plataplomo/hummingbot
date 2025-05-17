@@ -34,6 +34,7 @@ from cyberdelta.apis.backpack.bp_response_handler import (
     RawJson,
     RawJsonResponse,
 )
+from cyberdelta.apis.backpack.bp_ws_raw_message_handler import BackpackWsRawMessageHandler
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
 from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
@@ -147,54 +148,102 @@ class BackpackAPI(ExchangeAPI):
         Backpack messages typically have a 'stream' or 'topic' field in the outer message
         or the data payload itself indicates the type.
         Example Backpack WS message structure: {"topic": "depth.SOL_USDC", "data": {...}}
+
+        This method now first validates the raw payload using BackpackWsRawMessageHandler
+        before passing the validated Pydantic model to the registered application handler.
         """
-        # Backpack messages typically have a 'topic' field identifying the stream
-        # The actual data payload is often in message["data"]
-        topic = message.get("topic")  # Or derive from message structure if different
-        data_payload = message.get("data")
+        topic_str: str | None = message.get("topic")
+        data_payload: dict[str, Any] | None = message.get("data")
+        event_type_str: str | None = None
 
-        if not topic:
-            # Sometimes the topic might be part of the data key, e.g. for user streams
-            # For Backpack, public streams have a top-level topic key.
-            # Private streams like 'fills' or 'orders' might be structured differently,
-            # e.g. message = {"type": "fills", "data": ...}
-            # Adapt this logic based on actual Backpack private stream formats.
-            event_type = message.get("type")  # Example for a private stream format
-            if event_type in ["fills", "orders"] and isinstance(
-                event_type, str
-            ):  # Ensure event_type is str
-                topic = event_type  # Use type as topic for private streams
-                data_payload = message  # Handler might expect the whole message
+        if not topic_str:
+            raw_event_type = message.get("type")
+            if isinstance(raw_event_type, str) and raw_event_type in [
+                "fills",
+                "orders",
+                "positionUpdate",
+            ]:
+                event_type_str = raw_event_type
+                topic_str = event_type_str
             else:
-                # Ensure topic is not None and is a string before proceeding
-                if topic is None or not isinstance(topic, str):
-                    logger.debug(
-                        f"[{self.exchange_name}] Unroutable message "
-                        f"(no clear string topic/type): {message}"
-                    )
-                    return
+                logger.debug(
+                    f"[{self.exchange_name}] Unroutable message - no clear string topic "
+                    f"and not a known event type: {message}"
+                )
+                return
 
-        if data_payload is None:  # Ensure data_payload is present
+        if data_payload is None:
             logger.debug(
-                f"[{self.exchange_name}] Received message with topic '{topic}'"
-                f" but no data: {message}"
+                f"[{self.exchange_name}] Received message with topic/type '{topic_str}' "
+                f"but no data_payload: {message}"
             )
             return
 
-        handler = self._ws_handlers.get(topic)
-        if handler:
-            try:
-                # Pass the data_payload to the handler. For Backpack,
-                # this is typically message["data"]
-                # For private streams, if data_payload was set to message, it works out.
-                await handler(data_payload, message)
-            except Exception as e:
-                logger.error(
-                    f"[{self.exchange_name}] Error in handler for topic {topic}: {e}",
-                    exc_info=True,
+        # topic_str is now guaranteed to be a string.
+        app_handler = self._ws_handlers.get(
+            str(topic_str)
+        )  # Ensure topic_str is treated as str for key
+
+        base_topic = str(topic_str)  # Use str() to satisfy linters if topic_str could be None path
+        if base_topic.startswith("depth."):
+            base_topic = "depth"
+        elif base_topic.startswith("ticker."):
+            base_topic = "ticker"
+
+        if not app_handler:
+            logger.debug(
+                f"[{self.exchange_name}] No application handler registered for topic: "
+                f"{topic_str} (or base topic: {base_topic})"
+            )
+            return
+
+        try:
+            validated_payload: Any = None
+            if base_topic == "depth":
+                validated_payload = BackpackWsRawMessageHandler.handle_depth_payload(data_payload)
+            elif base_topic == "ticker":
+                validated_payload = BackpackWsRawMessageHandler.handle_ticker_payload(data_payload)
+            elif base_topic == "fills":
+                validated_payload = BackpackWsRawMessageHandler.handle_trade_event_payload(
+                    data_payload
                 )
-        else:
-            logger.debug(f"[{self.exchange_name}] No handler registered for topic: {topic}")
+            elif base_topic == "orders":
+                validated_payload = BackpackWsRawMessageHandler.handle_order_update_payload(
+                    data_payload
+                )
+            elif base_topic == "positionUpdate":
+                validated_payload = BackpackWsRawMessageHandler.handle_position_update_payload(
+                    data_payload
+                )
+            else:
+                logger.warning(
+                    f"[{self.exchange_name}] No specific raw WS validator for topic "
+                    f"'{topic_str}' (base: '{base_topic}'). "
+                    f"Application handler will receive raw payload."
+                )
+                await app_handler(data_payload, message)
+                return
+
+            await app_handler(validated_payload, message)
+
+        except APIError as e:
+            logger.error(
+                f"[{self.exchange_name}] APIError validating WS payload for topic "
+                f"{topic_str} (base: {base_topic}): {e.message}",
+                exc_info=True,
+            )
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self.exchange_name}] Unexpected ValidationError in _route_ws_message "
+                f"for topic {topic_str} (base: {base_topic}): {e_val}",
+                exc_info=True,
+            )
+        except Exception as e_app:
+            logger.error(
+                f"[{self.exchange_name}] Error in application handler for topic {topic_str} "
+                f"(base: {base_topic}): {e_app}",
+                exc_info=True,
+            )
 
     # --- Authentication --- #
 

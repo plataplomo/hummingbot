@@ -24,6 +24,7 @@ from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
     RawJsonResponse,
 )
+from cyberdelta.apis.hyperliquid.hl_ws_raw_message_handler import HyperliquidWsRawMessageHandler
 from cyberdelta.apis.hyperliquid.models.hl_processed_exchange_responses import (
     HyperliquidSuccessfulOrderStatus,
 )
@@ -300,63 +301,200 @@ class HyperliquidAPI(ExchangeAPI):
 
         return {"method": "subscribe", "subscription": subscription_data}
 
-    async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
-        """Handle raw WebSocket message from WebSocketManager, then route it."""
-        # Hyperliquid structure is often {"channel": "...", "data": ...}
-        # No special pre-processing needed before routing based on channel.
-        await self._route_ws_message(message)
-
     async def _route_ws_message(self, message: dict[str, Any]) -> None:
-        """Route incoming WebSocket messages based on Hyperliquid's 'channel' field."""
-        channel = message.get("channel")
-        data_payload = message.get("data")
+        """
+        Route incoming WebSocket messages from Hyperliquid.
+        Validates raw payloads using HyperliquidWsRawMessageHandler before processing.
+        """
+        channel: str | None = message.get("channel")
+        raw_data: Any = message.get("data")
 
         if not channel:
-            logger.warning(f"[{self.exchange_name}] Received WS message without channel: {message}")
+            logger.debug(f"[{self.exchange_name}] Unroutable WS message (no channel): {message}")
             return
 
-        # Handle pong separately, as it might not have a 'data' field
-        if channel == "pong":
-            logger.debug(f"[{self.exchange_name}] Received pong")
-            # TODO: Potentially update last_pong_received timestamp for connection health
-            return
+        topic_key_for_handler = channel
+        if channel in ["l2Book", "trades"] and isinstance(raw_data, dict):
+            coin_from_data: Any = raw_data.get("coin")
+            if isinstance(coin_from_data, str):
+                topic_key_for_handler = f"{channel}:{coin_from_data}"
+        elif channel == "userEvents":
+            topic_key_for_handler = "userEvents"
 
-        if data_payload is None:
-            # This case might be valid for some simple channel messages (like pong, handled above)
-            # but for most data-carrying channels, data_payload is expected.
-            logger.warning(
-                f"[{self.exchange_name}] Received message from WS channel {channel} "
-                f"without a data field. Full message: {message!r}"
-            )
-            return
-
-        handler: MessageHandler | None = self._ws_handlers.get(channel)
-        if handler:
-            try:
-                await handler(data_payload, message)
-            except Exception:  # noqa: BLE001
-                logger.exception(
-                    f"[{self.exchange_name}] Error in WS handler for channel '{channel}'",
-                    exc_info=True,
-                )
-        else:
-            # This block executes if no specific handler was found by self._ws_handlers.get(channel)
-            print(
-                f"[DEBUG HL_API _route_ws_message] No specific handler. "
-                f"Checking built-ins. Channel: '{channel}' (type: {type(channel)}). "
-                f"Is it 'error'? -> {channel == 'error'}. Data: {data_payload is not None}"
-            )  # DEBUG
-            if channel == "error":
-                logger.error(f"[{self.exchange_name}] Received WS error message: {data_payload}")
-            elif channel == "subscriptionResponse":
-                logger.info(
-                    f"[{self.exchange_name}] Received subscription response: {data_payload}"
-                )
+        app_handler = self._ws_handlers.get(topic_key_for_handler)
+        if not app_handler:
+            generic_app_handler = self._ws_handlers.get(channel)
+            if generic_app_handler:
+                app_handler = generic_app_handler
             else:
                 logger.debug(
-                    f"[{self.exchange_name}] No handler registered for channel: {channel}. "
-                    f"Message: {message}"
+                    f"[{self.exchange_name}] No WS handler for '{topic_key_for_handler}'. "
+                    f"Msg: {message}"
                 )
+                return
+
+        if raw_data is None and channel not in ["pong", "subscriptionResponse"]:
+            logger.warning(f"[{self.exchange_name}] WS '{channel}' has no data. Msg: {message}")
+            return
+
+        try:
+            validated_payload: Any = None  # Initialize with a broader type or Any
+
+            if channel == "l2Book":
+                if not isinstance(raw_data, dict):
+                    logger.warning(
+                        f"[{self.exchange_name}] l2Book data not dict: {type(raw_data)}. "
+                        f"Msg: {message}"
+                    )
+                    return
+                # raw_data is now confirmed to be a dict
+                validated_payload = HyperliquidWsRawMessageHandler.handle_l2book_payload(raw_data)
+                await app_handler(validated_payload, message)
+
+            elif channel == "trades":  # Public trades
+                if not isinstance(raw_data, list):
+                    logger.warning(
+                        f"[{self.exchange_name}] Trades data not list: {type(raw_data)}. "
+                        f"Msg: {message}"
+                    )
+                    return
+
+                typed_trades_list: list[dict[str, Any]] = []
+                for item_in_trades_list in raw_data:
+                    if not isinstance(item_in_trades_list, dict):
+                        logger.warning(
+                            f"[{self.exchange_name}] Trades list item not dict: "
+                            f"{item_in_trades_list}. Msg: {message}"
+                        )
+                        # Decide: return, or skip this item and continue with valid ones?
+                        # For now, returning to ensure type safety for the handler. Or collect
+                        # valid only.
+                        return
+                    typed_trades_list.append(item_in_trades_list)
+
+                if not typed_trades_list and raw_data:  # If raw_data had items but all were invalid
+                    logger.warning(
+                        f"[{self.exchange_name}] All items in trades list were invalid. "
+                        f"Original: {raw_data}"
+                    )
+                    return
+
+                validated_payload = HyperliquidWsRawMessageHandler.handle_public_trades_payload(
+                    typed_trades_list
+                )
+                await app_handler(validated_payload, message)
+
+            elif channel == "userEvents":
+                if not isinstance(raw_data, list):
+                    logger.warning(
+                        f"[{self.exchange_name}] userEvents data not list: {type(raw_data)}. "
+                        f"Msg: {message}"
+                    )
+                    return
+
+                processed_events_for_handler: list[Any] = []
+                for event_item_from_raw_data_list in raw_data:
+                    if not isinstance(event_item_from_raw_data_list, dict):
+                        logger.warning(
+                            f"[{self.exchange_name}] userEvents item not dict: "
+                            f"{event_item_from_raw_data_list}"
+                        )
+                        processed_events_for_handler.append(event_item_from_raw_data_list)
+                        continue
+
+                    # event_item_from_raw_data_list is now confirmed dict
+                    event_type_any: Any = event_item_from_raw_data_list.get("type")
+                    if not isinstance(event_type_any, str):
+                        logger.warning(
+                            f"[{self.exchange_name}] userEvent item no str type: "
+                            f"{event_item_from_raw_data_list}"
+                        )
+                        processed_events_for_handler.append(event_item_from_raw_data_list)
+                        continue
+
+                    event_type: str = event_type_any  # Now confirmed str
+                    validated_sub_event: Any = event_item_from_raw_data_list
+
+                    if event_type == "fill":
+                        validated_sub_event = (
+                            HyperliquidWsRawMessageHandler.handle_user_fill_event_payload(
+                                event_item_from_raw_data_list
+                            )
+                        )
+                    elif event_type == "order":
+                        try:
+                            order_wrapper = HyperliquidWsRawMessageHandler.handle_user_order_update_wrapper_payload(
+                                event_item_from_raw_data_list
+                            )
+                            if isinstance(order_wrapper.data, dict):
+                                validated_sub_event = (
+                                    HyperliquidWsRawMessageHandler.handle_user_order_event_payload(
+                                        order_wrapper.data
+                                    )
+                                )
+                            else:  # DEFENSIVE CHECK: order_wrapper.data can be a list. Mypy=[unreachable] Ruff=[none]
+                                logger.warning(
+                                    f"User order event wrapper 'data' is not a dict: "
+                                    f"{order_wrapper.data}. Using wrapper."
+                                )
+                                validated_sub_event = order_wrapper
+                        except APIError as e_order_val:
+                            logger.error(
+                                f"APIError validating user order event: {e_order_val}. "
+                                f"Event: {event_item_from_raw_data_list}"
+                            )
+                    elif event_type == "positionUpdate":
+                        validated_sub_event = HyperliquidWsRawMessageHandler.handle_user_position_update_event_payload(
+                            event_item_from_raw_data_list
+                        )
+
+                    processed_events_for_handler.append(validated_sub_event)
+
+                if processed_events_for_handler:
+                    await app_handler(processed_events_for_handler, message)  # type: ignore [arg-type]
+                elif raw_data:
+                    logger.debug(
+                        f"[{self.exchange_name}] All userEvents items unprocessable. "
+                        f"Original: {raw_data}"
+                    )
+
+            elif channel == "allMids":  # Assuming raw_data is dict for allMids
+                if not isinstance(raw_data, dict):
+                    logger.warning(
+                        f"[{self.exchange_name}] Expected dict for allMids data, "
+                        f"got {type(raw_data)}. Msg: {message}"
+                    )
+                    return
+                logger.debug(
+                    f"[{self.exchange_name}] Forwarding raw allMids data for '{channel}'. "
+                    f"Validation TBD."
+                )
+                await app_handler(raw_data, message)
+
+            elif channel == "pong" or channel == "subscriptionResponse":
+                logger.debug(f"[{self.exchange_name}] Control message on '{channel}': {message}")
+                await app_handler(raw_data, message)  # raw_data might be None or dict
+            else:
+                logger.debug(
+                    f"[{self.exchange_name}] Unhandled channel '{channel}' by specific "
+                    f"validation, passing raw. Msg: {message}"
+                )
+                await app_handler(raw_data, message)
+
+        except APIError as e:
+            logger.error(
+                f"[{self.exchange_name}] APIError in WS routing for {channel}: {e.message}",
+                exc_info=True,
+            )
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self.exchange_name}] Unexpected Pydantic ValidationErr for {channel}: {e_val}",
+                exc_info=True,
+            )
+        except Exception as e_app:
+            logger.error(
+                f"[{self.exchange_name}] Error in app_handler for {channel}: {e_app}", exc_info=True
+            )
 
     async def connect_websocket(self) -> None:
         """Establish the WebSocket connection using the base class logic."""
