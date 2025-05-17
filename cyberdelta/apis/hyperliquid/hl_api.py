@@ -325,7 +325,7 @@ class HyperliquidAPI(ExchangeAPI):
             else:
                 logger.warning(
                     f"[{self.exchange_name}] Expected dict for '{channel}' data, "
-                    f"got {type(raw_data)}. Msg: {message}"
+                    f"got {type(cast(object, raw_data))}. Msg: {message}"
                 )
                 return
         elif channel == "userEvents":
@@ -351,8 +351,8 @@ class HyperliquidAPI(ExchangeAPI):
             if channel == "l2Book":
                 if not isinstance(raw_data, dict):
                     logger.warning(
-                        f"[{self.exchange_name}] l2Book data not dict: {type(raw_data)}. "
-                        f"Msg: {message}"
+                        f"[{self.exchange_name}] l2Book data not dict: "
+                        f"{type(cast(object, raw_data))}. Msg: {message}"
                     )
                     return
                 validated_payload = HyperliquidWsRawMessageHandler.handle_l2book_payload(
@@ -363,13 +363,15 @@ class HyperliquidAPI(ExchangeAPI):
             elif channel == "trades":  # Public trades
                 if not isinstance(raw_data, list):
                     logger.warning(
-                        f"[{self.exchange_name}] Trades data not list: {type(raw_data)}. "
-                        f"Msg: {message}"
+                        f"[{self.exchange_name}] Trades data not list: "
+                        f"{type(cast(object, raw_data))}. Msg: {message}"
                     )
                     return
 
                 typed_trades_list: list[dict[str, Any]] = []
-                for item_in_trades_list_any in raw_data:  # raw_data is list[Any] here
+                # Cast raw_data to list[Any] for Pyright.
+                # Mypy found it redundant but Pyright needs it.
+                for item_in_trades_list_any in cast(list[Any], raw_data):
                     if not isinstance(item_in_trades_list_any, dict):
                         logger.warning(
                             f"[{self.exchange_name}] Trades list item not dict: "
@@ -395,12 +397,14 @@ class HyperliquidAPI(ExchangeAPI):
             elif channel == "userEvents":
                 if not isinstance(raw_data, list):
                     logger.warning(
-                        f"[{self.exchange_name}] userEvents data not list: {type(raw_data)}. "
-                        f"Msg: {message}"
+                        f"[{self.exchange_name}] userEvents data not list: "
+                        f"{type(cast(object, raw_data))}. Msg: {message}"
                     )
                     return
 
-                for event_item_any in raw_data:  # raw_data is list[Any] here
+                # Cast raw_data to list[Any] for Pyright.
+                # Mypy found it redundant but Pyright needs it.
+                for event_item_any in cast(list[Any], raw_data):
                     if not isinstance(event_item_any, dict):
                         logger.warning(
                             f"[{self.exchange_name}] userEvents item not dict: "
@@ -436,23 +440,54 @@ class HyperliquidAPI(ExchangeAPI):
                             )
                     elif event_type_str == "order":
                         try:
-                            order_wrapper = HyperliquidWsRawMessageHandler.handle_user_order_update_wrapper_payload(\
-                                event_item_dict\
+                            order_wrapper = (
+                                HyperliquidWsRawMessageHandler
+                                .handle_user_order_update_wrapper_payload(
+                                    event_item_dict
+                                )
                             )
                             current_order_data = order_wrapper.data
-                            if isinstance(current_order_data, HyperliquidRawOrder):\
+
+                            # Reverted isinstance check order for Mypy
+                            # DEFENSIVE CHECK: Mypy struggles with Union[PydanticModel, dict, list].
+                            # Mypy=[unreachable]
+                            if isinstance(current_order_data, HyperliquidRawOrder):
+                                # DEFENSIVE CHECK: Mypy considers unreachable due to above.
+                                # Mypy=[unreachable]
                                 payload_for_handler = (
-                                    HyperliquidWsRawMessageHandler.handle_user_order_event_payload(
+                                    HyperliquidWsRawMessageHandler
+                                    .handle_user_order_event_payload(
                                         current_order_data.model_dump(mode="json")
                                     )
                                 ).model_dump(mode="json")
+                            # DEFENSIVE CHECK: Mypy struggles with Union[PydanticModel, dict, list].
+                            # Mypy=[unreachable]
                             elif isinstance(current_order_data, list):
+                                # DEFENSIVE CHECK: Mypy considers unreachable due to above.
+                                # Mypy=[unreachable]
                                 logger.info(
                                     f"[{self.exchange_name}] User 'order' event contains "
                                     f"list of fills. Passing wrapper for now. "
                                     f"Fills: {len(current_order_data)}"
                                 )
                                 payload_for_handler = order_wrapper.model_dump(mode="json")
+                            elif isinstance(current_order_data, dict):
+                                logger.warning(
+                                    f"[{self.exchange_name}] User 'order' event data is an "
+                                    f"unrecognized dict: {current_order_data}. Passing wrapper."
+                                )
+                                payload_for_handler = order_wrapper.model_dump(mode="json")
+                            else:  # Handle None or other unexpected types
+                                logger.warning(
+                                    f"[{self.exchange_name}] User 'order' event data is not a "
+                                    f"recognized HyperliquidRawOrder, list, or dict: "
+                                    f"{type(current_order_data)}. Event: {event_item_dict}. "
+                                    f"Passing raw dict to handler."
+                                )
+                                # DEFENSIVE CHECK: Mypy considers this unreachable due to its
+                                # analysis of the preceding isinstance checks.
+                                # Mypy=[unreachable]
+                                payload_for_handler = event_item_dict
                         except (APIError, ValidationError) as e_order_val:
                             logger.error(
                                 f"[{self.exchange_name}] Error validating user order event: "
@@ -478,7 +513,7 @@ class HyperliquidAPI(ExchangeAPI):
                 if not isinstance(raw_data, dict):
                     logger.warning(
                         f"[{self.exchange_name}] Expected dict for allMids data, "
-                        f"got {type(raw_data)}. Msg: {message}"
+                        f"got {type(cast(object, raw_data))}. Msg: {message}"
                     )
                     return
                 logger.debug(
