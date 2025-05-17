@@ -361,15 +361,16 @@ class HyperliquidAPI(ExchangeAPI):
 
             elif channel == "trades":  # Public trades
                 if not isinstance(raw_data, list):
+                    actual_type_name = type(raw_data).__name__
                     raise APIError(
-                        f"Trades data not list: {type(raw_data)}",
+                        f"Trades data not list: {actual_type_name}",
                         code=APIErrorCode.INVALID_RESPONSE.value,
                     )
 
                 typed_trades_input_list: list[dict[str, Any]] = []
-                # DEFENSIVE CHECK: Cast for Pyright to infer loop var type from Any.
-                # Mypy=[redundant-cast]
-                for item_from_any_list in cast(list[Any], raw_data):
+                # raw_data is list[Any] after the check above
+                for item_loop_var in raw_data:
+                    item_from_any_list = cast(Any, item_loop_var)
                     if not isinstance(item_from_any_list, dict):
                         logger.warning(
                             f"[{self.exchange_name}] Trades list item not dict: "
@@ -402,14 +403,15 @@ class HyperliquidAPI(ExchangeAPI):
 
             elif channel == "userEvents":
                 if not isinstance(raw_data, list):
+                    actual_type_name = type(raw_data).__name__
                     raise APIError(
-                        f"userEvents data not list: {type(raw_data)}",
+                        f"userEvents data not list: {actual_type_name}",
                         code=APIErrorCode.INVALID_RESPONSE.value,
                     )
 
-                # DEFENSIVE CHECK: Cast for Pyright to infer loop var type from Any.
-                # Mypy=[redundant-cast]
-                for event_item_from_any_list in cast(list[Any], raw_data):
+                # raw_data is list[Any] after the check above
+                for event_loop_var in raw_data:
+                    event_item_from_any_list = cast(Any, event_loop_var)
                     if not isinstance(event_item_from_any_list, dict):
                         logger.warning(
                             f"[{self.exchange_name}] userEvents item not dict: "
@@ -445,12 +447,10 @@ class HyperliquidAPI(ExchangeAPI):
                         elif event_type_str == "order":
                             # The event_item_dict is the wrapper for the order event.
                             # Its 'data' field contains the actual order or list of fills.
-                            order_update_wrapper = (
-                                HyperliquidWsRawMessageHandler
-                                .handle_user_order_update_wrapper_payload(
-                                    event_item_dict
-                                    # This is the outer dict with "type" and "data"
-                                )
+                            order_update_handler = HyperliquidWsRawMessageHandler.handle_user_order_update_wrapper_payload
+                            order_update_wrapper = order_update_handler(
+                                event_item_dict
+                                # This is the outer dict with "type" and "data"
                             )
                             # order_update_wrapper.data is dict[str, Any] as per
                             # HyperliquidRawWsOrderUpdate
@@ -465,22 +465,19 @@ class HyperliquidAPI(ExchangeAPI):
                             # The intention is that this 'data' dict is the *actual* order details.
 
                             # If order_update_wrapper.data itself is supposed to be an Order:
-                            validated_order_details = (
-                                HyperliquidWsRawMessageHandler.handle_user_order_event_payload(
-                                    order_update_wrapper.data  # This is dict[str, Any]
-                                )
+                            order_event_handler = (
+                                HyperliquidWsRawMessageHandler.handle_user_order_event_payload
+                            )
+                            validated_order_details = order_event_handler(
+                                order_update_wrapper.data  # This is dict[str, Any]
                             )
                             current_event_payload_for_handler = validated_order_details.model_dump(
                                 mode="json"
                             )
 
                         elif event_type_str == "positionUpdate":
-                            validated_position_update = (
-                                HyperliquidWsRawMessageHandler
-                                .handle_user_position_update_event_payload(
-                                    event_item_dict
-                                )
-                            )
+                            pos_update_handler = HyperliquidWsRawMessageHandler.handle_user_position_update_event_payload
+                            validated_position_update = pos_update_handler(event_item_dict)
                             current_event_payload_for_handler = (
                                 validated_position_update.model_dump(mode="json")
                             )
