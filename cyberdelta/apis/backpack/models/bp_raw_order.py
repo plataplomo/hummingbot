@@ -208,8 +208,10 @@ class BackpackRawOrderBook(BaseModel):
 
     Attributes:
         symbol (str): Trading symbol.
-        bids (list[tuple[str, str]]): List of [price_str, quantity_str] for bids. Validated as parsable finite decimal strings.
-        asks (list[tuple[str, str]]): List of [price_str, quantity_str] for asks. Validated as parsable finite decimal strings.
+        bids (list[tuple[str, str]]): List of [price_str, quantity_str] for bids. Validated as
+                                       parsable finite decimal strings.
+        asks (list[tuple[str, str]]): List of [price_str, quantity_str] for asks. Validated as
+                                       parsable finite decimal strings.
         time (int | str | float | None): Snapshot timestamp.
     """
 
@@ -255,4 +257,6 @@ class BackpackRawOrderUpdate(BaseModel):
     quantity: RawBpOptionalParsableFiniteDecimalString = Field(None, alias="q")
     price: RawBpOptionalParsableFiniteDecimalString = Field(None, alias="p")
     order_status: RawBpOrderStatusString = Field(..., alias="X")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(
+        populate_by_name=True, extra="forbid", frozen=True, validate_assignment=True
+    )
