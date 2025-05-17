@@ -23,11 +23,17 @@ logic, ensuring robustness and security at the data ingestion boundary.
 from pydantic import BaseModel, ConfigDict, Field
 
 from cyberdelta.apis.backpack.models.bp_common_raw_types import (
+    RawBpDepositAmountString,
     RawBpExtendedOrderSideString,
+    RawBpLiquidationPriceString,
+    RawBpLiquidationQuantityString,
     RawBpNonEmptyStringMax32,
     RawBpNonEmptyStringMax64,
-    RawBpParsableNonNegativeFiniteDecimalString,
+    RawBpOptionalNonEmptyString,
+    RawBpParsablePositiveFiniteDecimalString,
+    RawBpStringToDatetime,
     RawBpTransferStatusString,
+    RawBpWithdrawalAmountString,
 )
 
 
@@ -42,13 +48,24 @@ class BackpackRawWithdrawal(BaseModel):
         id (str): Withdrawal ID.
         asset (str): Asset symbol.
         amount (str): Withdrawal amount (as string, non-negative finite decimal).
-        status (str): Withdrawal status (e.g., 'pending', 'completed').
+        status (str): Withdrawal status (e.g., 'pending', 'completed', 'failed', 'cancelled').
+        time (datetime | None): Timestamp of the withdrawal.
     """
 
     id: RawBpNonEmptyStringMax64 = Field(..., alias="id")
     asset: RawBpNonEmptyStringMax32 = Field(..., alias="asset")
-    amount: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="amount")
+    amount: RawBpWithdrawalAmountString = Field(..., alias="amount")
     status: RawBpTransferStatusString = Field(..., alias="status")
+    time: RawBpStringToDatetime | None = Field(None, alias="time")
+
+    # Optional fields
+    address: RawBpOptionalNonEmptyString = Field(None, alias="address")
+    fee: RawBpParsablePositiveFiniteDecimalString | None = Field(None, alias="fee")
+    method: RawBpNonEmptyStringMax32 | None = Field(None, alias="method")
+    network: RawBpOptionalNonEmptyString = Field(None, alias="network")
+    subaccount: int | None = Field(None, alias="subaccount")
+    to_address: RawBpOptionalNonEmptyString = Field(None, alias="to_address")
+    transaction_hash: RawBpOptionalNonEmptyString = Field(None, alias="transaction_hash")
     model_config = ConfigDict(
         populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True
     )
@@ -66,12 +83,24 @@ class BackpackRawDeposit(BaseModel):
         asset (str): Asset symbol.
         amount (str): Deposit amount (as string, non-negative finite decimal).
         status (str): Deposit status (e.g., 'pending', 'completed').
+        time (datetime | None): Timestamp of the deposit.
     """
 
     id: RawBpNonEmptyStringMax64 = Field(..., alias="id")
     asset: RawBpNonEmptyStringMax32 = Field(..., alias="asset")
-    amount: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="amount")
+    amount: RawBpDepositAmountString = Field(..., alias="amount")
     status: RawBpTransferStatusString = Field(..., alias="status")
+    time: RawBpStringToDatetime | None = Field(None, alias="time")
+
+    # Optional fields
+    address: RawBpOptionalNonEmptyString = Field(None, alias="address")
+    fee: RawBpOptionalNonEmptyString = Field(None, alias="fee")
+    method: RawBpNonEmptyStringMax32 | None = Field(None, alias="method")
+    network: RawBpOptionalNonEmptyString = Field(None, alias="network")
+    subaccount: int | None = Field(None, alias="subaccount")
+    to_address: RawBpOptionalNonEmptyString = Field(None, alias="to_address")
+    transaction_hash: RawBpOptionalNonEmptyString = Field(None, alias="transaction_hash")
+    confirmation_block_number: int | None = Field(None, alias="confirmation_block_number")
     model_config = ConfigDict(
         populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True
     )
@@ -89,12 +118,16 @@ class BackpackRawLiquidation(BaseModel):
         price (str): Liquidation price (as string, non-negative finite decimal).
         quantity (str): Liquidated quantity (as string, non-negative finite decimal).
         side (str): Side ('buy', 'sell').
+        time (datetime | None): Timestamp of the liquidation.
+        liquidation_id (str | None): Unique ID for the liquidation event.
     """
 
-    symbol: RawBpNonEmptyStringMax64 = Field(..., alias="symbol")
-    price: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="price")
-    quantity: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="quantity")
+    symbol: RawBpNonEmptyStringMax32 = Field(..., alias="symbol")
+    quantity: RawBpLiquidationQuantityString = Field(..., alias="quantity")
+    price: RawBpLiquidationPriceString = Field(..., alias="price")
     side: RawBpExtendedOrderSideString = Field(..., alias="side")
+    time: RawBpStringToDatetime | None = Field(None, alias="time")
+    liquidation_id: RawBpNonEmptyStringMax64 | None = Field(None, alias="liquidation_id")
     model_config = ConfigDict(
         populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True
     )

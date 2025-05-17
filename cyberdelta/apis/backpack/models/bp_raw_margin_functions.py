@@ -25,6 +25,7 @@ structure of Backpack's margin function components, specifically the `imfFunctio
 from pydantic import BaseModel, ConfigDict, Field
 
 from .bp_common_raw_types import (
+    RawBpMarginFunctionDecimalString,
     RawBpNonEmptyStringMax64,  # For general non-empty string usage if any
     RawBpParsableFiniteDecimalString,
     RawBpStringMax64,  # For general string usage like 'type'
@@ -34,19 +35,19 @@ from .bp_common_raw_types import (
 class BackpackRawImfFunction(BaseModel):
     """Raw model for Initial Margin Fraction (IMF) function components."""
 
-    base: RawBpParsableFiniteDecimalString = Field(..., alias="base")
-    factor: RawBpParsableFiniteDecimalString = Field(..., alias="factor")
+    base: RawBpMarginFunctionDecimalString = Field(..., alias="base")
+    factor: RawBpMarginFunctionDecimalString = Field(..., alias="factor")
 
-    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+    model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
 
 
 class BackpackRawMmfFunction(BaseModel):
     """Raw model for Maintenance Margin Fraction (MMF) function components."""
 
-    base: RawBpParsableFiniteDecimalString = Field(..., alias="base")
-    factor: RawBpParsableFiniteDecimalString = Field(..., alias="factor")
+    base: RawBpMarginFunctionDecimalString = Field(..., alias="base")
+    factor: RawBpMarginFunctionDecimalString = Field(..., alias="factor")
 
-    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+    model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
 
 
 class BackpackRawPositionImfFunction(BaseModel):

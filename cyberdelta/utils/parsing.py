@@ -68,7 +68,7 @@ def parse_datetime_utc(
                 # Reuse the int/float logic to determine if it's ms/ns etc.
                 # Common case: timestamp > 1e11 is likely ms, otherwise seconds.
                 # This threshold (1e11, approx 3.17 years in ms) helps distinguish.
-                # For very large numbers (like nanoseconds for recent dates), this might need refinement
+                # For very large numbers (nanoseconds for recent dates), this might need refinement
                 # if direct nanosecond/microsecond interpretation is required from string.
                 # Example: 1678886400123 (ms) -> 1678886400.123 (s)
                 # Example: 1234567890 (s) -> 1234567890.0 (s)
@@ -142,7 +142,7 @@ def validate_str_field(
     if not isinstance(value, str):
         raise ValueError(f"{prefix}Expected string, got {type(value).__name__}")
     if not allow_empty and not value.strip():
-        raise ValueError(f"{prefix}String cannot be empty or whitespace.")
+        raise ValueError(f"Field {field_name}: String cannot be empty")
     if max_length is not None and len(value) > max_length:
         raise ValueError(f"{prefix}String value too long (max {max_length} chars)")
     try:

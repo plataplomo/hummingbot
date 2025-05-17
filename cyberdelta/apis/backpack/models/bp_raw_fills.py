@@ -21,15 +21,16 @@ from pydantic import (
     RootModel,
 )
 
-from .bp_common_raw_types import (
+from cyberdelta.apis.backpack.models.bp_common_raw_types import (
+    RawBpFillFeeString,
+    RawBpFillPriceString,
+    RawBpFillQuantityString,
     RawBpIsoTimestampString,
     RawBpNonEmptyStringMax32,
-    RawBpNonEmptyStringMax64,
     RawBpNonEmptyStringMax128,
     RawBpNonNegativeInt,
     RawBpOptionalNonEmptyStringMax128,
     RawBpOrderSideString,
-    RawBpParsableFiniteDecimalString,
     RawBpStrictBool,
 )
 
@@ -37,53 +38,43 @@ from .bp_common_raw_types import (
 # --- Core Backpack Fill Model ---
 class BackpackRawFill(BaseModel):
     """
-    Strict boundary Pydantic model for a single user fill (trade) object from the Backpack API
-    endpoint `/wapi/v1/history/fills`. Corresponds to the `OrderFill` schema in Backpack's OpenAPI.
+    Pydantic model for a raw fill object from Backpack API responses.
 
-    This model validates the structure and raw data types using common annotated types.
-    It enforces immutability (`frozen=True`) and forbids extra fields (`extra='forbid').
+    This model enforces strict validation of the raw data structure and types
+    as defined by the Backpack Exchange API for fill events/objects.
+    It uses `Annotated` types from `bp_common_raw_types.py` for consistent
+    field-level validation logic.
 
-    Attributes (after Pydantic processing):
-        fee (str): The fee charged for the fill (validated as a parsable decimal string).
-        fee_symbol (str): The asset symbol in which the fee was charged.
-        is_maker (bool): Indicates if the fill was for a maker order.
-        order_id (str): The ID of the order associated with this fill.
-        price (str): The execution price of the fill (validated as a parsable decimal string).
-        quantity (str): The executed quantity for this fill
-                      (validated as a parsable decimal string).
+    Attributes:
+        fee (str): The fee amount as a string, validated to be parsable to a finite decimal.
+        fee_symbol (str): The symbol of the asset in which the fee was paid (max_length=32).
+        is_maker (bool): Whether the order was a maker order.
+        order_id (str): The ID of the order that was filled (max_length=128).
+        price (str): The price at which the fill occurred, as a string, validated to be
+                     parsable to a finite decimal.
+        quantity (str): The quantity filled, as a string, validated to be parsable to a
+                        finite decimal.
         side (str): The side of the order ('Bid' or 'Ask').
-        symbol (str): The trading symbol.
-        timestamp (str): The execution timestamp in ISO 8601 format.
-        trade_id (int): The unique ID for this trade/fill.
-        client_id (str | None): Optional client-provided order ID.
+        symbol (str): The trading symbol (e.g., 'SOL_USDC', max_length=32).
+        timestamp (str): The ISO 8601 timestamp of the fill.
+        trade_id (int): The unique ID of the trade.
+        client_id (str | None): Optional client-specified order ID (max_length=128).
     """
 
-    fee: RawBpParsableFiniteDecimalString = Field(...)
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+
+    # Fields are defined using aliases to match the raw API response keys.
+    fee: RawBpFillFeeString = Field(..., alias="fee")
     fee_symbol: RawBpNonEmptyStringMax32 = Field(..., alias="feeSymbol")
     is_maker: RawBpStrictBool = Field(..., alias="isMaker")
     order_id: RawBpNonEmptyStringMax128 = Field(..., alias="orderId")
-    price: RawBpParsableFiniteDecimalString = Field(...)
-    quantity: RawBpParsableFiniteDecimalString = Field(...)
-    side: RawBpOrderSideString = Field(
-        ...
-    )  # Field max_length=3 is implicitly handled by RawBpOrderSideString's internal validator
-    symbol: RawBpNonEmptyStringMax64 = Field(...)
-    timestamp: RawBpIsoTimestampString = Field(...)
-    trade_id: RawBpNonNegativeInt = Field(
-        ..., alias="tradeId"
-    )  # ge=0 handled by RawBpNonNegativeInt
-    client_id: RawBpOptionalNonEmptyStringMax128 = Field(None, alias="clientId")
-
-    model_config = ConfigDict(
-        populate_by_name=True,
-        extra="forbid",
-        frozen=True,
-    )
-
-    # All individual @field_validator methods are removed as their logic
-    # is now encapsulated in the Annotated types from bp_common_raw_types.py.
-    # The RawBpOptionalNonEmptyStringMax128 handles the non-empty/non-whitespace
-    # check for client_id if provided.
+    price: RawBpFillPriceString = Field(..., alias="price")
+    quantity: RawBpFillQuantityString = Field(..., alias="quantity")
+    side: RawBpOrderSideString = Field(..., alias="side")
+    symbol: RawBpNonEmptyStringMax32 = Field(..., alias="symbol")
+    timestamp: RawBpIsoTimestampString = Field(..., alias="timestamp")
+    trade_id: RawBpNonNegativeInt = Field(..., alias="tradeId")
+    client_id: RawBpOptionalNonEmptyStringMax128 | None = Field(None, alias="clientId")
 
 
 # The BackpackRawFillsList model remains structurally the same but benefits from
