@@ -4,11 +4,11 @@
 Unit tests for the Backtesting Framework
 """
 
-import unittest
 from datetime import datetime, timedelta
 from typing import Any
 
 import numpy as np
+import pytest
 
 
 # Mock the modules
@@ -117,7 +117,7 @@ class MockTradingStrategy(TradingStrategy):
     def analyze_market(self, market_data: dict[str, Any]) -> dict[str, int]:
         self.analyze_market_called = True
         # Simple mock implementation that returns buy signals for specific assets
-        signals = {}
+        signals: dict[str, int] = {}
         for asset in market_data:
             if "price" in market_data[asset] and len(market_data[asset]["price"]) > 0:
                 # Generate random signals for testing
@@ -132,7 +132,7 @@ class MockTradingStrategy(TradingStrategy):
     ) -> dict[str, dict[str, Any]]:
         self.execute_trades_called = True
         # Mock implementation that simulates trade execution
-        trades = {}
+        trades: dict[str, dict[str, Any]] = {}
         for asset, signal in signals.items():
             if signal != 0:
                 trades[asset] = {
@@ -145,149 +145,166 @@ class MockTradingStrategy(TradingStrategy):
     def calculate_metrics(
         self,
         trades: dict[str, dict[str, Any]],
-        market_data: dict[str, Any],
+        market_data: dict[str, Any],  # market_data is unused in this mock
     ) -> dict[str, Any]:
         self.calculate_metrics_called = True
         # Mock implementation that returns basic metrics
         return {
             "total_trades": len(trades),
-            "profit_loss": sum([trade["size"] * trade["price"] for asset, trade in trades.items()]),
+            "profit_loss": sum(
+                [trade["size"] * trade["price"] for trade in trades.values()]
+            ),  # Iterate over values
             "win_rate": 0.65,  # Arbitrary for testing
             "sharpe_ratio": 1.5,  # Arbitrary for testing
         }
 
 
-class TestBacktestEngine(unittest.TestCase):
-    """Test cases for the BacktestEngine class"""
+@pytest.fixture
+def backtest_setup() -> tuple[BacktestEngine, MockTradingStrategy, dict[str, Any]]:
+    """Set up test fixtures for backtest engine tests."""
+    strategy = MockTradingStrategy()
+    engine = BacktestEngine(strategy)
 
-    def setUp(self) -> None:
-        """Set up test fixtures"""
-        self.strategy = MockTradingStrategy()
-        self.engine = BacktestEngine(self.strategy)
-
-        # Create sample market data for testing
-        self.market_data = {
-            "BTC-USD": {
-                "price": [10000, 10100, 10200, 10300, 10250],
-                "volume": [100, 110, 105, 95, 100],
-                "timestamp": [
-                    datetime.now() - timedelta(minutes=4),
-                    datetime.now() - timedelta(minutes=3),
-                    datetime.now() - timedelta(minutes=2),
-                    datetime.now() - timedelta(minutes=1),
-                    datetime.now(),
-                ],
-            },
-            "ETH-USD": {
-                "price": [200, 205, 210, 208, 215],
-                "volume": [500, 520, 510, 530, 540],
-                "timestamp": [
-                    datetime.now() - timedelta(minutes=4),
-                    datetime.now() - timedelta(minutes=3),
-                    datetime.now() - timedelta(minutes=2),
-                    datetime.now() - timedelta(minutes=1),
-                    datetime.now(),
-                ],
-            },
-        }
-
-    def test_initialization(self) -> None:
-        """Test initialization of BacktestEngine"""
-        self.assertEqual(self.engine.strategy.name, "MockStrategy")
-        self.assertEqual(self.engine.current_positions, {})
-        self.assertEqual(self.engine.trade_history, [])
-
-    def test_run_backtest(self) -> None:
-        """Test running a backtest"""
-        results = self.engine.run_backtest(self.market_data)
-
-        # Verify strategy methods were called
-        self.assertTrue(self.strategy.analyze_market_called)
-        self.assertTrue(self.strategy.execute_trades_called)
-        self.assertTrue(self.strategy.calculate_metrics_called)
-
-        # Verify results contains expected fields
-        self.assertIn("metrics", results)
-        self.assertIn("trades", results)
-        self.assertIn("positions", results)
-
-    def test_calculate_performance_metrics(self) -> None:
-        """Test calculation of performance metrics"""
-        # Set up trade history
-        self.engine.trade_history = [
-            {
-                "asset": "BTC-USD",
-                "size": 1.0,
-                "price": 10100,
-                "timestamp": datetime.now() - timedelta(hours=2),
-            },
-            {
-                "asset": "BTC-USD",
-                "size": -1.0,
-                "price": 10300,
-                "timestamp": datetime.now() - timedelta(hours=1),
-            },
-            {
-                "asset": "ETH-USD",
-                "size": 5.0,
-                "price": 205,
-                "timestamp": datetime.now() - timedelta(hours=2),
-            },
-            {
-                "asset": "ETH-USD",
-                "size": -5.0,
-                "price": 215,
-                "timestamp": datetime.now() - timedelta(hours=1),
-            },
-        ]
-
-        metrics = self.engine.calculate_performance_metrics()
-
-        # Verify metrics contains expected fields
-        self.assertIn("total_trades", metrics)
-        self.assertIn("profit_loss", metrics)
-        self.assertIn("win_rate", metrics)
-
-        # Check calculation of profit/loss
-        # BTC: (10300 - 10100) * 1.0 = 200
-        # ETH: (215 - 205) * 5.0 = 50
-        # Total P&L = 250
-        self.assertEqual(metrics["profit_loss"], 250)
-        self.assertEqual(metrics["total_trades"], 4)
-
-    def test_update_positions(self) -> None:
-        """Test updating positions based on trades"""
-        trades = {
-            "BTC-USD": {"size": 1.5, "price": 10200, "timestamp": datetime.now()},
-            "ETH-USD": {"size": -2.5, "price": 210, "timestamp": datetime.now()},
-        }
-
-        self.engine.update_positions(trades)
-
-        # Verify positions were updated correctly
-        self.assertEqual(self.engine.current_positions["BTC-USD"], 1.5)
-        self.assertEqual(self.engine.current_positions["ETH-USD"], -2.5)
-
-        # Verify trade history was updated
-        self.assertEqual(len(self.engine.trade_history), 2)
-
-    def test_update_positions_existing(self) -> None:
-        """Test updating existing positions"""
-        # Set initial positions
-        self.engine.current_positions = {"BTC-USD": 1.0, "ETH-USD": -1.0}
-
-        # Execute additional trades
-        trades = {
-            "BTC-USD": {"size": -0.5, "price": 10300, "timestamp": datetime.now()},
-            "ETH-USD": {"size": -1.5, "price": 215, "timestamp": datetime.now()},
-        }
-
-        self.engine.update_positions(trades)
-
-        # Verify positions were updated correctly
-        self.assertEqual(self.engine.current_positions["BTC-USD"], 0.5)  # 1.0 - 0.5 = 0.5
-        self.assertEqual(self.engine.current_positions["ETH-USD"], -2.5)  # -1.0 - 1.5 = -2.5
+    # Create sample market data for testing
+    market_data: dict[str, Any] = {
+        "BTC-USD": {
+            "price": [10000, 10100, 10200, 10300, 10250],
+            "volume": [100, 110, 105, 95, 100],
+            "timestamp": [
+                datetime.now() - timedelta(minutes=4),
+                datetime.now() - timedelta(minutes=3),
+                datetime.now() - timedelta(minutes=2),
+                datetime.now() - timedelta(minutes=1),
+                datetime.now(),
+            ],
+        },
+        "ETH-USD": {
+            "price": [200, 205, 210, 208, 215],
+            "volume": [500, 520, 510, 530, 540],
+            "timestamp": [
+                datetime.now() - timedelta(minutes=4),
+                datetime.now() - timedelta(minutes=3),
+                datetime.now() - timedelta(minutes=2),
+                datetime.now() - timedelta(minutes=1),
+                datetime.now(),
+            ],
+        },
+    }
+    return engine, strategy, market_data
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_initialization(
+    backtest_setup: tuple[BacktestEngine, MockTradingStrategy, dict[str, Any]],
+) -> None:
+    """Test initialization of BacktestEngine"""
+    engine, _, _ = backtest_setup
+    assert engine.strategy.name == "MockStrategy"
+    assert engine.current_positions == {}
+    assert engine.trade_history == []
+
+
+def test_run_backtest(
+    backtest_setup: tuple[BacktestEngine, MockTradingStrategy, dict[str, Any]],
+) -> None:
+    """Test running a backtest"""
+    engine, strategy, market_data = backtest_setup
+    results = engine.run_backtest(market_data)
+
+    # Verify strategy methods were called
+    assert strategy.analyze_market_called
+    assert strategy.execute_trades_called
+    assert strategy.calculate_metrics_called
+
+    # Verify results contains expected fields
+    assert "metrics" in results
+    assert "trades" in results
+    assert "positions" in results
+
+
+def test_calculate_performance_metrics(
+    backtest_setup: tuple[BacktestEngine, MockTradingStrategy, dict[str, Any]],
+) -> None:
+    """Test calculation of performance metrics"""
+    engine, _, _ = backtest_setup
+    # Set up trade history
+    engine.trade_history = [
+        {
+            "asset": "BTC-USD",
+            "size": 1.0,
+            "price": 10100,
+            "timestamp": datetime.now() - timedelta(hours=2),
+        },
+        {
+            "asset": "BTC-USD",
+            "size": -1.0,
+            "price": 10300,
+            "timestamp": datetime.now() - timedelta(hours=1),
+        },
+        {
+            "asset": "ETH-USD",
+            "size": 5.0,
+            "price": 205,
+            "timestamp": datetime.now() - timedelta(hours=2),
+        },
+        {
+            "asset": "ETH-USD",
+            "size": -5.0,
+            "price": 215,
+            "timestamp": datetime.now() - timedelta(hours=1),
+        },
+    ]
+
+    metrics = engine.calculate_performance_metrics()
+
+    # Verify metrics contains expected fields
+    assert "total_trades" in metrics
+    assert "profit_loss" in metrics
+    assert "win_rate" in metrics
+
+    # Check calculation of profit/loss
+    # BTC: (10300 - 10100) * 1.0 = 200
+    # ETH: (215 - 205) * 5.0 = 50
+    # Total P&L = 250
+    assert metrics["profit_loss"] == 250
+    assert metrics["total_trades"] == 4
+
+
+def test_update_positions(
+    backtest_setup: tuple[BacktestEngine, MockTradingStrategy, dict[str, Any]],
+) -> None:
+    """Test updating positions based on trades"""
+    engine, _, _ = backtest_setup
+    trades = {
+        "BTC-USD": {"size": 1.5, "price": 10200, "timestamp": datetime.now()},
+        "ETH-USD": {"size": -2.5, "price": 210, "timestamp": datetime.now()},
+    }
+
+    engine.update_positions(trades)
+
+    # Verify positions were updated correctly
+    assert engine.current_positions["BTC-USD"] == 1.5
+    assert engine.current_positions["ETH-USD"] == -2.5
+
+    # Verify trade history was updated
+    assert len(engine.trade_history) == 2
+
+
+def test_update_positions_existing(
+    backtest_setup: tuple[BacktestEngine, MockTradingStrategy, dict[str, Any]],
+) -> None:
+    """Test updating existing positions"""
+    engine, _, _ = backtest_setup
+    # Set initial positions
+    engine.current_positions = {"BTC-USD": 1.0, "ETH-USD": -1.0}
+
+    # Execute additional trades
+    trades = {
+        "BTC-USD": {"size": -0.5, "price": 10300, "timestamp": datetime.now()},
+        "ETH-USD": {"size": -1.5, "price": 215, "timestamp": datetime.now()},
+    }
+
+    engine.update_positions(trades)
+
+    # Verify positions were updated correctly
+    assert engine.current_positions["BTC-USD"] == 0.5  # 1.0 - 0.5 = 0.5
+    assert engine.current_positions["ETH-USD"] == -2.5  # -1.0 - 1.5 = -2.5

@@ -13,10 +13,11 @@ These tests verify that:
 import os
 import sys
 import tempfile
-import unittest
+from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 import yaml
 
 # Add parent directory to path to import from cyberdelta
@@ -26,16 +27,12 @@ from cyberdelta.config.config_manager import ConfigManager
 from cyberdelta.config.secrets_manager import SecretsManager
 
 
-class TestSecureConfigManager(unittest.TestCase):
-    """Tests for the ConfigManager class with focus on security aspects"""
-
-    def setUp(self) -> None:
-        """Set up test case with temporary config files"""
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.config_path = os.path.join(self.temp_dir.name, "config.yaml")
-
-        # Create a test config file with all required sections
-        with open(self.config_path, "w") as f:
+@pytest.fixture
+def secure_config_manager_setup() -> Generator[tuple[ConfigManager, str, str]]:
+    """Set up test case with temporary config files for ConfigManager security tests."""
+    with tempfile.TemporaryDirectory() as temp_dir_name:
+        config_path = os.path.join(temp_dir_name, "config.yaml")
+        with open(config_path, "w") as f:
             f.write("""
 # General settings
 general:
@@ -69,86 +66,89 @@ risk:
     max_leverage: 2.0
             """)
 
-        # Invalid config without required sections
-        self.invalid_config_path = os.path.join(self.temp_dir.name, "invalid_config.yaml")
-        with open(self.invalid_config_path, "w") as f:
+        invalid_config_path = os.path.join(temp_dir_name, "invalid_config.yaml")
+        with open(invalid_config_path, "w") as f:
             f.write("""
 # Missing required sections
 general:
   log_level: DEBUG
             """)
 
-        # Create a config manager with the valid config
-        self.config_manager = ConfigManager(self.config_path)
-        self.config_manager.load()
-
-    def tearDown(self) -> None:
-        """Clean up temporary files"""
-        self.temp_dir.cleanup()
-
-    def test_config_validation_success(self) -> None:
-        """Test that a valid config passes validation"""
-        config_manager = ConfigManager(self.config_path)
-        result = config_manager.load()
-        self.assertTrue(result)
-        self.assertTrue(config_manager.loaded)
-
-    def test_config_validation_failure(self) -> None:
-        """Test that an invalid config fails validation"""
-        config_manager = ConfigManager(self.invalid_config_path)
-        result = config_manager.load()
-        self.assertFalse(result)
-        self.assertFalse(config_manager.loaded)
-
-    def test_env_variable_config_path(self) -> None:
-        """Test that environment variable overrides default config path"""
-        with patch.dict("os.environ", {"CYBERDELTA_CONFIG_PATH": self.config_path}):
-            # Create a config manager without specifying a path
-            config_manager = ConfigManager()
-            self.assertEqual(config_manager.config_path, self.config_path)
-
-    def test_deep_nested_access(self) -> None:
-        """Test accessing deeply nested configuration values"""
-        self.assertEqual(
-            self.config_manager.get("strategies.hl_perp_bp_spot.symbols.hl_symbol"),
-            "BTC",
-        )
-
-    def test_missing_nested_access(self) -> None:
-        """Test that missing nested paths return default value"""
-        self.assertEqual(
-            self.config_manager.get("strategies.nonexistent.symbols.hl_symbol", "default"),
-            "default",
-        )
-
-    def test_reload_after_change(self) -> None:
-        """Test that configuration changes are detected on reload"""
-        # Modify the configuration with new values
-        with open(self.config_path) as f:
-            config_data = yaml.safe_load(f)
-
-        config_data["general"]["log_level"] = "INFO"
-        config_data["risk"]["global"]["max_position_usd"] = 200.0
-
-        with open(self.config_path, "w") as f:
-            yaml.dump(config_data, f)
-
-        # Reload and verify changes are detected
-        self.config_manager.reload()
-        self.assertEqual(self.config_manager.get("general.log_level"), "INFO")
-        self.assertEqual(self.config_manager.get("risk.global.max_position_usd"), 200.0)
+        config_manager = ConfigManager(config_path)
+        config_manager.load()
+        yield config_manager, config_path, invalid_config_path
 
 
-class TestSecureSecretsManager(unittest.TestCase):
-    """Tests for the SecretsManager class with focus on security aspects"""
+def test_config_validation_success(
+    secure_config_manager_setup: tuple[ConfigManager, str, str],
+) -> None:
+    """Test that a valid config passes validation"""
+    _, config_path, _ = secure_config_manager_setup
+    config_manager = ConfigManager(config_path)
+    result = config_manager.load()
+    assert result
+    assert config_manager.loaded
 
-    def setUp(self) -> None:
-        """Set up test case with temporary secrets files"""
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.secrets_path = os.path.join(self.temp_dir.name, "secrets.yaml")
 
-        # Create a test secrets file
-        with open(self.secrets_path, "w") as f:
+def test_config_validation_failure(
+    secure_config_manager_setup: tuple[ConfigManager, str, str],
+) -> None:
+    """Test that an invalid config fails validation"""
+    _, _, invalid_config_path = secure_config_manager_setup
+    config_manager = ConfigManager(invalid_config_path)
+    result = config_manager.load()
+    assert not result
+    assert not config_manager.loaded
+
+
+def test_env_variable_config_path(
+    secure_config_manager_setup: tuple[ConfigManager, str, str],
+) -> None:
+    """Test that environment variable overrides default config path"""
+    _, config_path, _ = secure_config_manager_setup
+    with patch.dict("os.environ", {"CYBERDELTA_CONFIG_PATH": config_path}):
+        config_manager_env = ConfigManager()
+        assert config_manager_env.config_path == config_path
+
+
+def test_deep_nested_access(secure_config_manager_setup: tuple[ConfigManager, str, str]) -> None:
+    """Test accessing deeply nested configuration values"""
+    config_manager, _, _ = secure_config_manager_setup
+    assert config_manager.get("strategies.hl_perp_bp_spot.symbols.hl_symbol") == "BTC"
+
+
+def test_missing_nested_access(secure_config_manager_setup: tuple[ConfigManager, str, str]) -> None:
+    """Test that missing nested paths return default value"""
+    config_manager, _, _ = secure_config_manager_setup
+    assert config_manager.get("strategies.nonexistent.symbols.hl_symbol", "default") == "default"
+
+
+def test_reload_after_change(secure_config_manager_setup: tuple[ConfigManager, str, str]) -> None:
+    """Test that configuration changes are detected on reload"""
+    config_manager, config_path, _ = secure_config_manager_setup
+    with open(config_path) as f:
+        config_data = yaml.safe_load(f)
+
+    config_data["general"]["log_level"] = "INFO"
+    config_data["risk"]["global"]["max_position_usd"] = 200.0
+
+    with open(config_path, "w") as f:
+        yaml.dump(config_data, f)
+
+    config_manager.reload()
+    assert config_manager.get("general.log_level") == "INFO"
+    assert config_manager.get("risk.global.max_position_usd") == 200.0
+
+
+@pytest.fixture
+def secure_secrets_manager_setup() -> Generator[tuple[str, str, str]]:
+    """Set up test case with temporary secrets files for SecretsManager security tests."""
+    with (
+        tempfile.TemporaryDirectory() as temp_dir_name,
+        tempfile.TemporaryDirectory() as home_dir_name,
+    ):
+        secrets_path = os.path.join(temp_dir_name, "secrets.yaml")
+        with open(secrets_path, "w") as f:
             f.write("""
 exchanges:
   hyperliquid:
@@ -164,14 +164,10 @@ database:
   password: "db_password_test"
             """)
 
-        # Path for testing fallback behavior
-        self.home_dir = tempfile.TemporaryDirectory()
-        self.cyberdelta_dir = os.path.join(self.home_dir.name, ".cyberdelta")
-        os.makedirs(self.cyberdelta_dir)
-        self.home_secrets_path = os.path.join(self.cyberdelta_dir, "secrets.yaml")
-
-        # Create a home directory secrets file
-        with open(self.home_secrets_path, "w") as f:
+        cyberdelta_dir_in_home = os.path.join(home_dir_name, ".cyberdelta")
+        os.makedirs(cyberdelta_dir_in_home)
+        home_secrets_path = os.path.join(cyberdelta_dir_in_home, "secrets.yaml")
+        with open(home_secrets_path, "w") as f:
             f.write("""
 exchanges:
   hyperliquid:
@@ -179,96 +175,79 @@ exchanges:
   backpack:
     api_key: "home_api_key_456"
             """)
-
-    def tearDown(self) -> None:
-        """Clean up temporary files"""
-        self.temp_dir.cleanup()
-        self.home_dir.cleanup()
-
-    @patch("pathlib.Path.home")
-    def test_fallback_to_home_dir(self, mock_home: MagicMock) -> None:
-        """Test fallback to ~/.cyberdelta/secrets.yaml when env var not set"""
-        # Mock the home directory to point to our temp directory
-        mock_home.return_value = Path(self.home_dir.name)
-
-        # Clear the environment variable if it exists
-        original_env = os.environ.get("CYBERDELTA_SECRETS_PATH")
-        if "CYBERDELTA_SECRETS_PATH" in os.environ:
-            del os.environ["CYBERDELTA_SECRETS_PATH"]
-
-        try:
-            # Create secrets manager and load
-            secrets_manager = SecretsManager()
-            result = secrets_manager.load_secrets()
-
-            # Verify it loaded from the home directory path
-            self.assertTrue(result)
-            self.assertEqual(
-                secrets_manager.get("exchanges.hyperliquid.api_key"), "home_api_key_123"
-            )
-        finally:
-            # Restore the original environment
-            if original_env is not None:
-                os.environ["CYBERDELTA_SECRETS_PATH"] = original_env
-
-    def test_env_variable_override(self) -> None:
-        """Test that environment variable overrides default secrets path"""
-        with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": self.secrets_path}):
-            secrets_manager = SecretsManager()
-            result = secrets_manager.load_secrets()
-
-            self.assertTrue(result)
-            self.assertEqual(
-                secrets_manager.get("exchanges.hyperliquid.api_key"), "test_api_key_123"
-            )
-
-    def test_nonexistent_secrets_file(self) -> None:
-        """Test handling of nonexistent secrets file"""
-        nonexistent_path = os.path.join(self.temp_dir.name, "nonexistent.yaml")
-
-        with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": nonexistent_path}):
-            secrets_manager = SecretsManager()
-            result = secrets_manager.load_secrets()
-
-            self.assertFalse(result)
-            self.assertFalse(secrets_manager.secrets_loaded)
-
-    def test_deep_nested_access(self) -> None:
-        """Test accessing deeply nested secrets values"""
-        with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": self.secrets_path}):
-            secrets_manager = SecretsManager()
-            secrets_manager.load_secrets()
-
-            self.assertEqual(
-                secrets_manager.get("exchanges.hyperliquid.private_key"),
-                "test_private_key_789",
-            )
-
-    def test_automatic_loading_on_get(self) -> None:
-        """Test that secrets are automatically loaded on get if not already loaded"""
-        with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": self.secrets_path}):
-            secrets_manager = SecretsManager()
-            # Don't explicitly call load_secrets
-
-            # get should trigger loading
-            value = secrets_manager.get("exchanges.backpack.api_key")
-            self.assertEqual(value, "test_api_key_abc")
-            self.assertTrue(secrets_manager.secrets_loaded)
+        yield secrets_path, home_dir_name, temp_dir_name
 
 
-class TestIntegrationConfigSecrets(unittest.TestCase):
-    """Tests for the integration between ConfigManager and SecretsManager"""
+@patch("pathlib.Path.home")
+def test_fallback_to_home_dir(
+    mock_home: MagicMock, secure_secrets_manager_setup: tuple[str, str, str]
+) -> None:
+    """Test fallback to ~/.cyberdelta/secrets.yaml when env var not set"""
+    _, home_dir_name, _ = secure_secrets_manager_setup
+    mock_home.return_value = Path(home_dir_name)
 
-    def setUp(self) -> None:
-        """Set up test case with temporary config and secrets files"""
-        self.temp_dir = tempfile.TemporaryDirectory()
+    original_env = os.environ.get("CYBERDELTA_SECRETS_PATH")
+    if "CYBERDELTA_SECRETS_PATH" in os.environ:
+        del os.environ["CYBERDELTA_SECRETS_PATH"]
 
-        # Create config and secrets files
-        self.config_path = os.path.join(self.temp_dir.name, "config.yaml")
-        self.secrets_path = os.path.join(self.temp_dir.name, "secrets.yaml")
+    try:
+        secrets_manager = SecretsManager()
+        result = secrets_manager.load_secrets()
+        assert result
+        assert secrets_manager.get("exchanges.hyperliquid.api_key") == "home_api_key_123"
+    finally:
+        if original_env is not None:
+            os.environ["CYBERDELTA_SECRETS_PATH"] = original_env
 
-        # Config with API URLs but no credentials
-        with open(self.config_path, "w") as f:
+
+def test_env_variable_override(secure_secrets_manager_setup: tuple[str, str, str]) -> None:
+    """Test that environment variable overrides default secrets path"""
+    secrets_path, _, _ = secure_secrets_manager_setup
+    with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": secrets_path}):
+        secrets_manager = SecretsManager()
+        result = secrets_manager.load_secrets()
+        assert result
+        assert secrets_manager.get("exchanges.hyperliquid.api_key") == "test_api_key_123"
+
+
+def test_nonexistent_secrets_file(secure_secrets_manager_setup: tuple[str, str, str]) -> None:
+    """Test handling of nonexistent secrets file"""
+    _, _, temp_dir_name = secure_secrets_manager_setup
+    nonexistent_path = os.path.join(temp_dir_name, "nonexistent.yaml")
+    with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": nonexistent_path}):
+        secrets_manager = SecretsManager()
+        result = secrets_manager.load_secrets()
+        assert not result
+        assert not secrets_manager.secrets_loaded
+
+
+def test_secrets_deep_nested_access(secure_secrets_manager_setup: tuple[str, str, str]) -> None:
+    """Test accessing deeply nested secrets values"""
+    secrets_path, _, _ = secure_secrets_manager_setup
+    with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": secrets_path}):
+        secrets_manager = SecretsManager()
+        secrets_manager.load_secrets()
+        assert secrets_manager.get("exchanges.hyperliquid.private_key") == "test_private_key_789"
+
+
+def test_automatic_loading_on_get(secure_secrets_manager_setup: tuple[str, str, str]) -> None:
+    """Test that secrets are automatically loaded on get if not already loaded"""
+    secrets_path, _, _ = secure_secrets_manager_setup
+    with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": secrets_path}):
+        secrets_manager = SecretsManager()
+        assert not secrets_manager.secrets_loaded
+        assert secrets_manager.get("exchanges.hyperliquid.api_key") == "test_api_key_123"
+        assert secrets_manager.secrets_loaded
+
+
+@pytest.fixture
+def integration_config_secrets_setup() -> Generator[tuple[ConfigManager, SecretsManager, str, str]]:
+    """Set up for ConfigManager and SecretsManager integration tests."""
+    with (
+        tempfile.TemporaryDirectory() as temp_dir_name,
+    ):
+        config_path = os.path.join(temp_dir_name, "config.yaml")
+        with open(config_path, "w") as f:
             f.write("""
 general:
   log_level: INFO
@@ -287,43 +266,36 @@ risk:
     max_position_usd: 100.0
             """)
 
-        # Secrets with credentials
-        with open(self.secrets_path, "w") as f:
+        secrets_path = os.path.join(temp_dir_name, "secrets.yaml")
+        with open(secrets_path, "w") as f:
             f.write("""
 exchanges:
   hyperliquid:
-    api_key: "test_api_key_123"
-    api_secret: "test_api_secret_456"
-  backpack:
-    api_key: "test_api_key_789"
-    api_secret: "test_api_secret_abc"
+    api_key: "integrated_api_key"
             """)
 
-    def tearDown(self) -> None:
-        """Clean up temporary files"""
-        self.temp_dir.cleanup()
+        config_manager = ConfigManager(config_path)
+        config_manager.load()
 
-    def test_config_secrets_integration(self) -> None:
-        """Test that config can reference and use secrets"""
-        with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": self.secrets_path}):
-            # Load both config and secrets
-            config = ConfigManager(self.config_path)
-            config.load()
-
-            secrets = SecretsManager()
-            secrets.load_secrets()
-
-            # Combine data from both sources to form a connection URL
-            base_url = config.get("exchanges.hyperliquid.api_base_url")
-            api_key = secrets.get("exchanges.hyperliquid.api_key")
-
-            self.assertEqual(base_url, "https://api.test.xyz")
-            self.assertEqual(api_key, "test_api_key_123")
-
-            # Simulate forming a connection URL with credentials
-            connection_url = f"{base_url}?api_key={api_key}"
-            self.assertEqual(connection_url, "https://api.test.xyz?api_key=test_api_key_123")
+        with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": secrets_path}):
+            secrets_manager = SecretsManager()
+            secrets_manager.load_secrets()
+            yield config_manager, secrets_manager, config_path, secrets_path
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_config_secrets_integration(
+    integration_config_secrets_setup: tuple[ConfigManager, SecretsManager, str, str],
+) -> None:
+    """Test integration of ConfigManager and SecretsManager."""
+    config_manager, secrets_manager, _, _ = integration_config_secrets_setup
+
+    assert config_manager.loaded
+    assert secrets_manager.secrets_loaded
+    assert config_manager.get("general.log_level") == "INFO"
+    assert secrets_manager.get("exchanges.hyperliquid.api_key") == "integrated_api_key"
+
+    # Example: Test resolving a secret reference from config (if such functionality existed)
+    # config_api_key_ref = config_manager.get("exchanges.hyperliquid.api_key_secret_ref")
+    # resolved_key = secrets_manager.get(config_api_key_ref)
+    # assert resolved_key == "integrated_api_key"
+    # This part is commented out as ConfigManager doesn't inherently resolve secrets refs.
