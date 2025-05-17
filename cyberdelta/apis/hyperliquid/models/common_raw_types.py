@@ -530,6 +530,41 @@ Optional string, max 1024 chars. If present, must be non-empty.
 Used for error messages or optional long text fields.
 """
 
+
+# --- Validator and Type for Hyperliquid Candle 's' (status) field ---
+def _validate_hl_candle_status_string(v: object, info: ValidationInfo) -> str:
+    """Validates the 's' field for Hyperliquid candles, ensuring non-empty/whitespace."""
+    # The field alias is 's' in HyperliquidRawCandleSnapshot.
+    # We want the error message to specifically reference 's'.
+    field_name_for_error = "s"
+
+    if not isinstance(v, str):
+        raise ValueError(f"{field_name_for_error}: Expected string, got {type(v).__name__}")
+
+    if not v.strip():
+        # Test expects "s: String cannot be empty or whitespace"
+        raise ValueError(f"{field_name_for_error}: String cannot be empty or whitespace")
+
+    # Use validate_str_field for other checks like max_length (e.g., 32 from model Field)
+    # and UTF-8. allow_empty must be False here as we've handled the empty/whitespace case.
+    # The actual max_length will be applied by Pydantic from the Field definition in the model.
+    # Here we call it with a reasonable default or allow Pydantic's Field(max_length=...) to govern.
+    # For direct call, ensure max_length used here aligns if not relying on Pydantic's Field.
+    # Since HyperliquidRawCandleSnapshot.s uses Field(..., max_length=32),
+    # validate_str_field will be called effectively with that max_length by Pydantic.
+    # The primary role here is the custom empty/whitespace message.
+    return validate_str_field(
+        v, field_name=field_name_for_error, max_length=None, allow_empty=False
+    )
+
+
+RawHLCandleStatusString = Annotated[str, BeforeValidator(_validate_hl_candle_status_string)]
+"""
+A raw string type for the Hyperliquid candle snapshot 's' (status) field.
+Ensures the string is not empty or just whitespace, with a specific error message.
+"""
+
+
 # --- Order Status (from spec and test_hl_raw_open_orders.py) ---
 _ALLOWED_ORDER_STATUSES_HL = {"open"}
 RawOrderStatusHL = Annotated[

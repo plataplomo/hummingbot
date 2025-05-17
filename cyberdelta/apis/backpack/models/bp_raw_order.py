@@ -26,6 +26,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # Remove old utils imports if they become unused after refactoring
 from .bp_common_raw_types import (
+    RawBpDepthPriceString,
+    RawBpDepthQuantityString,
     RawBpExtendedOrderSideString,
     RawBpFlexibleTimestamp,
     RawBpNonEmptyStringMax32,
@@ -216,12 +218,8 @@ class BackpackRawOrderBook(BaseModel):
     """
 
     symbol: RawBpNonEmptyStringMax64 = Field(..., alias="symbol")
-    bids: list[tuple[RawBpParsableFiniteDecimalString, RawBpParsableFiniteDecimalString]] = Field(
-        ..., alias="bids"
-    )
-    asks: list[tuple[RawBpParsableFiniteDecimalString, RawBpParsableFiniteDecimalString]] = Field(
-        ..., alias="asks"
-    )
+    bids: list[tuple[RawBpDepthPriceString, RawBpDepthQuantityString]] = Field(..., alias="bids")
+    asks: list[tuple[RawBpDepthPriceString, RawBpDepthQuantityString]] = Field(..., alias="asks")
     time: RawBpOptionalFlexibleTimestamp = Field(..., alias="time")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 

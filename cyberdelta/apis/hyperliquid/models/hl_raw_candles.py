@@ -46,6 +46,7 @@ from pydantic import (
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawDefaultString,
     RawFiniteDecimalStr,
+    RawHLCandleStatusString,
     RawNonNegativeFiniteDecimalStr,
     RawTimestampMsInt,
 )
@@ -87,7 +88,7 @@ class HyperliquidRawCandleSnapshot(BaseModel):
     l: list[RawFiniteDecimalStr] = Field(..., alias="l")  # noqa: E741
     c: list[RawFiniteDecimalStr] = Field(..., alias="c")
     v: list[RawNonNegativeFiniteDecimalStr] = Field(..., alias="v")
-    s: RawDefaultString = Field(..., alias="s", max_length=32)
+    s: RawHLCandleStatusString = Field(..., alias="s", max_length=32)
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 

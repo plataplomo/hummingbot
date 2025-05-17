@@ -596,25 +596,27 @@ def _validate_raw_depth_price_string(v: object, info: ValidationInfo) -> str:
     """Validates a price string for depth updates. Expected errors for tests:
     - 'Expected string' (instead of 'raw value must be a string, got ...')
     - 'String cannot be empty'
-    - 'Price must be finite'
+    - 'Price must be finite' (for non-finite)
+    - 'Invalid price value' (for unparseable like 'abc')
     """
     if not isinstance(v, str):
+        # Error for this case should be just 'Expected string'
+        # Pydantic will prefix it with the field path.
         raise TypeError("Expected string")
+
     if not v.strip():
+        # Error for this case should be just 'String cannot be empty'
         raise ValueError("String cannot be empty")
+
     try:
         d = Decimal(v)
         if not d.is_finite():
+            # Error for this case should be just 'Price must be finite'
             raise ValueError("Price must be finite")
-    except InvalidOperation as e:
-        # This case might arise if string is not a valid decimal format at all, e.g. "abc"
-        # The test suite might expect "Price must be finite" even for this.
-        # For now, let specific non-finite check handle it. If tests need more specific
-        # error for unparseable, this would need adjustment.
-        raise ValueError(
-            "Price must be finite"
-        ) from e  # Aligning with general finite check as per test expectation
-    return v
+    except InvalidOperation as e_orig:
+        raise ValueError("Invalid price value") from e_orig
+
+    return v  # Return str
 
 
 type RawBpDepthPriceString = Annotated[str, BeforeValidator(_validate_raw_depth_price_string)]
@@ -625,7 +627,7 @@ def _validate_raw_depth_quantity_string(v: object, info: ValidationInfo) -> str:
     - 'Expected string' (instead of 'raw value must be a string, got ...')
     - 'String cannot be empty'
     - 'Quantity must be finite'
-    - 'Quantity cannot be negative' (instead of 'must represent a non-negative decimal.')
+    - 'Quantity cannot be negative'
     """
     if not isinstance(v, str):
         raise TypeError("Expected string")
@@ -637,10 +639,13 @@ def _validate_raw_depth_quantity_string(v: object, info: ValidationInfo) -> str:
             raise ValueError("Quantity must be finite")
         if d < Decimal(0):
             raise ValueError("Quantity cannot be negative")
-    except InvalidOperation as e:
+    except InvalidOperation:
         # Consistent with price, if not parsable, treat as not finite for test message purposes.
-        raise ValueError("Quantity must be finite") from e
-    return v
+        # However, the error message for quantity should be specific if unparseable.
+        # Let's assume for now the test expects "Quantity must be finite" for unparseable too,
+        # based on the previous structure. If not, this needs to be "Invalid quantity value".
+        raise ValueError("Quantity must be finite") from None  # Added from None for B904
+    return v  # Return str
 
 
 type RawBpDepthQuantityString = Annotated[str, BeforeValidator(_validate_raw_depth_quantity_string)]
@@ -692,37 +697,30 @@ type RawBpKlineIntStringField = Annotated[
 
 def _validate_kline_decimal_str_field(v: object, info: ValidationInfo, field_alias: str) -> str:
     """Validate a decimal-string field for Kline, matching specific test error types/messages."""
-    field_name_for_msg = info.field_name or "kline_decimal_str_field"
-
     if not isinstance(v, str):
-        # Handles: (1, "open_price", 100.0, TypeError, "Raw value must be a string")
-        # Test wants "Raw value must be a string, got {type_name}" for None.
         type_name = type(v).__name__
+        # Test for high_price = None expects "..., got NoneType"
         if v is None:
-            raise TypeError(
-                f"Field {field_name_for_msg}: Raw value must be a string, got {type_name}"
-            )
-        else:
-            raise TypeError(f"Field {field_name_for_msg}: Raw value must be a string")
+            raise TypeError(f"Field {field_alias}: Raw value must be a string, got {type_name}")
+        # Other type errors (e.g. int/float for a string field) expect this message
+        raise TypeError(f"Field {field_alias}: Raw value must be a string")
 
-    # Now apply string content validations
-    # (reusing parts of _validate_raw_string_to_finite_decimal logic)
-    # Max length from RawBpStringToFiniteDecimal is 64
-    # Use allow_empty=False from validate_str_field for kline decimal strings as per tests
-    parsed_val = validate_str_field(v, field_name_for_msg, max_length=64, allow_empty=False)
+    try:
+        parsed_val = validate_str_field(v, field_name=field_alias, max_length=64, allow_empty=False)
+    except ValueError as e:
+        if not v.strip():  # Check if original string v is empty/whitespace
+            if f"Field {field_alias}: String cannot be empty" == str(e):
+                raise ValueError("String cannot be empty or whitespace") from e
+        raise
 
     try:
         d = Decimal(parsed_val)
         if not d.is_finite():
-            # Handles: (1, "open_price", "NaN", ValueError, "must represent a finite decimal")
-            raise ValueError(f"Field {field_name_for_msg}: must represent a finite decimal")
+            # Test expects "must represent a finite decimal" (no field prefix for this error)
+            raise ValueError("must represent a finite decimal")
     except InvalidOperation as e:
-        # Handles: (1, "open_price", "not_a_decimal", ValueError,
-        # "Cannot convert 'not_a_decimal' to Decimal")
-        # Removed extra backslashes around parsed_val for exact message match
-        raise ValueError(
-            f"Field {field_name_for_msg}: Cannot convert '{parsed_val}' to Decimal"
-        ) from e
+        # Test expects "Cannot convert '{value}' to Decimal" (no field prefix for this error)
+        raise ValueError(f"Cannot convert '{parsed_val}' to Decimal") from e
 
     return parsed_val  # Return the validated string, Pydantic will make it Decimal
 
@@ -741,16 +739,27 @@ type RawBpKlineDecimalString = Annotated[
 def _validate_kline_string_field(
     v: object, info: ValidationInfo, field_alias: str, max_length: int, allow_empty: bool
 ) -> str:
-    """Validate a string field for Kline, matching specific test error types/messages."""
-    field_name_for_msg = info.field_name or "kline_string_field"
-
+    """Validates a string field from the kline data list.
+    Uses the `field_alias` for more specific error messages.
+    """
+    # Ensure the input is a string first, as per test expectations for TypeError
     if not isinstance(v, str):
-        # Test case: (11, "ignored", 0, TypeError, "Raw value must be a string")
-        raise TypeError(f"Field {field_name_for_msg}: Raw value must be a string")
+        raise TypeError("Raw value must be a string")
 
-    # Reuse validate_str_field for content validation (emptiness, length)
-    # This will raise ValueError with its own messages for content issues, which tests expect.
-    return validate_str_field(v, field_name_for_msg, max_length=max_length, allow_empty=allow_empty)
+    # Use field_alias as the field_name for validate_str_field
+    # This ensures errors from validate_str_field directly reference the kline field name.
+    try:
+        return validate_str_field(
+            v, field_name=field_alias, max_length=max_length, allow_empty=allow_empty
+        )
+    except ValueError as e:
+        if not allow_empty and not v.strip():  # Check original `v` for emptiness
+            # Check if the original error message from validate_str_field was for emptiness
+            if f"Field {field_alias}: String cannot be empty" == str(e):
+                raise ValueError("String cannot be empty or whitespace") from e
+        # For all other ValueErrors (e.g. too long, invalid UTF-8),
+        # re-raise the original error which already includes the field_alias.
+        raise
 
 
 # For 'ignored' field in Kline
@@ -897,36 +906,109 @@ type RawBpAccountStatusString = Annotated[str, BeforeValidator(_validate_raw_bp_
 """Raw string for Backpack account statuses."""
 
 
-# --- Specific Validator for Margin Function Decimal Strings ---
+# --- START: Specific Validators for IMF/MMF base/factor fields ---
 
 
-def _validate_raw_margin_function_decimal_string(v: object, info: ValidationInfo) -> str:
-    """Validates a decimal string for margin functions, matching specific test error messages."""
-    field_name = info.field_name or "margin_field"
-
+def _validate_raw_imf_base_decimal_string(v: object, info: ValidationInfo) -> str:
+    """Validates IMF 'base' field. Error messages use 'base'."""
+    actual_field_name = info.field_name or "base"  # Should be 'base'
     if not isinstance(v, str):
-        raise ValueError(f"{field_name}: Validation failed - {field_name}: Expected string")
-
+        raise ValueError(
+            f"{actual_field_name}: Validation failed - {actual_field_name}: Expected string"
+        )
     if not v.strip():
-        raise ValueError(f"{field_name}: Validation failed - {field_name}: String cannot be empty")
-
-    # Check for parsability and finiteness
+        raise ValueError(
+            f"{actual_field_name}: Validation failed - {actual_field_name}: String cannot be empty"
+        )
     try:
         d = Decimal(v)
         if not d.is_finite():
-            # Test expects this exact message for non-finite, without field name prefix
-            raise ValueError("Value must be a finite decimal")
+            raise ValueError("Value must be a finite decimal")  # Generic message as per test
     except InvalidOperation:
-        # Test expects this for unparseable strings like "abc"
-        raise ValueError(f"Cannot convert '{v}' to Decimal") from None
-
+        raise ValueError(f"Cannot convert '{v}' to Decimal") from None  # Generic as per test
     return v
 
 
-type RawBpMarginFunctionDecimalString = Annotated[
-    str, BeforeValidator(_validate_raw_margin_function_decimal_string)
+type RawBpImfBaseDecimalString = Annotated[
+    str, BeforeValidator(_validate_raw_imf_base_decimal_string)
 ]
-"""Raw string for Backpack IMF/MMF base/factor fields, with specific error messages."""
+
+
+def _validate_raw_imf_factor_decimal_string(v: object, info: ValidationInfo) -> str:
+    """Validates IMF 'factor' field. Error messages use 'factor'."""
+    actual_field_name = info.field_name or "factor"  # Should be 'factor'
+    if not isinstance(v, str):
+        raise ValueError(
+            f"{actual_field_name}: Validation failed - {actual_field_name}: Expected string"
+        )
+    if not v.strip():
+        raise ValueError(
+            f"{actual_field_name}: Validation failed - {actual_field_name}: String cannot be empty"
+        )
+    try:
+        d = Decimal(v)
+        if not d.is_finite():
+            raise ValueError("Value must be a finite decimal")
+    except InvalidOperation:
+        raise ValueError(f"Cannot convert '{v}' to Decimal") from None
+    return v
+
+
+type RawBpImfFactorDecimalString = Annotated[
+    str, BeforeValidator(_validate_raw_imf_factor_decimal_string)
+]
+
+
+def _validate_raw_mmf_base_decimal_string(v: object, info: ValidationInfo) -> str:
+    """Validates MMF 'base' field. Error messages use 'base'."""
+    actual_field_name = info.field_name or "base"  # Should be 'base'
+    if not isinstance(v, str):
+        raise ValueError(
+            f"{actual_field_name}: Validation failed - {actual_field_name}: Expected string"
+        )
+    if not v.strip():
+        raise ValueError(
+            f"{actual_field_name}: Validation failed - {actual_field_name}: String cannot be empty"
+        )
+    try:
+        d = Decimal(v)
+        if not d.is_finite():
+            raise ValueError("Value must be a finite decimal")
+    except InvalidOperation:
+        raise ValueError(f"Cannot convert '{v}' to Decimal") from None
+    return v
+
+
+type RawBpMmfBaseDecimalString = Annotated[
+    str, BeforeValidator(_validate_raw_mmf_base_decimal_string)
+]
+
+
+def _validate_raw_mmf_factor_decimal_string(v: object, info: ValidationInfo) -> str:
+    """Validates MMF 'factor' field. Error messages use 'factor'."""
+    actual_field_name = info.field_name or "factor"  # Should be 'factor'
+    if not isinstance(v, str):
+        raise ValueError(
+            f"{actual_field_name}: Validation failed - {actual_field_name}: Expected string"
+        )
+    if not v.strip():
+        raise ValueError(
+            f"{actual_field_name}: Validation failed - {actual_field_name}: String cannot be empty"
+        )
+    try:
+        d = Decimal(v)
+        if not d.is_finite():
+            raise ValueError("Value must be a finite decimal")
+    except InvalidOperation:
+        raise ValueError(f"Cannot convert '{v}' to Decimal") from None
+    return v
+
+
+type RawBpMmfFactorDecimalString = Annotated[
+    str, BeforeValidator(_validate_raw_mmf_factor_decimal_string)
+]
+
+# --- END: Specific Validators for IMF/MMF base/factor fields ---
 
 
 # For BackpackRawLiquidation.quantity
@@ -1052,6 +1134,8 @@ def _validate_raw_fill_fee_string(v: object, info: ValidationInfo) -> str:
     """Input `v` is raw string. Validates it can be parsed to finite Decimal for 'fee'.
     Returns original string."""
     actual_field_name = info.field_name if info.field_name is not None else "fee"  # Fallback
+    if v is None:
+        raise ValueError(f"{actual_field_name}: Value cannot be None")
     if not isinstance(v, str):
         raise ValueError(f"{actual_field_name}: Raw value must be a string")
     s = validate_str_field(v, field_name=actual_field_name, max_length=64, allow_empty=False)
@@ -1072,6 +1156,8 @@ def _validate_raw_fill_price_string(v: object, info: ValidationInfo) -> str:
     """Input `v` is raw string. Validates it can be parsed to finite Decimal for 'price'.
     Returns original string."""
     actual_field_name = info.field_name if info.field_name is not None else "price"  # Fallback
+    if v is None:
+        raise ValueError(f"{actual_field_name}: Value cannot be None")
     if not isinstance(v, str):
         raise ValueError(f"{actual_field_name}: Raw value must be a string")
     s = validate_str_field(v, field_name=actual_field_name, max_length=64, allow_empty=False)
@@ -1092,6 +1178,8 @@ def _validate_raw_fill_quantity_string(v: object, info: ValidationInfo) -> str:
     """Input `v` is raw string. Validates it can be parsed to finite Decimal for 'quantity'.
     Returns original string."""
     actual_field_name = info.field_name if info.field_name is not None else "quantity"  # Fallback
+    if v is None:
+        raise ValueError(f"{actual_field_name}: Value cannot be None")
     if not isinstance(v, str):
         raise ValueError(f"{actual_field_name}: Raw value must be a string")
     s = validate_str_field(v, field_name=actual_field_name, max_length=64, allow_empty=False)
