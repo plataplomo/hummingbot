@@ -110,7 +110,10 @@ class TestCandle:
         """Test open_time validation (required, parsing, None handling)."""
         with pytest.raises(ValueError, match="open_time must not be None"):
             Candle(**create_valid_candle_data(open_time=None))
-        with pytest.raises(ValidationError, match=r"open_time.*Cannot parse ISO datetime"):
+        with pytest.raises(
+            ValidationError,
+            match=r"open_time.*Cannot parse string .* as ISO datetime .* or as numeric timestamp",
+        ):
             Candle(**create_valid_candle_data(open_time="invalid-date"))
 
     @pytest.mark.parametrize("field", ["open", "high", "low", "close", "volume"])

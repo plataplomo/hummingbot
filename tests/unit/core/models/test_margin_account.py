@@ -16,6 +16,10 @@ from cyberdelta.core.models.margin_account import (
     MarginAccountSummary,
 )
 
+# Type alias for broad, but Any-free, test parameter values
+PrimitiveTestVal = str | int | float | bool | Decimal | None
+TestParamValue = PrimitiveTestVal | list[PrimitiveTestVal] | dict[str, PrimitiveTestVal]
+
 
 # --- Helper Fixtures ---
 @pytest.fixture
@@ -125,7 +129,7 @@ def test_margin_summary_creation_with_strings(base_margin_summary_data: dict[str
     [
         # Required Strings
         ("exchange", None, "Value error, exchange: Expected string, got NoneType"),
-        ("exchange", " ", "String cannot be empty or whitespace"),
+        ("exchange", " ", "Field exchange: String cannot be empty"),
         ("exchange", "x" * 65, "String value too long"),
         # Required Datetime
         (
@@ -133,7 +137,11 @@ def test_margin_summary_creation_with_strings(base_margin_summary_data: dict[str
             None,
             "Value error, timestamp: Required datetime value parsed as None or was invalid",
         ),
-        ("timestamp", "not-a-date", "Cannot parse ISO datetime string"),
+        (
+            "timestamp",
+            "not-a-date",
+            r"timestamp: Cannot parse string .* as ISO datetime .* or as numeric timestamp",
+        ),
         # Required Decimals (>= 0)
         ("total_equity", None, "Value error, total_equity: Value cannot be None"),
         ("total_equity", Decimal("-0.1"), "Input should be greater than or equal to 0"),
@@ -154,13 +162,13 @@ def test_margin_summary_creation_with_strings(base_margin_summary_data: dict[str
 def test_margin_summary_invalid_field_inputs(
     base_margin_summary_data: dict[str, Any],
     field: str,
-    value: Any,
+    value: TestParamValue,
     error_match: str,
 ) -> None:
     """Test validation failures for individual core field invalid inputs."""
     data = base_margin_summary_data.copy()
     data[field] = value
-    with pytest.raises(ValidationError, match=error_match):
+    with pytest.raises(ValidationError, match=f".*{error_match}.*"):
         MarginAccountSummary(**data)
 
 
@@ -249,7 +257,7 @@ def test_hyperliquid_margin_details_creation_and_immutability(
 def test_hyperliquid_margin_details_invalid_fields(
     valid_hl_margin_details_data: dict[str, Any],
     field: str,
-    value: Any,
+    value: TestParamValue,
     error_match: str,
 ) -> None:
     """Test validation failures for HyperliquidMarginDetails."""
@@ -300,7 +308,7 @@ def test_backpack_margin_details_creation_and_immutability(
 def test_backpack_margin_details_invalid_fields(
     valid_bp_margin_details_data: dict[str, Any],
     field: str,
-    value: Any,
+    value: TestParamValue,
     error_match: str,
 ) -> None:
     """Test validation failures for BackpackMarginDetails."""

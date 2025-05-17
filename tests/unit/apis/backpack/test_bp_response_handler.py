@@ -771,7 +771,7 @@ _validation_error_test_cases_dict: list[ValidationErrorTestCaseType] = [
         BackpackResponseHandler.handle_get_order_book_response,
         "valid_raw_order_book",
         {"change_nested_field": ["bids", 0, 0], "new_value": "invalid_price"},
-        "Invalid price value",  # Check error message substring
+        "Cannot convert 'invalid_price' to Decimal",  # Check error message substring
         {"symbol": "symbol_spot"},
         "order book ({symbol})",
     ),

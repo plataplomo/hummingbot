@@ -82,9 +82,9 @@ class TestTicker:
 
     def test_symbol_validation(self) -> None:
         """Test validation rules for the symbol field (required, non-empty, length)."""
-        with pytest.raises(ValueError, match="String cannot be empty or whitespace"):
+        with pytest.raises(ValueError, match="Field symbol: String cannot be empty"):
             Ticker(symbol="", timestamp=NOW)
-        with pytest.raises(ValueError, match="String cannot be empty or whitespace"):
+        with pytest.raises(ValueError, match="Field symbol: String cannot be empty"):
             Ticker(symbol="   ", timestamp=NOW)
         with pytest.raises(ValueError, match="String value too long"):
             Ticker(symbol="A" * 65, timestamp=NOW)
@@ -98,7 +98,10 @@ class TestTicker:
             Ticker(symbol=VALID_SYMBOL, timestamp=None)  # type: ignore[arg-type]
 
         # Test invalid format raises error (Pydantic wraps underlying errors)
-        with pytest.raises(ValidationError, match=r"timestamp.*Cannot parse ISO datetime string"):
+        with pytest.raises(
+            ValidationError,
+            match=r"timestamp.*Cannot parse string .* as ISO datetime .* or as numeric timestamp",
+        ):
             Ticker(symbol=VALID_SYMBOL, timestamp="invalid-date-string")  # type: ignore[arg-type]
 
         # Test valid parsing (already covered in test_creation_with_parsable_data)

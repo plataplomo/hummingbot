@@ -627,7 +627,7 @@ class ExchangeAPI(ABC):
             )
             raise APIError(
                 message=f"[{self.exchange_name}] WebSocket not configured or enabled.",
-                code=APIErrorCode.EXCHANGE_SPECIFIC.value,  # Corrected: Use .value and an existing code
+                code=APIErrorCode.EXCHANGE_SPECIFIC.value,  # Corrected: Use .value
             )
         try:
             connect_task = self._ws_manager.connect()

@@ -17,6 +17,10 @@ from cyberdelta.core.models.spot_balance import (
     SpotBalance,
 )
 
+# Type alias for broad, but Any-free, test parameter values
+PrimitiveTestVal = str | int | float | bool | Decimal | None
+TestParamValue = PrimitiveTestVal | list[PrimitiveTestVal] | dict[str, PrimitiveTestVal]
+
 
 # --- Helper Fixtures ---
 @pytest.fixture
@@ -119,9 +123,9 @@ def test_spot_balance_creation_with_strings(
     [
         # Required String Fields
         ("exchange", None, "Value error, exchange: Expected string, got NoneType"),
-        ("exchange", "", "String cannot be empty or whitespace"),
+        ("exchange", "", "Field exchange: String cannot be empty"),
         ("asset", None, "Value error, asset: Expected string, got NoneType"),
-        ("asset", "   ", "String cannot be empty or whitespace"),
+        ("asset", "   ", "Field asset: String cannot be empty"),
         ("asset", "A" * 65, "String value too long"),
         # Required Datetime
         (
@@ -129,7 +133,11 @@ def test_spot_balance_creation_with_strings(
             None,
             "Value error, timestamp: Required datetime value parsed as None or was invalid.",
         ),
-        ("timestamp", "not-a-datetime", "Cannot parse ISO datetime string"),
+        (
+            "timestamp",
+            "not-a-datetime",
+            r"timestamp: Cannot parse string .* as ISO datetime .* or as numeric timestamp",
+        ),
         # Required Decimal Fields (total_quantity, available_quantity)
         ("total_quantity", None, r"Value error, total_quantity: Value cannot be None"),
         ("total_quantity", "abc", "Cannot convert 'abc' to Decimal"),
@@ -143,14 +151,14 @@ def test_spot_balance_creation_with_strings(
 def test_spot_balance_invalid_core_field_values(
     base_spot_balance_data: dict[str, Any],
     field: str,
-    value: Any,
+    value: TestParamValue,
     error_match: str,
 ) -> None:
     """Test core validation failures for various invalid field inputs."""
     invalid_data = base_spot_balance_data.copy()
     invalid_data[field] = value
 
-    with pytest.raises(ValidationError, match=error_match):
+    with pytest.raises(ValidationError, match=f".*{error_match}.*"):
         SpotBalance(**invalid_data)
 
 
@@ -243,7 +251,7 @@ def test_bp_details_creation_and_immutability(
 def test_bp_details_invalid_field_values(
     valid_bp_spot_details_data: dict[str, Any],
     field: str,
-    value: Any,
+    value: TestParamValue,
     error_match: str,
 ) -> None:
     """Test validation failures for BackpackSpotBalanceDetails."""

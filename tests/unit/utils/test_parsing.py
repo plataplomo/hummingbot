@@ -121,7 +121,9 @@ class TestParseDatetimeUTC:
 
     def test_invalid_string(self) -> None:
         """Should raise ValueError for invalid ISO string."""
-        with pytest.raises(ValueError, match="Cannot parse ISO datetime string"):
+        with pytest.raises(
+            ValueError, match="Cannot parse string .* as ISO datetime .* or as numeric timestamp"
+        ):
             parse_datetime_utc("not-a-date")
 
     def test_error_context_includes_field(self) -> None:

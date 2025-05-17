@@ -124,11 +124,11 @@ class TestFundingRate:
         now = datetime.now(UTC)
 
         # Empty symbol
-        with pytest.raises(ValueError, match="String cannot be empty or whitespace"):
+        with pytest.raises(ValueError, match="Field symbol: String cannot be empty"):
             FundingRate(symbol="", timestamp=now)
 
         # Whitespace symbol
-        with pytest.raises(ValueError, match="String cannot be empty or whitespace"):
+        with pytest.raises(ValueError, match="Field symbol: String cannot be empty"):
             FundingRate(symbol="   ", timestamp=now)
 
         # Symbol too long (max 64 chars)

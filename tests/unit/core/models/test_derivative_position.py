@@ -12,6 +12,10 @@ from cyberdelta.core.models.derivative_position import (
 )
 from cyberdelta.core.models.enums import OrderSide
 
+# Type alias for broad, but Any-free, test parameter values
+PrimitiveTestVal = str | int | float | bool | Decimal | None
+TestParamValue = PrimitiveTestVal | list[PrimitiveTestVal] | dict[str, PrimitiveTestVal]
+
 # --- Helper Fixtures ---
 
 
@@ -191,9 +195,9 @@ def test_derivative_position_mutability(
     [
         # Required Strings
         ("exchange", None, "Value error, exchange: Expected string, got NoneType"),
-        ("exchange", "", "String cannot be empty or whitespace"),
+        ("exchange", "", "Field exchange: String cannot be empty"),
         ("symbol", None, "Value error, symbol: Expected string, got NoneType"),
-        ("symbol", "   ", "String cannot be empty or whitespace"),
+        ("symbol", "   ", "Field symbol: String cannot be empty"),
         ("symbol", "S" * 65, "String value too long"),
         # Required Enum
         ("side", None, "Input should be 'BUY' or 'SELL'"),
@@ -205,7 +209,11 @@ def test_derivative_position_mutability(
         ("size", Decimal("Infinity"), "Value must be finite"),
         # Required Datetime
         ("timestamp", None, "Value error, timestamp: Value cannot be None"),
-        ("timestamp", "2023-13-01T00:00:00Z", "Cannot parse ISO datetime string"),
+        (
+            "timestamp",
+            "2023-13-01T00:00:00Z",
+            r"timestamp: Cannot parse string .* as ISO datetime .* or as numeric timestamp",
+        ),
         # Optional Decimals (with constraints)
         ("entry_price", Decimal("NaN"), "Value must be finite if provided"),
         ("mark_price", Decimal("-0.01"), "Input should be greater than or equal to 0"),
@@ -221,7 +229,7 @@ def test_derivative_position_mutability(
 def test_derivative_position_invalid_field_inputs(
     base_derivative_position_data: dict[str, Any],
     field: str,
-    value: Any,
+    value: TestParamValue,
     error_match: str,
 ) -> None:
     """Test validation failures for individual field invalid inputs."""
@@ -233,7 +241,9 @@ def test_derivative_position_invalid_field_inputs(
         data["entry_price"] = Decimal("50000")  # Need valid entry for non-zero size
 
     data[field] = value
-    with pytest.raises(ValidationError, match=error_match):
+    # Use a more general regex for Pydantic's verbose error messages
+    # This matches the specific error_match string within the larger Pydantic message.
+    with pytest.raises(ValidationError, match=f".*{error_match}.*"):
         DerivativePosition(**data)
 
 
@@ -363,7 +373,7 @@ def test_hyperliquid_details_creation_and_immutability(
 def test_hyperliquid_details_invalid_fields(
     valid_hl_details_data: dict[str, Any],
     field: str,
-    value: Any,
+    value: TestParamValue,
     error_match: str,
 ) -> None:
     """Test validation failures for HyperliquidPositionDetails."""
@@ -406,7 +416,7 @@ def test_backpack_details_creation_and_immutability(valid_bp_details_data: dict[
 def test_backpack_details_invalid_fields(
     valid_bp_details_data: dict[str, Any],
     field: str,
-    value: Any,
+    value: TestParamValue,
     error_match: str,
 ) -> None:
     """Test validation failures for BackpackPositionDetails."""

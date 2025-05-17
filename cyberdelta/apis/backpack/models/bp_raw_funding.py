@@ -34,7 +34,7 @@ class BackpackRawFundingRate(BaseModel):
         symbol (str): The trading symbol (e.g., 'SOL_USDC').
         rate (str): The funding rate as a string, validated to be parsable to a finite decimal.
         mark_price (str): The mark price as a string, validated to be parsable to a finite decimal.
-        index_price (str): The index price as a string, validated to be parsable to a finite decimal.
+        index_price (str): The index price (string), validated as parsable to a finite decimal.
         time (int | float | str): The timestamp of the funding rate data, validated for a
                                   specific range.
     """

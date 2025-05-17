@@ -59,9 +59,9 @@ class TestOrderBook:
     def test_symbol_validation(self) -> None:
         """Test validation rules for the symbol field."""
         now = datetime.now(UTC)
-        with pytest.raises(ValueError, match="String cannot be empty or whitespace"):
+        with pytest.raises(ValueError, match="Field symbol: String cannot be empty"):
             OrderBook(symbol="", timestamp=now, bids=[], asks=[])
-        with pytest.raises(ValueError, match="String cannot be empty or whitespace"):
+        with pytest.raises(ValueError, match="Field symbol: String cannot be empty"):
             OrderBook(symbol="   ", timestamp=now, bids=[], asks=[])
         with pytest.raises(ValueError, match="String value too long"):
             OrderBook(symbol="A" * 65, timestamp=now, bids=[], asks=[])
