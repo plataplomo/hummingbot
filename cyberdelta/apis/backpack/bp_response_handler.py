@@ -14,7 +14,7 @@ from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRat
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill, BackpackRawTrade
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import (
     BackpackRawWithdrawalResponse,
 )
@@ -96,7 +96,7 @@ class BackpackResponseHandler:
     @staticmethod
     def handle_get_recent_trades_response(
         raw_response_content: RawJsonResponse, symbol: str
-    ) -> list[BackpackRawFill]:
+    ) -> list[BackpackRawTrade]:
         """Validates the raw response for the Get Recent Trades endpoint."""
         context = f"recent trades ({symbol})"
         if not isinstance(raw_response_content, list):
@@ -106,14 +106,14 @@ class BackpackResponseHandler:
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
-        validated_items: list[BackpackRawFill] = []
+        validated_items: list[BackpackRawTrade] = []
         for item in raw_response_content:
             # Ensure item is a dict before validating
             if not isinstance(item, dict):
                 logger.warning(f"[{__name__}] Skipping non-dict item in {context} list: {item!r}")
                 continue
             try:
-                validated_items.append(BackpackRawFill.model_validate(item))
+                validated_items.append(BackpackRawTrade.model_validate(item))
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
                     e, f"single trade item in {context}", item
@@ -328,17 +328,12 @@ class BackpackResponseHandler:
     @staticmethod
     def handle_get_trade_history_response(
         raw_response_content: RawJsonResponse, symbol: str | None
-    ) -> list[BackpackRawFill]:
-        """Validates the raw response for the Get Trade History (Fills) endpoint.
+    ) -> list[BackpackRawTrade]:
+        """Validates the raw response for the Get Trade History endpoint.
 
-        Args:
-            raw_response_content: The raw JSON response.
-            symbol: Optional symbol (used for context in logging/errors).
-
-        Returns:
-            A list of validated BackpackRawFill objects.
+        Now returns list[BackpackRawTrade] as per user request.
         """
-        context = f"trade history/fills ({symbol or 'all'})"
+        context = f"trade history ({symbol or 'all'})"
         if not isinstance(raw_response_content, list):
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "
@@ -346,18 +341,18 @@ class BackpackResponseHandler:
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
-        validated_fills: list[BackpackRawFill] = []
+        validated_items: list[BackpackRawTrade] = []
         for item in raw_response_content:
             if not isinstance(item, dict):
                 logger.warning(f"[{__name__}] Skipping non-dict item in {context} list: {item!r}")
                 continue
             try:
-                validated_fills.append(BackpackRawFill.model_validate(item))
+                validated_items.append(BackpackRawTrade.model_validate(item))
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
-                    e, f"single fill item in {context}", item
+                    e, f"single trade item in {context}", item
                 ) from e
-        return validated_fills
+        return validated_items
 
     @staticmethod
     def handle_get_market_data_response(

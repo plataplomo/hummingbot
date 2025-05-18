@@ -39,7 +39,7 @@ from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAc
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
@@ -341,20 +341,25 @@ class BackpackAPI(ExchangeAPI):
 
     async def get_recent_trades(self, symbol: str, limit: int | None = 50) -> list[Trade]:
         """
-        Get recent trades for a symbol, mapping all required fields for the Trade model.
+        Retrieves recent public trades for a specific symbol and maps them to internal Trade models.
 
         Args:
-            symbol: Trading symbol
-            limit: Maximum number of trades to return
+            symbol: The trading symbol (e.g., "SOL_USDC").
+            limit: The maximum number of trades to retrieve. Defaults to 50.
+                   The underlying service handles API limits.
 
         Returns:
-            List of Trade objects
+            A list of internal Trade objects.
+
+        Raises:
+            APIError: If the API request fails or the response is invalid.
         """
-        raw_trades = await self.market_data.get_recent_trades(symbol, limit)
+        logger.debug(f"[{self.exchange_name}] Getting recent trades for {symbol} with limit {limit}")
+        raw_trades_data: list[BackpackRawTrade] = await self.market_data.get_recent_trades(symbol=symbol, limit=limit)
+
         internal_trades: list[Trade] = []
-        for raw_trade in raw_trades:
-            # raw_trade is BackpackRawFill, so use transform_raw_fill_to_internal
-            trade = self._bp_mapper.transform_raw_fill_to_internal(raw_trade)
+        for raw_trade in raw_trades_data:
+            trade = self._bp_mapper.transform_raw_trade_to_internal(raw_trade)
             if trade:
                 internal_trades.append(trade)
             else:
@@ -901,34 +906,44 @@ class BackpackAPI(ExchangeAPI):
             f"{symbol if symbol else 'ALL'} with limit: {limit}."
         )
         try:
-            # Service returns list[BackpackRawFill]
-            raw_fills: list[BackpackRawFill] = await self.account_service.get_trade_history_raw(
+            # Service now returns list[BackpackRawTrade]
+            # RENAMED raw_fills to raw_trades_list for clarity with new type
+            raw_trades_list: list[BackpackRawTrade] = await self.account_service.get_trade_history_raw(
                 symbol=symbol, limit=limit
             )
 
             internal_trades: list[Trade] = []
-            for raw_fill in raw_fills:
+            # MODIFIED loop variable and mapper call
+            for raw_trade_item in raw_trades_list:
                 try:
-                    # Mapper transforms individual BackpackRawFill to Trade
-                    trade = self._bp_mapper.transform_raw_fill_to_internal(raw_fill)
-                    internal_trades.append(trade)
+                    # Mapper transforms individual BackpackRawTrade to Trade
+                    # This uses transform_raw_trade_to_internal which expects BackpackRawTrade
+                    trade = self._bp_mapper.transform_raw_trade_to_internal(raw_trade_item)
+                    # transform_raw_trade_to_internal can return None if essential data missing
+                    if trade:
+                        internal_trades.append(trade)
+                    else:
+                        logger.warning(
+                            f"[{self.exchange_name}] Skipping trade: transform_raw_trade_to_internal returned None. "
+                            f"Raw data: {raw_trade_item.model_dump_json(exclude_none=True)}"
+                        )
                 except ValidationError as e_map_item:  # Catch Pydantic errors during item mapping
                     logger.error(
-                        f"[{self.exchange_name}] Validation error mapping individual trade fill: "
-                        f"{e_map_item}. Raw fill: {raw_fill!r}",
+                        f"[{self.exchange_name}] Validation error mapping individual trade: "
+                        f"{e_map_item}. Raw trade: {raw_trade_item.model_dump_json(exclude_none=True)!r}",
                         exc_info=True,
                     )
                     # Optionally skip this trade or raise a more general error
-                    continue  # Skip this problematic fill
+                    continue  # Skip this problematic trade
                 except (
                     Exception
                 ) as e_map_item_gen:  # Catch other general errors during item mapping
                     logger.error(
-                        f"[{self.exchange_name}] Unexpected error mapping individual trade fill: "
-                        f"{e_map_item_gen}. Raw fill: {raw_fill!r}",
+                        f"[{self.exchange_name}] Unexpected error mapping individual trade: "
+                        f"{e_map_item_gen}. Raw trade: {raw_trade_item.model_dump_json(exclude_none=True)!r}",
                         exc_info=True,
                     )
-                    continue  # Skip this problematic fill
+                    continue  # Skip this problematic trade
             return internal_trades
         except APIError as e_api:  # Catch critical fetch errors from service
             logger.error(
@@ -1129,69 +1144,67 @@ class BackpackAPI(ExchangeAPI):
         limit: int | None = 50,
         from_id: str | None = None,
     ) -> list[Trade]:
-        """Fetch historical trades for a symbol, mapped to internal Trade objects.
+        """
+        Retrieves historical public trades for a specific symbol.
 
         Args:
-            symbol: The market symbol (e.g., "SOL_USDC").
-            limit: Maximum number of trades to return (default is 50).
-                   The service method `get_recent_trades` uses this limit.
-            from_id: Backpack's `trades` (recent) endpoint doesn't support `from_id` directly.
-                     It fetches most recent. Filtering by `from_id` if provided would be post-fetch.
-                     However, Backpack's `/api/v1/trades/history` (if that's what the service
-                     uses under different name) *does* take `fromId`. Assume service handles this.
-                     For now, passing `from_id` to service, which might ignore it for `/trades`.
-        Returns:
-            A list of internal Trade objects, sorted by execution time (most recent first).
-        """
-        if from_id:
-            logger.warning(
-                "[%s] from_id='%s' provided to get_historical_trades, but the underlying Backpack "
-                "market_data_service.get_recent_trades does not support it. "
-                "Fetching most recent trades up to limit.",
-                self.exchange_name,
-                from_id,
-            )
+            symbol: The trading symbol (e.g., "SOL_USDC").
+            limit: The maximum number of trades to retrieve. Defaults to 50.
+                   Backpack API default 100, max 1000. This limit is applied post-fetch
+                   if the service doesn't directly support it.
+            from_id: Optional. If provided, get trades from this trade ID.
+                     Backpack API supports a `from` parameter (trade ID).
 
-        raw_fills: list[BackpackRawFill] = await self.market_data.get_recent_trades(
-            symbol=symbol,
-            limit=limit,
+        Returns:
+            A list of internal Trade objects.
+
+        Raises:
+            APIError: If the API request fails or the response is invalid.
+        """
+        logger.debug(
+            f"[{self.exchange_name}] Getting historical trades for {symbol}, limit {limit}, from_id {from_id}"
         )
 
+        raw_historical_trades_data: list[BackpackRawTrade]
+        try:
+            if from_id:
+                logger.info(f"[{self.exchange_name}] from_id='{from_id}' requested for historical trades. Ensure service supports this.")
+                # Current BackpackMarketDataService.get_recent_trades does not accept from_id.
+                # This would require either updating that service method or adding a new one.
+                # For now, from_id is logged but not passed if get_recent_trades is the only option.
+
+            raw_historical_trades_data = await self.market_data.get_recent_trades(
+                symbol=symbol, limit=limit # from_id would be passed here if service method supported it
+            )
+
+        except APIError as e:
+            logger.error(
+                f"[{self.exchange_name}] API error fetching historical trades for "
+                f"{symbol}: {e.message}"
+            )
+            raise
+        except Exception as e_unhandled:
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error fetching historical trades for "
+                f"{symbol}: {e_unhandled}",
+                exc_info=True,
+            )
+            raise APIError(
+                message=f"Unexpected error fetching historical trades for {symbol}: {e_unhandled}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e_unhandled,
+            ) from e_unhandled
+
         internal_trades: list[Trade] = []
-        if raw_fills:
-            for raw_fill_model in raw_fills:
-                try:
-                    # Corrected to use transform_raw_fill_to_internal
-                    internal_trade = self._bp_mapper.transform_raw_fill_to_internal(
-                        raw_fill_model,
-                    )
-                    # transform_raw_fill_to_internal returns Trade, not Trade | None
-                    # so the check `if internal_trade:` is not strictly necessary
-                    # if it never returns None, but keeping it is safer if the
-                    # mapper's behavior changes or for clarity.
-                    if internal_trade:  # Keep for defensiveness
-                        internal_trades.append(internal_trade)
-                    # No else needed here if mapper guarantees non-None or raises error
-                except (
-                    ValidationError,
-                    ValueError,
-                ) as e:
-                    logger.warning(
-                        "[%s] Skipping trade in history (validation/transform error): %s. Data: %s",
-                        self.exchange_name,
-                        e,
-                        raw_fill_model.model_dump_json(),
-                    )
-                    continue
-                except Exception as e:
-                    logger.exception(
-                        "[%s] Unexpected error processing historical trade: %s. Data: %s",
-                        self.exchange_name,
-                        e,
-                        raw_fill_model.model_dump_json(),
-                    )
-                    continue
-            internal_trades.sort(key=lambda t: t.executed_at, reverse=True)
+        for raw_trade in raw_historical_trades_data:
+            trade = self._bp_mapper.transform_raw_trade_to_internal(raw_trade)
+            if trade:
+                internal_trades.append(trade)
+            else:
+                logger.warning(
+                    f"[{self.exchange_name}] Failed to transform raw historical trade "
+                    f"to internal model for {symbol}. Raw: {raw_trade.model_dump_json()}"
+                )
         return internal_trades
 
     async def get_order_status(

@@ -29,7 +29,7 @@ from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
@@ -286,7 +286,7 @@ class BackpackAccountService:
 
     async def get_trade_history_raw(
         self, symbol: str | None = None, limit: int = 100
-    ) -> list[BackpackRawFill]:
+    ) -> list[BackpackRawTrade]:
         """Fetches raw historical trades (fills) from Backpack.
 
         Args:

@@ -18,7 +18,7 @@ from cyberdelta.apis.backpack.bp_response_handler import (
 from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
 from cyberdelta.apis.connectivity.http_client import HttpClient
 
 # Import RateLimiterService
@@ -194,7 +194,7 @@ class BackpackMarketDataService:
                 original_exception=e_unhandled,
             ) from e_unhandled
 
-    async def get_recent_trades(self, symbol: str, limit: int | None = 50) -> list[BackpackRawFill]:
+    async def get_recent_trades(self, symbol: str, limit: int | None = 50) -> list[BackpackRawTrade]:
         """
         Retrieves recent public trades for a specific symbol.
 
@@ -205,7 +205,7 @@ class BackpackMarketDataService:
                    The old implementation used the provided `limit`.
 
         Returns:
-            A list of BackpackRawFill objects containing validated raw trade data.
+            A list of BackpackRawTrade objects containing validated raw trade data.
 
         Raises:
             APIError: If the API request fails or the response is invalid.
@@ -235,7 +235,7 @@ class BackpackMarketDataService:
                     code=APIErrorCode.INVALID_RESPONSE.value,
                 )
 
-            validated_trades: list[BackpackRawFill] = (
+            validated_trades: list[BackpackRawTrade] = (
                 self._response_handler.handle_get_recent_trades_response(response_raw, symbol)
             )
             return validated_trades
