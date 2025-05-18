@@ -146,36 +146,35 @@ class HyperliquidAPI(ExchangeAPI):
             error_mapper=self._hyperliquid_error_mapper,
         )
 
-        self.account_service = HyperliquidAccountService(
-            http_client_requester=self._request,
-            request_builder=self._hl_request_builder,
-            response_handler=self._hl_response_handler,
-            authenticator=self._hl_authenticator,
-            rate_limiter_service=self._rate_limiter_service,
-            exchange_name=self.exchange_name,
-            info_url_base=self.INFO_URL,
-            wallet_address=self._wallet_address,
-        )
-
-        # Create HttpClientConfig for the INFO_URL client
+        # Initialize _info_http_client before account_service
         info_http_client_raw_config = api_config.get("http_client", {})
         info_client_config = HttpClientConfig(
-            rest_endpoint=HttpUrl(self.INFO_URL),  # Wrap with HttpUrl
+            rest_endpoint=HttpUrl(self.INFO_URL),
             default_request_timeout=info_http_client_raw_config.get(
                 "default_request_timeout", 10.0
             ),
             max_retries=info_http_client_raw_config.get("max_retries", 3),
             retry_delay_seconds=info_http_client_raw_config.get("retry_delay_seconds", 5.0),
         )
-
         self._info_http_client = HttpClient(
-            exchange_name=f"{self.exchange_name}_info",  # Differentiate name for logging
+            exchange_name=f"{self.exchange_name}_info",
             config=info_client_config,
-            # session=None by default, so HttpClient creates its own internal session
+        )
+
+        self.account_service = HyperliquidAccountService(
+            exchange_http_client_requester=self._request,  # For /exchange endpoints
+            info_http_client_requester=self._info_http_client.request,  # For /info endpoints
+            request_builder=self._hl_request_builder,
+            response_handler=self._hl_response_handler,
+            authenticator=self._hl_authenticator,
+            rate_limiter_service=self._rate_limiter_service,
+            exchange_name=self.exchange_name,
+            # info_url_base is no longer passed as it's part of info_http_client_requester's HttpClient config
+            wallet_address=self._wallet_address,
         )
 
         self.market_data = HyperliquidMarketDataService(
-            http_client=self._info_http_client,  # Use the INFO_URL client
+            http_client=self._info_http_client,  # Market data service uses the INFO_URL client
             request_builder=self._hl_request_builder,  # This is self._hl_request_builder
             response_handler=self._hl_response_handler,  # This is self._hl_response_handler
             rate_limiter_service=self._rate_limiter_service,  # This is self._rate_limiter_service
@@ -208,9 +207,9 @@ class HyperliquidAPI(ExchangeAPI):
         """Uses the HyperliquidEip712Authenticator to prepare request components."""
         print(
             f"[DEBUG HL_API _authenticate] Entered. Authenticator: "
-            f"{self.authenticator}, type: {type(self.authenticator)}"
+            f"{self._hl_authenticator}, type: {type(self._hl_authenticator)}"
         )  # DEBUG PRINT
-        if not self.authenticator:
+        if not self._hl_authenticator:
             logger.error(
                 f"[{self.exchange_name}] Attempt to call signed endpoint ({method} {path}) "
                 "without configured HL authenticator."
@@ -225,13 +224,15 @@ class HyperliquidAPI(ExchangeAPI):
         # --- DEBUG PRINT --- #
         print(
             f"[DEBUG HL_API _authenticate] About to await prepare_request. "
-            f"Authenticator: {self.authenticator}",
+            f"Authenticator: {self._hl_authenticator}",
             flush=True,
         )
         # --- END DEBUG --- #
 
-        auth_components: AuthenticatedRequestComponents = await self.authenticator.prepare_request(
-            method, path, params, data, current_headers
+        auth_components: AuthenticatedRequestComponents = (
+            await self._hl_authenticator.prepare_request(
+                method, path, params, data, current_headers
+            )
         )
 
         # --- DEBUG PRINT --- #
@@ -252,18 +253,32 @@ class HyperliquidAPI(ExchangeAPI):
         logger.debug(
             f"[{self.exchange_name}] Asset index for {symbol} not cached, fetching meta..."
         )
-        # build_info_request_payload returns None, which is fine for _request
-        request_payload_data = HyperliquidRequestBuilder.build_info_request_payload()
-        response_raw: object = await self._request(
-            "POST",
-            f"{self.INFO_URL.rstrip('/')}/info",
-            data=request_payload_data,  # This is already None or dict, remains as is
+        request_payload_data = (
+            HyperliquidRequestBuilder.build_info_request_payload()
+        )  # This is None
+
+        # CORRECTED USAGE: Use _info_http_client directly for /info endpoints
+        response_content_raw, _, _ = await self._info_http_client.request(
+            method="POST",
+            endpoint_path="/info",  # Relative path for _info_http_client
+            data=request_payload_data,  # This should be None if builder returns None, or model.model_dump()
+            rate_limiter_service=self._rate_limiter_service,  # Pass rate limiter
         )
 
         try:
+            # Ensure response_content_raw is not None before casting and processing
+            if response_content_raw is None:
+                logger.error(
+                    f"[{self.exchange_name}] Received None response from _info_http_client.request for metaAndAssetCtxs."
+                )
+                raise APIError(
+                    "No data received for market metadata.",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                )
+
             validated_response: HyperliquidRawMetaAndAssetCtxsResponse = (
                 HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response(
-                    cast(RawJsonResponse, response_raw)
+                    cast(RawJsonResponse, response_content_raw)  # Cast the actual content
                 )
             )
             for index, asset_def in enumerate(validated_response.meta.universe):
@@ -282,7 +297,7 @@ class HyperliquidAPI(ExchangeAPI):
         except ValidationError as e:
             logger.error(
                 f"[{self.exchange_name}] Failed to validate metaAndAssetCtxs: {e}. "
-                f"Raw: {response_raw!r}"
+                f"Raw: {response_content_raw!r}"
             )
             raise APIError(
                 "Failed to parse market metadata for asset index mapping.",

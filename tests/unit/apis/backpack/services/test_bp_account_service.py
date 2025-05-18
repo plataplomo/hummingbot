@@ -15,6 +15,8 @@ from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 from cyberdelta.apis.backpack.models.bp_raw_account import (
     BackpackRawBalance,  # Added for mock typing
 )
+from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
+from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
@@ -127,10 +129,8 @@ class TestBackpackAccountService:
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
-            endpoint_path="/wapi/v1/capital/transfer/internal",
+            endpoint="/wapi/v1/capital/transfer/internal",
             data=mock_payload,
-            authenticator=mock_authenticator,
-            rate_limiter_service=mock_rate_limiter_service,
             is_signed=True,
         )
         assert result == mock_raw_response_content
@@ -242,34 +242,206 @@ class TestBackpackAccountService:
         mock_rate_limiter_service: AsyncMock,
     ) -> None:
         """Test get_balances_raw successfully fetches and processes balance data."""
-        mock_params = None
         mock_raw_response_data = {
             "USDC": {"available": "1000.0", "locked": "0", "debt": "0", "total": "1000.0"}
         }
-        # Correctly mock the return type of handle_get_balances_response
         mock_validated_balances: dict[str, BackpackRawBalance] = {
             "USDC": BackpackRawBalance(asset="USDC", available="1000.0", total="1000.0")
         }
 
-        mock_request_builder.build_get_balances_params.return_value = mock_params
         mock_http_client_requester.return_value = (mock_raw_response_data, 200, MagicMock())
         mock_response_handler.handle_get_balances_response.return_value = mock_validated_balances
 
+        # Configure the mock rate limiter
+        mock_limiter_instance = AsyncMock()
+        mock_limiter_instance.acquire = AsyncMock()
+        mock_rate_limiter_service.get_limiter.return_value = mock_limiter_instance
+
+        # Explicitly set the return value for the mocked builder method
+        expected_balance_params = None  # Backpack GET /capital usually has no params
+        mock_request_builder.build_get_balances_params.return_value = expected_balance_params
+
         result = await bp_account_service.get_balances_raw()
 
+        mock_rate_limiter_service.get_limiter.assert_called_once_with("GET", "/api/v1/capital")
+        mock_limiter_instance.acquire.assert_awaited_once()
         mock_request_builder.build_get_balances_params.assert_called_once_with()
+
         mock_http_client_requester.assert_called_once_with(
             method="GET",
-            endpoint_path="/api/v1/capital",
-            params=mock_params,
-            authenticator=mock_authenticator,
-            rate_limiter_service=mock_rate_limiter_service,
+            endpoint="/api/v1/capital",
+            params=expected_balance_params,  # Use the explicitly set return value
+            endpoint_group="PRIVATE",
             is_signed=True,
         )
+
         mock_response_handler.handle_get_balances_response.assert_called_once_with(
             mock_raw_response_data
         )
         assert result == mock_validated_balances
+
+    @pytest.mark.asyncio
+    async def test_get_positions_raw_success(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_authenticator: AsyncMock,
+        mock_rate_limiter_service: AsyncMock,
+    ) -> None:
+        """Test get_positions_raw successfully fetches and processes position data."""
+        symbol_arg = "SOL-PERP"
+
+        mock_raw_positions_data = [
+            {
+                "symbol": "SOL-PERP",
+                "netQuantity": "10.0",
+                "entryPrice": "100.0",
+                "markPrice": "110.0",
+                "imf": "0.1",
+                "mmf": "0.05",
+                "pnlUnrealized": "100.0",
+                "pnlRealized": "0.0",
+                "netCost": "1000.0",
+                "netExposureNotional": "1100.0",
+                "netExposureQuantity": "10.0",
+                "positionId": "pos123",
+                "userId": 1,
+                "breakEvenPrice": "105.0",
+                "estLiquidationPrice": "90.0",
+                "imfFunction": {"base": "0.005", "factor": "0.000001"},
+                "mmfFunction": {"base": "0.002", "factor": "0.0000005"},
+                "cumulativeFundingPayment": "-5.0",
+                "cumulativeInterest": "-0.1",
+            }
+        ]
+        mock_validated_positions = [BackpackRawPosition.model_validate(mock_raw_positions_data[0])]
+
+        # Configure the mock rate limiter for the non-symbol call
+        mock_limiter_no_symbol = AsyncMock()
+        mock_limiter_no_symbol.acquire = AsyncMock()
+        mock_rate_limiter_service.get_limiter.return_value = mock_limiter_no_symbol
+
+        # Test without symbol first
+        expected_params_no_symbol = (
+            None  # build_get_positions_params(symbol=None) should return None
+        )
+        mock_request_builder.build_get_positions_params.return_value = expected_params_no_symbol
+        mock_http_client_requester.return_value = (mock_raw_positions_data, 200, MagicMock())
+        mock_response_handler.handle_get_positions_response.return_value = mock_validated_positions
+
+        result_no_symbol = await bp_account_service.get_positions_raw()
+
+        mock_rate_limiter_service.get_limiter.assert_called_with("GET", "/api/v1/positions")
+        mock_limiter_no_symbol.acquire.assert_awaited_once()
+        mock_request_builder.build_get_positions_params.assert_called_with(symbol=None)
+        mock_http_client_requester.assert_called_with(
+            method="GET",
+            endpoint="/api/v1/positions",
+            params=expected_params_no_symbol,
+            endpoint_group="PRIVATE",
+            is_signed=True,
+        )
+        mock_response_handler.handle_get_positions_response.assert_called_with(
+            mock_raw_positions_data, None
+        )
+        assert result_no_symbol == mock_validated_positions
+
+        # Reset mocks for the next call if necessary, or use different mock instances
+        # For simplicity here, we'll reconfigure the existing mock_request_builder for the symbol call.
+        mock_http_client_requester.reset_mock()  # Reset call count and args for the next assertion
+        mock_response_handler.reset_mock()
+        mock_request_builder.build_get_positions_params.reset_mock()  # Reset this specific method mock
+        mock_rate_limiter_service.get_limiter.reset_mock()
+        mock_limiter_no_symbol.acquire.reset_mock()  # If using the same limiter mock instance
+
+        # Test with symbol
+        mock_limiter_with_symbol = AsyncMock()
+        mock_limiter_with_symbol.acquire = AsyncMock()
+        # Make get_limiter return a new mock for the second call if its behavior/identity matters
+        mock_rate_limiter_service.get_limiter.return_value = mock_limiter_with_symbol
+
+        expected_params_with_symbol = {"symbol": symbol_arg}  # Example, actual depends on builder
+        mock_request_builder.build_get_positions_params.return_value = expected_params_with_symbol
+        # Assuming the HTTP response for positions with symbol is the same for this test
+        mock_http_client_requester.return_value = (mock_raw_positions_data, 200, MagicMock())
+        mock_response_handler.handle_get_positions_response.return_value = mock_validated_positions
+
+        result_with_symbol = await bp_account_service.get_positions_raw(symbol=symbol_arg)
+
+        mock_rate_limiter_service.get_limiter.assert_called_with("GET", "/api/v1/positions")
+        mock_limiter_with_symbol.acquire.assert_awaited_once()
+        mock_request_builder.build_get_positions_params.assert_called_with(symbol=symbol_arg)
+
+        mock_http_client_requester.assert_called_with(
+            method="GET",
+            endpoint="/api/v1/positions",
+            params=expected_params_with_symbol,
+            endpoint_group="PRIVATE",
+            is_signed=True,
+        )
+
+        mock_response_handler.handle_get_positions_response.assert_called_with(
+            mock_raw_positions_data, symbol_arg
+        )
+        assert result_with_symbol == mock_validated_positions
+
+    @pytest.mark.asyncio
+    async def test_get_account_info_raw_success(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_authenticator: AsyncMock,
+        mock_rate_limiter_service: AsyncMock,
+    ) -> None:
+        """Test get_account_info_raw successfully fetches and processes account info."""
+        mock_raw_response_data = {
+            "autoBorrowSettlements": True,
+            "autoLend": False,
+            "autoRealizePnl": True,
+            "autoRepayBorrows": True,
+            "borrowLimit": "10000.00000000",
+            "futuresMakerFee": "0.00020000",
+            "futuresTakerFee": "0.00050000",
+            "leverageLimit": "20.00000000",
+            "limitOrders": 50,
+            "liquidating": False,
+            "positionLimit": "1000000.00000000",
+            "spotMakerFee": "0.00080000",
+            "spotTakerFee": "0.00100000",
+            "triggerOrders": 20,
+        }
+        mock_validated_account_info = BackpackRawAccountSummary.model_validate(
+            mock_raw_response_data
+        )
+
+        mock_http_client_requester.return_value = (mock_raw_response_data, 200, MagicMock())
+        mock_response_handler.handle_get_account_info_response.return_value = (
+            mock_validated_account_info
+        )
+
+        # Configure the mock rate limiter
+        mock_limiter_instance = AsyncMock()
+        mock_limiter_instance.acquire = AsyncMock()
+        mock_rate_limiter_service.get_limiter.return_value = mock_limiter_instance
+
+        result = await bp_account_service.get_account_info_raw()
+
+        mock_rate_limiter_service.get_limiter.assert_called_once_with("GET", "/api/v1/account")
+        mock_limiter_instance.acquire.assert_awaited_once()
+        mock_http_client_requester.assert_called_once_with(
+            method="GET",
+            endpoint_group="PRIVATE",
+            endpoint="/api/v1/account",
+            is_signed=True,
+        )
+        mock_response_handler.handle_get_account_info_response.assert_called_once_with(
+            mock_raw_response_data
+        )
+        assert result == mock_validated_account_info
 
 
 # Add more tests for other methods in BackpackAccountService following similar patterns.

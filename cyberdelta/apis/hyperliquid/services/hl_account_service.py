@@ -54,28 +54,25 @@ class HyperliquidAccountService:
 
     def __init__(
         self,
-        http_client_requester: Callable[..., Any],  # Main API client's _request
+        exchange_http_client_requester: Callable[..., Any],
+        info_http_client_requester: Callable[..., Any],
         request_builder: HyperliquidRequestBuilder,
         response_handler: HyperliquidResponseHandler,
         authenticator: IAuthenticator | None,
         rate_limiter_service: RateLimiterService,
         exchange_name: str,
-        info_url_base: str,  # e.g., https://info.hyperliquid.xyz
         wallet_address: str | None,
-        # Asset to index cache might not be needed directly if place/cancel are not here
-        # but some info endpoints might implicitly use it if they return all assets.
-        # For now, let's assume it's not directly used by account services for raw data fetching.
     ) -> None:
         """
         Initialize the HyperliquidAccountService.
         """
-        self._http_client_requester = http_client_requester
+        self._exchange_http_client_requester = exchange_http_client_requester
+        self._info_http_client_requester = info_http_client_requester
         self._request_builder = request_builder
         self._response_handler = response_handler
         self._authenticator = authenticator
         self._rate_limiter_service = rate_limiter_service
         self._exchange_name = exchange_name
-        self._info_url_base = info_url_base.rstrip("/")
         self._wallet_address = wallet_address
 
     async def get_account_summary_raw(self) -> HyperliquidRawClearinghouseState:
@@ -98,19 +95,18 @@ class HyperliquidAccountService:
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
-        endpoint_path = f"{self._info_url_base}/info"  # Full path for info endpoint
-        # Payload built by request_builder
+        endpoint_path_for_info_client = "/info"
         payload = self._request_builder.build_user_state_payload(self._wallet_address)
 
         response_data_raw: Any | None = None
         try:
-            response_data_raw, _, _ = await self._http_client_requester(
+            response_data_raw, _, _ = await self._info_http_client_requester(
                 method="POST",
-                endpoint_path=endpoint_path,
-                data=payload.model_dump(),  # Use model_dump for Pydantic v2
-                authenticator=None,  # Info endpoint, not signed
+                endpoint_path=endpoint_path_for_info_client,
+                data=payload.model_dump(),
+                authenticator=None,
                 rate_limiter_service=self._rate_limiter_service,
-                is_signed=False,  # Explicitly False for info endpoint
+                is_signed=False,
             )
 
             if response_data_raw is None:
@@ -165,19 +161,16 @@ class HyperliquidAccountService:
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
-        endpoint_path = f"{self._info_url_base}/info"
-        # Payload definition based on HyperliquidAPI.get_open_orders
-        # No specific builder method for this exact payload, so construct it here or add to builder.
-        # For now, construct here as it's simple and specific to this account service method context.
+        endpoint_path_for_info_client = "/info"
         payload_data = {"type": "openOrders", "user": self._wallet_address}
 
         response_data_raw: Any | None = None
         try:
-            response_data_raw, _, _ = await self._http_client_requester(
+            response_data_raw, _, _ = await self._info_http_client_requester(
                 method="POST",
-                endpoint_path=endpoint_path,
-                data=payload_data,  # Pass the dict directly
-                authenticator=None,  # Info endpoint, not signed
+                endpoint_path=endpoint_path_for_info_client,
+                data=payload_data,
+                authenticator=None,
                 rate_limiter_service=self._rate_limiter_service,
                 is_signed=False,
             )
@@ -235,37 +228,22 @@ class HyperliquidAccountService:
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
-        # Endpoint for exchange actions
-        actual_endpoint_path_for_request = "/exchange"
-        # Path to be used for signature generation by HL EIP712 authenticator
-        path_for_signature_logic = "/exchange"  # HL always signs literal "/exchange"
+        endpoint_group_for_exchange_client = "exchange"
 
         payload_model = self._request_builder.build_l2_usd_transfer_payload(
             destination_address=to_account, amount=amount
         )
         request_data_dict = payload_model.model_dump()
 
-        # Signed request, requires authenticator
-        # The IAuthenticator expects `path` to be the conceptual path for signing.
-        # The HyperliquidEip712Authenticator needs to correctly interpret this.
-        auth_components = await self._authenticator.prepare_request(
-            method="POST",
-            path=path_for_signature_logic,  # Pass the path used for signature
-            params=None,  # No query params for this POST
-            data=request_data_dict,  # Data to be signed/included
-            headers=None,  # No pre-existing headers to modify for this typically
-        )
-
         response_data_raw: Any | None = None
         try:
-            response_data_raw, _, _ = await self._http_client_requester(
+            response_data_raw, _, _ = await self._exchange_http_client_requester(
                 method="POST",
-                endpoint_path=actual_endpoint_path_for_request,  # e.g., "/exchange"
-                data=auth_components["data"],  # Use processed/signed data from authenticator
-                headers=auth_components["headers"],  # Use headers from authenticator
-                authenticator=self._authenticator,  # Pass authenticator for context if needed by _request
+                endpoint_group=endpoint_group_for_exchange_client,
+                data=request_data_dict,
+                authenticator=self._authenticator,
                 rate_limiter_service=self._rate_limiter_service,
-                is_signed=True,  # This is a signed request
+                is_signed=True,
             )
 
             if response_data_raw is None:
@@ -278,9 +256,9 @@ class HyperliquidAccountService:
                 raw_response_content=response_data_raw,
                 action_type=payload_model.type,  # context for handler (e.g., "usdTransfer")
             )
-        except APIError:
+        except APIError:  # Re-raise APIErrors from http_client_requester or handler
             raise
-        except Exception as e_unhandled:
+        except Exception as e_unhandled:  # Catch any other unexpected errors
             logger.error(
                 f"[{self._exchange_name}] Unexpected error in transfer_raw: {e_unhandled}",
                 exc_info=True,
@@ -308,40 +286,33 @@ class HyperliquidAccountService:
             HyperliquidRawExchangeResponse: The raw response from the exchange.
 
         Raises:
+            ValueError: If address is not provided.
             APIError: If the request fails or authenticator is not available.
         """
+        if not address:
+            raise ValueError("Destination address (L1) is required for withdrawal.")
         if not self._authenticator:
             logger.error(
                 f"[{self._exchange_name}] Authenticator not available for signed request: withdraw_raw"
             )
             raise APIError(
-                message="Authenticator required for withdrawal.",
+                message="Authenticator required for L1 withdrawal.",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
-        actual_endpoint_path_for_request = "/exchange"
-        path_for_signature_logic = "/exchange"
+        endpoint_group_for_exchange_client = "exchange"
 
         payload_model = self._request_builder.build_withdrawal_payload(
             asset=asset, amount=amount, destination_address=address
         )
         request_data_dict = payload_model.model_dump()
 
-        auth_components = await self._authenticator.prepare_request(
-            method="POST",
-            path=path_for_signature_logic,
-            params=None,
-            data=request_data_dict,
-            headers=None,
-        )
-
         response_data_raw: Any | None = None
         try:
-            response_data_raw, _, _ = await self._http_client_requester(
+            response_data_raw, _, _ = await self._exchange_http_client_requester(
                 method="POST",
-                endpoint_path=actual_endpoint_path_for_request,
-                data=auth_components["data"],
-                headers=auth_components["headers"],
+                endpoint_group=endpoint_group_for_exchange_client,
+                data=request_data_dict,
                 authenticator=self._authenticator,
                 rate_limiter_service=self._rate_limiter_service,
                 is_signed=True,
@@ -365,7 +336,7 @@ class HyperliquidAccountService:
                 exc_info=True,
             )
             raise APIError(
-                message=f"Unexpected error processing withdrawal: {e_unhandled}",
+                message=f"Unexpected error processing L1 withdrawal: {e_unhandled}",
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e_unhandled,
             ) from e_unhandled
@@ -396,19 +367,20 @@ class HyperliquidAccountService:
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
-        endpoint_path = f"{self._info_url_base}/info"
+        endpoint_path_for_info_client = "/info"
         payload = self._request_builder.build_order_history_payload(
             wallet_address=self._wallet_address,
             start_time_ms=start_time_ms,
             end_time_ms=end_time_ms,
         )
+        payload_data = payload.model_dump()
 
         response_data_raw: Any | None = None
         try:
-            response_data_raw, _, _ = await self._http_client_requester(
+            response_data_raw, _, _ = await self._info_http_client_requester(
                 method="POST",
-                endpoint_path=endpoint_path,
-                data=payload.model_dump(),
+                endpoint_path=endpoint_path_for_info_client,
+                data=payload_data,
                 authenticator=None,
                 rate_limiter_service=self._rate_limiter_service,
                 is_signed=False,
@@ -439,7 +411,7 @@ class HyperliquidAccountService:
     async def get_trade_history_raw(
         self,
     ) -> HyperliquidRawUserFillsResponse:
-        """Fetches raw user fills (trade history) for the user.
+        """Fetches raw trade history (user fills) for the user.
 
         Hyperliquid's userFills endpoint returns all fills; filtering by limit
         should be done by the caller if needed.
@@ -459,16 +431,14 @@ class HyperliquidAccountService:
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
-        endpoint_path = f"{self._info_url_base}/info"
-        # Payload for userFills
-        # No specific builder method for this exact payload, construct here.
+        endpoint_path_for_info_client = "/info"
         payload_data = {"type": "userFills", "user": self._wallet_address}
 
         response_data_raw: Any | None = None
         try:
-            response_data_raw, _, _ = await self._http_client_requester(
+            response_data_raw, _, _ = await self._info_http_client_requester(
                 method="POST",
-                endpoint_path=endpoint_path,
+                endpoint_path=endpoint_path_for_info_client,
                 data=payload_data,
                 authenticator=None,
                 rate_limiter_service=self._rate_limiter_service,
@@ -498,16 +468,17 @@ class HyperliquidAccountService:
             ) from e_unhandled
 
     async def get_order_status_raw(self, order_id: int) -> HyperliquidRawHistoricalOrderResponse:
-        """Fetches the raw status of a specific order by its ID.
+        """Fetches the raw status of a specific order by its OID.
 
         Args:
-            order_id: The integer order ID.
+            order_id: The order ID (OID) of the order to fetch.
 
         Returns:
-            HyperliquidRawHistoricalOrderResponse: The raw historical order data, used for status.
+            HyperliquidRawHistoricalOrderResponse: The raw historical order response.
 
         Raises:
-            APIError: If the wallet address is not set, or if the API request fails.
+            APIError: If the wallet address is not set, or if the API request fails,
+                      or if the order is not found.
         """
         if not self._wallet_address:
             logger.error(
@@ -518,17 +489,18 @@ class HyperliquidAccountService:
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
-        endpoint_path = f"{self._info_url_base}/info"
+        endpoint_path_for_info_client = "/info"
         payload = self._request_builder.build_order_status_payload(
             wallet_address=self._wallet_address, order_id=order_id
         )
+        payload_data = payload.model_dump()
 
         response_data_raw: Any | None = None
         try:
-            response_data_raw, _, _ = await self._http_client_requester(
+            response_data_raw, _, _ = await self._info_http_client_requester(
                 method="POST",
-                endpoint_path=endpoint_path,
-                data=payload.model_dump(),
+                endpoint_path=endpoint_path_for_info_client,
+                data=payload_data,
                 authenticator=None,
                 rate_limiter_service=self._rate_limiter_service,
                 is_signed=False,

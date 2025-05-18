@@ -17,7 +17,7 @@ from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRat
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill, BackpackRawTrade
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -111,22 +111,28 @@ def valid_raw_trade_item(symbol_spot: str) -> dict[str, Any]:
     return {
         "symbol": symbol_spot,
         "price": "141.00",
-        "qty": "1.5",
-        "time": 1678886402000,
-        "id": "1001",
+        "quantity": "1.5",
+        "timestamp": "2023-03-15T12:00:02.000000Z",
+        "tradeId": "1001",
         "orderId": "order123",
+        "fee": "0.0015",
+        "feeSymbol": "USDC",
+        "isMaker": False,
+        "side": "buy",
     }
 
 
 @pytest.fixture
 def valid_raw_recent_trades(valid_raw_trade_item: dict[str, Any]) -> list[dict[str, Any]]:
+    item1 = valid_raw_trade_item.copy()
     item2 = valid_raw_trade_item.copy()
-    item2["id"] = "1002"
+    item2["tradeId"] = "1002"
     item2["price"] = "141.01"
-    item2["qty"] = "0.5"
-    item2["time"] = 1678886403000
+    item2["quantity"] = "0.5"
+    item2["timestamp"] = "2023-03-15T12:00:03.000000Z"
     item2["orderId"] = "order124"
-    return [valid_raw_trade_item, item2]
+    item2["fee"] = "0.0005"
+    return [item1, item2]
 
 
 @pytest.fixture
@@ -293,20 +299,36 @@ def valid_raw_order_history(valid_raw_order: dict[str, Any]) -> list[dict[str, A
 
 
 @pytest.fixture
-def valid_raw_trade_history(valid_raw_trade_item: dict[str, Any]) -> list[dict[str, Any]]:
-    # Define trade history directly, similar to valid_raw_recent_trades
-    item1 = valid_raw_trade_item.copy()
-    item1["id"] = "histTradeX001"  # Differentiate from recent trades if necessary
-    item1["orderId"] = "histOrderX001"
-    item1["time"] = 1678880000000  # Earlier timestamp
-
-    item2 = valid_raw_trade_item.copy()
-    item2["id"] = "histTradeX002"
-    item2["price"] = "141.05"  # Slightly different price
-    item2["qty"] = "0.75"
-    item2["time"] = 1678880005000
-    item2["orderId"] = "histOrderX002"
-    return [item1, item2]
+def valid_raw_trade_history(symbol_spot: str) -> list[dict[str, Any]]:
+    # Define trade history directly, ensuring it aligns with BackpackRawFill
+    # This fixture is specifically for trade history which might have different fields
+    # or more complete data than recent_trades in some APIs, but for Backpack,
+    # fills are fills. We use the corrected structure.
+    trade1 = {
+        "symbol": symbol_spot,
+        "price": "141.00",
+        "quantity": "1.5",
+        "timestamp": "2023-03-15T11:33:20.000000Z",  # Changed to ISO string
+        "tradeId": "2001",  # Changed to parsable integer string
+        "orderId": "histOrderX001",
+        "fee": "0.2115",
+        "feeSymbol": "USDC",
+        "isMaker": False,
+        "side": "buy",
+    }
+    trade2 = {
+        "symbol": symbol_spot,
+        "price": "141.05",
+        "quantity": "0.75",
+        "timestamp": "2023-03-15T11:33:21.000000Z",  # Changed to ISO string
+        "tradeId": "2002",  # Changed to parsable integer string
+        "orderId": "histOrderX002",
+        "fee": "0.1057875",
+        "feeSymbol": "USDC",
+        "isMaker": True,
+        "side": "sell",
+    }
+    return [trade1, trade2]
 
 
 @pytest.fixture
@@ -318,22 +340,25 @@ def valid_raw_market_data() -> list[list[Any]]:
 
 
 @pytest.fixture
-def valid_raw_historical_trades(valid_raw_trade_item: dict[str, Any]) -> list[dict[str, Any]]:
-    item1 = valid_raw_trade_item.copy()
-    item1["id"] = "histTrade001"
-    item1["orderId"] = "histOrderA"
-    item1["price"] = "135.00"
-    item1["qty"] = "2.0"
-    item1["time"] = 1678880000000
-
-    item2 = valid_raw_trade_item.copy()
-    item2["id"] = "histTrade002"
-    item2["orderId"] = "histOrderB"
-    item2["price"] = "135.10"
-    item2["qty"] = "1.0"
-    item2["time"] = 1678880100000
-
-    return [item1, item2]
+def valid_raw_historical_trades(symbol_spot: str) -> list[dict[str, Any]]:
+    # This fixture should provide data structured for BackpackRawTrade
+    trade1 = {
+        "id": "1001",  # Explicitly string
+        "symbol": symbol_spot,
+        "price": "135.00",
+        "qty": "2.0",  # Alias for BackpackRawTrade.quantity
+        "time": 1678880000000,
+        "orderId": "histOrderA",
+    }
+    trade2 = {
+        "id": "1002",  # Explicitly string
+        "symbol": symbol_spot,
+        "price": "135.10",
+        "qty": "1.0",  # Alias for BackpackRawTrade.quantity
+        "time": 1678880100000,
+        "orderId": "histOrderB",
+    }
+    return [trade1, trade2]
 
 
 @pytest.fixture
@@ -383,12 +408,16 @@ class TestHandleGetRecentTradesResponse:
         trades = BackpackResponseHandler.handle_get_recent_trades_response(
             cast(RawJsonResponse, valid_raw_recent_trades), symbol_spot
         )
-        assert isinstance(trades, list)
         assert len(trades) == 2
-        assert isinstance(trades[0], BackpackRawTrade)
-        assert trades[0].id == "1001"
-        assert trades[1].order_id == "order124"
-        assert trades[1].quantity == "0.5"
+        assert isinstance(trades[0], BackpackRawFill)
+        assert trades[0].symbol == symbol_spot
+        assert trades[0].trade_id == 1001
+        assert trades[0].price == "141.00"
+        assert trades[0].timestamp == "2023-03-15T12:00:02.000000Z"
+
+        assert isinstance(trades[1], BackpackRawFill)
+        assert trades[1].trade_id == 1002
+        assert trades[1].timestamp == "2023-03-15T12:00:03.000000Z"
 
 
 class TestHandleGetBalancesResponse:
@@ -535,9 +564,17 @@ class TestHandleGetTradeHistoryResponse:
         )
         assert isinstance(trades, list)
         assert len(trades) == 2
-        assert isinstance(trades[0], BackpackRawTrade)
-        assert trades[0].id == "histTradeX001"
-        assert trades[1].order_id == "histOrderX002"
+        assert isinstance(trades[0], BackpackRawFill)
+        assert trades[0].trade_id == 2001
+        assert trades[0].symbol == symbol_spot
+        assert trades[0].price == "141.00"
+        assert trades[0].timestamp == "2023-03-15T11:33:20.000000Z"
+
+        assert isinstance(trades[1], BackpackRawFill)
+        assert trades[1].trade_id == 2002
+        assert trades[1].symbol == symbol_spot
+        assert trades[1].price == "141.05"
+        assert trades[1].timestamp == "2023-03-15T11:33:21.000000Z"
 
 
 class TestHandleGetMarketDataResponse:
@@ -564,9 +601,22 @@ class TestHandleGetHistoricalTradesResponse:
         )
         assert isinstance(trades, list)
         assert len(trades) == 2
+
         assert isinstance(trades[0], BackpackRawTrade)
-        assert trades[0].id == "histTrade001"
+        assert trades[0].id == "1001"  # RawBpNonEmptyStringMax64, so it will be string "1001"
+        assert trades[0].order_id == "histOrderA"
+        assert trades[0].symbol == symbol_spot
+        assert trades[0].price == "135.00"
+        assert trades[0].quantity == "2.0"  # Access as .quantity
+        assert trades[0].time == 1678880000000
+
+        assert isinstance(trades[1], BackpackRawTrade)
+        assert trades[1].id == "1002"  # RawBpNonEmptyStringMax64, so it will be string "1002"
         assert trades[1].order_id == "histOrderB"
+        assert trades[1].symbol == symbol_spot
+        assert trades[1].price == "135.10"
+        assert trades[1].quantity == "1.0"  # Access as .quantity
+        assert trades[1].time == 1678880100000
 
 
 class TestHandleGetOrderStatusResponse:
@@ -673,7 +723,7 @@ _invalid_type_test_cases: list[InvalidTypeTestCaseType] = [
         {"error": "expected list"},
         "list",
         {"symbol": "symbol_spot"},
-        "trade history ({symbol})",
+        "trade history/fills ({symbol})",
     ),
     (
         BackpackResponseHandler.handle_get_market_data_response,
@@ -1018,11 +1068,20 @@ _list_item_error_cases: list[ListItemErrorTestCaseStructure] = [
     (
         BackpackResponseHandler.handle_get_trade_history_response,
         "valid_raw_trade_history",
-        {"modify_item": {"index": 1, "remove_field": "price"}},
-        "price",
+        {"modify_item": {"index": 0, "remove_field": "price"}},  # Remove 'price'
+        "price",  # Expected error substring (field name)
         {"symbol": "symbol_spot"},
-        "single trade history item in trade history ({symbol})",
-        False,
+        "single fill item in trade history/fills ({symbol})",  # Context - CHANGED
+        False,  # Expect APIError, not warning
+    ),
+    (
+        BackpackResponseHandler.handle_get_trade_history_response,
+        "valid_raw_trade_history",
+        {"modify_item": {"index": 1, "change_field": "quantity", "new_value": "not_a_decimal"}},
+        "quantity",  # Expected error substring (field name)
+        {"symbol": "symbol_spot"},
+        "single fill item in trade history/fills ({symbol})",  # Context - CHANGED
+        False,  # Expect APIError, not warning
     ),
     # get_market_data: Invalid item type (non-list)
     (

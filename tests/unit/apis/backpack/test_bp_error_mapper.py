@@ -328,6 +328,7 @@ class TestBackpackErrorMapper:
         assert expected_message_part in api_error.message
         assert api_error.http_status == status_code
         assert api_error.exchange_message == error_data.get("message")
+        assert api_error.metadata == error_data
 
     def test_map_empty_error_body_and_data(
         self, backpack_error_mapper: BackpackErrorMapper

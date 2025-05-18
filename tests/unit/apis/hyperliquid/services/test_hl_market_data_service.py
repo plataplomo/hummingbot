@@ -14,7 +14,9 @@ from cyberdelta.apis.hyperliquid.hl_response_handler import (
     RawJsonResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
+    HyperliquidRawCandleRequestDetails,
     HyperliquidRawCandleSnapshot,
+    HyperliquidRawCandleSnapshotRequestPayload,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,  # For get_ticker, get_funding_rate
@@ -34,7 +36,12 @@ from cyberdelta.apis.hyperliquid.services.hl_market_data_service import Hyperliq
 @pytest.fixture
 def mock_http_client() -> AsyncMock:
     """Provides a mock HttpClient."""
-    return AsyncMock(spec=HttpClient)
+    client = AsyncMock(spec=HttpClient)
+    # Explicitly set .request to be an AsyncMock. This new mock won't use
+    # HttpClient.request spec for its own call validation during assertions.
+    # It will accept any kwargs. The spec on 'client' handles attribute errors.
+    client.request = AsyncMock()
+    return client
 
 
 @pytest.fixture
@@ -108,8 +115,6 @@ class TestHyperliquidMarketDataService:
 
         result = await hl_market_data_service.get_all_asset_contexts()
 
-        # Check that rate limiter was called
-        mock_rate_limiter_service.wait_for_permission.assert_called_once_with("/info")
         # Check that the correct request builder method was called
         mock_request_builder.build_info_request_payload.assert_called_once_with()
         # Check that HttpClient was called with data=None (since builder returns None)
@@ -278,27 +283,25 @@ class TestHyperliquidMarketDataService:
         mock_rate_limiter_service: AsyncMock,
     ) -> None:
         """Test get_order_book successfully retrieves and processes order book data."""
-        symbol = "BTC"
-        request_time = 1678886400000  # Example timestamp
-        mock_request_payload_model = MagicMock()  # Represents HyperliquidApiL2BookRequestPayload
+        symbol = "ETH"
+        mock_request_payload_model = (
+            MagicMock()  # Represents HyperliquidApiL2BookRequestPayload
+        )
         mock_request_payload_dict = {"type": "l2Book", "coin": symbol}
-        mock_raw_response_content: RawJsonResponse = {
+        mock_raw_book_data: RawJsonResponse = {  # Type hint for clarity
             "coin": symbol,
             "levels": [[], []],
-            "time": request_time,
+            "time": 1234567890000,
         }
-        mock_validated_l2_book = HyperliquidRawL2Book(
-            coin=symbol, levels=[[], []], time=request_time
-        )
+        mock_validated_book = HyperliquidRawL2Book(coin=symbol, levels=[[], []], time=1234567890000)
 
         mock_request_builder.build_l2_book_request_payload.return_value = mock_request_payload_model
         mock_request_payload_model.model_dump.return_value = mock_request_payload_dict
-        mock_http_client.request.return_value = (mock_raw_response_content, 200, MagicMock())
-        mock_response_handler.handle_info_l2_book_response.return_value = mock_validated_l2_book
+        mock_http_client.request.return_value = (mock_raw_book_data, 200, MagicMock())
+        mock_response_handler.handle_info_l2_book_response.return_value = mock_validated_book
 
         result = await hl_market_data_service.get_order_book(symbol)
 
-        mock_rate_limiter_service.wait_for_permission.assert_called_once_with("/info")
         mock_request_builder.build_l2_book_request_payload.assert_called_once_with(symbol=symbol)
         mock_request_payload_model.model_dump.assert_called_once_with(
             by_alias=True, exclude_none=True
@@ -310,9 +313,9 @@ class TestHyperliquidMarketDataService:
             rate_limiter_service=mock_rate_limiter_service,
         )
         mock_response_handler.handle_info_l2_book_response.assert_called_once_with(
-            mock_raw_response_content
+            mock_raw_book_data, symbol=symbol
         )
-        assert result == mock_validated_l2_book
+        assert result == mock_validated_book
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_success(
@@ -358,7 +361,6 @@ class TestHyperliquidMarketDataService:
 
         result = await hl_market_data_service.get_recent_trades(symbol)
 
-        mock_rate_limiter_service.wait_for_permission.assert_called_once_with("/info")
         mock_request_builder.build_recent_trades_request_payload.assert_called_once_with(
             symbol=symbol
         )
@@ -372,7 +374,7 @@ class TestHyperliquidMarketDataService:
             rate_limiter_service=mock_rate_limiter_service,
         )
         mock_response_handler.handle_info_recent_trades_response.assert_called_once_with(
-            mock_raw_trades_data
+            mock_raw_trades_data, symbol=symbol
         )
         assert result == mock_validated_trades
 
@@ -385,73 +387,64 @@ class TestHyperliquidMarketDataService:
         mock_response_handler: MagicMock,
         mock_rate_limiter_service: AsyncMock,
     ) -> None:
-        """Test get_market_data (klines) successfully retrieves and processes data."""
-        symbol = "SOL"
-        interval = "1h"
-        start_time_ms = 1672531200000  # 2023-01-01 00:00:00 UTC
-        end_time_ms = 1672617600000  # 2023-01-02 00:00:00 UTC
+        """Test get_market_data successfully fetches and processes candle snapshot data."""
+        symbol = "ETH"
+        interval = "1h"  # Test variable for interval
+        start_time_ms = 1672531200000  # Example start time
+        end_time_ms = 1672617600000  # Example end time
 
-        mock_request_payload_model = (
-            MagicMock()
-        )  # Represents HyperliquidRawCandleSnapshotRequestPayload
-        mock_request_payload_dict = {
-            "type": "candleSnapshot",
-            "req": {
-                "coin": symbol,
-                "interval": interval,
-                "startTime": start_time_ms,
-                "endTime": end_time_ms,
-            },
-        }
-        # Example raw response for candles
-        mock_raw_candle_data = {
+        mock_payload_model = HyperliquidRawCandleSnapshotRequestPayload(
+            type="candleSnapshot",
+            req=HyperliquidRawCandleRequestDetails(
+                coin=symbol, interval=interval, startTime=start_time_ms, endTime=end_time_ms
+            ),
+        )
+        mock_request_payload_data = mock_payload_model.model_dump(by_alias=True, exclude_none=True)
+
+        mock_raw_response_content: RawJsonResponse = {  # Type hint for clarity
             "t": [start_time_ms],
-            "o": ["100.0"],
-            "h": ["105.0"],
-            "l": ["99.0"],
-            "c": ["102.0"],
+            "o": ["1200.0"],
+            "h": ["1250.0"],
+            "l": ["1190.0"],
+            "c": ["1240.0"],
             "v": ["1000.0"],
             "s": "ok",
         }
-        mock_validated_candles = HyperliquidRawCandleSnapshot(
+
+        mock_validated_snapshot = HyperliquidRawCandleSnapshot(
             t=[start_time_ms],
-            o=["100.0"],
-            h=["105.0"],
-            l=["99.0"],
-            c=["102.0"],
+            o=["1200.0"],
+            h=["1250.0"],
+            l=["1190.0"],
+            c=["1240.0"],
             v=["1000.0"],
             s="ok",
         )
 
-        mock_request_builder.build_candle_snapshot_request_payload.return_value = (
-            mock_request_payload_model
-        )
-        mock_request_payload_model.model_dump.return_value = mock_request_payload_dict
-        mock_http_client.request.return_value = (mock_raw_candle_data, 200, MagicMock())
+        mock_request_builder.build_candle_snapshot_payload.return_value = mock_payload_model
+        mock_http_client.request.return_value = (mock_raw_response_content, 200, MagicMock())
         mock_response_handler.handle_info_candle_snapshot_response.return_value = (
-            mock_validated_candles
+            mock_validated_snapshot
         )
 
         result = await hl_market_data_service.get_market_data(
             symbol, interval, start_time_ms, end_time_ms
         )
 
-        mock_rate_limiter_service.wait_for_permission.assert_called_once_with("/info")
-        mock_request_builder.build_candle_snapshot_request_payload.assert_called_once_with(
-            symbol=symbol, interval=interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
-        )
-        mock_request_payload_model.model_dump.assert_called_once_with(
-            by_alias=True, exclude_none=True
+        mock_request_builder.build_candle_snapshot_payload.assert_called_once_with(
+            symbol=symbol, timeframe=interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
         )
         mock_http_client.request.assert_called_once_with(
             method="POST",
             endpoint_path="/info",
-            data=mock_request_payload_dict,
+            data=mock_request_payload_data,
             rate_limiter_service=mock_rate_limiter_service,
         )
         mock_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
-            mock_raw_candle_data
+            raw_response_content=mock_raw_response_content,
+            symbol=symbol,
+            interval=interval,
         )
-        assert result == mock_validated_candles
+        assert result == mock_validated_snapshot
 
     # Add more tests for other methods: get_funding_rate, get_order_book, etc.

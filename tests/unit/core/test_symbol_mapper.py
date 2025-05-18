@@ -44,11 +44,11 @@ def test_symbol_mapper_init_success() -> None:
     mapper = SymbolMapper(VALID_CONFIG["exchanges"])
     assert mapper is not None
     assert len(mapper.get_all_internal_symbols()) == 3  # BTC, ETH, SOL
-    assert "hyperliquid" in mapper._exchange_to_internal  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
-    assert "backpack" in mapper._exchange_to_internal  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
-    assert "kraken" in mapper._exchange_to_internal  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
-    assert "disabled_exchange" not in mapper._exchange_to_internal  # pyright: ignore [reportPrivateUsage] # noqa: SLF001# Skipped
-    assert "invalid_symbols_exchange" not in mapper._exchange_to_internal  # pyright: ignore [reportPrivateUsage] # noqa: SLF001 # Skipped
+    assert "hyperliquid" in mapper._exchange_to_internal  # noqa: SLF001
+    assert "backpack" in mapper._exchange_to_internal  # noqa: SLF001
+    assert "kraken" in mapper._exchange_to_internal  # noqa: SLF001
+    assert "disabled_exchange" not in mapper._exchange_to_internal  # noqa: SLF001# Skipped
+    assert "invalid_symbols_exchange" not in mapper._exchange_to_internal  # noqa: SLF001 # Skipped
 
 
 def test_symbol_mapper_init_missing_exchanges_key() -> None:
@@ -86,10 +86,10 @@ def test_symbol_mapper_init_skips_invalid_entries(caplog: LogCaptureFixture) -> 
         mapper = SymbolMapper(config_with_invalid["exchanges"])
 
     assert mapper is not None
-    assert "valid_exchange" in mapper._exchange_to_internal  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
-    assert "missing_symbols" not in mapper._exchange_to_internal  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
-    assert "invalid_symbols_type" not in mapper._exchange_to_internal  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
-    assert "ETH" not in mapper._internal_to_exchange  # pyright: ignore [reportPrivateUsage] # noqa: SLF001 # Check symbol with invalid value not added
+    assert "valid_exchange" in mapper._exchange_to_internal  # noqa: SLF001
+    assert "missing_symbols" not in mapper._exchange_to_internal  # noqa: SLF001
+    assert "invalid_symbols_type" not in mapper._exchange_to_internal  # noqa: SLF001
+    assert "ETH" not in mapper._internal_to_exchange  # noqa: SLF001 # Check symbol with invalid value not added
 
     # Check for specific warning logs
     assert "Skipping exchange 'missing_symbols': Missing 'symbols' configuration." in caplog.text
@@ -215,5 +215,5 @@ def test_config_with_only_empty_symbols() -> None:
     config: dict[str, Any] = {"ex1": {"symbols": {}}, "ex2": {"symbols": {}}}
     mapper = SymbolMapper(config)
     assert mapper.get_all_internal_symbols() == []
-    assert "ex1" in mapper._exchange_to_internal  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
-    assert "ex2" in mapper._exchange_to_internal  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
+    assert "ex1" in mapper._exchange_to_internal  # noqa: SLF001
+    assert "ex2" in mapper._exchange_to_internal  # noqa: SLF001

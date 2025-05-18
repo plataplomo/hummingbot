@@ -17,14 +17,16 @@ class IErrorMapper(ABC):
     def map_exchange_error(
         self,
         status_code: int,
-        error_body: str,
+        error_body: str | None,
         error_data: dict[str, Any] | None,
         request_path: str | None = None,
+        original_exception: Exception | None = None,
     ) -> APIError:
         """
         Maps a raw exchange error (from HTTP status, body, or parsed data) to a
         standardized APIError.
         Implementations should handle specifics of their exchange's error reporting.
+        This can also be used to map errors derived from other exceptions.
         """
         pass
 

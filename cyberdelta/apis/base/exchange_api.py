@@ -109,7 +109,7 @@ class ExchangeAPI(ABC):
                 self.loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(self.loop)
 
-        self.authenticator = authenticator
+        self._authenticator = authenticator
         self._ws_handlers: dict[str, MessageHandler] = {}
 
         # Construct HttpClientConfig parameters carefully
@@ -236,7 +236,7 @@ class ExchangeAPI(ABC):
             APIError: For mapped exchange-specific errors or unrecoverable issues.
         """
         request_url = urljoin(self.rest_endpoint, endpoint.lstrip("/"))
-        effective_authenticator = self.authenticator if is_signed else None
+        effective_authenticator = self._authenticator if is_signed else None
 
         response_content: ParsedJsonResponse | str | None = None
         response_headers_dict: Mapping[str, str] = {}
@@ -282,11 +282,9 @@ class ExchangeAPI(ABC):
                 error_body=e_http_failed.exchange_message or "",
                 error_data=parsed_error_data,
                 request_path=request_url,
+                original_exception=e_http_failed,
             )
-            # Preserve original exception if map_exchange_error doesn't already do it
-            # (current IErrorMapper signature doesn't take original_exception)
-            # APIError constructor should take it.
-            # We can raise the mapped_error from e_http_failed to keep context.
+            # print(f"DIAGNOSTIC: Mapped error type: {type(mapped_error)}, code: {mapped_error.code}", flush=True) # DIAGNOSTIC REMOVED
             raise mapped_error from e_http_failed
 
         except (TimeoutError, aiohttp.ClientError) as e_client:
@@ -302,6 +300,7 @@ class ExchangeAPI(ABC):
                 error_body=str(e_client),
                 error_data=None,
                 request_path=request_url,
+                original_exception=e_client,
             )
             raise mapped_error from e_client
 
@@ -318,6 +317,7 @@ class ExchangeAPI(ABC):
                 error_body=str(e_unhandled),
                 error_data=None,
                 request_path=request_url,
+                original_exception=e_unhandled,
             )
             raise mapped_error from e_unhandled
 
@@ -344,20 +344,10 @@ class ExchangeAPI(ABC):
         error_body: str,
         error_data: dict[str, Any] | None,
         request_path: str | None = None,
+        original_exception: Exception | None = None,
     ) -> APIError:
-        """
-        Map exchange-specific error responses to a standardized APIError object.
-        This method now delegates to the configured `self.error_mapper`.
-
-        Args:
-            status_code: HTTP status code from the response.
-            error_body: Raw error response body as a string.
-            error_data: Parsed error data dictionary from the response, if available.
-            request_path: The API endpoint path that was called (for diagnostic metadata).
-
-        Returns:
-            APIError: A fully populated `APIError` exception object.
-        """
+        """Maps an HTTP error response to an APIError using the configured error_mapper."""
+        # Ensure error_mapper is available
         if not self.error_mapper:
             # This should not happen if __init__ forces error_mapper
             logger.error(
@@ -374,6 +364,7 @@ class ExchangeAPI(ABC):
             error_body=error_body,
             error_data=error_data,
             request_path=request_path,
+            original_exception=original_exception,
         )
 
     async def close(self) -> None:

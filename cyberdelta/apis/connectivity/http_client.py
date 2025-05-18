@@ -44,12 +44,16 @@ class HttpRequestFailedError(APIError):
         http_status_code: int,
         response_body: str | None = None,
         api_error_code: APIErrorCode = APIErrorCode.NETWORK_ISSUE,
+        metadata: dict[str, Any] | None = None,
+        original_exception: Exception | None = None,
     ) -> None:
         super().__init__(
             message=message,
             code=api_error_code.value,
             exchange_message=response_body,
             http_status=http_status_code,
+            metadata=metadata,
+            original_exception=original_exception,
         )
 
     def __str__(self) -> str:

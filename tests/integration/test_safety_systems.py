@@ -438,7 +438,7 @@ async def test_position_reconciler_detects_discrepancy(
     )
 
     # Accessing protected member _positions for test setup is intentional and safe in this context.
-    mock_bp_api._positions[symbol] = mock_position  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
+    mock_bp_api._positions[symbol] = mock_position  # noqa: SLF001
 
     # 2. Run Reconciliation
     # Assume reconciler uses portfolio_tracker.api_clients

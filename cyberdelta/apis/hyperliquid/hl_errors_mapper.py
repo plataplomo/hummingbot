@@ -12,18 +12,16 @@ Responsibilities:
   and validated APIError exceptions, suitable for consistent handling throughout the application.
 """
 
+import json
 import logging
 import re
 from typing import Any
-
-from pydantic import ValidationError
 
 from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
 from cyberdelta.apis.hyperliquid.hl_api_error import (
     HYPERLIQUID_ERROR_STRINGS,
     HyperliquidAPIErrorCategory,
 )
-from cyberdelta.apis.hyperliquid.models.hl_raw_api_error import HyperliquidRawApiError
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.api_error_response import APIErrorResponse
@@ -158,9 +156,10 @@ class HyperliquidErrorMapper(IErrorMapper):
     def map_exchange_error(
         self,
         status_code: int,
-        error_body: str,
+        error_body: str | None,
         error_data: dict[str, Any] | None,
         request_path: str | None = None,
+        original_exception: Exception | None = None,
     ) -> APIError:
         """
         Transform a raw Hyperliquid error response into a standardized APIError.
@@ -171,6 +170,7 @@ class HyperliquidErrorMapper(IErrorMapper):
             error_body: The raw error string from the response body.
             error_data: The parsed JSON error response dict, if available (e.g., {"error": "msg"}).
             request_path: The specific API endpoint path that was called, if available.
+            original_exception: The original exception that caused the error, if available.
 
         Returns:
             APIError: The standardized internal error model for business logic.
@@ -182,6 +182,7 @@ class HyperliquidErrorMapper(IErrorMapper):
                 code=APIErrorCode.SERVICE_UNAVAILABLE.value,
                 http_status=status_code,
                 exchange_message=error_body,
+                original_exception=original_exception,
             )
         if status_code == 429:
             return APIError(
@@ -189,13 +190,16 @@ class HyperliquidErrorMapper(IErrorMapper):
                 code=APIErrorCode.RATE_LIMITED.value,
                 http_status=status_code,
                 exchange_message=error_body,
+                original_exception=original_exception,
             )
         # Handle common authentication/authorization issues based on status code,
         # especially if the error_body might be generic or empty.
         if status_code == 401 or status_code == 403:
             # If error_body provides a more specific reason, map_string_error might refine it.
             # However, if error_body is empty or generic, this status code is a strong indicator.
-            specific_error_from_string = self.map_string_error(error_body, http_status=status_code)
+            specific_error_from_string = self.map_string_error(
+                error_body or "", http_status=status_code
+            )
             if (
                 specific_error_from_string.code != APIErrorCode.EXCHANGE_SPECIFIC.value
                 and error_body
@@ -210,52 +214,44 @@ class HyperliquidErrorMapper(IErrorMapper):
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 http_status=status_code,
                 exchange_message=error_body,
+                original_exception=original_exception,
             )
 
-        extracted_message = error_body
-        category = HyperliquidAPIErrorCategory.UNKNOWN
-        exchange_specific_code: str | None = None
+        # Fallback to categorizing based on error_body content if not a critical HTTP status
+        category: HyperliquidAPIErrorCategory
+        extracted_message: str = error_body or "Unknown Hyperliquid error"
 
-        if error_data:
+        if error_data and isinstance(error_data.get("error"), str):
+            # If error_data contains an 'error' string, prioritize it.
+            # This matches Hyperliquid's typical JSON error structure: {"error": "message"}
+            extracted_message = error_data["error"]
+            category = HyperliquidErrorMapper._categorize_hyperliquid_error(extracted_message)
+        elif error_body:
+            # If no error_data or error_data.error is not a string, try parsing error_body
+            # as it might be a JSON array like ["error string"], or just a plain string.
             try:
-                # Use the full path for clarity
-                error_obj = HyperliquidRawApiError.model_validate(error_data)
-                extracted_message = error_obj.error
-                # Use HyperliquidErrorMapper to call static method
-                category = HyperliquidErrorMapper._categorize_hyperliquid_error(extracted_message)
-            except ValidationError:
-                logger.warning(
-                    f"Failed to validate Hyperliquid error response_data: {error_data}. "
-                    f"Falling back to error_body: '{error_body}'"
-                )
-                category = HyperliquidErrorMapper._categorize_hyperliquid_error(error_body)
-        else:
-            # If no error_data, Hyperliquid often just sends a plain string error_body
-            # or sometimes a JSON array where the first element is a string like ["error string"]
-            # Try to parse if it looks like a list of strings
-            import json
-
-            try:
-                potential_list = json.loads(error_body)
+                potential_list = json.loads(error_body)  # Ensure error_body is not None here
                 if (
                     isinstance(potential_list, list)
                     and potential_list
                     and isinstance(potential_list[0], str)
                 ):
                     extracted_message = potential_list[0]
-                    logger.debug(f"Extracted error message from JSON list: {extracted_message}")
-            except json.JSONDecodeError:
-                pass  # Not a JSON list, use error_body as is
-
+                # else, extracted_message remains error_body (which is now confirmed not None)
+            except (json.JSONDecodeError, TypeError):
+                # Not a JSON list, or error_body was None (TypeError from json.loads)
+                # extracted_message remains error_body (which is now confirmed not None)
+                pass  # extracted_message is already set to error_body
             category = HyperliquidErrorMapper._categorize_hyperliquid_error(extracted_message)
+        else:
+            # If error_body is also None (or empty), and no error_data.error
+            extracted_message = f"Unknown Hyperliquid error (HTTP {status_code})"
+            category = HyperliquidAPIErrorCategory.UNKNOWN
 
-        if not extracted_message:
-            extracted_message = "Unknown Hyperliquid error"
+        api_error_code_enum = HyperliquidErrorMapper._map_category_to_api_error_code(category)
 
-        api_error_code = HyperliquidErrorMapper._map_category_to_api_error_code(category)
-
-        # For HyperLiquid, the `exchange_code` is less structured, we use the category for now
-        # if it's specific, or leave it None.
+        # Determine exchange_specific_code based on category
+        exchange_specific_code: str | None = None
         if (
             category != HyperliquidAPIErrorCategory.UNKNOWN
             and category != HyperliquidAPIErrorCategory.ERROR
@@ -264,7 +260,7 @@ class HyperliquidErrorMapper(IErrorMapper):
 
         api_err_response_obj = APIErrorResponse.from_exchange_error(
             message=extracted_message,
-            code=api_error_code.value,
+            code=api_error_code_enum.value,
             http_status=status_code,
             exchange_code=exchange_specific_code,  # Pass the derived exchange_specific_code
             exchange_message=extracted_message,
@@ -279,5 +275,5 @@ class HyperliquidErrorMapper(IErrorMapper):
             exchange_code=api_err_response_obj.exchange_code,
             exchange_message=api_err_response_obj.exchange_message,
             retry_after=api_err_response_obj.retry_after,
-            original_exception=None,  # Not part of interface
+            original_exception=original_exception,
         )

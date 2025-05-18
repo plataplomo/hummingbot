@@ -81,17 +81,22 @@ class BackpackAccountService:
         Raises:
             APIError: If the request fails or the response is invalid.
         """
-        endpoint = "/api/v1/capital"
-        params = self._request_builder.build_get_balances_params()
         response_data_raw: RawJsonResponse | None = None
         try:
-            # Use the passed-in requester method
+            limiter = self._rate_limiter_service.get_limiter(
+                "GET",
+                "/api/v1/capital",  # Limiter key might still use full path
+            )
+            await limiter.acquire()
+            # Call the requester (ExchangeAPI._request)
+            # Get balances does not typically take query parameters for Backpack
+            query_params_balances = self._request_builder.build_get_balances_params()
+
             response_data_raw, _, _ = await self._http_client_requester(
                 method="GET",
-                endpoint_path=endpoint,
-                params=params,
-                authenticator=self._authenticator,
-                rate_limiter_service=self._rate_limiter_service,  # Pass rate limiter
+                endpoint="/api/v1/capital",  # Use 'endpoint' positional arg
+                params=query_params_balances,  # Explicitly pass params (likely None)
+                endpoint_group="PRIVATE",
                 is_signed=True,
             )
 
@@ -143,22 +148,22 @@ class BackpackAccountService:
         Raises:
             APIError: If the request fails or the response is invalid.
         """
-        endpoint = "/api/v1/positions"
-        # The builder for get_positions_params correctly returns None if symbol is for path, or params for query.
-        # The original _request method in BackpackAPI handles combining base_url + endpoint + symbol_path_part.
-        # Here, the http_client_requester is that _request method, so it expects endpoint_path correctly.
-        # The symbol is used by the response_handler for context.
-        params = self._request_builder.build_get_positions_params(symbol=symbol)
-        actual_endpoint = f"{endpoint}/{symbol}" if symbol else endpoint
-
         response_data_raw: RawJsonResponse | None = None
         try:
+            limiter = self._rate_limiter_service.get_limiter(
+                "GET",
+                "/api/v1/positions",  # Limiter key
+            )
+            await limiter.acquire()
+            # Call the requester (ExchangeAPI._request)
+            actual_endpoint_path_positions = "/api/v1/positions"
+            query_params_positions = self._request_builder.build_get_positions_params(symbol=symbol)
+
             response_data_raw, _, _ = await self._http_client_requester(
                 method="GET",
-                endpoint_path=actual_endpoint,  # Use endpoint possibly with symbol
-                params=params,  # This should be None if symbol is in path, builder handles this
-                authenticator=self._authenticator,
-                rate_limiter_service=self._rate_limiter_service,
+                endpoint=actual_endpoint_path_positions,  # Use 'endpoint' positional arg
+                params=query_params_positions,  # Pass the built params
+                endpoint_group="PRIVATE",
                 is_signed=True,
             )
 
@@ -359,18 +364,20 @@ class BackpackAccountService:
             BackpackRawAccountSummary if successful, None if not found or error that implies absence.
             Can raise APIError for other failures.
         """
-        endpoint = "/api/v1/account"
-        params = self._request_builder.build_get_account_info_params()
         response_data_raw: RawJsonResponse | None = None
         try:
+            limiter = self._rate_limiter_service.get_limiter(
+                "GET", "/api/v1/account"
+            )  # Limiter key
+            await limiter.acquire()
+            # Call the requester (ExchangeAPI._request) with endpoint_group and endpoint_specific
             response_data_raw, status_code, _ = await self._http_client_requester(
                 method="GET",
-                endpoint_path=endpoint,
-                params=params,
-                authenticator=self._authenticator,
-                rate_limiter_service=self._rate_limiter_service,
+                endpoint_group="PRIVATE",  # Assuming this is a private endpoint
+                endpoint="/api/v1/account",  # Was endpoint_specific
                 is_signed=True,
             )
+            # Handle non-200 status if necessary, though _request might raise APIError for >=400
 
             if status_code == 404:  # Or other codes indicating 'not found'
                 logger.info(
@@ -456,10 +463,8 @@ class BackpackAccountService:
         try:
             response_data_raw, _, _ = await self._http_client_requester(
                 method="POST",
-                endpoint_path=endpoint,
+                endpoint=endpoint,  # Was endpoint_path
                 data=payload,
-                authenticator=self._authenticator,
-                rate_limiter_service=self._rate_limiter_service,
                 is_signed=True,
             )
 

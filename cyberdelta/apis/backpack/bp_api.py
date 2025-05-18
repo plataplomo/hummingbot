@@ -679,19 +679,22 @@ class BackpackAPI(ExchangeAPI):
                 f"[{self.exchange_name}] API error fetching account summary components: {e}",
                 exc_info=True,
             )
-            return None
+            raise  # Re-raise the APIError
         except ValidationError as e_map_val:
             logger.error(
                 f"[{self.exchange_name}] Validation error mapping account summary: {e_map_val}",
                 exc_info=True,
             )
             return None
-        except Exception as e_map_gen:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error mapping account summary: {e_map_gen}",
-                exc_info=True,
+        except Exception as e:
+            # Catch any other unexpected error during the summary process
+            logger.exception("Unexpected error mapping account summary: %s", str(e))
+            # This was the missing part: ensure an APIError is raised for mapping issues.
+            raise APIError(
+                message=f"Failed to map raw account summary data: {str(e)}",
+                code=APIErrorCode.INVALID_RESPONSE.value,  # Use .value for the enum
+                original_exception=e,
             )
-            return None
 
     async def transfer(
         self,

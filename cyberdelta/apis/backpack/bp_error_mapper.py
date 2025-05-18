@@ -29,7 +29,6 @@ from cyberdelta.apis.backpack.models.bp_raw_error import BackpackRawApiError
 from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.api_error_response import APIErrorResponse
 
 logger = logging.getLogger(__name__)
 
@@ -195,86 +194,111 @@ class BackpackErrorMapper(IErrorMapper):
     def map_exchange_error(
         self,
         status_code: int,
-        error_body: str,
+        error_body: str | None,
         error_data: dict[str, Any] | None = None,
         request_path: str | None = None,
+        original_exception: Exception | None = None,
     ) -> APIError:
         """
-        Map Backpack error responses to a standardized `APIError` exception object.
-
-        This method orchestrates the error mapping process:
-        1. Determines the internal `APIErrorCode` using
-           `_map_backpack_error_code_to_api_error_code`.
-        2. Extracts or defaults the primary error message.
-        3. Constructs an `APIErrorResponse` object to normalize error details.
-        4. Converts the `APIErrorResponse` into an `APIError` exception, ready to be raised.
-
-        Ensures all error propagation within the system uses the standardized `APIError`,
-        carrying consistent information like HTTP status, exchange codes, and messages.
+        Maps a raw Backpack error response to a standardized APIError object.
 
         Args:
-            status_code: HTTP status code from the response.
-            error_body: Raw error response body string.
-            error_data: Parsed error data dictionary from the response, if available.
-            request_path: The API endpoint path that was called (for diagnostic metadata).
+            status_code: HTTP status code.
+            error_body: Raw error body as a string (may be None).
+            error_data: Parsed error data (typically a dictionary).
+            request_path: Optional path of the request that failed.
+            original_exception: Optional original exception that led to this mapping.
 
         Returns:
-            APIError: A fully populated `APIError` exception object.
+            APIError: A standardized APIError object.
         """
-        mapped_code = BackpackErrorMapper._map_backpack_error_code_to_api_error_code(
-            error_body=error_body, error_data=error_data, status_code=status_code
-        )
-        msg: str = error_body  # Default message to raw body
-        if error_data and isinstance(error_data.get("msg"), str):
-            msg = error_data["msg"]
-        elif error_data and isinstance(error_data.get("message"), str):
-            msg = error_data["message"]
+        effective_error_body = error_body if error_body is not None else "No error body provided"
 
-        # Determine the exchange_message: prefer parsed, fallback to raw body
-        parsed_exchange_msg: str | None = None
+        # Initial determination of APIErrorCode based on error_data (if available) and status_code.
+        # _map_backpack_error_code_to_api_error_code will return EXCHANGE_SPECIFIC
+        # if error_data is unparseable or contains an unmapped Backpack code.
+        api_error_code_enum = self._map_backpack_error_code_to_api_error_code(
+            error_body=effective_error_body, error_data=error_data, status_code=status_code
+        )
+
+        bp_code_str: str | None = None
+        effective_exchange_message: str = effective_error_body
+        effective_message: str  # To be defined below
+
         if error_data:
-            if "msg" in error_data and isinstance(error_data["msg"], str):
-                parsed_exchange_msg = error_data["msg"]
-            elif "message" in error_data and isinstance(error_data["message"], str):
-                parsed_exchange_msg = error_data["message"]
+            try:
+                # Attempt to parse error_data as BackpackRawApiError to get specific details
+                raw_error = BackpackRawApiError.model_validate(error_data)
+                bp_code_str = raw_error.code
+                effective_exchange_message = raw_error.message
 
-        final_exchange_message = (
-            parsed_exchange_msg if parsed_exchange_msg is not None else error_body
-        )
+                # If parsing error_data was successful, construct the message.
+                # api_error_code_enum is already set based on raw_error.code if it was known,
+                # or EXCHANGE_SPECIFIC if it was an unknown (but validly structured) Backpack code.
+                if api_error_code_enum != APIErrorCode.EXCHANGE_SPECIFIC:
+                    effective_message = f"{api_error_code_enum.name.replace('_', ' ').title()}: {effective_exchange_message}"
+                else:
+                    effective_message = effective_exchange_message  # For known EXCHANGE_SPECIFIC or unmapped valid BP code
 
-        api_error_response = APIErrorResponse.from_exchange_error(
-            message=msg,  # This is the primary, potentially more user-friendly message
-            code=mapped_code.value,
-            http_status=status_code,
-            exchange_code=(
-                str(error_data.get("code")) if error_data and "code" in error_data else None
-            ),
-            exchange_message=final_exchange_message,  # Use the determined exchange message
-            metadata={"request_path": request_path} if request_path else None,
-        )
-        try:
-            code_enum = (
-                APIErrorCode(api_error_response.code)
-                if isinstance(api_error_response.code, int)
-                else APIErrorCode.EXCHANGE_SPECIFIC
-            )
-        except ValueError:
-            logger.warning(
-                f"Value '{api_error_response.code}' not a valid APIErrorCode member. Defaulting."
-            )
-            code_enum = APIErrorCode.EXCHANGE_SPECIFIC
+            except ValidationError as e_val_specific:
+                # This block is reached if error_data was present but NOT parseable by BackpackRawApiError.
+                # api_error_code_enum would have been set to EXCHANGE_SPECIFIC by
+                # _map_backpack_error_code_to_api_error_code because of this parsing failure.
+                # We should honor that EXCHANGE_SPECIFIC determination.
+                logger.warning(
+                    f"[{self.__class__.__name__}] Failed to parse error_data as BackpackRawApiError. "
+                    f"Pydantic errors: {e_val_specific.errors(include_url=False) if hasattr(e_val_specific, 'errors') else str(e_val_specific)}. "
+                    f"Original exception string: {str(e_val_specific)}. "
+                    f"Error classified as {api_error_code_enum.name} based on initial mapping."
+                )
 
-        exchange_code_str = (
-            str(api_error_response.exchange_code)
-            if api_error_response.exchange_code is not None
-            else None
-        )
+                # Try to get a more specific exchange message from error_data if possible,
+                # even if the whole structure failed validation.
+                if isinstance(error_data.get("message"), str):
+                    effective_exchange_message = error_data["message"]
+                # else: effective_exchange_message remains effective_error_body (the full JSON string)
+
+                # Construct a generic message for this unparseable error_data scenario.
+                effective_message = f"Backpack API Error (HTTP {status_code}), unparseable error data: {effective_error_body}"
+                # bp_code_str remains None as we couldn't parse it.
+                # api_error_code_enum remains as determined by _map_backpack_error_code_to_api_error_code
+                # (which should be EXCHANGE_SPECIFIC in this path).
+
+        else:  # No error_data was provided
+            effective_exchange_message = effective_error_body
+            # api_error_code_enum from _map_backpack_error_code_to_api_error_code would be EXCHANGE_SPECIFIC
+            # (as error_data was None). Test expectations suggest that when error_data is None,
+            # we should generally stick to EXCHANGE_SPECIFIC if _map_backpack_error_code_to_api_error_code
+            # returned it, rather than applying broad status code heuristics, unless the status code
+            # is very specific (like 429 for RATE_LIMITED or 401/403 for AUTHENTICATION_FAILED).
+            if api_error_code_enum == APIErrorCode.EXCHANGE_SPECIFIC:
+                if status_code == 401 or status_code == 403:
+                    api_error_code_enum = APIErrorCode.AUTHENTICATION_FAILED
+                elif status_code == 404:
+                    api_error_code_enum = APIErrorCode.ORDER_NOT_FOUND
+                elif status_code == 429:
+                    api_error_code_enum = APIErrorCode.RATE_LIMITED
+
+            # Construct message based on the potentially refined api_error_code_enum
+            if api_error_code_enum != APIErrorCode.EXCHANGE_SPECIFIC:
+                effective_message = f"{api_error_code_enum.name.replace('_', ' ').title()}: {effective_exchange_message}"
+            else:
+                effective_message = (
+                    f"Backpack API Error (HTTP {status_code}): {effective_exchange_message}"
+                )
+
+        # Construct the final APIError
+        current_metadata = error_data if error_data is not None else {}
+        if request_path:
+            current_metadata["request_path"] = request_path
+        current_metadata["exchange_name"] = "Backpack"  # Hardcode for Backpack mapper
+
         return APIError(
-            message=api_error_response.message,
-            code=code_enum.value,
-            http_status=api_error_response.http_status,
-            exchange_code=exchange_code_str,
-            exchange_message=api_error_response.exchange_message,
-            retry_after=api_error_response.retry_after,
-            original_exception=None,
+            message=effective_message,
+            code=api_error_code_enum.value,
+            http_status=status_code,
+            exchange_code=bp_code_str,
+            exchange_message=effective_exchange_message,
+            metadata=current_metadata,  # Pass updated metadata
+            original_exception=original_exception,
         )

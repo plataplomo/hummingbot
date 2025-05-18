@@ -45,9 +45,7 @@ from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 # Import fixture from another test file
-from tests.unit.apis.hyperliquid.test_hl_api import (
-    mock_raw_user_state_fixture,  # noqa: F401, RUF100
-)
+# noqa: F401, RUF100 # Removed mock_raw_user_state_fixture
 
 
 @pytest.fixture
@@ -409,20 +407,33 @@ def test_map_raw_clearinghouse_state_to_spot_balances_empty(
 
 
 def test_map_raw_clearinghouse_state_to_spot_balances_with_usdc(
-    mapper: HyperliquidMapper, mock_raw_user_state_fixture: HyperliquidRawClearinghouseState
+    mapper: HyperliquidMapper,
 ) -> None:
-    """Test mapping when raw state contains a USDC spot balance."""
-    # Modify fixture to ensure it has a clear USDC balance in assetPositions
-    # Typically, USDC balance is in marginSummary.accountValue, not assetPositions.
-    # The current mapper logic derives USDC from marginSummary.accountValue if no explicit
-    # USDC assetPosition. For this test, let's assume the mapper correctly extracts USDC.
+    """Test that USDC balance is created from marginSummary.accountValue."""
+    # This test needs a RawClearinghouseState where marginSummary.accountValue is non-zero.
+    margin_summary_with_usdc_value = HyperliquidRawMarginSummary(
+        accountValue="10000.0",  # This should result in a USDC spot balance
+        totalRawUsd="10000.0",  # Assuming totalRawUsd matches for simplicity here
+        totalMarginUsed="0",
+        totalNtlPos="0",
+    )
+    raw_state_for_usdc_test = HyperliquidRawClearinghouseState(
+        assetPositions=[],
+        marginSummary=margin_summary_with_usdc_value,
+        crossMaintenanceMarginUsed="0",
+        # For focused testing of USDC from accountValue, other summaries can be minimal
+        crossMarginSummary=HyperliquidRawMarginSummary(
+            accountValue="0", totalRawUsd="0", totalMarginUsed="0", totalNtlPos="0"
+        ),
+        isolatedMaintenanceMarginUsed="0",
+        isolatedMarginSummary=HyperliquidRawMarginSummary(
+            accountValue="0", totalRawUsd="0", totalMarginUsed="0", totalNtlPos="0"
+        ),
+        withdrawable="0",
+    )
 
-    # The mock_raw_user_state_fixture's marginSummary.accountValue is "10000.0"
-    # The mapper should create a "USDC" spot balance from this.
+    spot_balances = mapper.map_raw_clearinghouse_state_to_spot_balances(raw_state_for_usdc_test)
 
-    spot_balances = mapper.map_raw_clearinghouse_state_to_spot_balances(mock_raw_user_state_fixture)
-
-    assert isinstance(spot_balances, dict)
     assert "USDC" in spot_balances
     usdc_balance = spot_balances["USDC"]
 
@@ -431,8 +442,8 @@ def test_map_raw_clearinghouse_state_to_spot_balances_with_usdc(
     assert usdc_balance.asset == "USDC"
     assert usdc_balance.total_quantity == Decimal("10000.0")  # From marginSummary.accountValue
     assert usdc_balance.available_quantity == Decimal(
-        "8500.0"
-    )  # Corrected: From mock_raw_user_state_fixture.withdrawable
+        "0"
+    )  # Corrected: From raw_state_for_usdc_test.withdrawable which is "0"
     assert isinstance(usdc_balance.timestamp, datetime)
     assert usdc_balance.hl_details is not None
     assert isinstance(usdc_balance.hl_details, HyperliquidSpotBalanceDetails)
@@ -530,9 +541,7 @@ def test_map_raw_clearinghouse_state_to_spot_balances_with_other_spot_assets(
 
 
 @pytest.fixture
-def raw_user_state_with_positions(
-    mock_raw_user_state_fixture: HyperliquidRawClearinghouseState,
-) -> HyperliquidRawClearinghouseState:
+def raw_user_state_with_positions() -> HyperliquidRawClearinghouseState:
     """Fixture for raw user state with ETH and BTC derivative positions."""
     # mock_raw_user_state_fixture already has an ETH position. Add a BTC one.
     eth_position_asset = HyperliquidRawAssetPosition(
@@ -571,7 +580,6 @@ def raw_user_state_with_positions(
         btc_position_asset.model_dump(by_alias=False),
     ]
     updated_data_python_names = {
-        **mock_raw_user_state_fixture.model_dump(by_alias=False),
         "asset_positions": updated_asset_positions_data,
     }
     return HyperliquidRawClearinghouseState.model_validate(updated_data_python_names)
@@ -1197,86 +1205,94 @@ def test_map_raw_trades_with_transformation_error(
     mocker: MockerFixture,  # For pytest-mock
     caplog: LogCaptureFixture,  # Added caplog fixture
 ) -> None:
-    """Test that map_raw_trades handles errors from
-    transform_raw_public_trade_to_internal gracefully."""
-    # Create a raw trade that will pass HyperliquidRawPublicTrade validation
-    # but cause an issue inside transform_raw_public_trade_to_internal
-    # (e.g., hypothetical internal error)
-    # For this example, we mock transform_raw_public_trade_to_internal to raise
-    # an exception for one item.
+    """Test that errors during individual trade transformation are handled gracefully."""
+    mapper = HyperliquidMapper()  # Use a fresh mapper instance
 
-    problematic_raw_trade = HyperliquidRawPublicTrade(
-        coin="ERR-PERP",
-        side="B",
-        px="10",
-        sz="1",
-        time=int(datetime.now(UTC).timestamp() * 1000),
-        hash="0xerr",
+    # Prepare one trade that will succeed transformation by the mock,
+    # and one that will cause the mock to raise an error.
+    raw_trade_success = hyperliquid_raw_public_trade_buy_fixture.model_copy(deep=True)
+    # Use .hash for trade ID and .sz for quantity as per HyperliquidRawPublicTrade model
+    modified_data_success = raw_trade_success.model_dump()
+    modified_data_success["hash"] = "success_hash_id"
+    modified_data_success["coin"] = "ETH"
+    modified_data_success["px"] = "2000.0"
+    modified_data_success["sz"] = "1.0"
+    modified_data_success["side"] = "B"
+    modified_data_success["time"] = int(datetime.now(UTC).timestamp() * 1000)
+    raw_trade_success = HyperliquidRawPublicTrade.model_validate(modified_data_success)
+
+    raw_trade_fail = hyperliquid_raw_public_trade_buy_fixture.model_copy(deep=True)
+    modified_data_fail = raw_trade_fail.model_dump()
+    modified_data_fail["hash"] = "problematic_hash_id"
+    modified_data_fail["coin"] = "BTC"
+    modified_data_fail["px"] = "30000.0"
+    modified_data_fail["sz"] = "0.1"
+    modified_data_fail["side"] = "A"  # Corrected from "S" to "A" for sell
+    modified_data_fail["time"] = int(datetime.now(UTC).timestamp() * 1000) + 1000
+    raw_trade_fail = HyperliquidRawPublicTrade.model_validate(modified_data_fail)
+
+    # This mock will be the side_effect for the patched method
+    def mock_transform_side_effect(raw_trade_arg: HyperliquidRawPublicTrade) -> Trade | None:
+        if raw_trade_arg.hash == "problematic_hash_id":  # Check .hash
+            raise ValueError("Simulated transformation error for problematic_hash_id")
+
+        side = OrderSide.BUY if raw_trade_arg.side == "B" else OrderSide.SELL
+        # Public trades don't have a direct order_id, fee, or maker status.
+        # The mapper sets defaults for these.
+        return Trade(
+            id=str(raw_trade_arg.hash),  # Trade.id is from hash for public trades
+            symbol=raw_trade_arg.coin,
+            executed_at=parse_datetime_utc(raw_trade_arg.time, field_name="time"),  # type: ignore[arg-type]
+            side=side,
+            order_id="UNKNOWN_PUBLIC_TRADE",  # Default from mapper
+            exchange=ExchangeName.HYPERLIQUID.value,
+            price=parse_decimal_value(raw_trade_arg.px, field_name="price"),  # type: ignore[arg-type]
+            quantity=parse_decimal_value(raw_trade_arg.sz, field_name="quantity"),  # type: ignore[arg-type]
+            client_order_id=None,  # Default
+            fee=Decimal("0"),  # Default
+            fee_asset=None,  # Default
+            is_maker=None,  # Default
+            hl_details=HyperliquidTradeDetails(
+                trade_hash=raw_trade_arg.hash,
+                # These are None for public trades, as per HyperliquidMapper logic
+                liquidation_mark_px=None,
+                start_position=None,
+                dir=None,
+            ),
+            bp_details=None,  # Default
+        )
+
+    patched_method = mocker.patch.object(
+        HyperliquidMapper,
+        "transform_raw_public_trade_to_internal",
+        side_effect=mock_transform_side_effect,
     )
-    raw_trades_list = [
-        hyperliquid_raw_public_trade_buy_fixture,  # Should pass
-        problematic_raw_trade,  # Should fail during transformation
-    ]
 
-    # Mock the inner transform method to raise an error for the specific problematic trade
-    def mock_transform(raw_trade_arg: HyperliquidRawPublicTrade) -> Trade | None:
-        if raw_trade_arg.coin == "ERR-PERP":
-            # This mock simulates a failure *before* or *during* the call to the actual
-            # transform_raw_public_trade_to_internal, as if the raw data itself is problematic
-            # or a sub-process within the transform (like Decimal conversion) fails.
-            raise ValueError(f"Simulated transformation error for {raw_trade_arg.coin}")
+    mapped_trades = mapper.map_raw_trades(
+        [raw_trade_success, raw_trade_fail]
+    )  # Corrected method name
 
-        # For non-error cases, delegate to the *actual* method on the *actual* mapper instance.
-        # The `mapper` fixture is an instance of HyperliquidMapper.
-        # Check if the actual method should be called or if it's already the mocked one.
-        # If we are mocking the method on the class HyperliquidMapper directly,
-        # then it's simple.
-        # If we are mocking on an instance, we need to be careful not to call the mock
-        # recursively.
-        # The current patch is on `mapper` (an instance), so calling
-        # mapper.transform_raw_public_trade_to_internal would call the mock itself.
-        # We need the original behavior for non-error cases.
-        # For this test structure, the best way is to explicitly return a valid
-        # Trade instance for the good case.
-        if raw_trade_arg.coin != "ERR-PERP":
-            # Simulate a successful transformation for the non-problematic trade
-            return Trade(
-                id=raw_trade_arg.hash,  # Assuming hash is unique enough for ID
-                symbol=raw_trade_arg.coin,
-                executed_at=parse_datetime_utc(raw_trade_arg.time) or datetime.now(UTC),
-                side=OrderSide.BUY if raw_trade_arg.side == "B" else OrderSide.SELL,
-                order_id="mock_order_id",  # Placeholder
-                exchange=ExchangeName.HYPERLIQUID.value,
-                price=parse_decimal_value(raw_trade_arg.px) or Decimal("0"),
-                quantity=parse_decimal_value(raw_trade_arg.sz) or Decimal("0"),
-            )
-        # For the problematic trade, raise the error as intended by the test
-        raise ValueError(f"Simulated transformation error for {raw_trade_arg.coin}")
+    assert len(mapped_trades) == 1, "Only the successful trade should be mapped"
+    assert mapped_trades[0].id == "success_hash_id"  # Check 'id' now
+    assert mapped_trades[0].symbol == "ETH"
 
-    # Patch the method on the specific mapper instance used by the test
-    mocker.patch(
-        "cyberdelta.apis.hyperliquid.hl_mapper.HyperliquidMapper.transform_raw_public_trade_to_internal",
-        side_effect=mock_transform,
+    expected_log_message_part1 = (
+        "Skipping public trade due to transformation error: "
+        "Simulated transformation error for problematic_hash_id."
     )
+    expected_log_message_part2 = "Raw: {'coin': 'BTC', 'side': 'A', 'px': '30000.0', 'sz': '0.1'"  # Check start of raw data log
 
-    # Call the method under test
-    with caplog.at_level(logging.WARNING, logger="cyberdelta.apis.hyperliquid.hl_mapper"):
-        result_trades = mapper.map_raw_trades(raw_trades_list)
+    assert any(
+        expected_log_message_part1 in record.message
+        and expected_log_message_part2 in record.message
+        and "'hash': 'problematic_hash_id'"
+        in record.message  # Ensure problematic_hash_id is in raw
+        and record.levelno == logging.WARNING
+        for record in caplog.records
+    ), f"Warning for transformation error not found or doesn't match. Logs: {caplog.text}"
 
-    # Assertions:
-    # 1. Only the good trade should be in the result
-    assert len(result_trades) == 1
-    assert result_trades[0].symbol == hyperliquid_raw_public_trade_buy_fixture.coin
-
-    # 2. A warning should have been logged for the problematic trade
-    assert len(caplog.records) == 1
-    assert "Skipping public trade due to transformation error" in caplog.text
-    assert "Simulated transformation error for ERR-PERP" in caplog.text
-    assert "ERR-PERP" in caplog.text
-
-    # Old assertion (if map_raw_trades was to propagate the error):
-    # with pytest.raises(ValueError, match="Simulated transformation error for ERR-PERP"):
-    #     mapper.map_raw_trades(raw_trades_list)
+    patched_method.assert_any_call(raw_trade_success)
+    patched_method.assert_any_call(raw_trade_fail)
 
 
 # --- Tests for map_raw_ctx_to_funding_rate ---

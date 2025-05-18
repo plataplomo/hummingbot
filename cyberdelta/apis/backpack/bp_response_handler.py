@@ -96,7 +96,7 @@ class BackpackResponseHandler:
     @staticmethod
     def handle_get_recent_trades_response(
         raw_response_content: RawJsonResponse, symbol: str
-    ) -> list[BackpackRawTrade]:
+    ) -> list[BackpackRawFill]:
         """Validates the raw response for the Get Recent Trades endpoint."""
         context = f"recent trades ({symbol})"
         if not isinstance(raw_response_content, list):
@@ -106,19 +106,19 @@ class BackpackResponseHandler:
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
-        validated_trades: list[BackpackRawTrade] = []
+        validated_items: list[BackpackRawFill] = []
         for item in raw_response_content:
             # Ensure item is a dict before validating
             if not isinstance(item, dict):
                 logger.warning(f"[{__name__}] Skipping non-dict item in {context} list: {item!r}")
                 continue
             try:
-                validated_trades.append(BackpackRawTrade.model_validate(item))
+                validated_items.append(BackpackRawFill.model_validate(item))
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
                     e, f"single trade item in {context}", item
                 ) from e
-        return validated_trades
+        return validated_items
 
     @staticmethod
     def handle_get_balances_response(

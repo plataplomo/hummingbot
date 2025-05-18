@@ -541,7 +541,7 @@ async def test_happy_path_full_cycle(
     portfolio_tracker.reset()  # Explicitly reset state for this test
     # Directly set balances for testing via internal API (necessary for mocks)
     # Consider adding a test-specific method to PortfolioTracker if this pattern persists
-    portfolio_tracker._update_balance(  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
+    portfolio_tracker._update_balance(  # noqa: SLF001
         "mock_hl",
         SpotBalance(
             exchange="mock_hl",
@@ -551,7 +551,7 @@ async def test_happy_path_full_cycle(
             available_quantity=initial_usdc_balance,
         ),
     )
-    portfolio_tracker._update_balance(  # pyright: ignore [reportPrivateUsage] # noqa: SLF001
+    portfolio_tracker._update_balance(  # noqa: SLF001
         "mock_bp",
         SpotBalance(
             exchange="mock_bp",
@@ -602,8 +602,8 @@ async def test_happy_path_full_cycle(
     mock_bp_api.set_mock_ticker(mock_bp_ticker)
 
     # --- ADDED: Configure Mock APIs to fill orders immediately for this test ---
-    mock_hl_api._open_orders_behavior = "fill_immediately"  # pyright: ignore [reportPrivateUsage]
-    mock_bp_api._open_orders_behavior = "fill_immediately"  # pyright: ignore [reportPrivateUsage]
+    mock_hl_api._open_orders_behavior = "fill_immediately"
+    mock_bp_api._open_orders_behavior = "fill_immediately"
     # --- END ADDED ---
 
     # Funding Rates

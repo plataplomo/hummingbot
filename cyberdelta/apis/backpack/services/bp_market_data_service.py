@@ -76,6 +76,8 @@ class BackpackMarketDataService:
         params = self._request_builder.build_get_ticker_params(symbol=symbol)
         response_data_raw: RawJsonResponse | None = None
         try:
+            limiter = self._rate_limiter_service.get_limiter("GET", endpoint)
+            await limiter.acquire()
             response_data_raw, _, _ = await self._http_client.request(
                 method="GET",
                 endpoint_path=endpoint,
@@ -144,6 +146,8 @@ class BackpackMarketDataService:
         params = self._request_builder.build_get_order_book_params(symbol=symbol, limit=depth)
         response_raw: RawJsonResponse | None = None
         try:
+            limiter = self._rate_limiter_service.get_limiter("GET", endpoint)
+            await limiter.acquire()
             response_raw, _, _ = await self._http_client.request(
                 method="GET",
                 endpoint_path=endpoint,
@@ -214,6 +218,8 @@ class BackpackMarketDataService:
         params = self._request_builder.build_get_recent_trades_params(symbol=symbol, limit=limit)
         response_raw: RawJsonResponse | None = None
         try:
+            limiter = self._rate_limiter_service.get_limiter("GET", endpoint)
+            await limiter.acquire()
             response_raw, _, _ = await self._http_client.request(
                 method="GET",
                 endpoint_path=endpoint,
@@ -263,7 +269,7 @@ class BackpackMarketDataService:
 
     async def get_funding_rate(self, symbol: str) -> BackpackRawFundingRate:
         """
-        Retrieves the current funding rate for a specific perpetual contract symbol.
+        Retrieves the current funding rate for a specific perpetual contract.
 
         Args:
             symbol: The perpetual contract symbol (e.g., "SOL-PERP").
@@ -274,13 +280,12 @@ class BackpackMarketDataService:
         Raises:
             APIError: If the API request fails or the response is invalid.
         """
-        # Note: BackpackRequestBuilder.format_symbol might be needed if symbol format varies.
-        # For funding, it seems to be part of the path directly.
-        endpoint = f"/api/v1/markets/{self._request_builder.format_symbol(symbol)}/funding"
-        # build_get_funding_rate_params currently returns {} as per old implementation context
+        endpoint = f"/api/v1/markets/{self._request_builder.format_symbol(symbol)}/funding"  # Endpoint for funding rate
         params = self._request_builder.build_get_funding_rate_params(symbol=symbol)
         response_raw: RawJsonResponse | None = None
         try:
+            limiter = self._rate_limiter_service.get_limiter("GET", endpoint)
+            await limiter.acquire()
             response_raw, _, _ = await self._http_client.request(
                 method="GET",
                 endpoint_path=endpoint,
@@ -331,7 +336,7 @@ class BackpackMarketDataService:
         self, symbol: str, timeframe: str, limit: int = 100
     ) -> list[BackpackRawKline]:
         """
-        Retrieves historical kline (candlestick) data for a specific symbol and timeframe.
+        Retrieves historical klines (OHLCV) for a specific symbol and interval.
 
         Args:
             symbol: The trading symbol (e.g., "SOL_USDC").
@@ -350,12 +355,14 @@ class BackpackMarketDataService:
         params = self._request_builder.build_get_market_data_params(
             symbol=symbol,
             timeframe_str=timeframe,
-            start_time_ms=None,  # Not used by current service layer, but builder supports it
-            end_time_ms=None,  # Not used by current service layer, but builder supports it
             limit=limit,
+            start_time_ms=None,
+            end_time_ms=None,
         )
-        response_data_raw: RawJsonResponse | None = None  # Changed from Any for more specificity
+        response_data_raw: RawJsonResponse | None = None
         try:
+            limiter = self._rate_limiter_service.get_limiter("GET", endpoint)
+            await limiter.acquire()
             response_data_raw, _, _ = await self._http_client.request(
                 method="GET",
                 endpoint_path=endpoint,
@@ -381,29 +388,47 @@ class BackpackMarketDataService:
                 response_data_raw, symbol, timeframe
             )
 
-            validated_kline_list: list[BackpackRawKline] = []
-            for kline_data_item in raw_kline_data_list:  # Iterate directly
+            logger.debug(
+                f"[{self._exchange_name}] Successfully fetched {len(raw_kline_data_list)} "
+                f"raw kline items for {symbol}@{timeframe} before Pydantic validation."
+            )
+
+            # Convert raw kline data to BackpackRawKline objects
+            # The handler already returns List[BackpackRawKline]
+            # No, the handler for klines (handle_get_market_data_response) is currently defined
+            # to return List[List[Union[str, int, float]]], i.e., List[RawKlineDataItem]
+            # It does NOT return List[BackpackRawKline]. That's this service's job to validate.
+
+            # The response handler (handle_get_market_data_response) returns List[RawKlineDataItem]
+            # which is List[List[Union[str, int, float]]].
+            # Each sub-list needs to be validated into a BackpackRawKline model.
+            validated_klines: list[BackpackRawKline] = []
+            for kline_data_item_raw_list in raw_kline_data_list:
                 try:
-                    if isinstance(kline_data_item, dict):
-                        # Perform Pydantic validation for each item
-                        validated_kline_list.append(
-                            BackpackRawKline.model_validate(kline_data_item)
-                        )
-                    else:
-                        logger.warning(
-                            f"[{self._exchange_name}] Skipping non-dict kline item in list for "
-                            f"{(symbol)}@{(timeframe)}: {type(kline_data_item)} - {kline_data_item!r}"
-                        )
-                except ValidationError as e_item_val:
+                    # Attempt to validate each raw kline list into a BackpackRawKline model
+                    validated_kline_item = BackpackRawKline.model_validate(kline_data_item_raw_list)
+                    validated_klines.append(validated_kline_item)
+                except ValidationError as e_val_kline:
                     logger.warning(
-                        f"[{self._exchange_name}] Failed to validate individual kline item for "
-                        f"{(symbol)}@{(timeframe)}: {e_item_val}. Item: {kline_data_item!r}"
+                        f"[{self._exchange_name}] Skipping invalid kline data item for "
+                        f"{symbol}@{timeframe} due to validation error: {e_val_kline}. "
+                        f"Raw item: {kline_data_item_raw_list!r}"
                     )
-                    # Optionally, decide whether to continue or raise an error for the whole batch
+                    # Optionally, continue to process other klines or raise an error
+                    # For now, we skip and log.
 
-            return validated_kline_list
+            if not validated_klines and raw_kline_data_list:
+                # This case means all raw klines failed Pydantic validation
+                logger.error(
+                    f"[{self._exchange_name}] All raw kline items failed validation for "
+                    f"{symbol}@{timeframe}. Check warnings for details."
+                )
+                # Depending on strictness, we might raise an error here
+                # For now, returning an empty list if all fail, consistent with skipping.
 
-        except APIError:
+            return validated_klines
+
+        except APIError:  # Re-raise APIError directly
             raise
         except (ValidationError, ValueError) as e_val:  # Catches Pydantic and other ValueErrors
             logger.error(

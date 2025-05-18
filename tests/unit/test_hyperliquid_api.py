@@ -202,7 +202,7 @@ class TestHyperliquidAPI:
         # Prevent actual network calls
         client._request = AsyncMock(side_effect=RuntimeError("Network call attempted!"))  # type: ignore[method-assign]  # Test mock override
         # Ensure wallet address is set if needed for method mocks
-        client._wallet_address = hyperliquid_secrets.get(  # pyright: ignore [reportPrivateUsage]
+        client._wallet_address = hyperliquid_secrets.get(
             "wallet_address", "0xMockAddress"
         )  # Added pyright: ignore here
 
@@ -399,4 +399,4 @@ class TestHyperliquidAPI:
     ) -> None:
         """Test that connect uses the correct wallet address."""
         # This test might focus on initialization or a connection step if applicable
-        assert api_client._wallet_address == hyperliquid_secrets["wallet_address"]  # pyright: ignore [reportPrivateUsage]
+        assert api_client._wallet_address == hyperliquid_secrets["wallet_address"]

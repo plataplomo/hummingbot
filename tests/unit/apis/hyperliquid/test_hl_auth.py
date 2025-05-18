@@ -69,8 +69,8 @@ def test_hl_auth_init_success_with_private_key(
     mock_from_key.assert_called_once_with(VALID_PRIVATE_KEY_HEX)
     assert auth.wallet_address.lower() == VALID_WALLET_ADDRESS.lower()
     assert auth.chain_id == VALID_CHAIN_ID
-    assert auth._account is mock_account  # pyright: ignore [reportPrivateUsage]
-    assert auth._account.address.lower() == VALID_WALLET_ADDRESS.lower()  # pyright: ignore [reportPrivateUsage]
+    assert auth._account is mock_account
+    assert auth._account.address.lower() == VALID_WALLET_ADDRESS.lower()
 
 
 def test_hl_auth_init_success_with_account_object(mock_account: MagicMock) -> None:
@@ -82,7 +82,7 @@ def test_hl_auth_init_success_with_account_object(mock_account: MagicMock) -> No
     )
     assert auth.wallet_address.lower() == VALID_WALLET_ADDRESS.lower()
     assert auth.chain_id == VALID_CHAIN_ID
-    assert auth._account is mock_account  # pyright: ignore [reportPrivateUsage]
+    assert auth._account is mock_account
 
 
 @patch("eth_account.Account.from_key")
@@ -101,7 +101,7 @@ def test_hl_auth_init_success_no_0x_private_key(
         chain_id=VALID_CHAIN_ID,
     )
     mock_from_key.assert_called_once_with(key_no_prefix)
-    assert auth._account is mock_account  # pyright: ignore [reportPrivateUsage]
+    assert auth._account is mock_account
     assert auth.wallet_address.lower() == VALID_WALLET_ADDRESS.lower()
 
 
@@ -389,7 +389,7 @@ class TestHyperliquidEip712Authenticator:
         )
         assert auth.wallet_address == self.MOCKED_ACCOUNT_WALLET_ADDRESS
         assert auth.chain_id == self.CHAIN_ID
-        assert auth._account is mock_account  # pyright: ignore [reportPrivateUsage]
+        assert auth._account is mock_account
         mock_logger.info.assert_any_call(
             f"HyperliquidEip712Authenticator initialized for address: "
             f"{self.MOCKED_ACCOUNT_WALLET_ADDRESS} on chain_id: {self.CHAIN_ID}"
@@ -402,7 +402,7 @@ class TestHyperliquidEip712Authenticator:
         auth = auth_with_mock_from_key
         assert auth.wallet_address.lower() == self.EXPECTED_WALLET_ADDRESS_CLASS_SCOPE.lower()
         assert auth.chain_id == self.CHAIN_ID
-        assert auth._account is mock_account  # pyright: ignore [reportPrivateUsage]
+        assert auth._account is mock_account
 
     def test_instantiation_private_key_no_prefix(
         self, mock_account: MagicMock, mock_logger: MagicMock
@@ -419,7 +419,7 @@ class TestHyperliquidEip712Authenticator:
             )
         mk_from_key.assert_called_once_with(key_no_prefix)
         assert auth.wallet_address.lower() == self.EXPECTED_WALLET_ADDRESS_CLASS_SCOPE.lower()
-        assert auth._account is mock_account  # pyright: ignore [reportPrivateUsage]
+        assert auth._account is mock_account
 
     def test_instantiation_no_key_or_account_object(self, mock_logger: MagicMock) -> None:
         """Test ValueError if neither private key nor account object is provided."""
@@ -684,12 +684,12 @@ def test_internal_generate_connection_id_deterministic(
     payload1 = {"coin": "BTC", "size": "1.0", "is_buy": True, "limit_px": "50000.0"}
     payload2 = {"coin": "BTC", "size": "1.0", "is_buy": True, "limit_px": "50000.0"}
 
-    conn_id1 = auth._generate_connection_id(payload1)  # pyright: ignore [reportPrivateUsage]
-    conn_id2 = auth._generate_connection_id(payload2)  # pyright: ignore [reportPrivateUsage]
+    conn_id1 = auth._generate_connection_id(payload1)
+    conn_id2 = auth._generate_connection_id(payload2)
     assert conn_id1 == conn_id2
 
     payload_shuffled = {"limit_px": "50000.0", "is_buy": True, "size": "1.0", "coin": "BTC"}
-    conn_id_shuffled = auth._generate_connection_id(payload_shuffled)  # pyright: ignore [reportPrivateUsage]
+    conn_id_shuffled = auth._generate_connection_id(payload_shuffled)
     assert conn_id1 == conn_id_shuffled
 
 
@@ -708,9 +708,9 @@ def test_internal_generate_connection_id_content_change(
     payload2 = {"coin": "ETH", "size": "1.0"}  # Different coin
     payload3 = {"coin": "BTC", "size": "2.0"}  # Different size
 
-    conn_id1 = auth._generate_connection_id(payload1)  # pyright: ignore [reportPrivateUsage]
-    conn_id2 = auth._generate_connection_id(payload2)  # pyright: ignore [reportPrivateUsage]
-    conn_id3 = auth._generate_connection_id(payload3)  # pyright: ignore [reportPrivateUsage]
+    conn_id1 = auth._generate_connection_id(payload1)
+    conn_id2 = auth._generate_connection_id(payload2)
+    conn_id3 = auth._generate_connection_id(payload3)
 
     assert conn_id1 != conn_id2
     assert conn_id1 != conn_id3

@@ -753,13 +753,13 @@ class TestWebSocketManager:
                     try:
                         await asyncio.wait_for(restarted_listen_task, timeout=0.5)
                     except TimeoutError:
-                        manager._logger.warning(  # pyright: ignore [reportPrivateUsage]
+                        manager._logger.warning(
                             "[TEST] Restarted listener task timed out waiting for completion."
                         )
                         restarted_listen_task.cancel()
                         await asyncio.gather(restarted_listen_task, return_exceptions=True)
                     except Exception as e_wait:
-                        manager._logger.error(  # pyright: ignore [reportPrivateUsage]
+                        manager._logger.error(
                             f"[TEST] Error awaiting restarted_listen_task: {e_wait!r}"
                         )
                         test_case_logger.error(
