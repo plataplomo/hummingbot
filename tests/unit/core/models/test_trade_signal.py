@@ -45,20 +45,18 @@ def full_signal_data(minimal_signal_data: dict[str, Any]) -> dict[str, Any]:
     assert isinstance(SignalType.ENTER_LONG, SignalType)
     now = datetime.now(UTC)
     data = minimal_signal_data.copy()
-    data.update(
-        {
-            "quantity": Decimal("0.5"),
-            "exchange": ["hyperliquid", "backpack"],  # Test list
-            "timestamp": now - timedelta(seconds=10),
-            "confidence": 0.85,
-            "source_strategy": "MomentumStratV1",
-            "stop_loss": Decimal("59000.0"),
-            "take_profit": Decimal("65000.0"),
-            "expiration": now + timedelta(minutes=5),
-            "metadata": {"source_indicator": "RSI", "value": 75},
-            "signal_id": str(uuid.uuid4()),  # Override default
-        }
-    )
+    data.update({
+        "quantity": Decimal("0.5"),
+        "exchange": ["hyperliquid", "backpack"],  # Test list
+        "timestamp": now - timedelta(seconds=10),
+        "confidence": 0.85,
+        "source_strategy": "MomentumStratV1",
+        "stop_loss": Decimal("59000.0"),
+        "take_profit": Decimal("65000.0"),
+        "expiration": now + timedelta(minutes=5),
+        "metadata": {"source_indicator": "RSI", "value": 75},
+        "signal_id": str(uuid.uuid4()),  # Override default
+    })
     return data
 
 

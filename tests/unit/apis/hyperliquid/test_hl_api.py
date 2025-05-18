@@ -911,8 +911,12 @@ class TestHyperliquidAPIWebSocketRouting:
         test_message = {"channel": "unknownChannel", "data": {"some": "payload"}}
         await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore[reportPrivateUsage]
         # The log message should be: "[hyperliquid] No WS handler for 'unknownChannel'. Msg: ..."
-        # Since topic_key_for_handler == channel ('unknownChannel'), the "(or base ...)" part is skipped.
-        expected_log = f"[{api_for_ws_tests.exchange_name}] No WS handler for 'unknownChannel'. Msg: {test_message}"
+        # Since topic_key_for_handler == channel ('unknownChannel'), the "(or base ...)" part
+        # is skipped.
+        expected_log = (
+            f"[{api_for_ws_tests.exchange_name}] No WS handler for 'unknownChannel'. "
+            f"Msg: {test_message}"
+        )
         assert expected_log in caplog.text
 
     @pytest.mark.asyncio
@@ -929,7 +933,10 @@ class TestHyperliquidAPIWebSocketRouting:
         await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore[reportPrivateUsage]
         mock_handler.assert_not_called()  # Handler should not be called if no data
 
-        expected_log_part = f"[{api_for_ws_tests.exchange_name}] WS '{channel_name}' has no data. Msg: {test_message}"
+        expected_log_part = (
+            f"[{api_for_ws_tests.exchange_name}] WS '{channel_name}' "
+            f"has no data. Msg: {test_message}"
+        )
         assert expected_log_part in caplog.text, (
             f'Expected log substring "{expected_log_part}" not found. caplog.text: {caplog.text!r}'
         )
@@ -1101,7 +1108,7 @@ class TestHyperliquidAPIWebSocketRouting:
     ) -> None:
         """Test that user 'order' events correctly call both wrapper and detail handlers."""
         mock_app_handler = AsyncMock()
-        api_for_ws_tests._ws_handlers["userEvents"] = mock_app_handler  # noqa: SLF001
+        api_for_ws_tests._ws_handlers["userEvents"] = mock_app_handler
 
         raw_event_data: dict[str, Any] = {  # This is the event_item_dict
             "type": "order",
@@ -1144,7 +1151,7 @@ class TestHyperliquidAPIWebSocketRouting:
         # mock_handle_order_event handles the mock_inner_order_data_dict
         mock_handle_order_event.return_value = mock_validated_order_detail
 
-        await api_for_ws_tests._route_ws_message(ws_message)  # noqa: SLF001
+        await api_for_ws_tests._route_ws_message(ws_message)
 
         mock_handle_order_wrapper.assert_called_once_with(raw_event_data)
         mock_handle_order_event.assert_called_once_with(mock_inner_order_data_dict)
@@ -1345,7 +1352,8 @@ async def test_get_account_summary_request_fails(
             else:  # Not an APIError or doesn't have original_exception (e.g. base Exception)
                 break
 
-        # If the direct raised exception isn't the simulated_failure, check if it's the original_exception
+        # If the direct raised exception isn't the simulated_failure, check if it's
+        # the original_exception
         assert exc_info.value is simulated_failure or original_found, (
             "The raised APIError should be or contain the simulated HttpRequestFailedError"
         )
@@ -1436,8 +1444,8 @@ async def test_get_account_summary_mapper_fails(
     patched_mapper.assert_called_once()  # Verify mapper was called
     # Check logs
     assert any(
-        "Pydantic ValidationError or ValueError mapping account summary: Test mapper validation error"
-        in record[0][0]
+        "Pydantic ValidationError or ValueError mapping account summary: Test mapper"
+        " validation error" in record[0][0]
         for record in mock_logger.error.call_args_list
     )
 
@@ -1541,7 +1549,8 @@ async def test_get_funding_rates_success(
     mock_meta_response_content: list[RawJsonResponse],
     mock_hyperliquid_mapper: MagicMock,
 ) -> None:
-    """Test get_funding_rates successfully fetches and maps funding rates using _info_http_client."""
+    """Test get_funding_rates successfully fetches and maps funding rates using
+    _info_http_client."""
     # Mock the _info_http_client.request call
     # It returns (content, status_code, raw_headers_proxy)
     # For a successful call, content is mock_meta_response_content, status_code is 200.
@@ -1597,7 +1606,8 @@ async def test_get_funding_rates_success(
 
 @pytest.mark.asyncio
 async def test_get_funding_rates_api_error(hl_api_instance: HyperliquidAPI) -> None:
-    """Test get_funding_rates handles APIError from the underlying _info_http_client.request call."""
+    """Test get_funding_rates handles APIError from the underlying _info_http_client
+    .request call."""
     expected_error = APIError(
         "Test API Error from info_http_client", code=APIErrorCode.UNKNOWN.value
     )

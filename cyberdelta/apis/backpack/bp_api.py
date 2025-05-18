@@ -642,7 +642,8 @@ class BackpackAPI(ExchangeAPI):
             raise
         except Exception as e_unhandled:
             logger.error(
-                f"[{self.exchange_name}] Unexpected error fetching account info via service: {e_unhandled}",
+                f"[{self.exchange_name}] Unexpected error fetching account info via service: "
+                f"{e_unhandled}",
                 exc_info=True,
             )
             # Ensure APIError is raised for unhandled exceptions
@@ -728,8 +729,8 @@ class BackpackAPI(ExchangeAPI):
             # or a specific internal model + mapper.
             if not isinstance(raw_response, dict):
                 logger.warning(
-                    f"[{self.exchange_name}] Unexpected transfer response type: {type(raw_response)}. "
-                    f"Expected dict. Response: {raw_response!r}"
+                    f"[{self.exchange_name}] Unexpected transfer response type: "
+                    f"{type(raw_response)}. Expected dict. Response: {raw_response!r}"
                 )
                 # Fallback or raise, depending on how strictly we expect a dict.
                 # For now, let's assume it should be a dict if successful.
@@ -792,7 +793,8 @@ class BackpackAPI(ExchangeAPI):
             )
         except APIError as e:
             logger.error(
-                f"[{self.exchange_name}] API error during withdrawal of {amount} {asset} to {address}: {e}",
+                f"[{self.exchange_name}] API error during withdrawal of {amount} {asset} "
+                f"to {address}: {e}",
                 exc_info=True,
             )
             raise

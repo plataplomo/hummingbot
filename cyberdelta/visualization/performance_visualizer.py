@@ -154,15 +154,13 @@ class PerformanceVisualizer:
         fig.update_xaxes(
             rangeslider_visible=True,
             rangeselector=dict(
-                buttons=list(
-                    [
-                        dict(count=1, label="1m", step="month", stepmode="backward"),
-                        dict(count=6, label="6m", step="month", stepmode="backward"),
-                        dict(count=1, label="YTD", step="year", stepmode="todate"),
-                        dict(count=1, label="1y", step="year", stepmode="backward"),
-                        dict(step="all"),
-                    ]
-                )
+                buttons=list([
+                    dict(count=1, label="1m", step="month", stepmode="backward"),
+                    dict(count=6, label="6m", step="month", stepmode="backward"),
+                    dict(count=1, label="YTD", step="year", stepmode="todate"),
+                    dict(count=1, label="1y", step="year", stepmode="backward"),
+                    dict(step="all"),
+                ])
             ),
         )
 
@@ -247,15 +245,13 @@ class PerformanceVisualizer:
         fig.update_xaxes(
             rangeslider_visible=True,
             rangeselector=dict(
-                buttons=list(
-                    [
-                        dict(count=1, label="1m", step="month", stepmode="backward"),
-                        dict(count=6, label="6m", step="month", stepmode="backward"),
-                        dict(count=1, label="YTD", step="year", stepmode="todate"),
-                        dict(count=1, label="1y", step="year", stepmode="backward"),
-                        dict(step="all"),
-                    ]
-                )
+                buttons=list([
+                    dict(count=1, label="1m", step="month", stepmode="backward"),
+                    dict(count=6, label="6m", step="month", stepmode="backward"),
+                    dict(count=1, label="YTD", step="year", stepmode="todate"),
+                    dict(count=1, label="1y", step="year", stepmode="backward"),
+                    dict(step="all"),
+                ])
             ),
         )
 
@@ -950,25 +946,21 @@ if __name__ == "__main__":
     )
 
     # Generate sample trade data
-    trade_data = pd.DataFrame(
-        {
-            "strategy": np.random.choice(["Strategy1", "Strategy2", "Strategy3"], 100),
-            "entry_time": np.random.choice(dates, 100),
-            "exit_time": np.random.choice(dates, 100),
-            "duration": np.random.randint(1, 1000, 100),
-            "pnl": np.random.normal(50, 200, 100),
-        }
-    )
+    trade_data = pd.DataFrame({
+        "strategy": np.random.choice(["Strategy1", "Strategy2", "Strategy3"], 100),
+        "entry_time": np.random.choice(dates, 100),
+        "exit_time": np.random.choice(dates, 100),
+        "duration": np.random.randint(1, 1000, 100),
+        "pnl": np.random.normal(50, 200, 100),
+    })
 
     # Generate sample funding rate data
     assets = ["BTC", "ETH", "SOL", "ADA", "DOT"]
-    funding_data = pd.DataFrame(
-        {
-            "asset": np.repeat(assets, len(dates)),
-            "date": np.tile(dates, len(assets)),
-            "funding_rate": np.random.normal(0, 0.01, len(dates) * len(assets)),
-        }
-    )
+    funding_data = pd.DataFrame({
+        "asset": np.repeat(assets, len(dates)),
+        "date": np.tile(dates, len(assets)),
+        "funding_rate": np.random.normal(0, 0.01, len(dates) * len(assets)),
+    })
     funding_data.set_index("date", inplace=True)
 
     # Create visualizer

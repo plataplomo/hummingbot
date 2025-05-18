@@ -1038,15 +1038,12 @@ class BackpackOrderMapper:
             ValueError: If essential numeric fields cannot be parsed correctly or timestamp
                         is invalid.
         """
-        # Defensive parsing for safety
         parsed_price = parse_decimal_value(raw.price, allow_none=True, field_name="price")
         parsed_bid = parse_decimal_value(raw.bid, allow_none=True, field_name="bid")
         parsed_ask = parse_decimal_value(raw.ask, allow_none=True, field_name="ask")
         parsed_volume = parse_decimal_value(raw.volume, allow_none=True, field_name="volume")
 
         timestamp_dt: datetime
-        # Pyright indicates 'raw.time is not None' is always true, making the else block unreachable.
-        # Proceeding directly with parsing logic.
         try:
             parsed_ts: datetime | None
             if isinstance(raw.time, int | float):  # Assume ms if numeric

@@ -231,7 +231,7 @@ def test_handle_user_position_update_event_payload_valid() -> None:
             "leverage": {"type": "isolated", "value": 10},
             "maxLeverage": 50,
             "positionValue": "4375.0",
-            "returnOnEquity": "0.25"
+            "returnOnEquity": "0.25",
         },
         "time": 1678886400000,
     }
@@ -289,8 +289,7 @@ def test_handle_all_mids_payload_invalid_value_type() -> None:
     error_details = excinfo.value.original_exception.errors(include_input=False)
     # Pydantic v2 RootModel error for invalid value in dict
     assert any(
-        err["loc"] == ("ETH",) and "Expected string, got int" in err["msg"]
-        for err in error_details
+        err["loc"] == ("ETH",) and "Expected string, got int" in err["msg"] for err in error_details
     )
 
 
@@ -308,7 +307,11 @@ def test_handle_all_mids_payload_invalid_key_type() -> None:
     error_details = excinfo.value.original_exception.errors(include_input=False)
     # Pydantic v2 RootModel error for invalid key in dict
     assert any(
-        err["loc"] == (long_asset_name, "[key]") # Note: Pydantic v2 adds '[key]' to loc for dict key errors
-        and ("String value too long" in err["msg"] or "ensure this value has at most 64 characters" in err["msg"])
+        err["loc"]
+        == (long_asset_name, "[key]")  # Note: Pydantic v2 adds '[key]' to loc for dict key errors
+        and (
+            "String value too long" in err["msg"]
+            or "ensure this value has at most 64 characters" in err["msg"]
+        )
         for err in error_details
     )

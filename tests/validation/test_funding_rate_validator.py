@@ -228,29 +228,25 @@ class TestFundingRateValidator:
         old_time = datetime.now() - timedelta(days=100)
         old_timestamp = int(old_time.timestamp() * 1000)
 
-        validator.predictions.append(
-            {
-                "timestamp": old_timestamp,
-                "datetime": old_time,
-                "exchange": "hyperliquid",
-                "symbol": "ETH",
-                "predicted_rate": 0.0005,
-                "method": "api",
-                "confidence": 0.8,
-            }
-        )
+        validator.predictions.append({
+            "timestamp": old_timestamp,
+            "datetime": old_time,
+            "exchange": "hyperliquid",
+            "symbol": "ETH",
+            "predicted_rate": 0.0005,
+            "method": "api",
+            "confidence": 0.8,
+        })
 
-        validator.payments.append(
-            {
-                "timestamp": old_timestamp,
-                "datetime": old_time,
-                "exchange": "hyperliquid",
-                "symbol": "ETH",
-                "actual_rate": 0.0006,
-                "payment_amount": 0.6,
-                "position_size": 80.0,
-            }
-        )
+        validator.payments.append({
+            "timestamp": old_timestamp,
+            "datetime": old_time,
+            "exchange": "hyperliquid",
+            "symbol": "ETH",
+            "actual_rate": 0.0006,
+            "payment_amount": 0.6,
+            "position_size": 80.0,
+        })
 
         # Verify we have 4 total records
         assert len(validator.predictions) == 2

@@ -40,7 +40,7 @@ class TestRiskManagerConstraints:
         # no public interface exposes this logic.
         is_valid, _ = await risk_manager._check_portfolio_constraints(
             Decimal("1000.0"), opportunity
-        )  # noqa: SLF001
+        )
         assert is_valid, "Expected constraints to pass with default mocks"
 
     @pytest.mark.asyncio
@@ -65,7 +65,7 @@ class TestRiskManagerConstraints:
         # no public interface exposes this logic.
         is_valid, _ = await risk_manager._check_portfolio_constraints(
             Decimal("1000.0"), opportunity
-        )  # noqa: SLF001
+        )
         assert not is_valid, "Expected failure due to total exposure limit"
 
     @pytest.mark.asyncio
@@ -90,5 +90,5 @@ class TestRiskManagerConstraints:
         # no public interface exposes this logic.
         is_valid, _ = await risk_manager._check_portfolio_constraints(
             Decimal("1000.0"), opportunity
-        )  # noqa: SLF001
+        )
         assert not is_valid, "Expected failure due to leverage limit"

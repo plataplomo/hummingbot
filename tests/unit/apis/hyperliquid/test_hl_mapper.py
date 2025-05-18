@@ -1,8 +1,8 @@
-from __future__ import annotations
-
 """
 Unit tests for the HyperliquidMapper.
 """
+
+from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
@@ -1352,11 +1352,13 @@ def test_map_raw_trades_with_transformation_error(
         "Skipping public trade due to transformation error: "
         "Simulated transformation error for problematic_hash_id."
     )
-    expected_log_message_part2 = "Raw: {'coin': 'BTC', 'side': 'A', 'px': '30000.0', 'sz': '0.1'"  # Check start of raw data log
+    expected_log_message_part2 = "Raw: {'coin': 'BTC', 'side': 'A', 'px': '30000.0', "
+    expected_log_message_part3 = "'sz': '0.1'"  # Broke the long line
 
     assert any(
         expected_log_message_part1 in record.message
         and expected_log_message_part2 in record.message
+        and expected_log_message_part3 in record.message
         and "'hash': 'problematic_hash_id'"
         in record.message  # Ensure problematic_hash_id is in raw
         and record.levelno == logging.WARNING
@@ -1442,9 +1444,11 @@ def test_map_raw_ctx_to_funding_rate_btc_negative_funding(
 def test_map_raw_ctx_to_funding_rate_parsing_error_returns_funding_rate_with_none(
     mapper: HyperliquidMapper,
     mocker: MockerFixture,
-    # hyperliquid_raw_asset_ctx_eth_fixture: HyperliquidRawAssetCtx, # Not strictly needed if creating specific ctx
+    # Not strictly needed if creating specific context:
+    # hyperliquid_raw_asset_ctx_eth_fixture: HyperliquidRawAssetCtx
 ) -> None:
-    """Test that if parsing raw_ctx.funding fails internally, the method returns a FundingRate object with funding_rate=None."""
+    """Test that if parsing raw_ctx.funding fails internally, the method returns a
+    FundingRate object with funding_rate=None."""
     # Instantiate with a funding value that is valid for HyperliquidRawAssetCtx itself,
     # but we will mock parse_decimal_value to fail for this specific input.
     raw_ctx_problematic_funding = HyperliquidRawAssetCtx(  # Instantiation uses alias
@@ -1468,7 +1472,7 @@ def test_map_raw_ctx_to_funding_rate_parsing_error_returns_funding_rate_with_non
         # Check if this call is for the 'funding' field and the specific value
         if field_name == "funding" and value == "0.0000999":
             # Raise ValueError to simulate a parsing failure more accurately than returning None
-            # because parse_decimal_value is expected to raise on failure if allow_none=False (default)
+            # because parse_decimal_value is expected to raise on failure if allow_none=False
             error_message = (
                 f"Simulated parse_decimal_value failure for field '{field_name}' "
                 f"with value '{value}'"

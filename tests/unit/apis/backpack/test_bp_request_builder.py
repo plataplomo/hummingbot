@@ -355,7 +355,8 @@ def test_build_internal_transfer_payload_minimal() -> None:
         to_account="FUTURES",
     )
     expected_payload = {
-        "symbol": "USDC",  # Assumes format_symbol is applied if needed, but builder takes asset_symbol
+        "symbol": "USDC",  # Assumes format_symbol is applied if needed, but builder
+        # takes asset_symbol
         "quantity": "100.50",
         "fromAccount": "SPOT",
         "toAccount": "FUTURES",

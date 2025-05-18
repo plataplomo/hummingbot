@@ -349,10 +349,12 @@ class TestBackpackAccountService:
         assert result_no_symbol == mock_validated_positions
 
         # Reset mocks for the next call if necessary, or use different mock instances
-        # For simplicity here, we'll reconfigure the existing mock_request_builder for the symbol call.
+        # For simplicity here, we'll reconfigure the existing mock_request_builder
+        # for the symbol call.
         mock_http_client_requester.reset_mock()  # Reset call count and args for the next assertion
         mock_response_handler.reset_mock()
-        mock_request_builder.build_get_positions_params.reset_mock()  # Reset this specific method mock
+        mock_request_builder.build_get_positions_params.reset_mock()
+        # Reset this specific method mock
         mock_rate_limiter_service.get_limiter.reset_mock()
         mock_limiter_no_symbol.acquire.reset_mock()  # If using the same limiter mock instance
 

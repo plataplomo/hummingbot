@@ -101,7 +101,8 @@ class TestHyperliquidMarketDataService:
         )
         expected_data_dict = mock_payload_from_builder.model_dump(by_alias=True, exclude_none=True)
 
-        # Construct a realistic raw response content based on HyperliquidRawMetaAndAssetCtxsResponse structure
+        # Construct a realistic raw response content based on
+        # HyperliquidRawMetaAndAssetCtxsResponse structure
         mock_raw_response_content: list[RawJsonResponse] = [
             {"universe": []},  # Meta part
             [],  # AssetContexts part (empty for simplicity)

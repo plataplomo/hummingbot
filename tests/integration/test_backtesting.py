@@ -298,28 +298,24 @@ class TestBacktestingIntegration:
 
                 if price < self.price_threshold:
                     if not self.position:  # Only enter if not already in position
-                        signals.append(
-                            {
-                                "type": "ENTER_LONG",
-                                "symbol": TEST_SYMBOL,
-                                "side": "buy",
-                                "price": price,
-                                "size": Decimal("0.1"),
-                            }
-                        )
+                        signals.append({
+                            "type": "ENTER_LONG",
+                            "symbol": TEST_SYMBOL,
+                            "side": "buy",
+                            "price": price,
+                            "size": Decimal("0.1"),
+                        })
                         self.position = True  # Update position status
                 elif price > self.price_threshold * Decimal("1.1"):
                     if self.position:  # Only exit if in position
-                        signals.append(
-                            {
-                                "type": "EXIT_LONG",
-                                "symbol": TEST_SYMBOL,
-                                "side": "sell",
-                                "price": price,
-                                "size": Decimal("0.1"),
-                                "pnl": (price / self.price_threshold) - Decimal("1"),
-                            }
-                        )
+                        signals.append({
+                            "type": "EXIT_LONG",
+                            "symbol": TEST_SYMBOL,
+                            "side": "sell",
+                            "price": price,
+                            "size": Decimal("0.1"),
+                            "pnl": (price / self.price_threshold) - Decimal("1"),
+                        })
                         self.position = False  # Update position status
 
                 return {"signals": signals}

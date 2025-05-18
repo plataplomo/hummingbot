@@ -134,7 +134,8 @@ class HyperliquidAccountService:
             ) from e_val
         except Exception as e_unhandled:  # Catch any other unexpected errors
             logger.error(
-                f"[{self._exchange_name}] Unexpected error in get_account_summary_raw: {e_unhandled}",
+                f"[{self._exchange_name}] Unexpected error in get_account_summary_raw: "
+                f"{e_unhandled}",
                 exc_info=True,
             )
             raise APIError(
@@ -233,7 +234,8 @@ class HyperliquidAccountService:
             raise ValueError("Hyperliquid L2 transfers only support USDC.")
         if not self._authenticator:
             logger.error(
-                f"[{self._exchange_name}] Authenticator not available for signed request: transfer_raw"
+                f"[{self._exchange_name}] Authenticator not available for signed "
+                f"request: transfer_raw"
             )
             raise APIError(
                 message="Authenticator required for L2 transfer.",
@@ -305,7 +307,8 @@ class HyperliquidAccountService:
             raise ValueError("Destination address (L1) is required for withdrawal.")
         if not self._authenticator:
             logger.error(
-                f"[{self._exchange_name}] Authenticator not available for signed request: withdraw_raw"
+                f"[{self._exchange_name}] Authenticator not available for signed "
+                f"request: withdraw_raw"
             )
             raise APIError(
                 message="Authenticator required for L1 withdrawal.",
@@ -338,7 +341,8 @@ class HyperliquidAccountService:
 
             return self._response_handler.handle_exchange_response(
                 raw_response_content=response_data_raw,
-                action_type=payload_model.type,  # context for handler (e.g., "withdraw" or "withdrawEth")
+                action_type=payload_model.type,  # context for handler (e.g., "withdraw"
+                # or "withdrawEth")
             )
         except APIError:
             raise
@@ -519,7 +523,8 @@ class HyperliquidAccountService:
             )
 
             if response_data_raw is None:
-                # Hyperliquid returns a 404 string if order not found, which _request might parse as non-JSON
+                # Hyperliquid returns a 404 string if order not found, which _request
+                # might parse as non-JSON
                 # or return None if it can't parse. The handler expects a dict for success.
                 logger.warning(
                     f"[{self._exchange_name}] No response data or non-JSON for order status "
@@ -540,16 +545,19 @@ class HyperliquidAccountService:
             # Otherwise, if a different APIError, re-raise that.
             if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
                 logger.info(
-                    f"[{self._exchange_name}] Order oid {order_id} not found, as reported by service call."
+                    f"[{self._exchange_name}] Order oid {order_id} not found, as "
+                    f"reported by service call."
                 )
             raise
         except Exception as e_unhandled:
             logger.error(
-                f"[{self._exchange_name}] Unexpected error in get_order_status_raw for oid {order_id}: {e_unhandled}",
+                f"[{self._exchange_name}] Unexpected error in get_order_status_raw "
+                f"for oid {order_id}: {e_unhandled}",
                 exc_info=True,
             )
             raise APIError(
-                message=f"Unexpected error processing raw order status (oid {order_id}): {e_unhandled}",
+                message=f"Unexpected error processing raw order status "
+                f"(oid {order_id}): {e_unhandled}",
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e_unhandled,
             ) from e_unhandled

@@ -361,7 +361,8 @@ class BackpackAccountService:
         This typically provides general account status and settings.
 
         Returns:
-            BackpackRawAccountSummary if successful, None if not found or error that implies absence.
+            BackpackRawAccountSummary if successful, None if not found or error that
+            implies absence.
             Can raise APIError for other failures.
         """
         response_data_raw: RawJsonResponse | None = None
@@ -622,9 +623,11 @@ class BackpackAccountService:
 
         Raises:
             APIError: If any of the underlying data fetching calls fail critically.
-                      Partial data might be returned if some calls succeed and others return None (e.g. for 404s).
+                       Partial data might be returned if some calls succeed and others
+                       return None (e.g. for 404s).
         """
-        # Note: This implementation assumes that if one part fails in a way that returns None (e.g. 404),
+        # Note: This implementation assumes that if one part fails in a way that returns
+        # None (e.g. 404),
         # we still try to get the other parts. Critical APIErrors will propagate.
 
         account_info_raw: BackpackRawAccountSummary | None = None
@@ -658,7 +661,8 @@ class BackpackAccountService:
             logger.warning(
                 f"[{self._exchange_name}] Failed to get raw positions for summary: {e_pos}"
             )
-            # Similar to account_info, log and continue if positions are not critical for a partial summary
+            # Similar to account_info, log and continue if positions are not critical
+            # for a partial summary
             # or re-raise if they are essential.
             # For now, log and proceed, returning empty list if it failed this way.
 

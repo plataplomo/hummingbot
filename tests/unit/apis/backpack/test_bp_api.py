@@ -241,7 +241,7 @@ class TestBackpackAPI_Authentication:
 
             # Call the _authenticate method directly (still testing this internal,
             # but with instance's authenticator)
-            auth_result_dict = await api._authenticate(method, path, params, data)  # noqa: SLF001
+            auth_result_dict = await api._authenticate(method, path, params, data)
 
             mock_prepare_request.assert_called_once_with(
                 method=method,
@@ -265,7 +265,7 @@ class TestBackpackAPI_Authentication:
         assert api._authenticator is None  # Was api.authenticator
 
         with pytest.raises(APIError) as exc_info:
-            await api._authenticate("GET", "/test", None, None)  # noqa: SLF001
+            await api._authenticate("GET", "/test", None, None)
         assert exc_info.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
         assert "Backpack authenticator not initialized" in exc_info.value.message
 
@@ -411,14 +411,15 @@ class TestBackpackAPIMethodErrors:
             # To make the current test assertion pass given pytest.raises behavior,
             # set this to the EXPECTED MAPPED code.
             # This assumes the mapper WILL produce INVALID_SYMBOL from the response_body.
-            # The test then effectively checks that an error *like* a mapped INVALID_SYMBOL error occurs.
+            # The test then effectively checks that an error *like* a mapped INVALID_SYMBOL
+            # error occurs.
             api_error_code=APIErrorCode.INVALID_SYMBOL,  # Changed from UNKNOWN
         )
 
         # Mock api._http_client.request to raise the http_failure
         mock_http_client_request_on_api = AsyncMock(side_effect=http_failure)
 
-        with patch.object(api._http_client, "request", mock_http_client_request_on_api):  # noqa: SLF001
+        with patch.object(api._http_client, "request", mock_http_client_request_on_api):
             with pytest.raises(APIError) as exc_info:
                 await api.get_ticker(symbol="XYZ_USDC")
 
@@ -436,7 +437,8 @@ class TestBackpackAPIMethodErrors:
         assert exc_info.value.message is not None
 
         # Check request_path via metadata
-        # assert exc_info.value.metadata is not None  # This fails because exc_info.value is the original HttpRequestFailedError
+        # assert exc_info.value.metadata is not None  # This fails because exc_info.value
+        # is the original HttpRequestFailedError
 
     @pytest.mark.asyncio
     async def test_place_order_handles_mapped_insufficient_funds_error(
@@ -516,7 +518,7 @@ class TestBackpackAPIWebSocketRouting:
         mock_ws_manager.send_json = AsyncMock()
         mock_ws_manager.close = AsyncMock()
         # If WebSocketManager has an is_connected property or similar, mock it if needed
-        api._ws_manager = mock_ws_manager  # noqa: SLF001
+        api._ws_manager = mock_ws_manager
         try:
             yield api
         finally:
@@ -525,7 +527,7 @@ class TestBackpackAPIWebSocketRouting:
     @pytest.mark.asyncio
     async def test_construct_subscription_payload(self, api_for_ws_tests: BackpackAPI) -> None:
         topic = "depth.SOL_USDC"
-        payload = api_for_ws_tests._construct_subscription_payload(topic)  # noqa: SLF001
+        payload = api_for_ws_tests._construct_subscription_payload(topic)
         assert payload == {
             "op": "subscribe",
             "channel": topic,
@@ -542,8 +544,8 @@ class TestBackpackAPIWebSocketRouting:
         # Use public subscribe method
         await api_for_ws_tests.subscribe(topic, mock_handler)
         # Verify subscribe called ws_manager.send_json (implicitly tests _construct_payload)
-        assert api_for_ws_tests._ws_manager is not None  # noqa: SLF001
-        mock_send_json = cast(AsyncMock, api_for_ws_tests._ws_manager.send_json)  # noqa: SLF001
+        assert api_for_ws_tests._ws_manager is not None
+        mock_send_json = cast(AsyncMock, api_for_ws_tests._ws_manager.send_json)
         mock_send_json.assert_called_with(
             {
                 "op": "subscribe",
@@ -564,7 +566,7 @@ class TestBackpackAPIWebSocketRouting:
         }
         test_message = {"topic": topic, "data": test_message_data}
 
-        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
+        await api_for_ws_tests._handle_websocket_message(test_message)
         mock_handler.assert_called_once_with(
             BackpackRawDepthUpdateEvent.model_validate(test_message_data), test_message
         )
@@ -577,8 +579,8 @@ class TestBackpackAPIWebSocketRouting:
         topic_internal = "fills"  # This is treated as a topic by BackpackAPI
 
         await api_for_ws_tests.subscribe(topic_internal, mock_handler)
-        assert api_for_ws_tests._ws_manager is not None  # noqa: SLF001
-        mock_send_json_private = cast(AsyncMock, api_for_ws_tests._ws_manager.send_json)  # noqa: SLF001
+        assert api_for_ws_tests._ws_manager is not None
+        mock_send_json_private = cast(AsyncMock, api_for_ws_tests._ws_manager.send_json)
         mock_send_json_private.assert_called_with(
             {
                 "op": "subscribe",
@@ -604,7 +606,7 @@ class TestBackpackAPIWebSocketRouting:
         # and expects the 'data' field to contain the BackpackRawTradeEvent payload.
         test_message = {"type": topic_internal, "data": test_event_data}
 
-        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
+        await api_for_ws_tests._handle_websocket_message(test_message)
         # The handler for 'fills' (which maps to handle_trade_event_payload) expects the content
         # of ws_message["data"] as its first argument (data_payload).
         # The second argument it receives is the full ws_message.
@@ -623,7 +625,7 @@ class TestBackpackAPIWebSocketRouting:
             "data": {"key": "value"},
         }
         with patch("cyberdelta.apis.backpack.bp_api.logger.debug") as mock_logger_debug:
-            await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
+            await api_for_ws_tests._handle_websocket_message(test_message)
             # Corrected expected log message
             expected_log_msg = (
                 f"[{api_for_ws_tests.exchange_name}] Unroutable message - "
@@ -641,7 +643,7 @@ class TestBackpackAPIWebSocketRouting:
 
         test_message_no_data = {"topic": topic}  # Message has topic but no 'data' field
         with patch("cyberdelta.apis.backpack.bp_api.logger.debug") as mock_logger_debug:
-            await api_for_ws_tests._handle_websocket_message(test_message_no_data)  # noqa: SLF001
+            await api_for_ws_tests._handle_websocket_message(test_message_no_data)
             # Corrected expected log message
             mock_logger_debug.assert_called_once_with(
                 f"[{api_for_ws_tests.exchange_name}] Received message with topic/type '{topic}'"
@@ -674,7 +676,7 @@ class TestBackpackAPIWebSocketRouting:
         mock_validated_depth_model.model_dump.return_value = mock_dumped_depth_model
         mock_ws_handler_class.handle_depth_payload.return_value = mock_validated_depth_model
 
-        await api_for_ws_tests._handle_websocket_message(ws_message)  # noqa: SLF001
+        await api_for_ws_tests._handle_websocket_message(ws_message)
 
         mock_ws_handler_class.handle_depth_payload.assert_called_once_with(event_data_for_handler)
         # The app_handler receives the *data* part of the validated model_dump, plus full message
@@ -703,7 +705,7 @@ class TestBackpackAPIWebSocketRouting:
         mock_validated_ticker_model = MagicMock(spec=BackpackRawTickerEvent)
         mock_ws_handler_class.handle_ticker_payload.return_value = mock_validated_ticker_model
 
-        await api_for_ws_tests._handle_websocket_message(ws_message)  # noqa: SLF001
+        await api_for_ws_tests._handle_websocket_message(ws_message)
 
         mock_ws_handler_class.handle_ticker_payload.assert_called_once_with(raw_ticker_data)
         mock_app_handler.assert_awaited_once_with(mock_validated_ticker_model, ws_message)
@@ -733,7 +735,7 @@ class TestBackpackAPIWebSocketRouting:
         # It passes the raw data_payload directly to the app_handler.
         # So, we do not mock or assert BackpackWsRawMessageHandler methods here.
 
-        await api_for_ws_tests._handle_websocket_message(ws_message)  # noqa: SLF001
+        await api_for_ws_tests._handle_websocket_message(ws_message)
 
         # Assert that the application handler was called with the raw data and the full message
         mock_app_handler.assert_awaited_once_with(raw_trade_data, ws_message)
@@ -816,7 +818,7 @@ class TestBackpackAPIWebSocketRouting:
         mock_validated_model = MagicMock(spec=model_spec)
         getattr(mock_ws_handler_class, handler_method_name).return_value = mock_validated_model
 
-        await api_for_ws_tests._handle_websocket_message(ws_message)  # noqa: SLF001
+        await api_for_ws_tests._handle_websocket_message(ws_message)
 
         getattr(mock_ws_handler_class, handler_method_name).assert_called_once_with(raw_event_data)
         # The app_handler receives the validated Pydantic model instance as the first argument
@@ -840,9 +842,11 @@ class TestBackpackAPIGetAccountSummary:
             update={"timestamp": fixed_now}, deep=True
         )
         mock_get_account_info = AsyncMock(return_value=mock_raw_account_summary_fixture)
-        # mock_handle_balances_response and mock_handle_positions_response are for BackpackResponseHandler, not used directly here
+        # mock_handle_balances_response and mock_handle_positions_response are for
+        # BackpackResponseHandler, not used directly here
 
-        # This mock will simulate the behavior of ExchangeAPI._request / service._http_client_requester
+        # This mock will simulate the behavior of ExchangeAPI._request /
+        # service._http_client_requester
         async def mock_request_side_effect(
             method: str, endpoint: str, **kwargs: dict[str, Any]
         ) -> tuple[dict[str, Any] | list[Any], int, dict[str, str]]:  # Adjusted to return tuple
@@ -879,25 +883,19 @@ class TestBackpackAPIGetAccountSummary:
             patch.object(
                 api.account_service, "get_account_info_raw", mock_get_account_info
             ) as _mock_get_info_raw,
-            # Patches for BackpackResponseHandler methods are no longer needed here if we are mocking the requester output directly
-            # patch(
-            #     "cyberdelta.apis.backpack.bp_api.BackpackResponseHandler.handle_get_balances_response",
-            #     mock_handle_balances_response,
-            # ) as mock_handler_balances,
-            # patch(
-            #     "cyberdelta.apis.backpack.bp_api.BackpackResponseHandler.handle_get_positions_response",
-            #     mock_handle_positions_response,
-            # ) as mock_handler_positions,
+            # Patches for BackpackResponseHandler methods are no longer needed here
+            # if we are mocking the requester output directly
             patch(
                 "cyberdelta.apis.backpack.bp_order_mapper.datetime", wraps=datetime
             ) as mock_mapper_dt,
             # The patch on api._request is no longer the primary mock for service calls
-            # patch.object(api, "_request") as mock_api_request_on_api_object, # Can be removed or adapted if api._request is called elsewhere
+            # patch.object(api, "_request") as mock_api_request_on_api_object,
+            # # Can be removed or adapted if api._request is called elsewhere
         ):
             mock_mapper_dt.utcnow.return_value = fixed_now
 
-            # api._bp_mapper is used by get_account_summary to transform the results from the service.
-            # Ensure it's a mock that can be configured.
+            # api._bp_mapper is used by get_account_summary to transform the results
+            # from the service.
             api._bp_mapper = MagicMock()  # Ensure it's a mock for this test path
             api._bp_mapper.transform_raw_account_summary_to_internal = MagicMock(
                 return_value=current_expected_summary

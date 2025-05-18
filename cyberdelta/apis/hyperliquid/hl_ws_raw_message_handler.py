@@ -265,9 +265,7 @@ class HyperliquidWsRawMessageHandler:
             validated_model = HyperliquidRawAllMids.model_validate(payload)
             return validated_model
         except ValidationError as e:
-            logger.error(
-                f"Invalid Hyperliquid 'allMids' WS payload: {e}. Payload: {payload!r}"
-            )
+            logger.error(f"Invalid Hyperliquid 'allMids' WS payload: {e}. Payload: {payload!r}")
             raise APIError(
                 f"Invalid Hyperliquid 'allMids' WS payload: {e}",
                 code=APIErrorCode.INVALID_RESPONSE.value,

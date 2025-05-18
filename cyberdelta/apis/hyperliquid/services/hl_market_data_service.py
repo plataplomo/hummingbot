@@ -67,8 +67,10 @@ class HyperliquidMarketDataService:
 
         Args:
             http_client: An instance of HttpClient for making HTTP requests.
-            request_builder: An instance of HyperliquidRequestBuilder for preparing API requests.
-            response_handler: An instance of HyperliquidResponseHandler for validating API responses.
+            request_builder: An instance of HyperliquidRequestBuilder for preparing
+                API requests.
+            response_handler: An instance of HyperliquidResponseHandler for validating
+                API responses.
             rate_limiter_service: An instance of RateLimiterService for managing API call rates.
         """
         self._http_client = http_client
@@ -162,8 +164,8 @@ class HyperliquidMarketDataService:
 
             # Symbol not found in the contexts
             logger.warning(
-                f"[{self._exchange_name}] Ticker data (asset context) not found for symbol '{symbol}' "
-                f"after fetching all asset contexts."
+                f"[{self._exchange_name}] Ticker data (asset context) not found "
+                f"for symbol '{symbol}' after fetching all asset contexts."
             )
             return None  # Consistent with method signature if not found
 
@@ -171,7 +173,8 @@ class HyperliquidMarketDataService:
             raise
         except Exception as e_unhandled:
             logger.error(
-                f"[{self._exchange_name}] Unexpected error in get_ticker for {symbol}: {e_unhandled}",
+                f"[{self._exchange_name}] Unexpected error in get_ticker "
+                f"for {symbol}: {e_unhandled}",
                 exc_info=True,
             )
             # To maintain consistency with original behavior of raising APIError for failures
@@ -223,8 +226,8 @@ class HyperliquidMarketDataService:
             raise
         except ValidationError as e_val:
             logger.error(
-                f"[{self._exchange_name}] Order book response validation failed for {symbol}: {e_val}. "
-                f"Raw: {raw_response_content!r}"
+                f"[{self._exchange_name}] Order book response validation failed "
+                f"for {symbol}: {e_val}. Raw: {raw_response_content!r}"
             )
             raise APIError(
                 message=f"Failed to validate order book response for {symbol}: {e_val}",
@@ -233,7 +236,8 @@ class HyperliquidMarketDataService:
             ) from e_val
         except Exception as e_unhandled:
             logger.error(
-                f"[{self._exchange_name}] Unhandled error fetching order book for {symbol}: {e_unhandled}",
+                f"[{self._exchange_name}] Unhandled error fetching order book "
+                f"for {symbol}: {e_unhandled}",
                 exc_info=True,
             )
             raise APIError(
@@ -292,8 +296,8 @@ class HyperliquidMarketDataService:
             raise
         except ValidationError as e_val:
             logger.error(
-                f"[{self._exchange_name}] Recent trades response validation failed for {symbol}: {e_val}. "
-                f"Raw: {raw_response_content!r}"
+                f"[{self._exchange_name}] Recent trades response validation failed "
+                f"for {symbol}: {e_val}. Raw: {raw_response_content!r}"
             )
             raise APIError(
                 message=f"Failed to validate recent trades response for {symbol}: {e_val}",
@@ -302,7 +306,8 @@ class HyperliquidMarketDataService:
             ) from e_val
         except Exception as e_unhandled:
             logger.error(
-                f"[{self._exchange_name}] Unhandled error fetching recent trades for {symbol}: {e_unhandled}",
+                f"[{self._exchange_name}] Unhandled error fetching recent trades "
+                f"for {symbol}: {e_unhandled}",
                 exc_info=True,
             )
             raise APIError(
@@ -335,15 +340,16 @@ class HyperliquidMarketDataService:
                         return asset_ctx  # The entire context is returned as per definition
 
             logger.warning(
-                f"[{self._exchange_name}] Funding rate data (asset context) not found for symbol '{symbol}' "
-                f"after fetching all asset contexts."
+                f"[{self._exchange_name}] Funding rate data (asset context) not found "
+                f"for symbol '{symbol}' after fetching all asset contexts."
             )
             return None
         except APIError:  # Propagate APIErrors from get_all_asset_contexts
             raise
         except Exception as e_unhandled:
             logger.error(
-                f"[{self._exchange_name}] Unexpected error in get_funding_rate for {symbol}: {e_unhandled}",
+                f"[{self._exchange_name}] Unexpected error in get_funding_rate "
+                f"for {symbol}: {e_unhandled}",
                 exc_info=True,
             )
             raise APIError(
@@ -398,8 +404,8 @@ class HyperliquidMarketDataService:
             return validated_snapshot
         except ValidationError as e_val:
             logger.error(
-                f"[{self._exchange_name}] Candle snapshot response validation failed for {symbol}@{interval}: {e_val}. "
-                f"Raw: {raw_response_content!r}"
+                f"[{self._exchange_name}] Candle snapshot response validation failed "
+                f"for {symbol}@{interval}: {e_val}. Raw: {raw_response_content!r}"
             )
             raise APIError(
                 "Pydantic validation error during candle snapshot processing",
@@ -410,7 +416,8 @@ class HyperliquidMarketDataService:
             raise
         except Exception as e_unhandled:  # Catch any other unexpected errors
             logger.error(
-                f"[{self._exchange_name}] Unexpected error processing candle snapshot for {symbol}@{interval}: {e_unhandled}",
+                f"[{self._exchange_name}] Unexpected error processing candle snapshot "
+                f"for {symbol}@{interval}: {e_unhandled}",
                 exc_info=True,
             )
             raise APIError(

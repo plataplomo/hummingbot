@@ -241,13 +241,11 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         # Prepare headers for the authenticated request
         updated_headers = (headers or {}).copy()
         # Hyperliquid expects headers with "X-HL-" prefix for agent signature components
-        updated_headers.update(
-            {
-                "X-HL-Timestamp": str(current_timestamp_ms),  # Use actual captured timestamp
-                "X-HL-Nonce": str(current_nonce_ms),  # Use strictly increasing nonce
-                "X-HL-Signature": signature_hex,
-            }
-        )
+        updated_headers.update({
+            "X-HL-Timestamp": str(current_timestamp_ms),  # Use actual captured timestamp
+            "X-HL-Nonce": str(current_nonce_ms),  # Use strictly increasing nonce
+            "X-HL-Signature": signature_hex,
+        })
 
         # Ensure all header values are strings
         final_headers: dict[str, str] = {str(k): str(v) for k, v in updated_headers.items()}

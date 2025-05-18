@@ -151,9 +151,9 @@ class MockTradingStrategy(TradingStrategy):
         # Mock implementation that returns basic metrics
         return {
             "total_trades": len(trades),
-            "profit_loss": sum(
-                [trade["size"] * trade["price"] for trade in trades.values()]
-            ),  # Iterate over values
+            "profit_loss": sum([
+                trade["size"] * trade["price"] for trade in trades.values()
+            ]),  # Iterate over values
             "win_rate": 0.65,  # Arbitrary for testing
             "sharpe_ratio": 1.5,  # Arbitrary for testing
         }

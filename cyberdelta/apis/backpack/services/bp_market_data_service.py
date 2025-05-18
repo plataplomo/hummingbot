@@ -155,9 +155,6 @@ class BackpackMarketDataService:
                 params=params,
             )
 
-            # Validate raw order book data using the response handler
-            # The handler expects RawJsonResponse, which can be dict or list.
-            # For order book, Backpack returns a dict.
             if not isinstance(response_raw, dict):
                 logger.error(
                     f"[{self._exchange_name}] Unexpected order book response format for "
@@ -187,7 +184,8 @@ class BackpackMarketDataService:
             ) from e_val
         except Exception as e_unhandled:
             logger.error(
-                f"[{self._exchange_name}] Unexpected error in get_order_book for {symbol}: {e_unhandled}",
+                f"[{self._exchange_name}] Unexpected error in get_order_book for "
+                f"{symbol}: {e_unhandled}",
                 exc_info=True,
             )
             raise APIError(
@@ -256,7 +254,8 @@ class BackpackMarketDataService:
             ) from e_val
         except Exception as e_unhandled:
             logger.error(
-                f"[{self._exchange_name}] Unexpected error in get_recent_trades for {symbol}: {e_unhandled}",
+                f"[{self._exchange_name}] Unexpected error in get_recent_trades for "
+                f"{symbol}: {e_unhandled}",
                 exc_info=True,
             )
             raise APIError(
@@ -368,8 +367,6 @@ class BackpackMarketDataService:
                 params=params,
             )
 
-            # Validate using the handler
-            # The handler expects RawJsonResponse, which can be a list for klines.
             if not isinstance(response_data_raw, list):
                 logger.error(
                     f"[{self._exchange_name}] Unexpected klines response format for "
@@ -380,8 +377,6 @@ class BackpackMarketDataService:
                     code=APIErrorCode.INVALID_RESPONSE.value,
                 )
 
-            # Assuming handle_get_market_data_response returns a list of raw kline dicts (RawJson items)
-            # based on the linter error. We need to parse them into BackpackRawKline.
             raw_kline_data_list = self._response_handler.handle_get_market_data_response(
                 response_data_raw, symbol, timeframe
             )
@@ -391,15 +386,6 @@ class BackpackMarketDataService:
                 f"raw kline items for {symbol}@{timeframe} before Pydantic validation."
             )
 
-            # Convert raw kline data to BackpackRawKline objects
-            # The handler already returns List[BackpackRawKline]
-            # No, the handler for klines (handle_get_market_data_response) is currently defined
-            # to return List[List[Union[str, int, float]]], i.e., List[RawKlineDataItem]
-            # It does NOT return List[BackpackRawKline]. That's this service's job to validate.
-
-            # The response handler (handle_get_market_data_response) returns List[RawKlineDataItem]
-            # which is List[List[Union[str, int, float]]].
-            # Each sub-list needs to be validated into a BackpackRawKline model.
             validated_klines: list[BackpackRawKline] = []
             for kline_data_item_raw_list in raw_kline_data_list:
                 try:
@@ -412,8 +398,6 @@ class BackpackMarketDataService:
                         f"{symbol}@{timeframe} due to validation error: {e_val_kline}. "
                         f"Raw item: {kline_data_item_raw_list!r}"
                     )
-                    # Optionally, continue to process other klines or raise an error
-                    # For now, we skip and log.
 
             if not validated_klines and raw_kline_data_list:
                 # This case means all raw klines failed Pydantic validation
@@ -421,8 +405,6 @@ class BackpackMarketDataService:
                     f"[{self._exchange_name}] All raw kline items failed validation for "
                     f"{symbol}@{timeframe}. Check warnings for details."
                 )
-                # Depending on strictness, we might raise an error here
-                # For now, returning an empty list if all fail, consistent with skipping.
 
             return validated_klines
 
@@ -430,7 +412,8 @@ class BackpackMarketDataService:
             raise
         except (ValidationError, ValueError) as e_val:  # Catches Pydantic and other ValueErrors
             logger.error(
-                f"[{self._exchange_name}] Klines response validation/parsing failed for {symbol}@{timeframe}: "
+                f"[{self._exchange_name}] Klines response validation/parsing failed for "
+                f"{symbol}@{timeframe}: "
                 f"{e_val}. Raw Data: {response_data_raw!r}"
             )
             raise APIError(
@@ -440,7 +423,8 @@ class BackpackMarketDataService:
             ) from e_val
         except Exception as e_unhandled:
             logger.error(
-                f"[{self._exchange_name}] Unexpected error in get_market_data for {symbol}@{timeframe}: {e_unhandled}",
+                f"[{self._exchange_name}] Unexpected error in get_market_data for "
+                f"{symbol}@{timeframe}: {e_unhandled}",
                 exc_info=True,
             )
             raise APIError(

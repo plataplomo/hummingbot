@@ -122,25 +122,23 @@ def test_order_all_core_fields(base_order_data: dict[str, Any]) -> None:
         is_maker=False,
     )
 
-    data.update(
-        {
-            "exchange_order_id": "bp12345",
-            "related_order_id": "bp00000",
-            "status": OrderStatus.PARTIALLY_FILLED,
-            "quantity_filled": Decimal("0.5"),
-            "quote_quantity_requested": Decimal("50000.0"),
-            "average_fill_price": Decimal("50001.0"),
-            "stop_price": Decimal("49000.0"),
-            "trigger_by": TriggerType.MARK_PRICE,
-            "reduce_only": True,
-            "post_only": False,
-            "updated_at": datetime.now(UTC),
-            "triggered_at": None,
-            "strategy_name": "TestStrat",
-            "signal_id": "Sig123",
-            "trades": [trade_instance],
-        }
-    )
+    data.update({
+        "exchange_order_id": "bp12345",
+        "related_order_id": "bp00000",
+        "status": OrderStatus.PARTIALLY_FILLED,
+        "quantity_filled": Decimal("0.5"),
+        "quote_quantity_requested": Decimal("50000.0"),
+        "average_fill_price": Decimal("50001.0"),
+        "stop_price": Decimal("49000.0"),
+        "trigger_by": TriggerType.MARK_PRICE,
+        "reduce_only": True,
+        "post_only": False,
+        "updated_at": datetime.now(UTC),
+        "triggered_at": None,
+        "strategy_name": "TestStrat",
+        "signal_id": "Sig123",
+        "trades": [trade_instance],
+    })
     order = Order(**data)
     assert order.exchange_order_id == "bp12345"
     assert order.status == OrderStatus.PARTIALLY_FILLED

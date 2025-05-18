@@ -169,7 +169,8 @@ class HyperliquidAPI(ExchangeAPI):
             authenticator=self._hl_authenticator,
             rate_limiter_service=self._rate_limiter_service,
             exchange_name=self.exchange_name,
-            # info_url_base is no longer passed as it's part of info_http_client_requester's HttpClient config
+            # info_url_base is no longer passed as it's part of
+            # info_http_client_requester's HttpClient config
             wallet_address=self._wallet_address,
         )
 
@@ -253,7 +254,8 @@ class HyperliquidAPI(ExchangeAPI):
         logger.debug(
             f"[{self.exchange_name}] Asset index for {symbol} not cached, fetching meta..."
         )
-        # Removed redundant assignment: request_payload_data = HyperliquidRequestBuilder.build_info_request_payload()
+        # Removed redundant assignment: request_payload_data =
+        # HyperliquidRequestBuilder.build_info_request_payload()
 
         # Fetch all asset contexts if not cached or symbol not found
         logger.debug(f"[{self.exchange_name}] Fetching asset contexts for {symbol} index lookup.")
@@ -285,7 +287,8 @@ class HyperliquidAPI(ExchangeAPI):
             # Ensure response_content_raw is not None before casting and processing
             if response_content_raw is None:
                 logger.error(
-                    f"[{self.exchange_name}] Received None response from _info_http_client.request for metaAndAssetCtxs."
+                    f"[{self.exchange_name}] Received None response from _info_http_client.request "
+                    f"for metaAndAssetCtxs."
                 )
                 raise APIError(
                     "No data received for market metadata.",
@@ -569,19 +572,6 @@ class HyperliquidAPI(ExchangeAPI):
                                 event_item_dict
                                 # This is the outer dict with "type" and "data"
                             )
-                            # order_update_wrapper.data is dict[str, Any] as per
-                            # HyperliquidRawWsOrderUpdate
-                            # This 'data' is what needs to be parsed into HyperliquidRawOrder
-                            # or handled if it's a list of fills (which is not typical
-                            # for this wrapper's data field)
-
-                            # The previous logic for order_wrapper.data was:
-                            # Union[HyperliquidRawOrder, list[HyperliquidRawWsFillEvent],
-                            #       dict[str, Any]]
-                            # However, HyperliquidRawWsOrderUpdate.data is dict[str,Any].
-                            # The intention is that this 'data' dict is the *actual* order details.
-
-                            # If order_update_wrapper.data itself is supposed to be an Order:
                             _handle_order_event = (
                                 HyperliquidWsRawMessageHandler.handle_user_order_event_payload
                             )
@@ -700,7 +690,8 @@ class HyperliquidAPI(ExchangeAPI):
             )
         except ValidationError as e:
             logger.error(
-                f"[{self.exchange_name}] Error validating/mapping clearinghouseState for balances: {e}"
+                f"[{self.exchange_name}] Error validating/mapping clearinghouseState "
+                f"for balances: {e}"
             )
             raise APIError(
                 f"Failed to validate/map balance data structure: {e}",
@@ -800,7 +791,8 @@ class HyperliquidAPI(ExchangeAPI):
             ) from e
 
     async def get_ticker(self, symbol: str) -> Ticker:
-        """Delegates to HyperliquidMarketDataService to get ticker data, then maps to internal Ticker."""
+        """Delegates to HyperliquidMarketDataService to get ticker data, then maps to
+        internal Ticker."""
         raw_asset_ctx = await self.market_data.get_ticker(symbol)
         if raw_asset_ctx:
             return self._hl_mapper.map_raw_ctx_to_ticker(raw_asset_ctx)
@@ -809,7 +801,8 @@ class HyperliquidAPI(ExchangeAPI):
         )
 
     async def get_order_book(self, symbol: str, depth: int | None = None) -> OrderBook:
-        """Delegates to HyperliquidMarketDataService to get L2 order book data, then maps to internal OrderBook."""
+        """Delegates to HyperliquidMarketDataService to get L2 order book data, then
+        maps to internal OrderBook."""
         # The 'depth' parameter is not typically used by Hyperliquid's L2Book /info endpoint,
         # so it's removed from the API client facade here.
         # The service method handles the actual request structure.
@@ -817,7 +810,8 @@ class HyperliquidAPI(ExchangeAPI):
         return self._hl_mapper.map_raw_order_book(raw_l2_book, depth=depth)
 
     async def get_recent_trades(self, symbol: str, limit: int | None = 50) -> list[Trade]:
-        """Delegates to HyperliquidMarketDataService to get recent public trades, then maps to internal Trades."""
+        """Delegates to HyperliquidMarketDataService to get recent public trades, then
+        maps to internal Trades."""
         # The 'limit' parameter is not part of HL /info request for recentTrades.
         # The service method handles the actual request structure.
         # The service will return all available, then we limit here if needed.
@@ -933,8 +927,8 @@ class HyperliquidAPI(ExchangeAPI):
 
         except ValidationError as e:  # Should be caught by service ideally
             logger.error(
-                f"[{self.exchange_name}] Failed to validate L2 transfer response (service error?): {e}. "
-                f"Raw from service: {response_raw_model!r}"
+                f"[{self.exchange_name}] Failed to validate L2 transfer response "
+                f"(service error?): {e}. Raw from service: {response_raw_model!r}"
             )
             raise APIError(
                 f"Invalid response after L2 transfer: {e}", code=APIErrorCode.UNKNOWN.value
@@ -974,8 +968,8 @@ class HyperliquidAPI(ExchangeAPI):
                 or not response_raw_model.data.statuses
             ):
                 logger.warning(
-                    f"[{self.exchange_name}] Withdraw response 'ok' via service but data or statuses "
-                    f"list is missing/empty. Raw: {response_raw_model!r}"
+                    f"[{self.exchange_name}] Withdraw response 'ok' via service but "
+                    f"data or statuses list is missing/empty. Raw: {response_raw_model!r}"
                 )
                 raise APIError(
                     "Withdrawal status unclear: 'ok' but no status details provided.",
@@ -1031,7 +1025,8 @@ class HyperliquidAPI(ExchangeAPI):
                 else:
                     logger.warning(
                         f"[{self.exchange_name}] Withdraw status 'ok' but unrecognized obj "
-                        f"structure: {status_object.model_dump_json()!r}. Raw: {response_raw_model!r}"
+                        f"structure: {status_object.model_dump_json()!r}. "
+                        f"Raw: {response_raw_model!r}"
                     )
                     raise APIError(
                         "Withdrawal status unclear: Unrecognized success object structure.",
@@ -1039,8 +1034,8 @@ class HyperliquidAPI(ExchangeAPI):
                     )
         except ValidationError as e:  # Should be caught by service ideally
             logger.error(
-                f"[{self.exchange_name}] Validation error processing withdraw response (service error?): {e}. "
-                f"Raw from service: {response_raw_model!r}"
+                f"[{self.exchange_name}] Validation error processing withdraw response "
+                f"(service error?): {e}. Raw from service: {response_raw_model!r}"
             )
             raise APIError(
                 f"Failed to validate withdraw response: {e}",
@@ -1220,7 +1215,8 @@ class HyperliquidAPI(ExchangeAPI):
             ValueError,
         ) as e_outer:  # Catch validation/value errors during service call / initial processing
             logger.error(
-                f"[{self.exchange_name}] Error processing order history response (service error?): {e_outer}. "
+                f"[{self.exchange_name}] Error processing order history response "
+                f"(service error?): {e_outer}. "
                 f"Raw from service (if available): {raw_order_history_list_from_service!r}",
                 exc_info=True,
             )
@@ -1259,7 +1255,8 @@ class HyperliquidAPI(ExchangeAPI):
                     try:
                         if symbol is not None and raw_fill.coin != symbol:
                             continue
-                        # Cast raw_fill (HyperliquidRawUserFill) to HyperliquidRawFill for the mapper
+                        # Cast raw_fill (HyperliquidRawUserFill) to HyperliquidRawFill
+                        # for the mapper
                         internal_trade = self._hl_mapper.transform_raw_fill_to_internal(
                             cast(
                                 HyperliquidRawFill, raw_fill
@@ -1276,7 +1273,8 @@ class HyperliquidAPI(ExchangeAPI):
                         continue
             else:  # Handle case where raw_fills_response or raw_fills_response.root is None
                 logger.warning(
-                    f"[{self.exchange_name}] No trade history data received from service or data is empty."
+                    f"[{self.exchange_name}] No trade history data received from service "
+                    f"or data is empty."
                 )
 
             trades.sort(key=lambda t: t.executed_at, reverse=True)
@@ -1317,7 +1315,8 @@ class HyperliquidAPI(ExchangeAPI):
             # Ensure response_content_raw is not None before casting and processing
             if response_content_raw is None:
                 logger.error(
-                    f"[{self.exchange_name}] Received None response from _info_http_client.request for metaAndAssetCtxs."
+                    f"[{self.exchange_name}] Received None response from _info_http_client.request "
+                    f"for metaAndAssetCtxs."
                 )
                 raise APIError(
                     "No data received for market metadata.",
@@ -1768,7 +1767,8 @@ class HyperliquidAPI(ExchangeAPI):
             converted_order_id = int(order_id)
         except ValueError as e_val_int:  # Catches if int(order_id) fails
             logger.error(
-                f"[{self.exchange_name}] Invalid order_id format for get_order_status: '{order_id}'. Error: {e_val_int}"
+                f"[{self.exchange_name}] Invalid order_id format for get_order_status: "
+                f"'{order_id}'. Error: {e_val_int}"
             )
             raise APIError(
                 f"Invalid order_id format: '{order_id}'",
@@ -1799,7 +1799,8 @@ class HyperliquidAPI(ExchangeAPI):
             ValidationError
         ) as e_val:  # Catches Pydantic errors from service raw model validation or mapping
             logger.error(
-                f"[{self.exchange_name}] Validation error in get_order_status (service/mapper): {e_val}. "
+                f"[{self.exchange_name}] Validation error in get_order_status "
+                f"(service/mapper): {e_val}. "
             )
             raise APIError(
                 "Pydantic validation error processing order status.",
@@ -1815,7 +1816,8 @@ class HyperliquidAPI(ExchangeAPI):
                 exc_info=True,
             )
             raise APIError(
-                f"Unexpected ValueError processing order status for order_id '{order_id}': {e_gen_val}",
+                f"Unexpected ValueError processing order status for order_id "
+                f"'{order_id}': {e_gen_val}",
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e_gen_val,
             ) from e_gen_val
@@ -1872,7 +1874,8 @@ class HyperliquidAPI(ExchangeAPI):
             ValueError,
         ) as e_map_val:  # Catch Pydantic ValidationError and general ValueError
             logger.error(
-                f"[{self.exchange_name}] Pydantic ValidationError or ValueError mapping account summary: {e_map_val}",
+                f"[{self.exchange_name}] Pydantic ValidationError or ValueError "
+                f"mapping account summary: {e_map_val}",
                 exc_info=True,
             )
             raise APIError(

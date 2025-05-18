@@ -354,9 +354,9 @@ class TestSignalGenerator:
         assert volatility > Decimal("0.0")  # Ensure not zero
 
         # Test insufficient data (should return default volatility)
-        signal_generator.historical_funding_rates["test_ex"]["TEST_INSUFFICIENT"] = deque(
-            [(now, Decimal("0.0001"))]
-        )
+        signal_generator.historical_funding_rates["test_ex"]["TEST_INSUFFICIENT"] = deque([
+            (now, Decimal("0.0001"))
+        ])
         volatility_insufficient = signal_generator.calculate_funding_rate_volatility(
             "test_ex", "TEST_INSUFFICIENT"
         )

@@ -85,12 +85,10 @@ class BacktestResultsHandler:
             timestamp: Point timestamp
             equity: Equity value
         """
-        self.equity_curve.append(
-            {
-                "timestamp": timestamp,
-                "equity": float(equity),  # Convert to float for JSON serialization
-            }
-        )
+        self.equity_curve.append({
+            "timestamp": timestamp,
+            "equity": float(equity),  # Convert to float for JSON serialization
+        })
 
     def calculate_returns(self) -> pd.Series:
         """
@@ -188,16 +186,14 @@ class BacktestResultsHandler:
         sharpe_ratio = annualized_return / volatility if volatility > 0 else 0.0
 
         # Add more metrics
-        self.metrics.update(
-            {
-                "total_return": float(total_return),
-                "annualized_return": float(annualized_return),
-                "annualized_volatility": float(volatility),
-                "sharpe_ratio": float(sharpe_ratio),
-                "max_drawdown": float(max_drawdown),
-                "num_trades": len(self.trades),  # Redundant? Already set above. Consider removing.
-            }
-        )
+        self.metrics.update({
+            "total_return": float(total_return),
+            "annualized_return": float(annualized_return),
+            "annualized_volatility": float(volatility),
+            "sharpe_ratio": float(sharpe_ratio),
+            "max_drawdown": float(max_drawdown),
+            "num_trades": len(self.trades),  # Redundant? Already set above. Consider removing.
+        })
 
         # Calculate additional trade metrics if we have trades
         if self.trades:
@@ -220,15 +216,13 @@ class BacktestResultsHandler:
                 float(total_profit / total_loss) if total_loss > 0 else float("inf")
             )  # Ensure float
 
-            self.metrics.update(
-                {
-                    "avg_win": float(avg_win),
-                    "avg_loss": float(avg_loss),
-                    "profit_factor": float(profit_factor),
-                    "total_profit": float(total_profit),
-                    "total_loss": float(total_loss),
-                }
-            )
+            self.metrics.update({
+                "avg_win": float(avg_win),
+                "avg_loss": float(avg_loss),
+                "profit_factor": float(profit_factor),
+                "total_profit": float(total_profit),
+                "total_loss": float(total_loss),
+            })
 
         return self.metrics
 

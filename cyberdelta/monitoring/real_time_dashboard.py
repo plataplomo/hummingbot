@@ -86,198 +86,160 @@ class RealTimeDashboard:
         """Set up the dashboard layout."""
         self.app.layout = dbc.Container(
             [
-                dbc.Row(
-                    [
-                        dbc.Col(
-                            [
-                                html.H1(
-                                    "CyberDeltaEngine Dashboard",
-                                    className="text-center my-4",
-                                ),
-                                html.Div(
-                                    id="last-update-time",
-                                    className="text-center text-muted mb-4",
-                                ),
-                            ],
-                            width=12,
-                        )
-                    ]
-                ),
-                dbc.Row(
-                    [
-                        dbc.Col(
-                            [
-                                dbc.Card(
-                                    [
-                                        dbc.CardHeader("Strategy Selection"),
-                                        dbc.CardBody(
-                                            [
-                                                dcc.Dropdown(
-                                                    id="strategy-selector",
-                                                    options=[],  # Will be populated in callback
-                                                    multi=True,
-                                                    placeholder="Select strategies to display",
-                                                ),
-                                                html.Div(className="mt-3"),
-                                                dcc.RadioItems(
-                                                    id="time-range-selector",
-                                                    options=[
-                                                        {
-                                                            "label": "1 Hour",
-                                                            "value": "1h",
-                                                        },
-                                                        {
-                                                            "label": "1 Day",
-                                                            "value": "1d",
-                                                        },
-                                                        {
-                                                            "label": "1 Week",
-                                                            "value": "1w",
-                                                        },
-                                                        {
-                                                            "label": "1 Month",
-                                                            "value": "1m",
-                                                        },
-                                                        {
-                                                            "label": "All Time",
-                                                            "value": "all",
-                                                        },
-                                                    ],
-                                                    value="1d",
-                                                    inline=True,
-                                                ),
-                                            ]
-                                        ),
-                                    ]
-                                ),
-                            ],
-                            width=12,
-                        ),
-                    ]
-                ),
-                dbc.Row(
-                    [
-                        dbc.Col(
-                            [
-                                dbc.Card(
-                                    [
-                                        dbc.CardHeader("Performance Overview"),
-                                        dbc.CardBody(
-                                            [
-                                                dcc.Graph(
-                                                    id="performance-overview",
-                                                    style={"height": "400px"},
-                                                ),
-                                            ]
-                                        ),
-                                    ]
-                                ),
-                            ],
-                            width=12,
-                            className="mt-4",
-                        ),
-                    ]
-                ),
-                dbc.Row(
-                    [
-                        dbc.Col(
-                            [
-                                dbc.Card(
-                                    [
-                                        dbc.CardHeader("Drawdown Analysis"),
-                                        dbc.CardBody(
-                                            [
-                                                dcc.Graph(
-                                                    id="drawdown-chart",
-                                                    style={"height": "300px"},
-                                                ),
-                                            ]
-                                        ),
-                                    ]
-                                ),
-                            ],
-                            width=6,
-                            className="mt-4",
-                        ),
-                        dbc.Col(
-                            [
-                                dbc.Card(
-                                    [
-                                        dbc.CardHeader("PnL Distribution"),
-                                        dbc.CardBody(
-                                            [
-                                                dcc.Graph(
-                                                    id="pnl-distribution",
-                                                    style={"height": "300px"},
-                                                ),
-                                            ]
-                                        ),
-                                    ]
-                                ),
-                            ],
-                            width=6,
-                            className="mt-4",
-                        ),
-                    ]
-                ),
-                dbc.Row(
-                    [
-                        dbc.Col(
-                            [
-                                dbc.Card(
-                                    [
-                                        dbc.CardHeader("Trade Analysis"),
-                                        dbc.CardBody(
-                                            [
-                                                dcc.Graph(
-                                                    id="trade-analysis",
-                                                    style={"height": "400px"},
-                                                ),
-                                            ]
-                                        ),
-                                    ]
-                                ),
-                            ],
-                            width=6,
-                            className="mt-4",
-                        ),
-                        dbc.Col(
-                            [
-                                dbc.Card(
-                                    [
-                                        dbc.CardHeader("Funding Rate Heatmap"),
-                                        dbc.CardBody(
-                                            [
-                                                dcc.Graph(
-                                                    id="funding-rate-heatmap",
-                                                    style={"height": "400px"},
-                                                ),
-                                            ]
-                                        ),
-                                    ]
-                                ),
-                            ],
-                            width=6,
-                            className="mt-4",
-                        ),
-                    ]
-                ),
-                dbc.Row(
-                    [
-                        dbc.Col(
-                            [
-                                dbc.Card(
-                                    [
-                                        dbc.CardHeader("Key Performance Metrics"),
-                                        dbc.CardBody(id="performance-metrics-table"),
-                                    ]
-                                ),
-                            ],
-                            width=12,
-                            className="mt-4",
-                        ),
-                    ]
-                ),
+                dbc.Row([
+                    dbc.Col(
+                        [
+                            html.H1(
+                                "CyberDeltaEngine Dashboard",
+                                className="text-center my-4",
+                            ),
+                            html.Div(
+                                id="last-update-time",
+                                className="text-center text-muted mb-4",
+                            ),
+                        ],
+                        width=12,
+                    )
+                ]),
+                dbc.Row([
+                    dbc.Col(
+                        [
+                            dbc.Card([
+                                dbc.CardHeader("Strategy Selection"),
+                                dbc.CardBody([
+                                    dcc.Dropdown(
+                                        id="strategy-selector",
+                                        options=[],  # Will be populated in callback
+                                        multi=True,
+                                        placeholder="Select strategies to display",
+                                    ),
+                                    html.Div(className="mt-3"),
+                                    dcc.RadioItems(
+                                        id="time-range-selector",
+                                        options=[
+                                            {
+                                                "label": "1 Hour",
+                                                "value": "1h",
+                                            },
+                                            {
+                                                "label": "1 Day",
+                                                "value": "1d",
+                                            },
+                                            {
+                                                "label": "1 Week",
+                                                "value": "1w",
+                                            },
+                                            {
+                                                "label": "1 Month",
+                                                "value": "1m",
+                                            },
+                                            {
+                                                "label": "All Time",
+                                                "value": "all",
+                                            },
+                                        ],
+                                        value="1d",
+                                        inline=True,
+                                    ),
+                                ]),
+                            ]),
+                        ],
+                        width=12,
+                    ),
+                ]),
+                dbc.Row([
+                    dbc.Col(
+                        [
+                            dbc.Card([
+                                dbc.CardHeader("Performance Overview"),
+                                dbc.CardBody([
+                                    dcc.Graph(
+                                        id="performance-overview",
+                                        style={"height": "400px"},
+                                    ),
+                                ]),
+                            ]),
+                        ],
+                        width=12,
+                        className="mt-4",
+                    ),
+                ]),
+                dbc.Row([
+                    dbc.Col(
+                        [
+                            dbc.Card([
+                                dbc.CardHeader("Drawdown Analysis"),
+                                dbc.CardBody([
+                                    dcc.Graph(
+                                        id="drawdown-chart",
+                                        style={"height": "300px"},
+                                    ),
+                                ]),
+                            ]),
+                        ],
+                        width=6,
+                        className="mt-4",
+                    ),
+                    dbc.Col(
+                        [
+                            dbc.Card([
+                                dbc.CardHeader("PnL Distribution"),
+                                dbc.CardBody([
+                                    dcc.Graph(
+                                        id="pnl-distribution",
+                                        style={"height": "300px"},
+                                    ),
+                                ]),
+                            ]),
+                        ],
+                        width=6,
+                        className="mt-4",
+                    ),
+                ]),
+                dbc.Row([
+                    dbc.Col(
+                        [
+                            dbc.Card([
+                                dbc.CardHeader("Trade Analysis"),
+                                dbc.CardBody([
+                                    dcc.Graph(
+                                        id="trade-analysis",
+                                        style={"height": "400px"},
+                                    ),
+                                ]),
+                            ]),
+                        ],
+                        width=6,
+                        className="mt-4",
+                    ),
+                    dbc.Col(
+                        [
+                            dbc.Card([
+                                dbc.CardHeader("Funding Rate Heatmap"),
+                                dbc.CardBody([
+                                    dcc.Graph(
+                                        id="funding-rate-heatmap",
+                                        style={"height": "400px"},
+                                    ),
+                                ]),
+                            ]),
+                        ],
+                        width=6,
+                        className="mt-4",
+                    ),
+                ]),
+                dbc.Row([
+                    dbc.Col(
+                        [
+                            dbc.Card([
+                                dbc.CardHeader("Key Performance Metrics"),
+                                dbc.CardBody(id="performance-metrics-table"),
+                            ]),
+                        ],
+                        width=12,
+                        className="mt-4",
+                    ),
+                ]),
                 dcc.Interval(
                     id="interval-component",
                     interval=self.update_interval,  # in milliseconds
@@ -511,45 +473,41 @@ class RealTimeDashboard:
                     )
 
                     metrics_rows.append(
-                        html.Tr(
-                            [
-                                html.Td(strategy, className="fw-bold"),
-                                html.Td(f"{metrics['annualized_return'] * 100:.2f}%"),
-                                html.Td(f"{metrics['annualized_volatility'] * 100:.2f}%"),
-                                html.Td(f"{metrics['sharpe_ratio']:.2f}"),
-                                html.Td(f"{metrics['sortino_ratio']:.2f}"),
-                                html.Td(f"{metrics['max_drawdown']:.2f}%"),
-                                html.Td(f"{metrics['calmar_ratio']:.2f}"),
-                                html.Td(
-                                    f"{metrics.get('win_rate', 'N/A'):.2f}%"
-                                    if isinstance(metrics.get("win_rate"), (int, float))
-                                    else "N/A"
-                                ),
-                                html.Td(
-                                    f"{metrics.get('profit_factor', 'N/A'):.2f}"
-                                    if isinstance(metrics.get("profit_factor"), (int, float))
-                                    else "N/A"
-                                ),
-                            ]
-                        )
+                        html.Tr([
+                            html.Td(strategy, className="fw-bold"),
+                            html.Td(f"{metrics['annualized_return'] * 100:.2f}%"),
+                            html.Td(f"{metrics['annualized_volatility'] * 100:.2f}%"),
+                            html.Td(f"{metrics['sharpe_ratio']:.2f}"),
+                            html.Td(f"{metrics['sortino_ratio']:.2f}"),
+                            html.Td(f"{metrics['max_drawdown']:.2f}%"),
+                            html.Td(f"{metrics['calmar_ratio']:.2f}"),
+                            html.Td(
+                                f"{metrics.get('win_rate', 'N/A'):.2f}%"
+                                if isinstance(metrics.get("win_rate"), (int, float))
+                                else "N/A"
+                            ),
+                            html.Td(
+                                f"{metrics.get('profit_factor', 'N/A'):.2f}"
+                                if isinstance(metrics.get("profit_factor"), (int, float))
+                                else "N/A"
+                            ),
+                        ])
                     )
 
             table: dbc.Table = dbc.Table(
                 [
                     html.Thead(
-                        html.Tr(
-                            [
-                                html.Th("Strategy"),
-                                html.Th("Ann. Return"),
-                                html.Th("Ann. Vol"),
-                                html.Th("Sharpe Ratio"),
-                                html.Th("Sortino Ratio"),
-                                html.Th("Max DD"),
-                                html.Th("Calmar Ratio"),
-                                html.Th("Win Rate"),
-                                html.Th("Profit Factor"),
-                            ]
-                        )
+                        html.Tr([
+                            html.Th("Strategy"),
+                            html.Th("Ann. Return"),
+                            html.Th("Ann. Vol"),
+                            html.Th("Sharpe Ratio"),
+                            html.Th("Sortino Ratio"),
+                            html.Th("Max DD"),
+                            html.Th("Calmar Ratio"),
+                            html.Th("Win Rate"),
+                            html.Th("Profit Factor"),
+                        ])
                     ),
                     html.Tbody(metrics_rows),
                 ],

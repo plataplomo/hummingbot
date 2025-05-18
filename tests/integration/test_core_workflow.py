@@ -541,7 +541,7 @@ async def test_happy_path_full_cycle(
     portfolio_tracker.reset()  # Explicitly reset state for this test
     # Directly set balances for testing via internal API (necessary for mocks)
     # Consider adding a test-specific method to PortfolioTracker if this pattern persists
-    portfolio_tracker._update_balance(  # noqa: SLF001
+    portfolio_tracker._update_balance(
         "mock_hl",
         SpotBalance(
             exchange="mock_hl",
@@ -551,7 +551,7 @@ async def test_happy_path_full_cycle(
             available_quantity=initial_usdc_balance,
         ),
     )
-    portfolio_tracker._update_balance(  # noqa: SLF001
+    portfolio_tracker._update_balance(
         "mock_bp",
         SpotBalance(
             exchange="mock_bp",

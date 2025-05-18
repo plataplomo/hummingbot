@@ -316,7 +316,7 @@ class TestExecutionHandler:
         )
         mock_hl_api.place_order.return_value = mock_order
         execution = TradeExecution(sized_opportunity)
-        result_order = await execution_handler._place_order_with_retry(  # noqa: SLF001
+        result_order = await execution_handler._place_order_with_retry(
             execution=execution,
             exchange_id="hyperliquid",
             symbol="BTC-PERP",
@@ -338,7 +338,7 @@ class TestExecutionHandler:
         mock_hl_api.place_order.side_effect = APIError("Timeout", APIErrorCode.TIMEOUT.value)
         execution = TradeExecution(sized_opportunity)
         with pytest.raises(APIError):
-            await execution_handler._place_order_with_retry(  # noqa: SLF001
+            await execution_handler._place_order_with_retry(
                 execution=execution,
                 exchange_id="hyperliquid",
                 symbol="BTC-PERP",
@@ -387,7 +387,7 @@ class TestExecutionHandler:
         )
         mock_hl_api.get_order_status.return_value = mock_order
         execution = TradeExecution(sized_opportunity)
-        result_status = await execution_handler._get_order_status(  # noqa: SLF001
+        result_status = await execution_handler._get_order_status(
             execution=execution, exchange_id="hyperliquid", order_id="HL-Status"
         )
         assert result_status == mock_order
@@ -406,7 +406,7 @@ class TestExecutionHandler:
             "Not Found", APIErrorCode.ORDER_NOT_FOUND.value
         )
         execution = TradeExecution(sized_opportunity)
-        result_status = await execution_handler._get_order_status(  # noqa: SLF001
+        result_status = await execution_handler._get_order_status(
             execution=execution, exchange_id="hyperliquid", order_id="HL-NotFound"
         )
         assert result_status is None
@@ -499,7 +499,7 @@ class TestExecutionHandler:
         with patch.object(
             execution_handler, "_place_order_with_retry", return_value=mock_comp_order
         ) as mock_place_comp:
-            result: bool = await execution_handler._compensate_position(  # noqa: SLF001
+            result: bool = await execution_handler._compensate_position(
                 execution=execution,
                 exchange_id="hyperliquid",
                 symbol="BTC-PERP",
@@ -581,7 +581,7 @@ class TestExecutionHandler:
             side_effect=async_api_error_side_effect,  # Use the async side_effect
         ) as mock_place_retry_method:
             with pytest.raises(APIError) as exc_info:
-                await execution_handler._compensate_position(  # noqa: SLF001
+                await execution_handler._compensate_position(
                     execution=execution,
                     exchange_id="hyperliquid",
                     symbol="BTC-PERP",
@@ -1222,8 +1222,8 @@ class TestExecutionHandler:
         exec2.id = "exec2"
         exec2.status = ExecutionStatus.FAILED
         execution_handler.executions = []
-        execution_handler._add_to_history(exec1)  # noqa: SLF001
-        execution_handler._add_to_history(exec2)  # noqa: SLF001
+        execution_handler._add_to_history(exec1)
+        execution_handler._add_to_history(exec2)
         history = execution_handler.executions
         assert isinstance(history, list) and len(history) == 2
         history_ids = {ex.id for ex in history}

@@ -43,7 +43,7 @@ def test_handle_depth_payload_invalid() -> None:
         "E": 1678886400000,
         "s": "SOL_USDC",
         "lastUpdateId": "123456789",
-        "a": [["101.0", "2.0"]]
+        "a": [["101.0", "2.0"]],
     }  # Missing 'b' (bids)
     with pytest.raises(APIError) as excinfo:
         BackpackWsRawMessageHandler.handle_depth_payload(invalid_payload)

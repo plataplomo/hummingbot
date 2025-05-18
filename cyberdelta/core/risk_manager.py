@@ -108,17 +108,15 @@ class SizedOpportunity:
         )
 
     def __hash__(self) -> int:
-        return hash(
-            (
-                self.opportunity,  # Relies on ArbitrageOpportunity implementing __hash__
-                self.long_size,
-                self.short_size,
-                self.allocation_percentage,
-                self.expected_profit,
-                self.expected_return,
-                self.risk_adjusted_return,
-            )
-        )
+        return hash((
+            self.opportunity,  # Relies on ArbitrageOpportunity implementing __hash__
+            self.long_size,
+            self.short_size,
+            self.allocation_percentage,
+            self.expected_profit,
+            self.expected_return,
+            self.risk_adjusted_return,
+        ))
 
 
 # --- Custom Exception Hierarchy ---

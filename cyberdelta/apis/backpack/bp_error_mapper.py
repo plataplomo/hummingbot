@@ -236,17 +236,23 @@ class BackpackErrorMapper(IErrorMapper):
                 # api_error_code_enum is already set based on raw_error.code if it was known,
                 # or EXCHANGE_SPECIFIC if it was an unknown (but validly structured) Backpack code.
                 if api_error_code_enum != APIErrorCode.EXCHANGE_SPECIFIC:
-                    effective_message = f"{api_error_code_enum.name.replace('_', ' ').title()}: {effective_exchange_message}"
+                    effective_message = (
+                        f"{api_error_code_enum.name.replace('_', ' ').title()}: "
+                        f"{effective_exchange_message}"
+                    )
                 else:
-                    effective_message = effective_exchange_message  # For known EXCHANGE_SPECIFIC or unmapped valid BP code
+                    effective_message = effective_exchange_message  # For known EXCHANGE_SPECIFIC
+                    # or unmapped valid BP code
 
             except ValidationError as e_val_specific:
-                # This block is reached if error_data was present but NOT parseable by BackpackRawApiError.
+                # This block is reached if error_data was present but NOT parseable by
+                # BackpackRawApiError.
                 # api_error_code_enum would have been set to EXCHANGE_SPECIFIC by
                 # _map_backpack_error_code_to_api_error_code because of this parsing failure.
                 # We should honor that EXCHANGE_SPECIFIC determination.
                 logger.warning(
-                    f"[{self.__class__.__name__}] Failed to parse error_data as BackpackRawApiError. "
+                    f"[{self.__class__.__name__}] Failed to parse error_data as "
+                    f"BackpackRawApiError. "
                     f"Pydantic errors: {e_val_specific.errors(include_url=False) if hasattr(e_val_specific, 'errors') else str(e_val_specific)}. "
                     f"Original exception string: {str(e_val_specific)}. "
                     f"Error classified as {api_error_code_enum.name} based on initial mapping."
@@ -256,19 +262,26 @@ class BackpackErrorMapper(IErrorMapper):
                 # even if the whole structure failed validation.
                 if isinstance(error_data.get("message"), str):
                     effective_exchange_message = error_data["message"]
-                # else: effective_exchange_message remains effective_error_body (the full JSON string)
+                # else: effective_exchange_message remains effective_error_body
+                # (the full JSON string)
 
                 # Construct a generic message for this unparseable error_data scenario.
-                effective_message = f"Backpack API Error (HTTP {status_code}), unparseable error data: {effective_error_body}"
+                effective_message = (
+                    f"Backpack API Error (HTTP {status_code}), unparseable error data: "
+                    f"{effective_error_body}"
+                )
                 # bp_code_str remains None as we couldn't parse it.
-                # api_error_code_enum remains as determined by _map_backpack_error_code_to_api_error_code
+                # api_error_code_enum remains as determined by
+                # _map_backpack_error_code_to_api_error_code
                 # (which should be EXCHANGE_SPECIFIC in this path).
 
         else:  # No error_data was provided
             effective_exchange_message = effective_error_body
-            # api_error_code_enum from _map_backpack_error_code_to_api_error_code would be EXCHANGE_SPECIFIC
+            # api_error_code_enum from _map_backpack_error_code_to_api_error_code would be
+            # EXCHANGE_SPECIFIC
             # (as error_data was None). Test expectations suggest that when error_data is None,
-            # we should generally stick to EXCHANGE_SPECIFIC if _map_backpack_error_code_to_api_error_code
+            # we should generally stick to EXCHANGE_SPECIFIC if
+            # _map_backpack_error_code_to_api_error_code
             # returned it, rather than applying broad status code heuristics, unless the status code
             # is very specific (like 429 for RATE_LIMITED or 401/403 for AUTHENTICATION_FAILED).
             if api_error_code_enum == APIErrorCode.EXCHANGE_SPECIFIC:
@@ -281,7 +294,10 @@ class BackpackErrorMapper(IErrorMapper):
 
             # Construct message based on the potentially refined api_error_code_enum
             if api_error_code_enum != APIErrorCode.EXCHANGE_SPECIFIC:
-                effective_message = f"{api_error_code_enum.name.replace('_', ' ').title()}: {effective_exchange_message}"
+                effective_message = (
+                    f"{api_error_code_enum.name.replace('_', ' ').title()}: "
+                    f"{effective_exchange_message}"
+                )
             else:
                 effective_message = (
                     f"Backpack API Error (HTTP {status_code}): {effective_exchange_message}"
