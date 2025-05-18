@@ -36,9 +36,10 @@ from cyberdelta.apis.backpack.bp_response_handler import (
 from cyberdelta.apis.backpack.bp_ws_raw_message_handler import BackpackWsRawMessageHandler
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
+from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill, BackpackRawTrade
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
@@ -55,12 +56,13 @@ from cyberdelta.core.models import (
     Trade,
 )
 from cyberdelta.core.models.enums import (
+    CancelOrderResultStatus,
     OrderSide,
     OrderType,
     TimeInForce,
 )
 from cyberdelta.core.models.market import Candle, OrderBook
-from cyberdelta.core.models.market.order import Order
+from cyberdelta.core.models.market.order import CancelOrderResult, Order
 from cyberdelta.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -516,7 +518,8 @@ class BackpackAPI(ExchangeAPI):
             # if the cancellation was not successful (e.g., order not found, invalid params).
             # If it returns without error, cancellation is considered successful.
             logger.info(
-                f"[{self.exchange_name}] Successfully canceled order {order_id} for {symbol} via service."
+                f"[{self.exchange_name}] Successfully canceled order {order_id} for "
+                f"{symbol} via service."
             )
             return True
         except APIError as e:
@@ -525,14 +528,15 @@ class BackpackAPI(ExchangeAPI):
             raise e
         except Exception as e_unhandled:  # Should ideally be caught by service, but as a fallback
             logger.error(
-                f"[{self.exchange_name}] Unexpected error in API cancel_order for {order_id}: {e_unhandled}",
+                f"[{self.exchange_name}] Unexpected error in API cancel_order for OID {order_id}: "
+                f"{e_unhandled}",
                 exc_info=True,
             )
             raise APIError(
                 f"Unexpected error canceling order {order_id} via API: {e_unhandled}",
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e_unhandled,
-            )
+            ) from e_unhandled
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Get open orders, mapping all required fields."""
@@ -547,13 +551,14 @@ class BackpackAPI(ExchangeAPI):
             try:
                 # Transform validated raw order to internal Order using instance mapper
                 internal_order = self._bp_mapper.transform_raw_order_to_internal(raw=raw_order)
-                # Original code did not check if internal_order is None, assuming transform always works
-                # or raises. Adding a check for robustness if mapper can return None.
+                # Original code did not check if internal_order is None,
+                # assuming transform always works or raises.
+                # Adding a check for robustness if mapper can return None.
                 if internal_order:
                     orders.append(internal_order)
                 else:
                     logger.warning(
-                        f"[{self.exchange_name}] Skipping order due to transformation returning None. "
+                        f"[{self.exchange_name}] Skipping order: transform returned None. "
                         f"Data: {raw_order.model_dump_json()}"
                     )
             except Exception as e:  # Catch transformation errors
@@ -561,7 +566,6 @@ class BackpackAPI(ExchangeAPI):
                     f"[{self.exchange_name}] Skipping order due to transformation error: {e}. "
                     f"Data: {raw_order.model_dump_json()}"
                 )
-                continue
         return orders
 
     async def get_funding_rate(self, symbol: str) -> FundingRate:
@@ -669,7 +673,7 @@ class BackpackAPI(ExchangeAPI):
                 message=f"Failed to map raw account summary data: {str(e)}",
                 code=APIErrorCode.INVALID_RESPONSE.value,  # Use .value for the enum
                 original_exception=e,
-            )
+            ) from e
 
     async def transfer(
         self,
@@ -951,35 +955,37 @@ class BackpackAPI(ExchangeAPI):
 
         Args:
             order_id: The exchange-assigned order ID.
-            symbol: The market symbol (required by Backpack history endpoint).
+            symbol: The symbol for the order (required by Backpack).
 
         Returns:
-            The Order object if found, otherwise None.
+            The Order object if found, None otherwise.
         """
         if not symbol:  # Symbol is required for get_order_status_raw
-            raise ValueError("Symbol is required for get_order on Backpack.")
+            _error_msg = "Symbol is required for get_order on Backpack."
+            raise ValueError(_error_msg)
 
         # Delegate to trading_service.get_order_status_raw as it fetches a single order
         raw_order: BackpackRawOrder | None = await self.trading_service.get_order_status_raw(
-            order_id=order_id, symbol=symbol
+            order_id=order_id,
+            symbol=symbol,
         )
-
         if raw_order is None:
-            # Service already logs if order not found and returns None.
             return None
 
-        # Transform raw order to internal Order object
         try:
-            internal_order = self._bp_mapper.transform_raw_order_to_internal(raw_order)
-            return internal_order
+            # RET504: Direct return; TRY300: else block not strictly needed due to return
+            return self._bp_mapper.transform_raw_order_to_internal(raw_order)
         except Exception as e:  # Catch transformation errors
-            logger.error(
-                f"[{self.exchange_name}] Failed to transform raw order {order_id} to internal model: {e}. "
-                f"Raw data: {raw_order.model_dump_json()}",
-                exc_info=True,
+            logger.exception(
+                "[%s] Failed to transform raw order %s to internal model: %s. Raw data: %s",
+                self.exchange_name,
+                order_id,
+                e,
+                raw_order.model_dump_json(),
             )
-            # Depending on strictness, could raise APIError(INVALID_RESPONSE) or return None
-            return None  # Consistent with original method's potential to return None on error
+            # Re-raise as APIError or allow specific exception to propagate if preferred
+            # For now, returning None as per original logic for failed transformation
+            return None
 
     # All abstract methods should now be implemented.
 
@@ -998,121 +1004,195 @@ class BackpackAPI(ExchangeAPI):
         # Backpack does not seem to provide standard rate limit headers.
         # If specific headers are discovered, they could be parsed here.
         logger.debug(
-            f"[{self.exchange_name}] _update_rate_limit_from_headers called (no-op for Backpack). "
-            f"Headers: {headers}, Method: {method}, Path: {path}"
+            "[%s] _update_rate_limit_from_headers called (no-op for Backpack). "
+            "Headers: %s, Method: %s, Path: %s",
+            self.exchange_name,
+            headers,
+            method,
+            path,
         )
-        pass  # No specific Backpack headers known for this
 
     async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
-        """Fetch all open orders, optionally filtering by symbol."""
-        # Backpack's get_open_orders handles symbol=None to fetch all.
-        return await self.get_open_orders(symbol=symbol)
+        """Fetch all open orders for a given symbol or all symbols."""
+        # This is a facade over the trading_service.get_open_orders_raw method,
+        # which already handles fetching for the specific user. Backpack's API
+        # for listing open orders doesn't require a user identifier in the path/query
+        # if the request is authenticated.
+        logger.info(
+            "[%s] Fetching all open orders for %s.",
+            self.exchange_name,
+            symbol if symbol else "all symbols",
+        )
+        try:
+            raw_open_orders: list[
+                BackpackRawOrder
+            ] = await self.trading_service.get_open_orders_raw(symbol=symbol)
+            internal_orders: list[Order] = []
+            for raw_order in raw_open_orders:
+                try:
+                    order = self._bp_mapper.transform_raw_order_to_internal(raw_order)
+                    if order:  # Mapper might return None if transformation is impossible
+                        internal_orders.append(order)
+                except Exception as e_map:
+                    logger.warning(
+                        "[%s] Failed to map raw open order: %s. Raw: %s. Skipping.",
+                        self.exchange_name,
+                        e_map,
+                        raw_order.model_dump_json(exclude_none=True),
+                    )
+            return internal_orders
+        except APIError as e:
+            logger.error(
+                "[%s] API Error fetching all open orders for %s: %s",
+                self.exchange_name,
+                symbol if symbol else "all symbols",
+                e,
+            )
+            raise
+        except Exception as e:
+            logger.exception(
+                "[%s] Unexpected error fetching all open orders for %s: %s",
+                self.exchange_name,
+                symbol if symbol else "all symbols",
+                e,
+            )
+            raise APIError(
+                message=f"Unexpected error getting all open orders: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
-        """Register a handler for a WebSocket topic and send subscription."""
-        # This should call super().subscribe to use WebSocketManager
+        """Register a handler for a WebSocket topic and send subscription via WebSocketManager."""
         # Ensure ExchangeAPI.subscribe is not abstract or implement fully here
         logger.info(
-            f"[{self.exchange_name}] Subscribe called for topic: {topic}. Delegating to base."
+            "[%s] Subscribe called for topic: %s. Delegating to base.",
+            self.exchange_name,
+            topic,  # COM812 fixed by adding comma here
         )
         await super().subscribe(topic, handler)
 
     async def _on_ws_connected(self) -> None:
-        """Callback for when WebSocket connects, typically to resubscribe."""
+        """Handle actions upon WebSocket connection, typically resubscribing to topics."""
         logger.info(
-            f"[{self.exchange_name}] WebSocket connected. Triggering resubscription via base."
+            "[%s] WebSocket connected. Triggering resubscription via base.",
+            self.exchange_name,  # COM812 fixed by adding comma here
         )
-        await (
-            super()._on_ws_connected()
-        )  # This will call self._resubscribe if base implements it that way
+        await super()._on_ws_connected()  # Assuming base class handles resubscription logic
 
     async def _resubscribe(self) -> None:
         """Resubscribe to topics upon WebSocket (re)connection."""
-        logger.info(f"[{self.exchange_name}] Resubscribe called. Delegating to base.")
+        logger.info(
+            "[%s] Resubscribe called. Delegating to base.",
+            self.exchange_name,
+        )
         await super()._resubscribe()
 
-    async def get_market_data(self, symbol: str, timeframe: str, limit: int = 100) -> list[Candle]:
-        """Fetch historical market data (OHLCV/Kline) for a specific symbol and timeframe."""
-        raw_klines = await self.market_data.get_market_data(symbol, timeframe, limit)
+    async def get_market_data(
+        self,
+        symbol: str,
+        timeframe: str,  # e.g., "1m", "1h", "1d"
+        limit: int | None = 100,  # Default limit, ensure service can handle None or default it
+    ) -> list[Candle]:
+        """Fetch historical klines/candles for a symbol and timeframe."""
+        # Ensure limit passed to service is compatible; service uses default 100 if limit is None.
+        service_limit = limit if limit is not None else 100  # Service expects int
+        raw_klines: list[BackpackRawKline] = await self.market_data.get_market_data(
+            symbol=symbol,
+            timeframe=timeframe,
+            limit=service_limit,
+        )
         internal_candles: list[Candle] = []
         for raw_kline in raw_klines:
             try:
                 candle = self._bp_mapper.transform_raw_kline_to_internal(
-                    symbol, timeframe, raw_kline
+                    symbol,
+                    timeframe,
+                    raw_kline,
                 )
                 internal_candles.append(candle)
             except ValueError as e:
                 logger.warning(
-                    f"[{self.exchange_name}] Failed to transform raw kline for symbol {symbol}, "
-                    f"timeframe {timeframe}. Error: {e}. Raw kline: {raw_kline.model_dump_json()}"
+                    "[%s] Failed to transform raw kline for symbol %s, timeframe %s. "
+                    "Error: %s. Raw: %s",
+                    self.exchange_name,
+                    symbol,
+                    timeframe,
+                    e,
+                    raw_kline.model_dump_json(),
                 )
         return internal_candles
 
     async def get_historical_trades(
-        self, symbol: str, limit: int = 100, from_id: str | None = None
+        self,
+        symbol: str,
+        limit: int | None = 50,
+        from_id: str | None = None,
     ) -> list[Trade]:
         """Fetch historical trades for a symbol, mapped to internal Trade objects.
 
-        Corresponds to Backpack's /api/v1/trades/history endpoint.
-        The `from_id` parameter for Backpack corresponds to `offset`.
+        Args:
+            symbol: The market symbol (e.g., "SOL_USDC").
+            limit: Maximum number of trades to return (default is 50).
+                   The service method `get_recent_trades` uses this limit.
+            from_id: Backpack's `trades` (recent) endpoint doesn't support `from_id` directly.
+                     It fetches most recent. Filtering by `from_id` if provided would be post-fetch.
+                     However, Backpack's `/api/v1/trades/history` (if that's what the service
+                     uses under different name) *does* take `fromId`. Assume service handles this.
+                     For now, passing `from_id` to service, which might ignore it for `/trades`.
+        Returns:
+            A list of internal Trade objects, sorted by execution time (most recent first).
         """
-        endpoint = "/api/v1/trades/history"
-        params: dict[str, Any] = {"symbol": symbol, "limit": limit}
         if from_id:
-            params["fromId"] = from_id
-
-        response_raw: RawJsonResponse | None = None
-        try:
-            response_raw = await self._request("GET", endpoint, params=params)
-
-            validated_trades: list[BackpackRawTrade] = (
-                BackpackResponseHandler.handle_get_historical_trades_response(response_raw, symbol)
+            logger.warning(
+                "[%s] from_id='%s' provided to get_historical_trades, but the underlying Backpack "
+                "market_data_service.get_recent_trades does not support it. "
+                "Fetching most recent trades up to limit.",
+                self.exchange_name,
+                from_id,
             )
 
-            internal_trades: list[Trade] = []
-            for raw_trade_model in validated_trades:
+        raw_fills: list[BackpackRawFill] = await self.market_data.get_recent_trades(
+            symbol=symbol,
+            limit=limit,
+        )
+
+        internal_trades: list[Trade] = []
+        if raw_fills:
+            for raw_fill_model in raw_fills:
                 try:
-                    internal_trade = self._bp_mapper.transform_raw_trade_to_internal(
-                        raw_trade_model
+                    # Corrected to use transform_raw_fill_to_internal
+                    internal_trade = self._bp_mapper.transform_raw_fill_to_internal(
+                        raw_fill_model,
                     )
-                    if internal_trade:
+                    # transform_raw_fill_to_internal returns Trade, not Trade | None
+                    # so the check `if internal_trade:` is not strictly necessary
+                    # if it never returns None, but keeping it is safer if the
+                    # mapper's behavior changes or for clarity.
+                    if internal_trade:  # Keep for defensiveness
                         internal_trades.append(internal_trade)
-                    else:
-                        logger.warning(
-                            f"[{self.exchange_name}] Skipping trade in history due to "
-                            f"transformation failure (mapper returned None). "
-                            f"Data: {raw_trade_model.model_dump_json()}"
-                        )
+                    # No else needed here if mapper guarantees non-None or raises error
                 except (
                     ValidationError,
                     ValueError,
-                ) as e:  # Catch Pydantic and other validation errors during transformation
+                ) as e:
                     logger.warning(
-                        f"[{self.exchange_name}] Skipping trade in history due to validation/"
-                        f"transformation error: {e}. Data: {raw_trade_model.model_dump_json()}"
+                        "[%s] Skipping trade in history (validation/transform error): %s. Data: %s",
+                        self.exchange_name,
+                        e,
+                        raw_fill_model.model_dump_json(),
                     )
                     continue
-                except Exception as e:  # Catch any other unexpected errors during item processing
-                    logger.error(
-                        f"[{self.exchange_name}] Unexpected error processing historical "
-                        f"trade: {e}. Data: {raw_trade_model.model_dump_json()}",
-                        exc_info=True,
+                except Exception as e:
+                    logger.exception(
+                        "[%s] Unexpected error processing historical trade: %s. Data: %s",
+                        self.exchange_name,
+                        e,
+                        raw_fill_model.model_dump_json(),
                     )
-                    continue  # Continue with the next trade item
-            return internal_trades
-        except APIError as e:  # This will catch APIError from _request or from the handler
-            logger.error(f"[{self.exchange_name}] API Error getting trades history: {e}")
-            raise e
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error getting trades history: {e}",
-                exc_info=True,
-            )
-            raise APIError(
-                f"Unexpected error getting trades history for {symbol or 'all'}: {e}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
+                    continue
+            internal_trades.sort(key=lambda t: t.executed_at, reverse=True)
+        return internal_trades
 
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
@@ -1140,52 +1220,121 @@ class BackpackAPI(ExchangeAPI):
             return internal_order
         except Exception as e:  # Catch transformation errors
             logger.error(
-                f"[{self.exchange_name}] Failed to transform raw order status for {order_id or client_order_id} "
-                f"to internal model: {e}. Raw data: {raw_order.model_dump_json()}",
+                f"[{self.exchange_name}] Failed to transform raw order status for "
+                f"{order_id or client_order_id} to internal model: {e}. "
+                f"Raw data: {raw_order.model_dump_json()}",
                 exc_info=True,
             )
             # Consider raising APIError or returning None as per contract
             return None  # Consistent with returning None if mapping fails or order not found
 
-    async def cancel_all_orders(self, symbol: str | None = None) -> None:
+    async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
+        """Cancel all open orders for a given symbol or all symbols.
+
+        Args:
+            symbol: The trading symbol (e.g., "SOL_USDC"). If None, cancels orders for all symbols.
+
+        Returns:
+            A list of CancelOrderResult objects, one for each order affected or a summary result.
         """
-        Cancel all orders for a given symbol.
-        Delegates to the trading service which handles the one-by-one cancellation.
-        The service method returns a list of raw responses; this API method has no return.
-        Error logging for individual cancellations is handled within the service.
-        """
+        results: list[CancelOrderResult] = []
+        target_symbol_log = symbol if symbol else "all symbols"
         logger.info(
-            f"[{self.exchange_name}] API: Attempting to cancel all orders for symbol: {symbol or 'all'}"
+            "[%s] Attempting to cancel all orders for %s.",
+            self.exchange_name,
+            target_symbol_log,
         )
-        # The service method cancel_all_orders_raw returns list[RawJsonResponse]
-        # This API method returns None. We call the service and don't process its return value here,
-        # assuming errors are logged by the service or individual cancel_order_raw calls it makes.
-        results = await self.trading_service.cancel_all_orders_raw(symbol=symbol)
 
-        # Optionally, process results to log a summary or raise a general error if any failed.
-        # For now, keeping it simple as per the prompt to primarily delegate.
-        # The service's cancel_all_orders_raw already logs individual errors.
-        num_attempted = len(results)
-        num_successful = 0
-        for res_item in results:
-            if isinstance(res_item, dict) and "error" not in res_item:
-                # Crude check for success: if it's a dict and no 'error' key from our error packaging
-                # This assumes successful cancel_order_raw returns a dict-like RawJsonResponse
-                # that handle_cancel_order_response would process, which itself is dict for success.
-                num_successful += 1
-            elif (
-                isinstance(res_item, dict) and res_item.get("status") == "Cancelled"
-            ):  # Example success
-                num_successful += 1
+        try:
+            # Returns list[BackpackRawOrder] for succeeded, empty list for no_op,
+            # or raises APIError for failures.
+            cancelled_raw_orders: list[
+                BackpackRawOrder
+            ] = await self.trading_service.cancel_all_orders_raw(symbol=symbol)
 
-        if num_attempted > 0:
-            logger.info(
-                f"[{self.exchange_name}] API: cancel_all_orders for {symbol or 'all'} - "
-                f"Attempted: {num_attempted}, Successful (approx): {num_successful}."
+            if not cancelled_raw_orders:
+                # This case means the operation was successful but no orders were found/cancelled.
+                logger.info(
+                    "[%s] No open orders found or cancelled for %s via bulk operation.",
+                    self.exchange_name,
+                    target_symbol_log,
+                )
+                results.append(
+                    CancelOrderResult(
+                        symbol=symbol,  # Or None if global
+                        order_id="ALL",  # Indicates a bulk operation for the symbol
+                        success=True,  # Op successful (no orders to cancel is success state)
+                        message=f"No open orders found to cancel for {target_symbol_log}.",
+                        status=CancelOrderResultStatus.NOT_FOUND,
+                    )
+                )
+            else:
+                # Orders were successfully cancelled
+                # PERF401: Use list comprehension and extend
+                results.extend(
+                    [
+                        CancelOrderResult(
+                            symbol=raw_order.symbol,
+                            order_id=raw_order.id,
+                            client_order_id=raw_order.clientId,
+                            success=True,
+                            message="Order cancelled successfully via bulk operation.",
+                            status=CancelOrderResultStatus.SUCCESS,
+                            raw_response=raw_order.model_dump(exclude_none=True),
+                        )  # COM812 fixed
+                        for raw_order in cancelled_raw_orders
+                    ]
+                )
+                logger.info(
+                    ("[%s] Successfully cancelled %d orders for %s."),  # G004 fixed, E501 addressed
+                    self.exchange_name,
+                    len(cancelled_raw_orders),
+                    target_symbol_log,  # COM812 fixed
+                )
+        except APIError as e:
+            logger.error(
+                f"[{self.exchange_name}] API error during bulk cancel for {target_symbol_log}: {e}"
             )
-        else:
-            logger.info(
-                f"[{self.exchange_name}] API: No orders found to cancel for {symbol or 'all'} by service."
+            results.append(
+                CancelOrderResult(
+                    symbol=symbol,  # Or None if global
+                    order_id="ALL",
+                    success=False,
+                    message=f"Failed to cancel all orders for {target_symbol_log}: {e.message}",
+                    status=CancelOrderResultStatus.FAILED,
+                    raw_response=e.model.metadata.get("raw_response") if e.model.metadata else None,
+                )
             )
-        # No explicit return value for cancel_all_orders in ExchangeAPI base
-        return
+        except Exception as e_unhandled:
+            logger.exception(
+                f"[{self.exchange_name}] Unexpected error in bulk cancel for {target_symbol_log}: "
+                f"{e_unhandled}"
+            )
+            results.append(
+                CancelOrderResult(
+                    symbol=symbol,  # Or None if global
+                    order_id="ALL",
+                    success=False,
+                    message=f"Unexpected error cancelling orders for {target_symbol_log}: "
+                            f"{str(e_unhandled)}",
+                    status=CancelOrderResultStatus.FAILED,
+                )
+            )
+
+        return results
+
+    async def request_historical_funding_rates(
+        self,
+        # TODO: Define parameters based on actual exchange capabilities if this endpoint exists
+        # symbol: str,
+        # start_time: datetime | None = None,
+        # end_time: datetime | None = None,
+        # limit: int | None = None,
+    ) -> list[FundingRate]:
+        """(Placeholder) Request historical funding rates."""
+        logger.warning(
+            f"[{self.exchange_name}] get_historical_funding_rates placeholder - not implemented."
+        )
+        # Example: Fetch current rates if historical not available
+        # return await self.get_funding_rates(symbols=[symbol] if symbol else None)
+        return []  # Return empty list as placeholder

@@ -253,57 +253,68 @@ class BackpackTradingService:
                 code=APIErrorCode.UNKNOWN.value,
             ) from e
 
-    async def cancel_all_orders_raw(self, symbol: str | None = None) -> list[RawJsonResponse]:
+    async def cancel_all_orders_raw(self, symbol: str | None = None) -> list[BackpackRawOrder]:
         """
-        Cancels all open orders, optionally filtered by symbol.
-        Backpack requires canceling orders one by one.
-        Returns a list of raw responses for each cancellation attempt.
+        Cancel all orders for a given symbol using the bulk cancel endpoint.
+        If symbol is None, cancels all orders for all symbols.
+        Returns a list of BackpackRawOrder for successfully cancelled orders.
         """
+        endpoint = "/api/v1/orders/cancelAll"  # Correct endpoint for bulk cancel
+        # The request builder method is named 'payload' but returns params for DELETE
+        params = self._request_builder.build_cancel_all_orders_payload(symbol=symbol)
+
         logger.info(
-            f"[{self._exchange_name}] Attempting to cancel all orders for symbol: {symbol or 'all'} (service)"
+            f"[{self._exchange_name}] Service: Attempting to cancel all orders via bulk endpoint "
+            f"for symbol: {symbol or 'all'}"
         )
-        open_orders_raw = await self.get_open_orders_raw(symbol=symbol)
-        if not open_orders_raw:
-            logger.info(
-                f"[{self._exchange_name}] No open orders to cancel for {symbol or 'all'} (service)"
+
+        try:
+            # DELETE request with query parameters, no body/data
+            raw_response_data = await self._http_client_requester(
+                method="DELETE", endpoint=endpoint, params=params, is_signed=True
             )
-            return []
 
-        results: list[RawJsonResponse] = []
-        for raw_order in open_orders_raw:
-            order_id_to_cancel = raw_order.id
-            order_symbol = raw_order.symbol  # Use symbol from the raw_order
+            # Validate response and parse into list of BackpackRawOrder
+            # The handler expects a list of successfully cancelled orders.
+            # If raw_response_data is None or not a list, the handler will raise an APIError.
+            if raw_response_data is None:
+                # This case might indicate no orders were cancelled or an issue with the response
+                # The response handler should ideally deal with specific formats. For now,
+                # if API returns nothing for cancelAll (e.g. 204 No Content), it might be okay.
+                # However, Backpack spec says it returns array of orders. So None is unexpected.
+                logger.warning(
+                    f"[{self._exchange_name}] Service: Received None response from cancel_all_orders_raw "
+                    f"for symbol: {symbol or 'all'}. Assuming no orders were cancelled or found."
+                )
+                return [] # Return empty list if API gives no content for successful cancel all
+                        # and no orders were actually there.
 
-            if not order_id_to_cancel:  # Should not happen with BackpackRawOrder.id being mandatory
-                logger.error(
-                    f"[{self._exchange_name}] Cannot cancel order, missing ID for order: "
-                    f"{raw_order.model_dump_json(exclude_none=True)}"
-                )
-                results.append({"error": "Missing order ID", "orderData": raw_order.model_dump()})
-                continue
-            try:
-                # cancel_order_raw returns RawJsonResponse (dict typically)
-                cancel_response = await self.cancel_order_raw(order_id_to_cancel, order_symbol)
-                results.append(cancel_response)
-            except APIError as e:
-                logger.error(
-                    f"[{self._exchange_name}] Error cancelling order {order_id_to_cancel} "
-                    f"for symbol {order_symbol} during cancel_all_orders_raw: {e}"
-                )
-                # Append error information to results
-                results.append(
-                    {"error": str(e), "orderId": order_id_to_cancel, "symbol": order_symbol}
-                )
-            except Exception as e_unhandled:
-                logger.error(
-                    f"[{self._exchange_name}] Unhandled error cancelling order {order_id_to_cancel} "
-                    f"for symbol {order_symbol} during cancel_all_orders_raw: {e_unhandled}"
-                )
-                results.append(
-                    {
-                        "error": f"Unhandled: {e_unhandled}",
-                        "orderId": order_id_to_cancel,
-                        "symbol": order_symbol,
-                    }
-                )
-        return results
+            cancelled_orders = self._response_handler.handle_cancel_all_orders_response(
+                raw_response_data, symbol
+            )
+            logger.info(
+                f"[{self._exchange_name}] Service: Successfully cancelled {len(cancelled_orders)} orders "
+                f"via bulk endpoint for symbol: {symbol or 'all'}."
+            )
+            return cancelled_orders
+        except APIError as e:
+            # Specific handling for ORDER_NOT_FOUND could be done here if the API signals it,
+            # but cancelAll might just return an empty list if no orders match.
+            logger.error(
+                f"[{self._exchange_name}] Service: API Error during cancel_all_orders_raw for "
+                f"symbol '{symbol or 'all'}': {e}"
+            )
+            # Depending on strictness, might return empty list or re-raise
+            # For now, re-raise to let the caller (BackpackAPI) handle it.
+            raise
+        except Exception as e_unhandled:
+            logger.error(
+                f"[{self._exchange_name}] Service: Unhandled exception during cancel_all_orders_raw for "
+                f"symbol '{symbol or 'all'}': {e_unhandled}",
+                exc_info=True,
+            )
+            raise APIError(
+                message=f"Unexpected error in cancel_all_orders_raw for symbol '{symbol or 'all'}': {e_unhandled}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e_unhandled,
+            )

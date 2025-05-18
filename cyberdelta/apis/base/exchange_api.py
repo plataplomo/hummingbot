@@ -43,6 +43,7 @@ from cyberdelta.core.models.enums import (
     TimeInForce,  # Moved back
 )
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.models.market.order import CancelOrderResult
 
 if TYPE_CHECKING:
     # Import models only needed for type hints here
@@ -556,14 +557,18 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def cancel_all_orders(self, symbol: str | None = None) -> None:
+    async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
         """Cancel all orders for a given symbol, or all if symbol is None.
 
         Args:
             symbol: The trading symbol (optional, if None cancels all orders).
 
+        Returns:
+            A list of CancelOrderResult objects detailing the outcome for each affected order
+            or a summary result.
+
         Raises:
-            APIError: If the API returns an error.
+            APIError: If the API returns an error during the operation.
         """
         raise NotImplementedError
 

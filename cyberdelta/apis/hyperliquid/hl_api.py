@@ -10,10 +10,16 @@ from typing import Any, cast
 import aiohttp
 from pydantic import HttpUrl, ValidationError
 
-from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
+from cyberdelta.apis.base.authenticator_interface import (
+    AuthenticatedRequestComponents,
+    IAuthenticator,
+)
 from cyberdelta.apis.base.exchange_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.connectivity.connectivity_models import HttpClientConfig
 from cyberdelta.apis.connectivity.http_client import HttpClient
+
+# Attempting to fix the import path for RateLimiterService
+from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 from cyberdelta.apis.hyperliquid.hl_mapper import (
@@ -75,11 +81,15 @@ from cyberdelta.core.models import (
 from cyberdelta.core.models.enums import (
     CancelOrderResultStatus,  # ADDED
     OrderSide,
+    OrderStatus,  # ADDED OrderStatus here
     OrderType,
     TimeInForce,
 )
 from cyberdelta.core.models.market import Candle, OrderBook  # Added Candle, OrderBook
-from cyberdelta.core.models.market.order import CancelOrderResult, Order, OrderStatus  # ADDED
+from cyberdelta.core.models.market.order import (
+    CancelOrderResult,
+    Order,
+)  # REMOVED OrderStatus from here
 from cyberdelta.utils.logging_config import get_logger
 from cyberdelta.utils.parsing import timeframe_to_ms  # Import the new helper
 
@@ -97,7 +107,19 @@ class HyperliquidAPI(ExchangeAPI):
     account_service: HyperliquidAccountService
     trading_service: HyperliquidTradingService  # Declare trading_service attribute
 
-    async def _info_request_wrapper(self, *args: Any, **kwargs: Any) -> RawJsonResponse | None:
+    async def _info_request_wrapper(
+        self,
+        method: str,
+        endpoint_path: str,
+        data: dict[str, Any],
+        authenticator: IAuthenticator | None,  # Parameter from service call
+        rate_limiter_service: RateLimiterService,  # Parameter from service call
+        is_signed: bool,  # Parameter from service call
+        # These are optional in HttpClient.request and not used by services for /info calls:
+        params: dict[str, Any] | None = None,
+        headers: dict[str, Any] | None = None,
+        request_timeout: float | None = None,
+    ) -> RawJsonResponse | None:
         # Ensure _info_http_client is initialized before this wrapper can be effectively used.
         # This method will be called by services after __init__ completes.
         if not hasattr(self, "_info_http_client"):
@@ -106,11 +128,45 @@ class HyperliquidAPI(ExchangeAPI):
             )
             return None
 
-        # HttpClient.request returns a tuple (data, status_code, headers).
-        # The first element (data) can be RawJsonResponse | None.
-        response_tuple = await self._info_http_client.request(*args, **kwargs)
-        # The service requester callable expects only the data (RawJsonResponse | None)
-        return response_tuple[0]  # Directly return the first element which can be None
+        # HttpClient.request returns a tuple (content, processed_headers, raw_headers).
+        # The first element (content) can be RawJsonResponse | str | None.
+        # Ensure type hint matches wrapper's expected return (RawJsonResponse | None)
+        # The actual call to HttpClient.request:
+        response_tuple = await self._info_http_client.request(
+            method=method,
+            endpoint_path=endpoint_path,
+            rate_limiter_service=rate_limiter_service,  # Use passed-in service
+            authenticator=authenticator,  # Use passed-in authenticator (which will be None)
+            params=params,  # Pass through if provided, else None
+            data=data,
+            headers=headers,  # Pass through if provided, else None
+            is_signed=is_signed,  # Use passed-in is_signed (which will be False)
+            request_timeout=request_timeout,  # Pass through
+        )
+        # The service requester callable expects only the data part.
+        # HttpClient.request returns tuple[ParsedJsonResponse | str | None, ...]
+        # RawJsonResponse is Union[Dict[str, Any], List[Dict[str, Any]], List[Any]]
+        # ParsedJsonResponse is Union[Dict[str, Any], List[Any]]
+        # So, response_tuple[0] can be Dict, List, str, or None.
+        # This wrapper returns RawJsonResponse | None.
+        # If response_tuple[0] is str, it's a type mismatch unless str is part of RawJsonResponse.
+        # Assuming RawJsonResponse is compatible with Dict/List from ParsedJsonResponse.
+        # If HttpClient.request returns str, it needs handling or RawJsonResponse type update.
+        # For now, casting or relying on runtime compatibility.
+        # Given RawJsonResponse name, it should ideally be dict/list.
+
+        content = response_tuple[0]
+        if content is None or isinstance(content, dict | list):
+            return cast(RawJsonResponse | None, content)  # Cast to satisfy type hint
+        else:
+            # This case means content is str, which is not RawJsonResponse | None
+            logger.error(
+                f"[{self.exchange_name}] _info_request_wrapper received unexpected string "
+                f"content from HttpClient: {str(content)[:100]}..."
+            )
+            # Depending on strictness, either raise APIError or return None.
+            # For now, returning None to match original possible outcome.
+            return None
 
     def __init__(self, api_config: dict[str, Any], secrets: dict[str, str | None]) -> None:
         """
@@ -171,24 +227,40 @@ class HyperliquidAPI(ExchangeAPI):
             error_mapper=self._hyperliquid_error_mapper,
         )
 
-        # Initialize _info_http_client before account_service
-        info_http_client_raw_config = api_config.get("http_client", {})
-        info_client_config = HttpClientConfig(
+        # Initialize HTTP client for general API requests
+        http_client_raw_config = api_config.get("http_client", {})
+        http_client_config = HttpClientConfig(
+            rest_endpoint=HttpUrl(self.BASE_URL),
+            default_request_timeout=http_client_raw_config.get("default_request_timeout", 10.0),
+            max_retries=http_client_raw_config.get("max_retries", 3),
+            retry_delay_seconds=http_client_raw_config.get("retry_delay_seconds", 5.0),
+        )
+        self._http_client = HttpClient(self.exchange_name, http_client_config)
+
+        # Initialize a separate HTTP client for /info endpoint
+        # It uses a different base URL and can have its own timeout/retry settings.
+        # For now, it defaults like the main client if no specific "http_client" config found.
+        info_http_client_raw_config_for_info_client = api_config.get("http_client", {})
+        info_client_config_obj = HttpClientConfig(
             rest_endpoint=HttpUrl(self.INFO_URL),
-            default_request_timeout=info_http_client_raw_config.get(
+            default_request_timeout=info_http_client_raw_config_for_info_client.get(
                 "default_request_timeout", 10.0
             ),
-            max_retries=info_http_client_raw_config.get("max_retries", 3),
-            retry_delay_seconds=info_http_client_raw_config.get("retry_delay_seconds", 5.0),
+            max_retries=info_http_client_raw_config_for_info_client.get("max_retries", 3),
+            retry_delay_seconds=info_http_client_raw_config_for_info_client.get(
+                "retry_delay_seconds", 5.0
+            ),
         )
         self._info_http_client = HttpClient(
-            exchange_name=f"{self.exchange_name}_info",
-            config=info_client_config,
+            exchange_name=f"{self.exchange_name}_info",  # Differentiated name
+            config=info_client_config_obj,
         )
 
+        # Initialize services, passing the appropriate requester callable
+        # Services should use these callables, not the HttpClient instances directly.
         self.account_service = HyperliquidAccountService(
-            exchange_http_client_requester=self._request,  # For /exchange endpoints
-            info_http_client_requester=self._info_request_wrapper,  # Use wrapper for /info endpoints
+            exchange_http_client_requester=self._request,  # For /exchange
+            info_http_client_requester=self._info_request_wrapper,  # For /info
             request_builder=self._hl_request_builder,
             response_handler=self._hl_response_handler,
             authenticator=self._hl_authenticator,
@@ -451,9 +523,11 @@ class HyperliquidAPI(ExchangeAPI):
             if isinstance(message.get("coin"), str):
                 coin_for_topic_str = message.get("coin")
             elif isinstance(raw_data, list) and raw_data:
-                first_trade_item: Any = raw_data[0]
-                if isinstance(first_trade_item, dict):
-                    coin_from_item_any: Any = cast(dict[str, Any], first_trade_item).get("coin")
+                first_trade_item_any: Any = raw_data[0]  # Revert to Any
+                if isinstance(first_trade_item_any, dict):
+                    # Cast to dict[str, Any] after the isinstance check
+                    first_trade_item_dict = cast(dict[str, Any], first_trade_item_any)
+                    coin_from_item_any: Any = first_trade_item_dict.get("coin")
                     if isinstance(coin_from_item_any, str):
                         coin_for_topic_str = coin_from_item_any
 
@@ -932,10 +1006,11 @@ class HyperliquidAPI(ExchangeAPI):
                 arg_for_handler = first_status_obj_raw
             elif isinstance(first_status_obj_raw, HyperliquidRawExchangeStatusObject):  # pyright: ignore[reportUnnecessaryIsInstance]
                 arg_for_handler = first_status_obj_raw.model_dump(by_alias=True, exclude_none=True)
+            # DEFENSIVE CHECK: Guards against unexpected API types and ensures var assignment. Mypy=[unreachable]
             else:
-                err_msg = (  # type: ignore[unreachable]
+                err_msg = (
                     f"[{self.exchange_name}] Unexpected type for first_status_obj_raw in Transfer: "
-                    f"{type(first_status_obj_raw)}. Raw: {first_status_obj_raw!r}. "
+                    f"{type(cast(object, first_status_obj_raw))}. Raw: {first_status_obj_raw!r}. "
                     f"Indicates flaw in Pydantic validation or unexpected API response."
                 )
                 logger.critical(err_msg)
@@ -1138,7 +1213,7 @@ class HyperliquidAPI(ExchangeAPI):
                 original_exception=e,
             ) from e
 
-    async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:  # type: ignore[override]
+    async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
         logger.info(
             f"[{self.exchange_name}] Attempting to cancel all orders for symbol: {symbol or 'all'}"
         )
@@ -1633,14 +1708,15 @@ class HyperliquidAPI(ExchangeAPI):
             arg_for_handler = first_status_obj_raw
         elif isinstance(first_status_obj_raw, HyperliquidRawExchangeStatusObject):  # pyright: ignore[reportUnnecessaryIsInstance]
             arg_for_handler = first_status_obj_raw.model_dump(by_alias=True, exclude_none=True)
+        # DEFENSIVE CHECK: Guards against unexpected API types and ensures var assignment. Mypy=[unreachable]
         else:
             err_msg = (
-                f"[{self.exchange_name}] Unexpected type for first_status_obj_raw in "
-                f"Place Order: {type(first_status_obj_raw)}. Raw: {first_status_obj_raw!r}. "
-                f"Indicates flaw in Pydantic validation or unexpected API response."
+                f"[{self.exchange_name}] Unexpected type for first_status_obj_raw in Place Order: "
+                f"{type(first_status_obj_raw)}. Expected str or HyperliquidRawExchangeStatusObject. "
+                f"Raw: {first_status_obj_raw!r}"
             )
             logger.critical(err_msg)
-            raise RuntimeError(err_msg)  # Should not happen
+            raise RuntimeError(err_msg)  # Ensures arg_for_handler is defined or execution stops
 
         processed_status = HyperliquidResponseHandler.process_first_exchange_status(
             arg_for_handler, "Place Order"
@@ -1759,14 +1835,14 @@ class HyperliquidAPI(ExchangeAPI):
             order_id_int: int
             try:
                 order_id_int = int(order_id)
-            except ValueError:
+            except ValueError as e_val_int:  # Named the exception
                 logger.error(
                     f"[{self.exchange_name}] Invalid order_id format for cancel: '{order_id}'. Must be integer."
                 )
-                raise APIError(
+                raise APIError(  # Added 'from e_val_int'
                     f"Invalid order_id format for cancel: '{order_id}'. Must be integer.",
                     APIErrorCode.INVALID_PARAMS.value,
-                )
+                ) from e_val_int
 
             # Delegate to the trading service
             validated_response = await self.trading_service.cancel_order_raw(
@@ -1812,10 +1888,11 @@ class HyperliquidAPI(ExchangeAPI):
             arg_for_handler = first_status_obj_raw
         elif isinstance(first_status_obj_raw, HyperliquidRawExchangeStatusObject):  # pyright: ignore[reportUnnecessaryIsInstance]
             arg_for_handler = first_status_obj_raw.model_dump(by_alias=True, exclude_none=True)
+        # DEFENSIVE CHECK: Guards against unexpected API types and ensures var assignment. Mypy=[unreachable]
         else:
-            err_msg = (  # type: ignore[unreachable]
-                f"[{self.exchange_name}] Unexpected type for first_status_obj_raw in "
-                f"Cancel Order: {type(first_status_obj_raw)}. Raw: {first_status_obj_raw!r}. "
+            err_msg = (
+                f"[{self.exchange_name}] Unexpected type for first_status_obj_raw in Cancel Order: "
+                f"{type(first_status_obj_raw)}. Raw: {first_status_obj_raw!r}. "
                 f"Indicates flaw in Pydantic validation or unexpected API response."
             )
             logger.critical(err_msg)

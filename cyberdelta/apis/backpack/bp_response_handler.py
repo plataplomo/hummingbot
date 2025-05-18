@@ -391,7 +391,7 @@ class BackpackResponseHandler:
     def handle_get_historical_trades_response(
         raw_response_content: RawJsonResponse, symbol: str
     ) -> list[BackpackRawTrade]:
-        """Validates the raw response for the Get Historical Trades endpoint (/trades/history)."""
+        """Validates the raw response for the Get Historical Trades endpoint."""
         context = f"historical trades ({symbol})"
         if not isinstance(raw_response_content, list):
             raise APIError(
@@ -437,3 +437,58 @@ class BackpackResponseHandler:
             raise BackpackResponseHandler._handle_validation_error(
                 e, context, raw_response_content
             ) from e
+
+    @staticmethod
+    def handle_cancel_all_orders_response(
+        raw_response_content: RawJsonResponse, symbol: str | None
+    ) -> list[BackpackRawOrder]:
+        """
+        Validates the raw response for the Cancel All Orders endpoint (DELETE /api/v1/orders/cancelAll).
+        Expects a list of successfully cancelled orders.
+        """
+        context = f"cancel all orders ({symbol or 'all'})"
+        if not isinstance(raw_response_content, list):
+            # According to OpenAPI spec, this should be a list of orders that were cancelled.
+            # If it's not a list, it might be an error structure or an unexpected empty response.
+            # For now, assume an empty list is a valid response if it's not an error.
+            # If it's an empty dict {} and success, it might mean "no orders to cancel".
+            # However, the spec says `type: array, items: $ref: '#/components/schemas/Order'`
+            # Let's strictly expect a list or raise.
+            logger.error(
+                f"[{__name__}] Unexpected {context} response format: expected list, "
+                f"got {type(raw_response_content)}. Raw: {raw_response_content!r}"
+            )
+            raise APIError(
+                message=f"Unexpected {context} response format: expected list, "
+                f"got {type(raw_response_content)}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                metadata={"raw_response": raw_response_content},  # Pass raw content in metadata
+            )
+
+        validated_orders: list[BackpackRawOrder] = []
+        for item in raw_response_content:
+            if not isinstance(item, dict):
+                logger.warning(
+                    f"[{__name__}] Skipping non-dict item in {context} list: {item!r}. "
+                    f"Full response: {raw_response_content!r}"
+                )
+                continue  # Skip non-dict items, but don't fail the whole batch
+
+            try:
+                validated_orders.append(BackpackRawOrder.model_validate(item))
+            except ValidationError as e:
+                # Log the specific item that failed validation but continue processing others
+                # to return successfully validated items if any.
+                # Or, re-raise if strictness is required. For cancelAll, it might be better
+                # to return what was successfully parsed as cancelled.
+                logger.error(
+                    f"[{__name__}] Pydantic validation failed for single order item in {context}: {e}. "
+                    f"Item: {item!r}. Full response: {raw_response_content!r}"
+                )
+                # Optionally, re-raise if any single item failing should invalidate the whole response:
+                # raise BackpackResponseHandler._handle_validation_error(
+                #     e, f"single order item in {context}", item
+                # ) from e
+                # For now, we'll be lenient and collect valid ones.
+                # Consider if this behavior is desired or if it should be stricter.
+        return validated_orders
