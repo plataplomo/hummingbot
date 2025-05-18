@@ -534,21 +534,38 @@ class HyperliquidMapper:
             raw_asset_ctx: The validated HyperliquidRawAssetCtx object.
 
         Returns:
-            An internal FundingRate object, or None if parsing fails.
+            An internal FundingRate object, or None if parsing critical fields (other than funding rate itself) fails.
         """
         try:
+            # Attempt to parse mark_px first. If this fails, we can't proceed meaningfully.
             mark_price_val = parse_decimal_value(
                 raw_asset_ctx.mark_px, allow_none=True, field_name="mark_px"
             )
 
             hourly_funding_str = raw_asset_ctx.funding
-            hourly_funding_val = parse_decimal_value(
-                hourly_funding_str, allow_none=True, field_name="funding"
-            )
+            hourly_funding_val: Decimal | None = None  # Initialize to None
+            try:
+                # parse_decimal_value with allow_none=True might return None if hourly_funding_str is validly None
+                # (though not expected here as it's str), or could raise ValueError for unparseable strings.
+                hourly_funding_val = parse_decimal_value(
+                    hourly_funding_str, allow_none=True, field_name="funding"
+                )
+            except ValueError:  # Catch ValueError specifically from funding parsing
+                logger.warning(
+                    f"[HyperliquidMapper] Could not parse funding_rate string '{(hourly_funding_str)[:50]}...' for "
+                    f"{raw_asset_ctx.name}. Setting funding rate to None.",
+                    exc_info=True,  # Log the parsing error details for funding
+                )
+                # hourly_funding_val remains None, which is intended
 
-            funding_rate_8hr = None
-            if hourly_funding_val is not None:
+            funding_rate_8hr: Decimal | None = None
+            if hourly_funding_val is not None and hourly_funding_val.is_finite():
                 funding_rate_8hr = hourly_funding_val * Decimal("8")
+            elif hourly_funding_val is not None:  # It parsed but was non-finite (inf, nan)
+                logger.warning(
+                    f"[HyperliquidMapper] Parsed hourly funding for {raw_asset_ctx.name} but it was non-finite: {hourly_funding_val}. Setting to None."
+                )
+                # funding_rate_8hr remains None
 
             # Calculate next funding time (start of the next hour)
             now_utc = datetime.now(UTC)
@@ -556,36 +573,43 @@ class HyperliquidMapper:
                 hours=1
             )
 
+            # Parse other details; errors here will be caught by the outer try-except
+            hl_prev_day_px_val = parse_decimal_value(
+                raw_asset_ctx.prev_day_px, allow_none=True, field_name="prev_day_px"
+            )
+            hl_day_ntl_vlm_val = parse_decimal_value(
+                raw_asset_ctx.day_ntl_vlm, allow_none=True, field_name="day_ntl_vlm"
+            )
+            hl_impact_px_val = parse_decimal_value(
+                raw_asset_ctx.impact_px, allow_none=True, field_name="impact_px"
+            )
+
             details = HyperliquidFundingDetails(
-                hl_funding_hourly=hourly_funding_val,
-                hl_prev_day_px=parse_decimal_value(
-                    raw_asset_ctx.prev_day_px, allow_none=True, field_name="prev_day_px"
-                ),
-                hl_day_ntl_vlm=parse_decimal_value(
-                    raw_asset_ctx.day_ntl_vlm, allow_none=True, field_name="day_ntl_vlm"
-                ),
-                hl_impact_px=parse_decimal_value(
-                    raw_asset_ctx.impact_px, allow_none=True, field_name="impact_px"
-                ),
+                hl_funding_hourly=hourly_funding_val,  # Can be None if parsing failed
+                hl_prev_day_px=hl_prev_day_px_val,
+                hl_day_ntl_vlm=hl_day_ntl_vlm_val,
+                hl_impact_px=hl_impact_px_val,
             )
 
             return FundingRate(
                 symbol=raw_asset_ctx.name,
                 timestamp=now_utc,  # Snapshot time
-                funding_rate=funding_rate_8hr,
+                funding_rate=funding_rate_8hr,  # This will be None if hourly_funding_val was None or non-finite
                 predicted_rate=None,  # Not available from AssetCtx
-                mark_price=mark_price_val,
+                mark_price=mark_price_val,  # Can be None
                 index_price=None,  # Not available from AssetCtx
                 next_funding_time=next_funding_time_val,
                 hl_details=details,
             )
         except (ValueError, TypeError, InvalidOperation) as e:
+            # This outer except catches errors from parsing mark_px, prev_day_px, etc.,
+            # or other unexpected TypeErrors/InvalidOperations during detail construction.
             logger.error(
                 f"[HyperliquidMapper] Error mapping raw asset context to FundingRate for "
-                f"'{raw_asset_ctx.name}': {e}. Data: {raw_asset_ctx.model_dump()!r}",
+                f"'{raw_asset_ctx.name}': {e}. Critical fields might be unparseable. Data: {raw_asset_ctx.model_dump()!r}",
                 exc_info=True,
             )
-            return None
+            return None  # Return None if critical fields (other than funding rate itself) fail to parse
 
     @staticmethod
     def map_raw_clearinghouse_state_to_derivative_positions(
