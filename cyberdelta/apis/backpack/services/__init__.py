@@ -25,3 +25,5 @@ __all__ = [
     "BackpackTradingService",
     # "BackpackTradingService", # Uncomment when implemented
 ]
+
+# This file makes Python treat the directory as a package.

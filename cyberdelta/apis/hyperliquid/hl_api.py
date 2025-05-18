@@ -116,12 +116,12 @@ class HyperliquidAPI(ExchangeAPI):
         request_data: dict[str, Any] | None
         if isinstance(data, dict) or data is None:
             request_data = data
-        else:  # DEFENSIVE CHECK: Handles cases where caller violates type hint for 'data'. Mypy=[unreachable]
+        else:  # DEFENSIVE CHECK: Handles cases where caller violates type hint for 'data'.
             logger.warning(
                 f"[{self.exchange_name}] _market_data_requester_adapter received non-dict data: "
                 f"{type(data)}. Passing as None."
             )
-            request_data = None # Explicitly set to None if unexpected type received
+            request_data = None  # Explicitly set to None if unexpected type received
 
         actual_content, status, actual_headers = await self._request(
             method=method,
@@ -636,7 +636,8 @@ class HyperliquidAPI(ExchangeAPI):
                             )
                             order_update_wrapper = _handle_order_wrapper(event_item_dict)
                             _handle_order_event = (
-                                HyperliquidWsRawMessageHandler.handle_user_order_event_payload
+                                HyperliquidWsRawMessageHandler
+                                .handle_user_order_event_payload
                             )
                             validated_order_details = _handle_order_event(order_update_wrapper.data)
                             current_event_payload_for_handler = validated_order_details.model_dump(
@@ -838,28 +839,30 @@ class HyperliquidAPI(ExchangeAPI):
                     raw=raw_order_item,
                     trigger=None,
                 )
-                if (
-                    mapped_order
-                    and mapped_order.status
-                    in [
-                        OrderStatus.OPEN,
-                        OrderStatus.PARTIALLY_FILLED,
-                        OrderStatus.NEW,
-                    ]
-                ):
+                if mapped_order and mapped_order.status in [
+                    OrderStatus.OPEN,
+                    OrderStatus.PARTIALLY_FILLED,
+                    OrderStatus.NEW,
+                ]:
                     if symbol is None or mapped_order.symbol == symbol:
                         open_orders.append(mapped_order)
             except (ValidationError, ValueError) as e_map:
                 logger.warning(
                     f"[{self.exchange_name}] Error mapping raw open order: {e_map}. "
-                    f"Raw: {raw_order_item.model_dump_json(exclude_none=True) if raw_order_item else 'None'}. "
-                    f"Skipping."
+                    f"Raw: {
+                        raw_order_item.model_dump_json(exclude_none=True)
+                        if raw_order_item
+                        else 'None'
+                    }. Skipping."
                 )
             except Exception as e_unexp_map:
                 logger.error(
-                    f"[{self.exchange_name}] Unexpected error mapping raw open order: {e_unexp_map}. "
-                    f"Raw: {raw_order_item.model_dump_json(exclude_none=True) if raw_order_item else 'None'}. "
-                    f"Skipping.",
+                    f"[{self.exchange_name}] Unexpected error mapping raw open order: "
+                    f"{e_unexp_map}. Raw: {
+                        raw_order_item.model_dump_json(exclude_none=True)
+                        if raw_order_item
+                        else 'None'
+                    }. Skipping.",
                     exc_info=True,
                 )
         return open_orders
@@ -892,8 +895,8 @@ class HyperliquidAPI(ExchangeAPI):
         The service method get_market_data(symbol, interval, start_time_ms, end_time_ms)
         For now, this delegation assumes the caller will provide appropriate start/end times or
         that the service method can derive them if only limit is given.
-        This is a simplification for delegation; original complex logic for start/end time calculation
-        from limit+timeframe should be in the service or this method before delegation.
+        This is a simplification for delegation; original complex logic for start/end time
+        calculation from limit+timeframe should be in the service or this method before delegation.
 
         For this refactor, we assume the service method handles the start/end time logic if needed.
         We need to define how start_time_ms and end_time_ms are derived here.
@@ -1332,7 +1335,8 @@ class HyperliquidAPI(ExchangeAPI):
         except Exception as e_unhandled_service_call:
             logger.error(
                 f"[{self.exchange_name}] Unexpected error calling "
-                f"trading_service.get_order_status_raw for OID {order_id}: {e_unhandled_service_call}",
+                f"trading_service.get_order_status_raw for OID {order_id}: "
+                f"{e_unhandled_service_call}",
                 exc_info=True,
             )
             raise APIError(
@@ -1358,8 +1362,13 @@ class HyperliquidAPI(ExchangeAPI):
             return internal_order
         except (ValidationError, ValueError) as e_map:
             logger.error(
-                f"[{self.exchange_name}] Error mapping raw historical order for OID {order_id}: {e_map}. "
-                f"Raw: {raw_historical_order.model_dump_json(exclude_none=True) if raw_historical_order else 'None'}"
+                f"[{self.exchange_name}] Error mapping raw historical order for OID {order_id}: "
+                f"{e_map}. "
+                f"Raw: {
+                    raw_historical_order.model_dump_json(exclude_none=True)
+                    if raw_historical_order
+                    else 'None'
+                }"
             )
             raise APIError(
                 f"Failed to map order status response for OID {order_id}: {e_map}",

@@ -23,3 +23,5 @@ __all__ = [
     "HyperliquidMarketDataService",
     # "HyperliquidTradingService", # Uncomment when implemented
 ]
+
+# This file makes Python treat the directory as a package.
