@@ -275,6 +275,22 @@ class Blockchain(Enum):
     # Add others from spec...
 
 
+class CancelOrderResultStatus(Enum):
+    """
+    Enum representing the status of a cancel order operation for a single order or a batch.
+    """
+
+    SUCCESS = "SUCCESS"  # All specified orders were successfully canceled.
+    PARTIAL = "PARTIAL"  # Some orders were canceled, some failed or were not found.
+    FAILED = "FAILED"  # The cancel operation failed for all specified orders.
+    NOT_FOUND = "NOT_FOUND"  # No orders matching the criteria were found.
+    ALREADY_CANCELLED_OR_CLOSED = (
+        "ALREADY_CANCELLED_OR_CLOSED"  # Orders were already in a terminal state.
+    )
+    PENDING = "PENDING"  # Cancellation request submitted, awaiting confirmation.
+    UNKNOWN = "UNKNOWN"  # The outcome of the cancellation is unknown.
+
+
 # Define __all__ for explicit public export
 __all__ = [
     "OrderSide",
@@ -288,4 +304,5 @@ __all__ = [
     "OrderExpiryReason",
     "MarketType",
     "Blockchain",
+    "CancelOrderResultStatus",
 ]

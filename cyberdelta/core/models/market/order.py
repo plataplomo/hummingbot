@@ -4,11 +4,12 @@ import logging
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Self
+from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from cyberdelta.core.models.enums import (
+    CancelOrderResultStatus,
     OrderExpiryReason,
     OrderSide,
     OrderStatus,
@@ -350,3 +351,44 @@ class BackpackOrderDetails(BaseModel):
         return parsed
 
     # Enum fields rely on Pydantic's default validation for Optional[EnumType]
+
+
+# --- Cancel Order Result Model ---
+class CancelOrderResult(BaseModel):
+    """
+    Represents the result of a cancel order operation.
+    """
+
+    symbol: str | None = Field(
+        default=None, description="Symbol of the order(s) targeted for cancellation."
+    )
+    order_id: str | None = Field(
+        default=None,
+        description="Specific order ID targeted, if applicable. 'ALL' for bulk symbol cancels.",
+    )
+    client_order_id: str | None = Field(
+        default=None, description="Client order ID, if provided in the cancel request."
+    )
+    success: bool = Field(
+        ..., description="True if the cancellation was broadly successful for the target."
+    )
+    message: str | None = Field(
+        default=None, description="Additional information or error message."
+    )
+    status: CancelOrderResultStatus = Field(
+        ..., description="Detailed status of the cancellation operation."
+    )
+    raw_response: dict[str, Any] | None = Field(
+        default=None,
+        description="Optional raw response from the exchange for this specific cancellation.",
+    )
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+__all__ = [
+    "Order",
+    "HyperliquidOrderDetails",
+    "BackpackOrderDetails",
+    "CancelOrderResult",
+]

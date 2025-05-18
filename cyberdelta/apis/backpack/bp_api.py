@@ -21,7 +21,7 @@ This module implements the Backpack exchange adapter for CyberDeltaEngine, inclu
 from collections.abc import Mapping
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any
 
 from pydantic import ValidationError
 
@@ -41,6 +41,7 @@ from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill, BackpackRawTrade
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
+from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
 from cyberdelta.apis.base.exchange_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.models.api_error import APIError
@@ -79,6 +80,7 @@ class BackpackAPI(ExchangeAPI):
     """
 
     account_service: BackpackAccountService
+    trading_service: BackpackTradingService
 
     def __init__(self, api_config: dict[str, Any], secrets: dict[str, str | None]) -> None:
         """
@@ -128,6 +130,15 @@ class BackpackAPI(ExchangeAPI):
             response_handler=self._bp_response_handler,
             authenticator=self._bp_authenticator,
             rate_limiter_service=self._rate_limiter_service,
+            exchange_name=self.exchange_name,
+        )
+
+        # Instantiate BackpackTradingService
+        self.trading_service = BackpackTradingService(
+            http_client_requester=self._request,  # Pass the _request method
+            request_builder=self._bp_request_builder,  # Pass the instance
+            response_handler=self._bp_response_handler,  # Pass the instance
+            authenticator=self._bp_authenticator,  # Pass the authenticator instance
             exchange_name=self.exchange_name,
         )
 
@@ -464,68 +475,27 @@ class BackpackAPI(ExchangeAPI):
             ValueError: If price is missing for a LIMIT order.
             APIError: On API errors or if the order placement fails.
         """
-        endpoint = "/api/v1/order"
-
-        # Old payload construction removed
-        payload = BackpackRequestBuilder.build_place_order_payload(
+        # Delegate to trading_service to get raw order
+        raw_order: BackpackRawOrder = await self.trading_service.place_order_raw(
             symbol=symbol,
             side=side,
             order_type=order_type,
             quantity=quantity,
             time_in_force=time_in_force,
             price=price,
+            stop_price=stop_price,
             client_order_id=client_order_id,
             post_only=post_only,
-            trigger_price=stop_price,  # Pass stop_price as trigger_price to builder
+            # reduce_only is not directly used by Backpack's place_order payload
+            # but is part of the generic ExchangeAPI interface.
+            # The BackpackRequestBuilder.build_place_order_payload does not take reduce_only.
+            # If Backpack supports it via a different field, builder should be updated.
         )
 
-        try:
-            # Make a single request. The type 'Any' is used initially as _request
-            # from base might return various structures before validation.
-            response_data: Any = await self._request(
-                method="POST", endpoint=endpoint, data=payload, is_signed=True
-            )
-
-            # Attempt to use response_data directly if it's a dict, assuming it might
-            # be a direct success response that the handler can process.
-            if isinstance(response_data, dict):
-                try:
-                    # We've confirmed response_data is a dict, cast for the handler
-                    raw_order_from_direct: BackpackRawOrder = (
-                        BackpackResponseHandler.handle_place_order_response(
-                            cast(dict[str, Any], response_data)
-                        )
-                    )
-                    return self._bp_mapper.transform_raw_order_to_internal(raw_order_from_direct)
-                except (APIError, ValidationError, ValueError) as e_direct_map:
-                    logger.warning(
-                        f"[{self.exchange_name}] Failed to directly map initial place_order "
-                        f"response (was dict): {e_direct_map}. Response: {response_data!r}. "
-                        f"Falling back to generic RawJsonResponse validation."
-                    )
-                    # Fall through if direct dict mapping fails, try validating response_data
-                    # as RawJsonResponse
-
-            # Fallback or default path: Validate response_data as RawJsonResponse
-            # This assumes response_data, despite being Any, holds the raw content.
-            # If _request guarantees RawJsonResponse on success, this is safer.
-            # If not, further checks on response_data structure might be needed here.
-            raw_order: BackpackRawOrder = BackpackResponseHandler.handle_place_order_response(
-                cast(RawJsonResponse, response_data)  # Cast to expected handler input
-            )
-            return self._bp_mapper.transform_raw_order_to_internal(raw_order)
-
-        except ValueError as ve:  # e.g., missing price for limit order from builder
-            raise ve
-        except APIError as e:
-            logger.error(f"[{self.exchange_name}] API Error placing order: {e}")
-            raise e
-        except Exception as e:
-            logger.error(f"[{self.exchange_name}] Error placing order: {e}", exc_info=True)
-            # Ensure final exception path raises APIError, satisfying return type check
-            raise APIError(
-                f"Unexpected error placing order: {e}", code=APIErrorCode.UNKNOWN.value
-            ) from e
+        # Transform raw order to internal Order object
+        # The _bp_mapper is an instance of BackpackOrderMapper
+        internal_order = self._bp_mapper.transform_raw_order_to_internal(raw_order)
+        return internal_order
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
         """Cancel an existing order. Returns True if successful."""
@@ -534,54 +504,59 @@ class BackpackAPI(ExchangeAPI):
             # For now, raise error as Backpack API likely requires symbol
             raise ValueError("Symbol is required to cancel order on Backpack")
 
-        endpoint = "/api/v1/order"
-        params = BackpackRequestBuilder.build_cancel_order_params(symbol=symbol, order_id=order_id)
+        # Delegate to trading_service. cancel_order_raw returns RawJsonResponse
+        # We expect a dict from handle_cancel_order_response upon success.
+        # The original method returned True on success, False/APIError on failure.
+        # We need to inspect the raw_response or trust the handler to raise APIError on failure.
         try:
-            # Assign the response to response_raw
-            response_raw: RawJsonResponse = await self._request(
-                "DELETE", endpoint, params=params, is_signed=True
+            _raw_response: RawJsonResponse = await self.trading_service.cancel_order_raw(
+                order_id=order_id, symbol=symbol
             )
-            # Use handler, passing the fetched response_raw
-            _ = BackpackResponseHandler.handle_cancel_order_response(
-                raw_response_content=response_raw, order_id=order_id, symbol=symbol
+            # Assuming handle_cancel_order_response in the service would raise an APIError
+            # if the cancellation was not successful (e.g., order not found, invalid params).
+            # If it returns without error, cancellation is considered successful.
+            logger.info(
+                f"[{self.exchange_name}] Successfully canceled order {order_id} for {symbol} via service."
             )
-            logger.info(f"[{self.exchange_name}] Canceled order {order_id} for {symbol}")
-            # Return True on success (APIError wasn't raised)
             return True
         except APIError as e:
-            logger.error(f"[{self.exchange_name}] API Error canceling order {order_id}: {e}")
+            # APIError is already logged by the service or the _request method.
+            # Re-raise it to be handled by the caller.
             raise e
-        except Exception as e:
+        except Exception as e_unhandled:  # Should ideally be caught by service, but as a fallback
             logger.error(
-                f"[{self.exchange_name}] Error canceling order {order_id}: {e}", exc_info=True
+                f"[{self.exchange_name}] Unexpected error in API cancel_order for {order_id}: {e_unhandled}",
+                exc_info=True,
             )
-            # Let _request handle mapping via overridden _map_error_response
             raise APIError(
-                f"Unexpected error canceling order {order_id}: {e}", code=APIErrorCode.UNKNOWN.value
-            ) from e
+                f"Unexpected error canceling order {order_id} via API: {e_unhandled}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e_unhandled,
+            )
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Get open orders, mapping all required fields."""
-        endpoint = "/api/v1/orders"
-        params = BackpackRequestBuilder.build_get_open_orders_params(symbol=symbol)
-        response_data_raw: RawJsonResponse = await self._request(
-            method="GET", endpoint=endpoint, params=params, is_signed=True
+        # Delegate to trading_service to get raw orders
+        raw_orders: list[BackpackRawOrder] = await self.trading_service.get_open_orders_raw(
+            symbol=symbol
         )
 
-        # Validate using the handler
-        raw_orders: list[BackpackRawOrder] = (
-            BackpackResponseHandler.handle_get_open_orders_response(response_data_raw, symbol)
-        )
-
-        # Transformation logic remains here
+        # Transformation logic
         orders: list[Order] = []
         for raw_order in raw_orders:
             try:
                 # Transform validated raw order to internal Order using instance mapper
                 internal_order = self._bp_mapper.transform_raw_order_to_internal(raw=raw_order)
+                # Original code did not check if internal_order is None, assuming transform always works
+                # or raises. Adding a check for robustness if mapper can return None.
                 if internal_order:
                     orders.append(internal_order)
-            except Exception as e:
+                else:
+                    logger.warning(
+                        f"[{self.exchange_name}] Skipping order due to transformation returning None. "
+                        f"Data: {raw_order.model_dump_json()}"
+                    )
+            except Exception as e:  # Catch transformation errors
                 logger.warning(
                     f"[{self.exchange_name}] Skipping order due to transformation error: {e}. "
                     f"Data: {raw_order.model_dump_json()}"
@@ -981,31 +956,30 @@ class BackpackAPI(ExchangeAPI):
         Returns:
             The Order object if found, otherwise None.
         """
+        if not symbol:  # Symbol is required for get_order_status_raw
+            raise ValueError("Symbol is required for get_order on Backpack.")
+
+        # Delegate to trading_service.get_order_status_raw as it fetches a single order
+        raw_order: BackpackRawOrder | None = await self.trading_service.get_order_status_raw(
+            order_id=order_id, symbol=symbol
+        )
+
+        if raw_order is None:
+            # Service already logs if order not found and returns None.
+            return None
+
+        # Transform raw order to internal Order object
         try:
-            # Reuse get_order_status which handles fetching and transformation
-            return await self.get_order_status(order_id=order_id, symbol=symbol)
-        except APIError as e:
-            # If get_order_status raises ORDER_NOT_FOUND, return None as per this method's contract
-            if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
-                logger.debug(
-                    f"[{self.exchange_name}] Order {order_id} not found for symbol "
-                    f"{symbol} (get_order)."
-                )
-                return None
-            # Re-raise other API errors
-            logger.error(f"[{self.exchange_name}] API error fetching order {order_id}: {e}")
-            raise
-        except Exception as e:
-            # Re-raise unexpected errors
+            internal_order = self._bp_mapper.transform_raw_order_to_internal(raw_order)
+            return internal_order
+        except Exception as e:  # Catch transformation errors
             logger.error(
-                f"[{self.exchange_name}] Unexpected error fetching order {order_id}: {e}",
+                f"[{self.exchange_name}] Failed to transform raw order {order_id} to internal model: {e}. "
+                f"Raw data: {raw_order.model_dump_json()}",
                 exc_info=True,
             )
-            raise APIError(
-                f"Unexpected error fetching order {order_id}: {e}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
+            # Depending on strictness, could raise APIError(INVALID_RESPONSE) or return None
+            return None  # Consistent with original method's potential to return None on error
 
     # All abstract methods should now be implemented.
 
@@ -1142,7 +1116,7 @@ class BackpackAPI(ExchangeAPI):
 
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
-    ) -> Order | None:
+    ) -> Order | None:  # Ensure return type matches ExchangeAPI.get_order_status
         """Fetches the status of a single order by its orderId or clientId."""
         if not symbol:
             raise ValueError(
@@ -1150,102 +1124,68 @@ class BackpackAPI(ExchangeAPI):
                 "from Backpack, as it's a required query parameter."
             )
 
-        identifier = order_id if order_id else client_order_id
-        if not identifier:
-            raise ValueError("Either order_id or client_order_id must be provided.")
+        # Delegate to trading_service
+        # The service method get_order_status_raw handles identifier logic
+        raw_order: BackpackRawOrder | None = await self.trading_service.get_order_status_raw(
+            order_id=order_id, symbol=symbol, client_order_id=client_order_id
+        )
 
-        endpoint = f"/api/v1/orders/{identifier}"
-        params: dict[str, str] = {"symbol": BackpackRequestBuilder.format_symbol(symbol)}
-        response_data_raw: RawJsonResponse | None = None
+        if raw_order is None:
+            # Service method returns None if order not found (and logs it).
+            return None
+
+        # Transform raw order to internal Order object
         try:
-            response_data_raw = await self._request(
-                method="GET", endpoint=endpoint, params=params, is_signed=True
-            )
-            if response_data_raw is None:
-                return None  # Or raise, depending on desired behavior for not found
-            # Validate using the handler (handles None case by raising ORDER_NOT_FOUND)
-            raw_order: BackpackRawOrder = BackpackResponseHandler.handle_get_order_status_response(
-                response_data_raw, identifier
-            )
-
-            # Transformation remains here using instance mapper
-            return self._bp_mapper.transform_raw_order_to_internal(raw_order)
-
-        except APIError as e:  # Catches validation errors and ORDER_NOT_FOUND
-            # Handle ORDER_NOT_FOUND specifically as per method contract
-            if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
-                logger.debug(
-                    f"[{self.exchange_name}] Order {identifier} not found on Backpack "
-                    f"(get_order_status)."
-                )
-                return None  # Return None for not found
-
-            # Log and re-raise other API errors
+            internal_order = self._bp_mapper.transform_raw_order_to_internal(raw_order)
+            return internal_order
+        except Exception as e:  # Catch transformation errors
             logger.error(
-                f"[{self.exchange_name}] API error fetching order {identifier} for {symbol}: {e}"
+                f"[{self.exchange_name}] Failed to transform raw order status for {order_id or client_order_id} "
+                f"to internal model: {e}. Raw data: {raw_order.model_dump_json()}",
+                exc_info=True,
             )
-            raise  # Re-raise other APIErrors (like INVALID_RESPONSE)
-
-        except Exception:
-            return None  # Or raise, depending on desired behavior for not found
+            # Consider raising APIError or returning None as per contract
+            return None  # Consistent with returning None if mapping fails or order not found
 
     async def cancel_all_orders(self, symbol: str | None = None) -> None:
         """
         Cancel all orders for a given symbol.
+        Delegates to the trading service which handles the one-by-one cancellation.
+        The service method returns a list of raw responses; this API method has no return.
+        Error logging for individual cancellations is handled within the service.
         """
         logger.info(
-            f"[{self.exchange_name}] Attempting to cancel all orders for symbol: {symbol or 'all'}"
+            f"[{self.exchange_name}] API: Attempting to cancel all orders for symbol: {symbol or 'all'}"
         )
-        # Backpack does not have a single endpoint to cancel *all* orders across all symbols
-        # or for a specific symbol in one go using DELETE /api/v1/orders without an ID.
-        # DELETE /api/v1/orders with `symbol` in body/query might be for specific symbol's orders.
-        # The current implementation in bp_api.py fetches open orders and cancels them one by one.
-        # We will keep this logic but use the builder for individual cancel_order calls.
+        # The service method cancel_all_orders_raw returns list[RawJsonResponse]
+        # This API method returns None. We call the service and don't process its return value here,
+        # assuming errors are logged by the service or individual cancel_order_raw calls it makes.
+        results = await self.trading_service.cancel_all_orders_raw(symbol=symbol)
 
-        # If Backpack had a bulk cancel: DELETE /api/v1/orders with params = {"symbol": ...}
-        # params = BackpackRequestBuilder.build_cancel_all_orders_payload(symbol=symbol)
-        # await self._request(
-        # method="DELETE", endpoint="/api/v1/orders", params=params, is_signed=True
-        # )
-        # return
+        # Optionally, process results to log a summary or raise a general error if any failed.
+        # For now, keeping it simple as per the prompt to primarily delegate.
+        # The service's cancel_all_orders_raw already logs individual errors.
+        num_attempted = len(results)
+        num_successful = 0
+        for res_item in results:
+            if isinstance(res_item, dict) and "error" not in res_item:
+                # Crude check for success: if it's a dict and no 'error' key from our error packaging
+                # This assumes successful cancel_order_raw returns a dict-like RawJsonResponse
+                # that handle_cancel_order_response would process, which itself is dict for success.
+                num_successful += 1
+            elif (
+                isinstance(res_item, dict) and res_item.get("status") == "Cancelled"
+            ):  # Example success
+                num_successful += 1
 
-        # Current one-by-one cancellation logic:
-        open_orders = await self.get_open_orders(symbol=symbol)
-        if not open_orders:
-            logger.info(f"[{self.exchange_name}] No open orders to cancel for {symbol or 'all'}")
-            return
-
-        for order_item in open_orders:
-            try:
-                order_to_cancel_id: str | None = order_item.exchange_order_id
-                # Backpack cancel_order requires an ID. Prioritize exchange_order_id.
-                if order_to_cancel_id:
-                    await self.cancel_order(order_to_cancel_id, order_item.symbol)
-                elif order_item.client_order_id:
-                    # If Backpack primarily uses orderId (exchange) for cancellation,
-                    # using clientId might need different handling or might not be supported
-                    # by the DELETE /api/v1/order?symbol=X&orderId=Y endpoint structure.
-                    # The builder build_cancel_order_params prefers orderId.
-                    # If client_order_id is the *only* thing available, and cancel_order
-                    # needs to use it, cancel_order method signature or builder logic
-                    # might need adjustment.
-                    # For now, attempting with client_order_id if exchange_order_id is missing.
-                    logger.warning(
-                        f"[{self.exchange_name}] Attempting to cancel order using "
-                        f"client_order_id '{order_item.client_order_id}' as "
-                        f"exchange_order_id is missing."
-                    )
-                    await self.cancel_order(order_item.client_order_id, order_item.symbol)
-                else:
-                    logger.error(
-                        f"[{self.exchange_name}] Cannot cancel order, missing any usable ID "
-                        f"for order: {order_item.model_dump_json(exclude_none=True)}"
-                    )
-
-            except APIError as e:
-                # Log with whichever ID was available or attempted
-                attempted_id = (
-                    order_item.exchange_order_id or order_item.client_order_id or "[MISSING_ID]"
-                )
-                logger.error(f"[{self.exchange_name}] Error cancelling order {attempted_id}: {e}")
-                continue
+        if num_attempted > 0:
+            logger.info(
+                f"[{self.exchange_name}] API: cancel_all_orders for {symbol or 'all'} - "
+                f"Attempted: {num_attempted}, Successful (approx): {num_successful}."
+            )
+        else:
+            logger.info(
+                f"[{self.exchange_name}] API: No orders found to cancel for {symbol or 'all'} by service."
+            )
+        # No explicit return value for cancel_all_orders in ExchangeAPI base
+        return
