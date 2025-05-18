@@ -8,427 +8,348 @@ BackpackResponseHandler, and RateLimiterService to interact with the API
 and returns validated Raw Pydantic Models.
 """
 
-from pydantic import ValidationError  # Import ValidationError
+from __future__ import annotations
 
+from collections.abc import Awaitable, Callable, Mapping
+from typing import TYPE_CHECKING
+
+from pydantic import ValidationError
+
+from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
+# Import RawJsonResponse from bp_response_handler where it's defined as an alias
 from cyberdelta.apis.backpack.bp_response_handler import (
     BackpackResponseHandler,
-    RawJsonResponse,  # Import this type alias
+    RawJsonResponse,
 )
-from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
-from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
-from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
+from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse # Import ParsedJsonResponse
+# Singular Raw models specific to Backpack responses
+from cyberdelta.apis.backpack.models.bp_raw_market import (
+    BackpackRawTicker,
+    BackpackRawOrderBook,
+    # Removed non-existent BackpackRawAllTickers, BackpackRawRecentTrades
+)
+# Assuming BackpackRawTrade is for individual trades, used in lists
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
-from cyberdelta.apis.connectivity.http_client import HttpClient
-
-# Import RateLimiterService
-from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
-from cyberdelta.apis.models.api_error import APIError  # Corrected import for APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode  # Import APIErrorCode
+# Assuming BackpackRawKline is for individual klines, used in lists
+from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
+from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
+# Base API error models
+from cyberdelta.apis.models.api_error import APIError
+from cyberdelta.apis.models.api_error_codes import APIErrorCode
+# Internal domain models
+from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.models.market import (
+    FundingRate,
+    OrderBook,
+    Ticker,
+    Trade,
+)
 from cyberdelta.utils.logging_config import get_logger
 
+if TYPE_CHECKING:
+    pass
+
 logger = get_logger(__name__)
+
+# Type alias for the HTTP client requester callable that the service will use.
+# It's expected to be the _request method from an ExchangeAPI instance (or a compatible wrapper).
+# Adjusted to reflect the actual return type from ExchangeAPI._request.
+HttpClientRequesterSig = Callable[
+    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]] # Ensuring this uses ParsedJsonResponse | None
+]
 
 
 class BackpackMarketDataService:
     """
     Service class for Backpack market data operations.
+    Returns Internal Domain Models.
     """
+
+    _http_client_requester: HttpClientRequesterSig
+    _request_builder: BackpackRequestBuilder
+    _response_handler: BackpackResponseHandler
+    _mapper: BackpackOrderMapper
+    _exchange_name: str
 
     def __init__(
         self,
-        http_client: HttpClient,
+        http_client_requester: HttpClientRequesterSig,
         request_builder: BackpackRequestBuilder,
         response_handler: BackpackResponseHandler,
-        rate_limiter_service: RateLimiterService,  # Added RateLimiterService
         exchange_name: str,
     ) -> None:
         """
         Initialize the BackpackMarketDataService.
 
         Args:
-            http_client: An instance of HttpClient for making API requests.
+            http_client_requester: A callable for making API requests (e.g., BackpackAPI._request).
             request_builder: An instance of BackpackRequestBuilder.
             response_handler: An instance of BackpackResponseHandler.
-            rate_limiter_service: An instance of RateLimiterService.
             exchange_name: The name of the exchange.
         """
-        self._http_client = http_client
+        self._http_client_requester = http_client_requester
         self._request_builder = request_builder
         self._response_handler = response_handler
-        self._rate_limiter_service = rate_limiter_service  # Store RateLimiterService
         self._exchange_name = exchange_name
+        self._mapper = BackpackOrderMapper()
 
-    async def get_ticker(self, symbol: str) -> BackpackRawTicker:
-        """
-        Retrieves the latest ticker information for a specific symbol.
-
-        Args:
-            symbol: The trading symbol (e.g., "SOL_USDC").
-
-        Returns:
-            A BackpackRawTicker object containing the validated raw ticker data.
-
-        Raises:
-            APIError: If the API request fails or the response is invalid.
-        """
-        endpoint = "/api/v1/ticker"
-        params = self._request_builder.build_get_ticker_params(symbol=symbol)
-        response_data_raw: RawJsonResponse | None = None
+    async def get_ticker(self, symbol: str) -> Ticker:
+        """Retrieves the latest ticker information for a specific symbol."""
+        # Original method names from builder, handler, mapper
+        endpoint_path, params = self._request_builder.build_get_ticker_params(symbol=symbol)
+        logger.debug(
+            f"[{self._exchange_name}] Requesting ticker for {symbol} from {endpoint_path} "
+            f"with params: {params}"
+        )
+        raw_data: RawJsonResponse | None = None
+        status_code: int = 0
+        headers: Mapping[str, str] = {} # Initialize headers
         try:
-            limiter = self._rate_limiter_service.get_limiter("GET", endpoint)
-            await limiter.acquire()
-            response_data_raw, _, _ = await self._http_client.request(
+            raw_data, status_code, headers = await self._http_client_requester( # Modified to capture headers
                 method="GET",
-                endpoint_path=endpoint,
-                rate_limiter_service=self._rate_limiter_service,  # Pass the service
+                endpoint=endpoint_path,
                 params=params,
+                is_public_info_endpoint=True,
             )
-
-            if not isinstance(response_data_raw, dict):
-                logger.error(
-                    f"[{self._exchange_name}] Unexpected ticker response format for "
-                    f"{symbol}: {type(response_data_raw)}"
-                )
-                raise APIError(
-                    message=f"Unexpected ticker response format: {type(response_data_raw)}",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
-
-            raw_ticker: BackpackRawTicker = self._response_handler.handle_get_ticker_response(
-                response_data_raw, symbol
+            logger.debug(
+                f"[{self._exchange_name}] Raw ticker response for {symbol}: {raw_data!r} (Status: {status_code}, Headers: {headers})" # Log headers
             )
-            return raw_ticker
+            # Ensure raw_data is suitable for the handler, considering status_code
+            if raw_data is None and not (200 <= status_code < 300):
+                 raise APIError(f"No data for ticker {symbol}, status: {status_code}", APIErrorCode.INVALID_RESPONSE.value, http_status=status_code)
+            if not isinstance(raw_data, dict): # Type check before handler
+                 raise APIError(f"Ticker data for {symbol} is not a dict: {type(raw_data)}", APIErrorCode.INVALID_RESPONSE.value, http_status=status_code)
 
+            raw_ticker_model: BackpackRawTicker = self._response_handler.handle_get_ticker_response(
+                raw_data, symbol, status_code, headers # Modified
+            )
+            internal_ticker = self._mapper.transform_raw_ticker_to_internal(
+                raw_ticker_model, symbol_override=symbol
+            )
+            logger.debug(f"[{self._exchange_name}] Mapped internal ticker for {symbol}: {internal_ticker}")
+            return internal_ticker
         except APIError:
             raise
-        except ValueError as e_val:
-            logger.error(
-                f"[{self._exchange_name}] Ticker response validation/parsing failed for {symbol}: "
-                f"{e_val}. Raw: {response_data_raw!r}"
-            )
-            raise APIError(
-                message=f"Failed to validate/parse ticker data for {symbol}: {e_val}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                original_exception=e_val,
-            ) from e_val
+        except (ValidationError, ValueError) as e_val:
+            logger.error(f"Validation/map error for ticker {symbol}: {e_val}. Raw: {raw_data!r}, Status: {status_code}")
+            raise APIError(message=f"Processing ticker data failed: {e_val}", code=APIErrorCode.INVALID_RESPONSE.value, original_exception=e_val, http_status=status_code, exchange_message=str(raw_data)) from e_val
         except Exception as e_unhandled:
-            logger.error(
-                f"[{self._exchange_name}] Unhandled error fetching ticker for {symbol}: "
-                f"{e_unhandled}",
-                exc_info=True,
-            )
-            raise APIError(
-                message=f"Unexpected error processing ticker for {symbol}: {e_unhandled}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e_unhandled,
-            ) from e_unhandled
+            logger.error(f"Unhandled error for ticker {symbol}: {e_unhandled}", exc_info=True)
+            raise APIError(message=f"Unexpected error for ticker: {e_unhandled}", code=APIErrorCode.UNKNOWN.value, original_exception=e_unhandled, http_status=status_code, exchange_message=str(raw_data)) from e_unhandled
 
-    async def get_order_book(self, symbol: str, depth: int = 20) -> BackpackRawOrderBook:
-        """
-        Retrieves the order book for a specific symbol.
+    async def get_all_tickers(self) -> dict[str, Ticker]:
+        """Retrieves tickers for all available markets."""
+        # TODO: Backpack API does not seem to have a single endpoint for all tickers.
+        # This might require fetching all symbols first, then getting ticker for each.
+        # Or, the OpenAPI spec might list all tickers directly under /markets.
+        # For now, this is not implemented as the builder/handler methods are missing.
+        logger.warning(f"[{self._exchange_name}] get_all_tickers is not implemented yet for Backpack.")
+        raise NotImplementedError("get_all_tickers is not implemented for BackpackMarketDataService")
+        # endpoint_path, params = self._request_builder.build_get_all_tickers_params()
+        # logger.debug(f"[{self._exchange_name}] Requesting all tickers from {endpoint_path}")
+        # raw_data_list: RawJsonResponse | None = None
+        # status_code: int = 0
+        # try:
+        #     raw_data_list, status_code, _ = await self._http_client_requester(
+        #         method="GET", endpoint=endpoint_path, params=params, is_public_info_endpoint=True
+        #     )
+        #     logger.debug(f"[{self._exchange_name}] Raw all_tickers response: {raw_data_list!r} (Status: {status_code})")
+        #     if raw_data_list is None and not (200 <= status_code < 300):
+        #         raise APIError(f"No data for all_tickers, status: {status_code}", APIErrorCode.INVALID_RESPONSE.value, http_status=status_code)
+        #     if not isinstance(raw_data_list, list):
+        #         raise APIError(f"All tickers data not list: {type(raw_data_list)}", APIErrorCode.INVALID_RESPONSE.value, http_status=status_code)
 
-        Args:
-            symbol: The trading symbol (e.g., "SOL_USDC").
-            depth: The number of depth levels to retrieve. Defaults to 20.
-                   Note: Backpack API might have specific limits or ways to specify depth.
-                   The Backpack API documentation for /api/v1/depth indicates an optional
-                   `limit` parameter (default 100, max 1000). The old implementation passed
-                   the `depth` param as this `limit`.
+        #     raw_ticker_models: list[BackpackRawTicker] = self._response_handler.handle_get_all_tickers_response(
+        #         raw_data_list
+        #     )
+        #     internal_tickers_dict: dict[str, Ticker] = {}
+        #     for raw_model in raw_ticker_models:
+        #         ticker = self._mapper.transform_raw_ticker_to_internal(raw_model)
+        #         internal_tickers_dict[ticker.symbol] = ticker
+        #     logger.debug(f"[{self._exchange_name}] Mapped internal tickers_dict: {internal_tickers_dict}")
+        #     return internal_tickers_dict
+        # except APIError:
+        #     raise
+        # except (ValidationError, ValueError) as e_val:
+        #     logger.error(f"Validation/map error for all_tickers: {e_val}. Raw: {raw_data_list!r}, Status: {status_code}")
+        #     raise APIError(message=f"Processing all_tickers failed: {e_val}", code=APIErrorCode.INVALID_RESPONSE.value, original_exception=e_val, http_status=status_code, exchange_message=str(raw_data_list)) from e_val
+        # except Exception as e_unhandled:
+        #     logger.error(f"Unhandled error for all_tickers: {e_unhandled}", exc_info=True)
+        #     raise APIError(message=f"Unexpected error for all_tickers: {e_unhandled}", code=APIErrorCode.UNKNOWN.value, original_exception=e_unhandled, http_status=status_code, exchange_message=str(raw_data_list)) from e_unhandled
 
-        Returns:
-            A BackpackRawOrderBook object containing the validated raw order book data.
-
-        Raises:
-            APIError: If the API request fails or the response is invalid.
-        """
-        endpoint = "/api/v1/depth"
-        params = self._request_builder.build_get_order_book_params(symbol=symbol, limit=depth)
-        response_raw: RawJsonResponse | None = None
+    async def get_order_book(self, symbol: str, limit: int | None = None) -> OrderBook:
+        """Retrieves the order book for a specific symbol."""
+        effective_limit = limit if limit is not None else 100 # Default Backpack limit
+        endpoint_path, params = self._request_builder.build_get_order_book_params(symbol=symbol, limit=effective_limit)
+        logger.debug(f"[{self._exchange_name}] Requesting order book for {symbol} (limit: {effective_limit})")
+        raw_data: RawJsonResponse | None = None
+        status_code: int = 0
+        headers: Mapping[str, str] = {} # Initialize headers
         try:
-            limiter = self._rate_limiter_service.get_limiter("GET", endpoint)
-            await limiter.acquire()
-            response_raw, _, _ = await self._http_client.request(
-                method="GET",
-                endpoint_path=endpoint,
-                rate_limiter_service=self._rate_limiter_service,
-                params=params,
+            raw_data, status_code, headers = await self._http_client_requester( # Modified
+                method="GET", endpoint=endpoint_path, params=params, is_public_info_endpoint=True
             )
+            logger.debug(f"[{self._exchange_name}] Raw order_book for {symbol}: {raw_data!r} (Status: {status_code}, Headers: {headers})") # Log headers
+            if raw_data is None and not (200 <= status_code < 300):
+                raise APIError(f"No data for order_book {symbol}, status: {status_code}", APIErrorCode.INVALID_RESPONSE.value, http_status=status_code)
+            if not isinstance(raw_data, dict): # Type check before handler
+                raise APIError(f"Order_book data for {symbol} is not a dict: {type(raw_data)}", APIErrorCode.INVALID_RESPONSE.value, http_status=status_code)
 
-            if not isinstance(response_raw, dict):
-                logger.error(
-                    f"[{self._exchange_name}] Unexpected order book response format for "
-                    f"{symbol}: {type(response_raw)}"
-                )
-                raise APIError(
-                    message=f"Unexpected order book response format: {type(response_raw)}",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
-
-            validated_book: BackpackRawOrderBook = (
-                self._response_handler.handle_get_order_book_response(response_raw, symbol)
+            raw_order_book_model: BackpackRawOrderBook = self._response_handler.handle_get_order_book_response(
+                raw_data, symbol, status_code, headers # Modified
             )
-            return validated_book
-
+            internal_order_book = self._mapper.transform_raw_orderbook_to_internal(
+                symbol, raw_order_book_model
+            )
+            logger.debug(f"[{self._exchange_name}] Mapped order_book for {symbol}: {internal_order_book}")
+            return internal_order_book
         except APIError:
             raise
-        except ValueError as e_val:  # Catches errors from response_handler or Pydantic validation
-            logger.error(
-                f"[{self._exchange_name}] Order book response validation/parsing failed for "
-                f"{symbol}: {e_val}. Raw Data: {response_raw!r}"
-            )
-            raise APIError(
-                f"Order book validation/parsing failed for {symbol}: {e_val}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                original_exception=e_val,
-            ) from e_val
+        except (ValidationError, ValueError) as e_val:
+            logger.error(f"Validation/map error for order_book {symbol}: {e_val}. Raw: {raw_data!r}, Status: {status_code}")
+            raise APIError(message=f"Processing order_book failed: {e_val}", code=APIErrorCode.INVALID_RESPONSE.value, original_exception=e_val, http_status=status_code, exchange_message=str(raw_data)) from e_val
         except Exception as e_unhandled:
-            logger.error(
-                f"[{self._exchange_name}] Unexpected error in get_order_book for "
-                f"{symbol}: {e_unhandled}",
-                exc_info=True,
-            )
-            raise APIError(
-                f"Unexpected error fetching order book for {symbol}: {e_unhandled}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e_unhandled,
-            ) from e_unhandled
+            logger.error(f"Unhandled error for order_book {symbol}: {e_unhandled}", exc_info=True)
+            raise APIError(message=f"Unexpected error for order_book: {e_unhandled}", code=APIErrorCode.UNKNOWN.value, original_exception=e_unhandled, http_status=status_code, exchange_message=str(raw_data)) from e_unhandled
 
-    async def get_recent_trades(self, symbol: str, limit: int | None = 50) -> list[BackpackRawTrade]:
-        """
-        Retrieves recent public trades for a specific symbol.
-
-        Args:
-            symbol: The trading symbol (e.g., "SOL_USDC").
-            limit: The maximum number of trades to retrieve. Defaults to 50.
-                   Backpack API specifies default 100, max 1000 for its `limit` parameter.
-                   The old implementation used the provided `limit`.
-
-        Returns:
-            A list of BackpackRawTrade objects containing validated raw trade data.
-
-        Raises:
-            APIError: If the API request fails or the response is invalid.
-        """
-        endpoint = "/api/v1/trades"
-        params = self._request_builder.build_get_recent_trades_params(symbol=symbol, limit=limit)
-        response_raw: RawJsonResponse | None = None
+    async def get_recent_trades(self, symbol: str, limit: int | None = None) -> list[Trade]:
+        """Retrieves recent public trades for a specific symbol."""
+        effective_limit = limit if limit is not None else 100 # Default Backpack limit
+        endpoint_path, params = self._request_builder.build_get_recent_trades_params(symbol=symbol, limit=effective_limit)
+        logger.debug(f"[{self._exchange_name}] Requesting recent_trades for {symbol} (limit: {effective_limit})")
+        raw_data_list: RawJsonResponse | None = None
+        status_code: int = 0
+        headers: Mapping[str, str] = {} # Initialize headers
         try:
-            limiter = self._rate_limiter_service.get_limiter("GET", endpoint)
-            await limiter.acquire()
-            response_raw, _, _ = await self._http_client.request(
-                method="GET",
-                endpoint_path=endpoint,
-                rate_limiter_service=self._rate_limiter_service,
-                params=params,
+            raw_data_list, status_code, headers = await self._http_client_requester( # Modified
+                method="GET", endpoint=endpoint_path, params=params, is_public_info_endpoint=True
             )
+            logger.debug(f"[{self._exchange_name}] Raw recent_trades for {symbol}: {raw_data_list!r} (Status: {status_code}, Headers: {headers})") # Log headers
+            if raw_data_list is None and not (200 <= status_code < 300):
+                raise APIError(f"No data for recent_trades {symbol}, status: {status_code}", APIErrorCode.INVALID_RESPONSE.value, http_status=status_code)
+            if not isinstance(raw_data_list, list): # Type check before handler
+                raise APIError(f"Recent_trades data for {symbol} is not a list: {type(raw_data_list)}", APIErrorCode.INVALID_RESPONSE.value, http_status=status_code)
 
-            # Validate using the handler (handles list structure and item validation)
-            # Backpack /api/v1/trades returns a list of trade objects.
-            if not isinstance(response_raw, list):
-                logger.error(
-                    f"[{self._exchange_name}] Unexpected recent trades response format for "
-                    f"{symbol}: {type(response_raw)}"
-                )
-                raise APIError(
-                    message=f"Unexpected recent trades response format: {type(response_raw)}",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
-
-            validated_trades: list[BackpackRawTrade] = (
-                self._response_handler.handle_get_recent_trades_response(response_raw, symbol)
+            raw_trade_models: list[BackpackRawTrade] = self._response_handler.handle_get_recent_trades_response(
+                raw_data_list, symbol, status_code, headers # Modified
             )
-            return validated_trades
-
+            internal_trades: list[Trade] = []
+            for raw_model in raw_trade_models:
+                try:
+                    trade = self._mapper.transform_raw_trade_to_internal(raw_model)
+                    if trade is not None: # Only append if a Trade object is returned
+                        internal_trades.append(trade)
+                except (ValidationError, ValueError) as e_map_item:
+                    logger.warning(f"Skipping trade map error: {e_map_item}. Raw: {raw_model.model_dump_json() if hasattr(raw_model, 'model_dump_json') else raw_model!r}")
+            logger.debug(f"[{self._exchange_name}] Mapped recent_trades for {symbol}: {internal_trades}")
+            return internal_trades
         except APIError:
             raise
-        except ValueError as e_val:  # Catches errors from response_handler or Pydantic validation
-            logger.error(
-                f"[{self._exchange_name}] Recent trades response validation/parsing failed for "
-                f"{symbol}: {e_val}. Raw Data: {response_raw!r}"
-            )
-            raise APIError(
-                f"Recent trades validation/parsing failed for {symbol}: {e_val}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                original_exception=e_val,
-            ) from e_val
+        except (ValidationError, ValueError) as e_val:
+            logger.error(f"Validation/map error for recent_trades {symbol}: {e_val}. Raw: {raw_data_list!r}, Status: {status_code}")
+            raise APIError(message=f"Processing recent_trades failed: {e_val}", code=APIErrorCode.INVALID_RESPONSE.value, original_exception=e_val, http_status=status_code, exchange_message=str(raw_data_list)) from e_val
         except Exception as e_unhandled:
-            logger.error(
-                f"[{self._exchange_name}] Unexpected error in get_recent_trades for "
-                f"{symbol}: {e_unhandled}",
-                exc_info=True,
-            )
-            raise APIError(
-                f"Unexpected error getting recent trades for {symbol}: {e_unhandled}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e_unhandled,
-            ) from e_unhandled
+            logger.error(f"Unhandled error for recent_trades {symbol}: {e_unhandled}", exc_info=True)
+            raise APIError(message=f"Unexpected error for recent_trades: {e_unhandled}", code=APIErrorCode.UNKNOWN.value, original_exception=e_unhandled, http_status=status_code, exchange_message=str(raw_data_list)) from e_unhandled
 
-    async def get_funding_rate(self, symbol: str) -> BackpackRawFundingRate:
-        """
-        Retrieves the current funding rate for a specific perpetual contract.
-
-        Args:
-            symbol: The perpetual contract symbol (e.g., "SOL-PERP").
-
-        Returns:
-            A BackpackRawFundingRate object containing the validated raw funding rate data.
-
-        Raises:
-            APIError: If the API request fails or the response is invalid.
-        """
-        endpoint = f"/api/v1/markets/{self._request_builder.format_symbol(symbol)}/funding"  # Endpoint for funding rate
-        params = self._request_builder.build_get_funding_rate_params(symbol=symbol)
-        response_raw: RawJsonResponse | None = None
+    async def get_funding_rate(self, symbol: str) -> FundingRate:
+        """Retrieves the current funding rate for a specific perpetual contract."""
+        endpoint_path, params = self._request_builder.build_get_funding_rate_params(symbol=symbol)
+        logger.debug(f"[{self._exchange_name}] Requesting funding_rate for {symbol}")
+        raw_data: RawJsonResponse | None = None
+        status_code: int = 0
+        headers: Mapping[str, str] = {} # Initialize headers
         try:
-            limiter = self._rate_limiter_service.get_limiter("GET", endpoint)
-            await limiter.acquire()
-            response_raw, _, _ = await self._http_client.request(
-                method="GET",
-                endpoint_path=endpoint,
-                rate_limiter_service=self._rate_limiter_service,
-                params=params,
+            raw_data, status_code, headers = await self._http_client_requester( # Modified
+                method="GET", endpoint=endpoint_path, params=params, is_public_info_endpoint=True
             )
+            logger.debug(f"[{self._exchange_name}] Raw funding_rate for {symbol}: {raw_data!r} (Status: {status_code}, Headers: {headers})") # Log headers
 
-            if not isinstance(response_raw, dict):
-                logger.error(
-                    f"[{self._exchange_name}] Unexpected funding rate response format for "
-                    f"{symbol}: {type(response_raw)}"
-                )
-                raise APIError(
-                    message=f"Unexpected funding rate response format: {type(response_raw)}",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
+            # Type check before handler - Backpack usually dict, but handler was made flexible
+            if raw_data is None and not (200 <= status_code < 300):
+                raise APIError(f"No data for funding_rate {symbol}, status: {status_code}", APIErrorCode.INVALID_RESPONSE.value, http_status=status_code)
+            if not isinstance(raw_data, (dict, list)): # Allow dict or list based on flexible handler
+                raise APIError(f"Funding_rate data for {symbol} is not a dict or list: {type(raw_data)}", APIErrorCode.INVALID_RESPONSE.value, http_status=status_code)
 
-            raw_funding_rate: BackpackRawFundingRate = (
-                self._response_handler.handle_get_funding_rate_response(response_raw, symbol)
+            raw_funding_rate_model: BackpackRawFundingRate = self._response_handler.handle_get_funding_rate_response(
+                raw_data, symbol, status_code, headers # Modified
             )
-            return raw_funding_rate
-
+            internal_funding_rate = self._mapper.transform_raw_funding_rate_to_internal(
+                raw_funding_rate_model
+            )
+            logger.debug(f"[{self._exchange_name}] Mapped funding_rate for {symbol}: {internal_funding_rate}")
+            return internal_funding_rate
         except APIError:
             raise
-        except (ValidationError, ValueError) as e_val:  # Catches Pydantic and other ValueErrors
-            logger.error(
-                f"[{self._exchange_name}] Funding rate validation/parsing failed for {symbol}: "
-                f"{e_val}. Raw: {response_raw!r}"
-            )
-            raise APIError(
-                message=f"Invalid funding rate data from exchange for {symbol}: {e_val}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                original_exception=e_val,
-            ) from e_val
+        except (ValidationError, ValueError) as e_val:
+            logger.error(f"Validation/map error for funding_rate {symbol}: {e_val}. Raw: {raw_data!r}, Status: {status_code}")
+            raise APIError(message=f"Processing funding_rate failed: {e_val}", code=APIErrorCode.INVALID_RESPONSE.value, original_exception=e_val, http_status=status_code, exchange_message=str(raw_data)) from e_val
         except Exception as e_unhandled:
-            logger.error(
-                f"[{self._exchange_name}] Unhandled error fetching funding rate for "
-                f"{symbol}: {e_unhandled}",
-                exc_info=True,
-            )
-            raise APIError(
-                message=f"Unexpected error processing funding rate for {symbol}: {e_unhandled}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e_unhandled,
-            ) from e_unhandled
+            logger.error(f"Unhandled error for funding_rate {symbol}: {e_unhandled}", exc_info=True)
+            raise APIError(message=f"Unexpected error for funding_rate: {e_unhandled}", code=APIErrorCode.UNKNOWN.value, original_exception=e_unhandled, http_status=status_code, exchange_message=str(raw_data)) from e_unhandled
 
     async def get_market_data(
-        self, symbol: str, timeframe: str, limit: int = 100
-    ) -> list[BackpackRawKline]:
-        """
-        Retrieves historical klines (OHLCV) for a specific symbol and interval.
+        self,
+        symbol: str,
+        interval: str,
+        start_time: int | None = None, # Unix timestamp in seconds
+        end_time: int | None = None,
+        limit: int | None = None,
+    ) -> list[Candle]:
+        """Retrieves historical klines (OHLCV) for a specific symbol and interval."""
+        start_time_ms = start_time * 1000 if start_time is not None else None
+        end_time_ms = end_time * 1000 if end_time is not None else None
+        effective_limit = limit if limit is not None else 100 # Default Backpack limit
 
-        Args:
-            symbol: The trading symbol (e.g., "SOL_USDC").
-            timeframe: The kline interval (e.g., "1m", "1h", "1D").
-                       Refer to Backpack API documentation for supported intervals.
-            limit: The maximum number of klines to retrieve. Defaults to 100.
-                   Backpack API default 100, max 1000.
-
-        Returns:
-            A list of BackpackRawKline objects containing validated raw kline data.
-
-        Raises:
-            APIError: If the API request fails or the response is invalid.
-        """
-        endpoint = "/api/v1/klines"
-        params = self._request_builder.build_get_market_data_params(
-            symbol=symbol,
-            timeframe_str=timeframe,
-            limit=limit,
-            start_time_ms=None,
-            end_time_ms=None,
+        endpoint_path, params = self._request_builder.build_get_market_data_params(
+            symbol=symbol, timeframe_str=interval, limit=effective_limit, start_time_ms=start_time_ms, end_time_ms=end_time_ms
         )
-        response_data_raw: RawJsonResponse | None = None
+        logger.debug(f"[{self._exchange_name}] Requesting klines for {symbol}@{interval}")
+        raw_data_list: RawJsonResponse | None = None
+        status_code: int = 0
+        headers: Mapping[str, str] = {} # Initialize headers
         try:
-            limiter = self._rate_limiter_service.get_limiter("GET", endpoint)
-            await limiter.acquire()
-            response_data_raw, _, _ = await self._http_client.request(
-                method="GET",
-                endpoint_path=endpoint,
-                rate_limiter_service=self._rate_limiter_service,
-                params=params,
+            raw_data_list, status_code, headers = await self._http_client_requester( # Modified
+                method="GET", endpoint=endpoint_path, params=params, is_public_info_endpoint=True
             )
+            logger.debug(f"[{self._exchange_name}] Raw klines for {symbol}@{interval}: {raw_data_list!r} (Status: {status_code}, Headers: {headers})") # Log headers
+            if raw_data_list is None and not (200 <= status_code < 300):
+                raise APIError(f"No data for klines {symbol}@{interval}, status: {status_code}", APIErrorCode.INVALID_RESPONSE.value, http_status=status_code)
+            
+            # Defensive check: klines endpoint should return a list.
+            # RawJsonResponse can be dict | list | str | None. We expect list for klines.
+            if not isinstance(raw_data_list, list):
+                # This ignore was removed as the linter no longer flagged it as unreachable without the ignore.
+                # If it becomes an issue again, it implies the linter needs this ignore.
+                raise APIError(f"Klines data received from requester is not list: {type(raw_data_list)}", APIErrorCode.INVALID_RESPONSE.value, http_status=status_code)
 
-            if not isinstance(response_data_raw, list):
-                logger.error(
-                    f"[{self._exchange_name}] Unexpected klines response format for "
-                    f"{(symbol)}@{(timeframe)}: {type(response_data_raw)}"
-                )
-                raise APIError(
-                    message=f"Unexpected klines response format: {type(response_data_raw)}",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
-
-            raw_kline_data_list = self._response_handler.handle_get_market_data_response(
-                response_data_raw, symbol, timeframe
+            raw_klines_payload = self._response_handler.handle_get_market_data_response(
+                raw_data_list, symbol, interval, status_code, headers # Modified
             )
-
-            logger.debug(
-                f"[{self._exchange_name}] Successfully fetched {len(raw_kline_data_list)} "
-                f"raw kline items for {symbol}@{timeframe} before Pydantic validation."
-            )
-
-            validated_klines: list[BackpackRawKline] = []
-            for kline_data_item_raw_list in raw_kline_data_list:
+            internal_candles: list[Candle] = []
+            for kline_data_item in raw_klines_payload:
                 try:
-                    # Attempt to validate each raw kline list into a BackpackRawKline model
-                    validated_kline_item = BackpackRawKline.model_validate(kline_data_item_raw_list)
-                    validated_klines.append(validated_kline_item)
-                except ValidationError as e_val_kline:
-                    logger.warning(
-                        f"[{self._exchange_name}] Skipping invalid kline data item for "
-                        f"{symbol}@{timeframe} due to validation error: {e_val_kline}. "
-                        f"Raw item: {kline_data_item_raw_list!r}"
+                    raw_kline_model: BackpackRawKline
+                    if isinstance(kline_data_item, list):
+                        raw_kline_model = BackpackRawKline.model_validate(kline_data_item)
+                    else:
+                        logger.warning(f"Skipping kline item of unexpected type or structure: {type(kline_data_item)}. Raw: {kline_data_item!r}")
+                        continue
+                    
+                    candle = self._mapper.transform_raw_kline_to_internal(
+                        symbol, interval, raw_kline_model
                     )
-
-            if not validated_klines and raw_kline_data_list:
-                # This case means all raw klines failed Pydantic validation
-                logger.error(
-                    f"[{self._exchange_name}] All raw kline items failed validation for "
-                    f"{symbol}@{timeframe}. Check warnings for details."
-                )
-
-            return validated_klines
-
-        except APIError:  # Re-raise APIError directly
+                    internal_candles.append(candle)
+                except (ValidationError, ValueError) as e_map_item:
+                    logger.warning(f"Skipping kline map error for {symbol}@{interval}: {e_map_item}. Item: {kline_data_item!r}")
+            logger.debug(f"[{self._exchange_name}] Mapped {len(internal_candles)} candles for {symbol}@{interval}")
+            return internal_candles
+        except APIError:
             raise
-        except (ValidationError, ValueError) as e_val:  # Catches Pydantic and other ValueErrors
-            logger.error(
-                f"[{self._exchange_name}] Klines response validation/parsing failed for "
-                f"{symbol}@{timeframe}: "
-                f"{e_val}. Raw Data: {response_data_raw!r}"
-            )
-            raise APIError(
-                f"Klines validation/parsing failed for {symbol}@{timeframe}: {e_val}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                original_exception=e_val,
-            ) from e_val
+        except (ValidationError, ValueError) as e_val:
+            logger.error(f"Validation/map error for klines {symbol}@{interval}: {e_val}. Raw: {raw_data_list!r}, Status: {status_code}")
+            raise APIError(message=f"Processing klines failed: {e_val}", code=APIErrorCode.INVALID_RESPONSE.value, original_exception=e_val, http_status=status_code, exchange_message=str(raw_data_list)) from e_val
         except Exception as e_unhandled:
-            logger.error(
-                f"[{self._exchange_name}] Unexpected error in get_market_data for "
-                f"{symbol}@{timeframe}: {e_unhandled}",
-                exc_info=True,
-            )
-            raise APIError(
-                f"Unexpected error getting klines for {symbol}@{timeframe}: {e_unhandled}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e_unhandled,
-            ) from e_unhandled
+            logger.error(f"Unhandled error for klines {symbol}@{interval}: {e_unhandled}", exc_info=True)
+            raise APIError(message=f"Unexpected error for klines: {e_unhandled}", code=APIErrorCode.UNKNOWN.value, original_exception=e_unhandled, http_status=status_code, exchange_message=str(raw_data_list)) from e_unhandled

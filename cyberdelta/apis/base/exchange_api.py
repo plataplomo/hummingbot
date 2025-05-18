@@ -214,7 +214,7 @@ class ExchangeAPI(ABC):
         is_signed: bool = False,
         endpoint_group: str | None = None,
         is_public_info_endpoint: bool = False,
-    ) -> ParsedJsonResponse | None:
+    ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
         """
         Execute an API request, delegating to HttpClient and handling exchange-specific
         error mapping.
@@ -230,8 +230,10 @@ class ExchangeAPI(ABC):
             is_public_info_endpoint: Flag for specific endpoints (e.g. Hyperliquid INFO).
 
         Returns:
-            Parsed API response content (JSON dict/list, raw text) or None
-            for empty responses (204).
+            A tuple containing:
+                - Parsed API response content (JSON dict/list, raw text) or None for empty responses (204).
+                - HTTP status code of the response.
+                - Raw response headers.
 
         Raises:
             APIError: For mapped exchange-specific errors or unrecoverable issues.
@@ -240,11 +242,12 @@ class ExchangeAPI(ABC):
         effective_authenticator = self._authenticator if is_signed else None
 
         response_content: ParsedJsonResponse | str | None = None
+        status_code: int = 0 # Default, will be overwritten
         response_headers_dict: Mapping[str, str] = {}
 
         try:
-            # HttpClient.request returns a tuple: (content, processed_headers, raw_headers)
-            content, _processed_headers, raw_headers_multidict = await self._http_client.request(
+            # HttpClient.request now returns: (content, status_code, processed_headers, raw_headers)
+            content, http_status, _processed_headers, raw_headers_multidict = await self._http_client.request(
                 method=method,
                 endpoint_path=request_url,
                 rate_limiter_service=self._rate_limiter_service,
@@ -255,10 +258,11 @@ class ExchangeAPI(ABC):
                 is_signed=is_signed,  # Pass is_signed to HttpClient
             )
             response_content = content
-            # Assign the raw headers for rate limit processing
+            status_code = http_status
+            # Assign the raw headers for rate limit processing and return
             response_headers_dict = raw_headers_multidict
             self._update_rate_limit_from_headers(response_headers_dict, method, request_url)
-            return response_content
+            return response_content, status_code, response_headers_dict
 
         except HttpRequestFailedError as e_http_failed:
             logger.warning(
@@ -494,13 +498,13 @@ class ExchangeAPI(ABC):
     # --- Core Data Fetching --- #
 
     @abstractmethod
-    async def get_ticker(self, symbol: str) -> Ticker:
-        """Fetch the latest ticker information for a symbol."""
+    async def get_ticker(self, symbol: str) -> Ticker | None:
+        """Retrieves the latest ticker information for a specific symbol."""
         raise NotImplementedError
 
     @abstractmethod
-    async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
-        """Fetch the order book for a symbol."""
+    async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook | None:
+        """Retrieves the order book for a specific symbol."""
         raise NotImplementedError
 
     @abstractmethod

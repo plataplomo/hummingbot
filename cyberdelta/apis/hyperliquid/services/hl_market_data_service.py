@@ -9,34 +9,47 @@ Raw Pydantic Models.
 """
 
 # Typing and Pydantic
+from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
 from pydantic import ValidationError
 
 # Project-specific imports for connectivity and base types
-from cyberdelta.apis.connectivity.http_client import HttpClient
-from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
+from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
+
+# Mappers
+from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidCandleMapper, HyperliquidMapper
 
 # Hyperliquid-specific imports
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
-    RawJsonResponse,  # Import the type alias
 )
-from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
+
+# Removed unused raw model imports as handlers return these directly now
+# from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
-    HyperliquidRawAssetCtx,
     HyperliquidRawMetaAndAssetCtxsResponse,
 )
-from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import HyperliquidRawL2Book
-from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import HyperliquidRawPublicTrade
+
+# from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import HyperliquidRawL2Book
+# from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import HyperliquidRawPublicTrade
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+
+# Internal Domain Models
+from cyberdelta.core.models import FundingRate, OrderBook, Ticker, Trade
+from cyberdelta.core.models.market.candle import Candle
 
 # Utilities
 from cyberdelta.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+# Type alias for the HTTP client requester callable that the service will use.
+HttpClientRequesterSig = Callable[
+    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]]
+]
 
 
 class HyperliquidMarketDataService:
@@ -49,36 +62,39 @@ class HyperliquidMarketDataService:
     HyperliquidResponseHandler, and RateLimiterService to perform its tasks.
     """
 
-    _http_client: HttpClient
+    _http_client_requester: HttpClientRequesterSig
     _request_builder: HyperliquidRequestBuilder
     _response_handler: HyperliquidResponseHandler
-    _rate_limiter_service: RateLimiterService
-    _exchange_name: str = "Hyperliquid"
+    _exchange_name: str
+    _info_url: str
 
     def __init__(
         self,
-        http_client: HttpClient,
+        http_client_requester: HttpClientRequesterSig,
         request_builder: HyperliquidRequestBuilder,
         response_handler: HyperliquidResponseHandler,
-        rate_limiter_service: RateLimiterService,
+        exchange_name: str,
+        info_url: str,
     ) -> None:
         """
         Initialize the HyperliquidMarketDataService.
 
         Args:
-            http_client: An instance of HttpClient for making HTTP requests.
+            http_client_requester: An instance of HttpClientRequesterSig for making HTTP requests.
             request_builder: An instance of HyperliquidRequestBuilder for preparing
                 API requests.
             response_handler: An instance of HyperliquidResponseHandler for validating
                 API responses.
-            rate_limiter_service: An instance of RateLimiterService for managing API call rates.
+            exchange_name: The name of the exchange.
+            info_url: The base URL for the exchange's API.
         """
-        self._http_client = http_client
+        self._http_client_requester = http_client_requester
         self._request_builder = request_builder
         self._response_handler = response_handler
-        self._rate_limiter_service = rate_limiter_service
+        self._exchange_name = exchange_name
+        self._info_url = info_url
 
-    async def get_all_asset_contexts(self) -> HyperliquidRawMetaAndAssetCtxsResponse:
+    async def get_all_asset_contexts_raw(self) -> HyperliquidRawMetaAndAssetCtxsResponse:
         """
         Retrieves the metadata for all listed assets and their current context
         (mark price, funding rate, etc.) by calling the /info endpoint.
@@ -99,19 +115,26 @@ class HyperliquidMarketDataService:
             exclude_none=True,  # Use by_alias if model uses aliases
         )
 
-        raw_response_content: RawJsonResponse | None = None
+        raw_response_content: ParsedJsonResponse | None = None
+        status_code: int = 0
+        headers: Mapping[str, str] = {}
         try:
             # The HttpClient is assumed to be configured with INFO_URL as its base.
-            raw_response_content, _, _ = await self._http_client.request(
+            raw_response_content, status_code, headers = await self._http_client_requester(
                 method="POST",
                 endpoint_path=endpoint_path,
                 data=request_payload_data_dict,  # Pass the dumped dictionary
-                rate_limiter_service=self._rate_limiter_service,
+                is_info_endpoint=True,
+            )
+            logger.debug(
+                f"[{self._exchange_name}] Raw all_asset_contexts response: {raw_response_content!r}, Status: {status_code}, Headers: {headers}"
             )
 
             validated_response: HyperliquidRawMetaAndAssetCtxsResponse = (
                 self._response_handler.handle_info_meta_and_asset_ctxs_response(
-                    raw_response_content
+                    raw_response_content,
+                    status_code=status_code,
+                    headers=headers,
                 )
             )
             return validated_response
@@ -127,6 +150,8 @@ class HyperliquidMarketDataService:
                 message=f"Failed to validate asset contexts response: {e_val}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 original_exception=e_val,
+                http_status=status_code,
+                exchange_message=str(raw_response_content),
             ) from e_val
         except Exception as e_unhandled:
             logger.error(
@@ -137,9 +162,11 @@ class HyperliquidMarketDataService:
                 message=f"Unexpected error processing asset contexts: {e_unhandled}",
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e_unhandled,
+                http_status=status_code,
+                exchange_message=str(raw_response_content),
             ) from e_unhandled
 
-    async def get_ticker(self, symbol: str) -> HyperliquidRawAssetCtx | None:
+    async def get_ticker(self, symbol: str) -> Ticker | None:
         """
         Retrieves the latest ticker/context information for a specific symbol.
         This involves fetching all asset contexts and then finding the specific one.
@@ -148,7 +175,7 @@ class HyperliquidMarketDataService:
             symbol: The trading symbol (e.g., "ETH").
 
         Returns:
-            A HyperliquidRawAssetCtx object if the symbol is found, otherwise None.
+            A Ticker object if the symbol is found, otherwise None.
             The object contains ticker-like data (mark price, funding, etc.).
 
         Raises:
@@ -156,11 +183,11 @@ class HyperliquidMarketDataService:
                       (Note: original hl_api.get_ticker raised SYMBOL_NOT_FOUND specifically)
         """
         try:
-            all_contexts_response = await self.get_all_asset_contexts()
+            all_contexts_response = await self.get_all_asset_contexts_raw()
             if all_contexts_response and all_contexts_response.asset_ctxs:
                 for asset_ctx in all_contexts_response.asset_ctxs:
                     if asset_ctx.name == symbol:
-                        return asset_ctx
+                        return HyperliquidMapper.map_raw_ctx_to_ticker(asset_ctx)
 
             # Symbol not found in the contexts
             logger.warning(
@@ -184,7 +211,7 @@ class HyperliquidMarketDataService:
                 original_exception=e_unhandled,
             ) from e_unhandled
 
-    async def get_order_book(self, symbol: str) -> HyperliquidRawL2Book:
+    async def get_order_book(self, symbol: str) -> OrderBook | None:
         """
         Retrieves the L2 order book for a specific symbol using a POST request to /info
         with a specific payload: {"type": "l2Book", "coin": "SYMBOL"}.
@@ -193,7 +220,7 @@ class HyperliquidMarketDataService:
             symbol: The trading symbol (e.g., "ETH").
 
         Returns:
-            A HyperliquidRawL2Book object containing the validated raw order book data.
+            An OrderBook object containing the validated raw order book data.
 
         Raises:
             APIError: If the API request fails or the response is invalid.
@@ -205,22 +232,27 @@ class HyperliquidMarketDataService:
             by_alias=True, exclude_none=True
         )
 
-        raw_response_content: RawJsonResponse | None = None
+        raw_response_content: ParsedJsonResponse | None = None
+        status_code: int = 0
+        headers: Mapping[str, str] = {}
         try:
-            raw_response_content, _, _ = await self._http_client.request(
+            raw_response_content, status_code, headers = await self._http_client_requester(
                 method="POST",
                 endpoint_path=endpoint_path,
                 data=request_payload_data,
-                rate_limiter_service=self._rate_limiter_service,
+                is_info_endpoint=True,
+            )
+            logger.debug(
+                f"[{self._exchange_name}] Raw order book for {symbol}: {raw_response_content!r}, Status: {status_code}, Headers: {headers}"
             )
 
-            # The handler expects the raw response and the symbol for context or validation.
-            validated_book: HyperliquidRawL2Book = (
-                self._response_handler.handle_info_l2_book_response(
-                    raw_response_content, symbol=symbol
-                )
+            validated_raw_book = self._response_handler.handle_info_l2_book_response(
+                raw_response_content,
+                symbol=symbol,
+                status_code=status_code,
+                headers=headers,
             )
-            return validated_book
+            return HyperliquidMapper.map_raw_order_book(validated_raw_book)
 
         except APIError:
             raise
@@ -233,6 +265,8 @@ class HyperliquidMarketDataService:
                 message=f"Failed to validate order book response for {symbol}: {e_val}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 original_exception=e_val,
+                http_status=status_code,
+                exchange_message=str(raw_response_content),
             ) from e_val
         except Exception as e_unhandled:
             logger.error(
@@ -244,13 +278,15 @@ class HyperliquidMarketDataService:
                 message=f"Unexpected error processing order book for {symbol}: {e_unhandled}",
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e_unhandled,
+                http_status=status_code,
+                exchange_message=str(raw_response_content),
             ) from e_unhandled
 
     async def get_recent_trades(
         self,
         symbol: str,
         # limit: int = 100, # Limit is not part of HL /info request for recentTrades
-    ) -> list[HyperliquidRawPublicTrade]:
+    ) -> list[Trade]:
         """
         Retrieves recent public trades for a specific symbol using a POST request to /info
         with a payload: {"type": "recentTrades", "coin": "SYMBOL"}.
@@ -259,7 +295,7 @@ class HyperliquidMarketDataService:
             symbol: The trading symbol (e.g., "ETH").
 
         Returns:
-            A list of HyperliquidRawPublicTrade objects.
+            A list of Trade objects.
             The number of trades is determined by the Hyperliquid API.
 
         Raises:
@@ -274,23 +310,44 @@ class HyperliquidMarketDataService:
             by_alias=True, exclude_none=True
         )
 
-        raw_response_content: RawJsonResponse | None = None
+        raw_response_content: ParsedJsonResponse | None = None
+        status_code: int = 0
+        headers: Mapping[str, str] = {}
         try:
-            raw_response_content, _, _ = await self._http_client.request(
+            raw_response_content, status_code, headers = await self._http_client_requester(
                 method="POST",
                 endpoint_path=endpoint_path,
                 data=request_payload_data,
-                rate_limiter_service=self._rate_limiter_service,
+                is_info_endpoint=True,
+            )
+            logger.debug(
+                f"[{self._exchange_name}] Raw recent_trades response for {symbol}: {raw_response_content!r}, Status: {status_code}, Headers: {headers}"
             )
 
-            validated_trades: list[HyperliquidRawPublicTrade] = (
-                self._response_handler.handle_info_recent_trades_response(
-                    raw_response_content, symbol=symbol
-                )
+            validated_raw_trades = self._response_handler.handle_info_recent_trades_response(
+                raw_response_content,
+                symbol=symbol,
+                status_code=status_code,
+                headers=headers,
             )
             # The response handler is expected to return the full list of trades from the API.
             # Limiting should be done by the caller or a mapping layer if needed.
-            return validated_trades
+            internal_trades: list[Trade] = []
+            for raw_trade in validated_raw_trades:
+                try:
+                    # Use static call to mapper - Name was correct
+                    trade = HyperliquidMapper.transform_raw_public_trade_to_internal(raw_trade)
+                    if trade:
+                        internal_trades.append(trade)
+                except (ValidationError, ValueError) as e_map_item:
+                    logger.warning(
+                        f"[{self._exchange_name}] Skipping trade map error for {symbol}: {e_map_item}. Raw: {raw_trade.model_dump_json() if hasattr(raw_trade, 'model_dump_json') else raw_trade!r}"
+                    )
+
+            logger.debug(
+                f"[{self._exchange_name}] Mapped {len(internal_trades)} recent_trades for {symbol}"
+            )
+            return internal_trades
 
         except APIError:
             raise
@@ -303,6 +360,8 @@ class HyperliquidMarketDataService:
                 message=f"Failed to validate recent trades response for {symbol}: {e_val}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 original_exception=e_val,
+                http_status=status_code,
+                exchange_message=str(raw_response_content),
             ) from e_val
         except Exception as e_unhandled:
             logger.error(
@@ -314,9 +373,11 @@ class HyperliquidMarketDataService:
                 message=f"Unexpected error processing recent trades for {symbol}: {e_unhandled}",
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e_unhandled,
+                http_status=status_code,
+                exchange_message=str(raw_response_content),
             ) from e_unhandled
 
-    async def get_funding_rate(self, symbol: str) -> HyperliquidRawAssetCtx | None:
+    async def get_funding_rate(self, symbol: str) -> FundingRate | None:
         """
         Retrieves the current funding rate information for a specific perpetual contract symbol.
         This is typically part of the broader asset context. It calls get_all_asset_contexts
@@ -326,22 +387,21 @@ class HyperliquidMarketDataService:
             symbol: The perpetual contract symbol (e.g., "ETH").
 
         Returns:
-            A HyperliquidRawAssetCtx object if the symbol is found, otherwise None.
+            A FundingRate object if the symbol is found, otherwise None.
             The 'funding' field of this object contains the funding rate.
 
         Raises:
             APIError: If the underlying API request to fetch all contexts fails.
         """
         try:
-            all_contexts_response = await self.get_all_asset_contexts()
+            all_contexts_response = await self.get_all_asset_contexts_raw()
             if all_contexts_response and all_contexts_response.asset_ctxs:
                 for asset_ctx in all_contexts_response.asset_ctxs:
                     if asset_ctx.name == symbol:
-                        return asset_ctx  # The entire context is returned as per definition
+                        return HyperliquidMapper.map_raw_ctx_to_funding_rate(asset_ctx)
 
             logger.warning(
-                f"[{self._exchange_name}] Funding rate data (asset context) not found "
-                f"for symbol '{symbol}' after fetching all asset contexts."
+                f"[{self._exchange_name}] Funding rate data (from asset context) not found for symbol '{symbol}'."
             )
             return None
         except APIError:  # Propagate APIErrors from get_all_asset_contexts
@@ -360,7 +420,7 @@ class HyperliquidMarketDataService:
 
     async def get_market_data(
         self, symbol: str, interval: str, start_time_ms: int, end_time_ms: int
-    ) -> HyperliquidRawCandleSnapshot:
+    ) -> list[Candle]:
         """
         Retrieves historical kline (candlestick) data for a specific symbol and timeframe.
         Uses a POST request to /info with payload:
@@ -375,7 +435,7 @@ class HyperliquidMarketDataService:
             end_time_ms: End timestamp in milliseconds.
 
         Returns:
-            A HyperliquidRawCandleSnapshot object containing lists of candle data points.
+            A list of Candle objects containing lists of candle data points.
 
         Raises:
             APIError: If the API request fails or the response is invalid.
@@ -389,19 +449,34 @@ class HyperliquidMarketDataService:
             by_alias=True, exclude_none=True
         )
 
-        raw_response_content: RawJsonResponse | None = None
+        raw_response_content: ParsedJsonResponse | None = None
+        status_code: int = 0
+        headers: Mapping[str, str] = {}
         try:
-            raw_response_content, _, _ = await self._http_client.request(
+            raw_response_content, status_code, headers = await self._http_client_requester(
                 method="POST",
                 endpoint_path=endpoint_path,
                 data=request_payload_data,
-                rate_limiter_service=self._rate_limiter_service,
+                is_info_endpoint=True,
+            )
+            logger.debug(
+                f"[{self._exchange_name}] Raw candle_snapshot response for {symbol}@{interval}: {raw_response_content!r}, Status: {status_code}, Headers: {headers}"
             )
 
-            validated_snapshot = self._response_handler.handle_info_candle_snapshot_response(
-                raw_response_content=raw_response_content, symbol=symbol, interval=interval
+            validated_raw_candles = self._response_handler.handle_info_candle_snapshot_response(
+                raw_response_content,
+                symbol=symbol,
+                interval=interval,
+                status_code=status_code,
+                headers=headers,
             )
-            return validated_snapshot
+            internal_candles = HyperliquidCandleMapper.map(
+                validated_raw_candles, symbol=symbol, interval=interval
+            )
+            logger.debug(
+                f"[{self._exchange_name}] Mapped {len(internal_candles)} candles for {symbol}@{interval}"
+            )
+            return internal_candles
         except ValidationError as e_val:
             logger.error(
                 f"[{self._exchange_name}] Candle snapshot response validation failed "
@@ -411,6 +486,8 @@ class HyperliquidMarketDataService:
                 "Pydantic validation error during candle snapshot processing",
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 original_exception=e_val,
+                http_status=status_code,
+                exchange_message=str(raw_response_content),
             ) from e_val
         except APIError:  # Re-raise APIErrors from http_client or response_handler
             raise
@@ -424,4 +501,6 @@ class HyperliquidMarketDataService:
                 "Unexpected error during candle snapshot processing",
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e_unhandled,
+                http_status=status_code,
+                exchange_message=str(raw_response_content),
             ) from e_unhandled

@@ -6,6 +6,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from cyberdelta.apis.backpack.bp_order_mapper import (
+    BackpackOrderMapper,
+)  # For creating expected internal models
 from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
@@ -19,6 +22,9 @@ from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMar
 from cyberdelta.apis.connectivity.http_client import HttpClient
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.models.api_error import APIError
+
+# Import internal models for assertions
+from cyberdelta.core.models.market import Candle, FundingRate, OrderBook, Ticker, Trade
 
 
 @pytest.fixture
@@ -59,14 +65,12 @@ def bp_market_data_service(
     mock_http_client: AsyncMock,
     mock_request_builder: MagicMock,
     mock_response_handler: MagicMock,
-    mock_rate_limiter_service: MagicMock,
 ) -> BackpackMarketDataService:
     """Provides an instance of BackpackMarketDataService with mocked dependencies."""
     return BackpackMarketDataService(
-        http_client=mock_http_client,
+        http_client_requester=mock_http_client.request,
         request_builder=mock_request_builder,
         response_handler=mock_response_handler,
-        rate_limiter_service=mock_rate_limiter_service,
         exchange_name="backpack_test",
     )
 
@@ -81,11 +85,9 @@ class TestBackpackMarketDataService:
         mock_http_client: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_ticker successfully retrieves and processes ticker data."""
         symbol = "SOL_USDC"
-        endpoint = "/api/v1/ticker"
         mock_params = {"symbol": symbol}
         mock_raw_response_content = {
             "symbol": symbol,
@@ -99,29 +101,26 @@ class TestBackpackMarketDataService:
             symbol=symbol, price="100.0", bid="99.9", ask="100.1", volume="1000", time=1234567890
         )
 
-        # Get the mock for the limiter runtime instance
-        mock_limiter_runtime = mock_rate_limiter_service.get_limiter.return_value
-
         mock_request_builder.build_get_ticker_params.return_value = mock_params
         mock_http_client.request.return_value = (mock_raw_response_content, 200, MagicMock())
         mock_response_handler.handle_get_ticker_response.return_value = mock_validated_ticker
 
         result = await bp_market_data_service.get_ticker(symbol)
 
-        mock_rate_limiter_service.get_limiter.assert_called_once_with("GET", endpoint)
-        mock_limiter_runtime.acquire.assert_awaited_once()
-
         mock_request_builder.build_get_ticker_params.assert_called_once_with(symbol=symbol)
         mock_http_client.request.assert_called_once_with(
             method="GET",
-            endpoint_path="/api/v1/ticker",
+            endpoint="/api/v1/ticker",
             params=mock_params,
-            rate_limiter_service=mock_rate_limiter_service,
+            is_public_info_endpoint=True,
         )
         mock_response_handler.handle_get_ticker_response.assert_called_once_with(
-            mock_raw_response_content, symbol
+            mock_raw_response_content, symbol, 200, MagicMock()
         )
-        assert result == mock_validated_ticker
+        expected_internal_ticker: Ticker = BackpackOrderMapper().transform_raw_ticker_to_internal(
+            mock_validated_ticker, symbol_override=symbol
+        )
+        assert result == expected_internal_ticker
 
     @pytest.mark.asyncio
     async def test_get_ticker_api_error_from_client(
@@ -129,7 +128,6 @@ class TestBackpackMarketDataService:
         bp_market_data_service: BackpackMarketDataService,
         mock_http_client: AsyncMock,
         mock_request_builder: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_ticker handles APIError from http_client."""
         symbol = "SOL_USDC"
@@ -139,20 +137,16 @@ class TestBackpackMarketDataService:
         mock_request_builder.build_get_ticker_params.return_value = mock_params
         mock_http_client.request.side_effect = api_error_instance
 
-        mock_limiter_runtime = mock_rate_limiter_service.get_limiter.return_value
-
         with pytest.raises(APIError) as exc_info:
             await bp_market_data_service.get_ticker(symbol)
 
         assert exc_info.value == api_error_instance
-        mock_rate_limiter_service.get_limiter.assert_called_once_with("GET", "/api/v1/ticker")
-        mock_limiter_runtime.acquire.assert_awaited_once()
         mock_request_builder.build_get_ticker_params.assert_called_once_with(symbol=symbol)
         mock_http_client.request.assert_called_once_with(
             method="GET",
-            endpoint_path="/api/v1/ticker",
+            endpoint="/api/v1/ticker",
             params=mock_params,
-            rate_limiter_service=mock_rate_limiter_service,
+            is_public_info_endpoint=True,
         )
 
     @pytest.mark.asyncio
@@ -162,7 +156,6 @@ class TestBackpackMarketDataService:
         mock_http_client: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_order_book successfully retrieves and processes order book data."""
         symbol = "SOL_USDC"
@@ -185,26 +178,24 @@ class TestBackpackMarketDataService:
         mock_http_client.request.return_value = (mock_raw_response_content, 200, MagicMock())
         mock_response_handler.handle_get_order_book_response.return_value = mock_validated_book
 
-        mock_limiter_runtime = mock_rate_limiter_service.get_limiter.return_value
+        result = await bp_market_data_service.get_order_book(symbol, limit=depth)
 
-        result = await bp_market_data_service.get_order_book(symbol, depth=depth)
-
-        mock_rate_limiter_service.get_limiter.assert_called_once_with("GET", "/api/v1/depth")
-        mock_limiter_runtime.acquire.assert_awaited_once()
         mock_request_builder.build_get_order_book_params.assert_called_once_with(
             symbol=symbol, limit=depth
         )
         mock_http_client.request.assert_called_once_with(
             method="GET",
-            endpoint_path="/api/v1/depth",
+            endpoint="/api/v1/depth",
             params=mock_params,
-            rate_limiter_service=mock_rate_limiter_service,
+            is_public_info_endpoint=True,
         )
         mock_response_handler.handle_get_order_book_response.assert_called_once_with(
-            mock_raw_response_content,
-            symbol,  # Backpack handler needs symbol
+            mock_raw_response_content, symbol, 200, MagicMock()
         )
-        assert result == mock_validated_book
+        expected_internal_order_book: OrderBook = (
+            BackpackOrderMapper().transform_raw_orderbook_to_internal(symbol, mock_validated_book)
+        )
+        assert result == expected_internal_order_book
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_success(
@@ -213,7 +204,6 @@ class TestBackpackMarketDataService:
         mock_http_client: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_recent_trades successfully retrieves and processes trade data."""
         symbol = "ETH_USDC"
@@ -260,26 +250,27 @@ class TestBackpackMarketDataService:
         mock_http_client.request.return_value = (mock_raw_trades_data, 200, MagicMock())
         mock_response_handler.handle_get_recent_trades_response.return_value = mock_validated_trades
 
-        mock_limiter_runtime = mock_rate_limiter_service.get_limiter.return_value
-
         result = await bp_market_data_service.get_recent_trades(symbol, limit=limit)
 
-        mock_rate_limiter_service.get_limiter.assert_called_once_with("GET", "/api/v1/trades")
-        mock_limiter_runtime.acquire.assert_awaited_once()
         mock_request_builder.build_get_recent_trades_params.assert_called_once_with(
             symbol=symbol, limit=limit
         )
         mock_http_client.request.assert_called_once_with(
             method="GET",
-            endpoint_path="/api/v1/trades",
+            endpoint="/api/v1/trades",
             params=mock_params,
-            rate_limiter_service=mock_rate_limiter_service,
+            is_public_info_endpoint=True,
         )
         mock_response_handler.handle_get_recent_trades_response.assert_called_once_with(
-            mock_raw_trades_data,
-            symbol,  # Backpack handler needs symbol
+            mock_raw_trades_data, symbol, 200, MagicMock()
         )
-        assert result == mock_validated_trades
+        mapper = BackpackOrderMapper()
+        expected_internal_trades: list[Trade] = []
+        for raw_model in mock_validated_trades:
+            trade = mapper.transform_raw_trade_to_internal(raw_model)
+            if trade:
+                expected_internal_trades.append(trade)
+        assert result == expected_internal_trades
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_success(
@@ -288,7 +279,6 @@ class TestBackpackMarketDataService:
         mock_http_client: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_funding_rate successfully retrieves and processes funding rate data."""
         symbol = "SOL-PERP"
@@ -316,24 +306,23 @@ class TestBackpackMarketDataService:
         mock_http_client.request.return_value = (mock_raw_response_content, 200, MagicMock())
         mock_response_handler.handle_get_funding_rate_response.return_value = mock_validated_funding
 
-        mock_limiter_runtime = mock_rate_limiter_service.get_limiter.return_value
-
         result = await bp_market_data_service.get_funding_rate(symbol)
 
-        mock_rate_limiter_service.get_limiter.assert_called_once_with("GET", expected_endpoint)
-        mock_limiter_runtime.acquire.assert_awaited_once()
         mock_request_builder.format_symbol.assert_called_once_with(symbol)
         mock_request_builder.build_get_funding_rate_params.assert_called_once_with(symbol=symbol)
         mock_http_client.request.assert_called_once_with(
             method="GET",
-            endpoint_path=expected_endpoint,
+            endpoint=expected_endpoint,
             params=mock_params,
-            rate_limiter_service=mock_rate_limiter_service,
+            is_public_info_endpoint=True,
         )
         mock_response_handler.handle_get_funding_rate_response.assert_called_once_with(
-            mock_raw_response_content, symbol
+            mock_raw_response_content, symbol, 200, MagicMock()
         )
-        assert result == mock_validated_funding
+        expected_internal_funding_rate: FundingRate = (
+            BackpackOrderMapper().transform_raw_funding_rate_to_internal(mock_validated_funding)
+        )
+        assert result == expected_internal_funding_rate
 
     @pytest.mark.asyncio
     async def test_get_market_data_success(
@@ -342,7 +331,6 @@ class TestBackpackMarketDataService:
         mock_http_client: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_market_data (klines) successfully retrieves and processes kline data."""
         symbol = "BTC_USDC"
@@ -381,34 +369,38 @@ class TestBackpackMarketDataService:
             ],
         ]
         mock_validated_klines = [
-            BackpackRawKline.model_validate([
-                1678882800000,
-                "30000.0",
-                "30100.0",
-                "29900.0",
-                "30050.0",
-                "100.0",
-                1678886399999,
-                "3000000.0",
-                50,
-                "60.0",
-                "1800000.0",
-                "0",
-            ]),
-            BackpackRawKline.model_validate([
-                1678886400000,
-                "30050.0",
-                "30150.0",
-                "30000.0",
-                "30100.0",
-                "120.0",
-                1678889999999,
-                "3600000.0",
-                60,
-                "70.0",
-                "2100000.0",
-                "0",
-            ]),
+            BackpackRawKline.model_validate(
+                [
+                    1678882800000,
+                    "30000.0",
+                    "30100.0",
+                    "29900.0",
+                    "30050.0",
+                    "100.0",
+                    1678886399999,
+                    "3000000.0",
+                    50,
+                    "60.0",
+                    "1800000.0",
+                    "0",
+                ]
+            ),
+            BackpackRawKline.model_validate(
+                [
+                    1678886400000,
+                    "30050.0",
+                    "30150.0",
+                    "30000.0",
+                    "30100.0",
+                    "120.0",
+                    1678889999999,
+                    "3600000.0",
+                    60,
+                    "70.0",
+                    "2100000.0",
+                    "0",
+                ]
+            ),
         ]
 
         mock_request_builder.build_get_market_data_params.return_value = (
@@ -417,14 +409,10 @@ class TestBackpackMarketDataService:
         mock_http_client.request.return_value = (mock_raw_kline_data, 200, MagicMock())
         mock_response_handler.handle_get_market_data_response.return_value = mock_validated_klines
 
-        mock_limiter_runtime = mock_rate_limiter_service.get_limiter.return_value
-
         result = await bp_market_data_service.get_market_data(
-            symbol, timeframe=timeframe, limit=limit
+            symbol, interval=timeframe, limit=limit
         )
 
-        mock_rate_limiter_service.get_limiter.assert_called_once_with("GET", "/api/v1/klines")
-        mock_limiter_runtime.acquire.assert_awaited_once()
         mock_request_builder.build_get_market_data_params.assert_called_once_with(
             symbol=symbol,
             timeframe_str=timeframe,
@@ -434,11 +422,16 @@ class TestBackpackMarketDataService:
         )
         mock_http_client.request.assert_called_once_with(
             method="GET",
-            endpoint_path="/api/v1/klines",
+            endpoint="/api/v1/klines",
             params=mock_params_returned_by_builder,
-            rate_limiter_service=mock_rate_limiter_service,
+            is_public_info_endpoint=True,
         )
         mock_response_handler.handle_get_market_data_response.assert_called_once_with(
-            mock_raw_kline_data, symbol, timeframe
+            mock_raw_kline_data, symbol, timeframe, 200, MagicMock()
         )
-        assert result == mock_validated_klines
+        mapper = BackpackOrderMapper()
+        expected_internal_candles: list[Candle] = []
+        for raw_model in mock_validated_klines:
+            candle = mapper.transform_raw_kline_to_internal(symbol, timeframe, raw_model)
+            expected_internal_candles.append(candle)
+        assert result == expected_internal_candles

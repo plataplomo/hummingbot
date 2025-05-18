@@ -8,11 +8,12 @@ and HyperliquidResponseHandler to interact with the API and returns validated
 Raw Pydantic Models or relevant raw data structures.
 """
 
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable, Coroutine, Mapping
 from decimal import Decimal
-from typing import Any, TypedDict, cast
+from typing import Any, TypedDict
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
+from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
@@ -37,6 +38,12 @@ from cyberdelta.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
+# Define HttpClientRequesterSig for the 3-tuple response
+HttpClientRequesterSig = Callable[
+    ..., Coroutine[Any, Any, tuple[ParsedJsonResponse | None, int, Mapping[str, str]]]
+]
+
+
 class HyperliquidCancelDetail(TypedDict):
     asset: int
     oid: int
@@ -49,7 +56,7 @@ class HyperliquidTradingService:
 
     def __init__(
         self,
-        exchange_http_client_requester: Callable[..., Coroutine[Any, Any, RawJsonResponse | None]],
+        exchange_http_client_requester: HttpClientRequesterSig,
         info_http_client_requester: Callable[..., Coroutine[Any, Any, RawJsonResponse | None]],
         request_builder: HyperliquidRequestBuilder,
         response_handler: HyperliquidResponseHandler,
@@ -137,9 +144,12 @@ class HyperliquidTradingService:
         actions_list = [action_item]
 
         try:
-            raw_response_data = await self._exchange_http_client_requester(
+            # Unpack the 3-tuple from the requester
+            raw_response_data_tuple = await self._exchange_http_client_requester(
                 method="POST", endpoint=self._action_endpoint, data=actions_list, is_signed=True
             )
+            raw_response_data = raw_response_data_tuple[0]  # Extract the actual data
+
             if not isinstance(raw_response_data, dict):
                 raise APIError(
                     "Unexpected response format for place_order_raw on Hyperliquid",
@@ -176,13 +186,19 @@ class HyperliquidTradingService:
                 f"Could not find asset index for symbol {symbol}", APIErrorCode.INVALID_SYMBOL.value
             )
 
-        action_item = {"type": "cancel", "cancels": [{"asset": asset_index, "oid": order_id}]}
+        action_item = {
+            "type": "cancel",
+            "cancels": [HyperliquidCancelDetail(asset=asset_index, oid=order_id)],
+        }
         actions_list = [action_item]
 
         try:
-            raw_response_data = await self._exchange_http_client_requester(
+            # Unpack the 3-tuple from the requester
+            raw_response_data_tuple = await self._exchange_http_client_requester(
                 method="POST", endpoint=self._action_endpoint, data=actions_list, is_signed=True
             )
+            raw_response_data = raw_response_data_tuple[0]  # Extract the actual data
+
             if not isinstance(raw_response_data, dict):
                 raise APIError(
                     "Unexpected response format for cancel_order_raw on Hyperliquid",
@@ -202,7 +218,8 @@ class HyperliquidTradingService:
                 exc_info=True,
             )
             raise APIError(
-                f"Unexpected error canceling order {order_id}: {e}", APIErrorCode.UNKNOWN.value
+                f"Unexpected error canceling order {order_id}: {e}",
+                APIErrorCode.UNKNOWN.value,
             ) from e
 
     async def cancel_orders_raw(
@@ -229,12 +246,12 @@ class HyperliquidTradingService:
         actions_list = [action_item]
 
         try:
-            raw_response_data = await self._exchange_http_client_requester(
-                method="POST",
-                endpoint=self._action_endpoint,
-                data=actions_list,
-                is_signed=True,
+            # Unpack the 3-tuple from the requester
+            raw_response_data_tuple = await self._exchange_http_client_requester(
+                method="POST", endpoint=self._action_endpoint, data=actions_list, is_signed=True
             )
+            raw_response_data = raw_response_data_tuple[0]  # Extract the actual data
+
             if not isinstance(raw_response_data, dict):
                 raise APIError(
                     "Unexpected response format for cancel_orders_raw on Hyperliquid",
@@ -256,216 +273,264 @@ class HyperliquidTradingService:
             ) from e
 
     async def get_open_orders_raw(self) -> list[HyperliquidRawOrder]:
-        """Fetches raw open orders for the configured wallet address."""
+        """
+        Retrieves raw open orders for the connected wallet.
+        Uses the /info endpoint with type "openOrders".
+        """
         if not self._wallet_address:
             raise APIError(
-                "Wallet address is required to fetch open orders.",
+                "Wallet address is required for Hyperliquid get_open_orders_raw.",
                 APIErrorCode.AUTHENTICATION_FAILED.value,
             )
-
-        # Construct payload directly as builder method was not found for this specific variant
-        request_payload = HyperliquidRawOpenOrdersRequestPayload(
-            user=self._wallet_address, type="openOrders"
+        request_payload_model = HyperliquidRawOpenOrdersRequestPayload(
+            type="openOrders", user=self._wallet_address
         )
-        request_data_dict = request_payload.model_dump(by_alias=True)
+        request_data_dict: dict[str, Any] = request_payload_model.model_dump(
+            by_alias=True, exclude_none=True
+        )
 
         try:
-            # Use info_requester for fetching open orders
+            # For /info endpoint calls
+            # The `info_http_client_requester` in `HyperliquidTradingService` is `_info_request_wrapper`
+            # from `hl_api.py`. This wrapper ALREADY extracts the first element of the tuple
+            # and returns `RawJsonResponse | None`. So, no tuple unpacking is needed here.
             raw_response_data = await self._info_http_client_requester(
                 method="POST",
-                endpoint=self._info_endpoint,
+                endpoint_path=self._info_endpoint,  # Corrected path
                 data=request_data_dict,
-                is_signed=False,  # Assuming /info openOrders is not signed if just for self
-                # However, Hyperliquid's /info for user-specific data IS signed via query.
-                # The HttpClient usually handles auth if is_signed=True.
-                # For user-specific info, it likely needs signing.
-                # The authenticator in HttpClient handles this based on is_signed.
-                # The current HttpClient._request does not add signature for POST to /info.
-                # This needs to be verified against Hyperliquid docs.
-                # For now, let's assume the general info_http_client_requester passed
-                # already handles auth if needed, or we use exchange_requester.
-                # Let's use exchange_requester if it requires auth for user data.
-                # The AccountService uses info_http_client for user_state and open_orders
-                # and these are indeed POST requests to /info which require signing.
-                # The http_client.request method should handle this if is_signed=True.
-                # Let's make it consistent with AccountService.
+                is_signed=False,  # /info endpoints are typically not signed
             )
-
+            # The response_handler expects the direct list of orders from the /info response
             if not isinstance(raw_response_data, list):
+                # This could happen if _info_request_wrapper returns None or str
+                logger.error(
+                    f"[{self._exchange_name}] Unexpected response format for open orders: {type(raw_response_data)}. Raw: {raw_response_data!r}"
+                )
                 raise APIError(
-                    f"Unexpected response format for get_open_orders_raw: expected list, got {type(raw_response_data).__name__}",
-                    APIErrorCode.INVALID_RESPONSE.value,
+                    "Open orders response is not a list.", APIErrorCode.INVALID_RESPONSE.value
                 )
 
-            # Validate the raw response content using the response handler
-            # handle_info_open_orders_response expects user_address for context in logging
             validated_response = self._response_handler.handle_info_open_orders_response(
                 raw_response_data, user_address=self._wallet_address
             )
-            # The validated_response is HyperliquidRawOpenOrdersResponse (a RootModel)
-            # Its .root attribute holds the list[HyperliquidRawOpenOrder]
-            # Each HyperliquidRawOpenOrder contains .order (HyperliquidRawOrder) and .trigger
-            # The method signature asks for list[HyperliquidRawOrder]
-            # So we extract the .order part.
-            return [open_order_item.order for open_order_item in validated_response.root]
-
+            # HyperliquidRawOpenOrdersResponse is a RootModel, its .root attribute holds list[HyperliquidRawOpenOrderItem]
+            # Each item in .root has a .order attribute which is HyperliquidRawOrder
+            return [item.order for item in validated_response.root]
         except APIError as e:
-            logger.error(f"[{self._exchange_name}] API error getting open orders: {e.message}")
+            logger.error(f"[{self._exchange_name}] API error fetching open orders: {e.message}")
             raise
         except Exception as e:
             logger.error(
-                f"[{self._exchange_name}] Unexpected error getting open orders: {e}", exc_info=True
+                f"[{self._exchange_name}] Unexpected error fetching open orders: {e}",
+                exc_info=True,
             )
             raise APIError(
-                f"Unexpected error getting open orders: {e}", APIErrorCode.UNKNOWN.value
+                f"Unexpected error fetching open orders: {e}", APIErrorCode.UNKNOWN.value
             ) from e
 
     async def get_order_status_raw(
         self, symbol: str, order_id: int
     ) -> HyperliquidRawHistoricalOrder | None:
-        """Fetches the raw status of a specific order by its ID and symbol."""
-        raw_response_data: Any = None  # Initialize to handle unbound access in except block
+        """
+        Retrieves the raw status of a specific historical order by its OID.
+        Uses the /info endpoint with type "orderStatus".
+        """
         if not self._wallet_address:
             raise APIError(
-                "Wallet address is required to fetch order status.",
+                "Wallet address required for Hyperliquid get_order_status_raw.",
+                APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+
+        request_payload_data = {
+            "type": "orderStatus",
+            "user": self._wallet_address,
+            "oid": order_id,
+        }
+        try:
+            # Call to /info endpoint, no tuple unpacking needed due to _info_request_wrapper
+            raw_response_data = await self._info_http_client_requester(
+                method="POST",
+                endpoint_path=self._info_endpoint,  # Corrected path
+                data=request_payload_data,
+                is_signed=False,  # /info endpoints are typically not signed
+            )
+            # The handler expects the direct order status dict from the /info response
+            # Ensure raw_response_data is a dict before passing to handler
+            if not isinstance(raw_response_data, dict):
+                # This could happen if _info_request_wrapper returns None or list/str
+                # For orderStatus, we expect a dict if found, or specific error if not.
+                # Hyperliquid's actual response for non-existent order needs to be checked.
+                # Assuming if not a dict, it implies not found or error.
+                logger.warning(
+                    f"[{self._exchange_name}] Order status for OID {order_id} not found or unexpected format: {type(raw_response_data)}. Raw: {raw_response_data!r}"
+                )
+                return None  # Consistent with method returning None if not found
+
+            validated_response = self._response_handler.handle_info_order_status_response(
+                raw_response_data, user_address=self._wallet_address, order_id=order_id
+            )
+            # HyperliquidRawHistoricalOrderResponse has an .order attribute which is HyperliquidRawHistoricalOrder
+            return validated_response.order
+        except APIError as e:
+            logger.error(
+                f"[{self._exchange_name}] API error fetching order status for OID {order_id}: {e.message}"
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"[{self._exchange_name}] Unexpected error fetching order status for OID {order_id}: {e}",
+                exc_info=True,
+            )
+            raise APIError(
+                f"Unexpected error fetching order status for OID {order_id}: {e}",
+                APIErrorCode.UNKNOWN.value,
+            ) from e
+
+    async def bulk_cancel_orders_by_symbol_raw(self, symbol: str) -> HyperliquidRawExchangeResponse:
+        """Raw method to bulk cancel all open orders for a specific symbol."""
+        if not self._wallet_address:
+            raise APIError(
+                "Wallet address is required for Hyperliquid trading actions.",
                 APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
         asset_index = await self._get_asset_index_callable(symbol)
         if asset_index is None:
             raise APIError(
-                f"Could not find asset index for symbol {symbol} to get order status",
-                APIErrorCode.INVALID_SYMBOL.value,
+                f"Could not find asset index for symbol {symbol}", APIErrorCode.INVALID_SYMBOL.value
             )
 
-        # Use the builder method for order status payload
-        request_payload = self._request_builder.build_order_status_payload(
-            wallet_address=self._wallet_address, order_id=order_id
-        )
-        request_data_dict = request_payload.model_dump(by_alias=True)
-
+        # This action type is specific to Hyperliquid for canceling all orders of an asset
+        action_item = {"type": "bulkCancelOpenOrders", "assetIndex": asset_index}
+        actions_list = [action_item]
         try:
-            # Use info_requester for fetching order status
-            raw_response_data = await self._info_http_client_requester(
-                method="POST",
-                endpoint=self._info_endpoint,
-                data=request_data_dict,
-                is_signed=True,  # User-specific info endpoint, usually signed
+            # Unpack the 3-tuple from the requester
+            raw_response_data_tuple = await self._exchange_http_client_requester(
+                method="POST", endpoint=self._action_endpoint, data=actions_list, is_signed=True
             )
+            raw_response_data = raw_response_data_tuple[0]  # Extract the actual data
 
             if not isinstance(raw_response_data, dict):
-                # ORDER_NOT_FOUND by Hyperliquid for orderStatus returns: ` "Order not found" ` (a string)
-                # So, if it's a string and contains "Order not found", handle it as None.
-                if isinstance(raw_response_data, str) and "Order not found" in raw_response_data:
-                    logger.info(
-                        f"[{self._exchange_name}] Order {order_id} for symbol {symbol} not found."
-                    )
-                    return None
                 raise APIError(
-                    f"Unexpected response format for get_order_status_raw: expected dict or 'Order not found' string, got {type(raw_response_data).__name__}",
+                    "Unexpected response format for bulk_cancel_orders_by_symbol_raw on Hyperliquid",
                     APIErrorCode.INVALID_RESPONSE.value,
                 )
-
-            # Validate the raw response content using the response handler
-            validated_response = self._response_handler.handle_info_order_status_response(
-                cast(dict[str, Any], raw_response_data),
-                user_address=self._wallet_address,
-                order_id=order_id,
+            # Assuming the response handler can process the status for "bulkCancelOpenOrders"
+            return self._response_handler.handle_exchange_response(
+                raw_response_data, action_type="bulkCancelOpenOrders"
             )
-            # The validated_response is HyperliquidRawHistoricalOrderResponse
-            # Its .order attribute holds the HyperliquidRawHistoricalOrder
-            return validated_response.order
         except APIError as e:
-            # Specific check for ORDER_NOT_FOUND from the service/handler layer
-            # Check raw_response_data only if it's bound and is a string
-            is_not_found_str_response = (
-                isinstance(raw_response_data, str) and "Order not found" in raw_response_data
-            )
-            if e.code == APIErrorCode.ORDER_NOT_FOUND.value or is_not_found_str_response:
-                logger.info(
-                    f"[{self._exchange_name}] Order {order_id} for symbol {symbol} not found (caught APIError or string response)."
-                )
-                return None
             logger.error(
-                f"[{self._exchange_name}] API error getting order status for OID {order_id}: {e.message}"
+                f"[{self._exchange_name}] API error bulk canceling orders by symbol {symbol}: {e.message}"
             )
             raise
         except Exception as e:
             logger.error(
-                f"[{self._exchange_name}] Unexpected error getting order status for OID {order_id}: {e}",
+                f"[{self._exchange_name}] Unexpected error bulk canceling orders by symbol {symbol}: {e}",
                 exc_info=True,
             )
             raise APIError(
-                f"Unexpected error getting order status for OID {order_id}: {e}",
+                f"Unexpected error bulk canceling orders by symbol {symbol}: {e}",
                 APIErrorCode.UNKNOWN.value,
             ) from e
 
-    async def bulk_cancel_orders_by_symbol_raw(self, symbol: str) -> HyperliquidRawExchangeResponse:
-        """Cancels all open orders for a given symbol."""
+    async def update_leverage_raw(
+        self, symbol: str, leverage: Decimal, is_cross_margin: bool
+    ) -> HyperliquidRawExchangeResponse:
+        """Raw method to update leverage."""
         if not self._wallet_address:
             raise APIError(
-                "Wallet address is required for bulk cancel.",
+                "Wallet address is required for Hyperliquid trading actions.",
                 APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
-        open_orders_list = (
-            await self.get_open_orders_raw()
-        )  # This now returns list[HyperliquidRawOrder]
-
-        cancels_for_request_payload: list[HyperliquidCancelDetail] = []
-        for order in open_orders_list:  # Iterate list[HyperliquidRawOrder]
-            if order.asset == symbol:  # order.asset is the string symbol name
-                # Need to get asset index for the cancel detail
-                asset_index = await self._get_asset_index_callable(order.asset)
-                if asset_index is not None:
-                    cancels_for_request_payload.append(
-                        HyperliquidCancelDetail(asset=asset_index, oid=order.oid)
-                    )
-                else:
-                    logger.warning(
-                        f"[{self._exchange_name}] Could not find asset_index for {order.asset} while preparing bulk cancel."
-                    )
-
-        if not cancels_for_request_payload:
-            logger.info(
-                f"[{self._exchange_name}] No orders found for symbol {symbol} to bulk cancel."
-            )
-            return HyperliquidRawExchangeResponse(
-                status="ok",
-                data=HyperliquidRawExchangeResponseData(
-                    type="statuses",
-                    statuses=["No orders to cancel for the specified symbol after filtering."],
-                ),
+        asset_index = await self._get_asset_index_callable(symbol)
+        if asset_index is None:
+            raise APIError(
+                f"Could not find asset index for symbol {symbol}", APIErrorCode.INVALID_SYMBOL.value
             )
 
-        # Construct the action for bulk cancellation
-        action_item = {"type": "cancel", "cancels": cancels_for_request_payload}
+        # Hyperliquid requires leverage as integer if it's whole, or string if decimal.
+        # For safety, always pass as string as Decimal can be non-integer.
+        # Ensure leverage is correctly formatted for the API (e.g., 10, 10.5)
+        # leverage_str = str(leverage) # This variable was unused
+
+        action_item = {
+            "type": "updateLeverage",
+            "asset": asset_index,
+            "isCross": is_cross_margin,
+            "leverage": int(leverage)
+            if leverage.is_zero() or leverage % 1 == 0
+            else float(leverage),
+        }  # Use int if whole, else float
         actions_list = [action_item]
 
         try:
-            # Use exchange_requester for actions
-            raw_response_data = await self._exchange_http_client_requester(
+            # Unpack the 3-tuple from the requester
+            raw_response_data_tuple = await self._exchange_http_client_requester(
                 method="POST", endpoint=self._action_endpoint, data=actions_list, is_signed=True
             )
+            raw_response_data = raw_response_data_tuple[0]  # Extract the actual data
+
             if not isinstance(raw_response_data, dict):
                 raise APIError(
-                    "Unexpected response format for bulk_cancel_orders_by_symbol_raw",
+                    "Unexpected response format for update_leverage_raw on Hyperliquid",
                     APIErrorCode.INVALID_RESPONSE.value,
                 )
             return self._response_handler.handle_exchange_response(
-                raw_response_data, action_type="cancelOrders"
+                raw_response_data, action_type="updateLeverage"
             )
         except APIError as e:
-            logger.error(
-                f"[{self._exchange_name}] API error bulk canceling orders for {symbol}: {e.message}"
-            )
+            logger.error(f"[{self._exchange_name}] API error updating leverage: {e.message}")
             raise
         except Exception as e:
             logger.error(
-                f"[{self._exchange_name}] Unexpected error bulk canceling orders for {symbol}: {e}",
+                f"[{self._exchange_name}] Unexpected error updating leverage: {e}", exc_info=True
+            )
+            raise APIError(
+                f"Unexpected error updating leverage: {e}", APIErrorCode.UNKNOWN.value
+            ) from e
+
+    async def bulk_cancel_orders_raw(
+        self, cancels: list[HyperliquidCancelDetail]
+    ) -> HyperliquidRawExchangeResponse:
+        """Raw method to bulk cancel orders."""
+        if not self._wallet_address:
+            raise APIError(
+                "Wallet address is required for Hyperliquid trading actions.",
+                APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+
+        # The 'cancels' argument is already a list of HyperliquidCancelDetail
+        # which is list[dict[str, int]] where keys are "asset" and "oid".
+        # This matches the expected structure for "cancels" in the action item.
+        action_item = {"type": "cancel", "cancels": cancels}
+        actions_list = [action_item]
+
+        try:
+            # Unpack the 3-tuple from the requester
+            raw_response_data_tuple = await self._exchange_http_client_requester(
+                method="POST", endpoint=self._action_endpoint, data=actions_list, is_signed=True
+            )
+            raw_response_data = raw_response_data_tuple[0]  # Extract the actual data
+
+            if not isinstance(raw_response_data, dict):
+                raise APIError(
+                    "Unexpected response format for bulk_cancel_orders_raw on Hyperliquid",
+                    APIErrorCode.INVALID_RESPONSE.value,
+                )
+            # Assuming action_type for bulk cancel is 'cancel'. If HL has a specific one like 'cancelOrders', adjust.
+            return self._response_handler.handle_exchange_response(
+                raw_response_data, action_type="cancel"
+            )
+        except APIError as e:
+            logger.error(f"[{self._exchange_name}] API error bulk canceling orders: {e.message}")
+            raise
+        except Exception as e:
+            logger.error(
+                f"[{self._exchange_name}] Unexpected error bulk canceling orders: {e}",
                 exc_info=True,
             )
             raise APIError(
-                f"Unexpected error bulk canceling orders for {symbol}: {e}",
-                APIErrorCode.UNKNOWN.value,
+                f"Unexpected error bulk canceling orders: {e}", APIErrorCode.UNKNOWN.value
             ) from e

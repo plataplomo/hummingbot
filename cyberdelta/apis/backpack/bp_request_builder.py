@@ -18,6 +18,30 @@ class BackpackRequestBuilder:
     separating request formatting from API call execution.
     """
 
+    def __init__(self, config: dict[str, Any]) -> None:
+        """
+        Initializes the BackpackRequestBuilder.
+
+        Args:
+            config: A dictionary containing API configuration,
+                    expected to have a 'base_url'.
+        """
+        self._api_config = config
+        # Ensure base_url is available or handle its absence appropriately
+        self.base_url = str(self._api_config.get("base_url", "")) # Ensure string
+        if not self.base_url:
+            logger.error("base_url not found or empty in API configuration for BackpackRequestBuilder.")
+            # Consider raising ConfigurationError or similar custom exception
+            raise ValueError(
+                "base_url not found or empty in API configuration for BackpackRequestBuilder"
+            )
+
+    def _get_endpoint_url(self, path: str) -> str:
+        """Constructs the full URL for an API endpoint path."""
+        if not path.startswith("/"):
+            path = f"/{path}"
+        return f"{self.base_url}{path}"
+
     @staticmethod
     def format_symbol(symbol: str) -> str:
         """Ensure symbol is in the format X_Y (e.g., SOL_USDC)."""
@@ -131,64 +155,23 @@ class BackpackRequestBuilder:
         Raises:
             ValueError: If required parameters for an order type are missing or invalid.
         """
-        # Map OrderSide to Backpack's Bid/Ask
-        side_str = "Bid" if side == OrderSide.BUY else "Ask"
-
-        # Map OrderType to Backpack's specific values
-        order_type_str: str
-        if order_type == OrderType.LIMIT:
-            order_type_str = "Limit"
-        elif order_type == OrderType.MARKET:
-            order_type_str = "Market"
-        elif order_type in [OrderType.STOP_MARKET, OrderType.STOP_LIMIT]:
-            order_type_str = "Stop"  # Backpack uses "Stop" for both stop market/limit
-        # TODO: Confirm mapping for TAKE_PROFIT types if Backpack supports them directly
-        elif order_type in [OrderType.TAKE_PROFIT_MARKET, OrderType.TAKE_PROFIT_LIMIT]:
-            # Placeholder - Assuming similar mapping to Stop. VERIFY WITH BACKPACK DOCS.
-            order_type_str = "TakeProfit"  # This might be incorrect
-            logger.warning(
-                f"Order type mapping for {order_type.value} is assumed. Verify Backpack API."
-            )
-        else:
-            # Fallback or raise error for unsupported types
-            # For now, use the capitalized value but log a warning
-            order_type_str = order_type.value.capitalize()
-            logger.warning(
-                f"Using default capitalized value '{order_type_str}' for order type "
-                f"{order_type.value}. Verify Backpack API support."
-            )
-
         payload: dict[str, Any] = {
             "symbol": BackpackRequestBuilder.format_symbol(symbol),
-            "side": side_str,
-            "orderType": order_type_str,
+            "side": side.value.capitalize(),  # e.g., "Bid" or "Ask"
+            "orderType": order_type.value.lower(),  # e.g., "limit" or "market"
             "quantity": str(quantity),
         }
 
-        # Handle price based on actual order type being sent (Limit or StopLimit)
-        if order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT]:
-            if price is None:
-                raise ValueError(f"Price is required for {order_type.value} orders.")
-            payload["price"] = str(price)
+        # TimeInForce according to OpenAPI: GTC, IOC, FOK. Not all might be supported for all order types.
+        if time_in_force == TimeInForce.GTC:
+            payload["timeInForce"] = "GTC"
+        elif time_in_force == TimeInForce.IOC:
+            payload["timeInForce"] = "IOC"
+        elif time_in_force == TimeInForce.FOK:
+            payload["timeInForce"] = "FOK"
 
-        # Map TimeInForce only if relevant for the order type
-        # Generally for Limit, potentially for Market (IOC/FOK)
-        # Stop orders TIF is usually implied or part of the limit parameters
-        if order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT]:
-            if time_in_force == TimeInForce.GTC:
-                payload["timeInForce"] = "GTC"
-            elif time_in_force == TimeInForce.IOC:
-                payload["timeInForce"] = "IOC"
-            elif time_in_force == TimeInForce.FOK:
-                payload["timeInForce"] = "FOK"
-            # ALO (Post-Only) is handled by the postOnly flag below
-        elif order_type == OrderType.MARKET:
-            # Only add TIF if it's IOC or FOK for market
-            if time_in_force == TimeInForce.IOC:
-                payload["timeInForce"] = "IOC"
-            elif time_in_force == TimeInForce.FOK:
-                payload["timeInForce"] = "FOK"
-            # GTC is usually default/implied for Market and not sent
+        if price is not None and order_type == OrderType.LIMIT:
+            payload["price"] = str(price)
 
         if client_order_id:
             payload["clientId"] = client_order_id
@@ -199,17 +182,14 @@ class BackpackRequestBuilder:
             else:
                 logger.warning(f"postOnly=True ignored for non-LIMIT order type {order_type.value}")
 
-        # Handle triggerPrice for stop/take_profit orders
-        if order_type in [
-            OrderType.STOP_MARKET,
-            OrderType.TAKE_PROFIT_MARKET,
-            OrderType.STOP_LIMIT,
-            OrderType.TAKE_PROFIT_LIMIT,
-        ]:
+        # Common stop order types are STOP_LIMIT and STOP_MARKET.
+        if order_type in [OrderType.STOP_LIMIT, OrderType.STOP_MARKET]:
             if trigger_price is None:
                 raise ValueError(f"Trigger price is required for {order_type.value} orders.")
             payload["triggerPrice"] = str(trigger_price)
-            # Note: 'price' for STOP_LIMIT/TAKE_PROFIT_LIMIT is handled above
+            # For STOP_LIMIT, 'price' (the limit price) would also be required.
+            if order_type == OrderType.STOP_LIMIT and price is None:
+                raise ValueError(f"Price is required for {order_type.value} orders.")
 
         return payload
 

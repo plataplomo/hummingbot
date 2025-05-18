@@ -4,6 +4,7 @@ Response Handler for Backpack API Raw Responses.
 Validates raw JSON data against Pydantic models specific to Backpack\'s API endpoints.
 """
 
+from collections.abc import Mapping
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
@@ -57,10 +58,10 @@ class BackpackResponseHandler:
 
     @staticmethod
     def handle_get_ticker_response(
-        raw_response_content: RawJsonResponse, symbol: str
+        raw_response_content: RawJsonResponse, symbol: str, status_code: int, headers: Mapping[str, str]
     ) -> BackpackRawTicker:
         """Validates the raw response for the Get Ticker endpoint."""
-        context = f"ticker ({symbol})"
+        context = f"ticker ({symbol}) - Status: {status_code}"
         if not isinstance(raw_response_content, dict):
             raise APIError(
                 message=f"Unexpected {context} response format: expected dict, "
@@ -76,10 +77,10 @@ class BackpackResponseHandler:
 
     @staticmethod
     def handle_get_order_book_response(
-        raw_response_content: RawJsonResponse, symbol: str
+        raw_response_content: RawJsonResponse, symbol: str, status_code: int, headers: Mapping[str, str]
     ) -> BackpackRawOrderBook:
         """Validates the raw response for the Get Order Book endpoint."""
-        context = f"order book ({symbol})"
+        context = f"order book ({symbol}) - Status: {status_code}"
         if not isinstance(raw_response_content, dict):
             raise APIError(
                 message=f"Unexpected {context} response format: expected dict, "
@@ -95,10 +96,10 @@ class BackpackResponseHandler:
 
     @staticmethod
     def handle_get_recent_trades_response(
-        raw_response_content: RawJsonResponse, symbol: str
+        raw_response_content: RawJsonResponse, symbol: str, status_code: int, headers: Mapping[str, str]
     ) -> list[BackpackRawTrade]:
         """Validates the raw response for the Get Recent Trades endpoint."""
-        context = f"recent trades ({symbol})"
+        context = f"recent trades ({symbol}) - Status: {status_code}"
         if not isinstance(raw_response_content, list):
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "
@@ -244,21 +245,41 @@ class BackpackResponseHandler:
 
     @staticmethod
     def handle_get_funding_rate_response(
-        raw_response_content: RawJsonResponse, symbol: str
+        raw_response_content: RawJsonResponse, symbol: str, status_code: int, headers: Mapping[str, str]
     ) -> BackpackRawFundingRate:
         """Validates the raw response for the Get Funding Rate endpoint."""
-        context = f"funding rate ({symbol})"
+        context = f"funding rate ({symbol}) - Status: {status_code}"
         if not isinstance(raw_response_content, dict):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content)}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+            # Check if it is a list, as HL funding rate is a list
+            if isinstance(raw_response_content, list):
+                if not raw_response_content: # Empty list
+                    raise APIError(
+                        message=f"Empty list for {context} response, expected dict or non-empty list.",
+                        code=APIErrorCode.INVALID_RESPONSE.value,
+                    )
+                # Assuming the first element is the target if it's a list (adapting for HL-like structures)
+                if isinstance(raw_response_content[0], dict):
+                    raw_data_to_validate = raw_response_content[0]
+                else:
+                    raise APIError(
+                        message=f"Unexpected item type in list for {context} response: expected dict, "
+                                f"got {type(raw_response_content[0])}",
+                        code=APIErrorCode.INVALID_RESPONSE.value,
+                    )
+            else:
+                raise APIError(
+                    message=f"Unexpected {context} response format: expected dict or list, "
+                            f"got {type(raw_response_content)}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                )
+        else:
+            raw_data_to_validate = raw_response_content
+
         try:
-            return BackpackRawFundingRate.model_validate(raw_response_content)
+            return BackpackRawFundingRate.model_validate(raw_data_to_validate)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
-                e, context, raw_response_content
+                e, context, raw_data_to_validate
             ) from e
 
     @staticmethod
@@ -356,10 +377,10 @@ class BackpackResponseHandler:
 
     @staticmethod
     def handle_get_market_data_response(
-        raw_response_content: RawJsonResponse, symbol: str, timeframe: str
+        raw_response_content: RawJsonResponse, symbol: str, timeframe: str, status_code: int, headers: Mapping[str, str]
     ) -> list[RawJson]:  # Return list of RawJson until specific Kline model exists
         """Validates the raw response for the Get Market Data (Klines) endpoint."""
-        context = f"market data (klines {symbol}, {timeframe})"
+        context = f"market data (klines {timeframe}) for {symbol} - Status: {status_code}"
         if not isinstance(raw_response_content, list):
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "
@@ -384,10 +405,10 @@ class BackpackResponseHandler:
 
     @staticmethod
     def handle_get_historical_trades_response(
-        raw_response_content: RawJsonResponse, symbol: str
+        raw_response_content: RawJsonResponse, symbol: str, status_code: int, headers: Mapping[str, str]
     ) -> list[BackpackRawTrade]:
         """Validates the raw response for the Get Historical Trades endpoint."""
-        context = f"historical trades ({symbol})"
+        context = f"historical trades ({symbol}) - Status: {status_code}"
         if not isinstance(raw_response_content, list):
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "

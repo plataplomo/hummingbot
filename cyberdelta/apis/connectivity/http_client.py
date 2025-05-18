@@ -156,9 +156,10 @@ class HttpClient:
         self,
         response: aiohttp.ClientResponse,
         full_url: str,  # For logging context
-    ) -> tuple[ParsedJsonResponse | str | None, ProcessedResponseHeaders, CIMultiDictProxy[str]]:
+    ) -> tuple[ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str]]:
         """
         Parses the HTTP response, validates headers, and extracts content.
+        Returns content, status code, processed headers, and raw headers.
 
         Raises HttpRequestFailedError for issues like invalid Content-Type, body read errors,
         or JSON decoding failures.
@@ -187,7 +188,7 @@ class HttpClient:
         # Check for 204 No Content BEFORE attempting to read body
         if response.status == 204:
             logger.debug(f"[{self.exchange_name}] Received 204 No Content for {full_url}.")
-            return None, processed_headers, raw_response_headers
+            return None, response.status, processed_headers, raw_response_headers
 
         try:
             response_text = await response.text()
@@ -211,7 +212,7 @@ class HttpClient:
 
         # Double check 204, though it should be caught above. response.text() might be called.
         if response.status == 204:
-            return None, processed_headers, raw_response_headers  # Should have already returned
+            return None, response.status, processed_headers, raw_response_headers  # Should have already returned
 
         # Ensure we don't try to parse JSON if there's no body, even if headers suggest it.
         # This handles cases where response.text() might yield an empty string for an empty body.
@@ -228,7 +229,7 @@ class HttpClient:
                     api_error_code=APIErrorCode.INVALID_RESPONSE,  # Use the enum member directly
                 )
             # If not JSON and empty, it could be valid (e.g. just headers)
-            return None, processed_headers, raw_response_headers
+            return None, response.status, processed_headers, raw_response_headers
 
         # For 200-299 (excluding 204 handled above)
         if "application/json" in processed_headers.content_type:
@@ -237,7 +238,7 @@ class HttpClient:
                 # The check `if not response_text:` above handles None or empty string.
                 # So here, response_text should be a non-empty string.
                 parsed_json: ParsedJsonResponse = json.loads(response_text)
-                return parsed_json, processed_headers, raw_response_headers
+                return parsed_json, response.status, processed_headers, raw_response_headers
             except json.JSONDecodeError as je:
                 logger.warning(
                     f"[{self.exchange_name}] JSON decode failed for {full_url} "
@@ -257,7 +258,7 @@ class HttpClient:
             assert response_text is not None, (
                 f"DEFENSIVE: response_text is None for {full_url} with non-JSON 2xx non-204 status"
             )
-            return response_text, processed_headers, raw_response_headers
+            return response_text, response.status, processed_headers, raw_response_headers
 
     async def request(
         self,
@@ -270,10 +271,11 @@ class HttpClient:
         headers: dict[str, Any] | None = None,
         is_signed: bool = False,
         request_timeout: float | None = None,
-    ) -> tuple[ParsedJsonResponse | str | None, ProcessedResponseHeaders, CIMultiDictProxy[str]]:
+    ) -> tuple[ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str]]:
         """
         Executes an HTTP request with authentication, rate limiting, and retries.
         Response parsing and validation are delegated to _parse_and_validate_response.
+        Now returns content, status_code, processed_headers, and raw_headers.
         """
         request_params = (params or {}).copy()
         request_data = data
@@ -357,6 +359,7 @@ class HttpClient:
                     if 200 <= response.status < 300:
                         try:
                             # _parse_and_validate_response handles 204 correctly as well
+                            # It now returns: content, status, processed_headers, raw_headers
                             return await self._parse_and_validate_response(response, full_url)
                         except HttpRequestFailedError as e_parse:  # Catch errors from parsing
                             # Critical parse/validation errors, usually not retryable on same data
