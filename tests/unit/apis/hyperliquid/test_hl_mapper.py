@@ -579,8 +579,30 @@ def raw_user_state_with_positions() -> HyperliquidRawClearinghouseState:
         eth_position_asset.model_dump(by_alias=False),
         btc_position_asset.model_dump(by_alias=False),
     ]
-    updated_data_python_names = {
+    # Add all required fields for HyperliquidRawClearinghouseState
+    updated_data_python_names: dict[str, Any] = {
         "asset_positions": updated_asset_positions_data,
+        "cross_maintenance_margin_used": "50.0",  # Example value
+        "cross_margin_summary": {  # Example structure
+            "account_value": "10000.0",
+            "total_margin_used": "1000.0",
+            "total_ntl_pos": "9000.0",
+            "total_raw_usd": "8000.0",
+        },
+        "margin_summary": {  # Example structure, often same as cross for overall
+            "account_value": "10000.0",
+            "total_margin_used": "1000.0",
+            "total_ntl_pos": "9000.0",
+            "total_raw_usd": "8000.0",
+        },
+        "isolated_maintenance_margin_used": "100.0",  # Example value
+        "isolated_margin_summary": {  # Example structure
+            "account_value": "0",  # Can be 0 if no isolated positions or specific context
+            "total_margin_used": "0",
+            "total_ntl_pos": "0",
+            "total_raw_usd": "0",
+        },
+        "withdrawable": "7000.0",  # Example value
     }
     return HyperliquidRawClearinghouseState.model_validate(updated_data_python_names)
 
@@ -1364,21 +1386,21 @@ def test_map_raw_ctx_to_funding_rate_btc_negative_funding(
     assert fr.bp_details is None  # Ensure bp_details is None for HL
 
 
-def test_map_raw_ctx_to_funding_rate_parsing_error_returns_none(
+def test_map_raw_ctx_to_funding_rate_parsing_error_returns_funding_rate_with_none(
     mapper: HyperliquidMapper,
     mocker: MockerFixture,
-    hyperliquid_raw_asset_ctx_eth_fixture: HyperliquidRawAssetCtx,
+    # hyperliquid_raw_asset_ctx_eth_fixture: HyperliquidRawAssetCtx, # Not strictly needed if creating specific ctx
 ) -> None:
-    """Test that if parsing raw_ctx.funding fails internally, the method returns None."""
+    """Test that if parsing raw_ctx.funding fails internally, the method returns a FundingRate object with funding_rate=None."""
     # Instantiate with a funding value that is valid for HyperliquidRawAssetCtx itself,
     # but we will mock parse_decimal_value to fail for this specific input.
     raw_ctx_problematic_funding = HyperliquidRawAssetCtx(  # Instantiation uses alias
         name="ERR-FUNDING-PERP",
         funding="0.0000999",  # Valid raw string, but parsing will be mocked to fail
-        markPx="100",
-        prevDayPx="99",
-        dayNtlVlm="10000",
-        impactPx=None,  # Optional, can be None
+        markPx="100",  # Alias for mark_px
+        prevDayPx="99",  # Alias for prev_day_px
+        dayNtlVlm="10000",  # Alias for day_ntl_vlm
+        impactPx=None,  # Optional, can be None, alias for impact_px
     )
 
     original_parse_decimal = parse_decimal_value  # Save original for delegation
@@ -1389,28 +1411,43 @@ def test_map_raw_ctx_to_funding_rate_parsing_error_returns_none(
     ) -> Decimal | None:
         # Check if this call is for the 'funding' field and the specific value
         if field_name == "funding" and str(value) == "0.0000999":
-            return None  # Simulate parsing failure for this specific case
+            # Raise ValueError to simulate a parsing failure more accurately than returning None
+            # because parse_decimal_value is expected to raise on failure if allow_none=False (default)
+            raise ValueError(
+                f"Simulated parse_decimal_value failure for field '{field_name}' with value '{value}'"
+            )
         # For all other calls, delegate to the original parse_decimal_value
         return original_parse_decimal(
             value, allow_none=allow_none, field_name=field_name or "unknown_field"
         )
 
     # Mock parse_decimal_value within the scope of the mapper module
-    mocker.patch(
+    mocked_parser = mocker.patch(  # Assign to a variable to inspect calls
         "cyberdelta.apis.hyperliquid.hl_mapper.parse_decimal_value",
         side_effect=side_effect_for_funding_parse,
     )
 
     result = mapper.map_raw_ctx_to_funding_rate(raw_ctx_problematic_funding)
     assert result is not None, (
-        "RE-APPLY: map_raw_ctx_to_funding_rate should return a FundingRate object "
+        "map_raw_ctx_to_funding_rate should return a FundingRate object "
         "even if funding parsing fails"
     )
-    assert result.funding_rate is None, (
-        "RE-APPLY: FundingRate.funding_rate should be None if raw funding parsing failed"
+    assert result.funding_rate is None, (  # This is the key assertion for this test
+        "FundingRate.funding_rate should be None if raw funding parsing failed"
     )
-    assert result.symbol == "ERR-FUNDING-PERP"  # RE-APPLY
+    assert result.symbol == "ERR-FUNDING-PERP"
+    assert result.mark_price == Decimal("100")  # Ensure other fields are still mapped
 
-    # Ensure the mock was actually called for funding (optional check)
-    # To do this properly, you might need to inspect mock_parse_decimal.call_args_list
-    # For simplicity, the primary assertion is that result is None.
+    # Verify that parse_decimal_value was called for 'funding' and it failed as expected
+    # Also check it was called for 'markPx' and succeeded (or was handled)
+    funding_call_made = False
+    mark_px_call_made = False
+    for _args, kwargs in mocked_parser.call_args_list:  # Prefixed 'args' with an underscore
+        field_name_arg = kwargs.get("field_name")
+        if field_name_arg == "funding":
+            funding_call_made = True
+        elif field_name_arg == "mark_px":  # Check for mark_px or its alias
+            mark_px_call_made = True
+
+    assert funding_call_made, "parse_decimal_value was not called for 'funding'"
+    assert mark_px_call_made, "parse_decimal_value was not called for 'mark_px' (or alias)"

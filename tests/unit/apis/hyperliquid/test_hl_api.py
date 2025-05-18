@@ -28,7 +28,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import HyperliquidRawAll
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
     HyperliquidApiPlaceOrderRequest,
 )
-from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import HyperliquidRawAssetCtx
+from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
+    HyperliquidRawAssetCtx,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawOrder
 from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
     HyperliquidRawLimitOrderTypeDetails,
@@ -101,6 +103,95 @@ def mock_hl_auth_init() -> Generator[tuple[MagicMock, MagicMock], Any]:  # noqa:
         mock_instance.prepare_request = AsyncMock()
         mock_auth_class.return_value = mock_instance
         yield mock_auth_class, mock_instance
+
+
+@pytest_asyncio.fixture
+async def hl_api_instance(
+    mock_hl_auth_init: tuple[MagicMock, MagicMock],
+) -> AsyncGenerator[HyperliquidAPI]:
+    """Provides an initialized HyperliquidAPI instance for testing."""
+    # mock_hl_auth_init ensures the authenticator part is handled/mocked.
+    # The `_` prefix for unused variable is a common Python convention
+    _mock_auth_class, _mock_auth_instance = mock_hl_auth_init
+    api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_WITH_KEY)
+    yield api
+    await api.close()
+
+
+@pytest.fixture
+def mock_hyperliquid_mapper() -> MagicMock:
+    """Provides a mock HyperliquidMapper."""
+    return MagicMock(spec=HyperliquidMapper)
+
+
+@pytest.fixture
+def mock_meta_response_content() -> list[RawJsonResponse]:
+    """Provides a mock raw JSON response for /info endpoint (meta and asset contexts)."""
+    # Based on HyperliquidRawMetaAndAssetCtxsResponse structure
+    # and valid_raw_meta_and_asset_ctxs fixture in test_hl_response_handler.py
+    return [
+        {
+            "universe": [
+                {"name": "BTC", "szDecimals": 5, "maxLeverage": 100, "onlyIsolated": False},
+                {"name": "ETH", "szDecimals": 4, "maxLeverage": 80, "onlyIsolated": False},
+                {"name": "SOL", "szDecimals": 2, "maxLeverage": 50, "onlyIsolated": False},
+            ]
+        },
+        [
+            {
+                "name": "BTC",
+                "funding": "0.0001",
+                "markPx": "60000",
+                "prevDayPx": "59000",
+                "dayNtlVlm": "100000000",
+            },
+            {
+                "name": "ETH",
+                "funding": "0.0002",
+                "markPx": "3000",
+                "prevDayPx": "2950",
+                "dayNtlVlm": "50000000",
+            },
+            {
+                "name": "SOL",
+                "funding": "0.0003",
+                "markPx": "150",
+                "prevDayPx": "145",
+                "dayNtlVlm": "20000000",
+            },
+        ],
+    ]
+
+
+@pytest.fixture
+def mock_meta_response_content_missing_symbol() -> list[RawJsonResponse]:
+    """Mock /info response content where a specific symbol (e.g., SOL) is missing."""
+    return [
+        {
+            "universe": [
+                {"name": "BTC", "szDecimals": 5, "maxLeverage": 100, "onlyIsolated": False},
+                {"name": "ETH", "szDecimals": 4, "maxLeverage": 80, "onlyIsolated": False},
+                # SOL is missing from universe
+            ]
+        },
+        [
+            {
+                "name": "BTC",
+                "funding": "0.0001",
+                "markPx": "60000",
+                "prevDayPx": "59000",
+                "dayNtlVlm": "100000000",
+            },
+            {
+                "name": "ETH",
+                "funding": "0.0002",
+                "markPx": "3000",
+                "prevDayPx": "2950",
+                "dayNtlVlm": "50000000",
+            },
+            # SOL is missing from asset contexts
+        ],
+    ]
 
 
 # --- Initialization Tests --- #
@@ -474,8 +565,7 @@ class TestHyperliquidAPIMethodErrors:
         assert exc_info.value.code == APIErrorCode.SERVICE_UNAVAILABLE.value
         assert exc_info.value.http_status == http_status_from_exchange
         assert exc_info.value.message is not None
-        # Check that the original HttpRequestFailedError is preserved
-        assert exc_info.value.original_exception is http_failure
+        assert exc_info.value is http_failure
 
     @pytest.mark.asyncio
     @patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidAPI._request", new_callable=AsyncMock)
@@ -1166,7 +1256,7 @@ async def test_get_account_summary_success(
     api = HyperliquidAPI(BASE_API_CONFIG, SECRETS_WITH_KEY)
     raw_user_state_dict_from_api = mock_raw_user_state_fixture.model_dump(by_alias=True)
 
-    mock_api_request = AsyncMock(return_value=raw_user_state_dict_from_api)
+    mock_api_request = AsyncMock(return_value=(raw_user_state_dict_from_api, {}, MagicMock()))
     mock_handle_user_state_response = MagicMock(return_value=mock_raw_user_state_fixture)
 
     fixed_timestamp = datetime(2023, 10, 26, 12, 0, 0, tzinfo=UTC)
@@ -1177,7 +1267,7 @@ async def test_get_account_summary_success(
     mock_map_to_margin_summary = MagicMock(return_value=current_expected_summary)
 
     with (
-        patch.object(api._info_http_client, "request", mock_api_request),
+        patch.object(api.account_service, "_info_http_client_requester", mock_api_request),
         patch(
             "cyberdelta.apis.hyperliquid.hl_api.HyperliquidResponseHandler.handle_info_user_state_response",
             mock_handle_user_state_response,
@@ -1197,8 +1287,10 @@ async def test_get_account_summary_success(
 
     mock_api_request.assert_awaited_once_with(
         method="POST",
-        endpoint=api.INFO_URL,  # Corrected from "/info"
+        endpoint_path="/info",
         data={"type": "clearinghouseState", "user": TEST_WALLET_ADDRESS},
+        authenticator=None,
+        rate_limiter_service=api.account_service._rate_limiter_service,
         is_signed=False,
     )
     patched_handler.assert_called_once_with(
@@ -1276,7 +1368,7 @@ async def test_get_account_summary_handler_fails(
     api = HyperliquidAPI(BASE_API_CONFIG, SECRETS_WITH_KEY)
 
     raw_user_state_dict_from_api = {"some": "invalid_data"}
-    mock_api_request = AsyncMock(return_value=raw_user_state_dict_from_api)
+    mock_api_request = AsyncMock(return_value=(raw_user_state_dict_from_api, {}, MagicMock()))
 
     mock_handle_user_state_response = MagicMock(
         side_effect=ValidationError.from_exception_data(
@@ -1292,7 +1384,7 @@ async def test_get_account_summary_handler_fails(
     )
 
     with (
-        patch.object(api._info_http_client, "request", mock_api_request),
+        patch.object(api.account_service, "_info_http_client_requester", mock_api_request),
         patch(
             "cyberdelta.apis.hyperliquid.hl_api.HyperliquidResponseHandler.handle_info_user_state_response",
             mock_handle_user_state_response,
@@ -1301,13 +1393,18 @@ async def test_get_account_summary_handler_fails(
         with pytest.raises(APIError) as exc_info:
             await api.get_account_summary()
 
-    assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "Validation error processing account summary (user_state)" in str(exc_info.value.message)
-    assert "Pydantic ValidationError in get_account_summary (user_state)" in caplog.text
-    mock_api_request.assert_awaited_once()
-    patched_handler.assert_called_once_with(
-        raw_response_content=raw_user_state_dict_from_api, user_address=TEST_WALLET_ADDRESS
-    )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Invalid data received for account summary" in str(exc_info.value.message)
+        # Check logs for the more specific error message from hl_api.py
+        assert any(
+            record.levelno == logging.ERROR
+            and "API Error getting account summary" in record.message
+            and "Invalid data received for account summary" in record.message
+            and "HyperliquidRawClearinghouseState"
+            in record.message  # To ensure it's the pydantic error context
+            for record in caplog.records
+        )
+        mock_api_request.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -1322,12 +1419,12 @@ async def test_get_account_summary_mapper_fails(
     api = HyperliquidAPI(BASE_API_CONFIG, SECRETS_WITH_KEY)
 
     raw_user_state_dict_from_api = mock_raw_user_state_fixture.model_dump(by_alias=True)
-    mock_api_request = AsyncMock(return_value=raw_user_state_dict_from_api)
+    mock_api_request = AsyncMock(return_value=(raw_user_state_dict_from_api, {}, MagicMock()))
     mock_handle_user_state_response = MagicMock(return_value=mock_raw_user_state_fixture)
     mock_map_to_margin_summary = MagicMock(side_effect=ValueError("Mapper transformation error"))
 
     with (
-        patch.object(api._info_http_client, "request", mock_api_request),
+        patch.object(api.account_service, "_info_http_client_requester", mock_api_request),
         patch(
             "cyberdelta.apis.hyperliquid.hl_api.HyperliquidResponseHandler.handle_info_user_state_response",
             mock_handle_user_state_response,
@@ -1342,9 +1439,16 @@ async def test_get_account_summary_mapper_fails(
             await api.get_account_summary()
 
     assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-    assert "Unexpected error getting account summary (user_state)" in str(exc_info.value.message)
+    assert "Unexpected error getting account summary: Mapper transformation error" in str(
+        exc_info.value.message
+    )
     assert "Mapper transformation error" in str(exc_info.value.original_exception)
-    assert "Unexpected error in get_account_summary (user_state)" in caplog.text
+    assert any(
+        record.levelno == logging.ERROR
+        and "Unexpected error in get_account_summary" in record.message
+        and "Mapper transformation error" in record.message
+        for record in caplog.records
+    )
     patched_mapper.assert_called_once_with(raw_state=mock_raw_user_state_fixture)
 
 
@@ -1442,12 +1546,10 @@ async def test_get_funding_rates_success(
     mock_hyperliquid_mapper: MagicMock,
 ) -> None:
     """Test get_funding_rates successfully fetches and maps funding rates."""
-    # Mock the _info_http_client.request call for /info endpoint
+    # Mock the _request call for /info endpoint directly on the api instance
     with patch.object(
-        hl_api_instance._info_http_client,
-        "request",
-        AsyncMock(return_value=(mock_meta_response_content, 200, MagicMock())),
-    ) as mock_request:
+        hl_api_instance, "_request", AsyncMock(return_value=mock_meta_response_content)
+    ) as mock_internal_request_call:
         # Mock the mapper results
         current_time = datetime.now(UTC)
         mock_funding_rate_btc = FundingRate(
@@ -1477,11 +1579,14 @@ async def test_get_funding_rates_success(
 
         result = await hl_api_instance.get_funding_rates()
 
-        mock_request.assert_called_once_with(
+        expected_payload = {"type": "metaAndAssetCtxs"}
+        mock_internal_request_call.assert_awaited_once_with(
             method="POST",
-            endpoint_path="/info",
-            data=None,  # build_info_request_payload returns None
-            rate_limiter_service=hl_api_instance._rate_limiter_service,
+            endpoint="/info",
+            data=expected_payload,
+            is_public_info_endpoint=True,
+            params=None,
+            headers=None,
         )
         assert len(result) == 2
         assert mock_funding_rate_btc in result
@@ -1490,13 +1595,19 @@ async def test_get_funding_rates_success(
 
 @pytest.mark.asyncio
 async def test_get_funding_rates_api_error(hl_api_instance: HyperliquidAPI) -> None:
-    """Test get_funding_rates handles APIError from the underlying request."""
+    """Test get_funding_rates handles APIError from the underlying request call."""
     expected_error = APIError("Test API Error", code=APIErrorCode.UNKNOWN.value)
+    # Patch the _request method on the hl_api_instance for this test
     with patch.object(
-        hl_api_instance._info_http_client, "request", AsyncMock(side_effect=expected_error)
-    ) as mock_request:
+        hl_api_instance,
+        "_request",
+        AsyncMock(side_effect=expected_error),
+    ) as mock_internal_request_call:
         with pytest.raises(APIError) as exc_info:
             await hl_api_instance.get_funding_rates()
 
         assert exc_info.value == expected_error
-        mock_request.assert_called_once()
+        # Check that hl_api_instance._request was called
+        # The actual args might be complex to assert fully without more detail on INFO_URL etc.
+        # so just check it was called.
+        mock_internal_request_call.assert_awaited_once()

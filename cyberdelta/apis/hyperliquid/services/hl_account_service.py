@@ -18,6 +18,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from pydantic import ValidationError
+
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
@@ -120,6 +122,16 @@ class HyperliquidAccountService:
             )
         except APIError:  # Re-raise APIErrors from http_client_requester or handler
             raise
+        except ValidationError as e_val:  # Catch Pydantic validation errors specifically
+            logger.warning(
+                f"[{self._exchange_name}] Validation error in get_account_summary_raw: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                message=f"Invalid data received for account summary: {e_val}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                original_exception=e_val,
+            ) from e_val
         except Exception as e_unhandled:  # Catch any other unexpected errors
             logger.error(
                 f"[{self._exchange_name}] Unexpected error in get_account_summary_raw: {e_unhandled}",
