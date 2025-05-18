@@ -20,6 +20,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
     HyperliquidRawEthWithdrawalActionPayload,
     HyperliquidRawL2UsdTransferActionDetails,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
+    HyperliquidRawMetaAndAssetCtxsRequestPayload,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
     HyperliquidRawLimitOrderTypeDetails,
     HyperliquidRawMarketOrderTypeDetails,
@@ -57,13 +60,12 @@ class HyperliquidRequestBuilder:
     """
 
     @staticmethod
-    def build_info_request_payload() -> None:
+    def build_info_request_payload() -> HyperliquidRawMetaAndAssetCtxsRequestPayload:
         """
-        Builds the payload for general Hyperliquid INFO requests.
-        Many Hyperliquid INFO endpoints accept a POST request with an empty body.
-        Returns None, representing no specific payload body.
+        Builds the Pydantic model for fetching meta and asset contexts via /info.
+        Payload: {"type": "metaAndAssetCtxs"}
         """
-        return None
+        return HyperliquidRawMetaAndAssetCtxsRequestPayload(type="metaAndAssetCtxs")
 
     @staticmethod
     def build_l2_book_request_payload(symbol: str) -> HyperliquidRawL2BookRequestPayload:

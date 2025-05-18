@@ -22,6 +22,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
     HyperliquidRawEthWithdrawalActionPayload,
     HyperliquidRawL2UsdTransferActionDetails,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
+    HyperliquidRawMetaAndAssetCtxsRequestPayload,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
     HyperliquidRawPlaceOrderAction,
     HyperliquidRawQueryOrderHistoryRequestPayload,
@@ -40,9 +43,14 @@ VALID_ADDRESS = "0xAbCDeF0123456789AbCDeF0123456789AbCDeF01"
 
 
 def test_build_info_request_payload() -> None:
-    """Test build_info_request_payload."""
+    """Test that build_info_request_payload constructs the correct Pydantic model."""
     payload = HyperliquidRequestBuilder.build_info_request_payload()
-    assert payload is None
+    assert isinstance(payload, HyperliquidRawMetaAndAssetCtxsRequestPayload), (
+        "Payload should be an instance of HyperliquidRawMetaAndAssetCtxsRequestPayload"
+    )
+    assert payload.type == "metaAndAssetCtxs"
+    # Ensure model_dump works as expected for this simple model
+    assert payload.model_dump() == {"type": "metaAndAssetCtxs"}
 
 
 def test_build_l2_usd_transfer_payload() -> None:

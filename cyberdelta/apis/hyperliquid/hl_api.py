@@ -253,17 +253,33 @@ class HyperliquidAPI(ExchangeAPI):
         logger.debug(
             f"[{self.exchange_name}] Asset index for {symbol} not cached, fetching meta..."
         )
-        request_payload_data = (
-            HyperliquidRequestBuilder.build_info_request_payload()
-        )  # This is None
+        # Removed redundant assignment: request_payload_data = HyperliquidRequestBuilder.build_info_request_payload()
 
-        # CORRECTED USAGE: Use _info_http_client directly for /info endpoints
-        response_content_raw, _, _ = await self._info_http_client.request(
-            method="POST",
-            endpoint_path="/info",  # Relative path for _info_http_client
-            data=request_payload_data,  # This should be None if builder returns None, or model.model_dump()
-            rate_limiter_service=self._rate_limiter_service,  # Pass rate limiter
+        # Fetch all asset contexts if not cached or symbol not found
+        logger.debug(f"[{self.exchange_name}] Fetching asset contexts for {symbol} index lookup.")
+        request_payload_model = HyperliquidRequestBuilder.build_info_request_payload()
+        # Dump the model to a dictionary for the HTTP client
+        request_payload_data_dict = request_payload_model.model_dump(
+            by_alias=True, exclude_none=True
         )
+
+        try:
+            # Ensure self._info_http_client is used for /info endpoint
+            response_content_raw, _, _ = await self._info_http_client.request(
+                method="POST",
+                endpoint_path="/info",  # Correct relative path for _info_http_client
+                data=request_payload_data_dict,  # Pass the dumped dictionary
+                rate_limiter_service=self._rate_limiter_service,
+            )
+        except APIError as e_api:
+            logger.error(
+                f"[{self.exchange_name}] API Error fetching asset index for {symbol}: {e_api}"
+            )
+            raise APIError(
+                f"Failed to fetch asset index for symbol '{symbol}': {e_api}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e_api,
+            ) from e_api
 
         try:
             # Ensure response_content_raw is not None before casting and processing
@@ -1281,23 +1297,42 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
         """Get current funding rates."""
         try:
-            request_payload_data = HyperliquidRequestBuilder.build_info_request_payload()
-            response_raw: object = await self._request(
-                "POST",
-                f"{self.INFO_URL.rstrip('/')}/info",
-                data=request_payload_data,  # This is already None or dict
+            # Use the request builder to get the Pydantic model for the request
+            request_payload_model = HyperliquidRequestBuilder.build_info_request_payload()
+            # Dump the model to a dictionary for the HTTP client
+            request_payload_data_dict = request_payload_model.model_dump(
+                by_alias=True,
+                exclude_none=True,  # Use by_alias if model uses aliases
             )
 
-            # Use the consistent response handler for MetaAndAssetCtxs
-            validated_meta_ctxs: HyperliquidRawMetaAndAssetCtxsResponse = (
+            # Use _info_http_client for /info endpoints, which is configured with INFO_URL
+            # It expects a relative endpoint_path
+            response_content_raw, _, _ = await self._info_http_client.request(
+                method="POST",
+                endpoint_path="/info",  # Relative path for _info_http_client
+                data=request_payload_data_dict,  # Pass the dumped dictionary
+                rate_limiter_service=self._rate_limiter_service,  # Pass rate limiter
+            )
+
+            # Ensure response_content_raw is not None before casting and processing
+            if response_content_raw is None:
+                logger.error(
+                    f"[{self.exchange_name}] Received None response from _info_http_client.request for metaAndAssetCtxs."
+                )
+                raise APIError(
+                    "No data received for market metadata.",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                )
+
+            validated_response: HyperliquidRawMetaAndAssetCtxsResponse = (
                 HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response(
-                    cast(RawJsonResponse, response_raw)
+                    cast(RawJsonResponse, response_content_raw)  # Cast the actual content
                 )
             )
 
             result: list[FundingRate] = []
 
-            for asset_ctx_item in validated_meta_ctxs.asset_ctxs:
+            for asset_ctx_item in validated_response.asset_ctxs:
                 try:
                     # HyperliquidRawAssetCtx is already validated by the response handler
                     market_symbol: str = asset_ctx_item.name
@@ -1799,7 +1834,8 @@ class HyperliquidAPI(ExchangeAPI):
             ) from e_unexp
 
     async def get_account_summary(self) -> MarginAccountSummary | None:
-        """Fetches user state and maps it to MarginAccountSummary."""
+        """Fetches and combines account balance and positions for Hyperliquid."""
+        logger.info(f"[{self.exchange_name}] Fetching account summary.")
         if not self._wallet_address:  # Keep pre-condition check
             logger.error(
                 f"[{self.exchange_name}] Wallet address not available, cannot fetch "
@@ -1812,55 +1848,48 @@ class HyperliquidAPI(ExchangeAPI):
                 ),
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
-
-        raw_user_state_from_service: HyperliquidRawClearinghouseState | None = (
-            None  # For logging in except
-        )
         try:
-            # Delegate to service. Service is typed to return HyperliquidRawClearinghouseState,
-            # and should raise APIError on failure rather than returning None.
-            raw_user_state_from_service = await self.account_service.get_account_summary_raw()
-
-            # According to type hints, raw_user_state_from_service should not be None here if the service call succeeded.
-            # The service is expected to raise an APIError if it cannot fetch the data.
-            # If it somehow returns None without an error, the mapper will likely fail.
-
-            margin_summary = self._hl_mapper.map_raw_clearinghouse_state_to_margin_summary(
-                raw_state=raw_user_state_from_service  # This is HyperliquidRawClearinghouseState
+            # Step 1: Fetch raw clearinghouse state using the account_service
+            raw_user_state: HyperliquidRawClearinghouseState = (
+                await self.account_service.get_account_summary_raw()
             )
-            return margin_summary
 
-        except APIError as e:  # Re-raise APIErrors from service or mapper
-            logger.error(f"[{self.exchange_name}] API Error getting account summary: {e.message}")
-            if e.code == APIErrorCode.AUTHENTICATION_FAILED.value:
-                logger.warning(
-                    f"[{self.exchange_name}] Authentication failed for account summary (service reported), returning None."
-                )
-                return None
-            raise  # Re-raise other APIErrors
-        except ValidationError as ve:  # Handles errors from the mapper primarily.
+            # Step 2: Map to internal MarginAccountSummary
+            # The mapper should handle potential None for positions or balances gracefully.
+            internal_summary = self._hl_mapper.map_raw_clearinghouse_state_to_margin_summary(
+                raw_state=raw_user_state
+            )
+            return internal_summary
+
+        except APIError as e_api:
             logger.error(
-                f"[{self.exchange_name}] Pydantic ValidationError mapping account summary: {ve}. Raw from service: {raw_user_state_from_service!r}",
+                f"[{self.exchange_name}] API Error getting account summary: {e_api}",
                 exc_info=True,
             )
-            raise APIError(
-                f"Validation error mapping account summary: {ve}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                original_exception=ve,
-            ) from ve
+            raise  # Re-raise the original APIError
         except (
-            Exception
-        ) as e:  # Catch any other unexpected error during mapping or other logic here.
+            ValidationError,
+            ValueError,
+        ) as e_map_val:  # Catch Pydantic ValidationError and general ValueError
             logger.error(
-                f"[{self.exchange_name}] Unexpected error in get_account_summary: {e}. "
-                f"Raw from service (if available): {raw_user_state_from_service!r}",
+                f"[{self.exchange_name}] Pydantic ValidationError or ValueError mapping account summary: {e_map_val}",
                 exc_info=True,
             )
             raise APIError(
-                f"Unexpected error getting account summary: {e}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
+                message=f"Failed to validate or map account summary response: {e_map_val}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                original_exception=e_map_val,
+            ) from e_map_val
+        except Exception as e_unhandled:
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error getting account summary: {e_unhandled}",
+                exc_info=True,
+            )
+            raise APIError(
+                message=f"Unexpected error getting account summary: {e_unhandled}",
+                code=APIErrorCode.UNKNOWN.value,  # Keep UNKNOWN for truly unexpected errors
+                original_exception=e_unhandled,
+            ) from e_unhandled
 
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
         """Process a single message received from the WebSocket.

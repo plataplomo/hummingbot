@@ -90,8 +90,12 @@ class HyperliquidMarketDataService:
             APIError: If the API request fails or the response is invalid.
         """
         endpoint_path = "/info"
-        # HyperliquidRequestBuilder.build_info_request_payload() returns None, signifying an empty body.
-        request_payload_data: None = self._request_builder.build_info_request_payload()
+        # HyperliquidRequestBuilder.build_info_request_payload() now returns a Pydantic model.
+        request_payload_model = self._request_builder.build_info_request_payload()
+        request_payload_data_dict = request_payload_model.model_dump(
+            by_alias=True,
+            exclude_none=True,  # Use by_alias if model uses aliases
+        )
 
         raw_response_content: RawJsonResponse | None = None
         try:
@@ -99,7 +103,7 @@ class HyperliquidMarketDataService:
             raw_response_content, _, _ = await self._http_client.request(
                 method="POST",
                 endpoint_path=endpoint_path,
-                data=request_payload_data,  # This will be None
+                data=request_payload_data_dict,  # Pass the dumped dictionary
                 rate_limiter_service=self._rate_limiter_service,
             )
 

@@ -21,6 +21,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,  # For get_ticker, get_funding_rate
     HyperliquidRawAssetDefinition,
+    HyperliquidRawMetaAndAssetCtxsRequestPayload,
     HyperliquidRawMetaAndAssetCtxsResponse,  # For get_all_asset_contexts
     HyperliquidRawMetaResponse,
 )
@@ -94,8 +95,12 @@ class TestHyperliquidMarketDataService:
         mock_rate_limiter_service: AsyncMock,
     ) -> None:
         """Test get_all_asset_contexts successfully retrieves and processes data."""
-        # build_info_request_payload returns None
-        mock_payload_from_builder = None
+        # build_info_request_payload now returns a Pydantic model
+        mock_payload_from_builder = HyperliquidRawMetaAndAssetCtxsRequestPayload(
+            type="metaAndAssetCtxs"
+        )
+        expected_data_dict = mock_payload_from_builder.model_dump(by_alias=True, exclude_none=True)
+
         # Construct a realistic raw response content based on HyperliquidRawMetaAndAssetCtxsResponse structure
         mock_raw_response_content: list[RawJsonResponse] = [
             {"universe": []},  # Meta part
@@ -117,11 +122,11 @@ class TestHyperliquidMarketDataService:
 
         # Check that the correct request builder method was called
         mock_request_builder.build_info_request_payload.assert_called_once_with()
-        # Check that HttpClient was called with data=None (since builder returns None)
+        # Check that HttpClient was called with data from the builder
         mock_http_client.request.assert_called_once_with(
             method="POST",
             endpoint_path="/info",
-            data=mock_payload_from_builder,  # This is None
+            data=expected_data_dict,  # Assert with the dumped model dict
             rate_limiter_service=mock_rate_limiter_service,
         )
         # Check that the response handler was called correctly
