@@ -340,9 +340,8 @@ class BackpackAPI(ExchangeAPI):
         raw_trades = await self.market_data.get_recent_trades(symbol, limit)
         internal_trades: list[Trade] = []
         for raw_trade in raw_trades:
-            # transform_raw_trade_to_internal might return None if critical info is missing
-            # from raw REST API trade data.
-            trade = self._bp_mapper.transform_raw_trade_to_internal(raw_trade)
+            # raw_trade is BackpackRawFill, so use transform_raw_fill_to_internal
+            trade = self._bp_mapper.transform_raw_fill_to_internal(raw_trade)
             if trade:
                 internal_trades.append(trade)
             else:

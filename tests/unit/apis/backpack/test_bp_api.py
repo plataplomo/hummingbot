@@ -963,7 +963,7 @@ class TestBackpackAPIGetAccountSummary:
 
             def service_requester_side_effect(
                 method: str, endpoint: str, **kwargs: dict[str, Any]
-            ) -> None:
+            ) -> tuple[list[Any], int, MagicMock]:
                 if endpoint.endswith("/api/v1/capital"):  # Balances endpoint
                     raise HttpRequestFailedError(
                         "Simulated balances fetch error by service requester", http_status_code=500

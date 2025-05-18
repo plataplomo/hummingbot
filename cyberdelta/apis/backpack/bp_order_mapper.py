@@ -789,7 +789,12 @@ class BackpackOrderMapper:
         """
         price_dec = parse_decimal_value(raw.price, allow_none=False, field_name="price")
         quantity_dec = parse_decimal_value(raw.quantity, allow_none=False, field_name="quantity")
-        timestamp_raw = raw.engine_timestamp if raw.engine_timestamp is not None else raw.event_time
+        # Assuming raw.engine_timestamp is non-optional as per Pyright's warning.
+        # If it could be None and raw.event_time is the fallback, the original logic was closer.
+        # For now, simplifying based on the warning.
+        timestamp_raw = (
+            raw.engine_timestamp
+        )  # Simplified: Pyright says 'raw.engine_timestamp is not None' is always true
         timestamp_dt = parse_datetime_utc(timestamp_raw)
 
         if price_dec is None:
@@ -1040,46 +1045,31 @@ class BackpackOrderMapper:
         parsed_volume = parse_decimal_value(raw.volume, allow_none=True, field_name="volume")
 
         timestamp_dt: datetime
-        if raw.time is not None:
-            try:
-                parsed_ts: datetime | None
-                if isinstance(raw.time, int | float):  # Assume ms if numeric
-                    if raw.time > 1e11:  # Likely milliseconds
-                        parsed_ts = parse_datetime_utc(raw.time / 1000, field_name="time")
-                    else:  # Likely seconds
-                        parsed_ts = parse_datetime_utc(raw.time, field_name="time")
-                else:  # Must be str if not None and not int/float,
-                    # due to BackpackRawTicker.time type hint
+        # Pyright indicates 'raw.time is not None' is always true, making the else block unreachable.
+        # Proceeding directly with parsing logic.
+        try:
+            parsed_ts: datetime | None
+            if isinstance(raw.time, int | float):  # Assume ms if numeric
+                if raw.time > 1e11:  # Likely milliseconds
+                    parsed_ts = parse_datetime_utc(raw.time / 1000, field_name="time")
+                else:  # Likely seconds
                     parsed_ts = parse_datetime_utc(raw.time, field_name="time")
+            else:  # Must be str if not None and not int/float,
+                # due to BackpackRawTicker.time type hint
+                parsed_ts = parse_datetime_utc(raw.time, field_name="time")
 
-                if parsed_ts is None:
-                    raise ValueError(
-                        f"Failed to parse ticker time '{raw.time}' to a valid datetime object."
-                    )
-                timestamp_dt = parsed_ts
-
-            except ValueError as e_ts:
-                logger.warning(
-                    f"[BackpackOrderMapper] Could not parse ticker time '{raw.time}': {e_ts}, "
-                    f"raising."
+            if parsed_ts is None:
+                raise ValueError(
+                    f"Failed to parse ticker time '{raw.time}' to a valid datetime object."
                 )
-                raise ValueError(f"Invalid ticker time '{raw.time}': {e_ts}") from e_ts
-        else:
+            timestamp_dt = parsed_ts
+
+        except ValueError as e_ts:
             logger.warning(
-                "[BackpackOrderMapper] Ticker time is None, using current time as fallback."
+                f"[BackpackOrderMapper] Could not parse ticker time '{raw.time}': {e_ts}, raising."
             )
-            # According to Ticker model, timestamp is required. Raising error if None.
-            # However, BackpackRawTicker defines time as optional. If it's truly optional and
-            # a Ticker *can* be created without a server-provided timestamp
-            # (e.g. by using current time), this logic would change.
-            # For now, assuming Ticker *requires* a valid parsed timestamp.
-            # The Ticker model's @field_validator for timestamp will raise if
-            # parse_datetime_utc returns None.
-            # So, if raw.time is None, this will lead to an error at Ticker instantiation.
-            # Let's make it explicit: Ticker requires a timestamp.
-            raise ValueError(
-                "Ticker time (raw.time) cannot be None for Backpack ticker transformation."
-            )
+            raise ValueError(f"Invalid ticker time '{raw.time}': {e_ts}") from e_ts
+        # Removed unreachable else block that was here
 
         # Determine the final symbol
         symbol = symbol_override or raw.symbol

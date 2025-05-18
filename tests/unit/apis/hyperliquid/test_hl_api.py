@@ -955,7 +955,7 @@ class TestHyperliquidAPIWebSocketRouting:
         topic = "l2Book:ETH"
         api_for_ws_tests._ws_handlers[topic] = mock_app_handler  # pyright: ignore[reportPrivateUsage]
 
-        raw_l2_data = {"coin": "ETH", "levels": [[], []], "time": 123}  # pyright: ignore [reportUnknownVariableType]
+        raw_l2_data = {"coin": "ETH", "levels": [["100.0", "1.0"], ["101.0", "2.5"]], "time": 123}  # pyright: ignore [reportUnknownVariableType]
         # Test data; type checker struggles with inline dict structure for nested lists.
         # Actual validation is done by Pydantic in the (mocked) handler.
         ws_message = {"channel": "l2Book", "data": raw_l2_data}  # pyright: ignore [reportUnknownVariableType]
