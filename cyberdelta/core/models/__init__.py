@@ -39,6 +39,14 @@ from .market.order import (
     HyperliquidOrderDetails,
     Order,
 )
+from .operations import (
+    BackpackTransferDetails,
+    BackpackWithdrawalDetails,
+    HyperliquidTransferDetails,
+    HyperliquidWithdrawalDetails,
+    Transfer,
+    Withdrawal,
+)
 from .spot_balance import BackpackSpotBalanceDetails, HyperliquidSpotBalanceDetails, SpotBalance
 
 # from .positions import PositionInfo, PositionSide # TODO: Resolve ModuleNotFoundError
@@ -66,6 +74,13 @@ __all__ = [
     "Ticker",
     "OrderBook",
     "FundingRate",
+    # New Operation Models
+    "Transfer",
+    "HyperliquidTransferDetails",
+    "BackpackTransferDetails",
+    "Withdrawal",
+    "HyperliquidWithdrawalDetails",
+    "BackpackWithdrawalDetails",
     # Portfolio State Models
     "SpotBalance",
     "HyperliquidSpotBalanceDetails",

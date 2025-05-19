@@ -291,6 +291,38 @@ class CancelOrderResultStatus(Enum):
     UNKNOWN = "UNKNOWN"  # The outcome of the cancellation is unknown.
 
 
+# --------------------
+# Operation Status Enums (New)
+# --------------------
+
+
+class InternalTransferStatus(Enum):
+    """
+    Enum representing the internal, standardized status of a funds transfer operation.
+    """
+
+    PENDING = "PENDING"  # Transfer initiated but not yet confirmed/failed.
+    COMPLETED = "COMPLETED"  # Transfer successfully processed.
+    FAILED = "FAILED"  # Transfer attempt failed (e.g., insufficient funds, network issue).
+    REJECTED = "REJECTED"  # Transfer explicitly rejected by the exchange or system.
+    UNKNOWN = "UNKNOWN"  # Status cannot be determined.
+
+
+class InternalWithdrawalStatus(Enum):
+    """
+    Enum representing the internal, standardized status of a withdrawal operation.
+    """
+
+    PENDING = "PENDING"  # Withdrawal request received, awaiting processing.
+    PROCESSING = "PROCESSING"  # Withdrawal is being processed by the exchange.
+    AWAITING_CONFIRMATION = "AWAITING_CONFIRMATION"  # Tx broadcast, awaiting network confirmations.
+    COMPLETED = "COMPLETED"  # Withdrawal successfully processed and confirmed.
+    FAILED = "FAILED"  # Withdrawal attempt failed (e.g., invalid address, network issue).
+    CANCELED = "CANCELED"  # Withdrawal was canceled before processing or confirmation.
+    REJECTED = "REJECTED"  # Withdrawal request rejected by the exchange.
+    UNKNOWN = "UNKNOWN"  # Status cannot be determined.
+
+
 # Define __all__ for explicit public export
 __all__ = [
     "OrderSide",
@@ -305,4 +337,7 @@ __all__ = [
     "MarketType",
     "Blockchain",
     "CancelOrderResultStatus",
+    # New Operation Status Enums
+    "InternalTransferStatus",
+    "InternalWithdrawalStatus",
 ]
