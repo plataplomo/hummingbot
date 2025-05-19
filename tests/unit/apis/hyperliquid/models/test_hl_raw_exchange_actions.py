@@ -297,18 +297,13 @@ def test_batch_place_order_payload_invalid_fields(
                             f"{type(current_level)}."
                         )
                     current_level[key_or_index] = val
-                elif isinstance(key_or_index, int):
+                else:  # key_or_index must be int here
                     if not isinstance(current_level, list):
                         raise TypeError(
                             f"Path index {key_or_index} requires list level, but found "
                             f"{type(current_level)}."
                         )
                     current_level[key_or_index] = val
-                else:
-                    # This case should not be reached if path elements are str or int
-                    raise TypeError(
-                        f"Invalid path element type: {type(key_or_index)} for final set."
-                    )
             else:  # Not the last element, so traverse deeper
                 if isinstance(key_or_index, str):
                     if not isinstance(current_level, dict):
@@ -317,18 +312,13 @@ def test_batch_place_order_payload_invalid_fields(
                             f"but found {type(current_level)}."
                         )
                     current_level = current_level[key_or_index]
-                elif isinstance(key_or_index, int):
+                else:  # key_or_index must be int here
                     if not isinstance(current_level, list):
                         raise TypeError(
                             f"Path index {key_or_index} requires list level for traversal, "
                             f"but found {type(current_level)}."
                         )
                     current_level = current_level[key_or_index]
-                else:
-                    # This case should not be reached
-                    raise TypeError(
-                        f"Invalid path element type: {type(key_or_index)} for traversal."
-                    )
 
         # Apply the invalid value at the specified path
         modified_batch_data = base_batch_data.copy()

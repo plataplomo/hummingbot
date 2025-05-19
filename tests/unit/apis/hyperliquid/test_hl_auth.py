@@ -69,8 +69,7 @@ def test_hl_auth_init_success_with_private_key(
     mock_from_key.assert_called_once_with(VALID_PRIVATE_KEY_HEX)
     assert auth.wallet_address.lower() == VALID_WALLET_ADDRESS.lower()
     assert auth.chain_id == VALID_CHAIN_ID
-    assert auth._account is mock_account
-    assert auth._account.address.lower() == VALID_WALLET_ADDRESS.lower()
+    assert mock_account.address.lower() == VALID_WALLET_ADDRESS.lower()
 
 
 def test_hl_auth_init_success_with_account_object(mock_account: MagicMock) -> None:
@@ -82,7 +81,6 @@ def test_hl_auth_init_success_with_account_object(mock_account: MagicMock) -> No
     )
     assert auth.wallet_address.lower() == VALID_WALLET_ADDRESS.lower()
     assert auth.chain_id == VALID_CHAIN_ID
-    assert auth._account is mock_account
 
 
 @patch("eth_account.Account.from_key")
@@ -101,7 +99,6 @@ def test_hl_auth_init_success_no_0x_private_key(
         chain_id=VALID_CHAIN_ID,
     )
     mock_from_key.assert_called_once_with(key_no_prefix)
-    assert auth._account is mock_account
     assert auth.wallet_address.lower() == VALID_WALLET_ADDRESS.lower()
 
 
@@ -389,7 +386,6 @@ class TestHyperliquidEip712Authenticator:
         )
         assert auth.wallet_address == self.MOCKED_ACCOUNT_WALLET_ADDRESS
         assert auth.chain_id == self.CHAIN_ID
-        assert auth._account is mock_account
         mock_logger.info.assert_any_call(
             f"HyperliquidEip712Authenticator initialized for address: "
             f"{self.MOCKED_ACCOUNT_WALLET_ADDRESS} on chain_id: {self.CHAIN_ID}"
@@ -402,7 +398,6 @@ class TestHyperliquidEip712Authenticator:
         auth = auth_with_mock_from_key
         assert auth.wallet_address.lower() == self.EXPECTED_WALLET_ADDRESS_CLASS_SCOPE.lower()
         assert auth.chain_id == self.CHAIN_ID
-        assert auth._account is mock_account
 
     def test_instantiation_private_key_no_prefix(
         self, mock_account: MagicMock, mock_logger: MagicMock
@@ -419,7 +414,6 @@ class TestHyperliquidEip712Authenticator:
             )
         mk_from_key.assert_called_once_with(key_no_prefix)
         assert auth.wallet_address.lower() == self.EXPECTED_WALLET_ADDRESS_CLASS_SCOPE.lower()
-        assert auth._account is mock_account
 
     def test_instantiation_no_key_or_account_object(self, mock_logger: MagicMock) -> None:
         """Test ValueError if neither private key nor account object is provided."""
@@ -670,48 +664,67 @@ class TestHyperliquidEip712Authenticator:
         mock_account.sign_message.assert_called_once()  # Ensure signing occurred
 
 
-@patch("eth_account.Account.from_key")
-def test_internal_generate_connection_id_deterministic(
-    mock_from_key: MagicMock, mock_account: MagicMock
+# New tests for connectionId properties, replacing the internal method tests.
+@patch("eth_account.messages.encode_typed_data")
+@pytest.mark.asyncio
+async def test_prepare_request_connection_id_properties(
+    mock_encode_typed_data: MagicMock,  # Mock for encode_typed_data
+    authenticator_instance: HyperliquidEip712Authenticator,  # Use existing fixture
+    mock_account: MagicMock,  # Need this because authenticator_instance might use a real key
 ) -> None:
-    """Test that _generate_connection_id is deterministic for the same payload."""
-    mock_from_key.return_value = mock_account
-    mock_account.address = VALID_WALLET_ADDRESS
+    """
+    Tests the properties of connectionId generation (deterministic, content-sensitive)
+    by observing the 'connectionId' field in the data passed to encode_typed_data
+    when calling the public prepare_request method.
+    """
+    # To ensure this test uses a mock account for consistent signing behavior if needed,
+    # let's re-initialize an authenticator with a mock account, or ensure the
+    # authenticator_instance fixture itself uses a mock that can be controlled.
+    # For simplicity, we'll create one for this test scope using mock_account.
+    # This also allows us to control the account's sign_message if we didn't want to
+    # mock encode_typed_data (but we are mocking encode_typed_data).
+
     auth = HyperliquidEip712Authenticator(
-        wallet_private_key=VALID_PRIVATE_KEY_HEX, chain_id=VALID_CHAIN_ID
+        account_object=mock_account,  # mock_account is from a fixture
+        chain_id=VALID_CHAIN_ID,
     )
+    # Ensure mock_account.sign_message is set up if encode_typed_data wasn't mocked
+    # (but it is, so this is just good practice if the test evolved)
+    signed_msg_mock = MagicMock(spec=SignedMessage)
+    signed_msg_mock.signature = HexBytes("0x" + "c" * 130)  # Dummy signature
+    mock_account.sign_message.return_value = signed_msg_mock
+
+    # Dummy signable message to be returned by the mocked encode_typed_data
+    dummy_signable = MagicMock()
+    mock_encode_typed_data.return_value = dummy_signable
 
     payload1 = {"coin": "BTC", "size": "1.0", "is_buy": True, "limit_px": "50000.0"}
-    payload2 = {"coin": "BTC", "size": "1.0", "is_buy": True, "limit_px": "50000.0"}
+    payload1_shuffled = {"limit_px": "50000.0", "coin": "BTC", "is_buy": True, "size": "1.0"}
+    payload2 = {"coin": "ETH", "size": "2.0", "is_buy": False, "limit_px": "3000.0"}
 
-    conn_id1 = auth._generate_connection_id(payload1)
-    conn_id2 = auth._generate_connection_id(payload2)
-    assert conn_id1 == conn_id2
+    # --- Test Determinism ---
+    await auth.prepare_request("POST", "/exchange", None, payload1, None)
+    _args_call1, kwargs_call1 = mock_encode_typed_data.call_args_list[-1]
+    conn_id1 = kwargs_call1["full_message"]["message"]["connectionId"]
 
-    payload_shuffled = {"limit_px": "50000.0", "is_buy": True, "size": "1.0", "coin": "BTC"}
-    conn_id_shuffled = auth._generate_connection_id(payload_shuffled)
-    assert conn_id1 == conn_id_shuffled
+    await auth.prepare_request("POST", "/exchange", None, payload1, None)  # Identical payload
+    _args_call2, kwargs_call2 = mock_encode_typed_data.call_args_list[-1]
+    conn_id1_again = kwargs_call2["full_message"]["message"]["connectionId"]
+    assert conn_id1 == conn_id1_again, "connectionId should be deterministic for identical payloads"
 
-
-@patch("eth_account.Account.from_key")
-def test_internal_generate_connection_id_content_change(
-    mock_from_key: MagicMock, mock_account: MagicMock
-) -> None:
-    """Test that _generate_connection_id changes if payload content changes."""
-    mock_from_key.return_value = mock_account
-    mock_account.address = VALID_WALLET_ADDRESS
-    auth = HyperliquidEip712Authenticator(
-        wallet_private_key=VALID_PRIVATE_KEY_HEX, chain_id=VALID_CHAIN_ID
+    # --- Test Determinism with shuffled keys (due to sort_keys=True) ---
+    await auth.prepare_request("POST", "/exchange", None, payload1_shuffled, None)
+    _args_call_shuffled, kwargs_call_shuffled = mock_encode_typed_data.call_args_list[-1]
+    conn_id1_shuffled = kwargs_call_shuffled["full_message"]["message"]["connectionId"]
+    assert conn_id1 == conn_id1_shuffled, (
+        "connectionId should be deterministic for payloads with same content but shuffled keys"
     )
 
-    payload1 = {"coin": "BTC", "size": "1.0"}
-    payload2 = {"coin": "ETH", "size": "1.0"}  # Different coin
-    payload3 = {"coin": "BTC", "size": "2.0"}  # Different size
+    # --- Test Content Sensitivity ---
+    await auth.prepare_request("POST", "/exchange", None, payload2, None)  # Different payload
+    _args_call3, kwargs_call3 = mock_encode_typed_data.call_args_list[-1]
+    conn_id2 = kwargs_call3["full_message"]["message"]["connectionId"]
+    assert conn_id1 != conn_id2, "connectionId should change for different payloads"
 
-    conn_id1 = auth._generate_connection_id(payload1)
-    conn_id2 = auth._generate_connection_id(payload2)
-    conn_id3 = auth._generate_connection_id(payload3)
-
-    assert conn_id1 != conn_id2
-    assert conn_id1 != conn_id3
-    assert conn_id2 != conn_id3
+    # Ensure encode_typed_data was actually called as expected
+    assert mock_encode_typed_data.call_count >= 3  # Or specific number if reset

@@ -1298,7 +1298,7 @@ async def test_get_account_summary_success(
         endpoint_path="/info",
         data={"type": "clearinghouseState", "user": TEST_WALLET_ADDRESS},
         authenticator=None,
-        rate_limiter_service=api.account_service._rate_limiter_service,
+        rate_limiter_service=api._rate_limiter_service,
         is_signed=False,
     )
     patched_handler.assert_called_once_with(

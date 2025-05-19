@@ -3,10 +3,10 @@ Unit tests for the HyperliquidAccountService.
 """
 
 from collections.abc import Awaitable, Callable, Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
-from typing import cast
 
 import pytest
 
@@ -20,7 +20,6 @@ from cyberdelta.apis.hyperliquid.hl_mapper import (
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
-    RawJsonResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawAssetPosition,
@@ -83,6 +82,7 @@ def hyperliquid_account_service(
     mock_authenticator: MagicMock,
     mock_hl_mapper: MagicMock,
     mock_hl_order_mapper: MagicMock,
+    mock_hl_user_fill_mapper: MagicMock,
 ) -> HyperliquidAccountService:
     service = HyperliquidAccountService(
         http_client_requester=mock_http_client_requester,
@@ -92,10 +92,10 @@ def hyperliquid_account_service(
         exchange_name="hyperliquid_test_account",
         info_url="https://info.hyperliquid.xyz",
         wallet_address="0xTestWalletAddress",
+        mapper=mock_hl_mapper,
+        order_mapper=mock_hl_order_mapper,
+        user_fill_mapper=mock_hl_user_fill_mapper,
     )
-    # Replace internally created mappers with mocks
-    service._mapper = mock_hl_mapper  # Mocking for test setup
-    service._order_mapper = mock_hl_order_mapper  # Mocking for test setup
     return service
 
 
@@ -109,31 +109,29 @@ class TestHyperliquidAccountService:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_hl_mapper: MagicMock,  # Use the HyperliquidMapper mock
+        mock_hl_mapper: MagicMock,
     ) -> None:
         """Test get_balances successfully retrieves and processes balance data."""
-        wallet_address = "0xTestWalletAddress"
         mock_endpoint_path = "/info"
 
-        # 1. Mock RequestBuilder call for user_state_payload
+        # 1. Mock RequestBuilder for build_user_state_payload
+        #    (called by _get_raw_clearinghouse_state)
         mock_user_state_payload_model = MagicMock()
-        mock_user_state_payload_dict = {"type": "clearinghouseState", "user": wallet_address}
+        mock_user_state_payload_dict = {"type": "clearinghouseState", "user": "0xTestWalletAddress"}
         mock_user_state_payload_model.model_dump.return_value = mock_user_state_payload_dict
         mock_request_builder.build_user_state_payload.return_value = mock_user_state_payload_model
 
-        # 2. Mock HttpClient Requester call for user state
-        # Hyperliquid /info for user state returns a list with one dict element usually
-        mock_raw_user_state_response_list: ParsedJsonResponse = [
+        # 2. Mock HttpClient Requester (called by _get_raw_clearinghouse_state)
+        mock_raw_user_state_response_list: list[dict[str, Any]] = [
             {
                 "assetPositions": [
                     {
                         "type": "erc20",
                         "asset": "USDC",
                         "position": {"type": "cross", "amount": "1000500000"},
-                    }  # 1000.5 USDC (6 decimals)
+                    }
                 ],
                 "marginSummary": {"accountValue": "1000500000"},
-                # ... other fields in clearinghouse state
             }
         ]
         mock_status_code = 200
@@ -144,8 +142,8 @@ class TestHyperliquidAccountService:
             mock_headers,
         )
 
-        # 3. Mock ResponseHandler call for user state
-        # Response handler expects the inner dict, service extracts raw_data[0]
+        # 3. Mock ResponseHandler for handle_info_user_state_response
+        #    (called by _get_raw_clearinghouse_state)
         mock_raw_leverage = HyperliquidRawLeverage(type="cross", value=10)
         mock_raw_position_info = HyperliquidRawPositionInfo(
             coin="USDC",
@@ -162,29 +160,27 @@ class TestHyperliquidAccountService:
         mock_raw_asset_position_usdc = HyperliquidRawAssetPosition(
             asset="USDC", position=mock_raw_position_info
         )
-
         mock_raw_margin_summary = HyperliquidRawMarginSummary(
-            accountValue="1000.5",  # Use alias
-            totalMarginUsed="0",  # Use alias
-            totalNtlPos="1000.5",  # Use alias
-            totalRawUsd="1000.5",  # Use alias
+            accountValue="1000.5",
+            totalMarginUsed="0",
+            totalNtlPos="1000.5",
+            totalRawUsd="1000.5",
         )
-
-        mock_raw_clearinghouse_state_model = HyperliquidRawClearinghouseState(
-            assetPositions=[mock_raw_asset_position_usdc],  # Use alias
-            marginSummary=mock_raw_margin_summary,  # Use alias
-            crossMaintenanceMarginUsed="0",  # Use alias
-            crossMarginSummary=mock_raw_margin_summary,  # Use alias
-            isolatedMaintenanceMarginUsed="0",  # Use alias
-            isolatedMarginSummary=mock_raw_margin_summary,  # Use alias
+        mock_processed_raw_clearinghouse_state_model = HyperliquidRawClearinghouseState(
+            assetPositions=[mock_raw_asset_position_usdc],
+            marginSummary=mock_raw_margin_summary,
+            crossMaintenanceMarginUsed="0",
+            crossMarginSummary=mock_raw_margin_summary,
+            isolatedMaintenanceMarginUsed="0",
+            isolatedMarginSummary=mock_raw_margin_summary,
             withdrawable="1000.5",
         )
         mock_response_handler.handle_info_user_state_response.return_value = (
-            mock_raw_clearinghouse_state_model
+            mock_processed_raw_clearinghouse_state_model
         )
 
-        # 4. Mock Mapper call (HyperliquidMapper)
-        mock_ts = datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        # 4. Mock Mapper (HyperliquidMapper) for map_raw_clearinghouse_state_to_spot_balances
+        mock_ts = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
         expected_internal_balances: dict[str, SpotBalance] = {
             "USDC": SpotBalance(
                 exchange="hyperliquid",
@@ -198,11 +194,11 @@ class TestHyperliquidAccountService:
             expected_internal_balances
         )
 
-        # Call the service method
+        # Call the service method - this will now execute the actual _get_raw_clearinghouse_state
         result_balances = await hyperliquid_account_service.get_balances()
 
         # Assertions
-        mock_request_builder.build_user_state_payload.assert_called_once_with(wallet_address)
+        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint_path=mock_endpoint_path,
@@ -211,135 +207,294 @@ class TestHyperliquidAccountService:
             is_signed=False,
         )
         mock_response_handler.handle_info_user_state_response.assert_called_once_with(
-            raw_response_content=cast(list[RawJsonResponse], mock_raw_user_state_response_list)[0],  # Service passes the dict
-            user_address=wallet_address,
+            raw_response_content=mock_raw_user_state_response_list[0],
+            user_address="0xTestWalletAddress",
         )
         mock_hl_mapper.map_raw_clearinghouse_state_to_spot_balances.assert_called_once_with(
-            mock_raw_clearinghouse_state_model
+            mock_processed_raw_clearinghouse_state_model
         )
         assert result_balances == expected_internal_balances
 
     @pytest.mark.asyncio
     async def test_get_balances_no_wallet_address(
         self,
-        hyperliquid_account_service: HyperliquidAccountService,
+        mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_authenticator: MagicMock,
+        mock_hl_mapper: MagicMock,
+        mock_hl_order_mapper: MagicMock,
+        mock_hl_user_fill_mapper: MagicMock,
     ) -> None:
         """Test get_balances raises APIError if wallet_address is not set in service."""
-        hyperliquid_account_service._wallet_address = None  # Mocking for test case
+        # Instantiate service directly with wallet_address=None
+        service_no_wallet = HyperliquidAccountService(
+            http_client_requester=mock_http_client_requester,
+            request_builder=mock_request_builder,
+            response_handler=mock_response_handler,
+            authenticator=mock_authenticator,
+            exchange_name="hyperliquid_test_no_wallet",
+            info_url="https://info.hyperliquid.xyz",
+            wallet_address=None,  # Key change here
+            mapper=mock_hl_mapper,
+            order_mapper=mock_hl_order_mapper,
+            user_fill_mapper=mock_hl_user_fill_mapper,
+        )
+
         with pytest.raises(APIError) as excinfo:
-            await hyperliquid_account_service.get_balances()
+            await service_no_wallet.get_balances()
         assert excinfo.value.code == APIErrorCode.INVALID_REQUEST.value
         assert "Wallet address is required" in excinfo.value.message
-
-        # Test the internal helper method if wallet_address is None (it should raise error early)
-        with pytest.raises(APIError) as excinfo_helper:
-             await hyperliquid_account_service._get_raw_clearinghouse_state() # Accessing protected for test
-        assert excinfo_helper.value.code == APIErrorCode.INVALID_REQUEST.value
-        assert "Wallet address is required" in excinfo_helper.value.message
-        mock_request_builder.build_clearinghouse_state_payload.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_positions_success(
         self,
         hyperliquid_account_service: HyperliquidAccountService,
-        mock_hl_mapper: MagicMock,
         mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_hl_mapper: MagicMock,
     ) -> None:
         """Test get_positions returns all positions correctly."""
-        # Mock _get_raw_clearinghouse_state
-        mock_state = MagicMock()
-        mock_hl_mapper.map_raw_clearinghouse_state_to_derivative_positions.return_value = {
-            "BTC": MagicMock(),
-            "ETH": MagicMock(),
-        }
-        hyperliquid_account_service._get_raw_clearinghouse_state = AsyncMock( # Mocking protected method for test
-            return_value=mock_state
+        mock_user_state_payload_model = MagicMock()
+        mock_user_state_payload_dict = {"type": "clearinghouseState", "user": "0xTestWalletAddress"}
+        mock_user_state_payload_model.model_dump.return_value = mock_user_state_payload_dict
+        mock_request_builder.build_user_state_payload.return_value = mock_user_state_payload_model
+
+        mock_raw_user_state_response_list: list[dict[str, Any]] = [
+            {"mock_state_data": "some_value"}
+        ]
+        mock_http_client_requester.return_value = (mock_raw_user_state_response_list, 200, {})
+
+        mock_processed_raw_clearinghouse_state_model = MagicMock(
+            spec=HyperliquidRawClearinghouseState
         )
+        mock_response_handler.handle_info_user_state_response.return_value = (
+            mock_processed_raw_clearinghouse_state_model
+        )
+
+        mock_btc_pos = MagicMock(name="BTC_Position")
+        mock_eth_pos = MagicMock(name="ETH_Position")
+        mock_hl_mapper.map_raw_clearinghouse_state_to_derivative_positions.return_value = {
+            "BTC": mock_btc_pos,
+            "ETH": mock_eth_pos,
+        }
+
         result = await hyperliquid_account_service.get_positions()
+
+        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
+        mock_http_client_requester.assert_called_once()
+        mock_response_handler.handle_info_user_state_response.assert_called_once_with(
+            raw_response_content=mock_raw_user_state_response_list[0],
+            user_address="0xTestWalletAddress",
+        )
+
         mock_hl_mapper.map_raw_clearinghouse_state_to_derivative_positions.assert_called_once_with(
-            mock_state
+            mock_processed_raw_clearinghouse_state_model
         )
         assert isinstance(result, list)
         assert len(result) == 2
+        assert mock_btc_pos in result
+        assert mock_eth_pos in result
 
     @pytest.mark.asyncio
     async def test_get_positions_symbol_filter(
         self,
         hyperliquid_account_service: HyperliquidAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
         mock_hl_mapper: MagicMock,
     ) -> None:
         """Test get_positions filters by symbol."""
-        mock_state = MagicMock()
-        btc_position = MagicMock()
+        mock_user_state_payload_model = MagicMock()
+        mock_user_state_payload_dict = {"type": "clearinghouseState", "user": "0xTestWalletAddress"}
+        mock_user_state_payload_model.model_dump.return_value = mock_user_state_payload_dict
+        mock_request_builder.build_user_state_payload.return_value = mock_user_state_payload_model
+
+        mock_raw_user_state_response_list: list[dict[str, Any]] = [{"mock_state_data": "val"}]
+        mock_http_client_requester.return_value = (mock_raw_user_state_response_list, 200, {})
+
+        mock_processed_raw_clearinghouse_state_model = MagicMock(
+            spec=HyperliquidRawClearinghouseState
+        )
+        mock_response_handler.handle_info_user_state_response.return_value = (
+            mock_processed_raw_clearinghouse_state_model
+        )
+
+        btc_position = MagicMock(name="BTC_Pos_Filter")
+        eth_position = MagicMock(name="ETH_Pos_Filter")
         mock_hl_mapper.map_raw_clearinghouse_state_to_derivative_positions.return_value = {
             "BTC": btc_position,
-            "ETH": MagicMock(),
+            "ETH": eth_position,
         }
-        hyperliquid_account_service._get_raw_clearinghouse_state = AsyncMock( # Mocking protected method for test
-            return_value=mock_state
+
+        result_btc = await hyperliquid_account_service.get_positions(symbol="BTC")
+        assert result_btc == [btc_position]
+
+        result_doge = await hyperliquid_account_service.get_positions(symbol="DOGE")
+        assert result_doge == []
+
+        assert mock_request_builder.build_user_state_payload.call_count == 2
+        mock_request_builder.build_user_state_payload.assert_any_call("0xTestWalletAddress")
+        assert mock_http_client_requester.call_count == 2
+        assert mock_response_handler.handle_info_user_state_response.call_count == 2
+        mock_response_handler.handle_info_user_state_response.assert_any_call(
+            raw_response_content=mock_raw_user_state_response_list[0],
+            user_address="0xTestWalletAddress",
         )
-        result = await hyperliquid_account_service.get_positions(symbol="BTC")
-        assert result == [btc_position]
-        result_none = await hyperliquid_account_service.get_positions(symbol="DOGE")
-        assert result_none == []
+        assert mock_hl_mapper.map_raw_clearinghouse_state_to_derivative_positions.call_count == 2
 
     @pytest.mark.asyncio
     async def test_get_positions_error_from_state(
         self,
         hyperliquid_account_service: HyperliquidAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_hl_mapper: MagicMock,
     ) -> None:
-        """Test get_positions propagates APIError from _get_raw_clearinghouse_state."""
-        hyperliquid_account_service._get_raw_clearinghouse_state = AsyncMock( # Mocking protected method for test
-            side_effect=APIError("fail", 1)
-        )
-        with pytest.raises(APIError):
+        """Test get_positions propagates APIError when underlying HTTP request fails."""
+        # Ensure the request builder is called and returns a valid payload model
+        mock_user_state_payload_model = MagicMock()
+        mock_user_state_payload_model.model_dump.return_value = {
+            "type": "clearinghouseState",
+            "user": "0xTestWalletAddress",
+        }
+        mock_request_builder.build_user_state_payload.return_value = mock_user_state_payload_model
+
+        # Simulate an APIError from the http_client_requester
+        expected_error = APIError("HTTP fail", APIErrorCode.NETWORK_ISSUE.value)
+        mock_http_client_requester.side_effect = expected_error
+
+        with pytest.raises(APIError) as excinfo:
             await hyperliquid_account_service.get_positions()
+
+        assert excinfo.value == expected_error
+        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
+        mock_http_client_requester.assert_called_once()  # Verifies it was called before erroring
+        mock_hl_mapper.map_raw_clearinghouse_state_to_derivative_positions.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_account_summary_success(
         self,
         hyperliquid_account_service: HyperliquidAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
         mock_hl_mapper: MagicMock,
     ) -> None:
         """Test get_account_summary returns summary."""
-        mock_state = MagicMock()
-        mock_summary = MagicMock()
-        hyperliquid_account_service._get_raw_clearinghouse_state = AsyncMock( # Mocking protected method for test
-            return_value=mock_state
+        mock_user_state_payload_model = MagicMock()
+        mock_user_state_payload_dict = {"type": "clearinghouseState", "user": "0xTestWalletAddress"}
+        mock_user_state_payload_model.model_dump.return_value = mock_user_state_payload_dict
+        mock_request_builder.build_user_state_payload.return_value = mock_user_state_payload_model
+
+        mock_raw_user_state_response_list: list[dict[str, Any]] = [{"mock_summary_data": "value"}]
+        mock_http_client_requester.return_value = (mock_raw_user_state_response_list, 200, {})
+
+        mock_processed_raw_clearinghouse_state_model = MagicMock(
+            spec=HyperliquidRawClearinghouseState
         )
-        mock_hl_mapper.map_raw_clearinghouse_state_to_margin_summary.return_value = mock_summary
+        mock_response_handler.handle_info_user_state_response.return_value = (
+            mock_processed_raw_clearinghouse_state_model
+        )
+
+        mock_summary_object = MagicMock(name="AccountSummaryObject")
+        mock_hl_mapper.map_raw_clearinghouse_state_to_margin_summary.return_value = (
+            mock_summary_object
+        )
+
         result = await hyperliquid_account_service.get_account_summary()
-        assert result == mock_summary
+
+        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
+        mock_http_client_requester.assert_called_once()
+        mock_response_handler.handle_info_user_state_response.assert_called_once_with(
+            raw_response_content=mock_raw_user_state_response_list[0],
+            user_address="0xTestWalletAddress",
+        )
+
+        assert result == mock_summary_object
+        mock_hl_mapper.map_raw_clearinghouse_state_to_margin_summary.assert_called_once_with(
+            mock_processed_raw_clearinghouse_state_model
+        )
 
     @pytest.mark.asyncio
     async def test_get_account_summary_validation_error(
         self,
         hyperliquid_account_service: HyperliquidAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
         mock_hl_mapper: MagicMock,
     ) -> None:
-        """Test get_account_summary handles validation error from mapper."""
-        mock_state = MagicMock()
-        hyperliquid_account_service._get_raw_clearinghouse_state = AsyncMock( # Mocking protected method for test
-            return_value=mock_state
+        """Test get_account_summary handles mapper validation error post state retrieval."""
+        # 1. Setup for successful state retrieval by _get_raw_clearinghouse_state
+        mock_user_state_payload_model = MagicMock()
+        mock_user_state_payload_dict = {"type": "clearinghouseState", "user": "0xTestWalletAddress"}
+        mock_user_state_payload_model.model_dump.return_value = mock_user_state_payload_dict
+        mock_request_builder.build_user_state_payload.return_value = mock_user_state_payload_model
+
+        # Mock raw response from HTTP client for _get_raw_clearinghouse_state
+        mock_raw_user_state_response_list: list[dict[str, Any]] = [
+            {"valid_state_data": "some_value"}
+        ]
+        mock_http_client_requester.return_value = (mock_raw_user_state_response_list, 200, {})
+
+        # Mock processed response from ResponseHandler for _get_raw_clearinghouse_state
+        # This is the 'mock_state' that was previously returned by the patched method
+        mock_processed_state = MagicMock(spec=HyperliquidRawClearinghouseState)
+        mock_response_handler.handle_info_user_state_response.return_value = mock_processed_state
+
+        # 2. Setup mapper to cause a validation error
+        mock_hl_mapper.map_raw_clearinghouse_state_to_margin_summary.side_effect = ValueError(
+            "bad map"
         )
-        mock_hl_mapper.map_raw_clearinghouse_state_to_margin_summary.side_effect = ValueError("bad")
+
         with pytest.raises(APIError) as excinfo:
             await hyperliquid_account_service.get_account_summary()
+
         assert "Processing HL account summary data failed" in str(excinfo.value)
+        assert isinstance(
+            excinfo.value.__cause__, ValueError
+        )  # Check that original ValueError is preserved
+        assert str(excinfo.value.__cause__) == "bad map"
+
+        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
+        mock_http_client_requester.assert_called_once()
+        mock_response_handler.handle_info_user_state_response.assert_called_once_with(
+            raw_response_content=mock_raw_user_state_response_list[0],
+            user_address="0xTestWalletAddress",
+        )
+        mock_hl_mapper.map_raw_clearinghouse_state_to_margin_summary.assert_called_once_with(
+            mock_processed_state
+        )
 
     @pytest.mark.asyncio
     async def test_get_account_summary_error_from_state(
         self,
         hyperliquid_account_service: HyperliquidAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_hl_mapper: MagicMock,
     ) -> None:
-        """Test get_account_summary propagates APIError from _get_raw_clearinghouse_state."""
-        hyperliquid_account_service._get_raw_clearinghouse_state = AsyncMock( # Mocking protected method for test
-            side_effect=APIError("fail", 1)
-        )
-        with pytest.raises(APIError):
+        """Test get_account_summary propagates APIError when underlying HTTP request fails."""
+        mock_user_state_payload_model = MagicMock()
+        mock_user_state_payload_model.model_dump.return_value = {
+            "type": "clearinghouseState",
+            "user": "0xTestWalletAddress",
+        }
+        mock_request_builder.build_user_state_payload.return_value = mock_user_state_payload_model
+
+        expected_error = APIError("HTTP fail for summary", APIErrorCode.NETWORK_ISSUE.value)
+        mock_http_client_requester.side_effect = expected_error
+
+        with pytest.raises(APIError) as excinfo:
             await hyperliquid_account_service.get_account_summary()
+
+        assert excinfo.value == expected_error
+        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
+        mock_http_client_requester.assert_called_once()
+        mock_hl_mapper.map_raw_clearinghouse_state_to_margin_summary.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_order_history_success(
@@ -351,8 +506,9 @@ class TestHyperliquidAccountService:
         mock_hl_order_mapper: MagicMock,
     ) -> None:
         """Test get_order_history returns mapped orders."""
-        # Patch wallet address
-        hyperliquid_account_service._wallet_address = "0xTestWallet" # Mocking for test case
+        # wallet_address is already set by the hyperliquid_account_service fixture
+        # hyperliquid_account_service._wallet_address = "0xTestWallet" # REMOVE THIS
+
         # Patch builder
         mock_payload_model = MagicMock()
         mock_payload_model.model_dump.return_value = {"foo": "bar"}
@@ -382,8 +538,8 @@ class TestHyperliquidAccountService:
         mock_hl_order_mapper: MagicMock,
     ) -> None:
         """Test get_order_history filters by symbol."""
-        # Accessing protected member for test setup is acceptable in test context
-        hyperliquid_account_service._wallet_address = "0xTestWallet"  # Mocking for test case
+        # Wallet address is already set by the hyperliquid_account_service fixture
+        # hyperliquid_account_service._wallet_address = "0xTestWallet" # This line was removed
         mock_payload_model = MagicMock()
         mock_payload_model.model_dump.return_value = {"foo": "bar"}
         mock_request_builder.build_order_history_payload.return_value = mock_payload_model
@@ -396,8 +552,10 @@ class TestHyperliquidAccountService:
         ]
         mapped_order1 = MagicMock(symbol="BTC")
         mapped_order2 = MagicMock(symbol="ETH")
+
         def map_side_effect(raw: MagicMock, trigger: MagicMock | None = None) -> MagicMock:
             return mapped_order1 if raw is mock_raw_order1 else mapped_order2
+
         mock_hl_order_mapper.transform_raw_historical_order_to_internal.side_effect = (
             map_side_effect
         )
@@ -418,27 +576,51 @@ class TestHyperliquidAccountService:
     async def test_get_order_history_error_conditions(
         self,
         hyperliquid_account_service: HyperliquidAccountService,
-        mock_request_builder: MagicMock,
         mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_authenticator: MagicMock,
+        mock_hl_mapper: MagicMock,
+        mock_hl_order_mapper: MagicMock,
+        mock_hl_user_fill_mapper: MagicMock,
     ) -> None:
         """Test get_order_history error handling for missing wallet, missing times, and APIError
         from requester."""
-        # No wallet address
-        hyperliquid_account_service._wallet_address = None # Mocking for test case
-        with pytest.raises(APIError):
-            await hyperliquid_account_service.get_order_history(
+        # No wallet address case: Instantiate service with wallet_address=None
+        service_no_wallet = HyperliquidAccountService(
+            http_client_requester=mock_http_client_requester,
+            request_builder=mock_request_builder,
+            response_handler=mock_response_handler,
+            authenticator=mock_authenticator,
+            exchange_name="hyperliquid_test_no_wallet_order_hist",
+            info_url="https://info.hyperliquid.xyz",
+            wallet_address=None,  # Key change here
+            mapper=mock_hl_mapper,
+            order_mapper=mock_hl_order_mapper,
+            user_fill_mapper=mock_hl_user_fill_mapper,
+        )
+        with pytest.raises(APIError) as excinfo_no_wallet:
+            await service_no_wallet.get_order_history(
                 symbol=None,
                 start_time=datetime(2024, 1, 1),
                 end_time=datetime(2024, 1, 2),
             )
-        # Missing times
-        hyperliquid_account_service._wallet_address = "0xTestWallet" # Mocking for test case
-        with pytest.raises(APIError):
+        assert excinfo_no_wallet.value.code == APIErrorCode.INVALID_REQUEST.value
+        assert "Wallet address is required" in excinfo_no_wallet.value.message
+
+        # Missing times (uses the standard hyperliquid_account_service fixture
+        # which has a wallet address)
+        # hyperliquid_account_service._wallet_address = "0xTestWallet" # No longer needed
+        with pytest.raises(APIError) as excinfo_no_times:
             await hyperliquid_account_service.get_order_history(
                 symbol=None, start_time=None, end_time=None
             )
-        # APIError from requester
+        assert excinfo_no_times.value.code == APIErrorCode.INVALID_REQUEST.value
+        assert "start_time and end_time are required" in excinfo_no_times.value.message
+
+        # APIError from requester (uses the standard hyperliquid_account_service
+        # fixture which has a wallet address)
+        # No need to manipulate _wallet_address here, fixture provides it.
         mock_request_builder.build_order_history_payload.return_value = MagicMock(
             model_dump=lambda: {"foo": "bar"}
         )
@@ -460,7 +642,8 @@ class TestHyperliquidAccountService:
         mock_hl_user_fill_mapper: MagicMock,
     ) -> None:
         """Test get_trade_history returns mapped trades."""
-        hyperliquid_account_service._wallet_address = "0xTestWallet" # Mocking for test case
+        # Wallet address is already set by the hyperliquid_account_service fixture
+        # hyperliquid_account_service._wallet_address = "0xTestWallet" # This line was removed
         mock_payload_model = MagicMock()
         mock_payload_model.model_dump.return_value = {"foo": "bar"}
         mock_request_builder.build_user_fills_request_payload.return_value = mock_payload_model
@@ -470,7 +653,9 @@ class TestHyperliquidAccountService:
             root=[mock_raw_fill]
         )
         mapped_trade = MagicMock(symbol="BTC")
-        with patch.object(HyperliquidUserFillMapper, 'map', return_value=mapped_trade) as mocked_map_method:
+        with patch.object(
+            HyperliquidUserFillMapper, "map", return_value=mapped_trade
+        ) as mocked_map_method:
             result = await hyperliquid_account_service.get_trade_history(symbol="BTC")
             assert result == [mapped_trade]
             mocked_map_method.assert_called_once_with(mock_raw_fill)
@@ -485,8 +670,8 @@ class TestHyperliquidAccountService:
         mock_hl_user_fill_mapper: MagicMock,
     ) -> None:
         """Test get_trade_history filters by symbol."""
-        # Accessing protected member for test setup is acceptable in test context
-        hyperliquid_account_service._wallet_address = "0xTestWallet"  # Mocking for test case
+        # Wallet address is already set by the hyperliquid_account_service fixture
+        # hyperliquid_account_service._wallet_address = "0xTestWallet" # This line was removed
         mock_payload_model = MagicMock()
         mock_payload_model.model_dump.return_value = {"foo": "bar"}
         mock_request_builder.build_user_fills_request_payload.return_value = mock_payload_model
@@ -506,7 +691,9 @@ class TestHyperliquidAccountService:
                 return mapped_trade2
             raise AssertionError(f"Unexpected raw_fill_arg: {raw_fill_arg}")
 
-        with patch.object(HyperliquidUserFillMapper, 'map', side_effect=map_side_effect_func) as mocked_map_method:
+        with patch.object(
+            HyperliquidUserFillMapper, "map", side_effect=map_side_effect_func
+        ) as mocked_map_method:
             result = await hyperliquid_account_service.get_trade_history(symbol="BTC")
             assert result == [mapped_trade1]
             mocked_map_method.assert_any_call(mock_raw_fill1)
@@ -521,204 +708,67 @@ class TestHyperliquidAccountService:
     async def test_get_trade_history_error_conditions(
         self,
         hyperliquid_account_service: HyperliquidAccountService,
-        mock_request_builder: MagicMock,
         mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_authenticator: MagicMock,
+        mock_hl_mapper: MagicMock,
+        mock_hl_order_mapper: MagicMock,
+        mock_hl_user_fill_mapper: MagicMock,
     ) -> None:
         """Test get_trade_history error handling for missing wallet and APIError from requester."""
-        # Accessing protected member for test setup is acceptable in test context
-        hyperliquid_account_service._wallet_address = None # Mocking for test case
-        with pytest.raises(APIError):
-            await hyperliquid_account_service.get_trade_history(symbol=None)
-        hyperliquid_account_service._wallet_address = "0xTestWallet" # Mocking for test case
+        # No wallet address case: Instantiate service with wallet_address=None
+        service_no_wallet_trade_hist = HyperliquidAccountService(
+            http_client_requester=mock_http_client_requester,
+            request_builder=mock_request_builder,
+            response_handler=mock_response_handler,
+            authenticator=mock_authenticator,
+            exchange_name="hyperliquid_test_no_wallet_trade_hist",
+            info_url="https://info.hyperliquid.xyz",
+            wallet_address=None,  # Key: Instantiate with None
+            mapper=mock_hl_mapper,
+            order_mapper=mock_hl_order_mapper,
+            user_fill_mapper=mock_hl_user_fill_mapper,
+        )
+        with pytest.raises(APIError) as excinfo_no_wallet:
+            await service_no_wallet_trade_hist.get_trade_history(symbol=None)
+        assert excinfo_no_wallet.value.code == APIErrorCode.INVALID_REQUEST.value
+        assert "Wallet address is required" in excinfo_no_wallet.value.message
+
+        # APIError from requester (uses the standard hyperliquid_account_service fixture which has a wallet address)
+        # No need to manipulate _wallet_address here, fixture provides it.
         mock_request_builder.build_user_fills_request_payload.return_value = MagicMock(
             model_dump=lambda: {"foo": "bar"}
         )
         mock_http_client_requester.side_effect = APIError("fail", 1)
         with pytest.raises(APIError):
-            await hyperliquid_account_service.get_trade_history(symbol=None)
-
-    @pytest.mark.asyncio
-    async def test_get_raw_clearinghouse_state_api_error(
-        self,
-        hyperliquid_account_service: HyperliquidAccountService,
-        mock_request_builder: MagicMock,
-    ) -> None:
-        """Test _get_raw_clearinghouse_state propagates APIError."""
-        # Accessing protected member for test setup is acceptable in test context
-        hyperliquid_account_service._wallet_address = None # Mocking for test case
-        with pytest.raises(APIError):
-            await hyperliquid_account_service._get_raw_clearinghouse_state() # Accessing protected for test
-        # Ensure request builder is not called if wallet address is missing before helper call
-        mock_request_builder.build_clearinghouse_state_payload.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_get_raw_clearinghouse_state_success(
-        self,
-        hyperliquid_account_service: HyperliquidAccountService,
-        mock_request_builder: MagicMock,
-        mock_http_client_requester: AsyncMock,
-        mock_response_handler: MagicMock,
-    ) -> None:
-        """Test _get_raw_clearinghouse_state successfully retrieves and validates state."""
-        mock_payload_model = MagicMock()
-        mock_payload_model.model_dump.return_value = {"test": "payload_dict"}
-        mock_request_builder.build_clearinghouse_state_payload.return_value = mock_payload_model
-
-        mock_raw_response_content: RawJsonResponse = {"assetPositions": [], "marginSummary": {}} # Type hint
-        mock_http_client_requester.return_value = (
-            [mock_raw_response_content], 200, MagicMock() # Assuming service expects a list
-        )
-        expected_raw_state = HyperliquidRawClearinghouseState.model_validate(mock_raw_response_content)
-        mock_response_handler.handle_query_clearinghouse_state_response.return_value = (
-            expected_raw_state
-        )
-
-        # Accessing protected member for testing internal helper
-        result_state = await hyperliquid_account_service._get_raw_clearinghouse_state() # Accessing protected for test
-        assert result_state == expected_raw_state
-        mock_request_builder.build_clearinghouse_state_payload.assert_called_once_with(
-            hyperliquid_account_service._wallet_address # Accessing protected for test
-        )
-        mock_http_client_requester.assert_called_once()
-        mock_response_handler.handle_query_clearinghouse_state_response.assert_called_once_with(
-             raw_response_content=mock_raw_response_content, # Service extracts [0]
-             user_address=hyperliquid_account_service._wallet_address # Accessing protected for test
-        )
-
-    @pytest.mark.asyncio
-    async def test_get_raw_clearinghouse_state_api_error_from_requester(
-        self,
-        hyperliquid_account_service: HyperliquidAccountService,
-        mock_request_builder: MagicMock,
-        mock_http_client_requester: AsyncMock,
-    ) -> None:
-        """Test _get_raw_clearinghouse_state handles APIError from requester."""
-        mock_payload_model = MagicMock()
-        mock_payload_model.model_dump.return_value = {"test": "payload_dict"}
-        mock_request_builder.build_clearinghouse_state_payload.return_value = mock_payload_model
-
-        api_error = APIError("Network Error", APIErrorCode.NETWORK_ISSUE.value) # Changed NETWORK_ERROR to NETWORK_ISSUE
-        mock_http_client_requester.side_effect = api_error
-
-        with pytest.raises(APIError) as exc_info:
-            # Accessing protected member for testing internal helper
-            await hyperliquid_account_service._get_raw_clearinghouse_state() # Accessing protected for test
-        assert exc_info.value == api_error
-        mock_request_builder.build_clearinghouse_state_payload.assert_called_once_with(
-            hyperliquid_account_service._wallet_address # Accessing protected for test
-        )
-
-    @pytest.mark.asyncio
-    async def test_get_raw_clearinghouse_state_api_error_from_handler(
-        self,
-        hyperliquid_account_service: HyperliquidAccountService,
-        mock_request_builder: MagicMock,
-        mock_http_client_requester: AsyncMock,
-        mock_response_handler: MagicMock,
-    ) -> None:
-        """Test _get_raw_clearinghouse_state handles APIError from handler."""
-        mock_payload_model = MagicMock()
-        mock_payload_model.model_dump.return_value = {"test": "payload_dict"}
-        mock_request_builder.build_clearinghouse_state_payload.return_value = mock_payload_model
-
-        mock_raw_response_content_list: ParsedJsonResponse = [{"invalid": "data"}]
-        mock_http_client_requester.return_value = (
-            mock_raw_response_content_list, 200, MagicMock()
-        )
-        validation_api_error = APIError(
-            "Invalid state response", APIErrorCode.INVALID_RESPONSE.value
-        )
-        mock_response_handler.handle_query_clearinghouse_state_response.side_effect = (
-            validation_api_error
-        )
-
-        with pytest.raises(APIError) as exc_info:
-            # Accessing protected member for testing internal helper
-            await hyperliquid_account_service._get_raw_clearinghouse_state() # Accessing protected for test
-        assert exc_info.value == validation_api_error
-        mock_request_builder.build_clearinghouse_state_payload.assert_called_once_with(
-            hyperliquid_account_service._wallet_address # Accessing protected for test
-        )
-
-    @pytest.mark.asyncio
-    async def test_get_raw_clearinghouse_state_none_response_from_requester(
-        self,
-        hyperliquid_account_service: HyperliquidAccountService,
-        mock_request_builder: MagicMock,
-        mock_http_client_requester: AsyncMock,
-    ) -> None:
-        """Test _get_raw_clearinghouse_state handles None response from requester."""
-        mock_payload_model = MagicMock()
-        mock_payload_model.model_dump.return_value = {"test": "payload_dict"}
-        mock_request_builder.build_clearinghouse_state_payload.return_value = mock_payload_model
-
-        mock_http_client_requester.return_value = (None, 200, MagicMock())
-
-        with pytest.raises(APIError) as exc_info:
-            # Accessing protected member for testing internal helper
-            await hyperliquid_account_service._get_raw_clearinghouse_state() # Accessing protected for test
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "No data received for clearinghouse state" in exc_info.value.message
-        mock_request_builder.build_clearinghouse_state_payload.assert_called_once_with(
-            hyperliquid_account_service._wallet_address # Accessing protected for test
-        )
+            await hyperliquid_account_service.get_trade_history(symbol=None)  # Uses the fixture
 
     @pytest.mark.asyncio
     async def test_get_balances_api_error_from_state(
         self,
         hyperliquid_account_service: HyperliquidAccountService,
-        mock_hl_mapper: MagicMock, # Renamed from mock_mapper to be specific
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_hl_mapper: MagicMock,
     ) -> None:
-        """Test get_balances handles APIError from _get_raw_clearinghouse_state."""
-        # This test checks if get_balances correctly propagates an APIError
-        # raised by its internal call to _get_raw_clearinghouse_state.
-        # The mapper should not be called in this scenario.
-        api_error_from_state_helper = APIError(
-            "Failed to get raw state", APIErrorCode.SERVER_ERROR.value
+        """Test get_balances handles APIError when underlying HTTP request fails."""
+        mock_user_state_payload_model = MagicMock()
+        mock_user_state_payload_model.model_dump.return_value = {
+            "type": "clearinghouseState",
+            "user": "0xTestWalletAddress",
+        }
+        mock_request_builder.build_user_state_payload.return_value = mock_user_state_payload_model
+
+        expected_api_error = APIError(
+            "Failed to get raw state via HTTP", APIErrorCode.SERVER_ERROR.value
         )
-        hyperliquid_account_service._get_raw_clearinghouse_state = AsyncMock( # Mocking protected method for test
-            side_effect=api_error_from_state_helper
-        )
+        mock_http_client_requester.side_effect = expected_api_error
 
         with pytest.raises(APIError) as exc_info:
             await hyperliquid_account_service.get_balances()
-        
-        assert exc_info.value == api_error_from_state_helper
+
+        assert exc_info.value == expected_api_error
+        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
+        mock_http_client_requester.assert_called_once()
         mock_hl_mapper.map_raw_clearinghouse_state_to_spot_balances.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_get_order_history_api_error_from_state(
-        self,
-        hyperliquid_account_service: HyperliquidAccountService,
-        mock_hl_order_mapper: MagicMock,
-    ) -> None:
-        """Test get_order_history handles APIError from _get_raw_clearinghouse_state."""
-        mock_raw_state = MagicMock(spec=HyperliquidRawClearinghouseState)
-        # Accessing protected member for test setup
-        hyperliquid_account_service._get_raw_clearinghouse_state = AsyncMock( # Mocking protected method for test
-            return_value=mock_raw_state
-        )
-        api_error_instance = APIError(
-            "Helper failed", code=APIErrorCode.SERVER_ERROR.value
-        )
-        # This test was trying to call get_order_history without required time params
-        # The service method itself will raise an APIError if start_time or end_time are missing.
-        # To test propagation from _get_raw_clearinghouse_state specifically, that mock should be active
-        # and the main method should be called correctly.
-        # For now, let's assume if _get_raw_clearinghouse_state (called by other methods)
-        # raises, it propagates. This specific test for get_order_history is less direct for that.
-        # The intent seems to be that if any underlying call to _get_raw_clearinghouse_state fails,
-        # the public method should fail.
-        # Let's adjust the test to reflect a valid call that would then hit the mocked error.
-
-        # Mocking the http client requester to simulate a deeper error propagation path is too complex here.
-        # Instead, we ensure that if _get_raw_clearinghouse_state itself is directly called (as by other helpers)
-        # and errors, it is handled. Public methods like get_balances already test this.
-        # For get_order_history, it doesn't directly call _get_raw_clearinghouse_state.
-        # It makes its own HTTP call. So this test needs rethinking if the aim is to test
-        # error propagation from a state helper *within* get_order_history.
-        # Given the current structure, get_order_history makes its own HTTP call.
-        # We will remove this test as it's not correctly testing the intended propagation
-        # for get_order_history. Other tests cover _get_raw_clearinghouse_state propagation.
-        pass # Removing this test as its setup doesn't correctly test the intended propagation path for get_order_history.
