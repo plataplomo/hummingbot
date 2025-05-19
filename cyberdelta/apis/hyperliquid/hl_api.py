@@ -548,7 +548,7 @@ class HyperliquidAPI(ExchangeAPI):
                     )
 
                 typed_trades_input_list: list[dict[str, Any]] = []
-                for item_loop_var in raw_data:
+                for item_loop_var in cast(list[Any], raw_data):
                     item_from_any_list = item_loop_var
                     if not isinstance(item_from_any_list, dict):
                         logger.warning(
@@ -584,7 +584,7 @@ class HyperliquidAPI(ExchangeAPI):
                         code=APIErrorCode.INVALID_RESPONSE.value,
                     )
 
-                for event_loop_var in raw_data:
+                for event_loop_var in cast(list[Any], raw_data):
                     event_item_from_any_list = event_loop_var
                     if not isinstance(event_item_from_any_list, dict):
                         logger.warning(

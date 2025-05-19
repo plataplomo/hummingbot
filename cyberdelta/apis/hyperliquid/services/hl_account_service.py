@@ -14,7 +14,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from datetime import datetime # Added back for order history
 from decimal import Decimal
 # from typing import TYPE_CHECKING, Any # Any no longer used
-from typing import TYPE_CHECKING, cast # Import cast
+from typing import TYPE_CHECKING, cast, Any # Import cast and Any
 
 from pydantic import ValidationError
 
@@ -150,7 +150,7 @@ class HyperliquidAccountService:
                 )
 
             return self._response_handler.handle_info_user_state_response(
-                raw_response_content=state_data_dict,
+                raw_response_content=cast(dict[str, Any], state_data_dict), # Cast to dict[str, Any]
                 user_address=self._wallet_address 
             )
         except APIError: # Re-raise APIErrors directly

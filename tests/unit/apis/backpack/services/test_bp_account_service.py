@@ -5,6 +5,7 @@ Unit tests for the BackpackAccountService.
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Any, Callable, Mapping, Awaitable
 from unittest.mock import AsyncMock, MagicMock
 
 # from typing import Any # Removed as it's unused for now
@@ -20,65 +21,68 @@ from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
+from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse # For type hint
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.core.models.balance import SpotBalance
+from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 
+# Type alias for the HTTP client requester callable
+HttpClientRequesterSig = Callable[
+    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]]
+]
 
 @pytest.fixture
 def mock_http_client_requester() -> AsyncMock:
-    """Provides a mock callable similar to an API client's _request method."""
-    mock = AsyncMock()
-    mock.return_value = ({}, 200, MagicMock())  # (data, status_code, headers)
-    return mock
-
+    """Provides a mock HTTP client requester."""
+    return AsyncMock(spec=HttpClientRequesterSig)
 
 @pytest.fixture
 def mock_request_builder() -> MagicMock:
     """Provides a mock BackpackRequestBuilder."""
     return MagicMock(spec=BackpackRequestBuilder)
 
-
 @pytest.fixture
 def mock_response_handler() -> MagicMock:
     """Provides a mock BackpackResponseHandler."""
     return MagicMock(spec=BackpackResponseHandler)
 
-
 @pytest.fixture
-def mock_authenticator() -> AsyncMock:
+def mock_authenticator() -> MagicMock:
     """Provides a mock IAuthenticator."""
-    mock = AsyncMock(spec=IAuthenticator)
-    mock.prepare_request.return_value = {
-        "headers": {"Authorization": "Bearer testtoken"},
-        "params": None,
-        "data": {"signed": True},
-    }
-    return mock
-
+    return MagicMock(spec=IAuthenticator)
 
 @pytest.fixture
 def mock_rate_limiter_service() -> AsyncMock:
     """Provides a mock RateLimiterService."""
     return AsyncMock(spec=RateLimiterService)
 
+@pytest.fixture
+def mock_mapper() -> MagicMock:
+    """Provides a mock BackpackOrderMapper."""
+    return MagicMock(spec=BackpackOrderMapper)
 
 @pytest.fixture
 def bp_account_service(
     mock_http_client_requester: AsyncMock,
     mock_request_builder: MagicMock,
     mock_response_handler: MagicMock,
-    mock_authenticator: AsyncMock,
+    mock_authenticator: MagicMock,
     mock_rate_limiter_service: AsyncMock,
+    mock_mapper: MagicMock, # Use the dedicated mock_mapper fixture
 ) -> BackpackAccountService:
     """Provides an instance of BackpackAccountService with mocked dependencies."""
-    return BackpackAccountService(
+    service = BackpackAccountService(
         http_client_requester=mock_http_client_requester,
         request_builder=mock_request_builder,
         response_handler=mock_response_handler,
         authenticator=mock_authenticator,
         rate_limiter_service=mock_rate_limiter_service,
-        exchange_name="backpack_test_account_svc",
+        exchange_name="backpack_test_account",
     )
+    # IMPORTANT: Replace the internally created mapper with the mock for testing
+    service._mapper = mock_mapper # type: ignore[protected-access]
+    return service
 
 
 class TestBackpackAccountService:
@@ -444,6 +448,177 @@ class TestBackpackAccountService:
             mock_raw_response_data
         )
         assert result == mock_validated_account_info
+
+    @pytest.mark.asyncio
+    async def test_get_balances_success(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_mapper: MagicMock, # Injected mapper mock
+    ) -> None:
+        """Test get_balances successfully retrieves and processes balance data."""
+        mock_endpoint_path = "/api/v1/capital" 
+        mock_params_from_builder = None 
+
+        mock_raw_response_dict: RawJsonResponse = {
+            "USDC": {"available": "1000.5", "locked": "10.0"},
+            "SOL": {"available": "50.2", "locked": "0.5"},
+        }
+        mock_status_code = 200
+        mock_headers: dict[str, str] = {}
+
+        mock_request_builder.build_get_balances_params.return_value = mock_params_from_builder 
+
+        mock_http_client_requester.return_value = (
+            mock_raw_response_dict,
+            mock_status_code,
+            mock_headers,
+        )
+
+        mock_raw_balances_payload: dict[str, BackpackRawBalance] = {
+            "USDC": BackpackRawBalance(available="1000.5", locked="10.0"),
+            "SOL": BackpackRawBalance(available="50.2", locked="0.5"),
+        }
+        mock_response_handler.handle_get_balances_response.return_value = mock_raw_balances_payload
+
+        expected_internal_balances: dict[str, SpotBalance] = {
+            "USDC": SpotBalance(asset_symbol="USDC", total_balance=Decimal("1010.5"), available_balance=Decimal("1000.5")),
+            "SOL": SpotBalance(asset_symbol="SOL", total_balance=Decimal("50.7"), available_balance=Decimal("50.2")),
+        }
+        
+        usdc_spot_balance = SpotBalance(asset_symbol="USDC", total_balance=Decimal("1010.5"), available_balance=Decimal("1000.5"))
+        sol_spot_balance = SpotBalance(asset_symbol="SOL", total_balance=Decimal("50.7"), available_balance=Decimal("50.2"))
+
+        def mapper_side_effect(asset_symbol: str, raw_balance_model: BackpackRawBalance) -> SpotBalance:
+            if asset_symbol == "USDC" and raw_balance_model == mock_raw_balances_payload["USDC"]:
+                return usdc_spot_balance
+            if asset_symbol == "SOL" and raw_balance_model == mock_raw_balances_payload["SOL"]:
+                return sol_spot_balance
+            pytest.fail(f"mock_mapper.transform_raw_balance_to_internal called with unexpected args: {asset_symbol}, {raw_balance_model}")
+            # Should not be reached, but keeps linter happy about return type
+            return SpotBalance(asset_symbol="error", total_balance=Decimal(0), available_balance=Decimal(0)) 
+
+        mock_mapper.transform_raw_balance_to_internal.side_effect = mapper_side_effect
+        
+        result_balances = await bp_account_service.get_balances()
+
+        mock_request_builder.build_get_balances_params.assert_called_once_with()
+        mock_http_client_requester.assert_called_once_with(
+            method="GET",
+            endpoint=mock_endpoint_path, 
+            params=mock_params_from_builder,
+            is_signed=True, 
+            endpoint_group="private", 
+            request_weight=1 
+        )
+        mock_response_handler.handle_get_balances_response.assert_called_once_with(
+            mock_raw_response_dict
+        )
+        
+        assert mock_mapper.transform_raw_balance_to_internal.call_count == 2
+        mock_mapper.transform_raw_balance_to_internal.assert_any_call("USDC", mock_raw_balances_payload["USDC"])
+        mock_mapper.transform_raw_balance_to_internal.assert_any_call("SOL", mock_raw_balances_payload["SOL"])
+        
+        assert result_balances == expected_internal_balances
+
+    @pytest.mark.asyncio
+    async def test_get_balances_api_error_from_requester(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+    ) -> None:
+        """Test get_balances handles APIError from http_client_requester."""
+        mock_endpoint_path = "/api/v1/capital"
+        mock_params_from_builder = None
+
+        mock_request_builder.build_get_balances_params.return_value = mock_params_from_builder
+        mock_http_client_requester.side_effect = APIError(
+            message="Network error", code=APIErrorCode.SERVER_ERROR.value
+        )
+
+        with pytest.raises(APIError) as excinfo:
+            await bp_account_service.get_balances()
+        
+        assert excinfo.value.code == APIErrorCode.SERVER_ERROR.value
+        mock_request_builder.build_get_balances_params.assert_called_once()
+        mock_http_client_requester.assert_called_once_with(
+            method="GET",
+            endpoint=mock_endpoint_path,
+            params=mock_params_from_builder,
+            is_signed=True,
+            endpoint_group="private",
+            request_weight=1
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_balances_validation_error_from_response_handler(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test get_balances handles ValidationError (via APIError) from response_handler."""
+        mock_endpoint_path = "/api/v1/capital"
+        mock_params_from_builder = None
+        mock_raw_response_dict: RawJsonResponse = {"invalid": "data"} 
+        mock_status_code = 200
+        mock_headers: dict[str, str] = {}
+
+        mock_request_builder.build_get_balances_params.return_value = mock_params_from_builder
+        mock_http_client_requester.return_value = (mock_raw_response_dict, mock_status_code, mock_headers)
+        
+        handler_api_error = APIError("Pydantic validation failed for balances", APIErrorCode.INVALID_RESPONSE.value)
+        mock_response_handler.handle_get_balances_response.side_effect = handler_api_error
+
+        with pytest.raises(APIError) as excinfo:
+            await bp_account_service.get_balances()
+
+        assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert excinfo.value.message == "Pydantic validation failed for balances"
+        mock_response_handler.handle_get_balances_response.assert_called_once_with(mock_raw_response_dict)
+
+    @pytest.mark.asyncio
+    async def test_get_balances_error_from_mapper(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_mapper: MagicMock,
+    ) -> None:
+        """Test get_balances handles an error (e.g., ValueError) from mapper, wrapped in APIError."""
+        mock_endpoint_path = "/api/v1/capital"
+        mock_params_from_builder = None
+        mock_raw_response_dict: RawJsonResponse = {"USDC": {"available": "1000.5", "locked": "10.0"}}
+        mock_status_code = 200
+        mock_headers: dict[str, str] = {}
+
+        mock_request_builder.build_get_balances_params.return_value = mock_params_from_builder
+        mock_http_client_requester.return_value = (mock_raw_response_dict, mock_status_code, mock_headers)
+        
+        mock_raw_balances_payload = {"USDC": BackpackRawBalance(available="1000.5", locked="10.0")}
+        mock_response_handler.handle_get_balances_response.return_value = mock_raw_balances_payload
+        
+        mapper_internal_error = ValueError("Bad raw balance value for mapping")
+        mock_mapper.transform_raw_balance_to_internal.side_effect = mapper_internal_error
+
+        with pytest.raises(APIError) as excinfo:
+            await bp_account_service.get_balances()
+
+        assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value 
+        assert "Mapping balance data failed for asset USDC" in excinfo.value.message
+        assert excinfo.value.original_exception is mapper_internal_error
+        mock_mapper.transform_raw_balance_to_internal.assert_called_once_with(
+            "USDC", mock_raw_balances_payload["USDC"]
+        )
+
+    # TODO: Add tests for other methods in BackpackAccountService:
+    # get_positions, get_account_info, transfer, withdraw, get_order_history, get_trade_history
+    # Each should test: success path, APIError from requester, APIError from response_handler, Error from mapper.
 
 
 # Add more tests for other methods in BackpackAccountService following similar patterns.
