@@ -27,6 +27,7 @@ from typing import Any
 
 from cyberdelta.apis.backpack.bp_auth import BackpackHmacAuthenticator
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
+from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 from cyberdelta.apis.backpack.bp_ws_raw_message_handler import BackpackWsRawMessageHandler
@@ -49,7 +50,9 @@ from cyberdelta.core.models import (
     TimeInForce,
     Trade,
 )
+from cyberdelta.core.models.enums import CancelOrderResultStatus
 from cyberdelta.core.models.market import Candle, OrderBook
+from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.operations import Transfer, Withdrawal
 from cyberdelta.utils.logging_config import get_logger
 
@@ -98,6 +101,7 @@ class BackpackAPI(ExchangeAPI):
         self._backpack_error_mapper = BackpackErrorMapper()
         self._bp_response_handler = BackpackResponseHandler()
         self._bp_request_builder = BackpackRequestBuilder(api_config)
+        self._bp_order_mapper = BackpackOrderMapper()
 
         super().__init__(
             exchange_name="backpack",
@@ -588,6 +592,22 @@ class BackpackAPI(ExchangeAPI):
             order_id=order_id, symbol=symbol, client_order_id=None
         )
 
+    async def get_order_status(
+        self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
+    ) -> Order:
+        """Fetch the status of a specific order.
+        Delegates to self.get_order which fetches full order details.
+        """
+        # client_order_id is not directly used by Backpack's get_order if order_id is present
+        # The get_order method itself handles symbol requirement.
+        order = await self.get_order(order_id=order_id, symbol=symbol)
+        if order is None:
+            raise APIError(
+                f"Order {order_id} not found for symbol {symbol}.",
+                code=APIErrorCode.ORDER_NOT_FOUND.value,
+            )
+        return order
+
     # All abstract methods should now be implemented.
 
     # --- Abstract Method Implementations ---
@@ -664,3 +684,152 @@ class BackpackAPI(ExchangeAPI):
     async def close(self) -> None:
         """Close the WebSocket connection and clean up resources."""
         await super().close()
+
+    async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
+        """Cancels all open orders, optionally filtered by symbol."""
+        results: list[CancelOrderResult] = []
+        logger.info(
+            f"[{self.exchange_name}] Attempting to cancel all open orders"
+            f"{f' for symbol {symbol}' if symbol else ''}."
+        )
+        try:
+            open_orders = await self.get_open_orders(symbol=symbol)
+            if not open_orders:
+                logger.info(
+                    f"[{self.exchange_name}] No open orders found"
+                    f"{f' for symbol {symbol}' if symbol else ''} to cancel."
+                )
+                return []
+
+            for order_to_cancel in open_orders:
+                exch_order_id = order_to_cancel.exchange_order_id
+                client_id = order_to_cancel.client_order_id
+                order_symbol = order_to_cancel.symbol
+
+                if not exch_order_id:
+                    logger.warning(
+                        f"[{self.exchange_name}] Open order has no exchange_order_id. "
+                        f"Order details: client_id={client_id}, symbol={order_symbol}. Skipping."
+                    )
+                    results.append(
+                        CancelOrderResult(
+                            order_id=None,
+                            client_order_id=client_id,
+                            symbol=order_symbol,
+                            success=False,
+                            message="Order has no exchange_order_id for cancellation.",
+                            status=CancelOrderResultStatus.FAILED,
+                        )
+                    )
+                    continue
+                if not order_symbol:  # Should not happen if get_open_orders returns valid Orders
+                    logger.error(
+                        f"[{self.exchange_name}] Open order (ID: {exch_order_id}) missing symbol. "
+                        f"Skipping."
+                    )
+                    results.append(
+                        CancelOrderResult(
+                            order_id=exch_order_id,
+                            client_order_id=client_id,
+                            symbol=None,
+                            success=False,
+                            message="Order is missing symbol information.",
+                            status=CancelOrderResultStatus.FAILED,
+                        )
+                    )
+                    continue
+
+                try:
+                    cancelled = await self.cancel_order(
+                        order_id=exch_order_id,
+                        symbol=order_symbol,
+                    )
+                    results.append(
+                        CancelOrderResult(
+                            order_id=exch_order_id,
+                            client_order_id=client_id,
+                            symbol=order_symbol,
+                            success=cancelled,
+                            message="Successfully cancelled." if cancelled else "Failed to cancel.",
+                            status=CancelOrderResultStatus.SUCCESS
+                            if cancelled
+                            else CancelOrderResultStatus.FAILED,
+                        )
+                    )
+                except APIError as e_cancel:
+                    results.append(
+                        CancelOrderResult(
+                            order_id=exch_order_id,
+                            client_order_id=client_id,
+                            symbol=order_symbol,
+                            success=False,
+                            message=e_cancel.message,
+                            status=CancelOrderResultStatus.FAILED,
+                            raw_response=getattr(e_cancel.original_exception, "response_body", None)
+                            if isinstance(e_cancel.original_exception, APIError)
+                            else None,
+                        )
+                    )
+                except Exception as e_unexp_cancel:
+                    logger.error(
+                        f"[{self.exchange_name}] Unexpected error cancelling order {exch_order_id} "
+                        f"for {order_symbol}: {e_unexp_cancel}",
+                        exc_info=True,
+                    )
+                    results.append(
+                        CancelOrderResult(
+                            order_id=exch_order_id,
+                            client_order_id=client_id,
+                            symbol=order_symbol,
+                            success=False,
+                            message=str(e_unexp_cancel),
+                            status=CancelOrderResultStatus.FAILED,
+                        )
+                    )
+            num_successful = sum(1 for r in results if r.success)
+            if num_successful == len(open_orders):
+                logger.info(
+                    f"[{self.exchange_name}] Successfully cancelled all ({num_successful}) "
+                    f"open orders{f' for symbol {symbol}' if symbol else ''}."
+                )
+            else:
+                logger.warning(
+                    f"[{self.exchange_name}] Attempted to cancel {len(open_orders)} orders, "
+                    f"but only {num_successful} were confirmed cancelled"
+                    f"{f' for symbol {symbol}' if symbol else ''}."
+                )
+
+        except APIError as e_fetch_orders:
+            logger.error(
+                f"[{self.exchange_name}] APIError fetching open orders for cancel_all_orders"
+                f"{f' (symbol: {symbol})' if symbol else ''}: {e_fetch_orders.message}"
+            )
+            # To align with returning list[CancelOrderResult], even on fetch failure
+            results.append(
+                CancelOrderResult(
+                    order_id=None,
+                    symbol=symbol,
+                    success=False,
+                    message=f"Failed to fetch open orders: {e_fetch_orders.message}",
+                    status=CancelOrderResultStatus.FAILED,
+                    raw_response=getattr(e_fetch_orders.original_exception, "response_body", None)
+                    if isinstance(e_fetch_orders.original_exception, APIError)
+                    else None,
+                )
+            )
+        except Exception as e_unexp_outer:
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error during cancel_all_orders"
+                f"{f' (symbol: {symbol})' if symbol else ''}: {e_unexp_outer}",
+                exc_info=True,
+            )
+            results.append(
+                CancelOrderResult(
+                    order_id=None,
+                    symbol=symbol,
+                    success=False,
+                    message=f"Unexpected outer error: {str(e_unexp_outer)}",
+                    status=CancelOrderResultStatus.FAILED,
+                )
+            )
+        return results

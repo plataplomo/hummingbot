@@ -298,7 +298,7 @@ async def test_authenticate_success(
     _mock_auth_class, mock_auth_instance = mock_hl_auth_init
     api = HyperliquidAPI(BASE_API_CONFIG, SECRETS_WITH_KEY)
     # Ensure the instance created by API init is replaced by our mock for this test
-    api._authenticator = mock_auth_instance  # pyright: ignore[reportPrivateUsage]
+    api._authenticator = mock_auth_instance
 
     method = "POST"
     path = "/exchange"
@@ -309,7 +309,7 @@ async def test_authenticate_success(
     )
     mock_auth_instance.prepare_request.return_value = expected_components
 
-    result = await api._authenticate(method, path, params, data_payload)  # pyright: ignore[reportPrivateUsage]
+    result = await api._authenticate(method, path, params, data_payload)
 
     mock_auth_instance.prepare_request.assert_awaited_once_with(
         method,
@@ -335,10 +335,10 @@ async def test_authenticate_no_authenticator(
     api = HyperliquidAPI(
         BASE_API_CONFIG, SECRETS_NO_KEY
     )  # SECRETS_NO_KEY ensures _authenticator is None
-    assert api._authenticator is None  # pyright: ignore[reportPrivateUsage]
+    assert api._authenticator is None
 
     with pytest.raises(APIError, match="HL authenticator not initialized") as excinfo:
-        await api._authenticate("POST", "/exchange", None, {"d": 1})  # pyright: ignore[reportPrivateUsage]
+        await api._authenticate("POST", "/exchange", None, {"d": 1})
     assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
 
 
@@ -349,14 +349,14 @@ async def test_authenticate_prepare_request_fails(
     """Test _authenticate propagates APIError from prepare_request."""
     _mock_auth_class, mock_auth_instance = mock_hl_auth_init
     api = HyperliquidAPI(BASE_API_CONFIG, SECRETS_WITH_KEY)
-    api._authenticator = mock_auth_instance  # pyright: ignore[reportPrivateUsage]
+    api._authenticator = mock_auth_instance
 
     mock_auth_instance.prepare_request.side_effect = APIError(
         "Signing failed internally", code=APIErrorCode.AUTHENTICATION_FAILED.value
     )
 
     with pytest.raises(APIError, match="Signing failed internally") as excinfo:
-        await api._authenticate("POST", "/exchange", None, {"d": 1})  # pyright: ignore[reportPrivateUsage]
+        await api._authenticate("POST", "/exchange", None, {"d": 1})
     assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
 
 
@@ -760,7 +760,7 @@ class TestHyperliquidAPIWebSocketRouting:
         # Mock the ws_manager for these tests
         mock_ws_manager_instance = AsyncMock()
         mock_ws_manager_instance.close = AsyncMock()  # Ensure ws_manager.close() is awaitable
-        api._ws_manager = mock_ws_manager_instance  # pyright: ignore[reportPrivateUsage]
+        api._ws_manager = mock_ws_manager_instance
 
         yield api
 
@@ -779,7 +779,7 @@ class TestHyperliquidAPIWebSocketRouting:
     async def test_construct_subscription_payload_valid_topics(
         self, api_for_ws_tests: HyperliquidAPI, topic: str, expected_sub_details: dict[str, Any]
     ) -> None:
-        payload = api_for_ws_tests._construct_subscription_payload(topic)  # pyright: ignore[reportPrivateUsage]
+        payload = api_for_ws_tests._construct_subscription_payload(topic)
         assert payload is not None
         assert payload.get("method") == "subscribe"
 
@@ -822,7 +822,7 @@ class TestHyperliquidAPIWebSocketRouting:
     async def test_construct_subscription_payload_invalid_topic(
         self, api_for_ws_tests: HyperliquidAPI
     ) -> None:
-        payload = api_for_ws_tests._construct_subscription_payload("invalidTopicFormat")  # pyright: ignore[reportPrivateUsage]
+        payload = api_for_ws_tests._construct_subscription_payload("invalidTopicFormat")
         assert payload is None
 
     @pytest.mark.asyncio
@@ -842,14 +842,14 @@ class TestHyperliquidAPIWebSocketRouting:
         with patch.object(api_for_ws_tests, "_wallet_address", None):
             # mock_auth_class.assert_not_called() # This assertion is tricky with shared fixture
 
-            payload = api_for_ws_tests._construct_subscription_payload("userEvents")  # pyright: ignore[reportPrivateUsage]
+            payload = api_for_ws_tests._construct_subscription_payload("userEvents")
             assert payload is None, "Should not construct userEvents payload without address"
 
     @pytest.mark.asyncio
     async def test_route_ws_message_known_channel(self, api_for_ws_tests: HyperliquidAPI) -> None:
         mock_handler: AsyncMock = AsyncMock()
         channel_name = "l2Book:ETH"  # Example specific channel name
-        api_for_ws_tests._ws_handlers[channel_name] = mock_handler  # pyright: ignore[reportPrivateUsage]
+        api_for_ws_tests._ws_handlers[channel_name] = mock_handler
 
         test_data_payload: dict[str, Any] = {
             "coin": "ETH",
@@ -858,7 +858,7 @@ class TestHyperliquidAPIWebSocketRouting:
         }
         test_message: dict[str, Any] = {"channel": channel_name, "data": test_data_payload}
 
-        await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore[reportPrivateUsage]
+        await api_for_ws_tests._handle_websocket_message(test_message)
         mock_handler.assert_awaited_once_with(test_data_payload, test_message)
 
     @pytest.mark.asyncio
@@ -867,7 +867,7 @@ class TestHyperliquidAPIWebSocketRouting:
     ) -> None:
         caplog.set_level(logging.DEBUG, logger="cyberdelta.apis.hyperliquid.hl_api")
         test_message = {"channel": "pong"}  # Data for pong is often None or just the channel
-        await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore[reportPrivateUsage]
+        await api_for_ws_tests._handle_websocket_message(test_message)
 
         # Check for key components in the log message
         assert f"[{api_for_ws_tests.exchange_name}]" in caplog.text
@@ -881,7 +881,7 @@ class TestHyperliquidAPIWebSocketRouting:
         caplog.set_level(logging.DEBUG, logger="cyberdelta.apis.hyperliquid.hl_api")
         error_payload = "Connection timed out"
         test_message = {"channel": "error", "data": error_payload}
-        await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore[reportPrivateUsage]
+        await api_for_ws_tests._handle_websocket_message(test_message)
         # The log message should be: "[hyperliquid] No WS handler for 'error'. Msg: ..."
         # Since topic_key_for_handler == channel ('error'), the "(or base ...)" part is skipped.
         expected_log = (
@@ -896,7 +896,7 @@ class TestHyperliquidAPIWebSocketRouting:
         caplog.set_level(logging.DEBUG, logger="cyberdelta.apis.hyperliquid.hl_api")
         response_payload = {"subscription": {"type": "l2Book", "coin": "ETH"}, "status": "ok"}
         test_message = {"channel": "subscriptionResponse", "data": response_payload}
-        await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore[reportPrivateUsage]
+        await api_for_ws_tests._handle_websocket_message(test_message)
 
         # Check for key components in the log message
         assert f"[{api_for_ws_tests.exchange_name}]" in caplog.text
@@ -909,7 +909,7 @@ class TestHyperliquidAPIWebSocketRouting:
     ) -> None:
         caplog.set_level(logging.DEBUG, logger="cyberdelta.apis.hyperliquid.hl_api")
         test_message = {"channel": "unknownChannel", "data": {"some": "payload"}}
-        await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore[reportPrivateUsage]
+        await api_for_ws_tests._handle_websocket_message(test_message)
         # The log message should be: "[hyperliquid] No WS handler for 'unknownChannel'. Msg: ..."
         # Since topic_key_for_handler == channel ('unknownChannel'), the "(or base ...)" part
         # is skipped.
@@ -927,10 +927,10 @@ class TestHyperliquidAPIWebSocketRouting:
         mock_handler: AsyncMock = AsyncMock()
         channel_name = "dataCheckChannel"
         # Register a handler so it doesn't fall into "No WS handler" path
-        api_for_ws_tests._ws_handlers[channel_name] = mock_handler  # pyright: ignore[reportPrivateUsage]
+        api_for_ws_tests._ws_handlers[channel_name] = mock_handler
         test_message: dict[str, Any] = {"channel": channel_name}  # No 'data' field
 
-        await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore[reportPrivateUsage]
+        await api_for_ws_tests._handle_websocket_message(test_message)
         mock_handler.assert_not_called()  # Handler should not be called if no data
 
         expected_log_part = (
@@ -947,7 +947,7 @@ class TestHyperliquidAPIWebSocketRouting:
     ) -> None:
         caplog.set_level(logging.DEBUG, logger="cyberdelta.apis.hyperliquid.hl_api")
         test_message = {"type": "someType", "data": {"other": "data"}}  # No channel
-        await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore[reportPrivateUsage]
+        await api_for_ws_tests._handle_websocket_message(test_message)
         assert (
             f"[{api_for_ws_tests.exchange_name}] Unroutable WS message (no channel): {test_message}"
         ) in caplog.text
@@ -960,7 +960,7 @@ class TestHyperliquidAPIWebSocketRouting:
         """Test _route_ws_message calls handle_l2book_payload for l2Book channel."""
         mock_app_handler = AsyncMock()
         topic = "l2Book:ETH"
-        api_for_ws_tests._ws_handlers[topic] = mock_app_handler  # pyright: ignore[reportPrivateUsage]
+        api_for_ws_tests._ws_handlers[topic] = mock_app_handler
 
         raw_l2_data = {"coin": "ETH", "levels": [["100.0", "1.0"], ["101.0", "2.5"]], "time": 123}  # pyright: ignore [reportUnknownVariableType]
         # Test data; type checker struggles with inline dict structure for nested lists.
@@ -988,7 +988,7 @@ class TestHyperliquidAPIWebSocketRouting:
         """Test _route_ws_message calls handle_public_trades_payload for trades channel."""
         mock_app_handler = AsyncMock()
         topic = "trades:BTC"
-        api_for_ws_tests._ws_handlers[topic] = mock_app_handler  # pyright: ignore[reportPrivateUsage]
+        api_for_ws_tests._ws_handlers[topic] = mock_app_handler
 
         raw_trade_item = {
             "coin": "BTC",
@@ -1012,7 +1012,7 @@ class TestHyperliquidAPIWebSocketRouting:
             mock_validated_trade_model
         ]
 
-        await api_for_ws_tests._route_ws_message(ws_message)  # pyright: ignore[reportPrivateUsage]
+        await api_for_ws_tests._route_ws_message(ws_message)
 
         mock_ws_handler_class.handle_public_trades_payload.assert_called_once_with([raw_trade_item])
         mock_app_handler.assert_awaited_once_with(mock_dumped_trade_model, ws_message)
@@ -1025,7 +1025,7 @@ class TestHyperliquidAPIWebSocketRouting:
         """Test _route_ws_message calls handle_all_mids_payload for allMids channel."""
         mock_app_handler = AsyncMock()
         topic = "allMids"
-        api_for_ws_tests._ws_handlers[topic] = mock_app_handler  # pyright: ignore[reportPrivateUsage]
+        api_for_ws_tests._ws_handlers[topic] = mock_app_handler
 
         raw_all_mids_data = {"BTC": "60000.0", "ETH": "3000.0"}
         ws_message = {"channel": "allMids", "data": raw_all_mids_data}
@@ -1035,7 +1035,7 @@ class TestHyperliquidAPIWebSocketRouting:
         mock_validated_all_mids_model.model_dump.return_value = mock_dumped_all_mids_model
         mock_ws_handler_class.handle_all_mids_payload.return_value = mock_validated_all_mids_model
 
-        await api_for_ws_tests._route_ws_message(ws_message)  # pyright: ignore[reportPrivateUsage]
+        await api_for_ws_tests._route_ws_message(ws_message)
 
         mock_ws_handler_class.handle_all_mids_payload.assert_called_once_with(raw_all_mids_data)
         mock_app_handler.assert_awaited_once_with(mock_dumped_all_mids_model, ws_message)
@@ -1083,7 +1083,7 @@ class TestHyperliquidAPIWebSocketRouting:
         """Test _route_ws_message for simple userEvents (fill, positionUpdate)."""
         mock_app_handler = AsyncMock()
         topic = "userEvents"
-        api_for_ws_tests._ws_handlers[topic] = mock_app_handler  # pyright: ignore[reportPrivateUsage]
+        api_for_ws_tests._ws_handlers[topic] = mock_app_handler
 
         ws_message = {"channel": "userEvents", "data": [raw_event_data]}
 
@@ -1092,7 +1092,7 @@ class TestHyperliquidAPIWebSocketRouting:
         mock_validated_model.model_dump.return_value = mock_dumped_model
         getattr(mock_ws_handler_class, handler_method_name).return_value = mock_validated_model
 
-        await api_for_ws_tests._route_ws_message(ws_message)  # pyright: ignore[reportPrivateUsage]
+        await api_for_ws_tests._route_ws_message(ws_message)
 
         getattr(mock_ws_handler_class, handler_method_name).assert_called_once_with(raw_event_data)
         mock_app_handler.assert_awaited_once_with(mock_dumped_model, ws_message)
@@ -1394,7 +1394,7 @@ async def test_get_account_summary_handler_fails(
             side_effect=ValueError("Mapper error"),
         ) as patched_mapper,
         patch(f"{HL_API_PATH}.logger") as mock_logger,
-    ):  # pyright: ignore[reportPrivateUsage]
+    ):
         with pytest.raises(APIError) as exc_info:
             await api.get_account_summary()
 
@@ -1434,7 +1434,7 @@ async def test_get_account_summary_mapper_fails(
             mock_map_to_margin_summary,
         ) as patched_mapper,
         patch(f"{HL_API_PATH}.logger") as mock_logger,
-    ):  # pyright: ignore[reportPrivateUsage]
+    ):
         with pytest.raises(APIError) as exc_info:
             await api.get_account_summary()
 
@@ -1584,7 +1584,7 @@ async def test_get_funding_rates_success(
         mock_hyperliquid_mapper.map_raw_ctx_to_funding_rate.side_effect = (
             mock_map_raw_ctx_to_funding_rate
         )
-        hl_api_instance._hl_mapper = mock_hyperliquid_mapper  # pyright: ignore[reportPrivateUsage]
+        hl_api_instance._hl_mapper = mock_hyperliquid_mapper
 
         result = await hl_api_instance.get_funding_rates()
 
@@ -1597,7 +1597,7 @@ async def test_get_funding_rates_success(
             method="POST",
             endpoint_path="/info",
             data=expected_data_dict,
-            rate_limiter_service=hl_api_instance._rate_limiter_service,  # pyright: ignore[reportPrivateUsage]
+            rate_limiter_service=hl_api_instance._rate_limiter_service,
         )
         assert len(result) == 2
         assert mock_funding_rate_btc in result
@@ -1627,5 +1627,5 @@ async def test_get_funding_rates_api_error(hl_api_instance: HyperliquidAPI) -> N
             method="POST",
             endpoint_path="/info",
             data=expected_data_dict,
-            rate_limiter_service=hl_api_instance._rate_limiter_service,  # pyright: ignore[reportPrivateUsage]
+            rate_limiter_service=hl_api_instance._rate_limiter_service,
         )

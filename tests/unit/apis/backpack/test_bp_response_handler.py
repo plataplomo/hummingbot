@@ -17,7 +17,7 @@ from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRat
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill, BackpackRawTrade
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -111,14 +111,10 @@ def valid_raw_trade_item(symbol_spot: str) -> dict[str, Any]:
     return {
         "symbol": symbol_spot,
         "price": "141.00",
-        "quantity": "1.5",
-        "timestamp": "2023-03-15T12:00:02.000000Z",
-        "tradeId": "1001",
+        "qty": "1.5",
+        "time": 1678886402000,
+        "id": "1001",
         "orderId": "order123",
-        "fee": "0.0015",
-        "feeSymbol": "USDC",
-        "isMaker": False,
-        "side": "buy",
     }
 
 
@@ -126,12 +122,11 @@ def valid_raw_trade_item(symbol_spot: str) -> dict[str, Any]:
 def valid_raw_recent_trades(valid_raw_trade_item: dict[str, Any]) -> list[dict[str, Any]]:
     item1 = valid_raw_trade_item.copy()
     item2 = valid_raw_trade_item.copy()
-    item2["tradeId"] = "1002"
+    item2["id"] = "1002"
     item2["price"] = "141.01"
-    item2["quantity"] = "0.5"
-    item2["timestamp"] = "2023-03-15T12:00:03.000000Z"
+    item2["qty"] = "0.5"
+    item2["time"] = 1678886403000
     item2["orderId"] = "order124"
-    item2["fee"] = "0.0005"
     return [item1, item2]
 
 
@@ -300,33 +295,22 @@ def valid_raw_order_history(valid_raw_order: dict[str, Any]) -> list[dict[str, A
 
 @pytest.fixture
 def valid_raw_trade_history(symbol_spot: str) -> list[dict[str, Any]]:
-    # Define trade history directly, ensuring it aligns with BackpackRawFill
-    # This fixture is specifically for trade history which might have different fields
-    # or more complete data than recent_trades in some APIs, but for Backpack,
-    # fills are fills. We use the corrected structure.
+    # This fixture is structured for BackpackRawTrade, aligning with handler's return type
     trade1 = {
         "symbol": symbol_spot,
         "price": "141.00",
-        "quantity": "1.5",
-        "timestamp": "2023-03-15T11:33:20.000000Z",  # Changed to ISO string
-        "tradeId": "2001",  # Changed to parsable integer string
+        "qty": "1.5",  # qty for BackpackRawTrade
+        "time": 1678886000000,  # int timestamp
+        "id": "tradeHist001",  # id for BackpackRawTrade
         "orderId": "histOrderX001",
-        "fee": "0.2115",
-        "feeSymbol": "USDC",
-        "isMaker": False,
-        "side": "buy",
     }
     trade2 = {
         "symbol": symbol_spot,
         "price": "141.05",
-        "quantity": "0.75",
-        "timestamp": "2023-03-15T11:33:21.000000Z",  # Changed to ISO string
-        "tradeId": "2002",  # Changed to parsable integer string
+        "qty": "0.75",  # qty for BackpackRawTrade
+        "time": 1678886001000,  # int timestamp
+        "id": "tradeHist002",  # id for BackpackRawTrade
         "orderId": "histOrderX002",
-        "fee": "0.1057875",
-        "feeSymbol": "USDC",
-        "isMaker": True,
-        "side": "sell",
     }
     return [trade1, trade2]
 
@@ -381,8 +365,8 @@ def valid_raw_order_status(valid_raw_order: dict[str, Any]) -> dict[str, Any]:
 class TestHandleGetTickerResponse:
     def test_valid(self, valid_raw_ticker: dict[str, Any], symbol_spot: str) -> None:
         """Test handling a valid raw ticker response."""
-        ticker = BackpackResponseHandler.handle_get_ticker_response(
-            cast(RawJsonResponse, valid_raw_ticker), symbol_spot
+        ticker: BackpackRawTicker = BackpackResponseHandler.handle_get_ticker_response(
+            cast(RawJsonResponse, valid_raw_ticker), symbol_spot, 200, {}
         )
         assert isinstance(ticker, BackpackRawTicker)
         assert ticker.symbol == symbol_spot
@@ -392,8 +376,8 @@ class TestHandleGetTickerResponse:
 class TestHandleGetOrderBookResponse:
     def test_valid(self, valid_raw_order_book: dict[str, Any], symbol_spot: str) -> None:
         """Test handling a valid raw order book response."""
-        order_book = BackpackResponseHandler.handle_get_order_book_response(
-            cast(RawJsonResponse, valid_raw_order_book), symbol_spot
+        order_book: BackpackRawOrderBook = BackpackResponseHandler.handle_get_order_book_response(
+            cast(RawJsonResponse, valid_raw_order_book), symbol_spot, 200, {}
         )
         assert isinstance(order_book, BackpackRawOrderBook)
         assert len(order_book.bids) == 2
@@ -405,19 +389,19 @@ class TestHandleGetOrderBookResponse:
 class TestHandleGetRecentTradesResponse:
     def test_valid(self, valid_raw_recent_trades: list[dict[str, Any]], symbol_spot: str) -> None:
         """Test handling a valid raw recent trades response."""
-        trades = BackpackResponseHandler.handle_get_recent_trades_response(
-            cast(RawJsonResponse, valid_raw_recent_trades), symbol_spot
+        trades: list[BackpackRawTrade] = BackpackResponseHandler.handle_get_recent_trades_response(
+            cast(RawJsonResponse, valid_raw_recent_trades), symbol_spot, 200, {}
         )
         assert len(trades) == 2
-        assert isinstance(trades[0], BackpackRawFill)
+        assert isinstance(trades[0], BackpackRawTrade)
         assert trades[0].symbol == symbol_spot
-        assert trades[0].trade_id == 1001
+        assert trades[0].id == "1001"
         assert trades[0].price == "141.00"
-        assert trades[0].timestamp == "2023-03-15T12:00:02.000000Z"
+        assert trades[0].time == 1678886402000
 
-        assert isinstance(trades[1], BackpackRawFill)
-        assert trades[1].trade_id == 1002
-        assert trades[1].timestamp == "2023-03-15T12:00:03.000000Z"
+        assert isinstance(trades[1], BackpackRawTrade)
+        assert trades[1].id == "1002"
+        assert trades[1].time == 1678886403000
 
 
 class TestHandleGetBalancesResponse:
@@ -507,8 +491,10 @@ class TestHandleGetOpenOrdersResponse:
 class TestHandleGetFundingRateResponse:
     def test_valid(self, valid_raw_funding_rate: dict[str, Any], symbol_perp: str) -> None:
         """Test handling a valid raw funding rate response."""
-        funding_rate = BackpackResponseHandler.handle_get_funding_rate_response(
-            cast(RawJsonResponse, valid_raw_funding_rate), symbol_perp
+        funding_rate: BackpackRawFundingRate = (
+            BackpackResponseHandler.handle_get_funding_rate_response(
+                cast(RawJsonResponse, valid_raw_funding_rate), symbol_perp, 200, {}
+            )
         )
         assert isinstance(funding_rate, BackpackRawFundingRate)
         assert funding_rate.symbol == symbol_perp
@@ -559,29 +545,29 @@ class TestHandleGetOrderHistoryResponse:
 class TestHandleGetTradeHistoryResponse:
     def test_valid(self, valid_raw_trade_history: list[dict[str, Any]], symbol_spot: str) -> None:
         """Test handling a valid raw trade history response."""
-        trades = BackpackResponseHandler.handle_get_trade_history_response(
+        trades: list[BackpackRawTrade] = BackpackResponseHandler.handle_get_trade_history_response(
             cast(RawJsonResponse, valid_raw_trade_history), symbol_spot
         )
         assert isinstance(trades, list)
         assert len(trades) == 2
-        assert isinstance(trades[0], BackpackRawFill)
-        assert trades[0].trade_id == 2001
+        assert isinstance(trades[0], BackpackRawTrade)
+        assert trades[0].id == "tradeHist001"
         assert trades[0].symbol == symbol_spot
         assert trades[0].price == "141.00"
-        assert trades[0].timestamp == "2023-03-15T11:33:20.000000Z"
+        assert trades[0].time == 1678886000000
 
-        assert isinstance(trades[1], BackpackRawFill)
-        assert trades[1].trade_id == 2002
+        assert isinstance(trades[1], BackpackRawTrade)
+        assert trades[1].id == "tradeHist002"
         assert trades[1].symbol == symbol_spot
         assert trades[1].price == "141.05"
-        assert trades[1].timestamp == "2023-03-15T11:33:21.000000Z"
+        assert trades[1].time == 1678886001000
 
 
 class TestHandleGetMarketDataResponse:
     def test_valid(self, valid_raw_market_data: list[list[Any]], symbol_spot: str) -> None:
         """Test handling a valid raw market data (klines) response."""
-        klines = BackpackResponseHandler.handle_get_market_data_response(
-            cast(RawJsonResponse, valid_raw_market_data), symbol_spot, "1m"
+        klines: list[RawJson] = BackpackResponseHandler.handle_get_market_data_response(
+            cast(RawJsonResponse, valid_raw_market_data), symbol_spot, "1m", 200, {}
         )
         assert isinstance(klines, list)
         assert len(klines) == 2
@@ -596,26 +582,28 @@ class TestHandleGetHistoricalTradesResponse:
         self, valid_raw_historical_trades: list[dict[str, Any]], symbol_spot: str
     ) -> None:
         """Test handling a valid raw historical trades response."""
-        trades = BackpackResponseHandler.handle_get_historical_trades_response(
-            cast(RawJsonResponse, valid_raw_historical_trades), symbol_spot
+        trades: list[BackpackRawTrade] = (
+            BackpackResponseHandler.handle_get_historical_trades_response(
+                cast(RawJsonResponse, valid_raw_historical_trades), symbol_spot, 200, {}
+            )
         )
         assert isinstance(trades, list)
         assert len(trades) == 2
 
         assert isinstance(trades[0], BackpackRawTrade)
-        assert trades[0].id == "1001"  # RawBpNonEmptyStringMax64, so it will be string "1001"
+        assert trades[0].id == "1001"
         assert trades[0].order_id == "histOrderA"
         assert trades[0].symbol == symbol_spot
         assert trades[0].price == "135.00"
-        assert trades[0].quantity == "2.0"  # Access as .quantity
+        assert trades[0].quantity == "2.0"
         assert trades[0].time == 1678880000000
 
         assert isinstance(trades[1], BackpackRawTrade)
-        assert trades[1].id == "1002"  # RawBpNonEmptyStringMax64, so it will be string "1002"
+        assert trades[1].id == "1002"
         assert trades[1].order_id == "histOrderB"
         assert trades[1].symbol == symbol_spot
         assert trades[1].price == "135.10"
-        assert trades[1].quantity == "1.0"  # Access as .quantity
+        assert trades[1].quantity == "1.0"
         assert trades[1].time == 1678880100000
 
 
@@ -624,7 +612,8 @@ class TestHandleGetOrderStatusResponse:
         """Test handling a valid raw order status response."""
         valid_raw_order_status["id"] = order_id
         order = BackpackResponseHandler.handle_get_order_status_response(
-            cast(RawJsonResponse, valid_raw_order_status), identifier=order_id
+            cast(RawJsonResponse, valid_raw_order_status),
+            identifier=order_id,
         )
         assert isinstance(order, BackpackRawOrder)
         assert order.id == order_id
@@ -645,22 +634,22 @@ _invalid_type_test_cases: list[InvalidTypeTestCaseType] = [
         BackpackResponseHandler.handle_get_ticker_response,
         ["invalid"],
         "dict",
-        {"symbol": "symbol_spot"},
-        "ticker ({symbol})",
+        {"symbol": "symbol_spot", "status_code": 400, "headers": {}},
+        "ticker ({symbol}) - Status: 400",
     ),
     (
         BackpackResponseHandler.handle_get_order_book_response,
         ["invalid"],
         "dict",
-        {"symbol": "symbol_spot"},
-        "order book ({symbol})",
+        {"symbol": "symbol_spot", "status_code": 400, "headers": {}},
+        "order book ({symbol}) - Status: 400",
     ),
     (
         BackpackResponseHandler.handle_get_recent_trades_response,
         {"error": "expected list"},
         "list",
-        {"symbol": "symbol_spot"},
-        "recent trades ({symbol})",
+        {"symbol": "symbol_spot", "status_code": 400, "headers": {}},
+        "recent trades ({symbol}) - Status: 400",
     ),
     (
         BackpackResponseHandler.handle_get_balances_response,
@@ -694,8 +683,8 @@ _invalid_type_test_cases: list[InvalidTypeTestCaseType] = [
         BackpackResponseHandler.handle_get_funding_rate_response,
         ["invalid"],
         "dict",
-        {"symbol": "symbol_perp"},
-        "funding rate ({symbol})",
+        {"symbol": "symbol_perp", "status_code": 400, "headers": {}},
+        "funding rate ({symbol}) - Status: 400",
     ),
     (
         BackpackResponseHandler.handle_get_account_info_response,
@@ -729,20 +718,20 @@ _invalid_type_test_cases: list[InvalidTypeTestCaseType] = [
         BackpackResponseHandler.handle_get_market_data_response,
         {"error": "expected list"},
         "list",
-        {"symbol": "symbol_spot", "timeframe": "1m"},
-        "market data (klines {symbol}, {timeframe})",
+        {"symbol": "symbol_spot", "timeframe": "1m", "status_code": 400, "headers": {}},
+        "market data (klines {symbol}, {timeframe}) - Status: 400",
     ),
     (
         BackpackResponseHandler.handle_get_historical_trades_response,
         {"error": "expected list"},
         "list",
-        {"symbol": "symbol_spot"},
-        "historical trades ({symbol})",
+        {"symbol": "symbol_spot", "status_code": 400, "headers": {}},
+        "historical trades ({symbol}) - Status: 400",
     ),
     (
         BackpackResponseHandler.handle_get_order_status_response,
         ["invalid"],
-        "dict",  # Expects dict or None, testing invalid list
+        "dict",
         {"identifier": "order_id"},
         "order status (id={identifier})",
     ),
@@ -814,16 +803,16 @@ _validation_error_test_cases_dict: list[ValidationErrorTestCaseType] = [
         "valid_raw_ticker",
         {"remove_field": "time"},
         "time",
-        {"symbol": "symbol_spot"},
-        "ticker ({symbol})",
+        {"symbol": "symbol_spot", "status_code": 200, "headers": {}},
+        "ticker ({symbol}) - Status: 200",
     ),
     (
         BackpackResponseHandler.handle_get_order_book_response,
         "valid_raw_order_book",
         {"change_nested_field": ["bids", 0, 0], "new_value": "invalid_price"},
-        "Cannot convert 'invalid_price' to Decimal",  # Check error message substring
-        {"symbol": "symbol_spot"},
-        "order book ({symbol})",
+        "Cannot convert 'invalid_price' to Decimal",
+        {"symbol": "symbol_spot", "status_code": 200, "headers": {}},
+        "order book ({symbol}) - Status: 200",
     ),
     (
         BackpackResponseHandler.handle_place_order_response,
@@ -838,8 +827,8 @@ _validation_error_test_cases_dict: list[ValidationErrorTestCaseType] = [
         "valid_raw_funding_rate",
         {"remove_field": "rate"},
         "rate",
-        {"symbol": "symbol_perp"},
-        "funding rate ({symbol})",
+        {"symbol": "symbol_perp", "status_code": 200, "headers": {}},
+        "funding rate ({symbol}) - Status: 200",
     ),
     (
         BackpackResponseHandler.handle_get_account_info_response,
@@ -870,9 +859,9 @@ _validation_error_test_cases_dict: list[ValidationErrorTestCaseType] = [
         BackpackResponseHandler.handle_get_balances_response,
         "valid_raw_balances",
         {"remove_nested_field": ["USDC", "available"]},
-        "available",  # Field missing within the nested USDC dict
+        "available",
         {},
-        "balance details for USDC",  # Context points to the failing item
+        "balance details for USDC",
     ),
 ]
 
@@ -969,30 +958,30 @@ _list_item_error_cases: list[ListItemErrorTestCaseStructure] = [
         BackpackResponseHandler.handle_get_recent_trades_response,
         "valid_raw_recent_trades",
         {"insert_invalid_item": "not_a_dict", "index": 1},
-        "Skipping non-dict item",  # Expect warning log, not APIError
-        {"symbol": "symbol_spot"},
-        "recent trades ({symbol})",
-        True,  # Expect warning log
+        "Skipping non-dict item",
+        {"symbol": "symbol_spot", "status_code": 200, "headers": {}},
+        "recent trades ({symbol}) - Status: 200",
+        True,
     ),
     # get_recent_trades: Item validation error
     (
         BackpackResponseHandler.handle_get_recent_trades_response,
         "valid_raw_recent_trades",
         {"modify_item": {"index": 1, "remove_field": "price"}},
-        "price",  # Missing field
-        {"symbol": "symbol_spot"},
-        "single trade item in recent trades ({symbol})",
-        False,  # Expect APIError
+        "price",
+        {"symbol": "symbol_spot", "status_code": 200, "headers": {}},
+        "single trade item in recent trades ({symbol}) - Status: 200",
+        False,
     ),
     # get_balances: Invalid value type (value in dict is not dict)
     (
         BackpackResponseHandler.handle_get_balances_response,
         "valid_raw_balances",
         {"modify_item": {"key": "USDC", "new_value": "not_a_dict"}},
-        "Skipping non-dict balance details",  # Expect warning log
+        "Skipping non-dict balance details",
         {},
-        "balances",  # Base context
-        True,  # Expect warning log
+        "balances",
+        True,
     ),
     # get_positions: Invalid item type
     (
@@ -1068,20 +1057,20 @@ _list_item_error_cases: list[ListItemErrorTestCaseStructure] = [
     (
         BackpackResponseHandler.handle_get_trade_history_response,
         "valid_raw_trade_history",
-        {"modify_item": {"index": 0, "remove_field": "price"}},  # Remove 'price'
-        "price",  # Expected error substring (field name)
+        {"modify_item": {"index": 0, "remove_field": "price"}},
+        "price",
         {"symbol": "symbol_spot"},
-        "single fill item in trade history/fills ({symbol})",  # Context - CHANGED
-        False,  # Expect APIError, not warning
+        "single trade item in trade history/fills ({symbol})",
+        False,
     ),
     (
         BackpackResponseHandler.handle_get_trade_history_response,
         "valid_raw_trade_history",
-        {"modify_item": {"index": 1, "change_field": "quantity", "new_value": "not_a_decimal"}},
-        "quantity",  # Expected error substring (field name)
+        {"modify_item": {"index": 1, "change_field": "qty", "new_value": "not_a_decimal"}},
+        "qty",
         {"symbol": "symbol_spot"},
-        "single fill item in trade history/fills ({symbol})",  # Context - CHANGED
-        False,  # Expect APIError, not warning
+        "single trade item in trade history/fills ({symbol})",
+        False,
     ),
     # get_market_data: Invalid item type (non-list)
     (
@@ -1089,8 +1078,8 @@ _list_item_error_cases: list[ListItemErrorTestCaseStructure] = [
         "valid_raw_market_data",
         {"insert_invalid_item": {"error": "not a list"}, "index": 1},
         "Skipping non-list item",
-        {"symbol": "symbol_spot", "timeframe": "1m"},
-        "market data (klines {symbol}, {timeframe})",
+        {"symbol": "symbol_spot", "timeframe": "1m", "status_code": 200, "headers": {}},
+        "market data (klines {symbol}, {timeframe}) - Status: 200",
         True,
     ),
     # get_market_data: Item validation error (wrong length)
@@ -1102,8 +1091,8 @@ _list_item_error_cases: list[ListItemErrorTestCaseStructure] = [
         "valid_raw_historical_trades",
         {"insert_invalid_item": "not_a_dict", "index": 1},
         "Skipping non-dict item",
-        {"symbol": "symbol_spot"},
-        "historical trades ({symbol})",
+        {"symbol": "symbol_spot", "status_code": 200, "headers": {}},
+        "historical trades ({symbol}) - Status: 200",
         True,
     ),
     # get_historical_trades: Item validation error
@@ -1112,8 +1101,8 @@ _list_item_error_cases: list[ListItemErrorTestCaseStructure] = [
         "valid_raw_historical_trades",
         {"modify_item": {"index": 1, "remove_field": "price"}},
         "price",
-        {"symbol": "symbol_spot"},
-        "single historical trade item in historical trades ({symbol})",
+        {"symbol": "symbol_spot", "status_code": 200, "headers": {}},
+        "single historical trade item in historical trades ({symbol}) - Status: 200",
         False,
     ),
 ]
