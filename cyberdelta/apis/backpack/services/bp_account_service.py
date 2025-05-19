@@ -85,7 +85,7 @@ class BackpackAccountService:
         self._response_handler = response_handler
         self._authenticator = authenticator
         self._exchange_name = exchange_name
-        self._mapper = BackpackOrderMapper() # Re-added mapper instantiation
+        self._mapper = BackpackOrderMapper()  # Re-added mapper instantiation
 
     async def _get_raw_balances_dict(self) -> dict[str, BackpackRawBalance]:
         """Helper to fetch and validate raw account balances dictionary."""
@@ -112,9 +112,7 @@ class BackpackAccountService:
             )
             if raw_data is None:
                 raise APIError(
-                    message=(
-                        f"No data received for raw balances dict, status: {status_code}"
-                    ),
+                    message=(f"No data received for raw balances dict, status: {status_code}"),
                     code=APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
@@ -235,9 +233,7 @@ class BackpackAccountService:
             )
             if raw_data is None:
                 raise APIError(
-                    message=(
-                        f"No data received for raw account summary, status: {status_code}"
-                    ),
+                    message=(f"No data received for raw account summary, status: {status_code}"),
                     code=APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
@@ -320,8 +316,7 @@ class BackpackAccountService:
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         """Retrieves open derivative positions, optionally filtered by symbol."""
         logger.info(
-            f"[{self._exchange_name}] Getting derivative positions for "
-            f"symbol '{symbol or 'all'}'."
+            f"[{self._exchange_name}] Getting derivative positions for symbol '{symbol or 'all'}'."
         )
         try:
             raw_positions_list = await self._get_raw_positions_list(symbol)
@@ -334,10 +329,13 @@ class BackpackAccountService:
                 except (ValidationError, ValueError) as e_map_item:
                     logger.warning(
                         f"[{self._exchange_name}] Skipping position mapping for raw position "
-                        f"'{ (
-                            raw_position_model.symbol if hasattr(raw_position_model, 'symbol') 
-                            else 'UnknownSymbol'
-                        ) }' "
+                        f"'{
+                            (
+                                raw_position_model.symbol
+                                if hasattr(raw_position_model, 'symbol')
+                                else 'UnknownSymbol'
+                            )
+                        }' "
                         f"due to error: {e_map_item}. Raw: {raw_position_model!r}"
                     )
             logger.debug(
@@ -393,9 +391,7 @@ class BackpackAccountService:
                 # http_status might not be available here if error is from mapper
             ) from e_val
         except Exception as e_unhandled:
-            logger.error(
-                f"Unhandled error for account info: {e_unhandled}", exc_info=True
-            )
+            logger.error(f"Unhandled error for account info: {e_unhandled}", exc_info=True)
             raise APIError(
                 message=f"Unexpected error for account info: {e_unhandled}",
                 code=APIErrorCode.UNKNOWN.value,
@@ -468,9 +464,7 @@ class BackpackAccountService:
                 to_account_type_raw=to_account_type,
                 client_transfer_id=client_transfer_id,
             )
-            logger.debug(
-                f"[{self._exchange_name}] Mapped internal transfer: {internal_transfer}"
-            )
+            logger.debug(f"[{self._exchange_name}] Mapped internal transfer: {internal_transfer}")
             logger.debug(
                 f"[{self._exchange_name}] Transfer successful. "
                 f"Response: {internal_transfer.model_dump_json(exclude_none=True)}"
@@ -554,7 +548,7 @@ class BackpackAccountService:
                     code=APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
-            
+
             # Assuming self._response_handler.handle_withdraw_response exists and
             # returns BackpackRawWithdrawalResponse
             raw_withdrawal_model: BackpackRawWithdrawalResponse = (
@@ -650,7 +644,7 @@ class BackpackAccountService:
                     code=APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
-            
+
             raw_orders_list: list[BackpackRawOrder] = (
                 self._response_handler.handle_get_order_history_response(raw_data, symbol)
             )
@@ -668,7 +662,7 @@ class BackpackAccountService:
                         f"due to error: {e_map_item}. Raw: "
                         f"{raw_order_model.model_dump_json(exclude_none=True)}"
                     )
-            
+
             logger.debug(
                 f"[{self._exchange_name}] Mapped internal order history: "
                 f"{len(internal_orders)} orders"
@@ -708,18 +702,18 @@ class BackpackAccountService:
     async def get_trade_history(
         self,
         symbol: str | None = None,
-        limit: int | None = 100, # Match service stub signature
+        limit: int | None = 100,  # Match service stub signature
     ) -> list[Trade]:
         """Retrieves historical trade data (fills)."""
         endpoint_path = "/api/v1/history/fills"
-        
+
         # The builder supports more parameters, pass None for those not in service signature
         params = self._request_builder.build_get_trade_history_params(
             symbol=symbol,
             limit=limit,
-            start_time_ms=None, # Not in service signature
-            end_time_ms=None,   # Not in service signature
-            from_id=None,       # Not in service signature
+            start_time_ms=None,  # Not in service signature
+            end_time_ms=None,  # Not in service signature
+            from_id=None,  # Not in service signature
         )
         logger.debug(
             f"[{self._exchange_name}] Requesting trade history from {endpoint_path} "
@@ -744,7 +738,7 @@ class BackpackAccountService:
                     code=APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
-            
+
             raw_trades_list: list[BackpackRawTrade] = (
                 self._response_handler.handle_get_trade_history_response(raw_data, symbol)
             )
@@ -753,7 +747,7 @@ class BackpackAccountService:
             for raw_trade_model in raw_trades_list:
                 try:
                     trade = self._mapper.transform_raw_trade_to_internal(raw_trade_model)
-                    if trade is not None: # Mapper can return None
+                    if trade is not None:  # Mapper can return None
                         internal_trades.append(trade)
                 except (ValidationError, ValueError) as e_map_item:
                     logger.warning(
@@ -761,7 +755,7 @@ class BackpackAccountService:
                         f"'{raw_trade_model.id}' due to error: {e_map_item}. Raw: "
                         f"{raw_trade_model.model_dump_json(exclude_none=True)}"
                     )
-            
+
             logger.debug(
                 f"[{self._exchange_name}] Mapped internal trade history: "
                 f"{len(internal_trades)} trades"

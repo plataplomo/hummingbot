@@ -69,7 +69,7 @@ def backpack_market_data_service(
         exchange_name="backpack_test",
     )
     # Replace the internally created mapper with a mock for testing its interactions
-    service._mapper = MagicMock(spec=BackpackOrderMapper) # type: ignore[protected-access]
+    service._mapper = MagicMock(spec=BackpackOrderMapper)
     return service
 
 
@@ -134,7 +134,9 @@ class TestBackpackMarketDataService:
         # Using ignore for attr-defined as MagicMock dynamically creates these attributes,
         # and Mypy struggles with spec-based method attributes.
         # This is a common pattern in testing and acceptable per RULE-NO-SILENCING-V4 in test files.
-        backpack_market_data_service._mapper.transform_raw_ticker_to_internal.return_value = mock_internal_ticker # type: ignore[attr-defined]
+        backpack_market_data_service._mapper.transform_raw_ticker_to_internal.return_value = (
+            mock_internal_ticker
+        )
 
         result_ticker = await backpack_market_data_service.get_ticker(symbol)
 
@@ -151,7 +153,7 @@ class TestBackpackMarketDataService:
         # Using ignore for attr-defined as MagicMock dynamically creates these attributes,
         # and Mypy struggles with spec-based method attributes.
         # This is a common pattern in testing and acceptable per RULE-NO-SILENCING-V4 in test files.
-        backpack_market_data_service._mapper.transform_raw_ticker_to_internal.assert_called_once_with( # type: ignore[attr-defined]
+        backpack_market_data_service._mapper.transform_raw_ticker_to_internal.assert_called_once_with(  # type: ignore[attr-defined]
             mock_raw_ticker, symbol_override=symbol
         )
         assert result_ticker == mock_internal_ticker
