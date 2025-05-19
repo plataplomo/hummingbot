@@ -5,6 +5,7 @@ import time
 from collections.abc import Mapping
 from decimal import Decimal
 from typing import Any, cast
+from datetime import datetime
 
 import aiohttp
 from pydantic import HttpUrl, ValidationError
@@ -71,6 +72,7 @@ from cyberdelta.core.models import (
     Trade,
 )
 from cyberdelta.core.models.enums import (
+    CancelOrderResultStatus,
     OrderSide,
     OrderStatus,
     OrderType,
@@ -78,6 +80,7 @@ from cyberdelta.core.models.enums import (
 )
 from cyberdelta.core.models.market import Candle, OrderBook
 from cyberdelta.core.models.market.order import (
+    CancelOrderResult,
     Order,
 )
 from cyberdelta.utils.logging_config import get_logger
@@ -461,13 +464,22 @@ class HyperliquidAPI(ExchangeAPI):
 
         return {"method": "subscribe", "subscription": subscription_data}
 
+    async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
+        """
+        Handle raw WebSocket message from WebSocketManager, then route it.
+        This method is called by the WebSocketManager.
+        """
+        # Following the pattern from BackpackAPI, directly route to _route_ws_message.
+        # Add any pre-processing here if Hyperliquid requires it for common message envelopes.
+        await self._route_ws_message(message)
+
     async def _route_ws_message(self, message: dict[str, Any]) -> None:
         """
         Route incoming WebSocket messages from Hyperliquid.
         Validates raw payloads using HyperliquidWsRawMessageHandler before processing.
         """
         channel: str | None = message.get("channel")
-        raw_data: Any = message.get("data")
+        raw_data_any: Any = message.get("data")  # Keep as Any initially
 
         if not channel:
             logger.debug(f"[{self.exchange_name}] Unroutable WS message (no channel): {message}")
@@ -479,28 +491,29 @@ class HyperliquidAPI(ExchangeAPI):
 
         topic_key_for_handler = channel
         if channel == "l2Book":
-            if isinstance(raw_data, dict):
-                raw_data_dict = cast(dict[str, Any], raw_data)
+            if isinstance(raw_data_any, dict):
+                raw_data_dict = cast(dict[str, Any], raw_data_any)
                 coin_from_data_any: Any = raw_data_dict.get("coin")
                 if isinstance(coin_from_data_any, str):
                     topic_key_for_handler = f"{channel}:{coin_from_data_any}"
             else:
                 logger.warning(
                     f"[{self.exchange_name}] Expected dict for 'l2Book' data to derive topic key, "
-                    f"got {type(cast(object, raw_data))}. Using base channel '{channel}' as key. "
-                    f"Msg: {message}"
+                    f"received other type. Msg: {message}"
                 )
         elif channel == "trades":
             coin_for_topic_str: str | None = None
             if isinstance(message.get("coin"), str):
                 coin_for_topic_str = message.get("coin")
-            elif isinstance(raw_data, list) and raw_data:
-                first_trade_item_any: Any = raw_data[0]
-                if isinstance(first_trade_item_any, dict):
-                    first_trade_item_dict = cast(dict[str, Any], first_trade_item_any)
-                    coin_from_item_any: Any = first_trade_item_dict.get("coin")
-                    if isinstance(coin_from_item_any, str):
-                        coin_for_topic_str = coin_from_item_any
+            elif isinstance(raw_data_any, list):
+                raw_data_list = cast(list[Any], raw_data_any)  # Cast to list[Any]
+                if raw_data_list:
+                    first_trade_item_any: Any = raw_data_list[0]
+                    if isinstance(first_trade_item_any, dict):
+                        first_trade_item_dict = cast(dict[str, Any], first_trade_item_any)
+                        coin_from_item_any: Any = first_trade_item_dict.get("coin")
+                        if isinstance(coin_from_item_any, str):
+                            coin_for_topic_str = coin_from_item_any
 
             if coin_for_topic_str:
                 topic_key_for_handler = f"{channel}:{coin_for_topic_str}"
@@ -520,7 +533,7 @@ class HyperliquidAPI(ExchangeAPI):
                 logger.debug("".join(log_parts))
                 return
 
-        if raw_data is None:
+        if raw_data_any is None:
             logger.warning(f"[{self.exchange_name}] WS '{channel}' has no data. Msg: {message}")
             return
 
@@ -528,43 +541,41 @@ class HyperliquidAPI(ExchangeAPI):
             payload_for_handler: dict[str, Any] | None = None
 
             if channel == "l2Book":
-                if not isinstance(raw_data, dict):
+                if not isinstance(raw_data_any, dict):
                     raise APIError(
-                        f"l2Book data not dict: {type(raw_data)}",
+                        "l2Book data not dict",
                         code=APIErrorCode.INVALID_RESPONSE.value,
                     )
                 validated_model = HyperliquidWsRawMessageHandler.handle_l2book_payload(
-                    cast(dict[str, Any], raw_data)
+                    cast(dict[str, Any], raw_data_any)
                 )
                 payload_for_handler = validated_model.model_dump(mode="json")
-                await app_handler(payload_for_handler, message)
 
             elif channel == "trades":
-                if not isinstance(raw_data, list):
-                    actual_type_name = type(raw_data).__name__
+                if not isinstance(raw_data_any, list):
                     raise APIError(
-                        f"Trades data not list: {actual_type_name}",
+                        "Trades data not list",
                         code=APIErrorCode.INVALID_RESPONSE.value,
                     )
 
                 typed_trades_input_list: list[dict[str, Any]] = []
-                for item_loop_var in cast(list[Any], raw_data):
-                    item_from_any_list = item_loop_var
-                    if not isinstance(item_from_any_list, dict):
+                raw_data_list_for_trades = cast(list[Any], raw_data_any)  # Cast to list[Any]
+                for item_loop_var in raw_data_list_for_trades:
+                    if not isinstance(item_loop_var, dict):
                         logger.warning(
                             f"[{self.exchange_name}] Trades list item not dict: "
-                            f"{item_from_any_list}. Msg: {message}. Skipping item."
+                            f"{item_loop_var}. Msg: {message}. Skipping item."
                         )
                         continue
-                    item_dict = cast(dict[str, Any], item_from_any_list)
+                    item_dict = cast(dict[str, Any], item_loop_var)
                     typed_trades_input_list.append(item_dict)
 
-                if not typed_trades_input_list and raw_data:
+                if not typed_trades_input_list and raw_data_list_for_trades:
                     logger.warning(
                         f"[{self.exchange_name}] All items in trades list were invalid. "
-                        f"Original raw_data: {raw_data}"
+                        f"Original raw_data: {raw_data_list_for_trades}"
                     )
-                    return
+                    return  # payload_for_handler remains None, handled below
 
                 if typed_trades_input_list:
                     validated_trade_models = (
@@ -572,28 +583,30 @@ class HyperliquidAPI(ExchangeAPI):
                             typed_trades_input_list
                         )
                     )
+                    # For multiple trades, app_handler is called for each
+                    # So payload_for_handler isn't used for the list itself here
                     for trade_model in validated_trade_models:
-                        payload_for_handler = trade_model.model_dump(mode="json")
-                        await app_handler(payload_for_handler, message)
+                        single_trade_payload = trade_model.model_dump(mode="json")
+                        await app_handler(single_trade_payload, message)
+                    return  # All handled, exit before final app_handler call
 
             elif channel == "userEvents":
-                if not isinstance(raw_data, list):
-                    actual_type_name = type(raw_data).__name__
+                if not isinstance(raw_data_any, list):
                     raise APIError(
-                        f"userEvents data not list: {actual_type_name}",
+                        "userEvents data not list",
                         code=APIErrorCode.INVALID_RESPONSE.value,
                     )
 
-                for event_loop_var in cast(list[Any], raw_data):
-                    event_item_from_any_list = event_loop_var
-                    if not isinstance(event_item_from_any_list, dict):
+                raw_data_list_for_user_events = cast(list[Any], raw_data_any)  # Cast to list[Any]
+                for event_loop_var in raw_data_list_for_user_events:
+                    if not isinstance(event_loop_var, dict):
                         logger.warning(
                             f"[{self.exchange_name}] userEvents item not dict: "
-                            f"{event_item_from_any_list}, skipping."
+                            f"{event_loop_var}, skipping."
                         )
                         continue
 
-                    event_item_dict = cast(dict[str, Any], event_item_from_any_list)
+                    event_item_dict = cast(dict[str, Any], event_loop_var)
                     event_type_any = event_item_dict.get("type")
 
                     if not isinstance(event_type_any, str):
@@ -659,43 +672,46 @@ class HyperliquidAPI(ExchangeAPI):
                             f"Item: {event_item_dict}. Skipping item."
                         )
                         continue
+                return  # All user events handled, exit
 
             elif channel == "allMids":
-                if not isinstance(raw_data, dict):
+                if not isinstance(raw_data_any, dict):
                     logger.warning(
                         f"[{self.exchange_name}] 'allMids' channel data is not a dict or is None. "
-                        f"Type: {type(raw_data)}. Data: {raw_data!r}. Skipping."
+                        f"Data: {raw_data_any!r}. Skipping."
                     )
                     raise APIError(
-                        f"allMids data not dict or is None: {type(raw_data)}",
+                        "allMids data not dict or is None",
                         code=APIErrorCode.INVALID_RESPONSE.value,
                     )
 
-                raw_data_dict = cast(dict[str, Any], raw_data)
+                raw_data_dict_all_mids = cast(dict[str, Any], raw_data_any)
 
                 validated_all_mids = HyperliquidWsRawMessageHandler.handle_all_mids_payload(
-                    raw_data_dict
+                    raw_data_dict_all_mids
                 )
-                payload_for_handler = cast(
-                    dict[str, Any], validated_all_mids.model_dump(mode="json")
-                )
-                await app_handler(payload_for_handler, message)
+                payload_for_handler = validated_all_mids.model_dump(mode="json")
 
             elif channel == "pong" or channel == "subscriptionResponse":
                 logger.debug(f"[{self.exchange_name}] Control message on '{channel}': {message}")
-                payload_for_control_handler = (
-                    cast(dict[str, Any], raw_data) if isinstance(raw_data, dict) else {}
+                payload_for_handler = (
+                    cast(dict[str, Any], raw_data_any) if isinstance(raw_data_any, dict) else {}
                 )
-                await app_handler(payload_for_control_handler, message)
             else:
                 logger.debug(
                     f"[{self.exchange_name}] Unhandled channel '{channel}' by specific "
                     f"validation, passing raw data if dict. Msg: {message}"
                 )
-                payload_for_unhandled_handler = (
-                    cast(dict[str, Any], raw_data) if isinstance(raw_data, dict) else {}
+                payload_for_handler = (
+                    cast(dict[str, Any], raw_data_any) if isinstance(raw_data_any, dict) else {}
                 )
-                await app_handler(payload_for_unhandled_handler, message)
+
+            # Final handler call for channels that set payload_for_handler and don't return early
+            if payload_for_handler is not None:
+                await app_handler(payload_for_handler, message)
+            # If payload_for_handler is None here, it means a path was taken that didn't set it
+            # and didn't explicitly return (e.g. trades/userEvents handle their own calls to app_handler)
+            # or an empty list for trades was encountered and returned early.
 
         except APIError as e:
             logger.error(
@@ -810,9 +826,53 @@ class HyperliquidAPI(ExchangeAPI):
         """Retrieves recent public trades for a specific symbol."""
         return await self.market_data_service.get_recent_trades(symbol)
 
-    async def get_funding_rate(self, symbol: str) -> FundingRate | None:
-        """Retrieves the current funding rate for a specific symbol."""
-        return await self.market_data_service.get_funding_rate(symbol)
+    async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
+        """Retrieves current funding rates for specified symbols, or all if None."""
+        rates: list[FundingRate] = []
+        symbols_to_fetch: list[str] = []
+
+        if symbols:
+            symbols_to_fetch = symbols
+        else:
+            # Fetch all known symbols if cache is populated, otherwise fetch meta first
+            if not self._asset_to_index_cache:
+                try:
+                    # Call _get_asset_index with a placeholder to populate cache.
+                    # This is a bit of a hack; ideally, there'd be a "fetch_all_symbols"
+                    # or "get_market_metadata" method.
+                    # We need to ensure _get_asset_index is called to populate the cache.
+                    # This assumes _get_asset_index correctly populates self._asset_to_index_cache
+                    # by fetching metaAndAssetCtxs if the cache is empty for ANY symbol.
+                    # A more robust way would be to directly fetch and parse meta here.
+                    # For simplicity in this step, we'll rely on the cache being populated
+                    # by a call to _get_asset_index if it was previously called, or
+                    # we try to populate it.
+                    # This is a temporary measure; a dedicated method to get all symbols is better.
+                    await self._get_asset_index("ETH") # Example symbol to trigger fetch if needed
+                except APIError as e:
+                    logger.error(f"[{self.exchange_name}] Could not pre-fetch symbols for get_funding_rates: {e}")
+                    # Depending on strictness, could return [] or raise e
+            symbols_to_fetch = list(self._asset_to_index_cache.keys())
+            if not symbols_to_fetch:
+                logger.warning(f"[{self.exchange_name}] No symbols found to fetch all funding rates.")
+                return []
+
+        for symbol_item in symbols_to_fetch:
+            try:
+                rate = await self.market_data_service.get_funding_rate(symbol_item)
+                if rate:
+                    rates.append(rate)
+            except APIError as e:
+                logger.error(
+                    f"[{self.exchange_name}] APIError fetching funding rate for {symbol_item}: {e}"
+                )
+            except Exception as e_unex:
+                logger.error(
+                    f"[{self.exchange_name}] Unexpected error fetching funding rate for "
+                    f"{symbol_item}: {e_unex}",
+                    exc_info=True,
+                )
+        return rates
 
     async def get_market_data(
         self,
@@ -1151,6 +1211,128 @@ class HyperliquidAPI(ExchangeAPI):
         )
         return False
 
+    async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
+        """Cancels all open orders, optionally filtered by symbol.
+        Returns a list of CancelOrderResult for each attempt.
+        """
+        results: list[CancelOrderResult] = []
+        logger.info(
+            f"[{self.exchange_name}] Attempting to cancel all open orders"
+            f"{f' for symbol {symbol}' if symbol else ''}."
+        )
+        try:
+            open_orders = await self.get_open_orders(symbol=symbol)
+            if not open_orders:
+                logger.info(
+                    f"[{self.exchange_name}] No open orders found"
+                    f"{f' for symbol {symbol}' if symbol else ''} to cancel."
+                )
+                return []
+
+            for order_to_cancel in open_orders:
+                exch_order_id = order_to_cancel.exchange_order_id
+                client_id = order_to_cancel.client_order_id
+                order_symbol = order_to_cancel.symbol
+
+                if exch_order_id: # Prefer exchange_order_id
+                    try:
+                        cancelled = await self.cancel_order(
+                            order_id=exch_order_id,
+                            symbol=order_symbol,
+                        )
+                        if cancelled:
+                            results.append(CancelOrderResult(
+                                order_id=exch_order_id,
+                                client_order_id=client_id,
+                                symbol=order_symbol,
+                                success=True,
+                                message="Successfully cancelled.",
+                                status=CancelOrderResultStatus.SUCCESS,
+                            ))
+                        else:
+                            results.append(CancelOrderResult(
+                                order_id=exch_order_id,
+                                client_order_id=client_id,
+                                symbol=order_symbol,
+                                success=False,
+                                message="cancel_order returned False (unexpected).",
+                                status=CancelOrderResultStatus.FAILED,
+                            ))
+                    except APIError as e_cancel:
+                        raw_body = getattr(e_cancel.original_exception, 'response_body', None) if isinstance(e_cancel.original_exception, APIError) else None
+                        results.append(CancelOrderResult(
+                            order_id=exch_order_id,
+                            client_order_id=client_id,
+                            symbol=order_symbol,
+                            success=False,
+                            message=e_cancel.message,
+                            status=CancelOrderResultStatus.FAILED,
+                            raw_response=raw_body
+                        ))
+                    except Exception as e_unexp_cancel:
+                        results.append(CancelOrderResult(
+                            order_id=exch_order_id,
+                            client_order_id=client_id,
+                            symbol=order_symbol,
+                            success=False,
+                            message=str(e_unexp_cancel),
+                            status=CancelOrderResultStatus.FAILED,
+                        ))
+                else: # No usable ID
+                    logger.warning(
+                        f"[{self.exchange_name}] Open order object has no usable exchange_order_id "
+                        f"for cancellation. Order: {order_to_cancel!r}"
+                    )
+                    results.append(CancelOrderResult(
+                        order_id=order_to_cancel.exchange_order_id, # Could be None
+                        client_order_id=order_to_cancel.client_order_id,
+                        symbol=order_to_cancel.symbol,
+                        success=False,
+                        message="Order has no exchange_order_id for cancellation.",
+                        status=CancelOrderResultStatus.FAILED,
+                    ))
+            
+            num_successful = sum(1 for r in results if r.success)
+            if num_successful == len(open_orders):
+                logger.info(
+                    f"[{self.exchange_name}] Successfully cancelled all ({num_successful}) "
+                    f"open orders{f' for symbol {symbol}' if symbol else ''}."
+                )
+            else:
+                logger.warning(
+                    f"[{self.exchange_name}] Attempted to cancel {len(open_orders)} orders, "
+                    f"but only {num_successful} were confirmed cancelled"
+                    f"{f' for symbol {symbol}' if symbol else ''}."
+                )
+            return results
+
+        except APIError as e_fetch_orders:
+            logger.error(
+                f"[{self.exchange_name}] APIError fetching open orders for cancel_all_orders"
+                f"{f' (symbol: {symbol})' if symbol else ''}: {e_fetch_orders.message}"
+            )
+            return [CancelOrderResult(
+                order_id=None,
+                symbol=symbol,
+                success=False, 
+                message=f"Failed to fetch open orders: {e_fetch_orders.message}",
+                status=CancelOrderResultStatus.FAILED,
+                raw_response=getattr(e_fetch_orders.original_exception, 'response_body', None) if isinstance(e_fetch_orders.original_exception, APIError) else None
+            )]
+        except Exception as e_unexp_outer:
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error during cancel_all_orders"
+                f"{f' (symbol: {symbol})' if symbol else ''}: {e_unexp_outer}",
+                exc_info=True
+            )
+            return [CancelOrderResult(
+                order_id=None,
+                symbol=symbol,
+                success=False, 
+                message=f"Unexpected outer error: {str(e_unexp_outer)}",
+                status=CancelOrderResultStatus.FAILED,
+            )]
+
     async def get_account_summary(self) -> MarginAccountSummary | None:
         """Fetches and combines account balance and positions for Hyperliquid."""
         logger.info(f"[{self.exchange_name}] Fetching account summary.")
@@ -1168,43 +1350,26 @@ class HyperliquidAPI(ExchangeAPI):
             )
         return await self.account_service.get_account_summary()
 
-    async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
-        """Process a single message received from the WebSocket.
-
-        This method is called by the underlying WebSocketManager (via the
-        ExchangeAPI base class) when a new message arrives. It logs the
-        receipt and then delegates to the `_route_ws_message` method for
-        specific parsing, validation, and handling based on message content.
-
-        Args:
-            message: The raw dictionary message received from the WebSocket.
-        """
-        if not message:
-            logger.warning(f"[{self.exchange_name}] Received empty WebSocket message. Skipping.")
-            return
-
-        await self._route_ws_message(message)
-
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order:
-        """Fetches the status of a specific order by its orderId."""
+        """Fetches a specific order by its orderId to determine its status."""
         if not self._wallet_address:
             raise APIError(
                 "Wallet address required for fetching order status",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
         if not order_id:
-            raise ValueError("order_id is required for get_order_status on Hyperliquid.")
+            raise ValueError("order_id is required for get_order on Hyperliquid.")
         if not symbol:
-            raise ValueError("symbol is required for get_order_status on Hyperliquid.")
+            raise ValueError("symbol is required for get_order on Hyperliquid.")
 
         order_id_int: int
         try:
             order_id_int = int(order_id)
         except ValueError as e_val_int:
             logger.error(
-                f"[{self.exchange_name}] Invalid order_id format for get_order_status: "
+                f"[{self.exchange_name}] Invalid order_id format for get_order: "
                 f"'{order_id}'. Error: {e_val_int}"
             )
             raise APIError(
@@ -1232,7 +1397,7 @@ class HyperliquidAPI(ExchangeAPI):
                 exc_info=True,
             )
             raise APIError(
-                f"Unexpected error during service call for get_order_status OID {order_id}: "
+                f"Unexpected error during service call for get_order OID {order_id}: "
                 f"{e_unhandled_service_call}",
                 APIErrorCode.UNKNOWN.value,
             ) from e_unhandled_service_call
@@ -1279,6 +1444,64 @@ class HyperliquidAPI(ExchangeAPI):
                 original_exception=e_unexp_map,
             ) from e_unexp_map
 
+    async def get_order_history(
+        self,
+        symbol: str | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int | None = None,
+        order_id: str | None = None,
+        client_order_id: str | None = None,
+        from_id: str | None = None,
+    ) -> list[Order]:
+        """Retrieves historical orders."""
+        if not self._wallet_address:
+            raise APIError(
+                "Wallet address required for get_order_history.",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+        if limit is not None:
+            logger.warning(
+                f"[{self.exchange_name}] 'limit' parameter for get_order_history is not "
+                f"directly supported by Hyperliquid's order history mechanism. "
+                f"It will be ignored. Use start_time and end_time for filtering."
+            )
+        if order_id or client_order_id or from_id:
+             logger.warning(
+                f"[{self.exchange_name}] Parameters 'order_id', 'client_order_id', 'from_id' "
+                f"for get_order_history are not directly used by the "
+                f"Hyperliquid service call which primarily relies on symbol, start_time, and end_time. "
+                f"These will be ignored."
+            )
+
+        return await self.account_service.get_order_history(
+            symbol=symbol, start_time=start_time, end_time=end_time
+        )
+
+    async def get_trade_history(
+        self,
+        symbol: str | None = None,
+        limit: int | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        from_id: str | None = None,
+        order_id: str | None = None,
+    ) -> list[Trade]:
+        """Retrieves historical trades (fills)."""
+        if not self._wallet_address:
+            raise APIError(
+                "Wallet address required for get_trade_history.",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+        if start_time or end_time or limit or from_id or order_id:
+            logger.warning(
+                f"[{self.exchange_name}] Parameters 'start_time', 'end_time', 'limit', 'from_id', 'order_id' "
+                f"for get_trade_history are not directly supported by Hyperliquid's user fills "
+                f"mechanism in the same way as other exchanges. Filtering is primarily by symbol. "
+                f"These parameters will be ignored by the direct service call."
+            )
+        return await self.account_service.get_trade_history(symbol=symbol)
+
     def _update_rate_limit_from_headers(
         self, headers: Mapping[str, str], method: str, path: str
     ) -> None:
@@ -1318,3 +1541,36 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Fetch all open orders, optionally filtering by symbol."""
         return await self.get_open_orders(symbol=symbol)
+
+    async def get_order(
+        self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
+    ) -> Order | None:
+        """Retrieves a single order by its ID.
+        Delegates to get_order_status as Hyperliquid's query is for historical/current status.
+        """
+        # client_order_id is not directly used by Hyperliquid's specific order status query by order_id.
+        # The implementation of get_order_status already handles the main logic.
+        if client_order_id and not order_id:
+            logger.warning(
+                f"[{self.exchange_name}] get_order called with client_order_id but Hyperliquid "
+                f"primarily fetches orders by order_id and symbol. "
+                f"Attempting to find by client_order_id via history is not yet supported here."
+            ) # This scenario needs more thought if client_order_id is primary lookup key.
+            # For now, if order_id is missing but client_order_id is present, we cannot proceed
+            # with the current get_order_status implementation directly.
+            # Returning None or raising an error for this specific case.
+            # This part of ExchangeAPI spec needs clarification for Hyperliquid.
+            raise APIError("Fetching order by client_order_id without exchange order_id is not directly supported for Hyperliquid in this adapter.", code=APIErrorCode.INVALID_REQUEST.value)
+
+
+        if not order_id or not symbol:
+            # get_order_status will raise appropriate errors if order_id or symbol is missing
+            # but it's good practice to check common required params early.
+             raise ValueError("Both order_id and symbol are required for get_order on Hyperliquid.")
+
+        try:
+            return await self.get_order_status(order_id=order_id, symbol=symbol, client_order_id=client_order_id)
+        except APIError as e:
+            if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
+                return None # Consistent with ExchangeAPI: return None if not found
+            raise # Re-raise other APIErrors
