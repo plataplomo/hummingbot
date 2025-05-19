@@ -34,26 +34,13 @@ from cyberdelta.apis.hyperliquid.hl_response_handler import (
     RawJsonResponse,
 )
 from cyberdelta.apis.hyperliquid.hl_ws_raw_message_handler import HyperliquidWsRawMessageHandler
-from cyberdelta.apis.hyperliquid.models.hl_processed_exchange_responses import (
-    HyperliquidSuccessfulOrderStatus,
-)
 
 # Hyperliquid Raw Models
-from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
-    HyperliquidRawExchangeResponse,
-)
-from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
-    HyperliquidRawHistoricalOrder,
-)
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsResponse,
 )
 
 # Import HyperliquidRawOrder from the correct module
-from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
-    HyperliquidRawOrder,
-)
-
 # ADDED IMPORT FOR ACCOUNT SERVICE
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
@@ -73,9 +60,7 @@ from cyberdelta.core.models import (
     Trade,
 )
 from cyberdelta.core.models.enums import (
-    CancelOrderResultStatus,
     OrderSide,
-    OrderStatus,
     OrderType,
     TimeInForce,
 )
@@ -290,6 +275,7 @@ class HyperliquidAPI(ExchangeAPI):
             exchange_name=self.exchange_name,
             wallet_address=self._wallet_address,
             get_asset_index_callable=self._get_asset_index,
+            order_mapper=self._hl_order_mapper,
         )
 
         self.default_headers: dict[str, str] = {
@@ -752,68 +738,8 @@ class HyperliquidAPI(ExchangeAPI):
         return await self.account_service.get_positions(symbol=symbol)
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
-        """Get open orders."""
-        if not self._wallet_address:
-            raise APIError(
-                "Wallet address required for get_open_orders.",
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
-            )
-
-        raw_orders_from_service: list[HyperliquidRawOrder]
-        try:
-            raw_orders_from_service = await self.trading_service.get_open_orders_raw()
-        except APIError as e_service:
-            logger.error(
-                f"[{self.exchange_name}] APIError from trading_service.get_open_orders_raw: "
-                f"{e_service.message}"
-            )
-            raise
-        except Exception as e_unhandled_service_call:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error calling "
-                f"trading_service.get_open_orders_raw: {e_unhandled_service_call}",
-                exc_info=True,
-            )
-            raise APIError(
-                f"Unexpected error during service call for get_open_orders: "
-                f"{e_unhandled_service_call}",
-                APIErrorCode.UNKNOWN.value,
-            ) from e_unhandled_service_call
-
-        open_orders: list[Order] = []
-        for raw_order_item in raw_orders_from_service:
-            try:
-                mapped_order = self._hl_order_mapper.transform_raw_order_to_internal(
-                    raw=raw_order_item,
-                    trigger=None,
-                )
-                if mapped_order and mapped_order.status in [
-                    OrderStatus.OPEN,
-                    OrderStatus.PARTIALLY_FILLED,
-                    OrderStatus.NEW,
-                ]:
-                    if symbol is None or mapped_order.symbol == symbol:
-                        open_orders.append(mapped_order)
-            except (ValidationError, ValueError) as e_map:
-                logger.warning(
-                    f"[{self.exchange_name}] Error mapping raw open order: {e_map}. "
-                    f"Raw: {
-                        raw_order_item.model_dump_json(exclude_none=True)
-                        if raw_order_item
-                        else 'None'
-                    }. Skipping."
-                )
-            except Exception as e_unexp_map:
-                logger.error(
-                    f"[{self.exchange_name}] Unexpected error mapping raw open order: "
-                    f"{e_unexp_map}. Raw: {
-                        raw_order_item.model_dump_json(exclude_none=True)
-                        if raw_order_item
-                        else 'None'
-                    }. Skipping.",
-                    exc_info=True,
-                )
-        return open_orders
+        """Get open orders. Delegates to HyperliquidTradingService."""
+        return await self.trading_service.get_open_orders(symbol=symbol)
 
     async def get_ticker(self, symbol: str) -> Ticker | None:
         """Retrieves the latest ticker information for a specific symbol."""
@@ -929,435 +855,50 @@ class HyperliquidAPI(ExchangeAPI):
         reduce_only: bool = False,
         post_only: bool = False,
     ) -> Order:
-        """Place an order on Hyperliquid."""
-        hl_time_in_force_options: dict[str, Any] = {"type": time_in_force.value}
-        if stop_price is not None:
-            hl_time_in_force_options["triggerPx"] = str(stop_price)
-            hl_time_in_force_options["isMarket"] = True
-            if order_type in [OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT]:
-                hl_time_in_force_options["isMarket"] = False
-
-            if order_type in [OrderType.STOP_MARKET, OrderType.STOP_LIMIT]:
-                hl_time_in_force_options["tpsl"] = "Sl"
-            elif order_type in [OrderType.TAKE_PROFIT_MARKET, OrderType.TAKE_PROFIT_LIMIT]:
-                hl_time_in_force_options["tpsl"] = "Tp"
-
-            hl_time_in_force_options["orderTif"] = time_in_force.value
-
-        if (
-            order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT]
-            and price is None
-        ):
-            raise ValueError(f"Price is required for {order_type.value} orders.")
-
-        if quantity <= Decimal("0"):
-            raise ValueError("Order quantity must be positive.")
-
-        limit_price_for_service = price
-        if order_type == OrderType.MARKET and price is not None:
-            logger.warning(
-                f"[{self.exchange_name}] Price provided for MARKET order, it will be ignored by "
-                f"Hyperliquid."
+        """Place an order. Delegates to HyperliquidTradingService."""
+        effective_price: Decimal
+        if price is not None:
+            effective_price = price
+        elif order_type == OrderType.LIMIT:
+            raise ValueError("Price is required for LIMIT orders on Hyperliquid.")
+        else:  # MARKET or other types that might not require price upfront from user
+            # The HL service's place_order method expects price: Decimal.
+            # For market orders, HL uses limitPx as a slippage protection.
+            # We must provide a Decimal. It's best if the caller provides an aggressive limit.
+            # Raising an error if not provided for MARKET to enforce clarity for now.
+            raise ValueError(
+                "A limit price (for slippage protection) must be provided for MARKET orders to Hyperliquid trading service."
             )
+            # Alternative: effective_price = Decimal("0") # Or some other default if service handles it.
 
-        validated_response: HyperliquidRawExchangeResponse
+        return await self.trading_service.place_order(
+            symbol=symbol,
+            side=side,
+            order_type=order_type,
+            quantity=quantity,
+            price=effective_price,
+            time_in_force=time_in_force,
+            stop_price=stop_price,
+            client_order_id=client_order_id,
+            reduce_only=reduce_only,
+            post_only=post_only,
+        )
+
+    async def cancel_order(
+        self, order_id: str, symbol: str
+    ) -> bool:  # HL requires symbol, so not symbol: str|None
+        """Cancel an order. Delegates to HyperliquidTradingService."""
         try:
-            validated_response = await self.trading_service.place_order_raw(
-                symbol=symbol,
-                side=side,
-                order_type=order_type,
-                quantity=quantity,
-                price=limit_price_for_service
-                if limit_price_for_service is not None
-                else Decimal("0"),
-                reduce_only=reduce_only,
-                time_in_force_options=hl_time_in_force_options,
-                client_order_id=client_order_id,
-            )
-        except APIError as e_service:
-            logger.error(
-                f"[{self.exchange_name}] APIError from trading_service.place_order_raw: "
-                f"{e_service.message}"
-            )
-            raise
-        except Exception as e_unhandled_service_call:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error calling "
-                f"trading_service.place_order_raw: {e_unhandled_service_call}",
-                exc_info=True,
-            )
-            raise APIError(
-                f"Unexpected error during service call for order placement: "
-                f"{e_unhandled_service_call}",
-                APIErrorCode.UNKNOWN.value,
-            ) from e_unhandled_service_call
-
-        if (
-            validated_response.status != "ok"
-            or not validated_response.data
-            or not validated_response.data.statuses
-        ):
-            mapped_error = self.error_mapper.map_exchange_error(
-                status_code=200,
-                error_body=str(validated_response.model_dump_json()),
-                error_data=validated_response.model_dump(),
-                request_path="/exchange",
-            )
-            raise mapped_error
-
-        first_status_obj_raw = validated_response.data.statuses[0]
-        error_to_raise_from_status: APIError | None = None
-
-        arg_for_handler: dict[str, Any] | str
-        if isinstance(first_status_obj_raw, str):
-            arg_for_handler = first_status_obj_raw
-        else:
-            arg_for_handler = first_status_obj_raw.model_dump(by_alias=True, exclude_none=True)
-
-        processed_status = HyperliquidResponseHandler.process_first_exchange_status(
-            arg_for_handler, "Place Order"
-        )
-
-        order_id_to_fetch: int | None = None
-        log_message_prefix = "Order placement status unclear"
-
-        if isinstance(processed_status, HyperliquidSuccessfulOrderStatus):
-            if processed_status.oid is not None:
-                if processed_status.status_type == "resting":
-                    order_id_to_fetch = processed_status.oid
-                    log_message_prefix = f"Order OID:{processed_status.oid} resting"
-                elif processed_status.status_type == "filled":
-                    order_id_to_fetch = processed_status.oid
-                    log_message_prefix = (
-                        f"Order OID:{processed_status.oid} filled (avgPx: "
-                        f"{processed_status.avg_px}, "
-                        f"sz: {processed_status.total_sz})"
-                    )
-                    logger.info(f"[{self.exchange_name}] {log_message_prefix}")
-                elif processed_status.status_type == "canceled":
-                    order_id_to_fetch = processed_status.oid
-                    log_message_prefix = (
-                        f"Order OID:{processed_status.oid} canceled (via object status)"
-                    )
-                    logger.info(f"[{self.exchange_name}] {log_message_prefix}")
-            elif processed_status.status_type == "canceled_str":
-                logger.info(
-                    f"[{self.exchange_name}] Order placement returned 'canceled' string status."
-                )
-                raise APIError(
-                    "Order placement resulted in immediate 'canceled' status (string). "
-                    "Cannot return Order object.",
-                    code=APIErrorCode.ORDER_REJECTED.value,
-                    exchange_message="canceled_str",
-                )
-
-        else:
-            logger.warning(
-                f"[{self.exchange_name}] Order placement failed with error: "
-                f"{processed_status.message}"
-            )
-            error_to_raise_from_status = self.error_mapper.map_string_error(
-                processed_status.message,
-                http_status=200,
-            )
-
-        if error_to_raise_from_status:
-            raise error_to_raise_from_status
-
-        if order_id_to_fetch is not None:
-            logger.info(f"[{self.exchange_name}] {log_message_prefix}. Fetching canonical status.")
-            await asyncio.sleep(self._config.get("post_order_status_fetch_delay_seconds", 0.2))
-            try:
-                final_order_status = await self.get_order_status(
-                    order_id=str(order_id_to_fetch), symbol=symbol
-                )
-                return final_order_status
-
-            except APIError as e_fetch:
-                logger.error(
-                    f"[{self.exchange_name}] {log_message_prefix}, "
-                    f"but failed to fetch canonical status: {e_fetch.message}"
-                )
-                raise APIError(
-                    f"{log_message_prefix}, but failed to retrieve final status: {e_fetch.message}",
-                    code=e_fetch.code,
-                    original_exception=e_fetch,
-                    exchange_message=e_fetch.exchange_message,
-                ) from e_fetch
-        else:
-            logger.warning(
-                f"[{self.exchange_name}] Order placement status unclear. Processed status: "
-                f"{processed_status!r}. No OID found to fetch canonical status."
-            )
-            raise APIError(
-                f"Order placement status unclear, no OID to confirm: "
-                f"{str(processed_status)[:100]}...",
-                code=APIErrorCode.UNKNOWN.value,
-            )
-
-    async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
-        """Cancel an existing order."""
-        if not symbol:
-            raise ValueError("Symbol is required to cancel Hyperliquid orders")
-
-        validated_response: HyperliquidRawExchangeResponse
-        try:
-            order_id_int: int
-            try:
-                order_id_int = int(order_id)
-            except ValueError as e_val_int:
-                logger.error(
-                    f"[{self.exchange_name}] Invalid order_id format for cancel: '{order_id}'. "
-                    f"Must be integer."
-                )
-                raise APIError(
-                    f"Invalid order_id format for cancel: '{order_id}'. Must be integer.",
-                    APIErrorCode.INVALID_PARAMS.value,
-                ) from e_val_int
-
-            validated_response = await self.trading_service.cancel_order_raw(
-                symbol=symbol, order_id=order_id_int
-            )
-        except APIError as e_service:
-            logger.error(
-                f"[{self.exchange_name}] APIError from trading_service.cancel_order_raw "
-                f"for OID {order_id}: {e_service.message}"
-            )
-            raise
-        except Exception as e_unhandled_service_call:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error calling "
-                f"trading_service.cancel_order_raw for OID {order_id}: {e_unhandled_service_call}",
-                exc_info=True,
-            )
-            raise APIError(
-                f"Unexpected error during service call for cancel order {order_id}: "
-                f"{e_unhandled_service_call}",
-                APIErrorCode.UNKNOWN.value,
-            ) from e_unhandled_service_call
-
-        if (
-            validated_response.status != "ok"
-            or not validated_response.data
-            or not validated_response.data.statuses
-        ):
-            mapped_error = self.error_mapper.map_exchange_error(
-                status_code=200,
-                error_body=str(validated_response.model_dump_json()),
-                error_data=validated_response.model_dump(),
-                request_path="/exchange (cancel_order)",
-            )
-            raise mapped_error
-
-        first_status_obj_raw = validated_response.data.statuses[0]
-        error_to_raise_from_status: APIError | None = None
-
-        arg_for_handler: dict[str, Any] | str
-        if isinstance(first_status_obj_raw, str):
-            arg_for_handler = first_status_obj_raw
-        else:
-            arg_for_handler = first_status_obj_raw.model_dump(by_alias=True, exclude_none=True)
-
-        processed_status = HyperliquidResponseHandler.process_first_exchange_status(
-            arg_for_handler, f"Cancel Order OID:{order_id}"
-        )
-
-        if isinstance(processed_status, HyperliquidSuccessfulOrderStatus):
-            try:
-                order_id_as_int_for_check = int(order_id)
-            except ValueError:
-                order_id_as_int_for_check = -1
-
-            if (
-                processed_status.status_type == "canceled"
-                and processed_status.oid == order_id_as_int_for_check
-            ):
-                logger.info(
-                    f"[{self.exchange_name}] Successfully cancelled order {order_id} "
-                    f"(object status: '{processed_status.status_type}')"
-                )
-                return True
-            elif processed_status.status_type == "canceled_str":
-                logger.info(
-                    f"[{self.exchange_name}] Successfully cancelled order {order_id} "
-                    f"(string status: '{processed_status.status_type}')"
-                )
-                return True
-            else:
-                logger.warning(
-                    f"[{self.exchange_name}] Cancel order {order_id} returned unexpected "
-                    f"successful status: "
-                    f"{processed_status.model_dump_json(exclude_none=True)!r}. "
-                    f"Assuming success."
-                )
-                return True
-        else:
-            logger.warning(
-                f"[{self.exchange_name}] Cancel order {order_id} failed with error: "
-                f"'{processed_status.message}'"
-            )
-            if "Order not found" in processed_status.message:
-                error_to_raise_from_status = APIError(
-                    f"Cancel failed: Order {order_id} not found.",
-                    code=APIErrorCode.ORDER_NOT_FOUND.value,
-                    exchange_message=processed_status.message,
-                )
-            else:
-                error_to_raise_from_status = self.error_mapper.map_string_error(
-                    processed_status.message,
-                    http_status=200,
-                )
-
-        if error_to_raise_from_status:
-            raise error_to_raise_from_status
-
-        logger.warning(
-            f"[{self.exchange_name}] Cancel order {order_id} status unclear after processing. "
-            f"Processed: {processed_status!r}. Raw arg to handler: {arg_for_handler!r}"
-        )
-        return False
+            hl_order_id = int(order_id)
+            return await self.trading_service.cancel_order(symbol=symbol, order_id=hl_order_id)
+        except ValueError:
+            _msg = f"Invalid order_id format for cancel_order: {order_id}. Must be an integer for Hyperliquid."
+            logger.error(f"[{self.exchange_name}] {_msg}")
+            raise ValueError(_msg)
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
-        """Cancels all open orders, optionally filtered by symbol.
-        Returns a list of CancelOrderResult for each attempt.
-        """
-        results: list[CancelOrderResult] = []
-        logger.info(
-            f"[{self.exchange_name}] Attempting to cancel all open orders"
-            f"{f' for symbol {symbol}' if symbol else ''}."
-        )
-        try:
-            open_orders = await self.get_open_orders(symbol=symbol)
-            if not open_orders:
-                logger.info(
-                    f"[{self.exchange_name}] No open orders found"
-                    f"{f' for symbol {symbol}' if symbol else ''} to cancel."
-                )
-                return []
-
-            for order_to_cancel in open_orders:
-                exch_order_id = order_to_cancel.exchange_order_id
-                client_id = order_to_cancel.client_order_id
-                order_symbol = order_to_cancel.symbol
-
-                if exch_order_id:  # Prefer exchange_order_id
-                    try:
-                        cancelled = await self.cancel_order(
-                            order_id=exch_order_id,
-                            symbol=order_symbol,
-                        )
-                        if cancelled:
-                            results.append(
-                                CancelOrderResult(
-                                    order_id=exch_order_id,
-                                    client_order_id=client_id,
-                                    symbol=order_symbol,
-                                    success=True,
-                                    message="Successfully cancelled.",
-                                    status=CancelOrderResultStatus.SUCCESS,
-                                )
-                            )
-                        else:
-                            results.append(
-                                CancelOrderResult(
-                                    order_id=exch_order_id,
-                                    client_order_id=client_id,
-                                    symbol=order_symbol,
-                                    success=False,
-                                    message="cancel_order returned False (unexpected).",
-                                    status=CancelOrderResultStatus.FAILED,
-                                )
-                            )
-                    except APIError as e_cancel:
-                        raw_body = (
-                            getattr(e_cancel.original_exception, "response_body", None)
-                            if isinstance(e_cancel.original_exception, APIError)
-                            else None
-                        )
-                        results.append(
-                            CancelOrderResult(
-                                order_id=exch_order_id,
-                                client_order_id=client_id,
-                                symbol=order_symbol,
-                                success=False,
-                                message=e_cancel.message,
-                                status=CancelOrderResultStatus.FAILED,
-                                raw_response=raw_body,
-                            )
-                        )
-                    except Exception as e_unexp_cancel:
-                        results.append(
-                            CancelOrderResult(
-                                order_id=exch_order_id,
-                                client_order_id=client_id,
-                                symbol=order_symbol,
-                                success=False,
-                                message=str(e_unexp_cancel),
-                                status=CancelOrderResultStatus.FAILED,
-                            )
-                        )
-                else:  # No usable ID
-                    logger.warning(
-                        f"[{self.exchange_name}] Open order object has no usable exchange_order_id "
-                        f"for cancellation. Order: {order_to_cancel!r}"
-                    )
-                    results.append(
-                        CancelOrderResult(
-                            order_id=order_to_cancel.exchange_order_id,  # Could be None
-                            client_order_id=order_to_cancel.client_order_id,
-                            symbol=order_to_cancel.symbol,
-                            success=False,
-                            message="Order has no exchange_order_id for cancellation.",
-                            status=CancelOrderResultStatus.FAILED,
-                        )
-                    )
-
-            num_successful = sum(1 for r in results if r.success)
-            if num_successful == len(open_orders):
-                logger.info(
-                    f"[{self.exchange_name}] Successfully cancelled all ({num_successful}) "
-                    f"open orders{f' for symbol {symbol}' if symbol else ''}."
-                )
-            else:
-                logger.warning(
-                    f"[{self.exchange_name}] Attempted to cancel {len(open_orders)} orders, "
-                    f"but only {num_successful} were confirmed cancelled"
-                    f"{f' for symbol {symbol}' if symbol else ''}."
-                )
-            return results
-
-        except APIError as e_fetch_orders:
-            logger.error(
-                f"[{self.exchange_name}] APIError fetching open orders for cancel_all_orders"
-                f"{f' (symbol: {symbol})' if symbol else ''}: {e_fetch_orders.message}"
-            )
-            return [
-                CancelOrderResult(
-                    order_id=None,
-                    symbol=symbol,
-                    success=False,
-                    message=f"Failed to fetch open orders: {e_fetch_orders.message}",
-                    status=CancelOrderResultStatus.FAILED,
-                    raw_response=getattr(e_fetch_orders.original_exception, "response_body", None)
-                    if isinstance(e_fetch_orders.original_exception, APIError)
-                    else None,
-                )
-            ]
-        except Exception as e_unexp_outer:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error during cancel_all_orders"
-                f"{f' (symbol: {symbol})' if symbol else ''}: {e_unexp_outer}",
-                exc_info=True,
-            )
-            return [
-                CancelOrderResult(
-                    order_id=None,
-                    symbol=symbol,
-                    success=False,
-                    message=f"Unexpected outer error: {str(e_unexp_outer)}",
-                    status=CancelOrderResultStatus.FAILED,
-                )
-            ]
+        """Cancel all open orders. Delegates to HyperliquidTradingService."""
+        return await self.trading_service.cancel_all_orders(symbol=symbol)
 
     async def get_account_summary(self) -> MarginAccountSummary | None:
         """Fetches and combines account balance and positions for Hyperliquid."""
@@ -1379,96 +920,39 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order:
-        """Fetches a specific order by its orderId to determine its status."""
-        if not self._wallet_address:
-            raise APIError(
-                "Wallet address required for fetching order status",
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
-            )
-        if not order_id:
-            raise ValueError("order_id is required for get_order on Hyperliquid.")
+        """Get order status. Delegates to HyperliquidTradingService's get_order method."""
+        # This method effectively uses get_order and then ensures an order is returned (not None).
+        # client_order_id is not used by Hyperliquid when order_id (exchange OID) is present.
         if not symbol:
-            raise ValueError("symbol is required for get_order on Hyperliquid.")
+            _msg = "Symbol is required for get_order_status on Hyperliquid."
+            logger.error(f"[{self.exchange_name}] {_msg}")
+            raise ValueError(_msg)
 
-        order_id_int: int
-        try:
-            order_id_int = int(order_id)
-        except ValueError as e_val_int:
-            logger.error(
-                f"[{self.exchange_name}] Invalid order_id format for get_order: "
-                f"'{order_id}'. Error: {e_val_int}"
-            )
+        # Call the class's get_order method, which handles the service call
+        order = await self.get_order(order_id=order_id, symbol=symbol)
+        if order is None:
             raise APIError(
-                f"Invalid order_id format: '{order_id}'",
-                code=APIErrorCode.INVALID_PARAMS.value,
-                original_exception=e_val_int,
-            ) from e_val_int
-
-        raw_historical_order: HyperliquidRawHistoricalOrder | None
-        try:
-            raw_historical_order = await self.trading_service.get_order_status_raw(
-                symbol=symbol, order_id=order_id_int
-            )
-        except APIError as e_service:
-            logger.error(
-                f"[{self.exchange_name}] APIError from trading_service.get_order_status_raw "
-                f"for OID {order_id}: {e_service.message}"
-            )
-            raise
-        except Exception as e_unhandled_service_call:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error calling "
-                f"trading_service.get_order_status_raw for OID {order_id}: "
-                f"{e_unhandled_service_call}",
-                exc_info=True,
-            )
-            raise APIError(
-                f"Unexpected error during service call for get_order OID {order_id}: "
-                f"{e_unhandled_service_call}",
-                APIErrorCode.UNKNOWN.value,
-            ) from e_unhandled_service_call
-
-        if raw_historical_order is None:
-            logger.info(
-                f"[{self.exchange_name}] Order {order_id} for symbol {symbol} not found by service."
-            )
-            raise APIError(
-                f"Order {order_id} not found for symbol {symbol}.",
+                message=f"Order {order_id} for symbol {symbol} not found on {self.exchange_name}.",
                 code=APIErrorCode.ORDER_NOT_FOUND.value,
+                exchange_name=self.exchange_name,  # Ensure self.exchange_name is accessible
             )
+        return order
 
+    async def get_order(
+        self, order_id: str, symbol: str | None = None
+    ) -> Order | None:  # Matches ExchangeAPI
+        """Get a specific order by ID. Delegates to HyperliquidTradingService's get_order method."""
+        if not symbol:
+            _msg = "Symbol is required for get_order on Hyperliquid."
+            logger.error(f"[{self.exchange_name}] {_msg}")
+            raise ValueError(_msg)
         try:
-            internal_order = self._hl_order_mapper.transform_raw_historical_order_to_internal(
-                raw_historical_order=raw_historical_order,
-                trigger=None,
-            )
-            return internal_order
-        except (ValidationError, ValueError) as e_map:
-            logger.error(
-                f"[{self.exchange_name}] Error mapping raw historical order for OID {order_id}: "
-                f"{e_map}. "
-                f"Raw: {
-                    raw_historical_order.model_dump_json(exclude_none=True)
-                    if raw_historical_order
-                    else 'None'
-                }"
-            )
-            raise APIError(
-                f"Failed to map order status response for OID {order_id}: {e_map}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                original_exception=e_map,
-            ) from e_map
-        except Exception as e_unexp_map:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error mapping order status for OID {order_id}: "
-                f"{e_unexp_map}",
-                exc_info=True,
-            )
-            raise APIError(
-                f"Unexpected error mapping order status for OID {order_id}: {e_unexp_map}",
-                APIErrorCode.UNKNOWN.value,
-                original_exception=e_unexp_map,
-            ) from e_unexp_map
+            hl_order_id = int(order_id)
+            return await self.trading_service.get_order(symbol=symbol, order_id=hl_order_id)
+        except ValueError:
+            _msg = f"Invalid order_id format for get_order: {order_id}. Must be an integer for Hyperliquid."
+            logger.error(f"[{self.exchange_name}] {_msg}")
+            raise ValueError(_msg)
 
     async def get_order_history(
         self,

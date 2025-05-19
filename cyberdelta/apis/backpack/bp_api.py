@@ -50,7 +50,6 @@ from cyberdelta.core.models import (
     TimeInForce,
     Trade,
 )
-from cyberdelta.core.models.enums import CancelOrderResultStatus
 from cyberdelta.core.models.market import Candle, OrderBook
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.operations import Transfer, Withdrawal
@@ -378,29 +377,8 @@ class BackpackAPI(ExchangeAPI):
         post_only: bool = False,
     ) -> Order:
         """
-        Place an order on Backpack Exchange. Conforms to ExchangeAPI interface.
-
-        Args:
-            symbol: Trading symbol (e.g., 'BTC_USDC')
-            side: Order side (BUY or SELL)
-            order_type: Order type (LIMIT, MARKET, etc.)
-            quantity: Order quantity (as Decimal)
-            time_in_force: Time in force (GTC, IOC, FOK).
-            price: Order price (required for limit orders, as Decimal)
-            stop_price: Stop price for stop orders (currently NOT supported by Backpack
-                        for basic order placement via this method).
-            client_order_id: Custom client order ID
-            reduce_only: Whether this is a reduce-only order (bool)
-            post_only: Whether this is a post-only order (bool)
-
-        Returns:
-            Order object if successful.
-
-        Raises:
-            ValueError: If price is missing for a LIMIT order.
-            APIError: On API errors or if the order placement fails.
+        Place an order on Backpack Exchange. Delegates to BackpackTradingService.
         """
-        # Delegate to trading_service which returns internal Order model
         return await self.trading_service.place_order(
             symbol=symbol,
             side=side,
@@ -408,17 +386,15 @@ class BackpackAPI(ExchangeAPI):
             quantity=quantity,
             time_in_force=time_in_force,
             price=price,
-            stop_price=stop_price,
+            stop_price=stop_price,  # Pass stop_price to service
             client_order_id=client_order_id,
             post_only=post_only,
+            # reduce_only is not directly supported by Backpack place_order, handled by order type if applicable
         )
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
-        """Cancel an existing order. Returns True if successful.
-        Delegates to BackpackTradingService.
-        """
+        """Cancel an existing order. Delegates to BackpackTradingService."""
         if not symbol:
-            # Backpack cancel order endpoint requires symbol in query params
             raise ValueError("Symbol is required to cancel an order on Backpack.")
         return await self.trading_service.cancel_order(order_id=order_id, symbol=symbol)
 
@@ -576,18 +552,11 @@ class BackpackAPI(ExchangeAPI):
         await super().connect_websocket()
 
     async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
-        """Fetch a single order by its ID.
-        Delegates to BackpackTradingService.
-        """
+        """Fetch a single order by its ID. Delegates to BackpackTradingService."""
         if not symbol:
             _error_msg = "Symbol is required for get_order on Backpack."
-            # Adhering to project rules: Log error if appropriate, raise specific error.
-            # However, this is primarily a validation of input params.
-            # ValueError is suitable here for invalid arguments before an API call.
-            logger.error(_error_msg)  # Log for visibility
+            logger.error(_error_msg)
             raise ValueError(_error_msg)
-
-        # Delegate to trading_service.get_order which should return internal Order or None
         return await self.trading_service.get_order(
             order_id=order_id, symbol=symbol, client_order_id=None
         )
@@ -595,12 +564,17 @@ class BackpackAPI(ExchangeAPI):
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order:
-        """Fetch the status of a specific order.
-        Delegates to self.get_order which fetches full order details.
-        """
-        # client_order_id is not directly used by Backpack's get_order if order_id is present
-        # The get_order method itself handles symbol requirement.
-        order = await self.get_order(order_id=order_id, symbol=symbol)
+        """Fetch the status of a specific order. Delegates to BackpackTradingService's get_order."""
+        if not symbol:
+            # Symbol is required by the service's get_order method.
+            _error_msg = "Symbol is required for get_order_status on Backpack."
+            logger.error(_error_msg)
+            raise ValueError(_error_msg)
+
+        # Now symbol is guaranteed to be a str
+        order = await self.trading_service.get_order(
+            order_id=order_id, symbol=symbol, client_order_id=client_order_id
+        )
         if order is None:
             raise APIError(
                 f"Order {order_id} not found for symbol {symbol}.",
@@ -635,9 +609,9 @@ class BackpackAPI(ExchangeAPI):
 
     async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Fetch all open orders for a given symbol or all symbols.
-        Delegates to BackpackTradingService.
+        Delegates to BackpackTradingService's get_open_orders method.
         """
-        return await self.trading_service.get_all_open_orders(symbol=symbol)
+        return await self.trading_service.get_open_orders(symbol=symbol)
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
         """Register a handler for a WebSocket topic and send subscription via WebSocketManager."""
@@ -686,150 +660,5 @@ class BackpackAPI(ExchangeAPI):
         await super().close()
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
-        """Cancels all open orders, optionally filtered by symbol."""
-        results: list[CancelOrderResult] = []
-        logger.info(
-            f"[{self.exchange_name}] Attempting to cancel all open orders"
-            f"{f' for symbol {symbol}' if symbol else ''}."
-        )
-        try:
-            open_orders = await self.get_open_orders(symbol=symbol)
-            if not open_orders:
-                logger.info(
-                    f"[{self.exchange_name}] No open orders found"
-                    f"{f' for symbol {symbol}' if symbol else ''} to cancel."
-                )
-                return []
-
-            for order_to_cancel in open_orders:
-                exch_order_id = order_to_cancel.exchange_order_id
-                client_id = order_to_cancel.client_order_id
-                order_symbol = order_to_cancel.symbol
-
-                if not exch_order_id:
-                    logger.warning(
-                        f"[{self.exchange_name}] Open order has no exchange_order_id. "
-                        f"Order details: client_id={client_id}, symbol={order_symbol}. Skipping."
-                    )
-                    results.append(
-                        CancelOrderResult(
-                            order_id=None,
-                            client_order_id=client_id,
-                            symbol=order_symbol,
-                            success=False,
-                            message="Order has no exchange_order_id for cancellation.",
-                            status=CancelOrderResultStatus.FAILED,
-                        )
-                    )
-                    continue
-                if not order_symbol:  # Should not happen if get_open_orders returns valid Orders
-                    logger.error(
-                        f"[{self.exchange_name}] Open order (ID: {exch_order_id}) missing symbol. "
-                        f"Skipping."
-                    )
-                    results.append(
-                        CancelOrderResult(
-                            order_id=exch_order_id,
-                            client_order_id=client_id,
-                            symbol=None,
-                            success=False,
-                            message="Order is missing symbol information.",
-                            status=CancelOrderResultStatus.FAILED,
-                        )
-                    )
-                    continue
-
-                try:
-                    cancelled = await self.cancel_order(
-                        order_id=exch_order_id,
-                        symbol=order_symbol,
-                    )
-                    results.append(
-                        CancelOrderResult(
-                            order_id=exch_order_id,
-                            client_order_id=client_id,
-                            symbol=order_symbol,
-                            success=cancelled,
-                            message="Successfully cancelled." if cancelled else "Failed to cancel.",
-                            status=CancelOrderResultStatus.SUCCESS
-                            if cancelled
-                            else CancelOrderResultStatus.FAILED,
-                        )
-                    )
-                except APIError as e_cancel:
-                    results.append(
-                        CancelOrderResult(
-                            order_id=exch_order_id,
-                            client_order_id=client_id,
-                            symbol=order_symbol,
-                            success=False,
-                            message=e_cancel.message,
-                            status=CancelOrderResultStatus.FAILED,
-                            raw_response=getattr(e_cancel.original_exception, "response_body", None)
-                            if isinstance(e_cancel.original_exception, APIError)
-                            else None,
-                        )
-                    )
-                except Exception as e_unexp_cancel:
-                    logger.error(
-                        f"[{self.exchange_name}] Unexpected error cancelling order {exch_order_id} "
-                        f"for {order_symbol}: {e_unexp_cancel}",
-                        exc_info=True,
-                    )
-                    results.append(
-                        CancelOrderResult(
-                            order_id=exch_order_id,
-                            client_order_id=client_id,
-                            symbol=order_symbol,
-                            success=False,
-                            message=str(e_unexp_cancel),
-                            status=CancelOrderResultStatus.FAILED,
-                        )
-                    )
-            num_successful = sum(1 for r in results if r.success)
-            if num_successful == len(open_orders):
-                logger.info(
-                    f"[{self.exchange_name}] Successfully cancelled all ({num_successful}) "
-                    f"open orders{f' for symbol {symbol}' if symbol else ''}."
-                )
-            else:
-                logger.warning(
-                    f"[{self.exchange_name}] Attempted to cancel {len(open_orders)} orders, "
-                    f"but only {num_successful} were confirmed cancelled"
-                    f"{f' for symbol {symbol}' if symbol else ''}."
-                )
-
-        except APIError as e_fetch_orders:
-            logger.error(
-                f"[{self.exchange_name}] APIError fetching open orders for cancel_all_orders"
-                f"{f' (symbol: {symbol})' if symbol else ''}: {e_fetch_orders.message}"
-            )
-            # To align with returning list[CancelOrderResult], even on fetch failure
-            results.append(
-                CancelOrderResult(
-                    order_id=None,
-                    symbol=symbol,
-                    success=False,
-                    message=f"Failed to fetch open orders: {e_fetch_orders.message}",
-                    status=CancelOrderResultStatus.FAILED,
-                    raw_response=getattr(e_fetch_orders.original_exception, "response_body", None)
-                    if isinstance(e_fetch_orders.original_exception, APIError)
-                    else None,
-                )
-            )
-        except Exception as e_unexp_outer:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error during cancel_all_orders"
-                f"{f' (symbol: {symbol})' if symbol else ''}: {e_unexp_outer}",
-                exc_info=True,
-            )
-            results.append(
-                CancelOrderResult(
-                    order_id=None,
-                    symbol=symbol,
-                    success=False,
-                    message=f"Unexpected outer error: {str(e_unexp_outer)}",
-                    status=CancelOrderResultStatus.FAILED,
-                )
-            )
-        return results
+        """Cancels all open orders, optionally filtered by symbol. Delegates to BackpackTradingService."""
+        return await self.trading_service.cancel_all_orders(symbol=symbol)
