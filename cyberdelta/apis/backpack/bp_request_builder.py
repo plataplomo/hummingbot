@@ -28,9 +28,11 @@ class BackpackRequestBuilder:
         """
         self._api_config = config
         # Ensure base_url is available or handle its absence appropriately
-        self.base_url = str(self._api_config.get("base_url", "")) # Ensure string
+        self.base_url = str(self._api_config.get("base_url", ""))  # Ensure string
         if not self.base_url:
-            logger.error("base_url not found or empty in API configuration for BackpackRequestBuilder.")
+            logger.error(
+                "base_url not found or empty in API configuration for BackpackRequestBuilder."
+            )
             # Consider raising ConfigurationError or similar custom exception
             raise ValueError(
                 "base_url not found or empty in API configuration for BackpackRequestBuilder"

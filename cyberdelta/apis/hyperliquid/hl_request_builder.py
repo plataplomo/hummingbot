@@ -47,6 +47,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawUserStateRequestPayload,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import HyperliquidRawUserFillsRequestPayload
 from cyberdelta.core.models import OrderSide, OrderType, TimeInForce
 
 
@@ -290,19 +291,22 @@ class HyperliquidRequestBuilder:
         wallet_address: str,
     ) -> HyperliquidRawUserStateRequestPayload:
         """
-        Builds the Pydantic model for fetching the user's clearinghouse state.
-
-        Args:
-            wallet_address: The user's wallet address.
-
-        Returns:
-            A HyperliquidRawUserStateRequestPayload Pydantic model instance.
+        Builds the Pydantic model for fetching user state information.
         """
         if not wallet_address:
             # The RawLaxEthereumAddressStrHL in the model will handle more specific validation
             raise ValueError("Wallet address cannot be empty for user_state request.")
         # Explicitly provide 'type' to satisfy Pydantic, even if model has a default Field value.
         return HyperliquidRawUserStateRequestPayload(type="clearinghouseState", user=wallet_address)
+
+    @staticmethod
+    def build_user_fills_request_payload(
+        wallet_address: str,
+    ) -> HyperliquidRawUserFillsRequestPayload:
+        """
+        Builds the Pydantic model for fetching user fills information.
+        """
+        return HyperliquidRawUserFillsRequestPayload(type="userFills", user=wallet_address)
 
     # No changes needed for comments about /info endpoints and build_info_request_payload
     # as those are already handled or determined to not need specific Pydantic models for the

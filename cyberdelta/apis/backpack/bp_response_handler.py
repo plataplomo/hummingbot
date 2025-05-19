@@ -5,6 +5,7 @@ Validates raw JSON data against Pydantic models specific to Backpack\'s API endp
 """
 
 from collections.abc import Mapping
+
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
@@ -58,7 +59,10 @@ class BackpackResponseHandler:
 
     @staticmethod
     def handle_get_ticker_response(
-        raw_response_content: RawJsonResponse, symbol: str, status_code: int, headers: Mapping[str, str]
+        raw_response_content: RawJsonResponse,
+        symbol: str,
+        status_code: int,
+        headers: Mapping[str, str],
     ) -> BackpackRawTicker:
         """Validates the raw response for the Get Ticker endpoint."""
         context = f"ticker ({symbol}) - Status: {status_code}"
@@ -77,7 +81,10 @@ class BackpackResponseHandler:
 
     @staticmethod
     def handle_get_order_book_response(
-        raw_response_content: RawJsonResponse, symbol: str, status_code: int, headers: Mapping[str, str]
+        raw_response_content: RawJsonResponse,
+        symbol: str,
+        status_code: int,
+        headers: Mapping[str, str],
     ) -> BackpackRawOrderBook:
         """Validates the raw response for the Get Order Book endpoint."""
         context = f"order book ({symbol}) - Status: {status_code}"
@@ -96,7 +103,10 @@ class BackpackResponseHandler:
 
     @staticmethod
     def handle_get_recent_trades_response(
-        raw_response_content: RawJsonResponse, symbol: str, status_code: int, headers: Mapping[str, str]
+        raw_response_content: RawJsonResponse,
+        symbol: str,
+        status_code: int,
+        headers: Mapping[str, str],
     ) -> list[BackpackRawTrade]:
         """Validates the raw response for the Get Recent Trades endpoint."""
         context = f"recent trades ({symbol}) - Status: {status_code}"
@@ -245,14 +255,17 @@ class BackpackResponseHandler:
 
     @staticmethod
     def handle_get_funding_rate_response(
-        raw_response_content: RawJsonResponse, symbol: str, status_code: int, headers: Mapping[str, str]
+        raw_response_content: RawJsonResponse,
+        symbol: str,
+        status_code: int,
+        headers: Mapping[str, str],
     ) -> BackpackRawFundingRate:
         """Validates the raw response for the Get Funding Rate endpoint."""
         context = f"funding rate ({symbol}) - Status: {status_code}"
         if not isinstance(raw_response_content, dict):
             # Check if it is a list, as HL funding rate is a list
             if isinstance(raw_response_content, list):
-                if not raw_response_content: # Empty list
+                if not raw_response_content:  # Empty list
                     raise APIError(
                         message=f"Empty list for {context} response, expected dict or non-empty list.",
                         code=APIErrorCode.INVALID_RESPONSE.value,
@@ -263,13 +276,13 @@ class BackpackResponseHandler:
                 else:
                     raise APIError(
                         message=f"Unexpected item type in list for {context} response: expected dict, "
-                                f"got {type(raw_response_content[0])}",
+                        f"got {type(raw_response_content[0])}",
                         code=APIErrorCode.INVALID_RESPONSE.value,
                     )
             else:
                 raise APIError(
                     message=f"Unexpected {context} response format: expected dict or list, "
-                            f"got {type(raw_response_content)}",
+                    f"got {type(raw_response_content)}",
                     code=APIErrorCode.INVALID_RESPONSE.value,
                 )
         else:
@@ -377,7 +390,11 @@ class BackpackResponseHandler:
 
     @staticmethod
     def handle_get_market_data_response(
-        raw_response_content: RawJsonResponse, symbol: str, timeframe: str, status_code: int, headers: Mapping[str, str]
+        raw_response_content: RawJsonResponse,
+        symbol: str,
+        timeframe: str,
+        status_code: int,
+        headers: Mapping[str, str],
     ) -> list[RawJson]:  # Return list of RawJson until specific Kline model exists
         """Validates the raw response for the Get Market Data (Klines) endpoint."""
         context = f"market data (klines {timeframe}) for {symbol} - Status: {status_code}"
@@ -405,7 +422,10 @@ class BackpackResponseHandler:
 
     @staticmethod
     def handle_get_historical_trades_response(
-        raw_response_content: RawJsonResponse, symbol: str, status_code: int, headers: Mapping[str, str]
+        raw_response_content: RawJsonResponse,
+        symbol: str,
+        status_code: int,
+        headers: Mapping[str, str],
     ) -> list[BackpackRawTrade]:
         """Validates the raw response for the Get Historical Trades endpoint."""
         context = f"historical trades ({symbol}) - Status: {status_code}"
@@ -508,3 +528,36 @@ class BackpackResponseHandler:
                 # For now, we'll be lenient and collect valid ones.
                 # Consider if this behavior is desired or if it should be stricter.
         return validated_orders
+
+    @staticmethod
+    def handle_transfer_response(
+        raw_response_content: RawJsonResponse,
+    ) -> RawJsonResponse: # Returns the validated raw dict
+        """Validates the raw response for an internal capital transfer.
+        Expects a dict with 'success' (bool), optional 'message' (str), and optional 'transferId' (str).
+        """
+        context = "internal transfer response"
+        if not isinstance(raw_response_content, dict):
+            raise APIError(
+                message=f"Unexpected {context} format: expected dict, got {type(raw_response_content)}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            )
+
+        # Basic structure validation
+        if "success" not in raw_response_content or not isinstance(raw_response_content["success"], bool):
+            raise APIError(
+                message=f"Invalid {context}: 'success' field missing or not a boolean. Got: {raw_response_content.get('success')}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            )
+        
+        if "message" in raw_response_content and not isinstance(raw_response_content["message"], str):
+            logger.warning(f"[{__name__}] {context} 'message' field is not a string: {raw_response_content['message']}")
+            # Don't raise, but log. Message is optional and for info.
+
+        if "transferId" in raw_response_content and not isinstance(raw_response_content["transferId"], str):
+            logger.warning(f"[{__name__}] {context} 'transferId' field is not a string: {raw_response_content['transferId']}")
+            # Don't raise, but log. TransferId is optional and for info.
+
+        # If successful, the mapper will use this dict to create an internal Transfer model.
+        # If not successful (success=False), the mapper should handle this appropriately.
+        return raw_response_content

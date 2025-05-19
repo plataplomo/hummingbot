@@ -69,7 +69,7 @@ def backpack_market_data_service(
         exchange_name="backpack_test",
     )
     # Replace the internally created mapper with a mock for testing its interactions
-    service._mapper = MagicMock(spec=BackpackOrderMapper)
+    service._mapper = MagicMock(spec=BackpackOrderMapper) # type: ignore[protected-access]
     return service
 
 

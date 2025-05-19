@@ -28,10 +28,10 @@ Example:
 import logging
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 
 from pydantic import ValidationError
 
+from cyberdelta.apis.backpack.bp_response_handler import RawJsonResponse
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
 from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
@@ -61,6 +61,8 @@ from cyberdelta.core.models import (
     Trade,
 )
 from cyberdelta.core.models.enums import (
+    InternalTransferStatus,
+    InternalWithdrawalStatus,
     OrderExpiryReason,
     OrderSide,
     OrderStatus,
@@ -72,6 +74,12 @@ from cyberdelta.core.models.enums import (
 )
 from cyberdelta.core.models.margin_account import BackpackMarginDetails
 from cyberdelta.core.models.market import Candle, OrderBook
+from cyberdelta.core.models.operations import (
+    BackpackTransferDetails,
+    BackpackWithdrawalDetails,
+    Transfer,
+    Withdrawal,
+)
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 logger = logging.getLogger(__name__)
@@ -889,135 +897,313 @@ class BackpackOrderMapper:
         derivative_positions_raw: list[BackpackRawPosition],
     ) -> MarginAccountSummary:
         """
-        Transforms raw Backpack account settings, balances, and positions into an
-        internal MarginAccountSummary model.
+        Transforms raw Backpack account settings, along with separately fetched raw balances
+        and positions, into an internal `MarginAccountSummary` model.
 
         Args:
-            raw_settings: Validated raw account summary/settings from Backpack.
-            spot_balances_raw: Dictionary of raw BackpackRawBalance models.
-            derivative_positions_raw: List of raw BackpackRawPosition models.
+            raw_settings: The validated `BackpackRawAccountSummary` Pydantic model (contains settings).
+            spot_balances_raw: A dictionary of validated raw spot balances.
+            derivative_positions_raw: A list of validated raw derivative positions.
 
         Returns:
-            MarginAccountSummary: The populated internal margin account summary.
+            MarginAccountSummary: The corresponding internal `MarginAccountSummary` model.
+
+        Raises:
+            ValueError: If critical numeric fields cannot be parsed during sub-transformations.
         """
-        current_time_utc = datetime.now(UTC)
+        try:
+            internal_spot_balances = [
+                BackpackOrderMapper.transform_raw_balance_to_internal(symbol, bal_raw)
+                for symbol, bal_raw in spot_balances_raw.items()
+            ]
+            internal_derivative_positions = [
+                BackpackOrderMapper.transform_raw_position_to_internal(pos_raw)
+                for pos_raw in derivative_positions_raw
+            ]
 
-        # --- Transform raw balances to internal SpotBalance models ---
-        internal_spot_balances: dict[str, SpotBalance] = {}
-        for asset_symbol, raw_balance in spot_balances_raw.items():
-            try:
-                internal_spot_balances[asset_symbol.upper()] = (
-                    BackpackOrderMapper.transform_raw_balance_to_internal(asset_symbol, raw_balance)
-                )
-            except ValueError as e:
-                logger.warning(
-                    f"[BackpackOrderMapper] Failed to transform raw balance for {asset_symbol} "
-                    f"in account summary: {e}. Skipping."
-                )
-                continue
+            calculated_total_equity = Decimal("0.0")
+            calculated_available_equity = Decimal("0.0")
+            calculated_total_position_notional = Decimal("0.0")
+            calculated_total_unrealized_pnl = Decimal("0.0")
+            # This will be the sum of USD-equivalent spot balances for BackpackMarginDetails
+            calculated_assets_value_spot = Decimal("0.0")
 
-        # --- Transform raw positions to internal DerivativePosition models ---
-        internal_derivative_positions: list[DerivativePosition] = []
-        for raw_position in derivative_positions_raw:
-            try:
-                internal_derivative_positions.append(
-                    BackpackOrderMapper.transform_raw_position_to_internal(raw_position)
-                )
-            except ValueError as e:
-                logger.warning(
-                    f"[BackpackOrderMapper] Failed to transform raw position for "
-                    f"{raw_position.symbol} in account summary: {e}. Skipping."
-                )
-                continue
+            for sb in internal_spot_balances:
+                # Assuming assets like USDC, USDT, USD are 1:1 with USD for equity/balance calculations
+                # This might need more sophisticated price oracle logic for other assets
+                if sb.asset.upper() in ["USD", "USDC", "USDT"]:
+                    calculated_total_equity += sb.total_quantity
+                    calculated_available_equity += sb.available_quantity
+                    calculated_assets_value_spot += sb.total_quantity
 
-        # Calculations will use the now internally transformed spot_balances and
-        # derivative_positions
+            for dp in internal_derivative_positions:
+                if dp.unrealized_pnl is not None:
+                    calculated_total_unrealized_pnl += dp.unrealized_pnl
+                if dp.entry_price is not None:  # Only need to check entry_price for None
+                    # Ensure size and entry_price are finite before multiplication
+                    if dp.size.is_finite() and dp.entry_price.is_finite():
+                        calculated_total_position_notional += abs(dp.size * dp.entry_price)
 
-        # --- Calculate sums from derivative positions ---
-        total_position_notional = Decimal("0.0")
-        total_unrealized_pnl = Decimal("0.0")
+            calculated_total_equity += calculated_total_unrealized_pnl
 
-        if internal_derivative_positions:  # Use the transformed internal list
-            for pos in internal_derivative_positions:
-                if pos.entry_price is not None and pos.size != Decimal("0"):
-                    # Ensure entry_price is not None before multiplication
-                    total_position_notional += abs(pos.size) * pos.entry_price
-                if pos.unrealized_pnl is not None:
-                    total_unrealized_pnl += pos.unrealized_pnl
+            bp_details = BackpackMarginDetails(
+                assets_value=calculated_assets_value_spot,
+                borrow_liability=None,
+                liabilities_value=None,
+                locked_equity=None,
+                margin_fraction=None,
+                # raw_settings.leverage_limit is Decimal (non-optional after Pydantic validation)
+                imf_raw=str(raw_settings.leverage_limit),  # No None check needed
+                mmf_raw=None,
+            )
 
-        # --- Approximate total equity and available equity from spot balances ---
-        calculated_total_equity = Decimal("0.0")
-        calculated_available_equity = Decimal("0.0")
-
-        usdc_like_assets = ("USDC", "USD", "USDT")
-        for (
-            asset_symbol,
-            balance,
-        ) in internal_spot_balances.items():  # Use transformed internal dict
-            if asset_symbol.upper() in usdc_like_assets:
-                calculated_total_equity += balance.total_quantity
-                calculated_available_equity += balance.available_quantity
-
-        calculated_total_equity += total_unrealized_pnl
-
-        # --- Populate BackpackMarginDetails ---
-        assets_value_approx = Decimal("0.0")
-        for (
-            asset_symbol,
-            balance,
-        ) in internal_spot_balances.items():  # Use transformed internal dict
-            if asset_symbol.upper() in usdc_like_assets:
-                assets_value_approx += balance.total_quantity
-
-        final_assets_value_for_details: Decimal | None = None
-        if assets_value_approx > Decimal("0.0"):
-            final_assets_value_for_details = assets_value_approx
-
-        margin_fraction_calc = None
-
-        bp_details = BackpackMarginDetails(
-            assets_value=final_assets_value_for_details,
-            borrow_liability=None,
-            liabilities_value=None,
-            locked_equity=None,
-            margin_fraction=margin_fraction_calc,
-            imf_raw=None,
-            mmf_raw=None,
-        )
-
-        return MarginAccountSummary(
-            exchange=ExchangeName.BACKPACK.value,
-            timestamp=current_time_utc,
-            total_equity=calculated_total_equity,
-            available_equity=calculated_available_equity,
-            total_initial_margin_required=None,
-            total_maintenance_margin_required=None,
-            total_position_notional=total_position_notional
-            if internal_derivative_positions
-            else None,
-            total_unrealized_pnl=total_unrealized_pnl if internal_derivative_positions else None,
-            hl_details=None,
-            bp_details=bp_details,
-        )
+            return MarginAccountSummary(
+                exchange=ExchangeName.BACKPACK.value,
+                timestamp=datetime.now(UTC),
+                total_equity=calculated_total_equity,
+                available_equity=calculated_available_equity,
+                total_initial_margin_required=None,  # Backpack doesn't provide this directly in summary
+                total_maintenance_margin_required=None,  # Backpack doesn't provide this directly in summary
+                total_position_notional=calculated_total_position_notional
+                if internal_derivative_positions
+                else Decimal("0.0"),
+                total_unrealized_pnl=calculated_total_unrealized_pnl
+                if internal_derivative_positions
+                else Decimal("0.0"),
+                bp_details=bp_details,
+                hl_details=None,  # Not applicable for Backpack
+            )
+        except (ValidationError, TypeError, AttributeError, KeyError) as e:
+            logger.error(
+                f"[BackpackOrderMapper] Error transforming raw account summary components: {e}. "
+                f"Raw Settings: {raw_settings}, Spot Balances Count: {len(spot_balances_raw)}, "
+                f"Derivative Positions Count: {len(derivative_positions_raw)}",
+                exc_info=True,
+            )
+            raise ValueError(f"Error transforming raw account summary components: {e}") from e
 
     @staticmethod
     def transform_raw_withdrawal_response_to_internal(
-        raw: BackpackRawWithdrawalResponse,
-    ) -> dict[str, Any]:
+        raw_response: BackpackRawWithdrawalResponse,
+        asset: str,
+        quantity: Decimal,
+        address: str,
+        network: str | None,
+        client_withdrawal_id: str | None,
+        tag: str | None,
+    ) -> Withdrawal:
         """
-        Transforms a validated raw Backpack withdrawal response (`BackpackRawWithdrawalResponse`)
-        into a dictionary. Currently, this is a passthrough as no specific internal model
-        for withdrawal confirmation exists beyond the raw structure.
+        Transforms a raw Backpack withdrawal response into an internal `Withdrawal` model.
 
         Args:
-            raw (BackpackRawWithdrawalResponse): Validated raw withdrawal response data.
+            raw_response: The validated `BackpackRawWithdrawalResponse` Pydantic model.
+            asset: The asset symbol being withdrawn.
+            quantity: The amount of the asset withdrawn.
+            address: The destination address.
+            network: The blockchain network used.
+            client_withdrawal_id: Client-provided ID for the withdrawal.
+            tag: Destination tag/memo, if provided.
 
         Returns:
-            dict[str, Any]: The withdrawal response data as a dictionary.
+            Withdrawal: The corresponding internal `Withdrawal` model.
         """
-        # TODO: Define a proper internal WithdrawalConfirmation model and map fully.
-        # For now, return the raw model's dict representation (excluding unset fields).
-        return raw.model_dump(exclude_unset=True)
+        try:
+            withdrawal_id = raw_response.id
+            raw_status = raw_response.status
+            timestamp_str = raw_response.created_at
+            fee_str = raw_response.fee
+            tx_hash_str = raw_response.transaction_hash
+
+            internal_status = InternalWithdrawalStatus.UNKNOWN
+            if raw_status:
+                status_upper = raw_status.upper()
+                if status_upper in ["COMPLETED", "SUCCESS", "PROCESSED"]:
+                    internal_status = InternalWithdrawalStatus.COMPLETED
+                elif status_upper == "PENDING":
+                    internal_status = InternalWithdrawalStatus.PENDING
+                elif status_upper in ["FAILED", "FAILURE", "REJECTED"]:
+                    internal_status = InternalWithdrawalStatus.FAILED
+                elif status_upper == "CANCELLED":
+                    internal_status = InternalWithdrawalStatus.CANCELED
+                else:
+                    logger.warning(
+                        f"Unknown Backpack withdrawal status: {raw_status}, mapping to UNKNOWN."
+                    )
+
+            timestamp_value: datetime
+            if timestamp_str:
+                try:
+                    # parse_datetime_utc raises ValueError for unparsable non-None input
+                    parsed_dt = parse_datetime_utc(timestamp_str, field_name="created_at")
+                    if (
+                        parsed_dt is None
+                    ):  # Should not happen if timestamp_str is not None and parse_datetime_utc is robust
+                        logger.warning(
+                            f"parse_datetime_utc returned None for non-None input: {timestamp_str}, defaulting to now()"
+                        )
+                        timestamp_value = datetime.now(UTC)
+                    else:
+                        timestamp_value = parsed_dt
+                except ValueError:
+                    logger.warning(
+                        f"Could not parse withdrawal timestamp string: {timestamp_str}, defaulting to now()"
+                    )
+                    timestamp_value = datetime.now(UTC)
+            else:
+                timestamp_value = datetime.now(UTC)
+
+            fee = parse_decimal_value(fee_str, field_name="fee", allow_none=True)
+
+            bp_details = BackpackWithdrawalDetails(
+                blockchain=network or raw_response.blockchain,
+                is_internal=raw_response.is_internal,
+                client_id=client_withdrawal_id or raw_response.client_id,
+                identifier=raw_response.identifier,
+                fiat_fee=parse_decimal_value(
+                    raw_response.fiat_fee, field_name="fiat_fee", allow_none=True
+                )
+                if raw_response.fiat_fee is not None
+                else None,
+                fiat_state=raw_response.fiat_state,
+                fiat_symbol=raw_response.fiat_symbol,
+                provider_id=raw_response.provider_id,
+                subaccount_id=raw_response.subaccount_id,
+                bank_name=raw_response.bank_name,
+                bank_identifier=raw_response.bank_identifier,
+                account_identifier=raw_response.account_identifier,
+            )
+
+            return Withdrawal(
+                id=str(withdrawal_id),
+                exchange=ExchangeName.BACKPACK.value,
+                status=internal_status,
+                asset=asset,
+                quantity=quantity,
+                address=address,
+                timestamp=timestamp_value,  # Ensure this is always datetime
+                fee=fee,
+                tx_hash=tx_hash_str,
+                response_message=None,
+                bp_details=bp_details,
+            )
+        except (ValidationError, TypeError, AttributeError, KeyError) as e:
+            logger.error(
+                f"[BackpackOrderMapper] Error transforming raw withdrawal response: {e}. Raw: {raw_response}",
+                exc_info=True,
+            )
+            raise ValueError(f"Error transforming raw withdrawal response: {e}") from e
+
+    @staticmethod
+    def transform_raw_transfer_to_internal(
+        raw_response: RawJsonResponse,
+        asset: str,
+        quantity: Decimal,
+        from_account_type_raw: str,
+        to_account_type_raw: str,
+        client_transfer_id: str | None,
+    ) -> Transfer:
+        """
+        Transforms a raw Backpack transfer response into an internal `Transfer` model.
+
+        Args:
+            raw_response: The raw JSON dictionary response from the transfer API call.
+            asset: The asset symbol being transferred.
+            quantity: The amount of the asset transferred.
+            from_account_type_raw: The raw string representing the source account type from Backpack.
+            to_account_type_raw: The raw string representing the destination account type from Backpack.
+            client_transfer_id: Client-provided ID for the transfer.
+
+        Returns:
+            Transfer: The corresponding internal `Transfer` model.
+        """
+        try:
+            if not isinstance(raw_response, dict):
+                logger.error(
+                    f"[BackpackOrderMapper] Raw transfer response was not a dictionary. Type: {type(raw_response)}"
+                )
+                raise ValueError(f"Raw transfer response is not a dict: {type(raw_response)}")
+
+            transfer_id = str(
+                raw_response.get("id", f"fallback_id_{datetime.now(UTC).timestamp()}")
+            )
+            raw_status = raw_response.get("status")
+            timestamp_from_response = raw_response.get("createdAt")
+            response_msg = None  # Explicitly None
+
+            internal_status = InternalTransferStatus.UNKNOWN
+            if raw_status:
+                status_upper = str(raw_status).upper()
+                if status_upper in ["COMPLETED", "SUCCESS", "PROCESSED"]:
+                    internal_status = InternalTransferStatus.COMPLETED
+                elif status_upper == "PENDING":
+                    internal_status = InternalTransferStatus.PENDING
+                elif status_upper in ["FAILED", "FAILURE", "REJECTED"]:
+                    internal_status = InternalTransferStatus.FAILED
+                else:
+                    logger.warning(
+                        f"Unknown Backpack transfer status: {raw_status}, mapping to UNKNOWN."
+                    )
+
+            # timestamp logic for transfers
+            final_timestamp: datetime = datetime.now(UTC)  # Default
+            if isinstance(timestamp_from_response, (str, int, float)):
+                try:
+                    parsed_dt = parse_datetime_utc(timestamp_from_response, field_name="createdAt")
+                    if parsed_dt is not None:
+                        final_timestamp = parsed_dt
+                    else:  # Should not happen if input is valid type and parse_datetime_utc is robust
+                        logger.warning(
+                            f"parse_datetime_utc returned None for valid typed input: {timestamp_from_response}"
+                        )
+                except ValueError:  # Covers unparseable strings or invalid numeric timestamps
+                    # Attempt to parse as simple numeric (ms or s) if string parsing failed and input was string originally
+                    # or if input was int/float and parse_datetime_utc heuristics failed.
+                    # This is a fallback, parse_datetime_utc is generally preferred.
+                    if isinstance(timestamp_from_response, (int, float)):
+                        try:
+                            numeric_val = float(timestamp_from_response)
+                            final_timestamp = (
+                                datetime.fromtimestamp(numeric_val / 1000, UTC)
+                                if numeric_val > 1e11
+                                else datetime.fromtimestamp(numeric_val, UTC)
+                            )
+                        except (TypeError, ValueError, OSError) as e_num_fallback:
+                            logger.warning(
+                                f"Could not parse transfer timestamp numeric fallback {timestamp_from_response}: {e_num_fallback}, using current time."
+                            )
+                    elif isinstance(timestamp_from_response, str):
+                        logger.warning(
+                            f"Could not parse transfer timestamp string {timestamp_from_response} via parse_datetime_utc, using current time."
+                        )
+            elif (
+                timestamp_from_response is not None
+            ):  # Input was not str, int, float but was not None
+                logger.warning(
+                    f"Unsupported type for transfer timestamp: {type(timestamp_from_response)}, using current time."
+                )
+
+            bp_details = BackpackTransferDetails(
+                client_id=client_transfer_id,
+                from_account_type=from_account_type_raw,
+                to_account_type=to_account_type_raw,
+            )
+
+            return Transfer(
+                id=transfer_id,
+                exchange=ExchangeName.BACKPACK.value,
+                status=internal_status,
+                asset=asset,
+                quantity=quantity,
+                timestamp=final_timestamp,  # Ensure this is always datetime
+                response_message=response_msg,
+                bp_details=bp_details,
+            )
+        except (ValidationError, TypeError, AttributeError, KeyError) as e:
+            logger.error(
+                f"[BackpackOrderMapper] Error transforming raw transfer response: {e}. Raw: {raw_response if isinstance(raw_response, dict) else 'Non-dict input'}",
+                exc_info=True,
+            )
+            raise ValueError(f"Error transforming raw transfer response: {e}") from e
 
     @staticmethod
     def transform_raw_ticker_to_internal(

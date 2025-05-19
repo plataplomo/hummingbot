@@ -52,9 +52,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrder,
 )
 
-# Import HyperliquidRawL2Book
-from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawClearinghouseState
-
 # ADDED IMPORT FOR ACCOUNT SERVICE
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
@@ -113,15 +110,7 @@ class HyperliquidAPI(ExchangeAPI):
         is_signed: bool = False,
     ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
         """Adapter for self._request to match MarketDataHttpClientRequesterSig."""
-        request_data: dict[str, Any] | None
-        if isinstance(data, dict) or data is None:
-            request_data = data
-        else:  # DEFENSIVE CHECK: Handles cases where caller violates type hint for 'data'.
-            logger.warning(
-                f"[{self.exchange_name}] _market_data_requester_adapter received non-dict data: "
-                f"{type(data)}. Passing as None."
-            )
-            request_data = None  # Explicitly set to None if unexpected type received
+        request_data: dict[str, Any] | None = data
 
         actual_content, status, actual_headers = await self._request(
             method=method,
@@ -274,13 +263,12 @@ class HyperliquidAPI(ExchangeAPI):
         )
 
         self.account_service = HyperliquidAccountService(
-            exchange_http_client_requester=self._request,
-            info_http_client_requester=self._info_request_wrapper,
+            http_client_requester=self._market_data_requester_adapter,
             request_builder=self._hl_request_builder,
             response_handler=self._hl_response_handler,
             authenticator=self._hl_authenticator,
-            rate_limiter_service=self._rate_limiter_service,
             exchange_name=self.exchange_name,
+            info_url=self.INFO_URL,
             wallet_address=self._wallet_address,
         )
 
@@ -735,34 +723,7 @@ class HyperliquidAPI(ExchangeAPI):
                 "Wallet address required for get_balances.",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
-        try:
-            raw_clearinghouse_state: HyperliquidRawClearinghouseState = (
-                await self.account_service.get_balances_raw()
-            )
-            return self._hl_mapper.map_raw_clearinghouse_state_to_spot_balances(
-                raw_clearinghouse_state
-            )
-        except ValidationError as e:
-            logger.error(
-                f"[{self.exchange_name}] Error validating/mapping clearinghouseState "
-                f"for balances: {e}"
-            )
-            raise APIError(
-                f"Failed to validate/map balance data structure: {e}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
-        except APIError:
-            raise
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error in get_balances: {e}", exc_info=True
-            )
-            raise APIError(
-                f"Unexpected error fetching balances: {e}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
+        return await self.account_service.get_balances()
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         """Get current positions."""
@@ -771,37 +732,7 @@ class HyperliquidAPI(ExchangeAPI):
                 "Wallet address required for get_positions.",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
-        try:
-            raw_clearinghouse_state: HyperliquidRawClearinghouseState = (
-                await self.account_service.get_positions_raw()
-            )
-            positions_dict = self._hl_mapper.map_raw_clearinghouse_state_to_derivative_positions(
-                raw_clearinghouse_state
-            )
-            positions_list: list[DerivativePosition] = list(positions_dict.values())
-            if symbol:
-                positions_list = [p for p in positions_list if p.symbol == symbol]
-            return positions_list
-        except ValidationError as e:
-            logger.error(
-                f"[{self.exchange_name}] Error parsing/mapping user state for positions: {e}"
-            )
-            raise APIError(
-                f"Failed to parse position data: {e}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
-        except APIError:
-            raise
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error getting positions: {e}", exc_info=True
-            )
-            raise APIError(
-                f"Unexpected error getting positions: {e}",
-                code=APIErrorCode.SERVER_ERROR.value,
-                original_exception=e,
-            ) from e
+        return await self.account_service.get_positions(symbol=symbol)
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Get open orders."""
@@ -1235,46 +1166,7 @@ class HyperliquidAPI(ExchangeAPI):
                 ),
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
-        try:
-            raw_user_state: HyperliquidRawClearinghouseState = (
-                await self.account_service.get_account_summary_raw()
-            )
-
-            internal_summary = self._hl_mapper.map_raw_clearinghouse_state_to_margin_summary(
-                raw_state=raw_user_state
-            )
-            return internal_summary
-
-        except APIError as e_api:
-            logger.error(
-                f"[{self.exchange_name}] API Error getting account summary: {e_api}",
-                exc_info=True,
-            )
-            raise
-        except (
-            ValidationError,
-            ValueError,
-        ) as e_map_val:
-            logger.error(
-                f"[{self.exchange_name}] Pydantic ValidationError or ValueError "
-                f"mapping account summary: {e_map_val}",
-                exc_info=True,
-            )
-            raise APIError(
-                message=f"Failed to validate or map account summary response: {e_map_val}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                original_exception=e_map_val,
-            ) from e_map_val
-        except Exception as e_unhandled:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error getting account summary: {e_unhandled}",
-                exc_info=True,
-            )
-            raise APIError(
-                message=f"Unexpected error getting account summary: {e_unhandled}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e_unhandled,
-            ) from e_unhandled
+        return await self.account_service.get_account_summary()
 
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
         """Process a single message received from the WebSocket.
