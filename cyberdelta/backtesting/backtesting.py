@@ -636,10 +636,13 @@ class StrategyAdapter(BacktestStrategy):
                     except Exception as e:
                         self._logger.error(
                             f"Error converting row to Candle for symbol {symbol} "
-                            f"at {timestamp}: {e} - Symbol data: {symbol_specific_data.to_dict() if isinstance(symbol_specific_data, pd.Series) else 'Error converting to dict'}"
+                            f"at {timestamp}: {e} - Symbol data: "
+                            f"{symbol_specific_data.to_dict() if isinstance(symbol_specific_data, pd.Series) else 'Error converting to dict'}"
                         )
             else:
                 # Assuming single index represents symbol or just one instrument (non-MultiIndex columns case)
+                # Assuming single index represents symbol or just one instrument
+                # (non-MultiIndex columns case)
                 symbol = data.index.name if data.index.name else "UNKNOWN_SYMBOL"
                 try:
                     # DEFENSIVE CHECK: Validate required fields exist
@@ -711,25 +714,29 @@ class StrategyAdapter(BacktestStrategy):
                     )
                     symbol_data = data.loc[symbol]
                     self._logger.debug(
-                        f"[get_current_price] symbol_data type: {type(symbol_data)}, content: {symbol_data}"
+                        f"[get_current_price] symbol_data type: {type(symbol_data)}, "
+                        f"content: {symbol_data}"
                     )
                     price_val = (
                         symbol_data.get("close") if hasattr(symbol_data, "get") else symbol_data
                     )
                 else:
                     self._logger.debug(
-                        "[get_current_price] Data has non-MultiIndex. Accessing data directly for 'close'."
+                        "[get_current_price] Data has non-MultiIndex. "
+                        "Accessing data directly for 'close'."
                     )
                     # Assumes single series, check if name matches or just get close
                     if data.index.name == symbol or symbol == "UNKNOWN_SYMBOL":  # Crude check
                         price_val = data.get("close") if hasattr(data, "get") else data
                     else:  # Check if the series itself contains the symbol? Unlikely.
                         self._logger.warning(
-                            f"[get_current_price] Cannot reliably get price for {symbol} from simple Series."
+                            f"[get_current_price] Cannot reliably get price for {symbol} "
+                            f"from simple Series."
                         )
             except KeyError as ke:
                 self._logger.error(
-                    f"[get_current_price] KeyError getting current price for symbol '{symbol}': {ke}. Data shape: {data.shape}, Data index: {data.index}",
+                    f"[get_current_price] KeyError getting current price for symbol '{symbol}': "
+                    f"{ke}. Data shape: {data.shape}, Data index: {data.index}",
                     exc_info=True,
                 )
                 return None
@@ -771,10 +778,11 @@ class StrategyAdapter(BacktestStrategy):
             # Map SignalType to an action string if required by the engine.
             # This is where the 'action' key should be derived.
 
-            logger.debug(
-                f"ADAPTER_CONVERT_SIGNALS: Original signal_type: {signal.signal_type} (type: {type(signal.signal_type)})"
+            self._logger.debug(
+                f"ADAPTER_CONVERT_SIGNALS: Original signal_type: {signal.signal_type} "
+                f"(type: {type(signal.signal_type)})"
             )
-            logger.debug(f"ADAPTER_CONVERT_SIGNALS: signal_dict before action: {signal_dict}")
+            self._logger.debug(f"ADAPTER_CONVERT_SIGNALS: signal_dict before action: {signal_dict}")
 
             # Example: Map SignalType to a simple action string
             # Ensure signal.signal_type is an Enum member before accessing .name
@@ -784,7 +792,7 @@ class StrategyAdapter(BacktestStrategy):
                 # Handle cases where signal_type might be a string already (should not happen with Pydantic)
                 signal_dict["action"] = str(signal.signal_type).upper()
 
-            logger.debug(f"ADAPTER_CONVERT_SIGNALS: signal_dict after action: {signal_dict}")
+            self._logger.debug(f"ADAPTER_CONVERT_SIGNALS: signal_dict after action: {signal_dict}")
 
             # Ensure 'type' (if used by engine) is consistent with 'action' or SignalType
             signal_dict["type"] = signal_dict["action"]  # Or signal.signal_type.value
@@ -804,11 +812,13 @@ class StrategyAdapter(BacktestStrategy):
                         signal_dict["pnl"] = (entry_price - current_price) * signal.quantity
                 else:
                     self._logger.warning(
-                        f"Invalid entry price ({signal.entry_price}) for PnL calculation on exit signal."
+                        f"Invalid entry price ({signal.entry_price}) for PnL "
+                        f"calculation on exit signal."
                     )
             elif is_exit:
                 self._logger.warning(
-                    f"Could not calculate PnL for exit signal: Missing entry price ({signal.entry_price}) or current price ({current_price})"
+                    f"Could not calculate PnL for exit signal: Missing entry price "
+                    f"({signal.entry_price}) or current price ({current_price})"
                 )
 
             signals_out.append(signal_dict)
@@ -825,8 +835,10 @@ class StrategyAdapter(BacktestStrategy):
             else:
                 timestamp = timestamp.astimezone(UTC)
 
-            self.logger.debug(
-                f"[_convert_row_to_candle] For {symbol} at {timestamp}, received row_data.index: {row_data.index.tolist()}, row_data.values: {row_data.values.tolist()}"
+            self._logger.debug(
+                f"[_convert_row_to_candle] For {symbol} at {timestamp}, received "
+                f"row_data.index: {row_data.index.tolist()}, "
+                f"row_data.values: {row_data.values.tolist()}"
             )
 
             # Try to get OHLCV directly
@@ -837,7 +849,7 @@ class StrategyAdapter(BacktestStrategy):
             v = row_data.get("volume")
 
             if o is None or h is None or l is None or c is None or v is None:
-                self.logger.warning(f"Missing OHLCV fields for {symbol} at {timestamp}")
+                self._logger.warning(f"Missing OHLCV fields for {symbol} at {timestamp}")
                 return None
 
             candle = Candle(
@@ -852,7 +864,7 @@ class StrategyAdapter(BacktestStrategy):
             )
             return candle
         except Exception as e:
-            self.logger.error(
+            self._logger.error(
                 f"Error converting row to Candle for symbol {symbol} at {timestamp}: {e}"
             )
             return None

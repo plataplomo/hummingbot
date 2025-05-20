@@ -133,7 +133,8 @@ class BalanceMonitor:
                 min_usdc = Decimal(str(min_usdc_raw))
             except (ValueError, TypeError):
                 logger.warning(
-                    f"Invalid min_usdc_balance '{min_usdc_raw}' for {exchange_id}. Using global default."
+                    f"Invalid min_usdc_balance '{min_usdc_raw}' for {exchange_id}. "
+                    f"Using global default."
                 )
                 min_usdc = self.min_usdc_balance
 

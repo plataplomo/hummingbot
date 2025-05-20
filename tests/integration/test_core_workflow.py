@@ -1686,10 +1686,12 @@ async def test_execution_failure_compensation(
     # sized_opportunity.long_size = target_qty  # OLD Incorrect: This should be USD value
     # sized_opportunity.short_size = target_qty # OLD Incorrect: This should be USD value
     assert mock_bp_ticker.ask is not None, (
-        "Mock BP ticker ASK price should not be None for sizing in test_execution_failure_compensation"
+        "Mock BP ticker ASK price should not be None for sizing in "
+        "test_execution_failure_compensation"
     )
     assert mock_hl_ticker.bid is not None, (
-        "Mock HL ticker BID price should not be None for sizing in test_execution_failure_compensation"
+        "Mock HL ticker BID price should not be None for sizing in "
+        "test_execution_failure_compensation"
     )
     sized_opportunity.long_size = target_qty * mock_bp_ticker.ask  # Correct USD value for long leg
     sized_opportunity.short_size = (
@@ -1776,7 +1778,8 @@ async def test_failed_execution(
     hl_symbol = str(mock_config.get(f"exchanges.mock_hl.symbols.{symbol_key}"))  # Cast
     bp_symbol = str(mock_config.get(f"exchanges.mock_bp.symbols.{symbol_key}"))  # Cast
     # short_order_id_hl = ( # REMOVE - Unused variable
-    #     "hl_short_for_comp_test"  # Define short_order_id_hl for test_execution_failure_compensation
+    #     "hl_short_for_comp_test"  # Define short_order_id_hl for
+    #     # test_execution_failure_compensation
     # )
     mock_hl_api.reset()
     mock_bp_api.reset()

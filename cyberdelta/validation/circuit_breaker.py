@@ -690,13 +690,11 @@ class CircuitBreakerSystem:
 
                 if is_symbol_specific_by_default:
                     symbols_list_any = config_data_for_this_breaker_type.get("symbols", [])
-                    symbols_list: list[str] = []
-                    if isinstance(symbols_list_any, list):
-                        symbols_list = [
-                            str(s_item)
-                            for s_item in cast(list[Any], symbols_list_any)
-                            if isinstance(s_item, str) and str(s_item).strip()
-                        ]
+                    symbols_list = [
+                        str(s_item)
+                        for s_item in symbols_list_any
+                        if isinstance(s_item, str) and str(s_item).strip()
+                    ]
 
                     if symbols_list:
                         for symbol_str in symbols_list:

@@ -729,7 +729,8 @@ class PortfolioTracker:
                         current_position.entry_price = new_avg_price
                         logger.debug(
                             f"Position for {base_symbol} increased. New size: "
-                            f"{current_position.size}, New avg entry: {current_position.entry_price}"
+                            f"{current_position.size}, "
+                            f"New avg entry: {current_position.entry_price}"
                         )
 
                     else:

@@ -218,7 +218,8 @@ class TestOrderVerifier:
         assert result_dict.get("error") is None
 
         # Test failed verification with missing order
-        # portfolio_tracker.get_order.return_value = None # REMOVE: PortfolioTracker has no get_order
+        # portfolio_tracker.get_order.return_value = None # REMOVE: PortfolioTracker
+        # has no get_order
         # Instead, rely on the mock_get_order_by_id logic in the fixture for missing orders
 
         result_fail = await verifier.verify_order_placement(
@@ -684,10 +685,14 @@ class TestSynchronizedOrderSubmissionService:
         mock_ec_complete_exec: AsyncMock,  # Corresponds to ExecutionCoordinator.complete_execution
         mock_ec_add_checkpoint: AsyncMock,  # Corresponds to ExecutionCoordinator.add_checkpoint
         mock_ec_start_exec: AsyncMock,  # Corresponds to ExecutionCoordinator.start_execution
-        mock_sos_compensate: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService._compensate_verification_failure
-        mock_sos_verify_post: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService.verify_post_execution
-        mock_sos_exec_seq: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService._execute_sequential_with_verification
-        mock_sos_verify_pre: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService.verify_pre_execution
+        mock_sos_compensate: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService
+        # ._compensate_verification_failure
+        mock_sos_verify_post: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService
+        # .verify_post_execution
+        mock_sos_exec_seq: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService
+        # ._execute_sequential_with_verification
+        mock_sos_verify_pre: AsyncMock,  # Corresponds to SynchronizedOrderSubmissionService
+        # .verify_pre_execution
         service: tuple[  # This should now be the fixture
             SynchronizedOrderSubmissionService,
             dict[str, Any],

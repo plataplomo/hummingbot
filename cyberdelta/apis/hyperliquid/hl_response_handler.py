@@ -655,7 +655,10 @@ class HyperliquidResponseHandler:
         """
         if not isinstance(raw_response_content, list):
             raise APIError(
-                message=f"Expected list for historical funding rates, got {type(raw_response_content).__name__}",
+                message=(
+                    f"Expected list for historical funding rates, got "
+                    f"{type(raw_response_content).__name__}"
+                ),
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 metadata={"raw_body": str(raw_response_content)[:500]},
             )
