@@ -8,6 +8,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from cyberdelta.apis.hyperliquid.hl_mapper import (
     HyperliquidMapper,
@@ -40,6 +41,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
     HyperliquidRawPublicTrade,
 )
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
+from cyberdelta.apis.models.api_error import APIError
+from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market import Candle, FundingRate, OrderBook, Ticker, Trade
 
@@ -183,17 +186,15 @@ class TestHyperliquidMarketDataService:
             timestamp=datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC),
         )
 
-        hyperliquid_market_data_service._mapper.map_raw_ctx_to_ticker.return_value = (  # type: ignore[attr-defined]
-            expected_internal_ticker
-        )
+        with patch(
+            "cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMapper.map_raw_ctx_to_ticker",
+            return_value=expected_internal_ticker,
+        ) as mock_map_ticker_method:
+            result_ticker = await hyperliquid_market_data_service.get_ticker(symbol_to_find)
 
-        result_ticker = await hyperliquid_market_data_service.get_ticker(symbol_to_find)
-
-        hyperliquid_market_data_service.get_all_asset_contexts_raw.assert_called_once()
-        hyperliquid_market_data_service._mapper.map_raw_ctx_to_ticker.assert_called_once_with(  # type: ignore[attr-defined]
-            mock_raw_asset_ctx_btc
-        )
-        assert result_ticker == expected_internal_ticker
+            hyperliquid_market_data_service.get_all_asset_contexts_raw.assert_called_once()
+            mock_map_ticker_method.assert_called_once_with(mock_raw_asset_ctx_btc)
+            assert result_ticker == expected_internal_ticker
 
     @pytest.mark.asyncio
     async def test_get_ticker_not_found(
@@ -255,24 +256,22 @@ class TestHyperliquidMarketDataService:
 
         expected_internal_funding_rate = FundingRate(
             symbol=symbol_to_find,
-            funding_rate=Decimal("0.0002"),  # This field exists on FundingRate
+            funding_rate=Decimal("0.0002"),
             timestamp=mock_funding_timestamp,
         )
 
-        with patch.object(
-            HyperliquidMapper,
-            "map_raw_ctx_to_funding_rate",
+        with patch(
+            "cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMapper.map_raw_ctx_to_funding_rate",
             return_value=expected_internal_funding_rate,
-        ) as mock_mapper_method:
+        ) as mock_map_funding_method:
             result_funding_rate = await hyperliquid_market_data_service.get_funding_rate(
                 symbol_to_find
             )
 
             hyperliquid_market_data_service.get_all_asset_contexts_raw.assert_called_once()
-            mock_mapper_method.assert_called_once_with(mock_raw_asset_ctx_eth)
-            # Ensure we are comparing the correct attribute and type
+            mock_map_funding_method.assert_called_once_with(mock_raw_asset_ctx_eth)
             assert result_funding_rate == expected_internal_funding_rate
-            if result_funding_rate:  # mypy check for Optional
+            if result_funding_rate:
                 assert result_funding_rate.funding_rate == Decimal("0.0002")
 
     @pytest.mark.asyncio
@@ -311,20 +310,19 @@ class TestHyperliquidMarketDataService:
             mock_request_payload_model
         )
         mock_request_payload_model.model_dump.return_value = mock_request_payload_dict
-        mock_http_client_requester.request.return_value = (
+
+        mock_http_client_requester.return_value = (
             mock_raw_book_data_content,
             200,
             MagicMock(),
         )
-        # Response handler returns the validated RAW model
         mock_hl_response_handler.handle_info_l2_book_response.return_value = mock_validated_raw_book
 
-        # Patch the mapper method used by the service
-        with patch.object(
-            HyperliquidMapper,
-            "map_raw_l2_book_to_order_book",
+        # Patch the static method HyperliquidMapper.map_raw_order_book
+        with patch(
+            "cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMapper.map_raw_order_book",
             return_value=expected_internal_order_book,
-        ) as mock_mapper_method:
+        ) as mock_map_order_book_method:
             result = await hyperliquid_market_data_service.get_order_book(symbol)
 
             mock_hl_request_builder.build_l2_book_request_payload.assert_called_once_with(
@@ -333,7 +331,7 @@ class TestHyperliquidMarketDataService:
             mock_request_payload_model.model_dump.assert_called_once_with(
                 by_alias=True, exclude_none=True
             )
-            mock_http_client_requester.request.assert_called_once_with(
+            mock_http_client_requester.assert_called_once_with(
                 method="POST",
                 endpoint_path="/info",
                 data=mock_request_payload_dict,
@@ -341,11 +339,41 @@ class TestHyperliquidMarketDataService:
             )
             mock_hl_response_handler.handle_info_l2_book_response.assert_called_once_with(
                 mock_raw_book_data_content,
-                symbol=symbol,  # Response handler gets raw content
+                symbol=symbol,
             )
-            # Service method should call the mapper with the validated raw book
-            mock_mapper_method.assert_called_once_with(mock_validated_raw_book)
+            mock_map_order_book_method.assert_called_once_with(mock_validated_raw_book, None)
             assert result == expected_internal_order_book
+
+    @pytest.mark.asyncio
+    async def test_get_order_book_http_client_returns_none(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_request_builder: MagicMock,
+    ) -> None:
+        """Test get_order_book when HTTP client returns None content."""
+        symbol = "ETH"
+        mock_request_payload_model = MagicMock()
+        mock_request_payload_dict = {"type": "l2Book", "coin": symbol}
+
+        mock_hl_request_builder.build_l2_book_request_payload.return_value = (
+            mock_request_payload_model
+        )
+        mock_request_payload_model.model_dump.return_value = mock_request_payload_dict
+        mock_http_client_requester.return_value = (None, 200, MagicMock())
+
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_order_book(symbol)
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "No content received from HTTP client for l2Book" in exc_info.value.message
+        mock_hl_request_builder.build_l2_book_request_payload.assert_called_once_with(symbol=symbol)
+        mock_http_client_requester.assert_called_once_with(
+            method="POST",
+            endpoint_path="/info",
+            data=mock_request_payload_dict,
+            rate_limiter_service=None,
+        )
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_success(
@@ -413,13 +441,11 @@ class TestHyperliquidMarketDataService:
             mock_validated_raw_trades
         )
 
-        # Patch the mapper method used by the service in a loop
-        # The service calls transform_raw_public_trade_to_internal for each raw trade
-        with patch.object(
-            HyperliquidMapper,
-            "transform_raw_public_trade_to_internal",
+        # HyperliquidMapper.transform_raw_public_trade_to_internal is static
+        with patch(
+            "cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMapper.transform_raw_public_trade_to_internal",
             side_effect=expected_internal_trades,
-        ) as mock_mapper_method:  # side_effect will return items from list one by one
+        ) as mock_transform_trade_method:
             result = await hyperliquid_market_data_service.get_recent_trades(symbol)
 
             mock_hl_request_builder.build_recent_trades_request_payload.assert_called_once_with(
@@ -428,7 +454,7 @@ class TestHyperliquidMarketDataService:
             mock_request_payload_model.model_dump.assert_called_once_with(
                 by_alias=True, exclude_none=True
             )
-            mock_http_client_requester.request.assert_called_once_with(
+            mock_http_client_requester.assert_called_once_with(
                 method="POST",
                 endpoint_path="/info",
                 data=mock_request_payload_dict,
@@ -436,13 +462,45 @@ class TestHyperliquidMarketDataService:
             )
             mock_hl_response_handler.handle_info_recent_trades_response.assert_called_once_with(
                 mock_raw_trades_data_content,
-                symbol=symbol,  # Response handler gets raw list
+                symbol=symbol,
             )
-            # Service method should have called the mapper with each validated raw trade
-            assert mock_mapper_method.call_count == len(mock_validated_raw_trades)
-            if mock_validated_raw_trades:  # Ensure it was called if list not empty
-                mock_mapper_method.assert_any_call(mock_validated_raw_trades[0])
+            assert mock_transform_trade_method.call_count == len(mock_validated_raw_trades)
+            if mock_validated_raw_trades:
+                mock_transform_trade_method.assert_any_call(mock_validated_raw_trades[0])
             assert result == expected_internal_trades
+
+    @pytest.mark.asyncio
+    async def test_get_recent_trades_http_client_returns_none(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_request_builder: MagicMock,
+    ) -> None:
+        """Test get_recent_trades when HTTP client returns None content."""
+        symbol = "ETH"
+        mock_request_payload_model = MagicMock()
+        mock_request_payload_dict = {"type": "recentTrades", "coin": symbol}
+
+        mock_hl_request_builder.build_recent_trades_request_payload.return_value = (
+            mock_request_payload_model
+        )
+        mock_request_payload_model.model_dump.return_value = mock_request_payload_dict
+        mock_http_client_requester.return_value = (None, 200, MagicMock())
+
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_recent_trades(symbol)
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "No content received from HTTP client for recentTrades" in exc_info.value.message
+        mock_hl_request_builder.build_recent_trades_request_payload.assert_called_once_with(
+            symbol=symbol
+        )
+        mock_http_client_requester.assert_called_once_with(
+            method="POST",
+            endpoint_path="/info",
+            data=mock_request_payload_dict,
+            rate_limiter_service=None,
+        )
 
     @pytest.mark.asyncio
     async def test_get_market_data_success(
@@ -543,6 +601,50 @@ class TestHyperliquidMarketDataService:
             assert result_candles == expected_internal_candles
 
     @pytest.mark.asyncio
+    async def test_get_market_data_http_client_returns_none(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_request_builder: MagicMock,
+    ) -> None:
+        """Test get_market_data when HTTP client returns None content."""
+        symbol = "ETH"
+        interval = "1h"
+        start_time_ms = 1678886400000
+        end_time_ms = 1678890000000
+
+        mock_payload = HyperliquidRawCandleSnapshotRequestPayload(
+            type="candleSnapshot",
+            req=HyperliquidRawCandleRequestDetails(
+                coin=symbol, interval=interval, startTime=start_time_ms, endTime=end_time_ms
+            ),
+        )
+        expected_request_data = mock_payload.model_dump(by_alias=True, exclude_none=True)
+
+        mock_hl_request_builder.build_candle_snapshot_payload.return_value = expected_request_data
+        mock_http_client_requester.return_value = (None, 200, MagicMock())
+
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_market_data(
+                symbol, interval, start_time_ms, end_time_ms
+            )
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "No content received from HTTP client for candleSnapshot" in exc_info.value.message
+        mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once_with(
+            symbol=symbol,
+            timeframe=interval,
+            start_time_ms=start_time_ms,
+            end_time_ms=end_time_ms,
+        )
+        mock_http_client_requester.assert_called_once_with(
+            method="POST",
+            endpoint_path="/info",
+            data=expected_request_data,
+            is_info_endpoint=True,
+        )
+
+    @pytest.mark.asyncio
     async def test_get_all_asset_contexts_raw_success(
         self,
         hyperliquid_market_data_service: HyperliquidMarketDataService,
@@ -620,6 +722,38 @@ class TestHyperliquidMarketDataService:
             mock_raw_response_content, mock_status_code, mock_headers
         )
         assert result == mock_validated_response
+
+    @pytest.mark.asyncio
+    async def test_get_all_asset_contexts_raw_http_client_returns_none(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_request_builder: MagicMock,
+    ) -> None:
+        """Test get_all_asset_contexts_raw when HTTP client returns None content."""
+        mock_payload_from_builder = HyperliquidRawMetaAndAssetCtxsRequestPayload(
+            type="metaAndAssetCtxs"
+        )
+        expected_data_dict = mock_payload_from_builder.model_dump(by_alias=True, exclude_none=True)
+
+        mock_hl_request_builder.build_info_request_payload.return_value = mock_payload_from_builder
+        # Simulate HTTP client returning None for content
+        mock_http_client_requester.return_value = (None, 200, MagicMock())
+
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_all_asset_contexts_raw()
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "No content received from HTTP client for metaAndAssetCtxs" in exc_info.value.message
+
+        mock_hl_request_builder.build_info_request_payload.assert_called_once_with()
+        mock_http_client_requester.assert_called_once_with(
+            method="POST",
+            endpoint_path="/info",
+            data=expected_data_dict,
+            is_info_endpoint=True,
+            timeout_seconds=None,  # Assuming default timeout behavior
+        )
 
     @pytest.mark.asyncio
     async def test_get_historical_funding_rates_success(
@@ -705,5 +839,140 @@ class TestHyperliquidMarketDataService:
             for raw_item in mock_validated_raw_items:  # Changed from enumerate
                 mock_transform_method.assert_any_call(raw_item)
             assert result == mock_internal_funding_rates
+
+    @pytest.mark.asyncio
+    async def test_get_historical_funding_rates_http_client_returns_none(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_request_builder: MagicMock,
+    ) -> None:
+        """Test get_historical_funding_rates when HTTP client returns None content."""
+        symbol = "ETH"
+        start_time_ms = 1678886400000
+        end_time_ms = 1678890000000
+        mock_request_payload = {
+            "type": "fundingHistory",
+            "coin": symbol,
+            "startTime": start_time_ms,
+            "endTime": end_time_ms,
+        }
+
+        mock_hl_request_builder.build_historical_funding_rates_payload.return_value = (
+            mock_request_payload
+        )
+        mock_http_client_requester.return_value = (None, 200, MagicMock())
+
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_historical_funding_rates(
+                symbol, start_time_ms, end_time_ms
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "No content received from HTTP client" in exc_info.value.message
+        mock_hl_request_builder.build_historical_funding_rates_payload.assert_called_once_with(
+            symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+        )
+        mock_http_client_requester.assert_called_once_with(
+            method="POST", endpoint_path="/info", data=mock_request_payload, is_info_endpoint=True
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_historical_funding_rates_response_validation_error(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_request_builder: MagicMock,
+        mock_hl_response_handler: MagicMock,
+    ) -> None:
+        """Test get_historical_funding_rates when response handler raises ValidationError."""
+        symbol = "ETH"
+        start_time_ms = 1678886400000
+        end_time_ms = 1678890000000
+        mock_request_payload = {
+            "type": "fundingHistory",
+            "coin": symbol,
+            "startTime": start_time_ms,
+            "endTime": end_time_ms,
+        }
+        mock_raw_response_data: list[RawJsonResponse] = [{"invalid_item": True}]
+
+        mock_hl_request_builder.build_historical_funding_rates_payload.return_value = (
+            mock_request_payload
+        )
+        mock_http_client_requester.return_value = (mock_raw_response_data, 200, MagicMock())
+
+        # Make response_handler raise APIError (wrapping ValidationError)
+        original_validation_error = ValidationError.from_exception_data(
+            title="TestModel", line_errors=[]
+        )
+        mock_hl_response_handler.handle_historical_funding_rates_response.side_effect = APIError(
+            message="Test validation error",
+            code=APIErrorCode.INVALID_RESPONSE.value,
+            original_exception=original_validation_error,
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_historical_funding_rates(
+                symbol, start_time_ms, end_time_ms
+            )
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Test validation error" in exc_info.value.message
+        mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
+            mock_raw_response_data
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_historical_funding_rates_mapper_error(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_request_builder: MagicMock,
+        mock_hl_response_handler: MagicMock,
+    ) -> None:
+        """Test get_historical_funding_rates when mapper raises an error."""
+        symbol = "ETH"
+        start_time_ms = 1678886400000
+        end_time_ms = 1678890000000
+        mock_request_payload = {
+            "type": "fundingHistory",
+            "coin": symbol,
+            "startTime": start_time_ms,
+            "endTime": end_time_ms,
+        }
+        mock_raw_response_data: list[RawJsonResponse] = [
+            {"coin": "ETH", "fundingRate": "0.0001", "premium": "0.00012", "time": 1678886400076}
+        ]
+        mock_validated_raw_items = [
+            HyperliquidRawFundingHistoryItem(
+                coin=RawHlCoinName("ETH"),
+                fundingRate="0.0001",
+                premium="0.00012",
+                time=1678886400076,
+            )
+        ]
+
+        mock_hl_request_builder.build_historical_funding_rates_payload.return_value = (
+            mock_request_payload
+        )
+        mock_http_client_requester.return_value = (mock_raw_response_data, 200, MagicMock())
+        mock_hl_response_handler.handle_historical_funding_rates_response.return_value = (
+            mock_validated_raw_items
+        )
+
+        with patch(
+            "cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMapper.transform_raw_funding_history_item_to_internal",
+            side_effect=ValueError("Test mapper error"),  # Make mapper raise an error
+        ) as mock_transform_method:
+            with pytest.raises(APIError) as exc_info:
+                await hyperliquid_market_data_service.get_historical_funding_rates(
+                    symbol, start_time_ms, end_time_ms
+                )
+            assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+            assert (
+                "Error mapping historical funding rate data: ValueError('Test mapper error')"
+                in exc_info.value.message
+            )
+            mock_transform_method.assert_called_once_with(mock_validated_raw_items[0])
 
     # Add more tests for other methods: get_funding_rate, get_order_book, etc.
