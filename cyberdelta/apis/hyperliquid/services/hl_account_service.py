@@ -42,7 +42,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
 # Imports for open orders
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOpenOrder,
-    HyperliquidRawOpenOrdersRequestPayload,
     HyperliquidRawOpenOrdersResponse,  # Type for raw_order.trigger
 )
 
@@ -611,9 +610,9 @@ class HyperliquidAccountService:
             )
 
         endpoint_path = "/info"  # Hyperliquid uses /info for many user-specific queries
-        # Directly construct the payload model
-        payload_model = HyperliquidRawOpenOrdersRequestPayload(
-            type="openOrders", user=self._wallet_address
+        # Use the request builder to create the payload
+        payload_model = self._request_builder.build_open_orders_payload(
+            wallet_address=self._wallet_address
         )
         payload_dict = payload_model.model_dump()
 

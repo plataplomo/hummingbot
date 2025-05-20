@@ -23,6 +23,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsRequestPayload,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
+    HyperliquidRawOpenOrdersRequestPayload,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
     HyperliquidRawLimitOrderTypeDetails,
     HyperliquidRawMarketOrderTypeDetails,
@@ -44,10 +47,12 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
     HyperliquidRawL2UsdTransferPayload,
     HyperliquidRawWithdrawalToL1ActionPayload,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
+    HyperliquidRawUserFillsRequestPayload,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawUserStateRequestPayload,
 )
-from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import HyperliquidRawUserFillsRequestPayload
 from cyberdelta.core.models import OrderSide, OrderType, TimeInForce
 
 
@@ -304,9 +309,20 @@ class HyperliquidRequestBuilder:
         wallet_address: str,
     ) -> HyperliquidRawUserFillsRequestPayload:
         """
-        Builds the Pydantic model for fetching user fills information.
+        Builds the Pydantic model for fetching user fills (trade history).
+        Payload: {"type": "userFills", "user": "WALLET_ADDRESS"}
         """
         return HyperliquidRawUserFillsRequestPayload(type="userFills", user=wallet_address)
+
+    @staticmethod
+    def build_open_orders_payload(
+        wallet_address: str,
+    ) -> HyperliquidRawOpenOrdersRequestPayload:
+        """
+        Builds the Pydantic model for fetching open orders.
+        Payload: {"type": "openOrders", "user": "WALLET_ADDRESS"}
+        """
+        return HyperliquidRawOpenOrdersRequestPayload(type="openOrders", user=wallet_address)
 
     # No changes needed for comments about /info endpoints and build_info_request_payload
     # as those are already handled or determined to not need specific Pydantic models for the
