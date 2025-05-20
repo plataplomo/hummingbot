@@ -668,7 +668,8 @@ class CircuitBreakerSystem:
                     target_class = APIErrorBreaker
                 elif breaker_type_key.lower() == "drawdown":
                     target_class = DrawdownBreaker
-                    # is_symbol_specific_by_default = True # Reverted: Drawdown is not symbol-specific by default
+                    # is_symbol_specific_by_default = True
+                    # Reverted: Drawdown is not symbol-specific by default
                 elif breaker_type_key.lower() == "volatility":
                     target_class = VolatilityBreaker
                     is_symbol_specific_by_default = True
@@ -723,7 +724,9 @@ class CircuitBreakerSystem:
                                     symbol_specific_map[symbol_str] = created_breaker_instance
                                 else:
                                     logger.error(
-                                        f"Type error: Expected dict for {exchange_id}/{breaker_type_key}, got {type(symbol_specific_map)}"
+                                        f"Type error: Expected dict for "
+                                        f"{exchange_id}/{breaker_type_key}, "
+                                        f"got {type(symbol_specific_map)}"
                                     )
 
                                 logger.info(
@@ -751,7 +754,8 @@ class CircuitBreakerSystem:
                         self.register_breaker(created_breaker_instance)
                         # Determine the key for storage in exchange_breakers
                         storage_key = breaker_type_key
-                        # Ensure storage in exchange_breakers consistently uses "api_errors" (plural)
+                        # Ensure storage in exchange_breakers consistently uses
+                        # "api_errors" (plural)
                         # if the original key was "api_error" or "api_errors".
                         if target_class == APIErrorBreaker:
                             storage_key = "api_errors"
@@ -847,7 +851,8 @@ class CircuitBreakerSystem:
                 breakers_to_check: list[CircuitBreaker] = []
                 if isinstance(breaker_item, CircuitBreaker):
                     breakers_to_check.append(breaker_item)
-                else:  # If not CircuitBreaker, it must be dict[str, CircuitBreaker] due to Union type
+                else:  # If not CircuitBreaker, it must be dict[str, CircuitBreaker]
+                    # due to Union type
                     # This is a dict of symbol-specific breakers
                     if symbol and symbol in breaker_item:
                         actual_breaker = breaker_item[symbol]

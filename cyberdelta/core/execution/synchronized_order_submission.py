@@ -231,7 +231,10 @@ class OrderVerifier:
                 if isinstance(actual_value, Enum) and isinstance(expected_value, Enum):
                     if actual_value.name != expected_value.name:  # Compare by name for enums
                         verification_success = False
-                        verification_error = f"Order {key} mismatch: expected {expected_value.name}, got {actual_value.name}"
+                        verification_error = (
+                            f"Order {key} mismatch: expected {expected_value.name}, "
+                            f"got {actual_value.name}"
+                        )
                         break
                 elif actual_value != expected_value:
                     verification_success = False
@@ -241,7 +244,8 @@ class OrderVerifier:
                     break
         # Ensure api_order check doesn't overwrite a critical local_order failure
         if verification_success:  # Only proceed if local checks are okay so far
-            if not api_order:  # This means api_client existed but get_order returned None or errored non-critically earlier
+            if not api_order:  # This means api_client existed but get_order returned None
+                # or errored non-critically earlier
                 if not verification_error:  # Only set this if no prior error.
                     verification_error = (
                         f"Order {order_id} not found or could not be fetched from {exchange} API"
@@ -265,20 +269,23 @@ class OrderVerifier:
                         if api_value.name != expected_value.name:
                             verification_success = False
                             verification_error = (verification_error or "") + (
-                                f" API order {attr_name} mismatch (expected key: {expected_detail_key}): "
-                                f"expected {expected_value.name}, got {api_value.name}"
+                                f" API order {attr_name} mismatch (expected key: "
+                                f"{expected_detail_key}): expected {expected_value.name}, "
+                                f"got {api_value.name}"
                             )
                             break
                     elif api_value != expected_value:
                         verification_success = False
                         verification_error = (verification_error or "") + (
-                            f" API order {attr_name} mismatch (expected key: {expected_detail_key}): "
-                            f"expected {expected_value}, got {api_value}"
+                            f" API order {attr_name} mismatch (expected key: "
+                            f"{expected_detail_key}): expected {expected_value}, "
+                            f"got {api_value}"
                         )
                         break
         return {
             "timestamp": int(time.time() * 1000),
-            "success": verification_success,  # Ensure key is 'success' as expected by test_verify_order_placement
+            "success": verification_success,  # Ensure key is 'success' as expected
+            # by test_verify_order_placement
             "error": verification_error,
             "details": verification_details,
         }
@@ -320,8 +327,10 @@ class OrderVerifier:
                 "details": verification_details,
             }
 
-        # 3. Get order from exchange API (using get_order, as test mocks this primarily for success path)
-        # Test also mocks get_order_status for specific failure case, so we might need to call that too.
+        # 3. Get order from exchange API (using get_order, as test mocks this
+        # primarily for success path)
+        # Test also mocks get_order_status for specific failure case,
+        # so we might need to call that too.
         # For now, let's stick to get_order for the primary fetch.
         api_order: Order | None = None
         try:

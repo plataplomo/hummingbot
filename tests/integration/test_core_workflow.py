@@ -1209,7 +1209,8 @@ async def test_partial_fill(
     # Remove the old market_data_obj creation
     # market_data_obj = data_handler.tickers[first_exchange][first_symbol]
 
-    # Mock datetime.now by patching the 'dt_real' alias in data_handler.py used by self.datetime_alias
+    # Mock datetime.now by patching the 'dt_real' alias in data_handler.py
+    # used by self.datetime_alias
     with mocker.patch("cyberdelta.core.data_handler.dt_real.now") as mock_dt_real_now:
         mock_dt_real_now.return_value = now  # Use now for this test
 
@@ -1341,7 +1342,8 @@ async def test_execution_failure_compensation(
     hl_symbol = str(mock_config.get(f"exchanges.mock_hl.symbols.{symbol_key}"))  # Cast
     bp_symbol = str(mock_config.get(f"exchanges.mock_bp.symbols.{symbol_key}"))  # Cast
     # short_order_id_hl = ( # REMOVE - Unused variable
-    #     "hl_short_for_comp_test"  # Define short_order_id_hl for test_execution_failure_compensation
+    #     "hl_short_for_comp_test"  # Define short_order_id_hl for
+    #     # test_execution_failure_compensation
     # )
     mock_hl_api.reset()
     mock_bp_api.reset()
@@ -1617,7 +1619,8 @@ async def test_execution_failure_compensation(
             internal_sym = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
             if internal_sym is None:
                 logger.warning(
-                    f"TEST_FUNDING_PREP: Could not map {ex_id_key}/{ex_specific_sym} to internal symbol. Skipping."
+                    f"TEST_FUNDING_PREP: Could not map {ex_id_key}/{ex_specific_sym} "
+                    f"to internal symbol. Skipping."
                 )
                 continue
 
@@ -1628,7 +1631,8 @@ async def test_execution_failure_compensation(
     # Remove the old market_data_obj creation
     # market_data_obj = data_handler.tickers[first_exchange][first_symbol]
 
-    # Mock datetime.now by patching the 'dt_real' alias in data_handler.py used by self.datetime_alias
+    # Mock datetime.now by patching the 'dt_real' alias in data_handler.py
+    # used by self.datetime_alias
     with mocker.patch("cyberdelta.core.data_handler.dt_real.now") as mock_dt_real_now:
         mock_dt_real_now.return_value = now  # Use now for this test
 

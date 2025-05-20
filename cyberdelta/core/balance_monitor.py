@@ -152,7 +152,8 @@ class BalanceMonitor:
                     self.exchange_min_balances[exchange_id][asset] = amount_decimal
                 except (ValueError, TypeError):
                     logger.error(
-                        f"Invalid min_balance amount '{amount_raw}' for {asset} on {exchange_id}. Skipping."
+                        f"Invalid min_balance amount '{amount_raw}' for {asset} on "
+                        f"{exchange_id}. Skipping."
                     )
 
     def check_balances(self) -> list[BalanceAlert]:

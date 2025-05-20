@@ -688,7 +688,9 @@ class PortfolioTracker:
                 else:
                     # Modifying existing position
                     logger.debug(
-                        f"Modifying existing position for {base_symbol} on {exchange_id} from trade {trade.id}. Current size: {current_position.size}, side: {current_position.side}"
+                        f"Modifying existing position for {base_symbol} on {exchange_id} "
+                        f"from trade {trade.id}. Current size: {current_position.size}, "
+                        f"side: {current_position.side}"
                     )
                     current_entry_price = current_position.entry_price or Decimal(
                         0
@@ -717,19 +719,24 @@ class PortfolioTracker:
                             current_position.size += trade_quantity
                         else:  # This is the correct fallback else for the increasing position logic
                             logger.error(
-                                f"Logical error in increasing position {base_symbol}. Current size {current_position.size}, side {current_position.side}. Trade qty {trade_quantity}, side {trade_side}"
+                                f"Logical error in increasing position {base_symbol}. "
+                                f"Current size {current_position.size}, "
+                                f"side {current_position.side}. "
+                                f"Trade qty {trade_quantity}, side {trade_side}"
                             )
                             new_avg_price = trade_price  # Fallback
 
                         current_position.entry_price = new_avg_price
                         logger.debug(
-                            f"Position for {base_symbol} increased. New size: {current_position.size}, New avg entry: {current_position.entry_price}"
+                            f"Position for {base_symbol} increased. New size: "
+                            f"{current_position.size}, New avg entry: {current_position.entry_price}"
                         )
 
                     else:
                         # Decreasing or flipping position
                         logger.debug(
-                            f"Reducing or flipping position for {base_symbol}. Trade qty: {trade_quantity}"
+                            f"Reducing or flipping position for {base_symbol}. "
+                            f"Trade qty: {trade_quantity}"
                         )
 
                         # Calculate PNL on the portion of the position affected by this trade
@@ -754,13 +761,20 @@ class PortfolioTracker:
                                 current_position.realized_pnl or Decimal(0)
                             ) + realized_pnl_for_this_trade
                             logger.info(
-                                f"Trade {trade.id} for {base_symbol}: Realized PNL {realized_pnl_for_this_trade:.4f}. Position Realized PNL: {current_position.realized_pnl:.4f}"
+                                f"Trade {trade.id} for {base_symbol}: "
+                                f"Realized PNL {realized_pnl_for_this_trade:.4f}. "
+                                f"Position Realized PNL: {current_position.realized_pnl:.4f}"
                             )
 
                         if trade_quantity < abs(current_position.size):
                             # Reducing position, not closing or flipping
                             logger.debug(
-                                f"Reducing position for {base_symbol}. New size: {current_position.size - qty_affected if current_position.side == OrderSide.BUY else current_position.size + qty_affected}"
+                                f"Reducing position for {base_symbol}. New size: "
+                                f"{
+                                    current_position.size - qty_affected
+                                    if current_position.side == OrderSide.BUY
+                                    else current_position.size + qty_affected
+                                }"
                             )
                             if current_position.side == OrderSide.BUY:
                                 current_position.size -= trade_quantity
@@ -779,7 +793,8 @@ class PortfolioTracker:
                         else:  # Flipping position (trade_quantity > abs(current_position.size))
                             remaining_qty = trade_quantity - abs(current_position.size)
                             logger.debug(
-                                f"Flipping position for {base_symbol}. Remaining qty after closing: {remaining_qty}"
+                                f"Flipping position for {base_symbol}. "
+                                f"Remaining qty after closing: {remaining_qty}"
                             )
                             current_position.size = (
                                 remaining_qty if trade_side == OrderSide.BUY else -remaining_qty
@@ -1303,7 +1318,8 @@ class PortfolioTracker:
                         if isinstance(order_data_any, dict):
                             try:
                                 # Ensure keys are str for model_validate
-                                # Cast order_data_any to dict[Any, Any] to help Pyright with k,v types
+                                # Cast order_data_any to dict[Any, Any] to help Pyright
+                                # with k,v types
                                 temp_order_dict_for_comp: dict[Any, Any] = order_data_any
                                 validated_order_dict_for_model: dict[str, Any] = {
                                     str(k): v
@@ -1777,14 +1793,16 @@ class PortfolioTracker:
 
         # ADDED DETAILED LOGGING (NOW AS WARNING)
         self.logger.warning(
-            f"PT_GET_ALL_DERIV_POS_CRITICAL_DEBUG: id(self)={id(self)}, id(self.api_clients)={id(self.api_clients)}, \
-            self.api_clients={self.api_clients}, \
-            exchange_id='{exchange_id}', normalized_exchange_id='{normalized_exchange_id}'"
+            f"PT_GET_ALL_DERIV_POS_CRITICAL_DEBUG: id(self)={id(self)}, "
+            f"id(self.api_clients)={id(self.api_clients)}, "
+            f"self.api_clients={self.api_clients}, "
+            f"exchange_id='{exchange_id}', normalized_exchange_id='{normalized_exchange_id}'"
         )
 
         if normalized_exchange_id not in self.api_clients:
             self.logger.warning(
-                f"PT_GET_ALL_DERIV_POS: Attempted to get positions for unknown or unregistered exchange: '{exchange_id}' (normalized: '{normalized_exchange_id}')."
+                f"PT_GET_ALL_DERIV_POS: Attempted to get positions for unknown or unregistered "
+                f"exchange: '{exchange_id}' (normalized: '{normalized_exchange_id}')."
             )
             return None
 

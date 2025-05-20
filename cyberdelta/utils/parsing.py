@@ -247,7 +247,8 @@ def check_str_parsable_to_finite_decimal(value: object, field_name: str = "") ->
         # or if it can't convert. So parsed_decimal here should not be None.
         if parsed_decimal is None:  # Should not happen due to allow_none=False
             raise ValueError(
-                f"Field {field_name or 'value'}: parsing unexpectedly returned None for '{validated_str}'."
+                f"Field {field_name or 'value'}: parsing unexpectedly returned None "
+                f"for '{validated_str}'."
             )
         if not parsed_decimal.is_finite():
             raise ValueError(

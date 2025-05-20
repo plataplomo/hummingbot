@@ -60,7 +60,8 @@ class SymbolMapper:
 
         if not isinstance(exchanges_config, dict):  # pyright: ignore [reportUnnecessaryIsInstance]
             raise SymbolMappingError(
-                f"Invalid configuration: Expected a dictionary of exchanges, got {type(exchanges_config)}"
+                f"Invalid configuration: Expected a dictionary of exchanges, "
+                f"got {type(exchanges_config)}"
             )
 
         for exchange_id, exchange_data_any in exchanges_config.items():

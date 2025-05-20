@@ -388,7 +388,8 @@ class DataHandler:
                 name=f"handle_messages_{exchange_id}",
             )
             logger.info(
-                f"[{exchange_id}] Message handler task created: {self.ws_tasks[exchange_id].get_name()}"
+                f"[{exchange_id}] Message handler task created: "
+                f"{self.ws_tasks[exchange_id].get_name()}"
             )
             await self.ws_tasks[
                 exchange_id
@@ -396,12 +397,14 @@ class DataHandler:
 
         except ConnectionError as e:
             logger.error(f"[{exchange_id}] ConnectionError during connect/subscribe: {e}")
-            raise  # Re-raise ConnectionError for _maintain_websocket_connection to handle explicitly
+            # Re-raise ConnectionError for _maintain_websocket_connection to handle explicitly
+            raise
         except asyncio.CancelledError:
             logger.info(f"[{exchange_id}] _connect_and_subscribe task was cancelled.")
             if hasattr(client, "is_connected") and client.is_connected:
                 logger.info(
-                    f"[{exchange_id}] Closing WebSocket due to cancellation of _connect_and_subscribe."
+                    f"[{exchange_id}] Closing WebSocket due to cancellation of "
+                    f"_connect_and_subscribe."
                 )
                 if hasattr(client, "close_websocket"):
                     await client.close_websocket()
@@ -460,7 +463,8 @@ class DataHandler:
         client = self.api_clients.get(exchange_id)
         if not client or not hasattr(client, "parse_ws_message"):
             logger.warning(
-                f"Cannot process message for {exchange_id}: Client not found or lacks parse_ws_message method."
+                f"Cannot process message for {exchange_id}: "
+                f"Client not found or lacks parse_ws_message method."
             )
             return
 
@@ -473,7 +477,8 @@ class DataHandler:
 
             if not (isinstance(parsed_result_any, tuple) and len(parsed_result_any) == 2):
                 logger.warning(
-                    f"[{exchange_id}] parse_ws_message did not return a 2-tuple. Got: {type(parsed_result_any)}"
+                    f"[{exchange_id}] parse_ws_message did not return a 2-tuple. "
+                    f"Got: {type(parsed_result_any)}"
                 )
                 return
 
@@ -482,7 +487,8 @@ class DataHandler:
 
             if not isinstance(message_type_any, str):
                 logger.warning(
-                    f"[{exchange_id}] Message type from parse_ws_message is not a string. Got: {type(message_type_any)}"
+                    f"[{exchange_id}] Message type from parse_ws_message is not a string. "
+                    f"Got: {type(message_type_any)}"
                 )
                 return
 
@@ -536,18 +542,30 @@ class DataHandler:
                     await self._notify_market_data_observers(candle_from_ticker)
                 elif symbol_str and ticker_obj:
                     logger.warning(
-                        f"Ticker for {exchange_id}/{symbol_str} missing price or timestamp. Price: {ticker_obj.price}, Timestamp: {ticker_obj.timestamp}"
+                        f"Ticker for {exchange_id}/{symbol_str} missing price or timestamp. "
+                        f"Price: {ticker_obj.price}, Timestamp: {ticker_obj.timestamp}"
                     )
 
             elif message_type == "order_book":
                 if isinstance(parsed_data, OrderBook):
                     # OrderBook.timestamp is not Optional after Pydantic validation
                     # if parsed_data.timestamp is None: # This check is redundant
-                    #    logger.warning(f"OrderBook for {exchange_id}/{parsed_data.symbol} missing timestamp. Using current time.")
+                    #    logger.warning(
+                    #        f"OrderBook for {exchange_id}/{parsed_data.symbol} "
+                    #        f"missing timestamp. Using current time."
+                    #    )
                     #    current_ts = datetime.now(UTC)
-                    #    # Create a new model instance if timestamp needs to be updated, as Pydantic models are often immutable
-                    #    parsed_data_with_ts = parsed_data.model_copy(update={"timestamp": current_ts})
-                    #    self._update_order_book(exchange_id, parsed_data_with_ts.symbol, parsed_data_with_ts, now)
+                    #    # Create a new model instance if timestamp needs to be updated,
+                    #    # as Pydantic models are often immutable
+                    #    parsed_data_with_ts = parsed_data.model_copy(
+                    #        update={"timestamp": current_ts}
+                    #    )
+                    #    self._update_order_book(
+                    #        exchange_id,
+                    #        parsed_data_with_ts.symbol,
+                    #        parsed_data_with_ts,
+                    #        now
+                    #    )
                     #    await self._notify_order_book_observers(parsed_data_with_ts)
                     # else:
                     self._update_order_book(exchange_id, parsed_data.symbol, parsed_data, now)
@@ -558,9 +576,13 @@ class DataHandler:
 
             elif message_type == "funding_rate":
                 if isinstance(parsed_data, FundingRate):
-                    # FundingRate.timestamp and funding_rate are not Optional after Pydantic validation
+                    # FundingRate.timestamp and funding_rate are not Optional after
+                    # Pydantic validation
                     # if parsed_data.timestamp is None or parsed_data.funding_rate is None:
-                    #    logger.warning(f"FundingRate for {exchange_id}/{parsed_data.symbol} missing timestamp or rate. Skipping.")
+                    #    logger.warning(
+                    #        f"FundingRate for {exchange_id}/{parsed_data.symbol} "
+                    #        f"missing timestamp or rate. Skipping."
+                    #    )
                     # else:
                     self._update_funding_rate(exchange_id, parsed_data.symbol, parsed_data, now)
                     await self._notify_funding_rate_observers(parsed_data)
@@ -582,7 +604,9 @@ class DataHandler:
 
             else:
                 # Log unhandled message types if necessary
-                # logger.debug(f"Received unhandled message type '{message_type}' from {exchange_id}")
+                # logger.debug(
+                #     f"Received unhandled message type '{message_type}' from {exchange_id}"
+                # )
                 pass  # Ensure else block is not empty
 
         except Exception as e:  # Ensure this block is properly indented
@@ -638,7 +662,8 @@ class DataHandler:
 
     def _update_user_fills(self, exchange_id: str, symbol: str, fills: list[Trade]) -> None:
         # Ensure structures are initialized if symbol is new
-        # self._ensure_symbol_structures_exist(exchange_id, symbol) # Method does not exist, commenting out
+        # self._ensure_symbol_structures_exist(exchange_id, symbol)
+        # Method does not exist, commenting out
 
         # Retrieve the stored FundingRate object
         # funding_rate_obj = self.funding_rates.get(exchange_id, {}).get(symbol)
@@ -663,7 +688,8 @@ class DataHandler:
         # The body was incorrect. Commenting out the incorrect logic.
         # Actual fill update logic needs to be implemented.
         logger.warning(
-            f"DataHandler._update_user_fills for {exchange_id}/{symbol} called but not fully implemented."
+            f"DataHandler._update_user_fills for {exchange_id}/{symbol} "
+            f"called but not fully implemented."
         )
         pass
 
@@ -727,7 +753,8 @@ class DataHandler:
 
         if rate is None or next_time is None:
             logger.debug(
-                f"Incomplete funding data for {exchange_id}/{symbol}: rate={rate}, next_time={next_time}"
+                f"Incomplete funding data for {exchange_id}/{symbol}: "
+                f"rate={rate}, next_time={next_time}"
             )
             return None
 
@@ -862,8 +889,8 @@ class DataHandler:
             # Fallback to the absolute default if no type-specific default found
             threshold = self.default_staleness_threshold
             logger.debug(
-                f"No specific or general staleness threshold for {staleness_key} or {general_data_type_key}, "
-                f"using absolute default: {threshold.total_seconds()}s"
+                f"No specific or general staleness threshold for {staleness_key} "
+                f"or {data_type.lower()}, using absolute default: {threshold.total_seconds()}s"
             )
         else:
             logger.debug(
@@ -873,13 +900,15 @@ class DataHandler:
         last_update = self.last_update_time.get(exchange_id, {}).get(symbol)
         if last_update is None:
             logger.debug(
-                f"No last_update_time for {exchange_id}/{symbol}/{data_type}, considering NOT stale."
+                f"No last_update_time for {exchange_id}/{symbol}/{data_type}, "
+                f"considering NOT stale."
             )
             return False  # No data yet, so not stale
 
         if not isinstance(last_update, dt_real):
             logger.error(
-                f"[{exchange_id}] Timestamp for {data_type} symbol {symbol} is not a datetime object: {type(last_update)}"
+                f"[{exchange_id}] Timestamp for {data_type} symbol {symbol} "
+                f"is not a datetime object: {type(last_update)}"
             )
             return True  # Treat as stale if timestamp is invalid
 
@@ -895,7 +924,9 @@ class DataHandler:
         if is_stale_result:
             time_since_last_update = current_time - last_update  # Define time_since_last_update
             logger.warning(
-                f"[{exchange_id}] Data for '{staleness_key}' is stale. Last: {last_update.isoformat()}, Now: {current_time.isoformat()}, Diff: {time_since_last_update}, Threshold: {threshold}",
+                f"[{exchange_id}] Data for '{staleness_key}' is stale. "
+                f"Last: {last_update.isoformat()}, Now: {current_time.isoformat()}, "
+                f"Diff: {time_since_last_update}, Threshold: {threshold}",
                 exchange=exchange_id,
                 key=staleness_key,
                 last_update_ts=last_update.isoformat(),
@@ -936,25 +967,28 @@ class DataHandler:
             logger.info(f"[{exchange_id}] Top of maintenance loop, attempt {attempt}.")
             try:
                 # This call will internally handle subscriptions and then start message handling.
-                # It will return if _handle_messages exits (e.g., due to CancelledError or client disconnect).
+                # It will return if _handle_messages exits
+                # (e.g., due to CancelledError or client disconnect).
                 await self._connect_and_subscribe(exchange_id, client, symbols)
 
                 # If _connect_and_subscribe completes without raising an exception,
                 # it means the connection was established, and then _handle_messages either
                 # completed or was cancelled.
                 logger.info(
-                    f"[{exchange_id}] _connect_and_subscribe completed its current run (stream might have ended or been cancelled)."
+                    f"[{exchange_id}] _connect_and_subscribe completed its current run "
+                    f"(stream might have ended or been cancelled)."
                 )
 
-                # Reset attempts if connection was successful at some point before _handle_messages ended.
+                # Reset attempts if connection was successful at some point
+                # before _handle_messages ended.
                 # This is debatable: if _handle_messages is cancelled, is it a "successful" cycle?
-                # For now, let's assume any return from _connect_and_subscribe means we should just retry
-                # as per the loop's own logic, unless an explicit "shutdown" is signaled.
-                # If we wanted to break on clean exit of _handle_messages, logic would go here.
+                # For now, let's assume any return from _connect_and_subscribe means we should
+                # just retry as per the loop's own logic, unless an explicit "shutdown" is signaled.
 
             except ConnectionError as e:
                 logger.warning(
-                    f"[{exchange_id}] ConnectionError in maintenance loop: {e}. Attempt {attempt + 1}/{max_attempts if max_attempts > 0 else 'inf'}."
+                    f"[{exchange_id}] ConnectionError in maintenance loop: {e}. "
+                    f"Attempt {attempt + 1}/{max_attempts if max_attempts > 0 else 'inf'}."
                 )
                 # This specific error type is usually retryable.
             except asyncio.CancelledError:
@@ -965,7 +999,8 @@ class DataHandler:
             except Exception as e:
                 # Catch any other unexpected exceptions from _connect_and_subscribe
                 logger.error(
-                    f"[{exchange_id}] Unexpected error in WebSocket maintenance: {e}. Attempt {attempt + 1}/{max_attempts if max_attempts > 0 else 'inf'}."
+                    f"[{exchange_id}] Unexpected error in WebSocket maintenance: {e}. "
+                    f"Attempt {attempt + 1}/{max_attempts if max_attempts > 0 else 'inf'}."
                 )
 
             # Check if the DataHandler is still supposed to be running
@@ -976,14 +1011,16 @@ class DataHandler:
             attempt += 1
             if max_attempts > 0 and attempt >= max_attempts:
                 logger.error(
-                    f"[{exchange_id}] Max reconnect attempts ({max_attempts}) reached for initial connection. Stopping WebSocket maintenance for this exchange."
+                    f"[{exchange_id}] Max reconnect attempts ({max_attempts}) reached "
+                    f"for initial connection. Stopping WebSocket maintenance for this exchange."
                 )
                 break  # Exit while True loop
 
             # Exponential backoff for retries
             current_delay = min(current_delay * 2, max_reconnect_delay)
             logger.info(
-                f"[{exchange_id}] Retrying WebSocket connection in {current_delay:.2f}s... (Attempt {attempt + 1})"
+                f"[{exchange_id}] Retrying WebSocket connection in {current_delay:.2f}s... "
+                f"(Attempt {attempt + 1})"
             )  # attempt is 0-indexed
             await asyncio.sleep(current_delay)
 

@@ -550,7 +550,7 @@ class SignalGenerator:
                     logger.warning(
                         f"SG_GEN_OPPS: Could not map internal symbol {internal_symbol} "
                         f"to an exchange-specific symbol for {exchange_id}. "
-                        f"to an exchange-specific symbol for {exchange_id}. Skipping ticker fetch for this pair."
+                        f"Skipping ticker fetch for this pair."
                     )
                     current_tickers[exchange_id] = None  # Store None if mapping fails
                     continue
@@ -559,7 +559,8 @@ class SignalGenerator:
                 if ticker is None:
                     logger.debug(
                         f"SG_TICKER_FETCH_FAIL: No ticker available from DataHandler "
-                        f"for {exchange_id} / {exchange_specific_symbol} (internal: {internal_symbol})."
+                        f"for {exchange_id} / {exchange_specific_symbol} "
+                        f"(internal: {internal_symbol})."
                     )
                 current_tickers[exchange_id] = ticker
 
@@ -749,9 +750,10 @@ class SignalGenerator:
                 if expected_profit < self.min_profit_threshold:
                     logger.debug(
                         f"NFD_SKIP_PROFIT: {symbol} - Pair {exchange_a}/{exchange_b}. "
-                        f"ExpProfit {expected_profit:.4f} < MinProfit {self.min_profit_threshold:.4f}. "
-                        f"ValueDiff: {net_funding_value_differential:.4f}, Slippage: {total_slippage:.4f}. "
-                        f"Skipping."
+                        f"ExpProfit {expected_profit:.4f} < MinProfit "
+                        f"{self.min_profit_threshold:.4f}. "
+                        f"ValueDiff: {net_funding_value_differential:.4f}, "
+                        f"Slippage: {total_slippage:.4f}. Skipping."
                     )
                     continue
 

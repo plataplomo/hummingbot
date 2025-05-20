@@ -1336,7 +1336,8 @@ class RiskManager:
         # )
         if validation_factor < ONE:
             # self.logger.info(
-            #     f"RM_DEBUG_CSS: Applying validation factor {validation_factor:.3f} to size ${size:.2f}"
+            #     f"RM_DEBUG_CSS: Applying validation factor {validation_factor:.3f} "
+            #     f"to size ${size:.2f}"
             # ) # Log before multiplication
             # size_before_vf = size # This variable is no longer used as the log is commented out
             size *= validation_factor
@@ -2033,7 +2034,8 @@ class RiskManager:
         # Explicitly reject 0 or negative size first
         if current_size_usd <= ZERO:  # ZERO is Decimal("0")
             self.logger.info(
-                f"RM_CONSTRAINTS: Opp {opportunity.symbol} ({opportunity.long_exchange} -> {opportunity.short_exchange}) rejected: "
+                f"RM_CONSTRAINTS: Opp {opportunity.symbol} "
+                f"({opportunity.long_exchange} -> {opportunity.short_exchange}) rejected: "
                 f"Calculated initial size USD {current_size_usd:.4f} is zero or negative."
             )
             return None
@@ -2041,9 +2043,10 @@ class RiskManager:
         # If positive, check if it's below the minimum required trade size
         if current_size_usd < min_for_exchange:
             self.logger.info(
-                f"RM_CONSTRAINTS: Opp {opportunity.symbol} ({opportunity.long_exchange} -> {opportunity.short_exchange}) rejected: "
-                f"Calculated initial size USD {current_size_usd:.4f} is less than min trade size USD "
-                f"{min_for_exchange:.4f} for {opportunity.long_exchange}."
+                f"RM_CONSTRAINTS: Opp {opportunity.symbol} "
+                f"({opportunity.long_exchange} -> {opportunity.short_exchange}) rejected: "
+                f"Calculated initial size USD {current_size_usd:.4f} is less than "
+                f"min trade size USD {min_for_exchange:.4f} for {opportunity.long_exchange}."
             )
             return None
         # === END MODIFIED SECTION ===
@@ -2051,13 +2054,20 @@ class RiskManager:
         # ... other constraints like max_position_size, collateral checks etc. ...
         # For example:
         # if current_size_usd > self.max_position_size:
-        #     logger.info(f"RM_CONSTRAINTS: Opp {opportunity.symbol} rejected: Size {current_size_usd} > max {self.max_position_size}")
-        #     current_size_usd = self.max_position_size # Cap it, or return None if rejection is preferred
+        #     logger.info(
+        #         f"RM_CONSTRAINTS: Opp {opportunity.symbol} rejected: Size {current_size_usd} "
+        #         f"> max {self.max_position_size}"
+        #     )
+        #     current_size_usd = self.max_position_size
+        #     # Cap it, or return None if rejection is preferred
 
         # Collateral check (should use the potentially capped size)
         # available_collateral = await self.portfolio_tracker.get_available_collateral(...)
         # if current_size_usd > available_collateral:
-        #     logger.info(f"RM_CONSTRAINTS: Opp {opportunity.symbol} rejected: Size {current_size_usd} > available collateral {available_collateral}")
+        #     logger.info(
+        #         f"RM_CONSTRAINTS: Opp {opportunity.symbol} rejected: Size {current_size_usd} > "
+        #         f"available collateral {available_collateral}"
+        #     )
         #     return None
 
         return current_size_usd  # Return the validated (and possibly capped) size
@@ -2078,17 +2088,20 @@ class RiskManager:
         # The following line is problematic if min_trade_size check has already occurred
         # and rejected sizes that are too small. If a size reaches here, it should
         # already be >= min_trade_size (if positive).
-        # Forcing it up to min_trade_size here can make tiny valid Kelly sizes (that should be rejected)
-        # appear as valid minimum trades.
-        # min_trade_size_usd_for_constraints = self.min_trade_size_usd.get(opportunity.long_exchange, self._global_min_trade_size_usd)
+        # Forcing it up to min_trade_size here can make tiny valid Kelly sizes
+        # (that should be rejected) appear as valid minimum trades.
+        # min_trade_size_usd_for_constraints = self.min_trade_size_usd.get(
+        #     opportunity.long_exchange, self._global_min_trade_size_usd
+        # )
         min_trade_size_usd_for_constraints = self.min_trade_size_usd_per_exchange.get(
             opportunity.long_exchange, self._global_min_trade_size_usd
         )
         if final_size_usd > ZERO and final_size_usd < min_trade_size_usd_for_constraints:
             self.logger.warning(
-                f"RM_VALIDATE_CAP: Calculated size {final_size_usd:.4f} for {opportunity.symbol} was positive but below "
-                f"min_trade_size {min_trade_size_usd_for_constraints:.4f}. This should have been rejected earlier. "
-                f"Review _apply_risk_constraints. Returning None for safety."
+                f"RM_VALIDATE_CAP: Calculated size {final_size_usd:.4f} for {opportunity.symbol} "
+                f"was positive but below min_trade_size {min_trade_size_usd_for_constraints:.4f}. "
+                f"This should have been rejected earlier. Review _apply_risk_constraints. "
+                f"Returning None for safety."
             )
             return None
         # === END MODIFIED SECTION for _validate_and_cap_final_size ===
