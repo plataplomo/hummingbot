@@ -1167,6 +1167,60 @@ class TestBackpackAccountService:
         )
 
     @pytest.mark.asyncio
+    async def test_withdraw_response_none_from_requester(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_mapper: MagicMock,  # For assert_not_called
+    ) -> None:
+        """Test withdraw when HTTP client returns None content."""
+        asset = "USDC"
+        amount = Decimal("10.0")
+        address = "test_address_123"
+        network = "SOL"
+
+        mock_payload = {
+            "blockchain": network,
+            "address": address,
+            "quantity": str(amount),
+            "symbol": asset,
+        }
+        mock_request_builder.build_withdraw_payload.return_value = mock_payload
+        # Simulate HTTP client returning None for content
+        mock_http_client_requester.return_value = (None, 200, MagicMock())
+
+        with patch.object(bp_account_service, "_mapper", mock_mapper):
+            with pytest.raises(APIError) as exc_info:
+                await bp_account_service.withdraw(
+                    asset=asset, amount=amount, address=address, network=network
+                )
+
+            assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+            assert "No data received for withdrawal, status: 200" in exc_info.value.message
+
+            mock_request_builder.build_withdraw_payload.assert_called_once_with(
+                asset_symbol=asset,
+                amount_str=str(amount),
+                destination_address=address,
+                network=network,
+                client_withdrawal_id=None,
+                two_factor_token=None,
+                tag=None,
+            )
+            mock_http_client_requester.assert_called_once_with(
+                method="POST",
+                endpoint="/wapi/v1/capital/withdrawals",
+                data=mock_payload,
+                is_signed=True,
+                endpoint_group="private_write",
+                request_weight=1,
+            )
+            mock_response_handler.handle_withdraw_response.assert_not_called()
+            mock_mapper.transform_raw_withdrawal_to_internal.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_get_order_history_success(
         self,
         bp_account_service: BackpackAccountService,
@@ -1355,6 +1409,51 @@ class TestBackpackAccountService:
         mock_mapper.transform_raw_orders_to_internal.assert_called_once_with(
             mock_validated_raw_orders
         )
+
+    @pytest.mark.asyncio
+    async def test_get_order_history_response_none_from_requester(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_mapper: MagicMock,
+    ) -> None:
+        """Test get_order_history when HTTP client returns None content."""
+        symbol = "SOL_USDC"
+        limit = 10
+
+        mock_params = {"symbol": symbol, "limit": limit}
+        mock_request_builder.build_get_order_history_params.return_value = mock_params
+        mock_http_client_requester.return_value = (None, 200, MagicMock())
+
+        with patch.object(bp_account_service, "_mapper", mock_mapper):
+            with pytest.raises(APIError) as exc_info:
+                await bp_account_service.get_order_history(symbol=symbol, limit=limit)
+
+            assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+            assert "No data received for order history, status: 200" in exc_info.value.message
+
+            mock_request_builder.build_get_order_history_params.assert_called_once_with(
+                symbol=symbol,
+                start_time=None,
+                end_time=None,
+                limit=limit,
+                order_id=None,
+                client_order_id=None,
+            )
+            mock_http_client_requester.assert_called_once_with(
+                method="GET",
+                endpoint="/api/v1/history/orders",
+                params=mock_params,
+                is_signed=True,
+                endpoint_group="private_read",
+                request_weight=1,
+            )
+            mock_response_handler.handle_get_order_history_response.assert_not_called()
+            mock_mapper.transform_raw_order_to_internal.assert_not_called()
+            if hasattr(mock_mapper, "transform_raw_orders_to_internal_list"):
+                mock_mapper.transform_raw_orders_to_internal_list.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_trade_history_success(
@@ -1547,3 +1646,43 @@ class TestBackpackAccountService:
         mock_mapper.transform_raw_trades_to_internal.assert_called_once_with(
             mock_validated_raw_trades
         )
+
+    @pytest.mark.asyncio
+    async def test_get_trade_history_response_none_from_requester(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_mapper: MagicMock,  # For assert_not_called
+    ) -> None:
+        """Test get_trade_history when HTTP client returns None content."""
+        symbol = "SOL_USDC"
+        limit = 20
+
+        mock_params = {"symbol": symbol, "limit": limit}
+        mock_request_builder.build_get_trade_history_params.return_value = mock_params
+        mock_http_client_requester.return_value = (None, 200, MagicMock())
+
+        with patch.object(bp_account_service, "_mapper", mock_mapper):
+            with pytest.raises(APIError) as exc_info:
+                await bp_account_service.get_trade_history(symbol=symbol, limit=limit)
+
+            assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+            assert "No data received for trade history, status: 200" in exc_info.value.message
+
+            mock_request_builder.build_get_trade_history_params.assert_called_once_with(
+                symbol=symbol, limit=limit, from_id=None, start_time=None, end_time=None
+            )
+            mock_http_client_requester.assert_called_once_with(
+                method="GET",
+                endpoint="/api/v1/history/fills",
+                params=mock_params,
+                is_signed=True,
+                endpoint_group="private_read",
+                request_weight=1,
+            )
+            mock_response_handler.handle_get_trade_history_response.assert_not_called()
+            mock_mapper.transform_raw_trade_to_internal.assert_not_called()
+            if hasattr(mock_mapper, "transform_raw_trades_to_internal_list"):
+                mock_mapper.transform_raw_trades_to_internal_list.assert_not_called()

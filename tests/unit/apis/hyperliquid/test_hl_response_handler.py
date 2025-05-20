@@ -8,10 +8,12 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
-    HyperliquidErrorStatus,
     HyperliquidResponseHandler,
-    HyperliquidSuccessfulOrderStatus,
     RawJsonResponse,
+)
+from cyberdelta.apis.hyperliquid.models.hl_processed_exchange_responses import (
+    HyperliquidErrorStatus,
+    HyperliquidSuccessfulOrderStatus,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshot,
@@ -19,6 +21,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeResponse,
     HyperliquidRawExchangeStatusObject,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
+    HyperliquidRawFundingHistoryItem,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
     HyperliquidRawHistoricalOrderResponse,
@@ -1302,6 +1307,79 @@ def test_handler_validation_error(
     assert expected_error_field in str(exc_info.value.original_exception)
 
 
-# Remove the individual test_validation_error methods from the classes created earlier.
+class TestHandleHistoricalFundingRatesResponse:
+    """Tests for HyperliquidResponseHandler.handle_historical_funding_rates_response."""
 
-# ... rest of file ...
+    def test_valid_response(
+        self,
+        valid_raw_historical_funding_rates_data: list[dict[str, Any]],
+    ) -> None:
+        """Test handling of a valid raw historical funding rates response."""
+        handler = HyperliquidResponseHandler()
+        raw_data_list = cast(list[RawJsonResponse], valid_raw_historical_funding_rates_data)
+        result = handler.handle_historical_funding_rates_response(raw_data_list)
+        assert isinstance(result, list)
+        assert len(result) == len(valid_raw_historical_funding_rates_data)
+        for i, item in enumerate(result):
+            assert isinstance(item, HyperliquidRawFundingHistoryItem)
+            # Check against the original raw dict from the fixture
+            original_item_dict = valid_raw_historical_funding_rates_data[i]
+            assert item.coin == original_item_dict["coin"]
+            assert item.funding_rate == original_item_dict["fundingRate"]
+            assert item.time == original_item_dict["time"]
+            assert item.premium == original_item_dict["premium"]
+
+    def test_invalid_top_level_type(self) -> None:
+        """Test handling when the raw response is not a list."""
+        handler = HyperliquidResponseHandler()
+        invalid_data: RawJsonResponse = {"error": "not a list"}
+        with pytest.raises(APIError) as exc_info:
+            handler.handle_historical_funding_rates_response(invalid_data)
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Expected list for historical funding rates, got dict" in exc_info.value.message
+
+    def test_invalid_item_type_in_list(self) -> None:
+        """Test handling when an item in the list is not a dictionary."""
+        handler = HyperliquidResponseHandler()
+        # Example valid item: {"coin": "ETH", "fundingRate": "0.01", "premium": "0.01", "time": 123}
+        invalid_data_list: list[RawJsonResponse] = [
+            "not a dict",
+            {"coin": "ETH", "fundingRate": "0.01", "premium": "0.01", "time": 123},
+        ]
+        with pytest.raises(APIError) as exc_info:
+            handler.handle_historical_funding_rates_response(invalid_data_list)
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert (
+            "Expected dict for historical funding rate item, got str at index 0"
+            in exc_info.value.message
+        )
+
+    def test_item_validation_error(
+        self,
+        valid_raw_historical_funding_rates_data: list[dict[str, Any]],
+    ) -> None:
+        """Test handling when an item in the list fails Pydantic validation."""
+        handler = HyperliquidResponseHandler()
+        modified_data_list = copy.deepcopy(valid_raw_historical_funding_rates_data)
+        if not modified_data_list:
+            # Add a default item if fixture is empty, then invalidate it
+            modified_data_list.append(
+                {"coin": "ETH", "fundingRate": "0.01", "premium": "0.01", "time": 123}
+            )
+
+        # Invalidate the first item by removing a required field 'time'
+        if modified_data_list:  # Ensure list is not empty before trying to delete
+            del modified_data_list[0]["time"]
+        else:  # If it was empty and we added one item, that item is now invalid by missing 'time'
+            # This path is less likely if fixture is usually populated, but handles edge case
+            pass
+
+        raw_data_cast = cast(list[RawJsonResponse], modified_data_list)
+        with pytest.raises(APIError) as exc_info:
+            handler.handle_historical_funding_rates_response(raw_data_cast)
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert (
+            "Validation error for historical funding rate item at index 0:"
+            in exc_info.value.message
+        )
+        assert isinstance(exc_info.value.original_exception, ValidationError)

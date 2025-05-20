@@ -776,169 +776,276 @@ class TestHyperliquidAccountService:
     @pytest.mark.asyncio
     async def test_get_balances_http_client_returns_none_in_state_fetch(
         self,
-        hyperliquid_account_service_fixture: HyperliquidAccountService,  # Use the fixture name
+        hyperliquid_account_service: HyperliquidAccountService,
         mock_http_client_requester: AsyncMock,
-        mock_hl_request_builder: MagicMock,  # Keep for consistency if service uses it before error
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_hl_mapper: MagicMock,
+        mock_authenticator: MagicMock,
     ) -> None:
-        """Test get_balances when _get_raw_clearinghouse_state receives None from HTTP client."""
-        # The wallet_address is already set to "0xTestWalletAddress" by the fixture.
-        # We rely on this fixture-set address for this test.
-        wallet_address_from_fixture = "0xTestWalletAddress"
+        """Test get_balances when _get_raw_clearinghouse_state gets None from HTTP client."""
+        wallet_address = "0xTestWalletAddress"  # Use known fixture value
 
-        # Setup for _get_raw_clearinghouse_state call
-        mock_payload_model = MagicMock()
-        mock_payload_dict = {
-            "type": "clearinghouseState",
-            "user": wallet_address_from_fixture,  # Use the address from fixture
-        }
-        mock_hl_request_builder.build_user_state_payload.return_value = mock_payload_model
-        mock_payload_model.model_dump.return_value = mock_payload_dict
+        # Setup for _get_raw_clearinghouse_state internal call
+        mock_user_state_payload_model = MagicMock()
+        mock_user_state_payload_dict = {"type": "clearinghouseState", "user": wallet_address}
+        mock_user_state_payload_model.model_dump.return_value = mock_user_state_payload_dict
+        mock_request_builder.build_user_state_payload.return_value = mock_user_state_payload_model
 
-        # Simulate HTTP client returning None for content inside _get_raw_clearinghouse_state
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
         with pytest.raises(APIError) as exc_info:
-            await hyperliquid_account_service_fixture.get_balances()
+            await hyperliquid_account_service.get_balances()
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "No data received for user state (for clearinghouse_state)" in exc_info.value.message
+        assert (
+            "No content received from HTTP client for clearinghouseState" in exc_info.value.message
+        )
 
-        # Verify the call that led to the None response
-        mock_hl_request_builder.build_user_state_payload.assert_called_once_with(
-            wallet_address_from_fixture
+        mock_request_builder.build_user_state_payload.assert_called_once_with(
+            user_address=wallet_address
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
-            endpoint_path="/info",  # As used in _get_raw_clearinghouse_state
-            data=mock_payload_dict,
-            is_info_endpoint=True,
-            is_signed=False,
+            endpoint_path="/info",
+            data=mock_user_state_payload_dict,
+            authenticator=mock_authenticator,
+            rate_limiter_service=None,
+            is_signed=True,
         )
+        mock_response_handler.handle_info_user_state_response.assert_not_called()
+        mock_hl_mapper.map_raw_clearinghouse_state_to_spot_balances.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_order_history_http_client_returns_none(
         self,
-        hyperliquid_account_service_fixture: HyperliquidAccountService,
+        hyperliquid_account_service: HyperliquidAccountService,
         mock_http_client_requester: AsyncMock,
-        mock_hl_request_builder: MagicMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_hl_order_mapper: MagicMock,
+        mock_authenticator: MagicMock,
     ) -> None:
-        """Test get_order_history when the HTTP client returns None content."""
-        # Rely on wallet_address from fixture "0xTestWalletAddress"
-        wallet_address_from_fixture = "0xTestWalletAddress"
-        start_time = datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC)
-        end_time = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
-        start_time_ms = int(start_time.timestamp() * 1000)
-        end_time_ms = int(end_time.timestamp() * 1000)
+        """Test get_order_history when HTTP client returns None content."""
+        wallet_address = "0xTestWalletAddress"  # Known fixture value
+        symbol: str | None = None
 
-        mock_request_payload_model = MagicMock()
-        mock_request_payload_dict = {
-            "type": "orderHistory",
-            "user": wallet_address_from_fixture,  # Use fixture address
-            "startTime": start_time_ms,
-            "endTime": end_time_ms,
-        }
-        mock_hl_request_builder.build_user_historical_orders_payload.return_value = (
-            mock_request_payload_model
-        )
-        mock_request_payload_model.model_dump.return_value = mock_request_payload_dict
+        mock_payload_model = MagicMock()
+        # Adjusted to reflect that build_order_history_payload takes user_address
+        # and optional symbol
+        mock_payload_dict = {"type": "orderHistory", "user": wallet_address}
+        if symbol:
+            mock_payload_dict["coin"] = symbol  # Hyperliquid uses 'coin' for symbol in this payload
 
-        mock_http_client_requester.return_value = (None, 200, MagicMock())
+        mock_payload_model.model_dump.return_value = mock_payload_dict
+        mock_request_builder.build_order_history_payload.return_value = mock_payload_model
+
+        mock_http_client_requester.return_value = (
+            None,
+            200,
+            MagicMock(),
+        )  # HTTP client returns None
 
         with pytest.raises(APIError) as exc_info:
-            await hyperliquid_account_service_fixture.get_order_history(
-                start_time=start_time, end_time=end_time
-            )
+            await hyperliquid_account_service.get_order_history(symbol=symbol)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            "No content received from HTTP client for user historical orders"
-            in exc_info.value.message
-        )
-        mock_hl_request_builder.build_user_historical_orders_payload.assert_called_once_with(
-            user_address=wallet_address_from_fixture,
-            start_time_ms=start_time_ms,
-            end_time_ms=end_time_ms,
+        assert "No content received from HTTP client for orderHistory" in exc_info.value.message
+
+        mock_request_builder.build_order_history_payload.assert_called_once_with(
+            user_address=wallet_address, symbol=symbol
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint_path="/info",
-            data=mock_request_payload_dict,
-            is_info_endpoint=True,
-            is_signed=False,
+            data=mock_payload_dict,
+            authenticator=mock_authenticator,
+            rate_limiter_service=None,
+            is_signed=True,
         )
+        mock_response_handler.handle_order_history_response.assert_not_called()
+        mock_hl_order_mapper.map_raw_hl_order_to_internal.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_trade_history_http_client_returns_none(
         self,
-        hyperliquid_account_service_fixture: HyperliquidAccountService,
+        hyperliquid_account_service: HyperliquidAccountService,
         mock_http_client_requester: AsyncMock,
-        mock_hl_request_builder: MagicMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_hl_user_fill_mapper: MagicMock,
+        mock_authenticator: MagicMock,
     ) -> None:
-        """Test get_trade_history when the HTTP client returns None content."""
-        # Rely on wallet_address from fixture "0xTestWalletAddress"
-        wallet_address_from_fixture = "0xTestWalletAddress"
+        """Test get_trade_history when HTTP client returns None content."""
+        wallet_address = "0xTestWalletAddress"  # Known fixture value
+        symbol: str | None = None
+        # Timestamps not used by current build_user_fills_payload, but keeping for
+        # potential future use
+        # start_time = datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC)
+        # end_time = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
 
-        mock_request_payload_model = MagicMock()
-        mock_request_payload_dict = {
-            "type": "userFills",
-            "user": wallet_address_from_fixture,  # Use fixture address
-        }
-        mock_hl_request_builder.build_user_fills_payload.return_value = mock_request_payload_model
-        mock_request_payload_model.model_dump.return_value = mock_request_payload_dict
+        mock_payload_model = MagicMock()
+        mock_payload_dict = {"type": "userFills", "user": wallet_address}  # Simplified
+        if symbol:
+            mock_payload_dict["coin"] = symbol  # Actual payload might differ, adjust if needed
 
-        mock_http_client_requester.return_value = (None, 200, MagicMock())
+        mock_payload_model.model_dump.return_value = mock_payload_dict
+        mock_request_builder.build_user_fills_payload.return_value = mock_payload_model
+
+        mock_http_client_requester.return_value = (
+            None,
+            200,
+            MagicMock(),
+        )  # HTTP client returns None
 
         with pytest.raises(APIError) as exc_info:
-            await hyperliquid_account_service_fixture.get_trade_history()
+            # Using symbol=None to match current build_user_fills_payload simplicity
+            await hyperliquid_account_service.get_trade_history(symbol=symbol)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "No content received from HTTP client for user fills" in exc_info.value.message
-        mock_hl_request_builder.build_user_fills_payload.assert_called_once_with(
-            user_address=wallet_address_from_fixture
+        assert "No content received from HTTP client for userFills" in exc_info.value.message
+
+        mock_request_builder.build_user_fills_payload.assert_called_once_with(
+            user_address=wallet_address
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint_path="/info",
-            data=mock_request_payload_dict,
-            is_info_endpoint=True,
-            is_signed=False,
+            data=mock_payload_dict,
+            authenticator=mock_authenticator,
+            rate_limiter_service=None,
+            is_signed=True,
         )
+        mock_response_handler.handle_user_fills_response.assert_not_called()
+        mock_hl_user_fill_mapper.map_raw_hl_user_fill_to_trade.assert_not_called()
+        # Also check the list version if one exists and could be called
+        # Assuming map_raw_hl_user_fills_to_trades is the list version for now
+        if hasattr(mock_hl_user_fill_mapper, "map_raw_hl_user_fills_to_trades"):
+            mock_hl_user_fill_mapper.map_raw_hl_user_fills_to_trades.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_open_orders_http_client_returns_none(
         self,
-        hyperliquid_account_service_fixture: HyperliquidAccountService,
+        hyperliquid_account_service: HyperliquidAccountService,
         mock_http_client_requester: AsyncMock,
-        mock_hl_request_builder: MagicMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_hl_order_mapper: MagicMock,
+        mock_authenticator: MagicMock,
     ) -> None:
-        """Test get_open_orders when the HTTP client returns None content."""
-        # Rely on wallet_address from fixture "0xTestWalletAddress"
-        wallet_address_from_fixture = "0xTestWalletAddress"
+        """Test get_open_orders when the specific HTTP client call for open orders returns None."""
+        wallet_address = "0xTestWalletAddress"
+        # symbol: str | None = "ETH" # Removed, get_open_orders does not take symbol
 
-        mock_request_payload_model = MagicMock()
-        mock_request_payload_dict = {
-            "type": "openOrders",
-            "user": wallet_address_from_fixture,  # Use fixture address
-        }
-        mock_hl_request_builder.build_user_open_orders_payload.return_value = (
-            mock_request_payload_model
-        )
-        mock_request_payload_model.model_dump.return_value = mock_request_payload_dict
+        # 1. Mock the internal _get_raw_clearinghouse_state to succeed
+        #    so we can test the subsequent open orders call.
+        #    We need a mock for HyperliquidRawClearinghouseState for its return.
+        mock_raw_user_state = MagicMock(spec=HyperliquidRawClearinghouseState)
+        # Add some basic attributes if the service method tries to access them before the error
+        mock_raw_user_state.assetPositions = []
+        mock_raw_user_state.marginSummary = MagicMock(spec=HyperliquidRawMarginSummary)
+        # Patch _get_raw_clearinghouse_state directly on the instance for this test
+        with patch.object(
+            hyperliquid_account_service,
+            "_get_raw_clearinghouse_state",
+            new_callable=AsyncMock,
+            return_value=mock_raw_user_state,
+        ) as mock_get_state_helper:
+            # 2. Setup for the open_orders specific payload and HTTP call
+            mock_open_orders_payload_model = MagicMock()
+            mock_open_orders_payload_dict = {"type": "openOrders", "user": wallet_address}
+            mock_open_orders_payload_model.model_dump.return_value = mock_open_orders_payload_dict
+            mock_request_builder.build_open_orders_payload.return_value = (
+                mock_open_orders_payload_model
+            )
 
+            # This mock_http_client_requester is for the call made by get_open_orders itself,
+            # *after* _get_raw_clearinghouse_state (which is now fully mocked by the patch)
+            mock_http_client_requester.return_value = (
+                None,
+                200,
+                MagicMock(),
+            )  # HTTP client returns None
+
+            with pytest.raises(APIError) as exc_info:
+                await hyperliquid_account_service.get_open_orders()  # Removed symbol argument
+
+            assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+            assert "No content received from HTTP client for openOrders" in exc_info.value.message
+
+            mock_get_state_helper.assert_called_once()  # Ensure the patched helper was called
+            mock_request_builder.build_open_orders_payload.assert_called_once_with(
+                user_address=wallet_address
+            )
+            mock_http_client_requester.assert_called_once_with(
+                method="POST",
+                endpoint_path="/info",
+                data=mock_open_orders_payload_dict,
+                authenticator=mock_authenticator,
+                rate_limiter_service=None,
+                is_signed=True,
+            )
+            mock_response_handler.handle_open_orders_response.assert_not_called()
+            mock_hl_order_mapper.transform_raw_order_to_internal.assert_not_called()
+            # Also check list version if it exists and could be called
+            if hasattr(mock_hl_order_mapper, "transform_raw_open_orders_list_to_internal"):
+                mock_hl_order_mapper.transform_raw_open_orders_list_to_internal.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_open_orders_state_fetch_returns_none(
+        self,
+        hyperliquid_account_service: HyperliquidAccountService,
+        mock_http_client_requester: AsyncMock,  # This will be for the state fetch call
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,  # To assert it's not called for state
+        mock_authenticator: MagicMock,
+        mock_hl_order_mapper: MagicMock,  # Added missing fixture parameter
+    ) -> None:
+        """Test get_open_orders when the underlying _get_raw_clearinghouse_state
+        receives None from its HTTP client call."""
+        wallet_address = "0xTestWalletAddress"  # From fixture
+
+        # 1. Setup for the call within _get_raw_clearinghouse_state
+        # This is the call that will return None
+        mock_user_state_payload_model = MagicMock()
+        mock_user_state_payload_dict = {"type": "clearinghouseState", "user": wallet_address}
+        mock_user_state_payload_model.model_dump.return_value = mock_user_state_payload_dict
+        mock_request_builder.build_user_state_payload.return_value = mock_user_state_payload_model
+
+        # Configure the main http_client_requester to return None for the state fetch
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
         with pytest.raises(APIError) as exc_info:
-            await hyperliquid_account_service_fixture.get_open_orders()
+            await hyperliquid_account_service.get_open_orders()
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "No content received from HTTP client for open orders" in exc_info.value.message
-        mock_hl_request_builder.build_user_open_orders_payload.assert_called_once_with(
-            user_address=wallet_address_from_fixture
+        assert (
+            "No content received from HTTP client for clearinghouseState" in exc_info.value.message
         )
+
+        # Assert that the build_user_state_payload was called (by _get_raw_clearinghouse_state)
+        mock_request_builder.build_user_state_payload.assert_called_once_with(
+            user_address=wallet_address
+        )
+        # Assert the http_client_requester was called for the state fetch
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint_path="/info",
-            data=mock_request_payload_dict,
-            is_info_endpoint=True,
-            is_signed=False,
+            data=mock_user_state_payload_dict,
+            authenticator=mock_authenticator,  # As _get_raw_clearinghouse_state uses it
+            rate_limiter_service=None,  # As _get_raw_clearinghouse_state uses it
+            is_signed=True,  # As _get_raw_clearinghouse_state uses it
         )
+        # Ensure response handler for state was not called
+        mock_response_handler.handle_info_user_state_response.assert_not_called()
+        # Ensure methods related to the *second* API call (for openOrders details) were not called
+        mock_request_builder.build_open_orders_payload.assert_not_called()
+        mock_response_handler.handle_open_orders_response.assert_not_called()
+
+        # Use the injected mock_hl_order_mapper fixture for assertions
+        mock_hl_order_mapper.transform_raw_order_to_internal.assert_not_called()
+        # If a specific list mapping method for open orders exists on HyperliquidOrderMapper and is used,
+        # it should be asserted here. For now, assuming individual mapping via transform_raw_order_to_internal.
+        # Example if such a method existed (adjust method name if necessary):
+        # if hasattr(mock_hl_order_mapper, "transform_raw_open_orders_list_to_internal"):
+        #     mock_hl_order_mapper.transform_raw_open_orders_list_to_internal.assert_not_called()

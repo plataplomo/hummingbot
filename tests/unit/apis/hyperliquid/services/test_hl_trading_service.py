@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
@@ -40,27 +41,43 @@ def mock_hl_order_mapper() -> MagicMock:
 
 
 @pytest.fixture
-def hl_trading_service_fixture(
+def mock_authenticator_fixt() -> MagicMock:
+    """Fixture for the authenticator mock."""
+    return MagicMock(spec=IAuthenticator)
+
+
+@pytest.fixture
+def mock_hl_response_handler_fixt() -> MagicMock:
+    """Fixture for the HyperliquidResponseHandler mock."""
+    return MagicMock(spec=HyperliquidResponseHandler)
+
+
+@pytest.fixture
+def make_hl_trading_service(
     mock_exchange_http_client_requester: AsyncMock,
     mock_info_http_client_requester: AsyncMock,
     mock_hl_request_builder: MagicMock,
+    mock_hl_response_handler_fixt: MagicMock,
+    mock_authenticator_fixt: MagicMock,
     mock_get_asset_index_callable: AsyncMock,
     mock_hl_order_mapper: MagicMock,
-) -> HyperliquidTradingService:
-    # A minimal authenticator mock for the service
-    mock_authenticator = MagicMock(spec=IAuthenticator)
-    service = HyperliquidTradingService(
-        exchange_http_client_requester=mock_exchange_http_client_requester,
-        info_http_client_requester=mock_info_http_client_requester,
-        request_builder=mock_hl_request_builder,
-        response_handler=MagicMock(spec=HyperliquidResponseHandler),  # Add response_handler mock
-        authenticator=mock_authenticator,
-        exchange_name="hyperliquid_test_trading",
-        wallet_address="0xTestWalletAddrTrading",
-        get_asset_index_callable=mock_get_asset_index_callable,
-        order_mapper=mock_hl_order_mapper,
-    )
-    return service
+) -> Callable[..., HyperliquidTradingService]:
+    """Factory fixture to create HyperliquidTradingService instances."""
+
+    def _factory(wallet_address: str = "0xTestWalletAddrTrading") -> HyperliquidTradingService:
+        return HyperliquidTradingService(
+            exchange_http_client_requester=mock_exchange_http_client_requester,
+            info_http_client_requester=mock_info_http_client_requester,
+            request_builder=mock_hl_request_builder,
+            response_handler=mock_hl_response_handler_fixt,
+            authenticator=mock_authenticator_fixt,
+            exchange_name="hyperliquid_test_trading",
+            wallet_address=wallet_address,
+            get_asset_index_callable=mock_get_asset_index_callable,
+            order_mapper=mock_hl_order_mapper,
+        )
+
+    return _factory
 
 
 class TestHyperliquidTradingService:
@@ -69,20 +86,21 @@ class TestHyperliquidTradingService:
     @pytest.mark.asyncio
     async def test_place_order_http_client_returns_none_in_exchange_action(
         self,
-        hl_trading_service_fixture: HyperliquidTradingService,
+        make_hl_trading_service: Callable[..., HyperliquidTradingService],
         mock_exchange_http_client_requester: AsyncMock,
         mock_get_asset_index_callable: AsyncMock,
+        # mock_authenticator_fixt: MagicMock # Not directly used in this test's assertions
     ) -> None:
         """Test place_order when the exchange HTTP client returns None content."""
         symbol = "ETH"
-        # order_id was unused
-        hl_trading_service_fixture._wallet_address = "0xWallet"
+        wallet_address = "0xWallet"
+        hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
         mock_get_asset_index_callable.return_value = 0
 
         mock_exchange_http_client_requester.return_value = (None, 200, MagicMock())
 
         with pytest.raises(APIError) as exc_info:
-            await hl_trading_service_fixture.place_order(
+            await hl_trading_service.place_order(
                 symbol=symbol,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -100,15 +118,16 @@ class TestHyperliquidTradingService:
     @pytest.mark.asyncio
     async def test_get_order_http_client_returns_none_in_info_request(
         self,
-        hl_trading_service_fixture: HyperliquidTradingService,
+        make_hl_trading_service: Callable[..., HyperliquidTradingService],
         mock_info_http_client_requester: AsyncMock,
         mock_hl_request_builder: MagicMock,
+        mock_authenticator_fixt: MagicMock,  # For assertion
     ) -> None:
         """Test get_order when the info HTTP client returns None content."""
         symbol = "ETH"
         order_id = 12345
-        wallet_address = "0xWallet"  # Using a local var for clarity in test logic
-        hl_trading_service_fixture._wallet_address = wallet_address
+        wallet_address = "0xWallet"
+        hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
 
         mock_request_payload_model = MagicMock()
         mock_request_payload_dict = {"type": "orderStatus", "user": wallet_address, "oid": order_id}
@@ -117,7 +136,7 @@ class TestHyperliquidTradingService:
         mock_info_http_client_requester.return_value = None
 
         with pytest.raises(APIError) as exc_info:
-            await hl_trading_service_fixture.get_order(symbol=symbol, order_id=order_id)
+            await hl_trading_service.get_order(symbol=symbol, order_id=order_id)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Fetching order status returned no content." in exc_info.value.message
@@ -128,7 +147,7 @@ class TestHyperliquidTradingService:
             method="POST",
             endpoint_path="/info",
             data=mock_request_payload_dict,
-            authenticator=hl_trading_service_fixture._authenticator,
+            authenticator=mock_authenticator_fixt,  # Use injected mock authenticator
             rate_limiter_service=None,
             is_signed=True,
         )
@@ -138,13 +157,14 @@ class TestHyperliquidTradingService:
     @pytest.mark.asyncio
     async def test_get_open_orders_http_client_returns_none_in_info_request(
         self,
-        hl_trading_service_fixture: HyperliquidTradingService,
+        make_hl_trading_service: Callable[..., HyperliquidTradingService],
         mock_info_http_client_requester: AsyncMock,
         mock_hl_request_builder: MagicMock,
+        mock_authenticator_fixt: MagicMock,  # For assertion
     ) -> None:
         """Test get_open_orders when the info HTTP client returns None content."""
         wallet_address = "0xWallet"
-        hl_trading_service_fixture._wallet_address = wallet_address
+        hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
 
         mock_request_payload_model = MagicMock()
         mock_request_payload_dict = {"type": "openOrders", "user": wallet_address}
@@ -155,7 +175,7 @@ class TestHyperliquidTradingService:
         mock_info_http_client_requester.return_value = None
 
         with pytest.raises(APIError) as exc_info:
-            await hl_trading_service_fixture.get_open_orders()
+            await hl_trading_service.get_open_orders()
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Fetching open orders returned no content." in exc_info.value.message
@@ -166,7 +186,7 @@ class TestHyperliquidTradingService:
             method="POST",
             endpoint_path="/info",
             data=mock_request_payload_dict,
-            authenticator=hl_trading_service_fixture._authenticator,
+            authenticator=mock_authenticator_fixt,  # Use injected mock authenticator
             rate_limiter_service=None,
             is_signed=True,
         )
@@ -176,16 +196,17 @@ class TestHyperliquidTradingService:
     @pytest.mark.asyncio
     async def test_cancel_order_http_client_returns_none_in_exchange_action(
         self,
-        hl_trading_service_fixture: HyperliquidTradingService,
+        make_hl_trading_service: Callable[..., HyperliquidTradingService],
         mock_exchange_http_client_requester: AsyncMock,
         mock_get_asset_index_callable: AsyncMock,
         mock_hl_request_builder: MagicMock,
+        # mock_authenticator_fixt: MagicMock # Not directly used in this test's assertions
     ) -> None:
         """Test cancel_order when the exchange HTTP client returns None content."""
         symbol = "ETH"
         order_id = 12345
         wallet_address = "0xWallet"
-        hl_trading_service_fixture._wallet_address = wallet_address
+        hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
         mock_get_asset_index_callable.return_value = 0
 
         mock_cancel_action = MagicMock()
@@ -193,7 +214,7 @@ class TestHyperliquidTradingService:
         mock_exchange_http_client_requester.return_value = (None, 200, MagicMock())
 
         with pytest.raises(APIError) as exc_info:
-            await hl_trading_service_fixture.cancel_order(symbol=symbol, order_id=order_id)
+            await hl_trading_service.cancel_order(symbol=symbol, order_id=order_id)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Exchange action (cancel) returned no content" in exc_info.value.message
@@ -207,15 +228,14 @@ class TestHyperliquidTradingService:
     @pytest.mark.asyncio
     async def test_cancel_all_orders_get_open_orders_returns_none(
         self: "TestHyperliquidTradingService",  # Type annotation for self
-        hl_trading_service_fixture: HyperliquidTradingService,
+        make_hl_trading_service: Callable[..., HyperliquidTradingService],
         mock_info_http_client_requester: AsyncMock,
         mock_hl_request_builder: MagicMock,
+        mock_authenticator_fixt: MagicMock,  # For assertion
     ) -> None:
         """Test cancel_all_orders when _get_open_orders_raw receives None from info HTTP client."""
-        wallet_address = "0xWallet"  # Local var for test clarity
-        # Ensure service has a wallet address set for the test.
-        # This specific test is for when get_open_orders fails, so wallet needs to be set for that part.
-        hl_trading_service_fixture._wallet_address = wallet_address
+        wallet_address = "0xWallet"
+        hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
 
         mock_request_payload_model = MagicMock()
         mock_request_payload_dict = {"type": "openOrders", "user": wallet_address}
@@ -227,7 +247,7 @@ class TestHyperliquidTradingService:
         mock_info_http_client_requester.return_value = None
 
         with pytest.raises(APIError) as exc_info:
-            await hl_trading_service_fixture.cancel_all_orders(symbol="ETH")
+            await hl_trading_service.cancel_all_orders(symbol="ETH")
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Fetching open orders returned no content." in exc_info.value.message
@@ -239,7 +259,7 @@ class TestHyperliquidTradingService:
             method="POST",
             endpoint_path="/info",
             data=mock_request_payload_dict,
-            authenticator=hl_trading_service_fixture._authenticator,
+            authenticator=mock_authenticator_fixt,  # Use injected mock authenticator
             rate_limiter_service=None,
             is_signed=True,
         )
