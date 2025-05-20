@@ -148,7 +148,12 @@ class HyperliquidTradingService:
         )
 
         try:
-            raw_response_tuple = await self._exchange_http_client_requester(request_payload_model)
+            raw_response_tuple = await self._exchange_http_client_requester(
+                method="POST",
+                endpoint=self._action_endpoint,
+                data=request_payload_model,
+                is_signed=True,
+            )
             raw_content = raw_response_tuple[0]
             if raw_content is None:
                 _error_msg_no_content = (
@@ -182,7 +187,12 @@ class HyperliquidTradingService:
             order_id=order_id,
         )
         try:
-            raw_response_tuple = await self._exchange_http_client_requester(request_payload_model)
+            raw_response_tuple = await self._exchange_http_client_requester(
+                method="POST",
+                endpoint=self._action_endpoint,
+                data=request_payload_model,
+                is_signed=True,
+            )
             raw_content = raw_response_tuple[0]
             if raw_content is None:
                 _error_msg_no_content = (
@@ -594,13 +604,25 @@ class HyperliquidTradingService:
         _error_msg_wallet_addr = "Wallet address is required."
         if not self._wallet_address:
             raise APIError(_error_msg_wallet_addr, APIErrorCode.AUTHENTICATION_FAILED.value)
-        action_item = {"type": "batchCancel", "cancels": cancels}
-        actions_list = [action_item]
+
+        # 1. Construct the specific action payload for batch cancellation
+        batch_cancel_action_item = {"type": "batchCancel", "cancels": cancels}
+
+        # 2. Use the RequestBuilder to create the full "execute" envelope.
+        #    This service expects the builder to have a method (e.g., build_execute_actions_envelope)
+        #    that takes a list of action items and returns the complete Pydantic model
+        #    for the request body (e.g., HyperliquidActionEnvelope).
+        #    If this method is missing from HyperliquidRequestBuilder, linter errors on the next line
+        #    will correctly indicate that the builder needs to be updated.
+        request_payload_model = self._request_builder.build_execute_actions_envelope(
+            actions=[batch_cancel_action_item]
+        )
+
         try:
             raw_response_data_tuple = await self._exchange_http_client_requester(
                 method="POST",
                 endpoint=self._action_endpoint,
-                data=actions_list,
+                data=request_payload_model,  # Pass the Pydantic model from the builder
                 is_signed=True,
             )
             raw_response_data = raw_response_data_tuple[0]

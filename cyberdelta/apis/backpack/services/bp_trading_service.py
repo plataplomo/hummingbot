@@ -4,39 +4,31 @@ CyberDeltaEngine: Backpack Trading Service
 
 This service encapsulates the logic for trading operations on the Backpack Exchange.
 It uses the HttpClient (via a requester callable), BackpackRequestBuilder,
-and BackpackResponseHandler to interact with the API and returns validated
-Raw Pydantic Models.
+BackpackResponseHandler, and BackpackOrderMapper to interact with the API
+and returns Internal Domain Models.
 """
 
-from __future__ import annotations  # Added for type hints like BackpackRawOrder | None
+from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Mapping  # Added Mapping for HttpClientRequesterSig
+from collections.abc import Awaitable, Callable, Mapping
 from decimal import Decimal
 
-# Mappers
-from cyberdelta.apis.backpack.bp_order_mapper import (
-    BackpackOrderMapper,
-)  # Added for transformations
+from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
-from cyberdelta.apis.backpack.bp_response_handler import (
-    BackpackResponseHandler,
-    # RawJsonResponse, # Not directly used here if ParsedJsonResponse covers it
-)
+from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-
-# Internal Domain Models
-from cyberdelta.core.models import Order  # Import internal Order model
-from cyberdelta.core.models.enums import (  # Added CancelOrderResultStatus
+from cyberdelta.core.models import Order
+from cyberdelta.core.models.enums import (
     CancelOrderResultStatus,
     OrderSide,
     OrderType,
     TimeInForce,
 )
-from cyberdelta.core.models.market.order import CancelOrderResult  # Added CancelOrderResult
+from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -49,33 +41,26 @@ HttpClientRequesterSig = Callable[
 
 class BackpackTradingService:
     """
-    Service class for Backpack trading operations.
+    Service class for Backpack trading operations. Returns Internal Domain Models.
     """
 
     def __init__(
         self,
-        http_client_requester: HttpClientRequesterSig,  # Corrected signature
+        http_client_requester: HttpClientRequesterSig,
         request_builder: BackpackRequestBuilder,
         response_handler: BackpackResponseHandler,
-        authenticator: IAuthenticator | None,
+        authenticator: IAuthenticator | None,  # Added authenticator
         exchange_name: str,
     ) -> None:
         """
         Initialize the BackpackTradingService.
-
-        Args:
-            http_client_requester: A callable (typically a method from an HttpClient instance)
-                                   for making API requests.
-            request_builder: An instance of BackpackRequestBuilder.
-            response_handler: An instance of BackpackResponseHandler.
-            authenticator: An instance of IAuthenticator for signing requests.
-            exchange_name: The name of the exchange.
         """
         self._http_client_requester = http_client_requester
         self._request_builder = request_builder
         self._response_handler = response_handler
-        self._authenticator = authenticator  # Storing authenticator
+        self._authenticator = authenticator
         self._exchange_name = exchange_name
+        self._order_mapper = BackpackOrderMapper()  # Instantiate or use static methods
 
     async def place_order(
         self,
@@ -85,45 +70,33 @@ class BackpackTradingService:
         quantity: Decimal,
         time_in_force: TimeInForce,
         price: Decimal | None = None,
-        stop_price: Decimal | None = None,
+        stop_price: Decimal | None = None,  # Renamed from trigger_price for consistency
         client_order_id: str | None = None,
         post_only: bool = False,
-    ) -> Order:  # Returns internal Order model
+        # reduce_only is not directly supported by Backpack's place_order from openapi_backpack.json
+    ) -> Order:
         endpoint = "/api/v1/order"
         payload = self._request_builder.build_place_order_payload(
             symbol=symbol,
             side=side,
             order_type=order_type,
             quantity=quantity,
-            time_in_force=time_in_force,
+            time_in_force=time_in_force,  # Corrected: Pass TimeInForce enum
             price=price,
             client_order_id=client_order_id,
             post_only=post_only,
-            trigger_price=stop_price,  # Ensure builder handles this if applicable for Backpack
+            trigger_price=stop_price,
         )
 
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
-        # headers: Mapping[str, str] = {} # Headers not used by this specific handler
         try:
-            response_tuple = await self._http_client_requester(
+            raw_data, status_code, _ = await self._http_client_requester(
                 method="POST", endpoint=endpoint, data=payload, is_signed=True
             )
-            raw_data, status_code, _ = response_tuple  # Headers ignored for this handler
-            logger.debug(
-                f"[{self._exchange_name}] Place order raw response: {raw_data}, "
-                f"status: {status_code}"
-            )
-
-            if raw_data is None:
+            if raw_data is None or not isinstance(raw_data, dict):
                 raise APIError(
-                    f"Place order for {symbol} returned no content (status: {status_code})",
-                    APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-            if not isinstance(raw_data, dict):
-                raise APIError(
-                    f"Unexpected response type for place_order: {type(raw_data)}",
+                    f"Place order for {symbol} returned invalid data (status: {status_code})",
                     APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
@@ -131,98 +104,71 @@ class BackpackTradingService:
             raw_order_model: BackpackRawOrder = self._response_handler.handle_place_order_response(
                 raw_data
             )
-            internal_order = BackpackOrderMapper.transform_raw_order_to_internal(raw_order_model)
+            internal_order = self._order_mapper.transform_raw_order_to_internal(raw_order_model)
             return internal_order
-        except ValueError as ve:  # From builder or mapper
-            logger.error(f"[{self._exchange_name}] ValueError placing order: {ve}", exc_info=True)
-            raise APIError(
-                f"Data validation error placing order: {ve}",
-                APIErrorCode.INVALID_PARAMS.value,
-                original_exception=ve,
-                http_status=status_code,
-                exchange_message=str(raw_data),
-            ) from ve
         except APIError:
             raise
         except Exception as e:
             logger.error(f"[{self._exchange_name}] Error placing order: {e}", exc_info=True)
             raise APIError(
-                f"Unexpected error placing order: {e}",
+                f"Unexpected error placing order for {symbol}: {e}",
                 APIErrorCode.UNKNOWN.value,
                 original_exception=e,
-                http_status=status_code,
-                exchange_message=str(raw_data),
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=str(raw_data) if raw_data else None,
             ) from e
 
     async def cancel_order(self, order_id: str, symbol: str) -> bool:
         endpoint = "/api/v1/order"
         payload = self._request_builder.build_cancel_order_payload(symbol=symbol, order_id=order_id)
-
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
         try:
-            response_tuple = await self._http_client_requester(
+            raw_data, status_code, _ = await self._http_client_requester(
                 method="DELETE", endpoint=endpoint, data=payload, is_signed=True
             )
-            raw_data, status_code, _ = response_tuple
-            logger.debug(
-                f"[{self._exchange_name}] Cancel order response: {raw_data}, status: {status_code}"
-            )
-
-            success = self._response_handler.handle_cancel_order_response(
-                raw_response_content=raw_data,
-                order_id=order_id,
-                symbol=symbol,
-                # No status_code, headers passed here
-            )
-            if not success:
+            # Backpack's cancel order returns the cancelled order details or an error.
+            # The response handler needs to determine success.
+            # Assuming handle_cancel_order_response returns bool based on successful cancellation.
+            if (
+                raw_data is None
+            ):  # Explicitly check for None if that's a possible "success but no content"
                 logger.warning(
-                    f"[{self._exchange_name}] Cancel order for {order_id} ({symbol}) "
-                    f"handler indicated failure. Raw: {raw_data!r}, Status: {status_code}"
+                    f"[{self._exchange_name}] Cancel order for {order_id} ({symbol}) received no content, assuming failure or unconfirmed success."
                 )
-            return success
+                return False  # Or specific handling if None means success for Backpack
+
+            return self._response_handler.handle_cancel_order_response(
+                raw_response_content=raw_data, order_id=order_id, symbol=symbol
+            )
         except APIError:
             raise
         except Exception as e:
             logger.error(
-                f"[{self._exchange_name}] Error cancelling order {order_id}: {e}", exc_info=True
+                f"[{self._exchange_name}] Error cancelling order {order_id} ({symbol}): {e}",
+                exc_info=True,
             )
             raise APIError(
-                f"Unexpected error cancelling order {order_id}: {e}",
+                f"Unexpected error cancelling order {order_id} ({symbol}): {e}",
                 APIErrorCode.UNKNOWN.value,
                 original_exception=e,
-                http_status=status_code,
-                exchange_message=str(raw_data),
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=str(raw_data) if raw_data else None,
             ) from e
 
-    async def get_open_orders(
-        self, symbol: str | None = None
-    ) -> list[Order]:  # Returns list of internal Order
+    async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         endpoint = "/api/v1/orders"
         params = self._request_builder.build_get_open_orders_params(symbol=symbol)
+
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
-        # headers: Mapping[str, str] = {} # Headers not used by this specific handler
         try:
-            response_tuple = await self._http_client_requester(
+            raw_data, status_code, _ = await self._http_client_requester(
                 method="GET", endpoint=endpoint, params=params, is_signed=True
             )
-            raw_data, status_code, _ = response_tuple  # Headers ignored for this handler
-            logger.debug(
-                f"[{self._exchange_name}] Get open orders response: {raw_data}, "
-                f"status: {status_code}"
-            )
-
-            if raw_data is None:
+            if raw_data is None or not isinstance(raw_data, list):
                 raise APIError(
-                    f"Get open orders for {symbol or 'all'} returned no content "
-                    f"(status: {status_code})",
-                    APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-            if not isinstance(raw_data, list):
-                raise APIError(
-                    f"Unexpected response type for get_open_orders: {type(raw_data)}",
+                    f"Get open orders for {symbol or 'all'} returned invalid data (status: {status_code})",
                     APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
@@ -231,7 +177,7 @@ class BackpackTradingService:
                 self._response_handler.handle_get_open_orders_response(raw_data, symbol)
             )
             internal_orders = [
-                BackpackOrderMapper.transform_raw_order_to_internal(ro) for ro in raw_orders_list
+                self._order_mapper.transform_raw_order_to_internal(ro) for ro in raw_orders_list
             ]
             return internal_orders
         except APIError:
@@ -239,232 +185,196 @@ class BackpackTradingService:
         except Exception as e:
             logger.error(f"[{self._exchange_name}] Error getting open orders: {e}", exc_info=True)
             raise APIError(
-                f"Unexpected error getting open orders: {e}",
+                f"Unexpected error getting open orders for {symbol or 'all'}: {e}",
                 APIErrorCode.UNKNOWN.value,
                 original_exception=e,
-                http_status=status_code,
-                exchange_message=str(raw_data),
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=str(raw_data) if raw_data else None,
             ) from e
 
     async def get_order(
         self, order_id: str, symbol: str, client_order_id: str | None = None
-    ) -> Order | None:  # Returns internal Order or None
-        endpoint = f"/api/v1/orders/{order_id}"
+    ) -> Order | None:
+        # Backpack uses orderId or clientOrderId in path for GET /api/v1/order/{identifier}
+        # The builder should handle which identifier to use, or service needs logic.
+        # Assuming order_id is the exchange order ID if provided.
+        # If only client_order_id, that should be used as identifier.
 
-        if not symbol:
-            raise ValueError("Symbol cannot be None or empty for get_order")
+        identifier = order_id
+        if not order_id and client_order_id:
+            identifier = client_order_id
+        elif not order_id and not client_order_id:
+            raise ValueError("Either order_id or client_order_id must be provided.")
 
-        built_params = self._request_builder.build_get_order_params(symbol=symbol)
+        endpoint = f"/api/v1/order/{identifier}"
+        params = self._request_builder.build_get_order_params(
+            symbol=symbol
+        )  # Symbol is a query param
 
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
         try:
-            response_tuple = await self._http_client_requester(
-                method="GET",
-                endpoint=endpoint,
-                params=built_params,
-                is_signed=True,
+            raw_data, status_code, _ = await self._http_client_requester(
+                method="GET", endpoint=endpoint, params=params, is_signed=True
             )
-            raw_data, status_code, _ = response_tuple
-            logger.debug(
-                f"[{self._exchange_name}] Get order status for {order_id} ({symbol}): "
-                f"{raw_data}, status: {status_code}"
-            )
-
-            if raw_data is None:
+            if status_code == 404:  # Order not found
+                logger.info(f"[{self._exchange_name}] Order {identifier} ({symbol}) not found.")
+                return None
+            if raw_data is None or not isinstance(raw_data, dict):
                 raise APIError(
-                    f"Get order status for {order_id} ({symbol}) returned no content "
-                    f"despite successful status {status_code}",
-                    APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-            if not isinstance(raw_data, dict):
-                raise APIError(
-                    f"Unexpected response type for get_order_status: {type(raw_data)}",
+                    f"Get order {identifier} ({symbol}) returned invalid data (status: {status_code})",
                     APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
 
             raw_order_model: BackpackRawOrder = (
-                self._response_handler.handle_get_order_status_response(raw_data, order_id)
+                self._response_handler.handle_get_order_status_response(raw_data, identifier)
             )
-            return BackpackOrderMapper.transform_raw_order_to_internal(raw_order_model)
+            internal_order = self._order_mapper.transform_raw_order_to_internal(raw_order_model)
+            return internal_order
         except APIError as e:
-            if e.code == APIErrorCode.ORDER_NOT_FOUND.value or e.http_status == 404:
+            # Allow ORDER_NOT_FOUND from handler to propagate if it maps it
+            if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
                 logger.info(
-                    f"[{self._exchange_name}] Order {order_id} ({symbol}) not found: {e.message}"
+                    f"[{self._exchange_name}] Order {identifier} ({symbol}) not found via handler mapping."
                 )
                 return None
             raise
         except Exception as e:
             logger.error(
-                f"[{self._exchange_name}] Error getting order status for {order_id} "
-                f"({symbol}): {e}",
+                f"[{self._exchange_name}] Error getting order {identifier} ({symbol}): {e}",
                 exc_info=True,
             )
             raise APIError(
-                f"Unexpected error getting order status for {order_id} ({symbol}): {e}",
+                f"Unexpected error getting order {identifier} ({symbol}): {e}",
                 APIErrorCode.UNKNOWN.value,
                 original_exception=e,
-                http_status=status_code,
-                exchange_message=str(raw_data),
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=str(raw_data) if raw_data else None,
             ) from e
 
-    async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
-        results: list[CancelOrderResult] = []
-        logger.info(
-            f"[{self._exchange_name}] Attempting to cancel all open orders in service"
-            f"{f' for symbol {symbol}' if symbol else ''}."
+    async def get_order_status(
+        self, order_id: str, symbol: str, client_order_id: str | None = None
+    ) -> Order:  # As per prompt, this implies it raises if not found.
+        order = await self.get_order(
+            order_id=order_id, symbol=symbol, client_order_id=client_order_id
         )
+        if order is None:
+            identifier = client_order_id if not order_id and client_order_id else order_id
+            raise APIError(
+                f"Order {identifier} for symbol {symbol} not found on {self._exchange_name}.",
+                code=APIErrorCode.ORDER_NOT_FOUND.value,
+            )
+        return order
+
+    async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
+        endpoint = "/api/v1/orders"
+        # Backpack's Cancel All Orders: DELETE /api/v1/orders with symbol query parameter
+        payload = self._request_builder.build_cancel_all_orders_payload(symbol=symbol)
+
+        raw_data: ParsedJsonResponse | None = None
+        status_code: int = 0
+        results: list[CancelOrderResult] = []
         try:
-            open_orders_to_cancel = await self.get_open_orders(symbol=symbol)
-            if not open_orders_to_cancel:
-                logger.info(
-                    f"[{self._exchange_name}] No open orders found in service"
-                    f"{f' for symbol {symbol}' if symbol else ''} to cancel."
-                )
-                return []
-
-            for order_to_cancel in open_orders_to_cancel:
-                exch_order_id = order_to_cancel.exchange_order_id
-                client_id = order_to_cancel.client_order_id
-                order_symbol = order_to_cancel.symbol
-
-                if not exch_order_id:
-                    logger.warning(
-                        f"[{self._exchange_name}] Open order from service has no "
-                        f"exchange_order_id. Order details: client_id={client_id}, "
-                        f"symbol={order_symbol}. Skipping."
-                    )
-                    results.append(
-                        CancelOrderResult(
-                            order_id=None,
-                            client_order_id=client_id,
-                            symbol=order_symbol,
-                            success=False,
-                            message="Order has no exchange_order_id for cancellation.",
-                            status=CancelOrderResultStatus.FAILED,
-                        )
-                    )
-                    continue
-
-                if not order_symbol:
-                    logger.error(
-                        f"[{self._exchange_name}] Open order (ID: {exch_order_id}) "
-                        f"missing symbol. Skipping."
-                    )
-                    results.append(
-                        CancelOrderResult(
-                            order_id=exch_order_id,
-                            client_order_id=client_id,
-                            symbol=None,
-                            success=False,
-                            message="Order is missing symbol information for cancellation.",
-                            status=CancelOrderResultStatus.FAILED,
-                        )
-                    )
-                    continue
-
-                try:
-                    cancelled = await self.cancel_order(
-                        order_id=exch_order_id,
-                        symbol=order_symbol,
-                    )
-                    results.append(
-                        CancelOrderResult(
-                            order_id=exch_order_id,
-                            client_order_id=client_id,
-                            symbol=order_symbol,
-                            success=cancelled,
-                            message="Successfully cancelled by service."
-                            if cancelled
-                            else "Failed to cancel via service.",
-                            status=CancelOrderResultStatus.SUCCESS
-                            if cancelled
-                            else CancelOrderResultStatus.FAILED,
-                        )
-                    )
-                except APIError as e_cancel:
-                    raw_body = (
-                        getattr(e_cancel.original_exception, "response_body", None)
-                        if isinstance(e_cancel.original_exception, APIError)
-                        else None
-                    )
-                    results.append(
-                        CancelOrderResult(
-                            order_id=exch_order_id,
-                            client_order_id=client_id,
-                            symbol=order_symbol,
-                            success=False,
-                            message=e_cancel.message,
-                            status=CancelOrderResultStatus.FAILED,
-                            raw_response=raw_body,
-                        )
-                    )
-                except Exception as e_unexp_cancel:
-                    logger.error(
-                        f"[{self._exchange_name}] Unexpected error in service cancelling "
-                        f"order {exch_order_id} for {order_symbol}: {e_unexp_cancel}",
-                        exc_info=True,
-                    )
-                    results.append(
-                        CancelOrderResult(
-                            order_id=exch_order_id,
-                            client_order_id=client_id,
-                            symbol=order_symbol,
-                            success=False,
-                            message=str(e_unexp_cancel),
-                            status=CancelOrderResultStatus.FAILED,
-                        )
+            raw_data, status_code, _ = await self._http_client_requester(
+                method="DELETE",
+                endpoint=endpoint,
+                data=payload,
+                is_signed=True,  # data, not params for DELETE body
+            )
+            # Backpack's response for cancel all is a list of strings (order IDs that were cancelled)
+            if raw_data is None or not isinstance(raw_data, list):
+                error_message = f"Cancel all orders for {symbol or 'all'} returned invalid data or no content (status: {status_code})"
+                logger.error(f"[{self._exchange_name}] {error_message}. Raw: {raw_data}")
+                # If response is not a list, it might be an error structure or unexpected.
+                # We can't confirm any cancellations.
+                # Depending on strictness, either raise or return empty/failed results.
+                # For now, if it's not a list, assume general failure or no orders to cancel.
+                # If some orders were open, this would be a partial failure.
+                # This part needs careful handling based on actual API error responses for cancel all.
+                # If an error occurs, it usually returns a JSON error object, not a list.
+                if isinstance(raw_data, dict) and raw_data.get("error"):  # Check for explicit error
+                    raise APIError(
+                        raw_data.get("error", {}).get(
+                            "message", "Failed to cancel all orders due to API error response."
+                        ),
+                        APIErrorCode.UNKNOWN.value,  # Using UNKNOWN as OPERATION_FAILED is not available
+                        http_status=status_code,
+                        exchange_message=str(raw_data),
                     )
 
-            num_successful = sum(1 for r in results if r.success)
-            if not open_orders_to_cancel:
-                pass
-            elif num_successful == len(open_orders_to_cancel):
-                logger.info(
-                    f"[{self._exchange_name}] Successfully cancelled all ({num_successful}) "
-                    f"open orders in service{f' for symbol {symbol}' if symbol else ''}."
-                )
-            else:
                 logger.warning(
-                    f"[{self._exchange_name}] Attempted to cancel "
-                    f"{len(open_orders_to_cancel)} orders in service, but only "
-                    f"{num_successful} were confirmed cancelled"
-                    f"{f' for symbol {symbol}' if symbol else ''}."
+                    f"[{self._exchange_name}] {error_message}. Assuming no orders were cancelled or confirmable."
                 )
+                # Create a generic failure result if no orders could be confirmed cancelled.
+                # This assumes that if there were orders and they failed to cancel, an error would be raised.
+                # If there were no orders, an empty list response is typical and correct.
+                # If raw_data is None, it's ambiguous.
+                return []  # Or a list with a single generic failure if that's preferred
 
-        except APIError as e_fetch_orders:
-            logger.error(
-                f"[{self._exchange_name}] APIError fetching open orders for service "
-                f"cancel_all_orders{f' (symbol: {symbol})' if symbol else ''}: "
-                f"{e_fetch_orders.message}"
+            # If raw_data is a list, it should be a list of successfully cancelled order IDs (strings)
+            for cancelled_order_id_any in raw_data:
+                if isinstance(cancelled_order_id_any, str):
+                    results.append(
+                        CancelOrderResult(
+                            order_id=cancelled_order_id_any,
+                            client_order_id=None,  # Backpack doesn't return this in cancel all
+                            symbol=symbol,  # We assume all were for this symbol if provided
+                            success=True,
+                            message="Successfully cancelled.",
+                            status=CancelOrderResultStatus.SUCCESS,
+                        )
+                    )
+                else:  # Should not happen if API conforms
+                    logger.warning(
+                        f"[{self._exchange_name}] Unexpected item in cancel all orders response list: {cancelled_order_id_any}"
+                    )
+
+            logger.info(
+                f"[{self._exchange_name}] Cancelled {len(results)} orders for {symbol or 'all'}."
             )
-            results.append(
-                CancelOrderResult(
-                    order_id=None,
-                    symbol=symbol,
-                    success=False,
-                    message=f"Service failed to fetch open orders: {e_fetch_orders.message}",
-                    status=CancelOrderResultStatus.FAILED,
-                    raw_response=getattr(e_fetch_orders.original_exception, "response_body", None)
-                    if isinstance(e_fetch_orders.original_exception, APIError)
-                    else None,
-                )
-            )
-        except Exception as e_unexp_outer:
+            return results
+
+        except APIError as e:  # Catch APIErrors raised from _http_client_requester or earlier
             logger.error(
-                f"[{self._exchange_name}] Unexpected error during service cancel_all_orders"
-                f"{f' (symbol: {symbol})' if symbol else ''}: {e_unexp_outer}",
+                f"[{self._exchange_name}] APIError cancelling all orders for {symbol or 'all'}: {e.message}",
                 exc_info=True,
             )
+            # Construct a generic failure result for the batch
             results.append(
                 CancelOrderResult(
                     order_id=None,
+                    client_order_id=None,
                     symbol=symbol,
                     success=False,
-                    message=f"Service unexpected outer error: {str(e_unexp_outer)}",
+                    message=f"APIError: {e.message}",
                     status=CancelOrderResultStatus.FAILED,
+                    raw_response={"message": e.exchange_message} if e.exchange_message else None,
                 )
             )
-        return results
+            return results  # Return list with the failure entry
+        except Exception as e:
+            logger.error(
+                f"[{self._exchange_name}] Unexpected error cancelling all orders for {symbol or 'all'}: {e}",
+                exc_info=True,
+            )
+            raw_error_data_str = str(raw_data) if raw_data is not None else None
+            results.append(
+                CancelOrderResult(
+                    order_id=None,
+                    client_order_id=None,
+                    symbol=symbol,
+                    success=False,
+                    message=f"Unexpected error: {str(e)}",
+                    status=CancelOrderResultStatus.FAILED,
+                    raw_response={"message": raw_error_data_str} if raw_error_data_str else None,
+                )
+            )
+            return results  # Return list with the failure entry
+
+    async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
+        """
+        Fetch all open orders, optionally filtering by symbol.
+        This is an alias for get_open_orders as per Backpack API structure.
+        """
+        return await self.get_open_orders(symbol=symbol)

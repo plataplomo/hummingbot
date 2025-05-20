@@ -376,9 +376,11 @@ class BackpackAPI(ExchangeAPI):
         reduce_only: bool = False,
         post_only: bool = False,
     ) -> Order:
-        """
-        Place an order on Backpack Exchange. Delegates to BackpackTradingService.
-        """
+        """Place an order on Backpack Exchange. Delegates to BackpackTradingService."""
+        if reduce_only:
+            logger.warning(
+                f"[{self.exchange_name}] 'reduce_only' parameter is not supported for place_order and will be ignored."
+            )
         return await self.trading_service.place_order(
             symbol=symbol,
             side=side,
@@ -386,7 +388,7 @@ class BackpackAPI(ExchangeAPI):
             quantity=quantity,
             time_in_force=time_in_force,
             price=price,
-            stop_price=stop_price,  # Pass stop_price to service
+            stop_price=stop_price,
             client_order_id=client_order_id,
             post_only=post_only,
         )
@@ -394,6 +396,7 @@ class BackpackAPI(ExchangeAPI):
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
         """Cancel an existing order. Delegates to BackpackTradingService."""
         if not symbol:
+            # This check remains in API client as service method requires it.
             raise ValueError("Symbol is required to cancel an order on Backpack.")
         return await self.trading_service.cancel_order(order_id=order_id, symbol=symbol)
 
@@ -550,36 +553,31 @@ class BackpackAPI(ExchangeAPI):
         """Establish the WebSocket connection using the base class logic."""
         await super().connect_websocket()
 
-    async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
+    async def get_order(
+        self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
+    ) -> Order | None:
         """Fetch a single order by its ID. Delegates to BackpackTradingService."""
         if not symbol:
             _error_msg = "Symbol is required for get_order on Backpack."
-            logger.error(_error_msg)
+            logger.error(f"[{self.exchange_name}] {_error_msg}")
+            # Service method get_order also requires symbol, so this check is fine here or let service raise.
+            # For consistency with prompt, raising here if strictly needed by service.
             raise ValueError(_error_msg)
         return await self.trading_service.get_order(
-            order_id=order_id, symbol=symbol, client_order_id=None
+            order_id=order_id, symbol=symbol, client_order_id=client_order_id
         )
 
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order:
-        """Fetch the status of a specific order. Delegates to BackpackTradingService's get_order."""
+        """Fetch the status of a specific order. Delegates to BackpackTradingService's get_order_status."""
         if not symbol:
-            # Symbol is required by the service's get_order method.
             _error_msg = "Symbol is required for get_order_status on Backpack."
-            logger.error(_error_msg)
+            logger.error(f"[{self.exchange_name}] {_error_msg}")
             raise ValueError(_error_msg)
-
-        # Now symbol is guaranteed to be a str
-        order = await self.trading_service.get_order(
+        return await self.trading_service.get_order_status(
             order_id=order_id, symbol=symbol, client_order_id=client_order_id
         )
-        if order is None:
-            raise APIError(
-                f"Order {order_id} not found for symbol {symbol}.",
-                code=APIErrorCode.ORDER_NOT_FOUND.value,
-            )
-        return order
 
     # All abstract methods should now be implemented.
 
@@ -608,9 +606,9 @@ class BackpackAPI(ExchangeAPI):
 
     async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Fetch all open orders for a given symbol or all symbols.
-        Delegates to BackpackTradingService's get_open_orders method.
+        Delegates to BackpackTradingService's get_all_open_orders method.
         """
-        return await self.trading_service.get_open_orders(symbol=symbol)
+        return await self.trading_service.get_all_open_orders(symbol=symbol)
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
         """Register a handler for a WebSocket topic and send subscription via WebSocketManager."""
