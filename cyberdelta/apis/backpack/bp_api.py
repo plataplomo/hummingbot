@@ -379,7 +379,8 @@ class BackpackAPI(ExchangeAPI):
         """Place an order on Backpack Exchange. Delegates to BackpackTradingService."""
         if reduce_only:
             logger.warning(
-                f"[{self.exchange_name}] 'reduce_only' parameter is not supported for place_order and will be ignored."
+                f"[{self.exchange_name}] 'reduce_only' parameter is not supported for place_order "
+                f"and will be ignored."
             )
         return await self.trading_service.place_order(
             symbol=symbol,
@@ -533,7 +534,8 @@ class BackpackAPI(ExchangeAPI):
         if not symbol:
             _error_msg = "Symbol is required for get_order on Backpack."
             logger.error(f"[{self.exchange_name}] {_error_msg}")
-            # Service method get_order also requires symbol, so this check is fine here or let service raise.
+            # Service method get_order also requires symbol, so this check is fine here or 
+            # let service raise.
             # For consistency with prompt, raising here if strictly needed by service.
             raise ValueError(_error_msg)
         return await self.trading_service.get_order(
@@ -543,7 +545,8 @@ class BackpackAPI(ExchangeAPI):
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order:
-        """Fetch the status of a specific order. Delegates to BackpackTradingService's get_order_status."""
+        """Fetch the status of a specific order. Delegates to BackpackTradingService's 
+        get_order_status."""
         if not symbol:
             _error_msg = "Symbol is required for get_order_status on Backpack."
             logger.error(f"[{self.exchange_name}] {_error_msg}")
@@ -632,7 +635,8 @@ class BackpackAPI(ExchangeAPI):
         if start_time:
             if start_time.tzinfo is None:
                 logger.warning(
-                    f"[{self.exchange_name}] start_time for get_historical_funding_rates is naive. Assuming UTC."
+                    f"[{self.exchange_name}] start_time for get_historical_funding_rates is naive. "
+                    f"Assuming UTC."
                 )
             start_time_sec = int(start_time.timestamp())
 
@@ -640,7 +644,8 @@ class BackpackAPI(ExchangeAPI):
         if end_time:
             if end_time.tzinfo is None:
                 logger.warning(
-                    f"[{self.exchange_name}] end_time for get_historical_funding_rates is naive. Assuming UTC."
+                    f"[{self.exchange_name}] end_time for get_historical_funding_rates is naive. "
+                    f"Assuming UTC."
                 )
             end_time_sec = int(end_time.timestamp())
             if start_time_sec is not None and end_time_sec < start_time_sec:

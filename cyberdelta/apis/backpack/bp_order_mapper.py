@@ -905,7 +905,8 @@ class BackpackOrderMapper:
         and positions, into an internal `MarginAccountSummary` model.
 
         Args:
-            raw_settings: The validated `BackpackRawAccountSummary` Pydantic model (contains settings).
+            raw_settings: The validated `BackpackRawAccountSummary` Pydantic model 
+                (contains settings).
             spot_balances_raw: A dictionary of validated raw spot balances.
             derivative_positions_raw: A list of validated raw derivative positions.
 
@@ -1043,14 +1044,16 @@ class BackpackOrderMapper:
                         parsed_dt is None
                     ):  # Should not happen if timestamp_str is not None and parse_datetime_utc is robust
                         logger.warning(
-                            f"parse_datetime_utc returned None for non-None input: {timestamp_str}, defaulting to now()"
+                            f"parse_datetime_utc returned None for non-None input: "
+                            f"{timestamp_str}, defaulting to now()"
                         )
                         timestamp_value = datetime.now(UTC)
                     else:
                         timestamp_value = parsed_dt
                 except ValueError:
                     logger.warning(
-                        f"Could not parse withdrawal timestamp string: {timestamp_str}, defaulting to now()"
+                        f"Could not parse withdrawal timestamp string: {timestamp_str}, "
+                        f"defaulting to now()"
                     )
                     timestamp_value = datetime.now(UTC)
             else:
@@ -1092,7 +1095,8 @@ class BackpackOrderMapper:
             )
         except (ValidationError, TypeError, AttributeError, KeyError) as e:
             logger.error(
-                f"[BackpackOrderMapper] Error transforming raw withdrawal response: {e}. Raw: {raw_response}",
+                f"[BackpackOrderMapper] Error transforming raw withdrawal response: {e}. "
+                f"Raw: {raw_response}",
                 exc_info=True,
             )
             raise ValueError(f"Error transforming raw withdrawal response: {e}") from e
@@ -1113,8 +1117,10 @@ class BackpackOrderMapper:
             raw_response: The raw JSON dictionary response from the transfer API call.
             asset: The asset symbol being transferred.
             quantity: The amount of the asset transferred.
-            from_account_type_raw: The raw string representing the source account type from Backpack.
-            to_account_type_raw: The raw string representing the destination account type from Backpack.
+            from_account_type_raw: The raw string representing the source account type 
+                from Backpack.
+            to_account_type_raw: The raw string representing the destination account type 
+                from Backpack.
             client_transfer_id: Client-provided ID for the transfer.
 
         Returns:
@@ -1123,7 +1129,8 @@ class BackpackOrderMapper:
         try:
             if not isinstance(raw_response, dict):
                 logger.error(
-                    f"[BackpackOrderMapper] Raw transfer response was not a dictionary. Type: {type(raw_response)}"
+                    f"[BackpackOrderMapper] Raw transfer response was not a dictionary. "
+                    f"Type: {type(raw_response)}"
                 )
                 raise ValueError(f"Raw transfer response is not a dict: {type(raw_response)}")
 

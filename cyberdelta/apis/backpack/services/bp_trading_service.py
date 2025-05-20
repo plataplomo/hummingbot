@@ -132,10 +132,12 @@ class BackpackTradingService:
             # Assuming handle_cancel_order_response returns bool based on successful cancellation.
             if raw_data is None:
                 logger.error(
-                    f"[{self._exchange_name}] Cancel order for {order_id} ({symbol}) received no content. Status: {status_code}"
+                    f"[{self._exchange_name}] Cancel order for {order_id} ({symbol}) received "
+                    f"no content. Status: {status_code}"
                 )
                 raise APIError(
-                    message=f"No data received when cancelling order {order_id} ({symbol}), status: {status_code}",
+                    message=f"No data received when cancelling order {order_id} ({symbol}), "
+                    f"status: {status_code}",
                     code=APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
@@ -170,7 +172,8 @@ class BackpackTradingService:
             )
             if raw_data is None or not isinstance(raw_data, list):
                 raise APIError(
-                    f"Get open orders for {symbol or 'all'} returned invalid data (status: {status_code})",
+                    f"Get open orders for {symbol or 'all'} returned invalid data "
+                    f"(status: {status_code})",
                     APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
@@ -224,7 +227,8 @@ class BackpackTradingService:
                 return None
             if raw_data is None or not isinstance(raw_data, dict):
                 raise APIError(
-                    f"Get order {identifier} ({symbol}) returned invalid data (status: {status_code})",
+                    f"Get order {identifier} ({symbol}) returned invalid data "
+                    f"(status: {status_code})",
                     APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
@@ -238,7 +242,8 @@ class BackpackTradingService:
             # Allow ORDER_NOT_FOUND from handler to propagate if it maps it
             if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
                 logger.info(
-                    f"[{self._exchange_name}] Order {identifier} ({symbol}) not found via handler mapping."
+                    f"[{self._exchange_name}] Order {identifier} ({symbol}) not found "
+                    f"via handler mapping."
                 )
                 return None
             raise
@@ -284,37 +289,45 @@ class BackpackTradingService:
                 data=payload,
                 is_signed=True,  # data, not params for DELETE body
             )
-            # Backpack's response for cancel all is a list of strings (order IDs that were cancelled)
+            # Backpack's response for cancel all is a list of strings 
+            # (order IDs that were cancelled)
             if raw_data is None or not isinstance(raw_data, list):
-                error_message = f"Cancel all orders for {symbol or 'all'} returned invalid data or no content (status: {status_code})"
+                error_message = (
+                    f"Cancel all orders for {symbol or 'all'} returned invalid data "
+                    f"or no content (status: {status_code})"
+                )
                 logger.error(f"[{self._exchange_name}] {error_message}. Raw: {raw_data}")
                 # If response is not a list, it might be an error structure or unexpected.
                 # We can't confirm any cancellations.
                 # Depending on strictness, either raise or return empty/failed results.
                 # For now, if it's not a list, assume general failure or no orders to cancel.
                 # If some orders were open, this would be a partial failure.
-                # This part needs careful handling based on actual API error responses for cancel all.
-                # If an error occurs, it usually returns a JSON error object, not a list.
+                # This part needs careful handling based on actual API error 
+                # responses for cancel all.
                 if isinstance(raw_data, dict) and raw_data.get("error"):  # Check for explicit error
                     raise APIError(
                         raw_data.get("error", {}).get(
                             "message", "Failed to cancel all orders due to API error response."
                         ),
-                        APIErrorCode.UNKNOWN.value,  # Using UNKNOWN as OPERATION_FAILED is not available
+                        APIErrorCode.UNKNOWN.value,  # Using UNKNOWN as OPERATION_FAILED 
+                                                     # is not available
                         http_status=status_code,
                         exchange_message=str(raw_data),
                     )
 
                 logger.warning(
-                    f"[{self._exchange_name}] {error_message}. Assuming no orders were cancelled or confirmable."
+                    f"[{self._exchange_name}] {error_message}. "
+                    f"Assuming no orders were cancelled or confirmable."
                 )
                 # Create a generic failure result if no orders could be confirmed cancelled.
-                # This assumes that if there were orders and they failed to cancel, an error would be raised.
+                # This assumes that if there were orders and they failed to cancel, 
+                # an error would be raised.
                 # If there were no orders, an empty list response is typical and correct.
                 # If raw_data is None, it's ambiguous.
                 return []  # Or a list with a single generic failure if that's preferred
 
-            # If raw_data is a list, it should be a list of successfully cancelled order IDs (strings)
+            # If raw_data is a list, it should be a list of successfully 
+            # cancelled order IDs (strings)
             for cancelled_order_id_any in raw_data:
                 if isinstance(cancelled_order_id_any, str):
                     results.append(
@@ -329,7 +342,8 @@ class BackpackTradingService:
                     )
                 else:  # Should not happen if API conforms
                     logger.warning(
-                        f"[{self._exchange_name}] Unexpected item in cancel all orders response list: {cancelled_order_id_any}"
+                        f"[{self._exchange_name}] Unexpected item in cancel all orders "
+                        f"response list: {cancelled_order_id_any}"
                     )
 
             logger.info(
@@ -339,7 +353,8 @@ class BackpackTradingService:
 
         except APIError as e:  # Catch APIErrors raised from _http_client_requester or earlier
             logger.error(
-                f"[{self._exchange_name}] APIError cancelling all orders for {symbol or 'all'}: {e.message}",
+                f"[{self._exchange_name}] APIError cancelling all orders for "
+                f"{symbol or 'all'}: {e.message}",
                 exc_info=True,
             )
             # Construct a generic failure result for the batch
@@ -357,7 +372,8 @@ class BackpackTradingService:
             return results  # Return list with the failure entry
         except Exception as e:
             logger.error(
-                f"[{self._exchange_name}] Unexpected error cancelling all orders for {symbol or 'all'}: {e}",
+                f"[{self._exchange_name}] Unexpected error cancelling all orders for "
+                f"{symbol or 'all'}: {e}",
                 exc_info=True,
             )
             raw_error_data_str = str(raw_data) if raw_data is not None else None

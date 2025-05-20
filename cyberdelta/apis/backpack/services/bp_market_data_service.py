@@ -121,11 +121,12 @@ class BackpackMarketDataService:
             )
             raw_data, status_code, headers = response_tuple
             logger.debug(
-                f"[{self._exchange_name}] Raw ticker response for {symbol}: {raw_data!r} (Status: {status_code}, Headers: {headers})"
+                f"[{self._exchange_name}] Raw ticker response for {symbol}: {raw_data!r} "
+                f"(Status: {status_code}, Headers: {headers})"
             )
             if raw_data is None:  # Check for None before handler
-                # This indicates an issue not caught by _request's error handling (e.g. 204 no content but expected content)
-                # Or if _request allows None for ParsedJsonResponse, then this is a valid check.
+                # This indicates an issue not caught by _request's error handling 
+                # (e.g. 204 no content but expected content)
                 raise APIError(
                     f"No data for ticker {symbol}, status: {status_code}",
                     APIErrorCode.INVALID_RESPONSE.value,
@@ -153,7 +154,8 @@ class BackpackMarketDataService:
             raise
         except (ValidationError, ValueError) as e_val:
             logger.error(
-                f"Validation/map error for ticker {symbol}: {e_val}. Raw: {raw_data!r}, Status: {status_code}"
+                f"Validation/map error for ticker {symbol}: {e_val}. "
+                f"Raw: {raw_data!r}, Status: {status_code}"
             )
             raise APIError(
                 message=f"Processing ticker data failed: {e_val}",
@@ -167,7 +169,8 @@ class BackpackMarketDataService:
                 f"Raw: {raw_data!r}" if raw_data is not None else "Raw data unavailable"
             )
             logger.error(
-                f"Unhandled error for ticker {symbol}: {e_unhandled}. {raw_info_for_log}, Status: {status_code}",
+                f"Unhandled error for ticker {symbol}: {e_unhandled}. "
+                f"{raw_info_for_log}, Status: {status_code}",
                 exc_info=True,
             )
             raise APIError(
@@ -240,7 +243,8 @@ class BackpackMarketDataService:
             )
             raw_data, status_code, headers = response_tuple
             logger.debug(
-                f"[{self._exchange_name}] Raw order_book for {symbol}: {raw_data!r} (Status: {status_code}, Headers: {headers})"
+                f"[{self._exchange_name}] Raw order_book for {symbol}: {raw_data!r} "
+                f"(Status: {status_code}, Headers: {headers})"
             )
             if raw_data is None:
                 raise APIError(
@@ -271,7 +275,8 @@ class BackpackMarketDataService:
             raise
         except (ValidationError, ValueError) as e_val:
             logger.error(
-                f"Validation/map error for order_book {symbol}: {e_val}. Raw: {raw_data!r}, Status: {status_code}"
+                f"Validation/map error for order_book {symbol}: {e_val}. "
+                f"Raw: {raw_data!r}, Status: {status_code}"
             )
             raise APIError(
                 message=f"Processing order_book failed: {e_val}",
@@ -285,7 +290,8 @@ class BackpackMarketDataService:
                 f"Raw: {raw_data!r}" if raw_data is not None else "Raw data unavailable"
             )
             logger.error(
-                f"Unhandled error for order_book {symbol}: {e_unhandled}. {raw_info_for_log}, Status: {status_code}",
+                f"Unhandled error for order_book {symbol}: {e_unhandled}. "
+                f"{raw_info_for_log}, Status: {status_code}",
                 exc_info=True,
             )
             raise APIError(
@@ -303,7 +309,8 @@ class BackpackMarketDataService:
             symbol=symbol, limit=effective_limit
         )
         logger.debug(
-            f"[{self._exchange_name}] Requesting recent_trades for {symbol} (limit: {effective_limit})"
+            f"[{self._exchange_name}] Requesting recent_trades for {symbol} "
+            f"(limit: {effective_limit})"
         )
         raw_data_list: ParsedJsonResponse | None = None
         status_code: int = 0
@@ -352,7 +359,8 @@ class BackpackMarketDataService:
             raise
         except (ValidationError, ValueError) as e_val:
             logger.error(
-                f"Validation/map error for recent_trades {symbol}: {e_val}. Raw: {raw_data_list!r}, Status: {status_code}"
+                f"Validation/map error for recent_trades {symbol}: {e_val}. "
+                f"Raw: {raw_data_list!r}, Status: {status_code}"
             )
             raise APIError(
                 message=f"Processing recent_trades failed: {e_val}",
@@ -366,7 +374,8 @@ class BackpackMarketDataService:
                 f"Raw: {raw_data_list!r}" if raw_data_list is not None else "Raw data unavailable"
             )
             logger.error(
-                f"Unhandled error for recent_trades {symbol}: {e_unhandled}. {raw_info_for_log}, Status: {status_code}",
+                f"Unhandled error for recent_trades {symbol}: {e_unhandled}. "
+                f"{raw_info_for_log}, Status: {status_code}",
                 exc_info=True,
             )
             raise APIError(
@@ -390,7 +399,8 @@ class BackpackMarketDataService:
             )
             raw_data, status_code, headers = response_tuple
             logger.debug(
-                f"[{self._exchange_name}] Raw funding_rate for {symbol}: {raw_data!r} (Status: {status_code}, Headers: {headers})"
+                f"[{self._exchange_name}] Raw funding_rate for {symbol}: {raw_data!r} "
+                f"(Status: {status_code}, Headers: {headers})"
             )
             if raw_data is None:
                 raise APIError(
@@ -421,7 +431,8 @@ class BackpackMarketDataService:
             raise
         except (ValidationError, ValueError) as e_val:
             logger.error(
-                f"Validation/map error for funding_rate {symbol}: {e_val}. Raw: {raw_data!r}, Status: {status_code}"
+                f"Validation/map error for funding_rate {symbol}: {e_val}. "
+                f"Raw: {raw_data!r}, Status: {status_code}"
             )
             raise APIError(
                 message=f"Processing funding_rate failed: {e_val}",
@@ -435,7 +446,8 @@ class BackpackMarketDataService:
                 f"Raw: {raw_data!r}" if raw_data is not None else "Raw data unavailable"
             )
             logger.error(
-                f"Unhandled error for funding_rate {symbol}: {e_unhandled}. {raw_info_for_log}, Status: {status_code}",
+                f"Unhandled error for funding_rate {symbol}: {e_unhandled}. "
+                f"{raw_info_for_log}, Status: {status_code}",
                 exc_info=True,
             )
             raise APIError(
@@ -455,7 +467,8 @@ class BackpackMarketDataService:
         if not symbols:
             # Consistent with how the API client was raising, Backpack requires a symbol.
             logger.error(
-                f"[{self._exchange_name}] get_funding_rates requires at least one symbol for Backpack."
+                f"[{self._exchange_name}] get_funding_rates requires at least one symbol "
+                f"for Backpack."
             )
             # Or return empty list if that's preferred for "no symbols given"
             raise APIError(
@@ -518,7 +531,8 @@ class BackpackMarketDataService:
         )
 
         logger.debug(
-            f"[{self._exchange_name}] Requesting historical funding rates for {symbol} with params: {params}"
+            f"[{self._exchange_name}] Requesting historical funding rates for {symbol} "
+            f"with params: {params}"
         )
 
         try:
@@ -552,29 +566,35 @@ class BackpackMarketDataService:
                 except ValueError as e_map:
                     logger.warning(
                         f"[{self._exchange_name}] Skipping mapping for historical funding rate item "
-                        f"for {raw_rate.symbol if raw_rate else 'unknown'}: {e_map}. Item: {raw_rate!r}"
+                        f"for {raw_rate.symbol if raw_rate else 'unknown'}: {e_map}. "
+                        f"Item: {raw_rate!r}"
                     )
             logger.debug(
-                f"[{self._exchange_name}] Mapped {len(internal_funding_rates)} historical funding rates for {symbol}"
+                f"[{self._exchange_name}] Mapped {len(internal_funding_rates)} historical "
+                f"funding rates for {symbol}"
             )
             return internal_funding_rates
 
         except APIError as e_api:
             logger.error(
-                f"[{self._exchange_name}] API error fetching historical funding rates for {symbol}: {e_api}"
+                f"[{self._exchange_name}] API error fetching historical funding rates "
+                f"for {symbol}: {e_api}"
             )
             raise
         except ValidationError as e_val:
             logger.error(
-                f"[{self._exchange_name}] Validation error processing historical funding rates for {symbol}: {e_val}"
+                f"[{self._exchange_name}] Validation error processing historical funding rates "
+                f"for {symbol}: {e_val}"
             )
             raise APIError(
-                message=f"Validation error processing historical funding rates for {symbol}: {e_val}",
+                message=f"Validation error processing historical funding rates for {symbol}: "
+                f"{e_val}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             ) from e_val
         except ValueError as e_value:  # Catch mapping errors propagated from mapper
             logger.error(
-                f"[{self._exchange_name}] Value error processing historical funding rates for {symbol}: {e_value}"
+                f"[{self._exchange_name}] Value error processing historical funding rates "
+                f"for {symbol}: {e_value}"
             )
             raise APIError(
                 message=f"Value error processing historical funding rates for {symbol}: {e_value}",
@@ -582,7 +602,8 @@ class BackpackMarketDataService:
             ) from e_value
         except Exception as e_unhandled:
             logger.error(
-                f"[{self._exchange_name}] Unhandled error fetching historical funding rates for {symbol}: {e_unhandled}",
+                f"[{self._exchange_name}] Unhandled error fetching historical funding rates "
+                f"for {symbol}: {e_unhandled}",
                 exc_info=True,
             )
             raise APIError(
@@ -620,7 +641,8 @@ class BackpackMarketDataService:
             )
             raw_data_list, status_code, headers = response_tuple
             logger.debug(
-                f"[{self._exchange_name}] Raw klines for {symbol}@{interval}: {raw_data_list!r} (Status: {status_code}, Headers: {headers})"
+                f"[{self._exchange_name}] Raw klines for {symbol}@{interval}: {raw_data_list!r} "
+                f"(Status: {status_code}, Headers: {headers})"
             )
             if raw_data_list is None:
                 raise APIError(
@@ -632,7 +654,8 @@ class BackpackMarketDataService:
             # Defensive check: klines endpoint should return a list.
             # RawJsonResponse can be dict | list | str | None. We expect list for klines.
             if not isinstance(raw_data_list, list):
-                # This ignore was removed as the linter no longer flagged it as unreachable without the ignore.
+                # This ignore was removed as the linter no longer flagged it as unreachable 
+                # without the ignore.
                 # If it becomes an issue again, it implies the linter needs this ignore.
                 raise APIError(
                     f"Klines data received from requester is not list: {type(raw_data_list)}",
@@ -658,17 +681,20 @@ class BackpackMarketDataService:
                     internal_candles.append(candle)
                 except (ValidationError, ValueError) as e_map_item:
                     logger.warning(
-                        f"Skipping kline map error for {symbol}@{interval}: {e_map_item}. Item: {repr(raw_kline_model)}"
+                        f"Skipping kline map error for {symbol}@{interval}: {e_map_item}. "
+                        f"Item: {repr(raw_kline_model)}"
                     )
             logger.debug(
-                f"[{self._exchange_name}] Mapped {len(internal_candles)} candles for {symbol}@{interval}"
+                f"[{self._exchange_name}] Mapped {len(internal_candles)} candles for "
+                f"{symbol}@{interval}"
             )
             return internal_candles
         except APIError:
             raise
         except (ValidationError, ValueError) as e_val:
             logger.error(
-                f"Validation/map error for klines {symbol}@{interval}: {e_val}. Raw: {raw_data_list!r}, Status: {status_code}"
+                f"Validation/map error for klines {symbol}@{interval}: {e_val}. "
+                f"Raw: {raw_data_list!r}, Status: {status_code}"
             )
             raise APIError(
                 message=f"Processing klines failed: {e_val}",
@@ -682,7 +708,8 @@ class BackpackMarketDataService:
                 f"Raw: {raw_data_list!r}" if raw_data_list is not None else "Raw data unavailable"
             )
             logger.error(
-                f"Unhandled error for klines {symbol}@{interval}: {e_unhandled}. {raw_info_for_log}, Status: {status_code}",
+                f"Unhandled error for klines {symbol}@{interval}: {e_unhandled}. "
+                f"{raw_info_for_log}, Status: {status_code}",
                 exc_info=True,
             )
             raise APIError(

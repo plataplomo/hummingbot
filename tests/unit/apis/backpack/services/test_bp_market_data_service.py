@@ -405,11 +405,10 @@ class TestBackpackMarketDataService:
                 await backpack_market_data_service.get_recent_trades(symbol, limit=limit)
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-            # The service's get_recent_trades constructs a more generic error message
-            # based on the method and endpoint, let's check for key parts.
             assert f"No data for trades {symbol}" in exc_info.value.message
             # Or, if the service method is updated for more specific None checks:
-            # assert f"No content received from HTTP client for GET {mock_endpoint_path}" in exc_info.value.message
+            # assert f"No content received from HTTP client for GET {mock_endpoint_path}" in \
+            # exc_info.value.message
 
             mock_request_builder.build_get_recent_trades_params.assert_called_once_with(
                 symbol=symbol, limit=limit

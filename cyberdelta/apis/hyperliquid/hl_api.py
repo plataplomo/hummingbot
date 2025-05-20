@@ -615,7 +615,9 @@ class HyperliquidAPI(ExchangeAPI):
                             )
 
                         elif event_type_str == "order":
-                            _handle_order_wrapper = HyperliquidWsRawMessageHandler.handle_user_order_update_wrapper_payload
+                            _handle_order_wrapper = (
+                                HyperliquidWsRawMessageHandler.handle_user_order_update_wrapper_payload
+                            )
                             order_update_wrapper = _handle_order_wrapper(event_item_dict)
                             _handle_order_event = (
                                 HyperliquidWsRawMessageHandler.handle_user_order_event_payload
@@ -626,7 +628,9 @@ class HyperliquidAPI(ExchangeAPI):
                             )
 
                         elif event_type_str == "positionUpdate":
-                            _handle_pos_update = HyperliquidWsRawMessageHandler.handle_user_position_update_event_payload
+                            _handle_pos_update = (
+                                HyperliquidWsRawMessageHandler.handle_user_position_update_event_payload
+                            )
                             validated_position_update = _handle_pos_update(event_item_dict)
                             current_event_payload_for_handler = (
                                 validated_position_update.model_dump(mode="json")
@@ -897,7 +901,8 @@ class HyperliquidAPI(ExchangeAPI):
             order_id_int = int(order_id)
         except ValueError:
             logger.warning(
-                f"[{self.exchange_name}] Invalid order_id format for get_order: {order_id}. Returning None."
+                f"[{self.exchange_name}] Invalid order_id format for get_order: {order_id}. "
+                f"Returning None."
             )
             return None
 
@@ -993,13 +998,15 @@ class HyperliquidAPI(ExchangeAPI):
             # Allowing this to proceed but logs a warning, assuming UTC if naive.
             # Best practice is for caller to provide tz-aware datetimes.
             logger.warning(
-                f"[{self.exchange_name}] start_time for get_historical_funding_rates is naive. Assuming UTC."
+                f"[{self.exchange_name}] start_time for get_historical_funding_rates is naive. "
+                f"Assuming UTC."
             )
             # start_time = start_time.replace(tzinfo=UTC) # Or raise ValueError
 
         if end_time is not None and end_time.tzinfo is None:
             logger.warning(
-                f"[{self.exchange_name}] end_time for get_historical_funding_rates is naive. Assuming UTC."
+                f"[{self.exchange_name}] end_time for get_historical_funding_rates is naive. "
+                f"Assuming UTC."
             )
             # end_time = end_time.replace(tzinfo=UTC) # Or raise ValueError
 

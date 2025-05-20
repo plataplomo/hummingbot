@@ -116,7 +116,8 @@ async def hl_api_instance(
     _mock_auth_class, _mock_auth_instance = mock_hl_auth_init
     api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_WITH_KEY)
     # Ensure the instance created by API init is replaced by our mock for this test
-    # api._authenticator = mock_auth_instance # Removed: mock_hl_auth_init fixture should ensure this
+    # api._authenticator = mock_auth_instance 
+    # Removed: mock_hl_auth_init fixture should ensure this
 
     method = "POST"
     path = "/exchange"

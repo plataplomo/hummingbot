@@ -231,7 +231,8 @@ class ExchangeAPI(ABC):
 
         Returns:
             A tuple containing:
-                - Parsed API response content (JSON dict/list, raw text) or None for empty responses (204).
+                - Parsed API response content (JSON dict/list, raw text) or None for empty 
+                  responses (204).
                 - HTTP status code of the response.
                 - Raw response headers.
 
@@ -247,15 +248,18 @@ class ExchangeAPI(ABC):
 
         try:
             # HttpClient.request now returns: (content, status_code, processed_headers, raw_headers)
-            content, http_status, _processed_headers, raw_headers_multidict = await self._http_client.request(
-                method=method,
-                endpoint_path=request_url,
-                rate_limiter_service=self._rate_limiter_service,
-                authenticator=effective_authenticator,
-                params=params,
-                data=data,
-                headers=headers,
-                is_signed=is_signed,  # Pass is_signed to HttpClient
+            content, http_status, _processed_headers, raw_headers_multidict = (
+                await self._http_client.request(
+                    method=method,
+                    endpoint_path=request_url,
+                    params=params,
+                    data=data,
+                    headers=headers,
+                    authenticator=effective_authenticator,
+                    rate_limiter_service=self._rate_limiter_service,
+                    is_signed=is_signed,
+                    request_timeout=self._config.get("request_timeout"),
+                )
             )
             response_content = content
             status_code = http_status
@@ -289,7 +293,8 @@ class ExchangeAPI(ABC):
                 request_path=request_url,
                 original_exception=e_http_failed,
             )
-            # print(f"DIAGNOSTIC: Mapped error type: {type(mapped_error)}, code: {mapped_error.code}", flush=True) # DIAGNOSTIC REMOVED
+            # print(f"DIAGNOSTIC: Mapped error type: {type(mapped_error)}, "
+            #       f"code: {mapped_error.code}", flush=True) # DIAGNOSTIC REMOVED
             raise mapped_error from e_http_failed
 
         except (TimeoutError, aiohttp.ClientError) as e_client:

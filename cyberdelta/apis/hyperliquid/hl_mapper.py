@@ -996,7 +996,8 @@ class HyperliquidMapper:
         raw_item: HyperliquidRawFundingHistoryItem,
     ) -> FundingRate:
         """
-        Transforms a raw historical funding rate item from Hyperliquid to the internal FundingRate model.
+        Transforms a raw historical funding rate item from Hyperliquid to the internal 
+        FundingRate model.
         Args:
             raw_item: The raw historical funding rate item.
         Returns:
@@ -1015,7 +1016,8 @@ class HyperliquidMapper:
 
         except ValueError as e:
             logger.error(
-                f"Error parsing decimal values from raw funding history item: {e}. Item: {raw_item!r}"
+                f"Error parsing decimal values from raw funding history item: {e}. "
+                f"Item: {raw_item!r}"
             )
             raise APIError(
                 message=f"Failed to parse decimal values in raw funding history: {e}",

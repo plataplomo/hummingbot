@@ -735,7 +735,8 @@ class TestHyperliquidAccountService:
         assert excinfo_no_wallet.value.code == APIErrorCode.INVALID_REQUEST.value
         assert "Wallet address is required" in excinfo_no_wallet.value.message
 
-        # APIError from requester (uses the standard hyperliquid_account_service fixture which has a wallet address)
+        # APIError from requester (uses the standard hyperliquid_account_service fixture which has 
+        # a wallet address)
         # No need to manipulate _wallet_address here, fixture provides it.
         mock_request_builder.build_user_fills_request_payload.return_value = MagicMock(
             model_dump=lambda: {"foo": "bar"}
@@ -1044,8 +1045,10 @@ class TestHyperliquidAccountService:
 
         # Use the injected mock_hl_order_mapper fixture for assertions
         mock_hl_order_mapper.transform_raw_order_to_internal.assert_not_called()
-        # If a specific list mapping method for open orders exists on HyperliquidOrderMapper and is used,
-        # it should be asserted here. For now, assuming individual mapping via transform_raw_order_to_internal.
+        # If a specific list mapping method for open orders exists on HyperliquidOrderMapper 
+        # and is used,
+        # it should be asserted here. For now, assuming individual mapping via 
+        # transform_raw_order_to_internal.
         # Example if such a method existed (adjust method name if necessary):
         # if hasattr(mock_hl_order_mapper, "transform_raw_open_orders_list_to_internal"):
         #     mock_hl_order_mapper.transform_raw_open_orders_list_to_internal.assert_not_called()

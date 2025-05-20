@@ -156,7 +156,12 @@ class HttpClient:
         self,
         response: aiohttp.ClientResponse,
         full_url: str,  # For logging context
-    ) -> tuple[ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str]]:
+    ) -> tuple[
+        ParsedJsonResponse | str | None, 
+        int, 
+        ProcessedResponseHeaders, 
+        CIMultiDictProxy[str]
+    ]:
         """
         Parses the HTTP response, validates headers, and extracts content.
         Returns content, status code, processed headers, and raw headers.
@@ -188,7 +193,12 @@ class HttpClient:
         # Check for 204 No Content BEFORE attempting to read body
         if response.status == 204:
             logger.debug(f"[{self.exchange_name}] Received 204 No Content for {full_url}.")
-            return None, response.status, processed_headers, raw_response_headers
+            return (
+                None, 
+                response.status, 
+                processed_headers, 
+                raw_response_headers
+            )  # Should have already returned
 
         try:
             response_text = await response.text()
@@ -212,7 +222,12 @@ class HttpClient:
 
         # Double check 204, though it should be caught above. response.text() might be called.
         if response.status == 204:
-            return None, response.status, processed_headers, raw_response_headers  # Should have already returned
+            return (
+                None, 
+                response.status, 
+                processed_headers, 
+                raw_response_headers
+            )  # Should have already returned
 
         # Ensure we don't try to parse JSON if there's no body, even if headers suggest it.
         # This handles cases where response.text() might yield an empty string for an empty body.
@@ -229,7 +244,12 @@ class HttpClient:
                     api_error_code=APIErrorCode.INVALID_RESPONSE,  # Use the enum member directly
                 )
             # If not JSON and empty, it could be valid (e.g. just headers)
-            return None, response.status, processed_headers, raw_response_headers
+            return (
+                None, 
+                response.status, 
+                processed_headers, 
+                raw_response_headers
+            )
 
         # For 200-299 (excluding 204 handled above)
         if "application/json" in processed_headers.content_type:
@@ -271,7 +291,12 @@ class HttpClient:
         headers: dict[str, Any] | None = None,
         is_signed: bool = False,
         request_timeout: float | None = None,
-    ) -> tuple[ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str]]:
+    ) -> tuple[
+        ParsedJsonResponse | str | None, 
+        int, 
+        ProcessedResponseHeaders, 
+        CIMultiDictProxy[str]
+    ]:
         """
         Executes an HTTP request with authentication, rate limiting, and retries.
         Response parsing and validation are delegated to _parse_and_validate_response.

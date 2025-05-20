@@ -135,7 +135,8 @@ class HyperliquidMarketDataService:
                 is_info_endpoint=True,
             )
             logger.debug(
-                f"[{self._exchange_name}] Raw all_asset_contexts response: {raw_response_content!r}, Status: {status_code}, Headers: {headers}"
+                f"[{self._exchange_name}] Raw all_asset_contexts response: "
+                f"{raw_response_content!r}, Status: {status_code}, Headers: {headers}"
             )
 
             validated_response: HyperliquidRawMetaAndAssetCtxsResponse = (
@@ -251,7 +252,8 @@ class HyperliquidMarketDataService:
                 is_info_endpoint=True,
             )
             logger.debug(
-                f"[{self._exchange_name}] Raw order book for {symbol}: {raw_response_content!r}, Status: {status_code}, Headers: {headers}"
+                f"[{self._exchange_name}] Raw l2 orderbook response for {symbol}: "
+                f"{raw_response_content!r}, Status: {status_code}, Headers: {headers}"
             )
 
             validated_raw_book = self._response_handler.handle_info_l2_book_response(
@@ -329,7 +331,8 @@ class HyperliquidMarketDataService:
                 is_info_endpoint=True,
             )
             logger.debug(
-                f"[{self._exchange_name}] Raw recent_trades response for {symbol}: {raw_response_content!r}, Status: {status_code}, Headers: {headers}"
+                f"[{self._exchange_name}] Raw recent_trades response for {symbol}: "
+                f"{raw_response_content!r}, Status: {status_code}, Headers: {headers}"
             )
 
             validated_raw_trades = self._response_handler.handle_info_recent_trades_response(
@@ -349,7 +352,8 @@ class HyperliquidMarketDataService:
                         internal_trades.append(trade)
                 except (ValidationError, ValueError) as e_map_item:
                     logger.warning(
-                        f"[{self._exchange_name}] Skipping trade map error for {symbol}: {e_map_item}. Raw: {raw_trade.model_dump_json() if hasattr(raw_trade, 'model_dump_json') else raw_trade!r}"
+                        f"[{self._exchange_name}] Skipping mapping for recent trade item: "
+                        f"{e_map_item}. Raw: {raw_trade!r}"
                     )
 
             logger.debug(
@@ -409,7 +413,8 @@ class HyperliquidMarketDataService:
                         return self._mapper.map_raw_ctx_to_funding_rate(asset_ctx)
 
             logger.warning(
-                f"[{self._exchange_name}] Funding rate data (from asset context) not found for symbol '{symbol}'."
+                f"[{self._exchange_name}] Funding rate data (from asset context) not found "
+                f"for symbol '{symbol}'."
             )
             return None
         except APIError:  # Propagate APIErrors from get_all_asset_contexts
@@ -468,13 +473,16 @@ class HyperliquidMarketDataService:
                             break
                         except Exception as e_map:
                             logger.error(
-                                f"[{self._exchange_name}] Error mapping funding rate for {symbol_name} from context: {e_map}. Context: {asset_ctx.model_dump_json(indent=2)}"
+                                f"[{self._exchange_name}] Error mapping funding rate for "
+                                f"{symbol_name} from context: {e_map}. "
+                                f"Context: {asset_ctx.model_dump_json(indent=2)}"
                             )
                 if (
                     not found_ctx and symbols
                 ):  # Only warn if specific symbols were requested and not found
                     logger.warning(
-                        f"[{self._exchange_name}] Context for symbol '{symbol_name}' not found in fetched asset contexts."
+                        f"[{self._exchange_name}] Context for symbol '{symbol_name}' not found in "
+                        f"fetched asset contexts."
                     )
             return rates
         except APIError:  # Propagate APIErrors from get_all_asset_contexts_raw
@@ -519,7 +527,8 @@ class HyperliquidMarketDataService:
                 f"Status: {status_code}."
             )
             raise APIError(
-                message=f"No data received for historical funding rates for {symbol}, status: {status_code}",
+                message=f"No data received for historical funding rates for {symbol}, "
+                f"status: {status_code}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 http_status=status_code,
             )
@@ -537,8 +546,8 @@ class HyperliquidMarketDataService:
                 internal_funding_rates.append(internal_rate)
             except APIError as e:
                 logger.error(
-                    f"[{self._exchange_name}] Failed to map raw funding history item for {symbol}: {e}. "
-                    f"Raw item: {raw_item!r}. Skipping."
+                    f"[{self._exchange_name}] Failed to map raw funding history item for {symbol}: "
+                    f"{e}. Raw item: {raw_item!r}. Skipping."
                 )
                 continue
 
@@ -567,8 +576,8 @@ class HyperliquidMarketDataService:
             APIError: If the API request fails or the response is invalid.
         """
         logger.debug(
-            f"[{self._exchange_name}] Getting market data (candles) for {symbol}, interval {interval}, "
-            f"start {start_time_ms}, end {end_time_ms}"
+            f"[{self._exchange_name}] Getting market data (candles) for {symbol}, "
+            f"interval {interval}, start {start_time_ms}, end {end_time_ms}"
         )
         payload = self._request_builder.build_candle_snapshot_payload(
             symbol=symbol, timeframe=interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
@@ -583,11 +592,13 @@ class HyperliquidMarketDataService:
 
         if raw_response_content is None:
             logger.error(
-                f"[{self._exchange_name}] No content received for candles {symbol}, status: {status_code}."
+                f"[{self._exchange_name}] No content received for candles {symbol}, "
+                f"status: {status_code}."
             )
             # Consider raising APIError or returning empty list based on desired strictness
             raise APIError(
-                message=f"No data received for market data (candles) for {symbol}, status: {status_code}",
+                message=f"No data received for market data (candles) for {symbol}, "
+                f"status: {status_code}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 http_status=status_code,
             )
@@ -596,7 +607,8 @@ class HyperliquidMarketDataService:
         # The handler expects RawJsonResponse which can be list.
         if not isinstance(raw_response_content, list):
             logger.error(
-                f"[{self._exchange_name}] Expected list for candle data, got {type(raw_response_content)}."
+                f"[{self._exchange_name}] Expected list for candle data, "
+                f"got {type(raw_response_content)}."
             )
             # Handle error appropriately, perhaps raise APIError
             raise APIError(

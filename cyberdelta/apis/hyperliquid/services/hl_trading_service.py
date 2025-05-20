@@ -253,7 +253,8 @@ class HyperliquidTradingService:
             )
             if raw_response_content is None:
                 logger.warning(
-                    f"[{self._exchange_name}] Order status for OID {order_id} returned no content, likely not found."
+                    f"[{self._exchange_name}] Order status for OID {order_id} returned no content, "
+                    f"likely not found."
                 )
                 return None
 
@@ -271,12 +272,14 @@ class HyperliquidTradingService:
                 logger.info(f"[{self._exchange_name}] Order OID {order_id} not found via API.")
                 return None
             logger.error(
-                f"[{self._exchange_name}] API error fetching order status raw for OID {order_id}: {e.message}"
+                f"[{self._exchange_name}] API error fetching order status raw for OID {order_id}: "
+                f"{e.message}"
             )
             raise
         except Exception as e:
             logger.exception(
-                f"[{self._exchange_name}] Unexpected error fetching order status raw for OID {order_id}: {e}"
+                f"[{self._exchange_name}] Unexpected error fetching order status raw for OID "
+                f"{order_id}: {e}"
             )
             _error_msg_unexpected = f"Unexpected error fetching order status raw: {e}"
             raise APIError(_error_msg_unexpected, APIErrorCode.UNKNOWN.value) from e
@@ -332,7 +335,8 @@ class HyperliquidTradingService:
             hl_order_type_obj = {"market": {}}
         else:
             raise ValueError(
-                f"Order type {order_type} basic mapping not fully implemented here, use Limit/Market."
+                f"Order type {order_type} basic mapping not fully implemented here, "
+                f"use Limit/Market."
             )
 
         place_action = HyperliquidRawPlaceOrderAction(
@@ -439,16 +443,19 @@ class HyperliquidTradingService:
                     return True
                 if first_status.error:
                     logger.error(
-                        f"[{self._exchange_name}] Failed to cancel order {order_id} for {symbol}: {first_status.error}"
+                        f"[{self._exchange_name}] Failed to cancel order {order_id} for {symbol}: "
+                        f"{first_status.error}"
                     )
                     return False
             logger.warning(
-                f"[{self._exchange_name}] Ambiguous cancel response for order {order_id} ({symbol}): {first_status}"
+                f"[{self._exchange_name}] Ambiguous cancel response "
+                f"for order {order_id} ({symbol}): {first_status}"
             )
             return False
 
         logger.error(
-            f"[{self._exchange_name}] Failed to cancel order {order_id} for {symbol} or parse response."
+            f"[{self._exchange_name}] Failed to cancel order {order_id} for {symbol} "
+            f"or parse response."
         )
         return False
 
@@ -464,7 +471,8 @@ class HyperliquidTradingService:
         open_orders_internal = await self.get_open_orders(symbol=symbol)
         if not open_orders_internal:
             logger.info(
-                f"[{self._exchange_name}] No open orders found matching symbol '{symbol if symbol else 'any'}' to cancel."
+                f"[{self._exchange_name}] No open orders found matching symbol "
+                f"'{symbol if symbol else 'any'}' to cancel."
             )
             return []
 
@@ -474,8 +482,9 @@ class HyperliquidTradingService:
         for order_to_cancel in open_orders_internal:
             if order_to_cancel.exchange_order_id is None:
                 logger.warning(
-                    f"[{self._exchange_name}] Skipping cancellation for order without exchange_order_id: "
-                    f"ClientOID {order_to_cancel.client_order_id}, Symbol {order_to_cancel.symbol}"
+                    f"[{self._exchange_name}] Skipping cancellation for order without "
+                    f"exchange_order_id: ClientOID {order_to_cancel.client_order_id}, "
+                    f"Symbol {order_to_cancel.symbol}"
                 )
                 results.append(
                     CancelOrderResult(
@@ -496,7 +505,8 @@ class HyperliquidTradingService:
                 order_id_int = int(order_id_to_cancel_str)
                 active_cancels_count += 1
                 logger.debug(
-                    f"Attempting to cancel order {order_id_int} for symbol {order_symbol_for_cancel}"
+                    f"Attempting to cancel order {order_id_int} for symbol "
+                    f"{order_symbol_for_cancel}"
                 )
 
                 success_flag = await self.cancel_order(
@@ -519,7 +529,8 @@ class HyperliquidTradingService:
                 )
             except ValueError:
                 logger.error(
-                    f"[{self._exchange_name}] Invalid order_id format '{order_id_to_cancel_str}' for cancellation."
+                    f"[{self._exchange_name}] Invalid order_id format '{order_id_to_cancel_str}' "
+                    f"for cancellation."
                 )
                 results.append(
                     CancelOrderResult(
@@ -549,8 +560,8 @@ class HyperliquidTradingService:
                 )
             except Exception as e_generic:
                 logger.exception(
-                    f"[{self._exchange_name}] Unexpected error cancelling order {order_id_to_cancel_str} "
-                    f"for {order_symbol_for_cancel}: {e_generic}"
+                    f"[{self._exchange_name}] Unexpected error cancelling order "
+                    f"{order_id_to_cancel_str} for {order_symbol_for_cancel}: {e_generic}"
                 )
                 results.append(
                     CancelOrderResult(
@@ -565,7 +576,8 @@ class HyperliquidTradingService:
 
         if active_cancels_count == 0 and len(open_orders_internal) > 0:
             logger.info(
-                f"[{self._exchange_name}] cancel_all_orders: Found {len(open_orders_internal)} orders but none had valid exchange_order_id for cancellation attempt."
+                f"[{self._exchange_name}] Found {len(open_orders_internal)} orders but none had "
+                f"valid exchange_order_id for cancellation attempt."
             )
 
         return results
