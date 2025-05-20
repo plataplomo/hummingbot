@@ -1150,38 +1150,55 @@ class BackpackOrderMapper:
 
             # timestamp logic for transfers
             final_timestamp: datetime = datetime.now(UTC)  # Default
-            if isinstance(timestamp_from_response, (str, int, float)):
+            if timestamp_from_response is None:
+                pass  # Already defaulted
+            elif isinstance(timestamp_from_response, str):
                 try:
                     parsed_dt = parse_datetime_utc(timestamp_from_response, field_name="createdAt")
                     if parsed_dt is not None:
                         final_timestamp = parsed_dt
-                    else:  # Should not happen if input is valid type and parse_datetime_utc is robust
+                    else:
                         logger.warning(
-                            f"parse_datetime_utc returned None for valid typed input: {timestamp_from_response}"
+                            f"String timestamp '{timestamp_from_response}' parsed to None by parse_datetime_utc, using current time."
                         )
-                except ValueError:  # Covers unparseable strings or invalid numeric timestamps
-                    # Attempt to parse as simple numeric (ms or s) if string parsing failed and input was string originally
-                    # or if input was int/float and parse_datetime_utc heuristics failed.
-                    # This is a fallback, parse_datetime_utc is generally preferred.
-                    if isinstance(timestamp_from_response, (int, float)):
-                        try:
-                            numeric_val = float(timestamp_from_response)
-                            final_timestamp = (
-                                datetime.fromtimestamp(numeric_val / 1000, UTC)
-                                if numeric_val > 1e11
-                                else datetime.fromtimestamp(numeric_val, UTC)
-                            )
-                        except (TypeError, ValueError, OSError) as e_num_fallback:
-                            logger.warning(
-                                f"Could not parse transfer timestamp numeric fallback {timestamp_from_response}: {e_num_fallback}, using current time."
-                            )
-                    elif isinstance(timestamp_from_response, str):
+                except ValueError:
+                    logger.warning(
+                        f"Could not parse transfer timestamp string '{timestamp_from_response}' via parse_datetime_utc, using current time."
+                    )
+            elif isinstance(timestamp_from_response, (int, float)):
+                parsed_dt = None
+                try:
+                    # Try parse_datetime_utc first for int/float as it might have more robust heuristics
+                    parsed_dt = parse_datetime_utc(timestamp_from_response, field_name="createdAt")
+                except (
+                    ValueError
+                ):  # Indicates it was not a format parse_datetime_utc recognized for int/float
+                    pass  # Proceed to direct numeric fallback
+
+                if (
+                    parsed_dt is None
+                ):  # If parse_datetime_utc returned None or raised ValueError for int/float input
+                    try:
+                        numeric_val = float(timestamp_from_response)
+                        # Direct conversion for int/float if parse_datetime_utc path didn't yield result
+                        parsed_dt = (
+                            datetime.fromtimestamp(numeric_val / 1000, UTC)
+                            if numeric_val > 1e11  # Assuming values > 10^11 are milliseconds
+                            else datetime.fromtimestamp(numeric_val, UTC)
+                        )
+                    except (TypeError, ValueError, OSError) as e_num_fallback:
                         logger.warning(
-                            f"Could not parse transfer timestamp string {timestamp_from_response} via parse_datetime_utc, using current time."
+                            f"Could not parse transfer timestamp numeric fallback {timestamp_from_response}: {e_num_fallback}, using current time."
                         )
-            elif (
-                timestamp_from_response is not None
-            ):  # Input was not str, int, float but was not None
+
+                if parsed_dt is not None:
+                    final_timestamp = parsed_dt
+                else:
+                    # This path means parse_datetime_utc (for int/float) and direct numeric conversion both failed or resulted in None
+                    logger.warning(
+                        f"Numeric parsing/fallback for {timestamp_from_response} did not yield a datetime, using current time."
+                    )
+            else:  # Not None, str, int, or float
                 logger.warning(
                     f"Unsupported type for transfer timestamp: {type(timestamp_from_response)}, using current time."
                 )

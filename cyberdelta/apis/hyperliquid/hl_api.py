@@ -196,6 +196,7 @@ class HyperliquidAPI(ExchangeAPI):
             http_client_requester=self._market_data_requester_adapter,
             request_builder=self._hl_request_builder,
             response_handler=self._hl_response_handler,
+            mapper=self._hl_mapper,
             exchange_name=self.exchange_name,
             info_url=self.INFO_URL,
         )

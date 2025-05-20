@@ -566,8 +566,8 @@ class HyperliquidMarketDataService:
             f"[{self._exchange_name}] Getting market data (candles) for {symbol}, interval {interval}, "
             f"start {start_time_ms}, end {end_time_ms}"
         )
-        payload = self._request_builder.build_candle_snapshot_request_payload(
-            symbol=symbol, interval=interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+        payload = self._request_builder.build_candle_snapshot_payload(
+            symbol=symbol, timeframe=interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
         )
 
         raw_response_content, status_code, _ = await self._http_client_requester(
@@ -596,7 +596,7 @@ class HyperliquidMarketDataService:
 
         # The handler expects raw JSON, not already Pydantic validated models typically
         # For candles, it might be list of lists or list of dicts
-        raw_candles = self._response_handler.handle_candle_snapshot_response(
-            raw_response_content, symbol, status_code
+        raw_candles = self._response_handler.handle_info_candle_snapshot_response(
+            raw_response_content, symbol, interval, status_code
         )
-        return self._candle_mapper.transform_raw_candles_to_internal(raw_candles, symbol)
+        return self._candle_mapper.map(raw_candles, symbol, interval)

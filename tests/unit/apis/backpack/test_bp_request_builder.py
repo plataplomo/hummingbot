@@ -187,18 +187,20 @@ def test_build_place_order_payload_invalid_input() -> None:
         )
 
 
-def test_build_cancel_order_params() -> None:
-    """Test build_cancel_order_params."""
-    params_order_id = BackpackRequestBuilder.build_cancel_order_params("SOL_USDC", order_id="12345")
-    assert params_order_id == {"symbol": "SOL_USDC", "orderId": "12345"}
+def test_build_cancel_order_payload() -> None:
+    """Test build_cancel_order_payload."""
+    payload_order_id = BackpackRequestBuilder.build_cancel_order_payload(
+        "SOL_USDC", order_id="12345"
+    )
+    assert payload_order_id == {"symbol": "SOL_USDC", "orderId": "12345"}
 
-    params_client_id = BackpackRequestBuilder.build_cancel_order_params(
+    payload_client_id = BackpackRequestBuilder.build_cancel_order_payload(
         "SOL_USDC", client_order_id="myOrder1"
     )
-    assert params_client_id == {"symbol": "SOL_USDC", "clientId": "myOrder1"}
+    assert payload_client_id == {"symbol": "SOL_USDC", "clientId": "myOrder1"}
 
     with pytest.raises(ValueError, match="Either orderId or clientId must be provided"):
-        BackpackRequestBuilder.build_cancel_order_params("SOL_USDC")
+        BackpackRequestBuilder.build_cancel_order_payload("SOL_USDC")
 
 
 def test_build_get_open_orders_params() -> None:
@@ -341,9 +343,10 @@ def test_build_cancel_all_orders_payload() -> None:
 
 
 def test_build_get_order_params() -> None:
-    """Test build_get_order_params (for GET /orders/{id})."""
-    params = BackpackRequestBuilder.build_get_order_params()
-    assert params is None  # No query params expected
+    """Test build_get_order_params (for GET /api/v1/order which requires symbol query param)."""
+    symbol_to_test = "SOL_USDC"
+    params = BackpackRequestBuilder.build_get_order_params(symbol_to_test)
+    assert params == {"symbol": "SOL_USDC"}
 
 
 def test_build_internal_transfer_payload_minimal() -> None:

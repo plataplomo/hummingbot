@@ -14,6 +14,7 @@ from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
 from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
+from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
@@ -566,15 +567,15 @@ class TestHandleGetTradeHistoryResponse:
 class TestHandleGetMarketDataResponse:
     def test_valid(self, valid_raw_market_data: list[list[Any]], symbol_spot: str) -> None:
         """Test handling a valid raw market data (klines) response."""
-        klines: list[RawJson] = BackpackResponseHandler.handle_get_market_data_response(
+        klines: list[BackpackRawKline] = BackpackResponseHandler.handle_get_market_data_response(
             cast(RawJsonResponse, valid_raw_market_data), symbol_spot, "1m", 200, {}
         )
         assert isinstance(klines, list)
         assert len(klines) == 2
-        assert isinstance(klines[0], list)
-        assert klines[0][0] == 1678886400000
-        assert isinstance(klines[1], list)
-        assert klines[1][4] == "139.8"
+        assert isinstance(klines[0], BackpackRawKline)
+        assert klines[0].start_time_ms == 1678886400000
+        assert isinstance(klines[1], BackpackRawKline)
+        assert klines[1].close_price == "139.8"
 
 
 class TestHandleGetHistoricalTradesResponse:
