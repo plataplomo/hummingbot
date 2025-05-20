@@ -727,7 +727,7 @@ class HyperliquidAPI(ExchangeAPI):
         return await self.account_service.get_positions(symbol=symbol)
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
-        """Get open orders. Delegates to HyperliquidTradingService."""
+        """Retrieves all open orders for the current user, optionally filtered by symbol."""
         return await self.trading_service.get_open_orders(symbol=symbol)
 
     async def get_ticker(self, symbol: str) -> Ticker | None:
@@ -844,19 +844,19 @@ class HyperliquidAPI(ExchangeAPI):
         reduce_only: bool = False,
         post_only: bool = False,
     ) -> Order:
-        """Place an order. Delegates to HyperliquidTradingService."""
-        effective_price: Decimal
-        if price is not None:
-            effective_price = price
-        elif order_type == OrderType.LIMIT:
-            raise ValueError("Price is required for LIMIT orders on Hyperliquid.")
-        else:  # MARKET or other types that might not require price upfront from user
-            # The HL service's place_order method expects price: Decimal.
-            # For market orders, HL uses limitPx as a slippage protection.
-            # We must provide a Decimal. It's best if the caller provides an aggressive limit.
-            # Raising an error if not provided for MARKET to enforce clarity for now.
+        """Places an order on the exchange."""
+        if price is None and order_type != OrderType.MARKET:
+            raise ValueError("Price must be specified for non-market order types.")
+        if price is None and order_type == OrderType.MARKET:
             raise ValueError(
-                "A limit price (for slippage protection) must be provided for MARKET orders to Hyperliquid trading service."
+                "Hyperliquid requires a price (as limit_px for slippage) even for MARKET orders."
+            )
+
+        final_price = price
+        if final_price is None:
+            raise APIError(
+                "Price cannot be None for Hyperliquid place_order service call.",
+                APIErrorCode.INVALID_REQUEST.value,
             )
 
         return await self.trading_service.place_order(
@@ -864,7 +864,7 @@ class HyperliquidAPI(ExchangeAPI):
             side=side,
             order_type=order_type,
             quantity=quantity,
-            price=effective_price,
+            price=final_price,
             time_in_force=time_in_force,
             stop_price=stop_price,
             client_order_id=client_order_id,
@@ -872,27 +872,22 @@ class HyperliquidAPI(ExchangeAPI):
             post_only=post_only,
         )
 
-    async def cancel_order(
-        self, order_id: str, symbol: str | None = None
-    ) -> bool:  # HL requires symbol, signature changed for Liskov
-        """Cancel an order. Delegates to HyperliquidTradingService."""
+    async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
+        """Cancels a specific order by its ID."""
         if symbol is None:
-            _msg = "Symbol is required to cancel an order on Hyperliquid."
-            logger.error(f"[{self.exchange_name}] {_msg}")
-            raise ValueError(_msg)
+            raise ValueError("Symbol is required to cancel an order on Hyperliquid.")
         try:
-            hl_order_id = int(order_id)
-            return await self.trading_service.cancel_order(symbol=symbol, order_id=hl_order_id)
-        except ValueError as e_val:
-            _msg = (
-                f"Invalid order_id format for cancel_order: {order_id}. "
-                f"Must be an integer for Hyperliquid."
+            order_id_int = int(order_id)
+        except ValueError:
+            logger.error(
+                f"[{self.exchange_name}] Invalid order_id format for cancellation: {order_id}"
             )
-            logger.error(f"[{self.exchange_name}] {_msg}")
-            raise ValueError(_msg) from e_val
+            return False
+
+        return await self.trading_service.cancel_order(symbol=symbol, order_id=order_id_int)
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
-        """Cancel all open orders. Delegates to HyperliquidTradingService."""
+        """Cancels all open orders, optionally filtered by symbol."""
         return await self.trading_service.cancel_all_orders(symbol=symbol)
 
     async def get_account_summary(self) -> MarginAccountSummary | None:
@@ -915,81 +910,44 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order:
-        """Get order status. Fetches order via trading service and raises if not found."""
-        if not symbol:
-            _msg = "Symbol is required for get_order_status on Hyperliquid."
-            logger.error(f"[{self.exchange_name}] {_msg}")
-            raise ValueError(_msg)
-
-        if client_order_id and not order_id:
-            logger.warning(
-                f"[{self.exchange_name}] get_order_status called with client_order_id='{client_order_id}' "
-                f"but no exchange order_id. Hyperliquid requires exchange order_id for specific fetch."
-            )
-
+        """
+        Retrieves the status of a specific order by its ID.
+        For Hyperliquid, symbol is needed for the service layer.
+        This method should return an Order, raising if not found, to match ExchangeAPI.
+        However, the underlying service `get_order` returns `Order | None`.
+        """
+        if symbol is None:
+            raise ValueError("Symbol is required for get_order_status on Hyperliquid.")
         try:
-            hl_order_id = int(order_id)
-        except ValueError as e_val:
-            _msg = (
-                f"Invalid order_id format for get_order_status: {order_id}. "
-                f"Must be an integer for Hyperliquid."
-            )
-            logger.error(f"[{self.exchange_name}] {_msg}")
-            raise ValueError(_msg) from e_val
+            order_id_int = int(order_id)
+        except ValueError:
+            _error_msg_invalid_oid = f"Invalid order_id format for get_order_status: {order_id}"
+            logger.error(f"[{self.exchange_name}] {_error_msg_invalid_oid}")
+            raise APIError(_error_msg_invalid_oid, APIErrorCode.INVALID_REQUEST.value)
 
-        # Call the trading service directly to get the order.
-        # The trading_service.get_order method returns Order | None.
-        order = await self.trading_service.get_order(symbol=symbol, order_id=hl_order_id)
-
+        order = await self.trading_service.get_order(symbol=symbol, order_id=order_id_int)
         if order is None:
             raise APIError(
-                message=f"Order {order_id} for symbol {symbol} not found on {self.exchange_name}.",
-                code=APIErrorCode.ORDER_NOT_FOUND.value,
+                f"Order with ID '{order_id}' not found for symbol '{symbol}'.",
+                APIErrorCode.ORDER_NOT_FOUND.value,
             )
         return order
 
     async def get_order(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
-    ) -> Order | None:  # Matches ExchangeAPI
-        """Get a specific order by ID. Delegates to HyperliquidTradingService's get_order method."""
-        if not symbol:
-            _msg = "Symbol is required for get_order on Hyperliquid."
-            logger.error(f"[{self.exchange_name}] {_msg}")
-            # Return None or raise ValueError based on strictness for ExchangeAPI compliance.
-            # Raising ValueError as symbol is strictly needed for the service call.
-            raise ValueError(_msg)
-
-        if client_order_id and not order_id:
-            logger.warning(
-                f"[{self.exchange_name}] get_order called with client_order_id='{client_order_id}' "
-                f"but no exchange order_id. Hyperliquid primarily fetches by exchange order_id."
-            )
-            return None  # Or raise APIError(INVALID_PARAMS) if client_order_id lookup isn't supported here.
-
+    ) -> Order | None:
+        """Retrieves a specific order by its ID, returning None if not found."""
+        if symbol is None:
+            raise ValueError("Symbol is required for get_order on Hyperliquid.")
         try:
-            hl_order_id = int(order_id)
-            # Call the trading service's get_order method.
-            retrieved_order = await self.trading_service.get_order(
-                symbol=symbol, order_id=hl_order_id
+            order_id_int = int(order_id)
+        except ValueError:
+            logger.warning(
+                f"[{self.exchange_name}] Invalid order_id format for get_order: {order_id}. Returning None."
             )
-            return retrieved_order
-        except ValueError as e_val:
-            _msg = (
-                f"Invalid order_id format for get_order: {order_id}. "
-                f"Must be an integer for Hyperliquid."
-            )
-            logger.error(f"[{self.exchange_name}] {_msg}")
-            # Consistent with ExchangeAPI, if params are bad leading to no possible fetch,
-            # return None or raise.
-            # Raising ValueError as it's a precondition for HL.
-            raise ValueError(_msg) from e_val
-        except APIError as e:
-            # Allow trading_service to raise APIError (e.g., network issues)
-            # If order specifically not found by service, it would return None, handled above.
-            logger.error(
-                f"[{self.exchange_name}] APIError in get_order for {order_id} ({symbol}): {e}"
-            )
-            raise  # Re-raise other APIErrors
+            return None
+
+        return await self.trading_service.get_order(symbol=symbol, order_id=order_id_int)
 
     async def get_order_history(
         self,
@@ -1052,11 +1010,6 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def get_historical_funding_rates(
         self,
-        # Parameters would be defined here if HL supported this directly
-        # symbol: str,
-        # start_time: datetime | None = None,
-        # end_time: datetime | None = None,
-        # limit: int | None = None,
     ) -> list[FundingRate]:
         """(Placeholder) Request historical funding rates.
         Hyperliquid's API for historical funding rates is not directly exposed
@@ -1201,5 +1154,5 @@ class HyperliquidAPI(ExchangeAPI):
         await super()._resubscribe()
 
     async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
-        """Fetch all open orders, optionally filtering by symbol."""
-        return await self.get_open_orders(symbol=symbol)
+        """Retrieves all open orders, optionally filtered by symbol. Alias for get_open_orders."""
+        return await self.trading_service.get_open_orders(symbol=symbol)

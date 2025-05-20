@@ -39,6 +39,13 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
     HyperliquidRawHistoricalOrderResponse,
 )
 
+# Imports for open orders
+from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
+    HyperliquidRawOpenOrder,
+    HyperliquidRawOpenOrdersRequestPayload,
+    HyperliquidRawOpenOrdersResponse,  # Type for raw_order.trigger
+)
+
 # Import HyperliquidRawUserFill (used as type hint for raw_fill in get_trade_history)
 # and HyperliquidRawUserFillsResponse (returned by handler in get_trade_history)
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
@@ -591,3 +598,109 @@ class HyperliquidAccountService:
             f"(L1 interaction)."
         )
         raise NotImplementedError("withdraw not yet implemented in HyperliquidAccountService")
+
+    async def get_open_orders(self) -> list[Order]:
+        """Retrieves all open orders for the account."""
+        if not self._wallet_address:
+            logger.error(
+                f"[{self._exchange_name}] Wallet address not set. Cannot fetch open orders."
+            )
+            raise APIError(
+                message="Wallet address is required to fetch open orders for Hyperliquid.",
+                code=APIErrorCode.INVALID_REQUEST.value,
+            )
+
+        endpoint_path = "/info"  # Hyperliquid uses /info for many user-specific queries
+        # Directly construct the payload model
+        payload_model = HyperliquidRawOpenOrdersRequestPayload(
+            type="openOrders", user=self._wallet_address
+        )
+        payload_dict = payload_model.model_dump()
+
+        logger.debug(
+            f"[{self._exchange_name}] Requesting open orders from {endpoint_path} with payload: {payload_dict}"
+        )
+
+        raw_data: ParsedJsonResponse | None = None
+        status_code: int = 0
+        internal_orders: list[Order] = []
+
+        try:
+            raw_data, status_code, _ = await self._http_client_requester(
+                method="POST",
+                endpoint_path=endpoint_path,
+                data=payload_dict,
+                is_info_endpoint=True,  # Common for /info endpoint
+                is_signed=False,  # Open orders typically don't require signing beyond wallet auth
+            )
+            logger.debug(
+                f"[{self._exchange_name}] Raw open orders response: {raw_data!r} (Status: {status_code})"
+            )
+
+            if raw_data is None:
+                raise APIError(
+                    message=f"No data received for open orders, status: {status_code}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code,
+                )
+
+            # This method would internally handle Pydantic validation for each raw order.
+            raw_orders_list: list[HyperliquidRawOpenOrder] = []  # Initialize
+            validated_response: HyperliquidRawOpenOrdersResponse = (
+                self._response_handler.handle_info_open_orders_response(
+                    raw_response_content=raw_data, user_address=self._wallet_address
+                )
+            )
+            if validated_response and validated_response.items:
+                raw_orders_list = validated_response.items
+
+            for raw_order in raw_orders_list:  # raw_order is HyperliquidRawOpenOrder
+                # Use transform_raw_order_to_internal, passing .order and .trigger
+                internal_order = self._order_mapper.transform_raw_order_to_internal(
+                    raw=raw_order.order,  # This is HyperliquidRawOrderData
+                    trigger=raw_order.trigger,  # This is HyperliquidRawTriggerData | None
+                )
+                internal_orders.append(internal_order)
+
+            logger.debug(
+                f"[{self._exchange_name}] Mapped {len(internal_orders)} internal open orders."
+            )
+            return internal_orders
+
+        except APIError as e_api:  # Re-raise APIErrors directly
+            logger.error(
+                f"[{self._exchange_name}] APIError fetching/processing open orders: {e_api}. "
+                f"Raw: {raw_data!r}, Status: {status_code}"
+            )
+            raise
+        except (
+            ValidationError,
+            ValueError,
+        ) as e_val:  # Catch Pydantic/parsing errors from mapper or if handler re-raises
+            logger.error(
+                f"[{self._exchange_name}] Validation/map error for open orders: {e_val}. "
+                f"Raw: {raw_data!r}, Status: {status_code}"
+            )
+            raise APIError(
+                message=f"Processing open orders data failed: {e_val}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                original_exception=e_val,
+                http_status=status_code,
+                exchange_message=str(raw_data),
+            ) from e_val
+        except Exception as e_unhandled:  # Catch any other unexpected errors
+            raw_info_for_log = (
+                f"Raw: {raw_data!r}" if raw_data is not None else "Raw data unavailable"
+            )
+            logger.error(
+                f"[{self._exchange_name}] Unhandled error fetching/processing open orders: {e_unhandled}. "
+                f"{raw_info_for_log}, Status: {status_code}",
+                exc_info=True,
+            )
+            raise APIError(
+                message=f"Unexpected error fetching/processing open orders: {e_unhandled}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e_unhandled,
+                http_status=status_code,
+                exchange_message=str(raw_data),
+            ) from e_unhandled
