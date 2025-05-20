@@ -10,16 +10,15 @@ Raw Pydantic Models.
 
 # Typing and Pydantic
 from collections.abc import Awaitable, Callable, Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
 # Project-specific imports for connectivity and base types
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
-
-# Mappers
 from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidCandleMapper, HyperliquidMapper
 
+# Mappers
 # Hyperliquid-specific imports
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
@@ -51,6 +50,9 @@ HttpClientRequesterSig = Callable[
     ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]]
 ]
 
+if TYPE_CHECKING:
+    pass
+
 
 class HyperliquidMarketDataService:
     """
@@ -67,12 +69,15 @@ class HyperliquidMarketDataService:
     _response_handler: HyperliquidResponseHandler
     _exchange_name: str
     _info_url: str
+    _mapper: HyperliquidMapper
+    _candle_mapper: HyperliquidCandleMapper
 
     def __init__(
         self,
         http_client_requester: HttpClientRequesterSig,
         request_builder: HyperliquidRequestBuilder,
         response_handler: HyperliquidResponseHandler,
+        mapper: HyperliquidMapper,
         exchange_name: str,
         info_url: str,
     ) -> None:
@@ -85,12 +90,15 @@ class HyperliquidMarketDataService:
                 API requests.
             response_handler: An instance of HyperliquidResponseHandler for validating
                 API responses.
+            mapper: An instance of HyperliquidMapper for mapping raw data to internal models.
             exchange_name: The name of the exchange.
             info_url: The base URL for the exchange's API.
         """
         self._http_client_requester = http_client_requester
         self._request_builder = request_builder
         self._response_handler = response_handler
+        self._mapper = mapper
+        self._candle_mapper = HyperliquidCandleMapper()
         self._exchange_name = exchange_name
         self._info_url = info_url
 
@@ -418,11 +426,125 @@ class HyperliquidMarketDataService:
                 original_exception=e_unhandled,
             ) from e_unhandled
 
+    async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
+        """
+        Retrieves current funding rates for specified symbols, or all if None.
+
+        Args:
+            symbols: A list of symbols to get funding rates for. If None, fetches for all.
+
+        Returns:
+            A list of FundingRate objects.
+
+        Raises:
+            APIError: If the underlying API request to fetch all contexts fails.
+        """
+        rates: list[FundingRate] = []
+        try:
+            all_contexts_response = await self.get_all_asset_contexts_raw()
+            if not all_contexts_response or not all_contexts_response.asset_ctxs:
+                logger.warning(
+                    f"[{self._exchange_name}] No asset contexts found to derive funding rates."
+                )
+                return []
+
+            symbols_to_process: list[str]
+            if symbols:
+                symbols_to_process = symbols
+            else:
+                symbols_to_process = [
+                    ctx.name for ctx in all_contexts_response.asset_ctxs if ctx.name
+                ]
+
+            for symbol_name in symbols_to_process:
+                found_ctx = False
+                for asset_ctx in all_contexts_response.asset_ctxs:
+                    if asset_ctx.name == symbol_name:
+                        try:
+                            rate = HyperliquidMapper.map_raw_ctx_to_funding_rate(asset_ctx)
+                            if rate:
+                                rates.append(rate)
+                            found_ctx = True
+                            break
+                        except Exception as e_map:
+                            logger.error(
+                                f"[{self._exchange_name}] Error mapping funding rate for {symbol_name} from context: {e_map}. Context: {asset_ctx.model_dump_json(indent=2)}"
+                            )
+                if (
+                    not found_ctx and symbols
+                ):  # Only warn if specific symbols were requested and not found
+                    logger.warning(
+                        f"[{self._exchange_name}] Context for symbol '{symbol_name}' not found in fetched asset contexts."
+                    )
+            return rates
+        except APIError:  # Propagate APIErrors from get_all_asset_contexts_raw
+            raise
+        except Exception as e_unhandled:
+            logger.error(
+                f"[{self._exchange_name}] Unexpected error in get_funding_rates: {e_unhandled}",
+                exc_info=True,
+            )
+            raise APIError(
+                message=f"Unexpected error fetching funding rates: {e_unhandled}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e_unhandled,
+            ) from e_unhandled
+
+    async def get_historical_funding_rates(
+        self,
+        symbol: str,
+        start_time_ms: int,
+        end_time_ms: int | None = None,
+    ) -> list[FundingRate]:
+        """Retrieves historical funding rates for a specific symbol and time range."""
+        logger.debug(
+            f"[{self._exchange_name}] Getting historical funding rates for {symbol} "
+            f"from {start_time_ms} to {end_time_ms if end_time_ms is not None else 'now'}."
+        )
+
+        payload = self._request_builder.build_historical_funding_rates_payload(
+            symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+        )
+
+        raw_response_content, status_code, _ = await self._http_client_requester(
+            method="POST",
+            endpoint_path="/info",
+            data=payload,
+            is_info_endpoint=True,
+        )
+
+        if raw_response_content is None:
+            logger.warning(
+                f"[{self._exchange_name}] No content for historical funding rates for {symbol}. "
+                f"Status: {status_code}. Returning empty list."
+            )
+            return []
+
+        raw_funding_history_items = self._response_handler.handle_historical_funding_rates_response(
+            raw_response_content=raw_response_content
+        )
+
+        internal_funding_rates: list[FundingRate] = []
+        for raw_item in raw_funding_history_items:
+            try:
+                internal_rate = self._mapper.transform_raw_funding_history_item_to_internal(
+                    raw_item
+                )
+                internal_funding_rates.append(internal_rate)
+            except APIError as e:
+                logger.error(
+                    f"[{self._exchange_name}] Failed to map raw funding history item for {symbol}: {e}. "
+                    f"Raw item: {raw_item!r}. Skipping."
+                )
+                continue
+
+        return internal_funding_rates
+
     async def get_market_data(
         self, symbol: str, interval: str, start_time_ms: int, end_time_ms: int
     ) -> list[Candle]:
         """
-        Retrieves historical kline (candlestick) data for a specific symbol and timeframe.
+        Retrieves historical kline/candlestick data for a symbol and timeframe.
         Uses a POST request to /info with payload:
         {"type": "candleSnapshot",
          "req": {"coin": SYMBOL, "interval": INTERVAL,
@@ -440,67 +562,41 @@ class HyperliquidMarketDataService:
         Raises:
             APIError: If the API request fails or the response is invalid.
         """
-        endpoint_path = "/info"
-
-        payload_model = self._request_builder.build_candle_snapshot_payload(
-            symbol=symbol, timeframe=interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+        logger.debug(
+            f"[{self._exchange_name}] Getting market data (candles) for {symbol}, interval {interval}, "
+            f"start {start_time_ms}, end {end_time_ms}"
         )
-        request_payload_data: dict[str, Any] = payload_model.model_dump(
-            by_alias=True, exclude_none=True
+        payload = self._request_builder.build_candle_snapshot_request_payload(
+            symbol=symbol, interval=interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
         )
 
-        raw_response_content: ParsedJsonResponse | None = None
-        status_code: int = 0
-        headers: Mapping[str, str] = {}
-        try:
-            raw_response_content, status_code, headers = await self._http_client_requester(
-                method="POST",
-                endpoint_path=endpoint_path,
-                data=request_payload_data,
-                is_info_endpoint=True,
+        raw_response_content, status_code, _ = await self._http_client_requester(
+            method="POST",
+            endpoint_path="/info",  # Candle data is from /info
+            data=payload,  # Payload itself is a dict[str, Any]
+            is_info_endpoint=True,  # Crucial for routing to the correct HttpClient
+        )
+
+        if raw_response_content is None:
+            logger.error(f"[{self._exchange_name}] No content received for candles {symbol}.")
+            # Consider raising APIError or returning empty list based on desired strictness
+            return []
+
+        # Assuming raw_response_content is list[dict[str, Any]] for candles
+        # The handler expects RawJsonResponse which can be list.
+        if not isinstance(raw_response_content, list):
+            logger.error(
+                f"[{self._exchange_name}] Expected list for candle data, got {type(raw_response_content)}."
             )
-            logger.debug(
-                f"[{self._exchange_name}] Raw candle_snapshot response for {symbol}@{interval}: {raw_response_content!r}, Status: {status_code}, Headers: {headers}"
+            # Handle error appropriately, perhaps raise APIError
+            raise APIError(
+                f"Unexpected response type for candle data: {type(raw_response_content)}",
+                APIErrorCode.INVALID_RESPONSE.value,
             )
 
-            validated_raw_candles = self._response_handler.handle_info_candle_snapshot_response(
-                raw_response_content,
-                symbol=symbol,
-                interval=interval,
-                status_code=status_code,
-                headers=headers,
-            )
-            internal_candles = HyperliquidCandleMapper.map(
-                validated_raw_candles, symbol=symbol, interval=interval
-            )
-            logger.debug(
-                f"[{self._exchange_name}] Mapped {len(internal_candles)} candles for {symbol}@{interval}"
-            )
-            return internal_candles
-        except ValidationError as e_val:
-            logger.error(
-                f"[{self._exchange_name}] Candle snapshot response validation failed "
-                f"for {symbol}@{interval}: {e_val}. Raw: {raw_response_content!r}"
-            )
-            raise APIError(
-                "Pydantic validation error during candle snapshot processing",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                original_exception=e_val,
-                http_status=status_code,
-                exchange_message=str(raw_response_content),
-            ) from e_val
-        except APIError:  # Re-raise APIErrors from http_client or response_handler
-            raise
-        except Exception as e_unhandled:  # Catch any other unexpected errors
-            logger.error(
-                f"[{self._exchange_name}] Unexpected error processing candle snapshot "
-                f"for {symbol}@{interval}: {e_unhandled}",
-                exc_info=True,
-            )
-            raise APIError(
-                "Unexpected error during candle snapshot processing",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e_unhandled,
-                http_status=status_code,
-                exchange_message=str(raw_response_content),
-            ) from e_unhandled
+        # The handler expects raw JSON, not already Pydantic validated models typically
+        # For candles, it might be list of lists or list of dicts
+        raw_candles = self._response_handler.handle_candle_snapshot_response(
+            raw_response_content, symbol, status_code
+        )
+        return self._candle_mapper.transform_raw_candles_to_internal(raw_candles, symbol)

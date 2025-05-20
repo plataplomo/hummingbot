@@ -248,19 +248,45 @@ class BackpackRequestBuilder:
     @staticmethod
     def build_get_funding_rate_params(symbol: str) -> dict[str, str]:
         """
-        Builds parameters for the get_funding_rate endpoint.
-        (Corresponds to GET /api/v1/markets/{symbol}/funding)
-        Backpack uses path parameters for symbol here, so actual params dict is empty.
-        The builder is for query params or request body. Symbol is part of URL path.
-        Thus, no query parameters are built by this method.
+        Builds parameters for fetching the current funding rate for a single symbol.
+        This typically corresponds to an endpoint like /api/v1/funding or derived from mark prices.
+        Note: For historical funding rates, use build_get_historical_funding_rates_params.
+        """
+        # This existing method might be for a different endpoint (e.g., current funding)
+        # or needs adjustment if it was intended for /api/v1/fundingRates
+        # For now, assuming it's for a single current rate, if such an endpoint exists.
+        # If Backpack only has /api/v1/fundingRates, this method might be redundant or
+        # should call build_get_historical_funding_rates_params with limit=1.
+        # Let's assume it's for a different purpose or a simplified current rate fetch.
+        return {"symbol": BackpackRequestBuilder.format_symbol(symbol)}
+
+    @staticmethod
+    def build_get_historical_funding_rates_params(
+        symbol: str,
+        start_time_ms: int | None = None,
+        end_time_ms: int | None = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        """
+        Builds parameters for fetching historical funding rates (/api/v1/fundingRates).
 
         Args:
-            symbol: The trading symbol (used in URL path).
+            symbol: The trading symbol (e.g., "SOL_USDC").
+            start_time_ms: Optional start time in milliseconds since Unix epoch.
+            end_time_ms: Optional end time in milliseconds since Unix epoch.
+            limit: Optional limit on the number of results.
 
         Returns:
-            An empty dictionary as no query parameters are needed.
+            dict[str, Any]: The request parameters dictionary.
         """
-        return {}  # No query params, symbol is in path
+        params: dict[str, Any] = {"symbol": BackpackRequestBuilder.format_symbol(symbol)}
+        if start_time_ms is not None:
+            params["startTime"] = start_time_ms  # API expects startTime
+        if end_time_ms is not None:
+            params["endTime"] = end_time_ms  # API expects endTime
+        if limit is not None:
+            params["limit"] = limit
+        return params
 
     @staticmethod
     def build_get_account_info_params() -> dict[str, Any] | None:

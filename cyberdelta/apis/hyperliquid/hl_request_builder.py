@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
 # Specific model imports for type hints and construction
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
@@ -323,6 +323,31 @@ class HyperliquidRequestBuilder:
         Payload: {"type": "openOrders", "user": "WALLET_ADDRESS"}
         """
         return HyperliquidRawOpenOrdersRequestPayload(type="openOrders", user=wallet_address)
+
+    @staticmethod
+    def build_historical_funding_rates_payload(
+        symbol: str,
+        start_time_ms: int,
+        end_time_ms: int | None,
+    ) -> dict[str, Any]:  # Returning dict directly as per other builders for info endpoint
+        """
+        Builds the payload for fetching historical funding rates for a specific coin.
+        Args:
+            symbol: The coin symbol (e.g., "ETH").
+            start_time_ms: The start time for the query in milliseconds (inclusive).
+            end_time_ms: The end time for the query in milliseconds (inclusive).
+                         If None, API defaults to current time.
+        Returns:
+            A dictionary representing the JSON payload.
+        """
+        payload: dict[str, Any] = {
+            "type": "fundingHistory",
+            "coin": symbol,
+            "startTime": start_time_ms,
+        }
+        if end_time_ms is not None:
+            payload["endTime"] = end_time_ms
+        return payload
 
     # No changes needed for comments about /info endpoints and build_info_request_payload
     # as those are already handled or determined to not need specific Pydantic models for the

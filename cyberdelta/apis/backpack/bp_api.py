@@ -405,41 +405,14 @@ class BackpackAPI(ExchangeAPI):
         return await self.trading_service.get_open_orders(symbol=symbol)
 
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
-        """(Not Implemented) Get funding rates for one/all symbols."""
-        logger.warning(
-            f"[{self.exchange_name}] get_funding_rates not fully implemented. "
-            f"Fetching current rate only."
-        )
-        rates: list[FundingRate] = []
-        if symbols:
-            for symbol_item in symbols:
-                try:
-                    # get_funding_rate now returns internal FundingRate
-                    current_rate: FundingRate = await self.get_funding_rate(symbol_item)
-                    rates.append(current_rate)
-                except APIError as e:
-                    logger.error(
-                        f"[{self.exchange_name}] Failed to fetch current funding rate for "
-                        f"{symbol_item} within get_funding_rates: {e}"
-                    )
-                    raise
-        else:
-            logger.error(
-                f"[{self.exchange_name}] get_funding_rates without a specific symbol "
-                f"is not supported by Backpack API."
-            )
-            raise APIError(
-                code=APIErrorCode.INVALID_PARAMS.value,
-                message="Symbol is required for get_funding_rates on Backpack",
-            )
-        return rates
-
-    # --- Account Management --- #
-    async def get_account_summary(self) -> MarginAccountSummary:
-        """Fetches overall account information (settings, balances, positions).
-        Delegates to BackpackAccountService.
+        """Retrieves current funding rates for specified symbols.
+        Delegates to BackpackMarketDataService.
         """
-        # The service's get_account_info method returns MarginAccountSummary
+        # The service now handles the logic if symbols list is None/empty or iterates.
+        return await self.market_data_service.get_funding_rates(symbols=symbols)
+
+    async def get_account_summary(self) -> MarginAccountSummary:
+        """Get account summary. Delegates to BackpackAccountService."""
         return await self.account_service.get_account_info()
 
     async def transfer(
@@ -638,22 +611,19 @@ class BackpackAPI(ExchangeAPI):
 
     async def get_historical_funding_rates(
         self,
-        # TODO: Define parameters based on actual exchange capabilities if this endpoint exists
+        # Parameters would be defined here based on service capabilities
         # symbol: str,
         # start_time: datetime | None = None,
         # end_time: datetime | None = None,
         # limit: int | None = None,
     ) -> list[FundingRate]:
-        """(Placeholder) Request historical funding rates."""
-        logger.warning(
-            f"[{self.exchange_name}] get_historical_funding_rates placeholder - not implemented."
-        )
-        # Example: Fetch current rates if historical not available
-        # return await self.get_funding_rates(symbols=[symbol] if symbol else None)
-        return []  # Return empty list as placeholder
+        """(Placeholder) Request historical funding rates. Delegates to service."""
+        # Parameters should match what the service method expects, if any.
+        # For now, assuming service method takes no params for this placeholder.
+        return await self.market_data_service.get_historical_funding_rates()
 
     async def close(self) -> None:
-        """Close the WebSocket connection and clean up resources."""
+        """Closes the API client connections."""
         await super().close()
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:

@@ -10,11 +10,19 @@ for raw models, ensuring consistency and adhering to project rules.
 from collections.abc import (
     Callable,  # Added Dict, Any for potential future use / broader compatibility if needed
 )
-from typing import Annotated
+from typing import Annotated, Any
 
-from pydantic import BeforeValidator, ValidationInfo, WrapValidator
+from pydantic import (
+    AfterValidator,
+    BeforeValidator,
+    GetCoreSchemaHandler,
+    ValidationInfo,
+    WrapValidator,
+)
+from pydantic_core import core_schema
 
 from cyberdelta.utils.parsing import (
+    check_str_parsable_to_finite_decimal,
     parse_decimal_value,
     validate_enum_field,
     validate_str_field,
@@ -691,3 +699,70 @@ RawStatusStringHL = Annotated[
     ),
 ]
 """A raw string representing a known exchange status (e.g., canceled, modified)."""
+
+
+def _validate_timestamp_ms(value: Any) -> int:
+    """Validate if the value is an integer and a plausible millisecond timestamp."""
+    if not isinstance(value, int):
+        raise TypeError("Timestamp must be an integer.")
+    if value <= 0:
+        raise ValueError("Millisecond timestamp must be positive for Hyperliquid funding history.")
+    return value
+
+
+# Raw string type that must be parsable to a finite Decimal
+RawHlParsableFiniteDecimalString = Annotated[
+    str, AfterValidator(check_str_parsable_to_finite_decimal)
+]
+
+# Raw integer type representing a millisecond timestamp
+RawHlTimestampMsInt = Annotated[int, AfterValidator(_validate_timestamp_ms)]
+
+# Placeholder for a non-empty string with a max length, if needed elsewhere.
+# from pydantic.functional_validators import AfterValidator
+# def validate_non_empty_max_len(value: str, max_len: int) -> str:
+#     if not isinstance(value, str):
+#         raise TypeError("Input must be a string.")
+#     if not value:
+#         raise ValueError("String cannot be empty.")
+#     if len(value) > max_len:
+#         raise ValueError(f"String exceeds maximum length of {max_len}.")
+#     return value
+# RawHlNonEmptyStringMax64 = Annotated[str, AfterValidator(lambda v: validate_non_empty_max_len(v, 64))]
+
+# Example of a generic positive integer if needed
+# RawHlPositiveInteger = Annotated[int, AfterValidator(lambda v: v if v > 0 else exec("raise ValueError('Integer must be positive')"))]
+
+
+class RawHlCoinName(str):
+    """Represents a coin name from Hyperliquid, typically a non-empty uppercase string."""
+
+    @classmethod
+    def _validate(cls, value: Any, _: core_schema.ValidationInfo) -> "RawHlCoinName":
+        if not isinstance(value, str):
+            raise ValueError("Coin name must be a string")
+        if not value:
+            raise ValueError("Coin name cannot be empty")
+        # Optional: Add further validation like ensuring it's uppercase if that's a strict rule.
+        # if not value.isupper():
+        #     raise ValueError(f"Coin name '{value}' must be uppercase.")
+        return cls(value)
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,
+        handler: GetCoreSchemaHandler,
+    ) -> core_schema.CoreSchema:
+        # Use with_info_plain_validator_function as recommended by linter
+        return core_schema.with_info_plain_validator_function(cls._validate)
+
+
+# Utility for parsing strings to Decimal within Pydantic models if needed
+# This is more for internal model transformation or if a RawField itself changes type.
+# For simple string validation, AfterValidator on 'str' is fine.
+# def to_decimal(v: str) -> Decimal:
+#     parsed = parse_decimal_value(v, allow_none=False)
+#     if parsed is None: # Should be caught by parse_decimal_value's internal error
+#         raise ValueError(f"Could not parse '{v}' to Decimal")
+#     return parsed

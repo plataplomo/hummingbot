@@ -34,7 +34,10 @@ from pydantic import ValidationError
 from cyberdelta.apis.backpack.bp_response_handler import RawJsonResponse
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
-from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
+from cyberdelta.apis.backpack.models.bp_raw_funding import (
+    BackpackRawFundingIntervalRate,
+    BackpackRawFundingRate,
+)
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawDepthUpdateEvent,
@@ -74,6 +77,7 @@ from cyberdelta.core.models.enums import (
 )
 from cyberdelta.core.models.margin_account import BackpackMarginDetails
 from cyberdelta.core.models.market import Candle, OrderBook
+from cyberdelta.core.models.market.funding_rate import BackpackFundingDetails
 from cyberdelta.core.models.operations import (
     BackpackTransferDetails,
     BackpackWithdrawalDetails,
@@ -1265,3 +1269,62 @@ class BackpackOrderMapper:
             ask=parsed_ask,
             volume=parsed_volume,
         )
+
+    @staticmethod
+    def transform_raw_funding_interval_rate_to_internal(
+        raw: BackpackRawFundingIntervalRate, symbol: str
+    ) -> FundingRate:
+        """
+        Transforms a raw Backpack funding interval rate object into an internal FundingRate model.
+
+        Args:
+            raw: The raw BackpackRawFundingIntervalRate object.
+            symbol: The trading symbol associated with this funding rate (from request params).
+
+        Returns:
+            FundingRate: The corresponding internal FundingRate model.
+        """
+        try:
+            # raw.rate is already validated as RawBpParsableFiniteDecimalString by the Pydantic model
+            # We just need to parse it to Decimal here.
+            rate_decimal = parse_decimal_value(
+                raw.rate, field_name=f"funding interval rate for {raw.symbol}"
+            )
+            if (
+                rate_decimal is None
+            ):  # Defensive, though RawBpParsableFiniteDecimalString implies it's parsable
+                raise ValueError(
+                    f"Parsed funding interval rate is None for {raw.symbol} from raw value: {raw.rate}"
+                )
+
+            # raw.time is an int (timestamp). parse_datetime_utc can handle int epoch seconds.
+            timestamp_dt = parse_datetime_utc(
+                raw.time, field_name=f"funding interval time for {raw.symbol}"
+            )
+            if timestamp_dt is None:
+                raise ValueError(
+                    f"Parsed funding interval timestamp is None for {raw.symbol} from raw value: {raw.time}"
+                )
+
+            # The raw.symbol from the data should be used, not the one passed as arg if different.
+            # The passed 'symbol' arg was for context in case of error with raw item.
+            return FundingRate(
+                symbol=raw.symbol,  # Use symbol from the raw data item
+                timestamp=timestamp_dt,
+                funding_rate=rate_decimal,  # This is the historical rate for that interval
+                predicted_rate=None,  # No predicted rate from this historical data point
+                mark_price=None,  # Not available in BackpackRawFundingIntervalRate
+                index_price=None,  # Not available in BackpackRawFundingIntervalRate
+                next_funding_time=None,  # Not applicable for a past interval's rate
+                bp_details=BackpackFundingDetails(),  # Add empty details object
+                hl_details=None,
+            )
+        except (ValidationError, ValueError, TypeError) as e:
+            logger.error(
+                f"[BackpackOrderMapper] Error transforming raw funding interval rate "
+                f"for symbol {raw.symbol if raw else 'unknown'}: {e}. Raw data: {raw.model_dump_json() if raw else 'None'}",
+                exc_info=True,
+            )
+            raise ValueError(
+                f"Failed to transform BackpackRawFundingIntervalRate for {raw.symbol if raw else 'unknown'}: {e}"
+            ) from e

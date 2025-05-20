@@ -17,17 +17,24 @@ class HyperliquidFundingDetails(BaseModel):
         hl_prev_day_px (Decimal | None): Previous day price (ApiAssetCtx.prevDayPx)
         hl_day_ntl_vlm (Decimal | None): Daily notional volume (ApiAssetCtx.dayNtlVlm)
         hl_impact_px (Decimal | None): Impact price (ApiAssetCtx.impactPx)
+        premium (Decimal | None): Premium component from historical funding data.
     """
 
     hl_funding_hourly: Decimal | None = None
     hl_prev_day_px: Decimal | None = None
     hl_day_ntl_vlm: Decimal | None = None
     hl_impact_px: Decimal | None = None
+    premium: Decimal | None = None
 
     model_config = ConfigDict(extra="ignore", frozen=True)
 
     @field_validator(
-        "hl_funding_hourly", "hl_prev_day_px", "hl_day_ntl_vlm", "hl_impact_px", mode="before"
+        "hl_funding_hourly",
+        "hl_prev_day_px",
+        "hl_day_ntl_vlm",
+        "hl_impact_px",
+        "premium",
+        mode="before",
     )
     @classmethod
     def parse_decimal_fields(

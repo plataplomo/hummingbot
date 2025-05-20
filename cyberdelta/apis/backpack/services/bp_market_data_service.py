@@ -22,7 +22,10 @@ from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 from cyberdelta.apis.backpack.bp_response_handler import (
     BackpackResponseHandler,
 )
-from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
+from cyberdelta.apis.backpack.models.bp_raw_funding import (
+    BackpackRawFundingIntervalRate,
+    BackpackRawFundingRate,
+)
 
 # Assuming BackpackRawKline is for individual klines, used in lists
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
@@ -443,6 +446,150 @@ class BackpackMarketDataService:
                 exchange_message=str(raw_data),
             ) from e_unhandled
 
+    async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
+        """
+        Retrieves current funding rates for one or more symbols.
+        If Backpack API doesn't support a bulk endpoint, this method iterates
+        and calls the single-symbol funding rate endpoint.
+        """
+        if not symbols:
+            # Consistent with how the API client was raising, Backpack requires a symbol.
+            logger.error(
+                f"[{self._exchange_name}] get_funding_rates requires at least one symbol for Backpack."
+            )
+            # Or return empty list if that's preferred for "no symbols given"
+            raise APIError(
+                code=APIErrorCode.INVALID_PARAMS.value,
+                message="At least one symbol is required for get_funding_rates on Backpack.",
+            )
+
+        rates: list[FundingRate] = []
+        for symbol_item in symbols:
+            try:
+                # Call the service's own get_funding_rate method for a single symbol
+                current_rate: FundingRate = await self.get_funding_rate(symbol_item)
+                rates.append(current_rate)
+            except APIError as e:
+                logger.error(
+                    f"[{self._exchange_name}] Failed to fetch current funding rate for "
+                    f"{symbol_item} within get_funding_rates service method: {e.message}"
+                )
+                # Option: collect errors and continue, or raise immediately.
+                # For consistency with how API was, re-raising.
+                raise APIError(
+                    message=f"Failed to get funding rate for {symbol_item}: {e.message}",
+                    code=e.code,  # Preserve original error code
+                    http_status=e.http_status,
+                    original_exception=e,
+                    exchange_message=e.exchange_message,
+                ) from e
+        return rates
+
+    async def get_historical_funding_rates(
+        self,
+        symbol: str,
+        start_time_ms: int | None = None,
+        end_time_ms: int | None = None,
+        limit: int | None = None,
+    ) -> list[FundingRate]:
+        """
+        Retrieves historical funding rates for a symbol within a given time range.
+
+        Args:
+            symbol: The trading symbol (e.g., 'SOL_USDC').
+            start_time_ms: Optional start time in milliseconds since Unix epoch.
+            end_time_ms: Optional end time in milliseconds since Unix epoch.
+            limit: Optional limit on the number of funding rates to return.
+
+        Returns:
+            A list of FundingRate internal domain models.
+
+        Raises:
+            APIError: If the API request fails or the response is invalid.
+            ValueError: If transformation of raw data to internal models fails.
+        """
+        endpoint_path = "/api/v1/fundingRates"
+        # Parameters now align with the corrected request builder method
+        params = self._request_builder.build_get_historical_funding_rates_params(
+            symbol=symbol,
+            start_time_ms=start_time_ms,
+            end_time_ms=end_time_ms,
+            limit=limit,
+        )
+
+        logger.debug(
+            f"[{self._exchange_name}] Requesting historical funding rates for {symbol} with params: {params}"
+        )
+
+        try:
+            # Correctly call the _http_client_requester as a callable
+            raw_response_content, status_code, headers = await self._http_client_requester(
+                method="GET",
+                endpoint=endpoint_path,  # Ensure using 'endpoint' to match typical call signature
+                params=params,
+                # Add is_public_info_endpoint=True if appropriate for this endpoint
+                # Most market data endpoints are public.
+                is_public_info_endpoint=True,
+            )
+
+            raw_funding_interval_rates: list[BackpackRawFundingIntervalRate] = (
+                self._response_handler.handle_get_historical_funding_rates_response(
+                    raw_response_content,
+                    symbol=symbol,  # Pass symbol for context in handler
+                    status_code=status_code,
+                    headers=headers,
+                )
+            )
+
+            internal_funding_rates: list[FundingRate] = []
+            for raw_rate in raw_funding_interval_rates:
+                try:
+                    internal_rate = self._mapper.transform_raw_funding_interval_rate_to_internal(
+                        raw=raw_rate,
+                        symbol=raw_rate.symbol,  # Use symbol from raw data for mapper
+                    )
+                    internal_funding_rates.append(internal_rate)
+                except ValueError as e_map:
+                    logger.warning(
+                        f"[{self._exchange_name}] Skipping mapping for historical funding rate item "
+                        f"for {raw_rate.symbol if raw_rate else 'unknown'}: {e_map}. Item: {raw_rate!r}"
+                    )
+            logger.debug(
+                f"[{self._exchange_name}] Mapped {len(internal_funding_rates)} historical funding rates for {symbol}"
+            )
+            return internal_funding_rates
+
+        except APIError as e_api:
+            logger.error(
+                f"[{self._exchange_name}] API error fetching historical funding rates for {symbol}: {e_api}"
+            )
+            raise
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] Validation error processing historical funding rates for {symbol}: {e_val}"
+            )
+            raise APIError(
+                message=f"Validation error processing historical funding rates for {symbol}: {e_val}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            ) from e_val
+        except ValueError as e_value:  # Catch mapping errors propagated from mapper
+            logger.error(
+                f"[{self._exchange_name}] Value error processing historical funding rates for {symbol}: {e_value}"
+            )
+            raise APIError(
+                message=f"Value error processing historical funding rates for {symbol}: {e_value}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            ) from e_value
+        except Exception as e_unhandled:
+            logger.error(
+                f"[{self._exchange_name}] Unhandled error fetching historical funding rates for {symbol}: {e_unhandled}",
+                exc_info=True,
+            )
+            raise APIError(
+                message=f"Unhandled error during historical funding rates fetch for {symbol}",
+                code=APIErrorCode.SERVICE_UNAVAILABLE.value,
+            ) from e_unhandled
+
     async def get_market_data(
         self,
         symbol: str,
@@ -493,28 +640,25 @@ class BackpackMarketDataService:
                     http_status=status_code,
                 )
 
-            raw_klines_payload = self._response_handler.handle_get_market_data_response(
-                raw_data_list, symbol, interval, status_code, headers
+            # Handler now returns list[BackpackRawKline]
+            raw_kline_models: list[BackpackRawKline] = (
+                self._response_handler.handle_get_market_data_response(
+                    raw_data_list, symbol, interval, status_code, headers
+                )
             )
             internal_candles: list[Candle] = []
-            for kline_data_item in raw_klines_payload:
+            for (
+                raw_kline_model
+            ) in raw_kline_models:  # Iterate directly over BackpackRawKline models
                 try:
-                    raw_kline_model: BackpackRawKline
-                    if isinstance(kline_data_item, list):
-                        raw_kline_model = BackpackRawKline.model_validate(kline_data_item)
-                    else:
-                        logger.warning(
-                            f"Skipping kline item of unexpected type or structure: {type(kline_data_item)}. Raw: {kline_data_item!r}"
-                        )
-                        continue
-
+                    # No need to validate to BackpackRawKline here anymore
                     candle = self._mapper.transform_raw_kline_to_internal(
                         symbol, interval, raw_kline_model
                     )
                     internal_candles.append(candle)
                 except (ValidationError, ValueError) as e_map_item:
                     logger.warning(
-                        f"Skipping kline map error for {symbol}@{interval}: {e_map_item}. Item: {kline_data_item!r}"
+                        f"Skipping kline map error for {symbol}@{interval}: {e_map_item}. Item: {repr(raw_kline_model)}"
                     )
             logger.debug(
                 f"[{self._exchange_name}] Mapped {len(internal_candles)} candles for {symbol}@{interval}"

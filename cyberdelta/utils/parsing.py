@@ -220,3 +220,45 @@ def timeframe_to_ms(tf_str: str, default_to_minutes: int | None = 1) -> int:
             raise ValueError(message) from e
         logger.warning(f"{message} Defaulting to {default_to_minutes} minute(s).")
         return default_to_minutes * 60 * 1000
+
+
+def check_str_parsable_to_finite_decimal(value: object, field_name: str = "") -> str:
+    """
+    Validates that a value is a string, is parsable to a finite Decimal.
+    Returns the original string if valid, otherwise raises ValueError.
+    This is intended for use with Pydantic's AfterValidator on a string field.
+    Args:
+        value: The value to validate.
+        field_name: Name of the field for error messages.
+    Returns:
+        The validated string value.
+    Raises:
+        ValueError: If validation fails.
+    """
+    # First, validate it's a proper string (non-empty, UTF-8, etc. as per validate_str_field)
+    # Assuming basic string validation (e.g. non-empty) is desired for such fields.
+    # Adjust allow_empty based on typical requirements for numeric strings.
+    validated_str = validate_str_field(value, field_name=field_name, allow_empty=False)
+
+    # Then, try to parse it as a Decimal and check finiteness
+    try:
+        parsed_decimal = parse_decimal_value(validated_str, allow_none=False, field_name=field_name)
+        # parse_decimal_value raises if allow_none=False and input is None,
+        # or if it can't convert. So parsed_decimal here should not be None.
+        if parsed_decimal is None:  # Should not happen due to allow_none=False
+            raise ValueError(
+                f"Field {field_name or 'value'}: parsing unexpectedly returned None for '{validated_str}'."
+            )
+        if not parsed_decimal.is_finite():
+            raise ValueError(
+                f"Field {field_name or 'value'}: parsed decimal '{validated_str}' is not finite."
+            )
+    except ValueError as e:  # Catch errors from validate_str_field or parse_decimal_value
+        # Re-raise to ensure the message includes field_name if passed down.
+        # If parse_decimal_value or validate_str_field already prefixed, this might duplicate.
+        # However, ensuring the check for finiteness is clear.
+        if field_name and field_name not in str(e):
+            raise ValueError(f"Field {field_name}: {e}") from e
+        raise  # Re-raise if field_name already in message or no field_name
+
+    return validated_str  # Return the original string if all checks pass

@@ -19,6 +19,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeResponse,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
+    HyperliquidRawFundingHistoryItem,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
     HyperliquidRawHistoricalOrderResponse,
 )
@@ -633,3 +636,49 @@ class HyperliquidResponseHandler:
                     item,
                 ) from e
         return validated_orders
+
+    @staticmethod
+    def handle_historical_funding_rates_response(
+        raw_response_content: RawJsonResponse,
+        # symbol: str, # Symbol might not be needed if response items contain it
+    ) -> list[HyperliquidRawFundingHistoryItem]:
+        """
+        Handles and validates the raw JSON response for historical funding rates.
+        The raw_response_content is expected to be a list of dictionaries.
+        Args:
+            raw_response_content: The raw JSON content from the HTTP response.
+                                  Expected to be a list of dicts.
+        Returns:
+            A list of validated HyperliquidRawFundingHistoryItem objects.
+        Raises:
+            APIError: If validation fails or the response format is unexpected.
+        """
+        if not isinstance(raw_response_content, list):
+            raise APIError(
+                message=f"Expected list for historical funding rates, got {type(raw_response_content).__name__}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                metadata={"raw_body": str(raw_response_content)[:500]},
+            )
+
+        validated_items: list[HyperliquidRawFundingHistoryItem] = []
+        for item_data in raw_response_content:
+            if not isinstance(item_data, dict):
+                raise APIError(
+                    message=f"Expected dict for funding rate item, got {type(item_data).__name__}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    metadata={"raw_body": str(item_data)[:500]},
+                )
+            try:
+                validated_item = HyperliquidRawFundingHistoryItem.model_validate(item_data)
+                validated_items.append(validated_item)
+            except ValidationError as e:
+                logger.error(
+                    f"Validation error for historical funding rate item: {e}. Data: {item_data}"
+                )
+                raise APIError(
+                    message=f"Validation failed for historical funding rate item: {e}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    original_exception=e,
+                    metadata={"raw_body": str(item_data)[:500]},
+                ) from e
+        return validated_items

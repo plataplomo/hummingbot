@@ -34,6 +34,9 @@ from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshot,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
+    HyperliquidRawFundingHistoryItem,
+)
 
 # Import the historical order model needed for the new mapper method
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
@@ -60,6 +63,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsFillEvent,
     HyperliquidRawWsTradeEvent,
 )
+from cyberdelta.apis.models.api_error import APIError
+from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
     DerivativePosition,
     HyperliquidMarginDetails,
@@ -984,6 +989,56 @@ class HyperliquidMapper:
             is_maker=raw.is_maker,
             hl_details=hl_details,
             bp_details=None,  # No backpack details for HL fills
+        )
+
+    @staticmethod
+    def transform_raw_funding_history_item_to_internal(
+        raw_item: HyperliquidRawFundingHistoryItem,
+    ) -> FundingRate:
+        """
+        Transforms a raw historical funding rate item from Hyperliquid to the internal FundingRate model.
+        Args:
+            raw_item: The raw historical funding rate item.
+        Returns:
+            The corresponding internal FundingRate model.
+        """
+        try:
+            funding_rate_decimal = parse_decimal_value(
+                raw_item.funding_rate, allow_none=False, field_name="funding_rate"
+            )
+            if funding_rate_decimal is None:  # Should be caught by parse_decimal_value
+                raise ValueError("Parsed funding_rate is None despite allow_none=False")
+
+            premium_decimal = parse_decimal_value(
+                raw_item.premium, allow_none=True, field_name="premium"
+            )
+
+        except ValueError as e:
+            logger.error(
+                f"Error parsing decimal values from raw funding history item: {e}. Item: {raw_item!r}"
+            )
+            raise APIError(
+                message=f"Failed to parse decimal values in raw funding history: {e}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                original_exception=e,
+                metadata={"raw_item": raw_item.model_dump_json()[:500]},
+            ) from e
+
+        timestamp_dt = datetime.fromtimestamp(raw_item.time / 1000, tz=UTC)
+
+        hl_details_obj: HyperliquidFundingDetails | None = None
+        if premium_decimal is not None:
+            hl_details_obj = HyperliquidFundingDetails(premium=premium_decimal)
+
+        return FundingRate(
+            symbol=str(raw_item.coin),
+            timestamp=timestamp_dt,
+            funding_rate=funding_rate_decimal,
+            hl_details=hl_details_obj,
+            mark_price=None,
+            index_price=None,
+            predicted_rate=None,
+            next_funding_time=None,
         )
 
 

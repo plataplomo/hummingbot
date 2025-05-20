@@ -9,6 +9,7 @@ validation and transformation, not for internal business logic.
 Models:
     - BackpackRawFundingRate: Validates funding rate objects.
     - BackpackRawMarkPrice: Validates mark price and funding info objects.
+    - BackpackRawFundingIntervalRate: Validates funding interval rate objects.
 
 These models use common raw types for validation, ensuring robustness and security
 at the data ingestion boundary.
@@ -71,3 +72,29 @@ class BackpackRawMarkPrice(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
 
     # All @field_validator methods removed
+
+
+class BackpackRawFundingIntervalRate(BaseModel):
+    """
+    Pydantic model for a single raw funding interval rate object from the list returned
+    by `/api/v1/fundingRates` (Backpack REST API).
+
+    Attributes:
+        symbol (str): The trading symbol (e.g., 'SOL_USDC').
+        rate (str): The funding rate for the interval, validated as parsable to a finite decimal.
+        time (int): The timestamp for the funding interval (Unix epoch in seconds or ms - needs to match API).
+                      OpenAPI specifies integer for time.
+    """
+
+    symbol: RawBpNonEmptyStringMax64 = Field(...)
+    rate: RawBpParsableFiniteDecimalString = Field(...)
+    # Assuming time is a Unix timestamp in seconds or milliseconds as per typical API practice.
+    # Backpack's OpenAPI schema for FundingIntervalRate just says "integer" for time.
+    # RawBpFundingRateTimestamp might be too specific if this timestamp has different constraints.
+    # For now, let's use a simple int and assume it's validated by being parsable.
+    # If specific validation (like range) is needed, a new common type or validator here would be good.
+    time: int = Field(...)
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    # No populate_by_name needed if field names match JSON keys directly.
+    # No @field_validator methods here; validation is by the common raw types.

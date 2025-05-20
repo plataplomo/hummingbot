@@ -4,6 +4,8 @@ Response Handler for Backpack API Raw Responses.
 Validates raw JSON data against Pydantic models specific to Backpack\'s API endpoints.
 """
 
+from __future__ import annotations  # Ensure this is at the top if not already
+
 from collections.abc import Mapping
 
 from pydantic import ValidationError
@@ -12,7 +14,11 @@ from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
 
 # BackpackRawApiError import removed as validation is the focus here. Error mapping is separate.
-from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
+from cyberdelta.apis.backpack.models.bp_raw_funding import (
+    BackpackRawFundingIntervalRate,
+    BackpackRawFundingRate,
+)
+from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
@@ -200,7 +206,9 @@ class BackpackResponseHandler:
                 )
             for item in raw_response_content:
                 if not isinstance(item, dict):
-                    logger.warning(f"[{__name__}] Skipping non-dict item in {context} list: {item!r}")
+                    logger.warning(
+                        f"[{__name__}] Skipping non-dict item in {context} list: {item!r}"
+                    )
                     continue
                 try:
                     validated_positions.append(BackpackRawPosition.model_validate(item))
@@ -413,7 +421,7 @@ class BackpackResponseHandler:
         timeframe: str,
         status_code: int,
         headers: Mapping[str, str],
-    ) -> list[RawJson]:  # Return list of RawJson until specific Kline model exists
+    ) -> list[BackpackRawKline]:  # Changed return type
         """Validates the raw response for the Get Market Data (Klines) endpoint."""
         context = f"market data (klines {timeframe}) for {symbol} - Status: {status_code}"
         if not isinstance(raw_response_content, list):
@@ -423,19 +431,37 @@ class BackpackResponseHandler:
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
-        # Basic validation: ensure items in list are also lists (typical kline structure)
-        validated_klines: list[RawJson] = []
-        for item in raw_response_content:
-            if not isinstance(item, list):
-                logger.warning(f"[{__name__}] Skipping non-list item in {context} list: {item!r}")
-                # Depending on strictness, could raise APIError here too
+        validated_klines: list[BackpackRawKline] = []
+        for item_raw in raw_response_content:
+            if not isinstance(item_raw, list):  # Backpack klines are lists of values
+                logger.warning(
+                    f"[{__name__}] Skipping non-list kline item in {context}: {item_raw!r}"
+                )
                 continue
-            validated_klines.append(item)
+            try:
+                # BackpackRawKline is now imported at module level
+                validated_klines.append(BackpackRawKline.model_validate(item_raw))
+            except ValidationError as e:
+                # Log the specific item that failed validation
+                logger.error(
+                    f"[{__name__}] Pydantic validation failed for single kline item in {context}: {e}. "
+                    f"Item: {item_raw!r}"
+                )
+                # Re-raise to fail the entire response if one kline is bad, or collect valid ones
+                raise BackpackResponseHandler._handle_validation_error(
+                    e, f"single kline item in {context}", item_raw
+                ) from e
+            except Exception as e_unk_item:
+                logger.error(
+                    f"[{__name__}] Unexpected error validating single kline item in {context}: {e_unk_item}. "
+                    f"Item: {item_raw!r}"
+                )
+                raise APIError(
+                    message=f"Unexpected error validating kline item: {e_unk_item}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    original_exception=e_unk_item,
+                )
 
-        # TODO: Add validation against BackpackRawKline model when available
-        logger.warning(
-            f"Raw kline validation not yet fully implemented for {context}. Returning list."
-        )
         return validated_klines
 
     @staticmethod
@@ -550,7 +576,7 @@ class BackpackResponseHandler:
     @staticmethod
     def handle_transfer_response(
         raw_response_content: RawJsonResponse,
-    ) -> RawJsonResponse: # Returns the validated raw dict
+    ) -> RawJsonResponse:  # Returns the validated raw dict
         """Validates the raw response for an internal capital transfer.
         Expects a dict with 'success' (bool), optional 'message' (str), and optional 'transferId' (str).
         """
@@ -562,20 +588,84 @@ class BackpackResponseHandler:
             )
 
         # Basic structure validation
-        if "success" not in raw_response_content or not isinstance(raw_response_content["success"], bool):
+        if "success" not in raw_response_content or not isinstance(
+            raw_response_content["success"], bool
+        ):
             raise APIError(
                 message=f"Invalid {context}: 'success' field missing or not a boolean. Got: {raw_response_content.get('success')}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
-        
-        if "message" in raw_response_content and not isinstance(raw_response_content["message"], str):
-            logger.warning(f"[{__name__}] {context} 'message' field is not a string: {raw_response_content['message']}")
+
+        if "message" in raw_response_content and not isinstance(
+            raw_response_content["message"], str
+        ):
+            logger.warning(
+                f"[{__name__}] {context} 'message' field is not a string: {raw_response_content['message']}"
+            )
             # Don't raise, but log. Message is optional and for info.
 
-        if "transferId" in raw_response_content and not isinstance(raw_response_content["transferId"], str):
-            logger.warning(f"[{__name__}] {context} 'transferId' field is not a string: {raw_response_content['transferId']}")
+        if "transferId" in raw_response_content and not isinstance(
+            raw_response_content["transferId"], str
+        ):
+            logger.warning(
+                f"[{__name__}] {context} 'transferId' field is not a string: {raw_response_content['transferId']}"
+            )
             # Don't raise, but log. TransferId is optional and for info.
 
         # If successful, the mapper will use this dict to create an internal Transfer model.
         # If not successful (success=False), the mapper should handle this appropriately.
         return raw_response_content
+
+    @staticmethod
+    def handle_get_current_funding_rate_response(
+        raw_response_content: RawJsonResponse,
+        symbol: str,
+        status_code: int,
+        headers: Mapping[str, str],
+    ) -> BackpackRawFundingRate:
+        """Validates the raw response for the Get Current Funding Rate endpoint."""
+        context = f"current funding rate ({symbol}) - Status: {status_code}"
+        if not isinstance(raw_response_content, dict):
+            raise APIError(
+                message=f"Unexpected {context} response format: expected dict, "
+                f"got {type(raw_response_content)}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            )
+        try:
+            # Assuming BackpackRawFundingRate is the correct model for a single, current rate
+            return BackpackRawFundingRate.model_validate(raw_response_content)
+        except ValidationError as e:
+            raise BackpackResponseHandler._handle_validation_error(
+                e, context, raw_response_content
+            ) from e
+
+    @staticmethod
+    def handle_get_historical_funding_rates_response(
+        raw_response_content: RawJsonResponse,
+        symbol: str,
+        status_code: int,
+        headers: Mapping[str, str],
+    ) -> list[BackpackRawFundingIntervalRate]:
+        """Validates the raw response for the Get Historical Funding Rates endpoint (/api/v1/fundingRates)."""
+        context = f"historical funding rates ({symbol}) - Status: {status_code}"
+        if not isinstance(raw_response_content, list):
+            raise APIError(
+                message=f"Unexpected {context} response format: expected list, "
+                f"got {type(raw_response_content)}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            )
+
+        validated_rates: list[BackpackRawFundingIntervalRate] = []
+        for item_raw in raw_response_content:
+            if not isinstance(item_raw, dict):
+                logger.warning(
+                    f"[{__name__}] Skipping non-dict item in {context} list: {item_raw!r}"
+                )
+                continue
+            try:
+                validated_rates.append(BackpackRawFundingIntervalRate.model_validate(item_raw))
+            except ValidationError as e:
+                raise BackpackResponseHandler._handle_validation_error(
+                    e, f"single historical funding rate item in {context}", item_raw
+                ) from e
+        return validated_rates

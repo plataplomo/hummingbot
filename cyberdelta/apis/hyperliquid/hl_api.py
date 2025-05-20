@@ -743,57 +743,10 @@ class HyperliquidAPI(ExchangeAPI):
         return await self.market_data_service.get_recent_trades(symbol)
 
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
-        """Retrieves current funding rates for specified symbols, or all if None."""
-        rates: list[FundingRate] = []
-        symbols_to_fetch: list[str] = []
-
-        if symbols:
-            symbols_to_fetch = symbols
-        else:
-            # Fetch all known symbols if cache is populated, otherwise fetch meta first
-            if not self._asset_to_index_cache:
-                try:
-                    # Call _get_asset_index with a placeholder to populate cache.
-                    # This is a bit of a hack; ideally, there'd be a "fetch_all_symbols"
-                    # or "get_market_metadata" method.
-                    # We need to ensure _get_asset_index is called to populate the cache.
-                    # This assumes _get_asset_index correctly populates self._asset_to_index_cache
-                    # by fetching metaAndAssetCtxs if the cache is empty for ANY symbol.
-                    # A more robust way would be to directly fetch and parse meta here.
-                    # For simplicity in this step, we'll rely on the cache being populated
-                    # by a call to _get_asset_index if it was previously called, or
-                    # we try to populate it.
-                    # This is a temporary measure; a dedicated method to get all symbols is better.
-                    await self._get_asset_index("ETH")  # Example symbol to trigger fetch if needed
-                except APIError as e:
-                    logger.error(
-                        f"[{self.exchange_name}] Could not pre-fetch symbols for "
-                        f"get_funding_rates: {e}"
-                    )
-                    # Depending on strictness, could return [] or raise e
-            symbols_to_fetch = list(self._asset_to_index_cache.keys())
-            if not symbols_to_fetch:
-                logger.warning(
-                    f"[{self.exchange_name}] No symbols found to fetch all funding rates."
-                )
-                return []
-
-        for symbol_item in symbols_to_fetch:
-            try:
-                rate = await self.market_data_service.get_funding_rate(symbol_item)
-                if rate:
-                    rates.append(rate)
-            except APIError as e:
-                logger.error(
-                    f"[{self.exchange_name}] APIError fetching funding rate for {symbol_item}: {e}"
-                )
-            except Exception as e_unex:
-                logger.error(
-                    f"[{self.exchange_name}] Unexpected error fetching funding rate for "
-                    f"{symbol_item}: {e_unex}",
-                    exc_info=True,
-                )
-        return rates
+        """Retrieves current funding rates for specified symbols, or all if None.
+        Delegates to HyperliquidMarketDataService.
+        """
+        return await self.market_data_service.get_funding_rates(symbols=symbols)
 
     async def get_market_data(
         self,
@@ -1010,17 +963,56 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def get_historical_funding_rates(
         self,
+        symbol: str,
+        start_time: datetime,
+        end_time: datetime | None = None,
     ) -> list[FundingRate]:
-        """(Placeholder) Request historical funding rates.
-        Hyperliquid's API for historical funding rates is not directly exposed
-        or typically queried in the same way as CEXs for bulk history.
-        Individual funding payments might be part of user state or transaction history.
+        """Request historical funding rates for a specific symbol and time range.
+
+        Args:
+            symbol: The trading symbol (e.g., "ETH"). Hyperliquid uses base asset names.
+            start_time: The start time for the data range (inclusive, UTC-aware recommended).
+            end_time: The end time for the data range (inclusive, UTC-aware recommended).
+                      If None, the API typically defaults to the current time.
+
+        Returns:
+            A list of FundingRate objects.
+
+        Raises:
+            ValueError: If start_time or end_time (if provided) are not timezone-aware.
+
+        Note:
+            Hyperliquid's API limits results to 500 items per request. For larger ranges,
+            pagination (adjusting start_time based on the last item of the previous batch)
+            is required and currently not implemented in this client directly.
         """
-        logger.warning(
-            f"[{self.exchange_name}] get_historical_funding_rates placeholder - not implemented "
-            f"as Hyperliquid does not provide a dedicated bulk historical funding rate endpoint."
+        # Ensure datetime objects are timezone-aware to avoid ambiguity
+        # The .timestamp() method behaves differently for naive vs. aware datetimes.
+        if start_time.tzinfo is None:
+            # Allowing this to proceed but logs a warning, assuming UTC if naive.
+            # Best practice is for caller to provide tz-aware datetimes.
+            logger.warning(
+                f"[{self.exchange_name}] start_time for get_historical_funding_rates is naive. Assuming UTC."
+            )
+            # start_time = start_time.replace(tzinfo=UTC) # Or raise ValueError
+
+        if end_time is not None and end_time.tzinfo is None:
+            logger.warning(
+                f"[{self.exchange_name}] end_time for get_historical_funding_rates is naive. Assuming UTC."
+            )
+            # end_time = end_time.replace(tzinfo=UTC) # Or raise ValueError
+
+        start_time_ms = int(start_time.timestamp() * 1000)
+        end_time_ms: int | None = None
+        if end_time is not None:
+            end_time_ms = int(end_time.timestamp() * 1000)
+            if end_time_ms < start_time_ms:
+                raise ValueError("end_time cannot be before start_time.")
+
+        # Delegate to the market data service
+        return await self.market_data_service.get_historical_funding_rates(
+            symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
         )
-        return []
 
     async def transfer(
         self,
