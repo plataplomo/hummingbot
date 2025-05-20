@@ -389,7 +389,6 @@ class BackpackAPI(ExchangeAPI):
             stop_price=stop_price,  # Pass stop_price to service
             client_order_id=client_order_id,
             post_only=post_only,
-            # reduce_only is not directly supported by Backpack place_order, handled by order type if applicable
         )
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
@@ -660,5 +659,7 @@ class BackpackAPI(ExchangeAPI):
         await super().close()
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
-        """Cancels all open orders, optionally filtered by symbol. Delegates to BackpackTradingService."""
+        """Cancels all open orders, optionally filtered by symbol.
+        Delegates to BackpackTradingService.
+        """
         return await self.trading_service.cancel_all_orders(symbol=symbol)

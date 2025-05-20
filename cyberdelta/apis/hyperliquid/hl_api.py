@@ -17,8 +17,6 @@ from cyberdelta.apis.base.authenticator_interface import (
 from cyberdelta.apis.base.exchange_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.connectivity.connectivity_models import HttpClientConfig
 from cyberdelta.apis.connectivity.http_client import HttpClient, ParsedJsonResponse
-
-# Attempting to fix the import path for RateLimiterService
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
@@ -34,23 +32,14 @@ from cyberdelta.apis.hyperliquid.hl_response_handler import (
     RawJsonResponse,
 )
 from cyberdelta.apis.hyperliquid.hl_ws_raw_message_handler import HyperliquidWsRawMessageHandler
-
-# Hyperliquid Raw Models
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsResponse,
 )
-
-# Import HyperliquidRawOrder from the correct module
-# ADDED IMPORT FOR ACCOUNT SERVICE
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
-
-# IMPORT TRADING SERVICE
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-
-# Core Domain Models
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -869,7 +858,6 @@ class HyperliquidAPI(ExchangeAPI):
             raise ValueError(
                 "A limit price (for slippage protection) must be provided for MARKET orders to Hyperliquid trading service."
             )
-            # Alternative: effective_price = Decimal("0") # Or some other default if service handles it.
 
         return await self.trading_service.place_order(
             symbol=symbol,
@@ -895,10 +883,13 @@ class HyperliquidAPI(ExchangeAPI):
         try:
             hl_order_id = int(order_id)
             return await self.trading_service.cancel_order(symbol=symbol, order_id=hl_order_id)
-        except ValueError:
-            _msg = f"Invalid order_id format for cancel_order: {order_id}. Must be an integer for Hyperliquid."
+        except ValueError as e_val:
+            _msg = (
+                f"Invalid order_id format for cancel_order: {order_id}. "
+                f"Must be an integer for Hyperliquid."
+            )
             logger.error(f"[{self.exchange_name}] {_msg}")
-            raise ValueError(_msg)
+            raise ValueError(_msg) from e_val
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
         """Cancel all open orders. Delegates to HyperliquidTradingService."""
@@ -930,24 +921,21 @@ class HyperliquidAPI(ExchangeAPI):
             logger.error(f"[{self.exchange_name}] {_msg}")
             raise ValueError(_msg)
 
-        # client_order_id is not directly used by HL when exchange order_id is present.
-        # This method prioritizes order_id (exchange OID).
         if client_order_id and not order_id:
-            # This scenario is problematic for HL's direct get_order by OID.
-            # Trading service get_order expects int order_id.
             logger.warning(
                 f"[{self.exchange_name}] get_order_status called with client_order_id='{client_order_id}' "
                 f"but no exchange order_id. Hyperliquid requires exchange order_id for specific fetch."
             )
-            # Fall through to attempt with order_id=0 or similar if that's a desired pattern,
-            # or raise error. For now, will proceed assuming order_id is the primary identifier.
 
         try:
             hl_order_id = int(order_id)
-        except ValueError:
-            _msg = f"Invalid order_id format for get_order_status: {order_id}. Must be an integer for Hyperliquid."
+        except ValueError as e_val:
+            _msg = (
+                f"Invalid order_id format for get_order_status: {order_id}. "
+                f"Must be an integer for Hyperliquid."
+            )
             logger.error(f"[{self.exchange_name}] {_msg}")
-            raise ValueError(_msg)
+            raise ValueError(_msg) from e_val
 
         # Call the trading service directly to get the order.
         # The trading_service.get_order method returns Order | None.
@@ -976,9 +964,6 @@ class HyperliquidAPI(ExchangeAPI):
                 f"[{self.exchange_name}] get_order called with client_order_id='{client_order_id}' "
                 f"but no exchange order_id. Hyperliquid primarily fetches by exchange order_id."
             )
-            # Hyperliquid's get_order in trading service expects int order_id (exchange OID).
-            # Cannot directly use client_order_id for that specific fetch.
-            # To support this, one would typically search order history, which is not this method's primary goal.
             return None  # Or raise APIError(INVALID_PARAMS) if client_order_id lookup isn't supported here.
 
         try:
@@ -988,12 +973,16 @@ class HyperliquidAPI(ExchangeAPI):
                 symbol=symbol, order_id=hl_order_id
             )
             return retrieved_order
-        except ValueError:
-            _msg = f"Invalid order_id format for get_order: {order_id}. Must be an integer for Hyperliquid."
+        except ValueError as e_val:
+            _msg = (
+                f"Invalid order_id format for get_order: {order_id}. "
+                f"Must be an integer for Hyperliquid."
+            )
             logger.error(f"[{self.exchange_name}] {_msg}")
-            # Consistent with ExchangeAPI, if params are bad leading to no possible fetch, return None or raise.
+            # Consistent with ExchangeAPI, if params are bad leading to no possible fetch,
+            # return None or raise.
             # Raising ValueError as it's a precondition for HL.
-            raise ValueError(_msg)
+            raise ValueError(_msg) from e_val
         except APIError as e:
             # Allow trading_service to raise APIError (e.g., network issues)
             # If order specifically not found by service, it would return None, handled above.
@@ -1110,7 +1099,7 @@ class HyperliquidAPI(ExchangeAPI):
         tag: str | None = None,  # Destination tag/memo, if applicable
         client_withdrawal_id: str | None = None,
         two_factor_token: str | None = None,
-        **kwargs: Any,
+        **kwargs: dict[str, Any],  # Changed from Any
     ) -> Withdrawal:  # cyberdelta.core.models.operations.Withdrawal
         """(Not Applicable) Initiates a withdrawal of assets from the exchange.
         Hyperliquid is a DEX; withdrawals are L1 transactions signed by the user's wallet,

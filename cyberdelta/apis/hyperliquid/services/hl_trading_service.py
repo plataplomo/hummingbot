@@ -293,7 +293,8 @@ class HyperliquidTradingService:
             raise
         except Exception as e:
             logger.exception(
-                f"[{self._exchange_name}] Error getting order status for {symbol}, oid {order_id}: {e}"
+                f"[{self._exchange_name}] Error getting order status for {symbol}, "
+                f"oid {order_id}: {e}"
             )
             _error_msg_unexpected = (
                 f"Unexpected error getting order status for {order_id} ({symbol}): {e}"
@@ -363,8 +364,6 @@ class HyperliquidTradingService:
                             f"[{self._exchange_name}] Order placement failed. "
                             f"Error in status: {status_dict.error}"
                         )
-                    # No OID to fetch if there's an error string in the status object.
-                    # The error will be raised at the end of place_order if oid_to_fetch remains None.
 
                 elif isinstance(status_dict, str):  # pyright: ignore [reportUnnecessaryIsInstance]
                     # This is an unexpected format, should be a dict with 'resting' or 'error'
