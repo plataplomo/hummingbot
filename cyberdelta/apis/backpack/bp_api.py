@@ -468,7 +468,7 @@ class BackpackAPI(ExchangeAPI):
         tag: str | None = None,
         client_withdrawal_id: str | None = None,
         two_factor_token: str | None = None,
-        **kwargs: Any,  # Changed from dict[str, Any] to Any for kwargs
+        **kwargs: dict[str, Any],
     ) -> Withdrawal:
         """Initiates a withdrawal of assets from the exchange.
         Delegates to BackpackAccountService.

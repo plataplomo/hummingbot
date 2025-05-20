@@ -26,12 +26,11 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
     HyperliquidRawHistoricalOrder,
-    HyperliquidRawHistoricalOrderResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
+    HyperliquidRawOpenOrder,
     HyperliquidRawOpenOrdersRequestPayload,
     HyperliquidRawOpenOrdersResponse,
-    HyperliquidRawOrder,
 )
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -99,197 +98,210 @@ class HyperliquidTradingService:
         reduce_only: bool = False,
         time_in_force_options: dict[str, Any] | None = None,
         client_order_id: str | None = None,
+        post_only: bool = False,
     ) -> HyperliquidRawExchangeResponse:
+        _error_msg_wallet_addr = "Wallet address is required."
         if not self._wallet_address:
-            raise APIError("Wallet address is required.", APIErrorCode.AUTHENTICATION_FAILED.value)
+            raise APIError(_error_msg_wallet_addr, APIErrorCode.AUTHENTICATION_FAILED.value)
 
         asset_index = await self._get_asset_index_callable(symbol)
         if asset_index is None:
-            raise APIError(
-                f"Asset index for {symbol} not found.", APIErrorCode.INVALID_SYMBOL.value
-            )
+            _error_msg_asset_idx = f"Asset index for {symbol} not found."
+            raise APIError(_error_msg_asset_idx, APIErrorCode.INVALID_SYMBOL.value)
 
-        effective_tif: TimeInForce = TimeInForce.GTC
+        tif_enum = TimeInForce.GTC
         stop_px_for_builder: Decimal | None = None
-        post_only_for_builder: bool = False
 
         if time_in_force_options:
-            tif_type_str = str(time_in_force_options.get("type", "Gtc")).upper()
-            if tif_type_str == "GTC":
-                effective_tif = TimeInForce.GTC
-            elif tif_type_str == "IOC":
-                effective_tif = TimeInForce.IOC
-            elif tif_type_str == "ALO":
-                effective_tif = TimeInForce.ALO
-                post_only_for_builder = True
-            elif tif_type_str in ("TP", "SL"):
-                effective_tif = TimeInForce.GTC
-                trigger_px_val = time_in_force_options.get("triggerPx")
-                if trigger_px_val is None:
-                    raise ValueError(f"triggerPx is required for {tif_type_str} TIF.")
-                stop_px_for_builder = Decimal(str(trigger_px_val))
+            raw_tif_str = str(time_in_force_options.get("type", "Gtc")).upper()
+            if raw_tif_str == "IOC":
+                tif_enum = TimeInForce.IOC
+            elif raw_tif_str == "FOK":
+                tif_enum = TimeInForce.ALO
+            elif raw_tif_str == "ALO":
+                tif_enum = TimeInForce.ALO
 
-        order_request_payload = self._request_builder.build_place_order_payload(
+            if order_type in [OrderType.TAKE_PROFIT_MARKET, OrderType.STOP_MARKET]:
+                raw_trigger_px = time_in_force_options.get("triggerPx")
+                if raw_trigger_px is not None:
+                    try:
+                        stop_px_for_builder = Decimal(str(raw_trigger_px))
+                    except Exception as e:
+                        _error_msg_trigger_px = (
+                            f"Invalid triggerPx '{raw_trigger_px}' in time_in_force_options: {e}"
+                        )
+                        raise ValueError(_error_msg_trigger_px) from e
+
+        limit_price_for_builder = price
+
+        request_payload_model = self._request_builder.build_place_order_payload(
             asset_index=asset_index,
             side=side,
             order_type=order_type,
             quantity=quantity,
-            price=price,
-            time_in_force=effective_tif,
+            time_in_force=tif_enum,
+            price=limit_price_for_builder,
             stop_price=stop_px_for_builder,
             client_order_id=client_order_id,
             reduce_only=reduce_only,
-            post_only=post_only_for_builder,
+            post_only=post_only,
         )
 
-        actions_payload = order_request_payload.model_dump(by_alias=True)
-
         try:
-            raw_response_data_tuple = await self._exchange_http_client_requester(
-                method="POST", endpoint=self._action_endpoint, data=actions_payload, is_signed=True
-            )
-            raw_response_data = raw_response_data_tuple[0]
-
-            if not isinstance(raw_response_data, dict):
-                raise APIError(
-                    "Unexpected response format for place_order_raw on Hyperliquid",
-                    APIErrorCode.INVALID_RESPONSE.value,
+            raw_response_tuple = await self._exchange_http_client_requester(request_payload_model)
+            raw_content = raw_response_tuple[0]
+            if raw_content is None:
+                _error_msg_no_content = (
+                    f"Exchange action ({request_payload_model.type}) returned no content."
                 )
+                raise APIError(_error_msg_no_content, APIErrorCode.INVALID_RESPONSE.value)
             return self._response_handler.handle_exchange_response(
-                raw_response_data, action_type="order"
+                raw_content,
+                action_type=request_payload_model.type,
             )
         except APIError as e:
             logger.error(f"[{self._exchange_name}] API error placing order raw: {e.message}")
             raise
         except Exception as e:
-            logger.error(
-                f"[{self._exchange_name}] Unexpected error placing order raw: {e}", exc_info=True
-            )
-            raise APIError(
-                f"Unexpected error placing order raw: {e}", APIErrorCode.UNKNOWN.value
-            ) from e
+            logger.exception(f"[{self._exchange_name}] Unexpected error placing order raw: {e}")
+            _error_msg_unexpected = f"Unexpected error placing order raw: {e}"
+            raise APIError(_error_msg_unexpected, APIErrorCode.UNKNOWN.value) from e
 
     async def cancel_order_raw(self, symbol: str, order_id: int) -> HyperliquidRawExchangeResponse:
+        _error_msg_wallet_addr = "Wallet address is required."
         if not self._wallet_address:
-            raise APIError("Wallet address is required.", APIErrorCode.AUTHENTICATION_FAILED.value)
+            raise APIError(_error_msg_wallet_addr, APIErrorCode.AUTHENTICATION_FAILED.value)
+
         asset_index = await self._get_asset_index_callable(symbol)
         if asset_index is None:
-            raise APIError(
-                f"Asset index for {symbol} not found.", APIErrorCode.INVALID_SYMBOL.value
-            )
+            _error_msg_asset_idx = f"Asset index for {symbol} not found."
+            raise APIError(_error_msg_asset_idx, APIErrorCode.INVALID_SYMBOL.value)
 
-        action_item = self._request_builder.build_cancel_order_payload(
+        request_payload_model = self._request_builder.build_cancel_order_payload(
             asset_index=asset_index,
             order_id=order_id,
         )
-        actions_list = [action_item]
         try:
-            raw_response_data_tuple = await self._exchange_http_client_requester(
-                method="POST", endpoint=self._action_endpoint, data=actions_list, is_signed=True
-            )
-            raw_response_data = raw_response_data_tuple[0]
-            if not isinstance(raw_response_data, dict):
-                raise APIError(
-                    "Unexpected response format for cancel_order_raw on Hyperliquid",
-                    APIErrorCode.INVALID_RESPONSE.value,
+            raw_response_tuple = await self._exchange_http_client_requester(request_payload_model)
+            raw_content = raw_response_tuple[0]
+            if raw_content is None:
+                _error_msg_no_content = (
+                    f"Exchange action ({request_payload_model.type}) returned no content."
                 )
+                raise APIError(_error_msg_no_content, APIErrorCode.INVALID_RESPONSE.value)
             return self._response_handler.handle_exchange_response(
-                raw_response_data, action_type="cancel"
+                raw_content,
+                action_type=request_payload_model.type,
             )
         except APIError as e:
             logger.error(f"[{self._exchange_name}] API error cancelling order raw: {e.message}")
             raise
         except Exception as e:
-            logger.error(
-                f"[{self._exchange_name}] Unexpected error cancelling order raw: {e}", exc_info=True
-            )
-            raise APIError(
-                f"Unexpected error cancelling order raw: {e}", APIErrorCode.UNKNOWN.value
-            ) from e
+            logger.exception(f"[{self._exchange_name}] Unexpected error cancelling order raw: {e}")
+            _error_msg_unexpected = f"Unexpected error cancelling order raw: {e}"
+            raise APIError(_error_msg_unexpected, APIErrorCode.UNKNOWN.value) from e
 
-    async def get_open_orders_raw(self) -> list[HyperliquidRawOrder]:
+    async def get_open_orders_raw(self) -> list[HyperliquidRawOpenOrder]:
+        _error_msg_wallet_addr = "Wallet address required for open orders."
         if not self._wallet_address:
-            raise APIError(
-                "Wallet address required for open orders.", APIErrorCode.AUTHENTICATION_FAILED.value
-            )
+            raise APIError(_error_msg_wallet_addr, APIErrorCode.AUTHENTICATION_FAILED.value)
 
         request_payload_model = HyperliquidRawOpenOrdersRequestPayload(
-            type="openOrders", user=self._wallet_address
+            type="openOrders",
+            user=self._wallet_address,
         )
 
         try:
-            raw_response = await self._info_http_client_requester(
+            raw_response_content = await self._info_http_client_requester(
                 method="POST",
                 endpoint=self._info_endpoint,
                 data=request_payload_model.model_dump(by_alias=True),
                 is_signed=False,
             )
+
+            if raw_response_content is None:
+                logger.warning(
+                    f"[{self._exchange_name}] Get open orders raw returned None content."
+                )
+                _error_msg_no_content = "Open orders request returned no content."
+                raise APIError(_error_msg_no_content, APIErrorCode.INVALID_RESPONSE.value)
+
             validated_response: HyperliquidRawOpenOrdersResponse = (
                 self._response_handler.handle_info_open_orders_response(
-                    raw_response, user_address=self._wallet_address
+                    raw_response_content,
+                    user_address=self._wallet_address,
                 )
             )
-            return [open_order_item.order for open_order_item in validated_response.items]
+            return validated_response.root
         except APIError as e:
             logger.error(f"[{self._exchange_name}] API error getting open orders raw: {e.message}")
             raise
         except Exception as e:
-            logger.error(
+            logger.exception(
                 f"[{self._exchange_name}] Unexpected error getting open orders raw: {e}",
-                exc_info=True,
             )
-            raise APIError(
-                f"Unexpected error getting open orders raw: {e}", APIErrorCode.UNKNOWN.value
-            ) from e
+            _error_msg_unexpected = f"Unexpected error getting open orders raw: {e}"
+            raise APIError(_error_msg_unexpected, APIErrorCode.UNKNOWN.value) from e
 
     async def get_order_status_raw(
-        self, symbol: str, order_id: int
+        self,
+        symbol: str,
+        order_id: int,
     ) -> HyperliquidRawHistoricalOrder | None:
+        _error_msg_wallet_addr = "Wallet address required for order status."
         if not self._wallet_address:
             raise APIError(
-                "Wallet address required for order status.",
+                _error_msg_wallet_addr,
                 APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
-        payload = self._request_builder.build_order_status_payload(
-            wallet_address=self._wallet_address, order_id=order_id
+        request_payload_model = self._request_builder.build_order_status_payload(
+            wallet_address=self._wallet_address,
+            order_id=order_id,
         )
         try:
-            raw_response = await self._info_http_client_requester(
+            raw_response_content = await self._info_http_client_requester(
                 method="POST",
                 endpoint=self._info_endpoint,
-                data=payload.model_dump(by_alias=True),
+                data=request_payload_model.model_dump(by_alias=True),
                 is_signed=False,
             )
-            validated_response: HyperliquidRawHistoricalOrderResponse | None
+
+            if raw_response_content is None:
+                logger.info(
+                    f"Order status for oid {order_id} returned None. Assuming not found or error."
+                )
+                # Pass # No specific error here, handler will check
+
             try:
                 validated_response = self._response_handler.handle_info_order_status_response(
-                    raw_response, user_address=self._wallet_address, order_id=order_id
+                    raw_response_content,
+                    user_address=self._wallet_address,
+                    order_id=order_id,
                 )
+                return validated_response.order if validated_response else None
             except APIError as e_handler:
                 if e_handler.code == APIErrorCode.ORDER_NOT_FOUND.value:
-                    logger.info(
-                        f"[{self._exchange_name}] Order {order_id} for {symbol} not found "
-                        f"by handler. Error: {e_handler.message}"
-                    )
+                    logger.info(f"Order {order_id} not found by handler for symbol {symbol}.")
                     return None
                 raise
 
-            if validated_response:
-                return validated_response.order
-            return None
-
-        except APIError as e:
-            logger.error(f"[{self._exchange_name}] API error getting order status raw: {e.message}")
+        except APIError as e_req:
+            logger.exception(
+                f"APIError requesting order status for oid {order_id} ({symbol}): {e_req}",
+            )
             raise
         except Exception as e:
-            logger.error(
-                f"[{self._exchange_name}] Unexpected error getting order status raw for {order_id}: {e}",
-                exc_info=True,
+            logger.exception(
+                f"[{self._exchange_name}] Error getting order status for {symbol}, oid {order_id}: {e}"
+            )
+            _error_msg_unexpected = (
+                f"Unexpected error getting order status for {order_id} ({symbol}): {e}"
             )
             raise APIError(
-                f"Unexpected error getting order status raw for {order_id}: {e}",
-                APIErrorCode.UNKNOWN.value,
+                message=_error_msg_unexpected,
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
             ) from e
 
     async def get_order(self, symbol: str, order_id: int) -> Order | None:
@@ -319,7 +331,8 @@ class HyperliquidTradingService:
 
         if order_type in [OrderType.STOP_LIMIT, OrderType.STOP_MARKET] or stop_price is not None:
             if stop_price is None:
-                raise ValueError("stop_price is required for stop orders.")
+                _error_msg_stop_price = "stop_price is required for stop orders."
+                raise ValueError(_error_msg_stop_price)
             tif_options["triggerPx"] = str(stop_price)
             tif_options["isMarket"] = order_type == OrderType.STOP_MARKET
 
@@ -332,6 +345,7 @@ class HyperliquidTradingService:
             reduce_only=reduce_only,
             time_in_force_options=tif_options,
             client_order_id=client_order_id,
+            post_only=post_only,
         )
 
         if raw_exchange_response.status == "ok" and raw_exchange_response.data:
@@ -346,37 +360,46 @@ class HyperliquidTradingService:
                         oid_to_fetch = status_dict.filled.oid
                     elif status_dict.error:
                         logger.error(
-                            f"[{self._exchange_name}] Order placement failed. Error in status: {status_dict.error}"
+                            f"[{self._exchange_name}] Order placement failed. "
+                            f"Error in status: {status_dict.error}"
                         )
                     # No OID to fetch if there's an error string in the status object.
                     # The error will be raised at the end of place_order if oid_to_fetch remains None.
 
                 elif isinstance(status_dict, str):  # pyright: ignore [reportUnnecessaryIsInstance]
+                    # This is an unexpected format, should be a dict with 'resting' or 'error'
                     logger.debug(
-                        f"[{self._exchange_name}] Order status is a string: {status_dict}, cannot extract OID."
+                        f"[{self._exchange_name}] Order status is a string: {status_dict}, "
+                        "cannot extract OID."
                     )
-                # Removed final 'else' here, as status_dict must be either HyperliquidRawExchangeStatusObject or str
-                # due to the Union type of items in statuses list. If it's neither, Pydantic validation
-                # of HyperliquidRawExchangeResponseData.statuses would have failed earlier.
 
                 if oid_to_fetch is not None:
                     final_order_details = await self.get_order(symbol=symbol, order_id=oid_to_fetch)
                     if final_order_details:
                         return final_order_details
+                    _error_msg_fetch_failed = (
+                        f"Failed to fetch order status for {oid_to_fetch} after placement."
+                    )
                     raise APIError(
-                        f"Failed to fetch order status for {oid_to_fetch} after placement.",
+                        _error_msg_fetch_failed,
                         APIErrorCode.ORDER_NOT_FOUND.value,
                     )
 
-        error_message = f"Order placement status unclear. Raw response: {raw_exchange_response.model_dump_json() if raw_exchange_response else 'None'}"
-        logger.error(f"[{self._exchange_name}] {error_message}")
-        raise APIError(error_message, APIErrorCode.UNKNOWN.value)
+        error_message_unclear = (
+            f"Order placement status unclear. Raw response: "
+            f"{raw_exchange_response.model_dump_json() if raw_exchange_response else 'None'}"
+        )
+        logger.error(f"[{self._exchange_name}] {error_message_unclear}")
+        raise APIError(error_message_unclear, APIErrorCode.UNKNOWN.value)
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         raw_open_orders_list = await self.get_open_orders_raw()
         internal_orders: list[Order] = []
-        for raw_order in raw_open_orders_list:
-            mapped_order = self._order_mapper.transform_raw_order_to_internal(raw=raw_order)
+        for raw_open_order_item in raw_open_orders_list:
+            mapped_order = self._order_mapper.transform_raw_order_to_internal(
+                raw=raw_open_order_item.order,
+                trigger=raw_open_order_item.trigger,
+            )
             if mapped_order:
                 if symbol is None or mapped_order.symbol == symbol:
                     internal_orders.append(mapped_order)
@@ -394,21 +417,24 @@ class HyperliquidTradingService:
                 if isinstance(status_val, HyperliquidRawExchangeStatusObject):
                     if status_val.error:
                         logger.warning(
-                            f"[{self._exchange_name}] Cancel for order {order_id} reported error: {status_val.error}"
+                            f"[{self._exchange_name}] Cancel for order {order_id} "
+                            f"reported error: {status_val.error}"
                         )
                         return False
 
                     if status_val.resting and status_val.resting.oid == order_id:
                         logger.info(
-                            f"[{self._exchange_name}] Cancel for order {order_id} has status 'resting' with matching OID."
+                            f"[{self._exchange_name}] Cancel for order {order_id} "
+                            "has status 'resting' with matching OID."
                         )
-                        return True
+                        return True  # Explicitly True if resting OID matches
 
-                    return True
+                    return True  # Default to True if status object exists without error
 
         logger.warning(
-            f"[{self._exchange_name}] Cancel order for {order_id} ({symbol}) failed or status unclear. "
-            f"Raw response: {raw_exchange_response.model_dump_json() if raw_exchange_response else 'None'}"
+            f"[{self._exchange_name}] Cancel order for {order_id} ({symbol}) failed or "
+            f"status unclear. Raw response: "
+            f"{raw_exchange_response.model_dump_json() if raw_exchange_response else 'None'}"
         )
         return False
 
@@ -429,7 +455,8 @@ class HyperliquidTradingService:
                     hl_order_id_str = order_to_cancel.exchange_order_id
                     if hl_order_id_str is None:
                         logger.warning(
-                            f"[{self._exchange_name}] (Service) Order missing exchange_order_id: {order_to_cancel.client_order_id}"
+                            f"[{self._exchange_name}] (Service) Order missing exchange_order_id: "
+                            f"{order_to_cancel.client_order_id}",
                         )
                         results.append(
                             CancelOrderResult(
@@ -439,7 +466,7 @@ class HyperliquidTradingService:
                                 success=False,
                                 message="Missing exchange_order_id",
                                 status=CancelOrderResultStatus.FAILED,
-                            )
+                            ),
                         )
                         continue
 
@@ -448,7 +475,8 @@ class HyperliquidTradingService:
 
                     if not order_sym:
                         logger.error(
-                            f"[{self._exchange_name}] (Service) Order (ID: {hl_order_id_str}) missing symbol. Skipping."
+                            f"[{self._exchange_name}] (Service) Order (ID: {hl_order_id_str}) "
+                            "missing symbol. Skipping.",
                         )
                         results.append(
                             CancelOrderResult(
@@ -458,7 +486,7 @@ class HyperliquidTradingService:
                                 success=False,
                                 message="Order missing symbol",
                                 status=CancelOrderResultStatus.FAILED,
-                            )
+                            ),
                         )
                         continue
 
@@ -475,21 +503,23 @@ class HyperliquidTradingService:
                             status=CancelOrderResultStatus.SUCCESS
                             if cancelled
                             else CancelOrderResultStatus.FAILED,
-                        )
+                        ),
                     )
                 except ValueError:
-                    logger.error(
-                        f"[{self._exchange_name}] (Service) Invalid exchange_order_id format for HL: {order_to_cancel.exchange_order_id}"
+                    err_msg_invalid_oid = (
+                        f"Invalid exchange_order_id format for HL: "
+                        f"{order_to_cancel.exchange_order_id}"
                     )
+                    logger.error(f"[{self._exchange_name}] (Service) {err_msg_invalid_oid}")
                     results.append(
                         CancelOrderResult(
                             order_id=order_to_cancel.exchange_order_id,
                             client_order_id=order_to_cancel.client_order_id,
                             symbol=order_to_cancel.symbol,
                             success=False,
-                            message="Invalid order ID format for cancellation.",
+                            message=err_msg_invalid_oid,
                             status=CancelOrderResultStatus.FAILED,
-                        )
+                        ),
                     )
                 except APIError as e_cancel:
                     results.append(
@@ -503,13 +533,14 @@ class HyperliquidTradingService:
                             raw_response=getattr(e_cancel.original_exception, "response_body", None)
                             if isinstance(e_cancel.original_exception, APIError)
                             else None,
-                        )
+                        ),
                     )
                 except Exception as e_unexp:
-                    logger.error(
-                        f"[{self._exchange_name}] (Service) Unexpected error cancelling order {order_to_cancel.exchange_order_id}: {e_unexp}",
-                        exc_info=True,
+                    log_message = (
+                        f"[{self._exchange_name}] (Service) Unexpected error cancelling order "
+                        f"{order_to_cancel.exchange_order_id}: {e_unexp}"
                     )
+                    logger.exception(log_message)
                     results.append(
                         CancelOrderResult(
                             order_id=order_to_cancel.exchange_order_id,
@@ -518,13 +549,15 @@ class HyperliquidTradingService:
                             success=False,
                             message=str(e_unexp),
                             status=CancelOrderResultStatus.FAILED,
-                        )
+                        ),
                     )
 
         except APIError as e_fetch:
-            logger.error(
-                f"[{self._exchange_name}] (Service) APIError fetching open orders for cancel_all: {e_fetch.message}"
+            log_message_fetch_err = (
+                f"[{self._exchange_name}] (Service) APIError fetching open orders "
+                f"for cancel_all: {e_fetch.message}"
             )
+            logger.exception(log_message_fetch_err)  # Use .exception for APIError as well
             results.append(
                 CancelOrderResult(
                     order_id=None,
@@ -535,13 +568,14 @@ class HyperliquidTradingService:
                     raw_response=getattr(e_fetch.original_exception, "response_body", None)
                     if isinstance(e_fetch.original_exception, APIError)
                     else None,
-                )
+                ),
             )
         except Exception as e_outer:
-            logger.error(
-                f"[{self._exchange_name}] (Service) Unexpected error in cancel_all_orders: {e_outer}",
-                exc_info=True,
+            log_message_outer_err = (
+                f"[{self._exchange_name}] (Service) Unexpected error in cancel_all_orders: "
+                f"{e_outer}"
             )
+            logger.exception(log_message_outer_err)
             results.append(
                 CancelOrderResult(
                     order_id=None,
@@ -549,70 +583,42 @@ class HyperliquidTradingService:
                     success=False,
                     message=str(e_outer),
                     status=CancelOrderResultStatus.FAILED,
-                )
+                ),
             )
         return results
 
     async def cancel_orders_raw(
-        self, cancels: list[HyperliquidCancelDetail]
+        self,
+        cancels: list[HyperliquidCancelDetail],
     ) -> HyperliquidRawExchangeResponse:
+        """Cancels a batch of orders using their asset index and order ID."""
+        _error_msg_wallet_addr = "Wallet address is required."
         if not self._wallet_address:
-            raise APIError("Wallet address is required.", APIErrorCode.AUTHENTICATION_FAILED.value)
+            raise APIError(_error_msg_wallet_addr, APIErrorCode.AUTHENTICATION_FAILED.value)
         action_item = {"type": "batchCancel", "cancels": cancels}
         actions_list = [action_item]
         try:
             raw_response_data_tuple = await self._exchange_http_client_requester(
-                method="POST", endpoint=self._action_endpoint, data=actions_list, is_signed=True
+                method="POST",
+                endpoint=self._action_endpoint,
+                data=actions_list,
+                is_signed=True,
             )
             raw_response_data = raw_response_data_tuple[0]
             if not isinstance(raw_response_data, dict):
+                _err_msg_batch_cancel_format = "Unexpected batch cancel response format"
                 raise APIError(
-                    "Unexpected batch cancel response format", APIErrorCode.INVALID_RESPONSE.value
+                    _err_msg_batch_cancel_format,
+                    APIErrorCode.INVALID_RESPONSE.value,
                 )
             return self._response_handler.handle_exchange_response(
-                raw_response_data, action_type="batchCancel"
+                raw_response_data,
+                action_type="batchCancel",
             )
         except Exception as e:
-            logger.error(f"[{self._exchange_name}] Error in cancel_orders_raw: {e}", exc_info=True)
+            logger.exception(f"[{self._exchange_name}] Error in cancel_orders_raw: {e}")
+            _err_msg_unexpected_batch_cancel = f"Unexpected error in cancel_orders_raw: {e}"
             raise APIError(
-                f"Unexpected error in cancel_orders_raw: {e}", APIErrorCode.UNKNOWN.value
+                _err_msg_unexpected_batch_cancel,
+                APIErrorCode.UNKNOWN.value,
             ) from e
-
-    # TODO: HyperliquidRequestBuilder is missing build_update_leverage_payload.
-    # This method cannot be fully implemented without it or changing the approach.
-    # Commenting out for now as it's outside the scope of place/cancel/get order methods.
-    # async def update_leverage_raw(
-    #     self, symbol: str, leverage: Decimal, is_cross_margin: bool
-    # ) -> HyperliquidRawExchangeResponse:
-    #     if not self._wallet_address:
-    #         raise APIError("Wallet address is required.", APIErrorCode.AUTHENTICATION_FAILED.value)
-    #     asset_index = await self._get_asset_index_callable(symbol)
-    #     if asset_index is None:
-    #         raise APIError(
-    #             f"Asset index for {symbol} not found.", APIErrorCode.INVALID_SYMBOL.value
-    #         )
-    #     # This builder method does not exist currently
-    #     action = self._request_builder.build_update_leverage_payload(
-    #         asset_index=asset_index, is_cross_margin=is_cross_margin, leverage=int(leverage)
-    #     )
-    #     actions_list = [action]
-    #     try:
-    #         raw_response_data_tuple = await self._exchange_http_client_requester(
-    #             method="POST", endpoint=self._action_endpoint, data=actions_list, is_signed=True
-    #         )
-    #         raw_response_data = raw_response_data_tuple[0]
-    #         if not isinstance(raw_response_data, dict):
-    #             raise APIError(
-    #                 "Unexpected update leverage response format",
-    #                 APIErrorCode.INVALID_RESPONSE.value,
-    #             )
-    #         return self._response_handler.handle_exchange_response(
-    #             raw_response_data, action_type="updateLeverage"
-    #         )
-    #     except Exception as e:
-    #         logger.error(
-    #             f"[{self._exchange_name}] Error in update_leverage_raw: {e}", exc_info=True
-    #         )
-    #         raise APIError(
-    #             f"Unexpected error in update_leverage_raw: {e}", APIErrorCode.UNKNOWN.value
-    #         ) from e

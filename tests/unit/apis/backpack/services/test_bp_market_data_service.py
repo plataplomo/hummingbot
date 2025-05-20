@@ -5,7 +5,7 @@ Unit tests for the BackpackMarketDataService.
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -68,8 +68,6 @@ def backpack_market_data_service(
         response_handler=mock_response_handler,
         exchange_name="backpack_test",
     )
-    # Replace the internally created mapper with a mock for testing its interactions
-    service._mapper = MagicMock(spec=BackpackOrderMapper)
     return service
 
 
@@ -130,33 +128,25 @@ class TestBackpackMarketDataService:
         )
         mock_response_handler.handle_get_ticker_response.return_value = mock_raw_ticker
 
-        # The service._mapper is already a MagicMock from the fixture
-        # Using ignore for attr-defined as MagicMock dynamically creates these attributes,
-        # and Mypy struggles with spec-based method attributes.
-        # This is a common pattern in testing and acceptable per RULE-NO-SILENCING-V4 in test files.
-        backpack_market_data_service._mapper.transform_raw_ticker_to_internal.return_value = (
-            mock_internal_ticker
-        )
+        with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
+            mock_mapper.transform_raw_ticker_to_internal.return_value = mock_internal_ticker
 
-        result_ticker = await backpack_market_data_service.get_ticker(symbol)
+            result_ticker = await backpack_market_data_service.get_ticker(symbol)
 
-        mock_request_builder.build_get_ticker_params.assert_called_once_with(symbol=symbol)
-        mock_http_client_requester.assert_called_once_with(
-            method="GET",
-            endpoint=mock_endpoint_path,
-            params=mock_params,
-            is_public_info_endpoint=True,
-        )
-        mock_response_handler.handle_get_ticker_response.assert_called_once_with(
-            mock_raw_response_content, symbol, mock_status_code, mock_headers
-        )
-        # Using ignore for attr-defined as MagicMock dynamically creates these attributes,
-        # and Mypy struggles with spec-based method attributes.
-        # This is a common pattern in testing and acceptable per RULE-NO-SILENCING-V4 in test files.
-        backpack_market_data_service._mapper.transform_raw_ticker_to_internal.assert_called_once_with(  # type: ignore[attr-defined]
-            mock_raw_ticker, symbol_override=symbol
-        )
-        assert result_ticker == mock_internal_ticker
+            mock_request_builder.build_get_ticker_params.assert_called_once_with(symbol=symbol)
+            mock_http_client_requester.assert_called_once_with(
+                method="GET",
+                endpoint=mock_endpoint_path,
+                params=mock_params,
+                is_public_info_endpoint=True,
+            )
+            mock_response_handler.handle_get_ticker_response.assert_called_once_with(
+                mock_raw_response_content, symbol, mock_status_code, mock_headers
+            )
+            mock_mapper.transform_raw_ticker_to_internal.assert_called_once_with(
+                mock_raw_ticker, symbol_override=symbol
+            )
+            assert result_ticker == mock_internal_ticker
 
     @pytest.mark.asyncio
     async def test_get_ticker_api_error_from_requester(

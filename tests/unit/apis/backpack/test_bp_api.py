@@ -207,7 +207,7 @@ class TestBackpackAPI_Authentication:
         caplog: LogCaptureFixture,
     ) -> None:
         api = BackpackAPI(default_bp_config, bp_secrets_invalid)
-        assert api._authenticator is None  # Was api.authenticator
+        assert api._authenticator is None
         assert "Authenticator not initialized" in caplog.text
 
     @pytest.mark.asyncio
@@ -219,7 +219,7 @@ class TestBackpackAPI_Authentication:
         """Test that _authenticate method correctly uses the BackpackHmacAuthenticator's
         prepare_request."""
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
-        assert api._authenticator is not None  # Was api.authenticator
+        assert api._authenticator is not None
 
         method = "GET"
         path = "/api/v1/capital"
@@ -235,12 +235,10 @@ class TestBackpackAPI_Authentication:
         with patch.object(
             api._authenticator,
             "prepare_request",
-            new_callable=AsyncMock,  # Was api.authenticator
+            new_callable=AsyncMock,
         ) as mock_prepare_request:
             mock_prepare_request.return_value = expected_components_from_auth
 
-            # Call the _authenticate method directly (still testing this internal,
-            # but with instance's authenticator)
             auth_result_dict = await api._authenticate(method, path, params, data)
 
             mock_prepare_request.assert_called_once_with(
@@ -262,7 +260,7 @@ class TestBackpackAPI_Authentication:
         mock_loop: MagicMock,  # mock_loop might be unused
     ) -> None:
         api = BackpackAPI(default_bp_config, bp_secrets_invalid)
-        assert api._authenticator is None  # Was api.authenticator
+        assert api._authenticator is None
 
         with pytest.raises(APIError) as exc_info:
             await api._authenticate("GET", "/test", None, None)
@@ -323,7 +321,7 @@ class TestBackpackAPI_Authentication:
         }
 
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
-        assert api._authenticator is not None  # Was api.authenticator
+        assert api._authenticator is not None
 
         mock_build_payload.return_value = expected_builder_payload
 
@@ -341,7 +339,7 @@ class TestBackpackAPI_Authentication:
             )
             print(
                 f"[TEST DEBUG] Is it api.authenticator? "
-                f"{authenticator_received is api._authenticator}",  # Was api.authenticator
+                f"{authenticator_received is api._authenticator}",
                 flush=True,
             )
             print(
@@ -466,9 +464,9 @@ class TestBackpackAPIMethodErrors:
         # Patch HttpClient.request
         with (
             patch(
-                "cyberdelta.apis.connectivity.http_client.HttpClient.request",  # Changed patch
+                "cyberdelta.apis.connectivity.http_client.HttpClient.request",
                 side_effect=http_failure,
-            ) as mock_http_client_request,  # Renamed mock
+            ) as mock_http_client_request,
             patch(
                 "cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder.build_place_order_payload"
             ) as mock_build_payload,
@@ -877,11 +875,15 @@ class TestBackpackAPIGetAccountSummary:
         assert exc_info.value is expected_service_error
         mock_get_info_on_service.assert_called_once()
 
-        # To check the log, we'd need the log to be emitted by the service *before* the error is raised.
-        # The current service implementation raises directly when _get_raw_account_summary_obj fails.
+        # To check the log, we'd need the log to be emitted by the service *before*
+        # the error is raised.
+        # The current service implementation raises directly when
+        # _get_raw_account_summary_obj fails.
         # Example: if service logs then raises:
-        # assert f"[{api.exchange_name}] Failed to fetch account settings for summary" in caplog.text
-        # This part of the test might need adjustment based on exact logging in BackpackAccountService.get_account_info
+        # assert f"[{api.exchange_name}] Failed to fetch account settings for summary"
+        # in caplog.text
+        # This part of the test might need adjustment based on exact logging in
+        # BackpackAccountService.get_account_info
         # For now, the primary check is that the APIError propagates.
 
     @pytest.mark.asyncio

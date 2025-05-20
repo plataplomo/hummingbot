@@ -111,7 +111,8 @@ class BackpackTradingService:
             )
             raw_data, status_code, _ = response_tuple  # Headers ignored for this handler
             logger.debug(
-                f"[{self._exchange_name}] Place order raw response: {raw_data}, status: {status_code}"
+                f"[{self._exchange_name}] Place order raw response: {raw_data}, "
+                f"status: {status_code}"
             )
 
             if raw_data is None:
@@ -155,16 +156,15 @@ class BackpackTradingService:
 
     async def cancel_order(self, order_id: str, symbol: str) -> bool:
         endpoint = "/api/v1/order"
-        params = self._request_builder.build_cancel_order_params(symbol=symbol, order_id=order_id)
+        payload = self._request_builder.build_cancel_order_payload(symbol=symbol, order_id=order_id)
 
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
-        # headers: Mapping[str, str] = {} # Headers not used by this specific handler
         try:
             response_tuple = await self._http_client_requester(
-                method="DELETE", endpoint=endpoint, params=params, is_signed=True
+                method="DELETE", endpoint=endpoint, data=payload, is_signed=True
             )
-            raw_data, status_code, _ = response_tuple  # Headers ignored for this handler
+            raw_data, status_code, _ = response_tuple
             logger.debug(
                 f"[{self._exchange_name}] Cancel order response: {raw_data}, status: {status_code}"
             )
@@ -177,8 +177,8 @@ class BackpackTradingService:
             )
             if not success:
                 logger.warning(
-                    f"[{self._exchange_name}] Cancel order for {order_id} ({symbol}) handler indicated failure. "
-                    f"Raw: {raw_data!r}, Status: {status_code}"
+                    f"[{self._exchange_name}] Cancel order for {order_id} ({symbol}) "
+                    f"handler indicated failure. Raw: {raw_data!r}, Status: {status_code}"
                 )
             return success
         except APIError:
@@ -209,12 +209,14 @@ class BackpackTradingService:
             )
             raw_data, status_code, _ = response_tuple  # Headers ignored for this handler
             logger.debug(
-                f"[{self._exchange_name}] Get open orders response: {raw_data}, status: {status_code}"
+                f"[{self._exchange_name}] Get open orders response: {raw_data}, "
+                f"status: {status_code}"
             )
 
             if raw_data is None:
                 raise APIError(
-                    f"Get open orders for {symbol or 'all'} returned no content (status: {status_code})",
+                    f"Get open orders for {symbol or 'all'} returned no content "
+                    f"(status: {status_code})",
                     APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
@@ -248,36 +250,31 @@ class BackpackTradingService:
         self, order_id: str, symbol: str, client_order_id: str | None = None
     ) -> Order | None:  # Returns internal Order or None
         endpoint = f"/api/v1/orders/{order_id}"
-        # According to BackpackRequestBuilder.build_get_order_params and its test,
-        # this specific endpoint (GET /api/v1/orders/{orderIdOrClientId})
-        # does not take query parameters. The order_id is in the path.
-        # The symbol parameter is for context for the mapper/handler, not for the request query itself.
-        built_params = self._request_builder.build_get_order_params()  # This returns None
+
+        if not symbol:
+            raise ValueError("Symbol cannot be None or empty for get_order")
+
+        built_params = self._request_builder.build_get_order_params(symbol=symbol)
 
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
-        # headers: Mapping[str, str] = {} # Headers not used by this specific handler
         try:
             response_tuple = await self._http_client_requester(
                 method="GET",
                 endpoint=endpoint,
                 params=built_params,
-                is_signed=True,  # built_params will be None
+                is_signed=True,
             )
-            raw_data, status_code, _ = response_tuple  # Headers ignored for this handler
+            raw_data, status_code, _ = response_tuple
             logger.debug(
-                f"[{self._exchange_name}] Get order status for {order_id} ({symbol}): {raw_data}, status: {status_code}"
+                f"[{self._exchange_name}] Get order status for {order_id} ({symbol}): "
+                f"{raw_data}, status: {status_code}"
             )
-
-            # The _http_client_requester or its underlying _request should raise APIError for 404s.
-            # If it maps to ORDER_NOT_FOUND, the except block below will handle it.
-            # If it doesn't, then the error mapper in ExchangeAPI should convert it.
 
             if raw_data is None:
-                # This case implies a successful HTTP status (e.g., 200 OK) but empty body,
-                # which is unexpected for a get_order endpoint that should return data or 404.
                 raise APIError(
-                    f"Get order status for {order_id} ({symbol}) returned no content despite successful status {status_code}",
+                    f"Get order status for {order_id} ({symbol}) returned no content "
+                    f"despite successful status {status_code}",
                     APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
@@ -288,25 +285,21 @@ class BackpackTradingService:
                     http_status=status_code,
                 )
 
-            # Expect handle_get_order_status_response to return BackpackRawOrder or raise APIError (e.g. for validation)
             raw_order_model: BackpackRawOrder = (
                 self._response_handler.handle_get_order_status_response(raw_data, order_id)
             )
-            # If raw_order_model was typed as BackpackRawOrder | None, the linter error was due to that.
-            # Now that it's BackpackRawOrder, the None check previously was indeed problematic.
-            # The APIError.ORDER_NOT_FOUND should be the mechanism for "not found".
             return BackpackOrderMapper.transform_raw_order_to_internal(raw_order_model)
         except APIError as e:
-            # Specifically catch ORDER_NOT_FOUND (or any 404 mapped to it) and return None
             if e.code == APIErrorCode.ORDER_NOT_FOUND.value or e.http_status == 404:
                 logger.info(
                     f"[{self._exchange_name}] Order {order_id} ({symbol}) not found: {e.message}"
                 )
                 return None
-            raise  # Re-raise other APIErrors
-        except Exception as e:  # Catch any other unexpected errors
+            raise
+        except Exception as e:
             logger.error(
-                f"[{self._exchange_name}] Error getting order status for {order_id} ({symbol}): {e}",
+                f"[{self._exchange_name}] Error getting order status for {order_id} "
+                f"({symbol}): {e}",
                 exc_info=True,
             )
             raise APIError(
@@ -339,8 +332,9 @@ class BackpackTradingService:
 
                 if not exch_order_id:
                     logger.warning(
-                        f"[{self._exchange_name}] Open order from service has no exchange_order_id. "
-                        f"Order details: client_id={client_id}, symbol={order_symbol}. Skipping."
+                        f"[{self._exchange_name}] Open order from service has no "
+                        f"exchange_order_id. Order details: client_id={client_id}, "
+                        f"symbol={order_symbol}. Skipping."
                     )
                     results.append(
                         CancelOrderResult(
@@ -356,7 +350,8 @@ class BackpackTradingService:
 
                 if not order_symbol:
                     logger.error(
-                        f"[{self._exchange_name}] Open order (ID: {exch_order_id}) missing symbol. Skipping."
+                        f"[{self._exchange_name}] Open order (ID: {exch_order_id}) "
+                        f"missing symbol. Skipping."
                     )
                     results.append(
                         CancelOrderResult(
@@ -408,8 +403,8 @@ class BackpackTradingService:
                     )
                 except Exception as e_unexp_cancel:
                     logger.error(
-                        f"[{self._exchange_name}] Unexpected error in service cancelling order {exch_order_id} "
-                        f"for {order_symbol}: {e_unexp_cancel}",
+                        f"[{self._exchange_name}] Unexpected error in service cancelling "
+                        f"order {exch_order_id} for {order_symbol}: {e_unexp_cancel}",
                         exc_info=True,
                     )
                     results.append(
@@ -433,15 +428,17 @@ class BackpackTradingService:
                 )
             else:
                 logger.warning(
-                    f"[{self._exchange_name}] Attempted to cancel {len(open_orders_to_cancel)} orders in service, "
-                    f"but only {num_successful} were confirmed cancelled"
+                    f"[{self._exchange_name}] Attempted to cancel "
+                    f"{len(open_orders_to_cancel)} orders in service, but only "
+                    f"{num_successful} were confirmed cancelled"
                     f"{f' for symbol {symbol}' if symbol else ''}."
                 )
 
         except APIError as e_fetch_orders:
             logger.error(
-                f"[{self._exchange_name}] APIError fetching open orders for service cancel_all_orders"
-                f"{f' (symbol: {symbol})' if symbol else ''}: {e_fetch_orders.message}"
+                f"[{self._exchange_name}] APIError fetching open orders for service "
+                f"cancel_all_orders{f' (symbol: {symbol})' if symbol else ''}: "
+                f"{e_fetch_orders.message}"
             )
             results.append(
                 CancelOrderResult(

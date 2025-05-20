@@ -115,6 +115,34 @@ async def hl_api_instance(
     # The `_` prefix for unused variable is a common Python convention
     _mock_auth_class, _mock_auth_instance = mock_hl_auth_init
     api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_WITH_KEY)
+    # Ensure the instance created by API init is replaced by our mock for this test
+    # api._authenticator = mock_auth_instance # Removed: mock_hl_auth_init fixture should ensure this
+
+    method = "POST"
+    path = "/exchange"
+    params = {"p": 1}
+    data_payload = {"d": 2}
+    expected_components = AuthenticatedRequestComponents(
+        headers={"X-HL-Signature": "sig123"}, params=params, data=data_payload
+    )
+    _mock_auth_instance.prepare_request.return_value = expected_components
+
+    with patch.object(api, "_authenticator", _mock_auth_instance):
+        result = await api._authenticate(method, path, params, data_payload)
+
+    _mock_auth_instance.prepare_request.assert_awaited_once_with(
+        method,
+        path,
+        params,
+        data_payload,
+        api.default_headers.copy(),
+    )
+    assert result["headers"] == expected_components["headers"]
+    assert result["params"] == expected_components["params"]
+    assert result["data"] == expected_components["data"]
+    # No direct is_authenticated flag to check, success is implied by no exception
+    # and correct delegation to authenticator.prepare_request
+
     yield api
     await api.close()
 
@@ -297,8 +325,6 @@ async def test_authenticate_success(
     """Test successful call to _authenticate delegates to authenticator."""
     _mock_auth_class, mock_auth_instance = mock_hl_auth_init
     api = HyperliquidAPI(BASE_API_CONFIG, SECRETS_WITH_KEY)
-    # Ensure the instance created by API init is replaced by our mock for this test
-    api._authenticator = mock_auth_instance
 
     method = "POST"
     path = "/exchange"
@@ -309,7 +335,8 @@ async def test_authenticate_success(
     )
     mock_auth_instance.prepare_request.return_value = expected_components
 
-    result = await api._authenticate(method, path, params, data_payload)
+    with patch.object(api, "_authenticator", mock_auth_instance):
+        result = await api._authenticate(method, path, params, data_payload)
 
     mock_auth_instance.prepare_request.assert_awaited_once_with(
         method,
@@ -757,14 +784,15 @@ class TestHyperliquidAPIWebSocketRouting:
         # mock_hl_auth_init ensures authenticator is mocked if needed
         # We are primarily testing routing, not live connection
         api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_WITH_KEY)
-        # Mock the ws_manager for these tests
         mock_ws_manager_instance = AsyncMock()
-        mock_ws_manager_instance.close = AsyncMock()  # Ensure ws_manager.close() is awaitable
-        api._ws_manager = mock_ws_manager_instance
+        mock_ws_manager_instance.close = AsyncMock()
 
-        yield api
-
-        await api.close()
+        with patch.object(api, "_ws_manager", mock_ws_manager_instance):
+            yield api
+        # api.close() if called by the test would operate on the instance after the patch
+        # on _ws_manager has expired if not handled carefully by test structure.
+        # For robust cleanup, tests might need to call api.close() inside a try/finally
+        # that ensures the fixture's full lifecycle or manage ws_manager state explicitly.
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -849,7 +877,7 @@ class TestHyperliquidAPIWebSocketRouting:
     async def test_route_ws_message_known_channel(self, api_for_ws_tests: HyperliquidAPI) -> None:
         mock_handler: AsyncMock = AsyncMock()
         channel_name = "l2Book:ETH"  # Example specific channel name
-        api_for_ws_tests._ws_handlers[channel_name] = mock_handler
+        # api_for_ws_tests._ws_handlers[channel_name] = mock_handler # Original direct assignment
 
         test_data_payload: dict[str, Any] = {
             "coin": "ETH",
@@ -858,7 +886,10 @@ class TestHyperliquidAPIWebSocketRouting:
         }
         test_message: dict[str, Any] = {"channel": channel_name, "data": test_data_payload}
 
-        await api_for_ws_tests._handle_websocket_message(test_message)
+        # Patch _ws_handlers for the scope of this test
+        with patch.object(api_for_ws_tests, "_ws_handlers", {channel_name: mock_handler}):
+            await api_for_ws_tests._handle_websocket_message(test_message)
+
         mock_handler.assert_awaited_once_with(test_data_payload, test_message)
 
     @pytest.mark.asyncio
@@ -927,10 +958,11 @@ class TestHyperliquidAPIWebSocketRouting:
         mock_handler: AsyncMock = AsyncMock()
         channel_name = "dataCheckChannel"
         # Register a handler so it doesn't fall into "No WS handler" path
-        api_for_ws_tests._ws_handlers[channel_name] = mock_handler
+        # api_for_ws_tests._ws_handlers[channel_name] = mock_handler # Original
         test_message: dict[str, Any] = {"channel": channel_name}  # No 'data' field
 
-        await api_for_ws_tests._handle_websocket_message(test_message)
+        with patch.object(api_for_ws_tests, "_ws_handlers", {channel_name: mock_handler}):
+            await api_for_ws_tests._handle_websocket_message(test_message)
         mock_handler.assert_not_called()  # Handler should not be called if no data
 
         expected_log_part = (
@@ -960,7 +992,7 @@ class TestHyperliquidAPIWebSocketRouting:
         """Test _route_ws_message calls handle_l2book_payload for l2Book channel."""
         mock_app_handler = AsyncMock()
         topic = "l2Book:ETH"
-        api_for_ws_tests._ws_handlers[topic] = mock_app_handler
+        # api_for_ws_tests._ws_handlers[topic] = mock_app_handler # Original
 
         raw_l2_data = {"coin": "ETH", "levels": [["100.0", "1.0"], ["101.0", "2.5"]], "time": 123}  # pyright: ignore [reportUnknownVariableType]
         # Test data; type checker struggles with inline dict structure for nested lists.
@@ -973,7 +1005,8 @@ class TestHyperliquidAPIWebSocketRouting:
         mock_validated_l2_model.model_dump.return_value = mock_dumped_l2_model
         mock_ws_handler_class.handle_l2book_payload.return_value = mock_validated_l2_model
 
-        await api_for_ws_tests._route_ws_message(ws_message)
+        with patch.object(api_for_ws_tests, "_ws_handlers", {topic: mock_app_handler}):
+            await api_for_ws_tests._route_ws_message(ws_message)
         # Testing protected routing method directly. Arg-type ignore for ws_message due to
         # test data structure.
 
@@ -988,7 +1021,7 @@ class TestHyperliquidAPIWebSocketRouting:
         """Test _route_ws_message calls handle_public_trades_payload for trades channel."""
         mock_app_handler = AsyncMock()
         topic = "trades:BTC"
-        api_for_ws_tests._ws_handlers[topic] = mock_app_handler
+        # api_for_ws_tests._ws_handlers[topic] = mock_app_handler # Original
 
         raw_trade_item = {
             "coin": "BTC",
@@ -1012,7 +1045,8 @@ class TestHyperliquidAPIWebSocketRouting:
             mock_validated_trade_model
         ]
 
-        await api_for_ws_tests._route_ws_message(ws_message)
+        with patch.object(api_for_ws_tests, "_ws_handlers", {topic: mock_app_handler}):
+            await api_for_ws_tests._route_ws_message(ws_message)
 
         mock_ws_handler_class.handle_public_trades_payload.assert_called_once_with([raw_trade_item])
         mock_app_handler.assert_awaited_once_with(mock_dumped_trade_model, ws_message)
@@ -1025,7 +1059,7 @@ class TestHyperliquidAPIWebSocketRouting:
         """Test _route_ws_message calls handle_all_mids_payload for allMids channel."""
         mock_app_handler = AsyncMock()
         topic = "allMids"
-        api_for_ws_tests._ws_handlers[topic] = mock_app_handler
+        # api_for_ws_tests._ws_handlers[topic] = mock_app_handler # Original
 
         raw_all_mids_data = {"BTC": "60000.0", "ETH": "3000.0"}
         ws_message = {"channel": "allMids", "data": raw_all_mids_data}
@@ -1035,7 +1069,8 @@ class TestHyperliquidAPIWebSocketRouting:
         mock_validated_all_mids_model.model_dump.return_value = mock_dumped_all_mids_model
         mock_ws_handler_class.handle_all_mids_payload.return_value = mock_validated_all_mids_model
 
-        await api_for_ws_tests._route_ws_message(ws_message)
+        with patch.object(api_for_ws_tests, "_ws_handlers", {topic: mock_app_handler}):
+            await api_for_ws_tests._route_ws_message(ws_message)
 
         mock_ws_handler_class.handle_all_mids_payload.assert_called_once_with(raw_all_mids_data)
         mock_app_handler.assert_awaited_once_with(mock_dumped_all_mids_model, ws_message)
@@ -1083,7 +1118,7 @@ class TestHyperliquidAPIWebSocketRouting:
         """Test _route_ws_message for simple userEvents (fill, positionUpdate)."""
         mock_app_handler = AsyncMock()
         topic = "userEvents"
-        api_for_ws_tests._ws_handlers[topic] = mock_app_handler
+        # api_for_ws_tests._ws_handlers[topic] = mock_app_handler # Original
 
         ws_message = {"channel": "userEvents", "data": [raw_event_data]}
 
@@ -1092,7 +1127,8 @@ class TestHyperliquidAPIWebSocketRouting:
         mock_validated_model.model_dump.return_value = mock_dumped_model
         getattr(mock_ws_handler_class, handler_method_name).return_value = mock_validated_model
 
-        await api_for_ws_tests._route_ws_message(ws_message)
+        with patch.object(api_for_ws_tests, "_ws_handlers", {topic: mock_app_handler}):
+            await api_for_ws_tests._route_ws_message(ws_message)
 
         getattr(mock_ws_handler_class, handler_method_name).assert_called_once_with(raw_event_data)
         mock_app_handler.assert_awaited_once_with(mock_dumped_model, ws_message)
@@ -1108,7 +1144,7 @@ class TestHyperliquidAPIWebSocketRouting:
     ) -> None:
         """Test that user 'order' events correctly call both wrapper and detail handlers."""
         mock_app_handler = AsyncMock()
-        api_for_ws_tests._ws_handlers["userEvents"] = mock_app_handler
+        # api_for_ws_tests._ws_handlers["userEvents"] = mock_app_handler # Original
 
         raw_event_data: dict[str, Any] = {  # This is the event_item_dict
             "type": "order",
@@ -1151,7 +1187,8 @@ class TestHyperliquidAPIWebSocketRouting:
         # mock_handle_order_event handles the mock_inner_order_data_dict
         mock_handle_order_event.return_value = mock_validated_order_detail
 
-        await api_for_ws_tests._route_ws_message(ws_message)
+        with patch.object(api_for_ws_tests, "_ws_handlers", {"userEvents": mock_app_handler}):
+            await api_for_ws_tests._route_ws_message(ws_message)
 
         mock_handle_order_wrapper.assert_called_once_with(raw_event_data)
         mock_handle_order_event.assert_called_once_with(mock_inner_order_data_dict)
@@ -1584,9 +1621,11 @@ async def test_get_funding_rates_success(
         mock_hyperliquid_mapper.map_raw_ctx_to_funding_rate.side_effect = (
             mock_map_raw_ctx_to_funding_rate
         )
-        hl_api_instance._hl_mapper = mock_hyperliquid_mapper
+        # hl_api_instance._hl_mapper = mock_hyperliquid_mapper # Old direct assignment
 
-        result = await hl_api_instance.get_funding_rates()
+        # Patch the _hl_mapper for the scope of this test
+        with patch.object(hl_api_instance, "_hl_mapper", mock_hyperliquid_mapper):
+            result = await hl_api_instance.get_funding_rates()
 
         # The payload built by HyperliquidRequestBuilder.build_info_request_payload()
         # is HyperliquidRawMetaAndAssetCtxsRequestPayload(type="metaAndAssetCtxs")

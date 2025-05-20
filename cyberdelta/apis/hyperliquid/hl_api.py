@@ -885,9 +885,13 @@ class HyperliquidAPI(ExchangeAPI):
         )
 
     async def cancel_order(
-        self, order_id: str, symbol: str
-    ) -> bool:  # HL requires symbol, so not symbol: str|None
+        self, order_id: str, symbol: str | None = None
+    ) -> bool:  # HL requires symbol, signature changed for Liskov
         """Cancel an order. Delegates to HyperliquidTradingService."""
+        if symbol is None:
+            _msg = "Symbol is required to cancel an order on Hyperliquid."
+            logger.error(f"[{self.exchange_name}] {_msg}")
+            raise ValueError(_msg)
         try:
             hl_order_id = int(order_id)
             return await self.trading_service.cancel_order(symbol=symbol, order_id=hl_order_id)
@@ -920,39 +924,83 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order:
-        """Get order status. Delegates to HyperliquidTradingService's get_order method."""
-        # This method effectively uses get_order and then ensures an order is returned (not None).
-        # client_order_id is not used by Hyperliquid when order_id (exchange OID) is present.
+        """Get order status. Fetches order via trading service and raises if not found."""
         if not symbol:
             _msg = "Symbol is required for get_order_status on Hyperliquid."
             logger.error(f"[{self.exchange_name}] {_msg}")
             raise ValueError(_msg)
 
-        # Call the class's get_order method, which handles the service call
-        order = await self.get_order(order_id=order_id, symbol=symbol)
+        # client_order_id is not directly used by HL when exchange order_id is present.
+        # This method prioritizes order_id (exchange OID).
+        if client_order_id and not order_id:
+            # This scenario is problematic for HL's direct get_order by OID.
+            # Trading service get_order expects int order_id.
+            logger.warning(
+                f"[{self.exchange_name}] get_order_status called with client_order_id='{client_order_id}' "
+                f"but no exchange order_id. Hyperliquid requires exchange order_id for specific fetch."
+            )
+            # Fall through to attempt with order_id=0 or similar if that's a desired pattern,
+            # or raise error. For now, will proceed assuming order_id is the primary identifier.
+
+        try:
+            hl_order_id = int(order_id)
+        except ValueError:
+            _msg = f"Invalid order_id format for get_order_status: {order_id}. Must be an integer for Hyperliquid."
+            logger.error(f"[{self.exchange_name}] {_msg}")
+            raise ValueError(_msg)
+
+        # Call the trading service directly to get the order.
+        # The trading_service.get_order method returns Order | None.
+        order = await self.trading_service.get_order(symbol=symbol, order_id=hl_order_id)
+
         if order is None:
             raise APIError(
                 message=f"Order {order_id} for symbol {symbol} not found on {self.exchange_name}.",
                 code=APIErrorCode.ORDER_NOT_FOUND.value,
-                exchange_name=self.exchange_name,  # Ensure self.exchange_name is accessible
             )
         return order
 
     async def get_order(
-        self, order_id: str, symbol: str | None = None
+        self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order | None:  # Matches ExchangeAPI
         """Get a specific order by ID. Delegates to HyperliquidTradingService's get_order method."""
         if not symbol:
             _msg = "Symbol is required for get_order on Hyperliquid."
             logger.error(f"[{self.exchange_name}] {_msg}")
+            # Return None or raise ValueError based on strictness for ExchangeAPI compliance.
+            # Raising ValueError as symbol is strictly needed for the service call.
             raise ValueError(_msg)
+
+        if client_order_id and not order_id:
+            logger.warning(
+                f"[{self.exchange_name}] get_order called with client_order_id='{client_order_id}' "
+                f"but no exchange order_id. Hyperliquid primarily fetches by exchange order_id."
+            )
+            # Hyperliquid's get_order in trading service expects int order_id (exchange OID).
+            # Cannot directly use client_order_id for that specific fetch.
+            # To support this, one would typically search order history, which is not this method's primary goal.
+            return None  # Or raise APIError(INVALID_PARAMS) if client_order_id lookup isn't supported here.
+
         try:
             hl_order_id = int(order_id)
-            return await self.trading_service.get_order(symbol=symbol, order_id=hl_order_id)
+            # Call the trading service's get_order method.
+            retrieved_order = await self.trading_service.get_order(
+                symbol=symbol, order_id=hl_order_id
+            )
+            return retrieved_order
         except ValueError:
             _msg = f"Invalid order_id format for get_order: {order_id}. Must be an integer for Hyperliquid."
             logger.error(f"[{self.exchange_name}] {_msg}")
+            # Consistent with ExchangeAPI, if params are bad leading to no possible fetch, return None or raise.
+            # Raising ValueError as it's a precondition for HL.
             raise ValueError(_msg)
+        except APIError as e:
+            # Allow trading_service to raise APIError (e.g., network issues)
+            # If order specifically not found by service, it would return None, handled above.
+            logger.error(
+                f"[{self.exchange_name}] APIError in get_order for {order_id} ({symbol}): {e}"
+            )
+            raise  # Re-raise other APIErrors
 
     async def get_order_history(
         self,
@@ -1166,42 +1214,3 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Fetch all open orders, optionally filtering by symbol."""
         return await self.get_open_orders(symbol=symbol)
-
-    async def get_order(
-        self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
-    ) -> Order | None:
-        """Retrieves a single order by its ID.
-        Delegates to get_order_status as Hyperliquid's query is for historical/current status.
-        """
-        # client_order_id is not directly used by Hyperliquid's specific order status query
-        # by order_id.
-        # The implementation of get_order_status already handles the main logic.
-        if client_order_id and not order_id:
-            logger.warning(
-                f"[{self.exchange_name}] get_order called with client_order_id but Hyperliquid "
-                f"primarily fetches orders by order_id and symbol. "
-                f"Attempting to find by client_order_id via history is not yet supported here."
-            )
-            # For now, if order_id is missing but client_order_id is present, we cannot proceed
-            # with the current get_order_status implementation directly.
-            # Returning None or raising an error for this specific case.
-            # This part of ExchangeAPI spec needs clarification for Hyperliquid.
-            raise APIError(
-                "Fetching order by client_order_id without exchange order_id is not "
-                "directly supported for Hyperliquid in this adapter.",
-                code=APIErrorCode.INVALID_REQUEST.value,
-            )
-
-        if not order_id or not symbol:
-            # get_order_status will raise appropriate errors if order_id or symbol is missing
-            # but it's good practice to check common required params early.
-            raise ValueError("Both order_id and symbol are required for get_order on Hyperliquid.")
-
-        try:
-            return await self.get_order_status(
-                order_id=order_id, symbol=symbol, client_order_id=client_order_id
-            )
-        except APIError as e:
-            if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
-                return None  # Consistent with ExchangeAPI: return None if not found
-            raise  # Re-raise other APIErrors

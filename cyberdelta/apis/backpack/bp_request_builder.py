@@ -164,7 +164,8 @@ class BackpackRequestBuilder:
             "quantity": str(quantity),
         }
 
-        # TimeInForce according to OpenAPI: GTC, IOC, FOK. Not all might be supported for all order types.
+        # TimeInForce according to OpenAPI: GTC, IOC, FOK.
+        # Not all might be supported for all order types.
         if time_in_force == TimeInForce.GTC:
             payload["timeInForce"] = "GTC"
         elif time_in_force == TimeInForce.IOC:
@@ -196,11 +197,12 @@ class BackpackRequestBuilder:
         return payload
 
     @staticmethod
-    def build_cancel_order_params(
+    def build_cancel_order_payload(
         symbol: str, order_id: str | None = None, client_order_id: str | None = None
-    ) -> dict[str, str]:
+    ) -> dict[str, Any]:
         """
-        Builds parameters for cancelling an order.
+        Builds the JSON payload for cancelling an order.
+        Corresponds to DELETE /api/v1/order request body.
 
         Args:
             symbol: The trading symbol.
@@ -208,19 +210,25 @@ class BackpackRequestBuilder:
             client_order_id: The client order ID (optional if order_id is provided).
 
         Returns:
-            dict[str, str]: The request parameters dictionary.
+            dict[str, Any]: The request payload dictionary.
 
         Raises:
             ValueError: If neither order_id nor client_order_id is provided.
         """
-        params: dict[str, str] = {"symbol": BackpackRequestBuilder.format_symbol(symbol)}
+        payload: dict[str, Any] = {"symbol": BackpackRequestBuilder.format_symbol(symbol)}
         if order_id:
-            params["orderId"] = order_id
+            payload["orderId"] = order_id
         elif client_order_id:
-            params["clientId"] = client_order_id
+            # Assuming Backpack uses 'clientId' as a string in the payload, similar to other fields.
+            # If it's an int, ensure proper conversion if client_order_id is passed as int.
+            # For consistency with OrderExecutePayload clientId, let's assume it can be int or str.
+            # However, OrderCancelPayload in OpenAPI spec shows clientId as uint32.
+            # For now, will keep as string if passed as string, matching orderId.
+            # If strict uint32 is required by API and causes issues, this may need adjustment.
+            payload["clientId"] = client_order_id  # Keeping as string to match orderId type in dict
         else:
             raise ValueError("Either orderId or clientId must be provided to cancel an order.")
-        return params
+        return payload
 
     @staticmethod
     def build_get_open_orders_params(symbol: str | None) -> dict[str, str] | None:
@@ -518,6 +526,11 @@ class BackpackRequestBuilder:
         return payload
 
     @staticmethod
-    def build_get_order_params() -> dict[str, Any] | None:
-        """GET /api/v1/orders/{orderIdOrClientId} - no query params or body."""
-        return None
+    def build_get_order_params(symbol: str) -> dict[str, Any]:
+        """
+        Builds parameters for GET /api/v1/orders/{orderIdOrClientId}.
+        This endpoint requires 'symbol' as a query parameter.
+        """
+        if not symbol:
+            raise ValueError("Symbol is required for build_get_order_params.")
+        return {"symbol": BackpackRequestBuilder.format_symbol(symbol)}
