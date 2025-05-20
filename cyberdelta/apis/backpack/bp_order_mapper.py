@@ -905,7 +905,7 @@ class BackpackOrderMapper:
         and positions, into an internal `MarginAccountSummary` model.
 
         Args:
-            raw_settings: The validated `BackpackRawAccountSummary` Pydantic model 
+            raw_settings: The validated `BackpackRawAccountSummary` Pydantic model
                 (contains settings).
             spot_balances_raw: A dictionary of validated raw spot balances.
             derivative_positions_raw: A list of validated raw derivative positions.
@@ -934,7 +934,8 @@ class BackpackOrderMapper:
             calculated_assets_value_spot = Decimal("0.0")
 
             for sb in internal_spot_balances:
-                # Assuming assets like USDC, USDT, USD are 1:1 with USD for equity/balance calculations
+                # Assuming assets like USDC, USDT, USD are 1:1 with USD for
+                # equity/balance calculations
                 # This might need more sophisticated price oracle logic for other assets
                 if sb.asset.upper() in ["USD", "USDC", "USDT"]:
                     calculated_total_equity += sb.total_quantity
@@ -967,8 +968,10 @@ class BackpackOrderMapper:
                 timestamp=datetime.now(UTC),
                 total_equity=calculated_total_equity,
                 available_equity=calculated_available_equity,
-                total_initial_margin_required=None,  # Backpack doesn't provide this directly in summary
-                total_maintenance_margin_required=None,  # Backpack doesn't provide this directly in summary
+                total_initial_margin_required=None,  # Backpack doesn't provide this
+                # directly in summary
+                total_maintenance_margin_required=None,  # Backpack doesn't provide
+                # this directly in summary
                 total_position_notional=calculated_total_position_notional
                 if internal_derivative_positions
                 else Decimal("0.0"),
@@ -1040,9 +1043,8 @@ class BackpackOrderMapper:
                 try:
                     # parse_datetime_utc raises ValueError for unparsable non-None input
                     parsed_dt = parse_datetime_utc(timestamp_str, field_name="created_at")
-                    if (
-                        parsed_dt is None
-                    ):  # Should not happen if timestamp_str is not None and parse_datetime_utc is robust
+                    if parsed_dt is None:  # Should not happen if timestamp_str is not None and
+                        # parse_datetime_utc is robust
                         logger.warning(
                             f"parse_datetime_utc returned None for non-None input: "
                             f"{timestamp_str}, defaulting to now()"
@@ -1117,9 +1119,9 @@ class BackpackOrderMapper:
             raw_response: The raw JSON dictionary response from the transfer API call.
             asset: The asset symbol being transferred.
             quantity: The amount of the asset transferred.
-            from_account_type_raw: The raw string representing the source account type 
+            from_account_type_raw: The raw string representing the source account type
                 from Backpack.
-            to_account_type_raw: The raw string representing the destination account type 
+            to_account_type_raw: The raw string representing the destination account type
                 from Backpack.
             client_transfer_id: Client-provided ID for the transfer.
 
@@ -1166,16 +1168,20 @@ class BackpackOrderMapper:
                         final_timestamp = parsed_dt
                     else:
                         logger.warning(
-                            f"String timestamp '{timestamp_from_response}' parsed to None by parse_datetime_utc, using current time."
+                            f"String timestamp '{timestamp_from_response}' parsed to None "
+                            f"by parse_datetime_utc, using current time."
                         )
                 except ValueError:
                     logger.warning(
-                        f"Could not parse transfer timestamp string '{timestamp_from_response}' via parse_datetime_utc, using current time."
+                        f"Could not parse transfer timestamp string "
+                        f"'{timestamp_from_response}' via parse_datetime_utc, "
+                        f"using current time."
                     )
             elif isinstance(timestamp_from_response, (int, float)):
                 parsed_dt = None
                 try:
-                    # Try parse_datetime_utc first for int/float as it might have more robust heuristics
+                    # Try parse_datetime_utc first for int/float as it might have more robust
+                    # heuristics
                     parsed_dt = parse_datetime_utc(timestamp_from_response, field_name="createdAt")
                 except (
                     ValueError
@@ -1187,7 +1193,8 @@ class BackpackOrderMapper:
                 ):  # If parse_datetime_utc returned None or raised ValueError for int/float input
                     try:
                         numeric_val = float(timestamp_from_response)
-                        # Direct conversion for int/float if parse_datetime_utc path didn't yield result
+                        # Direct conversion for int/float if parse_datetime_utc path
+                        # didn't yield result
                         parsed_dt = (
                             datetime.fromtimestamp(numeric_val / 1000, UTC)
                             if numeric_val > 1e11  # Assuming values > 10^11 are milliseconds
@@ -1195,19 +1202,23 @@ class BackpackOrderMapper:
                         )
                     except (TypeError, ValueError, OSError) as e_num_fallback:
                         logger.warning(
-                            f"Could not parse transfer timestamp numeric fallback {timestamp_from_response}: {e_num_fallback}, using current time."
+                            f"Could not parse transfer timestamp numeric fallback "
+                            f"{timestamp_from_response}: {e_num_fallback}, using current time."
                         )
 
                 if parsed_dt is not None:
                     final_timestamp = parsed_dt
                 else:
-                    # This path means parse_datetime_utc (for int/float) and direct numeric conversion both failed or resulted in None
+                    # This path means parse_datetime_utc (for int/float) and direct numeric
+                    # conversion both failed or resulted in None
                     logger.warning(
-                        f"Numeric parsing/fallback for {timestamp_from_response} did not yield a datetime, using current time."
+                        f"Numeric parsing/fallback for {timestamp_from_response} did not "
+                        f"yield a datetime, using current time."
                     )
             else:  # Not None, str, int, or float
                 logger.warning(
-                    f"Unsupported type for transfer timestamp: {type(timestamp_from_response)}, using current time."
+                    f"Unsupported type for transfer timestamp: {type(timestamp_from_response)}, "
+                    f"using current time."
                 )
 
             bp_details = BackpackTransferDetails(
@@ -1228,7 +1239,8 @@ class BackpackOrderMapper:
             )
         except (ValidationError, TypeError, AttributeError, KeyError) as e:
             logger.error(
-                f"[BackpackOrderMapper] Error transforming raw transfer response: {e}. Raw: {raw_response if isinstance(raw_response, dict) else 'Non-dict input'}",
+                f"[BackpackOrderMapper] Error transforming raw transfer response: {e}. "
+                f"Raw: {raw_response if isinstance(raw_response, dict) else 'Non-dict input'}",
                 exc_info=True,
             )
             raise ValueError(f"Error transforming raw transfer response: {e}") from e
@@ -1309,7 +1321,8 @@ class BackpackOrderMapper:
             FundingRate: The corresponding internal FundingRate model.
         """
         try:
-            # raw.rate is already validated as RawBpParsableFiniteDecimalString by the Pydantic model
+            # raw.rate is already validated as RawBpParsableFiniteDecimalString by
+            # the Pydantic model
             # We just need to parse it to Decimal here.
             rate_decimal = parse_decimal_value(
                 raw.rate, field_name=f"funding interval rate for {raw.symbol}"
@@ -1318,7 +1331,8 @@ class BackpackOrderMapper:
                 rate_decimal is None
             ):  # Defensive, though RawBpParsableFiniteDecimalString implies it's parsable
                 raise ValueError(
-                    f"Parsed funding interval rate is None for {raw.symbol} from raw value: {raw.rate}"
+                    f"Parsed funding interval rate is None for {raw.symbol} from raw "
+                    f"value: {raw.rate}"
                 )
 
             # raw.time is an int (timestamp). parse_datetime_utc can handle int epoch seconds.
@@ -1327,7 +1341,8 @@ class BackpackOrderMapper:
             )
             if timestamp_dt is None:
                 raise ValueError(
-                    f"Parsed funding interval timestamp is None for {raw.symbol} from raw value: {raw.time}"
+                    f"Parsed funding interval timestamp is None for {raw.symbol} from "
+                    f"raw value: {raw.time}"
                 )
 
             # The raw.symbol from the data should be used, not the one passed as arg if different.
@@ -1346,9 +1361,11 @@ class BackpackOrderMapper:
         except (ValidationError, ValueError, TypeError) as e:
             logger.error(
                 f"[BackpackOrderMapper] Error transforming raw funding interval rate "
-                f"for symbol {raw.symbol if raw else 'unknown'}: {e}. Raw data: {raw.model_dump_json() if raw else 'None'}",
+                f"for symbol {raw.symbol if raw else 'unknown'}: {e}. "
+                f"Raw data: {raw.model_dump_json() if raw else 'None'}",
                 exc_info=True,
             )
             raise ValueError(
-                f"Failed to transform BackpackRawFundingIntervalRate for {raw.symbol if raw else 'unknown'}: {e}"
+                f"Failed to transform BackpackRawFundingIntervalRate for "
+                f"{raw.symbol if raw else 'unknown'}: {e}"
             ) from e

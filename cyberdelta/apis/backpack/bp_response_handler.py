@@ -187,8 +187,10 @@ class BackpackResponseHandler:
         if symbol is not None:  # Expect a single position dictionary
             if not isinstance(raw_response_content, dict):
                 raise APIError(
-                    message=f"Unexpected {context} response format: expected dict for single symbol, "
-                    f"got {type(raw_response_content)}",
+                    message=(
+                        f"Unexpected {context} response format: expected dict for single symbol, "
+                        f"got {type(raw_response_content)}"
+                    ),
                     code=APIErrorCode.INVALID_RESPONSE.value,
                 )
             try:
@@ -293,16 +295,21 @@ class BackpackResponseHandler:
             if isinstance(raw_response_content, list):
                 if not raw_response_content:  # Empty list
                     raise APIError(
-                        message=f"Empty list for {context} response, expected dict or non-empty list.",
+                        message=(
+                            f"Empty list for {context} response, expected dict or non-empty list."
+                        ),
                         code=APIErrorCode.INVALID_RESPONSE.value,
                     )
-                # Assuming the first element is the target if it's a list (adapting for HL-like structures)
+                # Assuming the first element is the target if it's a list
+                # (adapting for HL-like structures)
                 if isinstance(raw_response_content[0], dict):
                     raw_data_to_validate = raw_response_content[0]
                 else:
                     raise APIError(
-                        message=f"Unexpected item type in list for {context} response: expected dict, "
-                        f"got {type(raw_response_content[0])}",
+                        message=(
+                            f"Unexpected item type in list for {context} response: "
+                            f"expected dict, got {type(raw_response_content[0])}"
+                        ),
                         code=APIErrorCode.INVALID_RESPONSE.value,
                     )
             else:
@@ -444,8 +451,8 @@ class BackpackResponseHandler:
             except ValidationError as e:
                 # Log the specific item that failed validation
                 logger.error(
-                    f"[{__name__}] Pydantic validation failed for single kline item in {context}: {e}. "
-                    f"Item: {item_raw!r}"
+                    f"[{__name__}] Pydantic validation failed for single kline item in "
+                    f"{context}: {e}. Item: {item_raw!r}"
                 )
                 # Re-raise to fail the entire response if one kline is bad, or collect valid ones
                 raise BackpackResponseHandler._handle_validation_error(
@@ -453,8 +460,8 @@ class BackpackResponseHandler:
                 ) from e
             except Exception as e_unk_item:
                 logger.error(
-                    f"[{__name__}] Unexpected error validating single kline item in {context}: {e_unk_item}. "
-                    f"Item: {item_raw!r}"
+                    f"[{__name__}] Unexpected error validating single kline item in "
+                    f"{context}: {e_unk_item}. Item: {item_raw!r}"
                 )
                 raise APIError(
                     message=f"Unexpected error validating kline item: {e_unk_item}",
@@ -523,7 +530,8 @@ class BackpackResponseHandler:
         raw_response_content: RawJsonResponse, symbol: str | None
     ) -> list[BackpackRawOrder]:
         """
-        Validates the raw response for the Cancel All Orders endpoint (DELETE /api/v1/orders/cancelAll).
+        Validates the raw response for the Cancel All Orders endpoint
+        (DELETE /api/v1/orders/cancelAll).
         Expects a list of successfully cancelled orders.
         """
         context = f"cancel all orders ({symbol or 'all'})"
@@ -562,10 +570,11 @@ class BackpackResponseHandler:
                 # Or, re-raise if strictness is required. For cancelAll, it might be better
                 # to return what was successfully parsed as cancelled.
                 logger.error(
-                    f"[{__name__}] Pydantic validation failed for single order item in {context}: {e}. "
-                    f"Item: {item!r}. Full response: {raw_response_content!r}"
+                    f"[{__name__}] Pydantic validation failed for single order item in "
+                    f"{context}: {e}. Item: {item!r}. Full response: {raw_response_content!r}"
                 )
-                # Optionally, re-raise if any single item failing should invalidate the whole response:
+                # Optionally, re-raise if any single item failing should invalidate
+                # the whole response:
                 # raise BackpackResponseHandler._handle_validation_error(
                 #     e, f"single order item in {context}", item
                 # ) from e
@@ -578,12 +587,15 @@ class BackpackResponseHandler:
         raw_response_content: RawJsonResponse,
     ) -> RawJsonResponse:  # Returns the validated raw dict
         """Validates the raw response for an internal capital transfer.
-        Expects a dict with 'success' (bool), optional 'message' (str), and optional 'transferId' (str).
+        Expects a dict with 'success' (bool), optional 'message' (str), and
+        optional 'transferId' (str).
         """
         context = "internal transfer response"
         if not isinstance(raw_response_content, dict):
             raise APIError(
-                message=f"Unexpected {context} format: expected dict, got {type(raw_response_content)}",
+                message=(
+                    f"Unexpected {context} format: expected dict, got {type(raw_response_content)}"
+                ),
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
@@ -592,7 +604,10 @@ class BackpackResponseHandler:
             raw_response_content["success"], bool
         ):
             raise APIError(
-                message=f"Invalid {context}: 'success' field missing or not a boolean. Got: {raw_response_content.get('success')}",
+                message=(
+                    f"Invalid {context}: 'success' field missing or not a boolean. "
+                    f"Got: {raw_response_content.get('success')}"
+                ),
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
@@ -600,7 +615,8 @@ class BackpackResponseHandler:
             raw_response_content["message"], str
         ):
             logger.warning(
-                f"[{__name__}] {context} 'message' field is not a string: {raw_response_content['message']}"
+                f"[{__name__}] {context} 'message' field is not a string: "
+                f"{raw_response_content['message']}"
             )
             # Don't raise, but log. Message is optional and for info.
 
@@ -608,7 +624,8 @@ class BackpackResponseHandler:
             raw_response_content["transferId"], str
         ):
             logger.warning(
-                f"[{__name__}] {context} 'transferId' field is not a string: {raw_response_content['transferId']}"
+                f"[{__name__}] {context} 'transferId' field is not a string: "
+                f"{raw_response_content['transferId']}"
             )
             # Don't raise, but log. TransferId is optional and for info.
 
@@ -646,7 +663,8 @@ class BackpackResponseHandler:
         status_code: int,
         headers: Mapping[str, str],
     ) -> list[BackpackRawFundingIntervalRate]:
-        """Validates the raw response for the Get Historical Funding Rates endpoint (/api/v1/fundingRates)."""
+        """Validates the raw response for the Get Historical Funding Rates endpoint
+        (/api/v1/fundingRates)."""
         context = f"historical funding rates ({symbol}) - Status: {status_code}"
         if not isinstance(raw_response_content, list):
             raise APIError(

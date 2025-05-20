@@ -125,7 +125,7 @@ class BackpackMarketDataService:
                 f"(Status: {status_code}, Headers: {headers})"
             )
             if raw_data is None:  # Check for None before handler
-                # This indicates an issue not caught by _request's error handling 
+                # This indicates an issue not caught by _request's error handling
                 # (e.g. 204 no content but expected content)
                 raise APIError(
                     f"No data for ticker {symbol}, status: {status_code}",
@@ -201,29 +201,59 @@ class BackpackMarketDataService:
         #     raw_data_list, status_code, _ = await self._http_client_requester(
         #         method="GET", endpoint=endpoint_path, params=params, is_public_info_endpoint=True
         #     )
-        #     logger.debug(f"[{self._exchange_name}] Raw all_tickers response: {raw_data_list!r} (Status: {status_code})")
+        #     logger.debug(
+        #         f"[{self._exchange_name}] Raw all_tickers response: {raw_data_list!r} "
+        #         f"(Status: {status_code})"
+        #     )
         #     if raw_data_list is None and not (200 <= status_code < 300):
-        #         raise APIError(f"No data for all_tickers, status: {status_code}", APIErrorCode.INVALID_RESPONSE.value, http_status=status_code)
+        #         raise APIError(
+        #             f"No data for all_tickers, status: {status_code}",
+        #             APIErrorCode.INVALID_RESPONSE.value,
+        #             http_status=status_code
+        #         )
         #     if not isinstance(raw_data_list, list):
-        #         raise APIError(f"All tickers data not list: {type(raw_data_list)}", APIErrorCode.INVALID_RESPONSE.value, http_status=status_code)
+        #         raise APIError(
+        #             f"All tickers data not list: {type(raw_data_list)}",
+        #             APIErrorCode.INVALID_RESPONSE.value,
+        #             http_status=status_code
+        #         )
 
-        #     raw_ticker_models: list[BackpackRawTicker] = self._response_handler.handle_get_all_tickers_response(
+        #     raw_ticker_models: list[BackpackRawTicker] = (
+        #         self._response_handler.handle_get_all_tickers_response(
         #         raw_data_list
+        #         )
         #     )
         #     internal_tickers_dict: dict[str, Ticker] = {}
         #     for raw_model in raw_ticker_models:
         #         ticker = self._mapper.transform_raw_ticker_to_internal(raw_model)
         #         internal_tickers_dict[ticker.symbol] = ticker
-        #     logger.debug(f"[{self._exchange_name}] Mapped internal tickers_dict: {internal_tickers_dict}")
+        #     logger.debug(
+        #         f"[{self._exchange_name}] Mapped internal tickers_dict: {internal_tickers_dict}"
+        #     )
         #     return internal_tickers_dict
         # except APIError:
         #     raise
         # except (ValidationError, ValueError) as e_val:
-        #     logger.error(f"Validation/map error for all_tickers: {e_val}. Raw: {raw_data_list!r}, Status: {status_code}")
-        #     raise APIError(message=f"Processing all_tickers failed: {e_val}", code=APIErrorCode.INVALID_RESPONSE.value, original_exception=e_val, http_status=status_code, exchange_message=str(raw_data_list)) from e_val
+        #     logger.error(
+        #         f"Validation/map error for all_tickers: {e_val}. "
+        #         f"Raw: {raw_data_list!r}, Status: {status_code}"
+        #     )
+        #     raise APIError(
+        #         message=f"Processing all_tickers failed: {e_val}",
+        #         code=APIErrorCode.INVALID_RESPONSE.value,
+        #         original_exception=e_val,
+        #         http_status=status_code,
+        #         exchange_message=str(raw_data_list)
+        #     ) from e_val
         # except Exception as e_unhandled:
         #     logger.error(f"Unhandled error for all_tickers: {e_unhandled}", exc_info=True)
-        #     raise APIError(message=f"Unexpected error for all_tickers: {e_unhandled}", code=APIErrorCode.UNKNOWN.value, original_exception=e_unhandled, http_status=status_code, exchange_message=str(raw_data_list)) from e_unhandled
+        #     raise APIError(
+        #         message=f"Unexpected error for all_tickers: {e_unhandled}",
+        #         code=APIErrorCode.UNKNOWN.value,
+        #         original_exception=e_unhandled,
+        #         http_status=status_code,
+        #         exchange_message=str(raw_data_list)
+        #     ) from e_unhandled
 
     async def get_order_book(self, symbol: str, limit: int | None = None) -> OrderBook:
         """Retrieves the order book for a specific symbol."""
@@ -321,7 +351,8 @@ class BackpackMarketDataService:
             )
             raw_data_list, status_code, headers = response_tuple
             logger.debug(
-                f"[{self._exchange_name}] Raw recent_trades for {symbol}: {raw_data_list!r} (Status: {status_code}, Headers: {headers})"
+                f"[{self._exchange_name}] Raw recent_trades for {symbol}: {raw_data_list!r} "
+                f"(Status: {status_code}, Headers: {headers})"
             )
             if raw_data_list is None:
                 raise APIError(
@@ -348,9 +379,12 @@ class BackpackMarketDataService:
                     if trade is not None:
                         internal_trades.append(trade)
                 except (ValidationError, ValueError) as e_map_item:
-                    logger.warning(
-                        f"Skipping trade map error: {e_map_item}. Raw: {raw_model.model_dump_json() if hasattr(raw_model, 'model_dump_json') else raw_model!r}"
+                    raw_data_str = (
+                        raw_model.model_dump_json()
+                        if hasattr(raw_model, "model_dump_json")
+                        else repr(raw_model)
                     )
+                    logger.warning(f"Skipping trade map error: {e_map_item}. Raw: {raw_data_str}")
             logger.debug(
                 f"[{self._exchange_name}] Mapped recent_trades for {symbol}: {internal_trades}"
             )
@@ -565,9 +599,9 @@ class BackpackMarketDataService:
                     internal_funding_rates.append(internal_rate)
                 except ValueError as e_map:
                     logger.warning(
-                        f"[{self._exchange_name}] Skipping mapping for historical funding rate item "
-                        f"for {raw_rate.symbol if raw_rate else 'unknown'}: {e_map}. "
-                        f"Item: {raw_rate!r}"
+                        f"[{self._exchange_name}] Skipping mapping for historical "
+                        f"funding rate item for {raw_rate.symbol if raw_rate else 'unknown'}: "
+                        f"{e_map}. Item: {raw_rate!r}"
                     )
             logger.debug(
                 f"[{self._exchange_name}] Mapped {len(internal_funding_rates)} historical "
@@ -654,7 +688,7 @@ class BackpackMarketDataService:
             # Defensive check: klines endpoint should return a list.
             # RawJsonResponse can be dict | list | str | None. We expect list for klines.
             if not isinstance(raw_data_list, list):
-                # This ignore was removed as the linter no longer flagged it as unreachable 
+                # This ignore was removed as the linter no longer flagged it as unreachable
                 # without the ignore.
                 # If it becomes an issue again, it implies the linter needs this ignore.
                 raise APIError(

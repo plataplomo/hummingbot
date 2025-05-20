@@ -82,17 +82,18 @@ class BackpackRawFundingIntervalRate(BaseModel):
     Attributes:
         symbol (str): The trading symbol (e.g., 'SOL_USDC').
         rate (str): The funding rate for the interval, validated as parsable to a finite decimal.
-        time (int): The timestamp for the funding interval (Unix epoch in seconds or ms - needs to match API).
-                      OpenAPI specifies integer for time.
+        time (int): The timestamp for the funding interval (Unix epoch in seconds or ms -
+                      needs to match API). OpenAPI specifies integer for time.
     """
 
     symbol: RawBpNonEmptyStringMax64 = Field(...)
     rate: RawBpParsableFiniteDecimalString = Field(...)
     # Assuming time is a Unix timestamp in seconds or milliseconds as per typical API practice.
     # Backpack's OpenAPI schema for FundingIntervalRate just says "integer" for time.
-    # RawBpFundingRateTimestamp might be too specific if this timestamp has different constraints.
-    # For now, let's use a simple int and assume it's validated by being parsable.
-    # If specific validation (like range) is needed, a new common type or validator here would be good.
+    # RawBpFundingRateTimestamp might be too specific if this timestamp has
+    # different constraints. For now, let's use a simple int and assume it's validated
+    # by being parsable. If specific validation (like range) is needed, a new common
+    # type or validator here would be good.
     time: int = Field(...)
 
     model_config = ConfigDict(extra="forbid", frozen=True)

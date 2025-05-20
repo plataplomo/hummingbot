@@ -250,12 +250,22 @@ class BackpackErrorMapper(IErrorMapper):
                 # api_error_code_enum would have been set to EXCHANGE_SPECIFIC by
                 # _map_backpack_error_code_to_api_error_code because of this parsing failure.
                 # We should honor that EXCHANGE_SPECIFIC determination.
+                # Build message pieces to avoid line length issues
+                class_name = self.__class__.__name__
+                has_errors_method = hasattr(e_val_specific, "errors")
+                errors_str = (
+                    e_val_specific.errors(include_url=False)
+                    if has_errors_method
+                    else str(e_val_specific)
+                )
+                exc_str = str(e_val_specific)
+                code_name = api_error_code_enum.name
+
                 logger.warning(
-                    f"[{self.__class__.__name__}] Failed to parse error_data as "
-                    f"BackpackRawApiError. "
-                    f"Pydantic errors: {e_val_specific.errors(include_url=False) if hasattr(e_val_specific, 'errors') else str(e_val_specific)}. "
-                    f"Original exception string: {str(e_val_specific)}. "
-                    f"Error classified as {api_error_code_enum.name} based on initial mapping."
+                    f"[{class_name}] Failed to parse error_data as BackpackRawApiError. "
+                    f"Pydantic errors: {errors_str}. "
+                    f"Original exception string: {exc_str}. "
+                    f"Error classified as {code_name} based on initial mapping."
                 )
 
                 # Try to get a more specific exchange message from error_data if possible,
