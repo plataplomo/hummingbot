@@ -283,7 +283,8 @@ class DataHandler:
                 if isinstance(result, Exception):
                     # Attempt to find corresponding exchange_id based on task order (fragile)
                     # A better approach would be to associate exchange_id with the task
-                    # This part remains fragile, consider refactoring task creation to include exchange_id
+                    # This part remains fragile, consider refactoring task creation
+                    # to include exchange_id
                     try:
                         exchange_id_for_error = list(exchanges_dict.keys())[i]
                         logger.error(
@@ -291,7 +292,8 @@ class DataHandler:
                         )
                     except IndexError:
                         logger.error(
-                            f"Error starting connection for an unknown exchange (index {i}): {result}"
+                            f"Error starting connection for an unknown exchange "
+                            f"(index {i}): {result}"
                         )
 
             logger.info("WebSocket connection attempts completed.")
@@ -362,14 +364,16 @@ class DataHandler:
 
                 else:
                     logger.warning(
-                        f"[{exchange_id}] No relevant subscribe methods found or symbols list empty after check."
+                        f"[{exchange_id}] No relevant subscribe methods found or "
+                        f"symbols list empty after check."
                     )
 
             # Start the message handling loop. This task will run until
             # it's cancelled or client.is_connected becomes false.
             if exchange_id in self.ws_tasks and not self.ws_tasks[exchange_id].done():
                 logger.warning(
-                    f"[{exchange_id}] Previous message handling task still exists and is not done. Cancelling it."
+                    f"[{exchange_id}] Previous message handling task still exists "
+                    f"and is not done. Cancelling it."
                 )
                 self.ws_tasks[exchange_id].cancel()
                 try:

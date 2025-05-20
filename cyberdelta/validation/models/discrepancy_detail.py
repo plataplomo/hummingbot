@@ -25,9 +25,12 @@ class DiscrepancyDetail(BaseModel):
         "unknown_local_symbol",  # Symbol tracked locally but not reported by API (or flat on API)
     ] = Field(..., description="The type or category of the discrepancy.")
 
-    # Values are stored as strings to accommodate various representations (e.g., "None", numeric strings)
-    # and to avoid precision issues if they were to be converted back and forth from Decimal just for storage here.
-    # The actual comparison and numeric operations happen with Decimals before this model is created.
+    # Values are stored as strings to accommodate various representations
+    # (e.g., "None", numeric strings)
+    # and to avoid precision issues if they were to be converted back and forth from Decimal
+    # just for storage here.
+    # The actual comparison and numeric operations happen with Decimals
+    # before this model is created.
     exchange_value: str | None = Field(
         default=None, description="The value reported by the exchange (or N/A)."
     )

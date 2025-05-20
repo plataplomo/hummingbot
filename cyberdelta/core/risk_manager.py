@@ -108,15 +108,17 @@ class SizedOpportunity:
         )
 
     def __hash__(self) -> int:
-        return hash((
-            self.opportunity,  # Relies on ArbitrageOpportunity implementing __hash__
-            self.long_size,
-            self.short_size,
-            self.allocation_percentage,
-            self.expected_profit,
-            self.expected_return,
-            self.risk_adjusted_return,
-        ))
+        return hash(
+            (
+                self.opportunity,  # Relies on ArbitrageOpportunity implementing __hash__
+                self.long_size,
+                self.short_size,
+                self.allocation_percentage,
+                self.expected_profit,
+                self.expected_return,
+                self.risk_adjusted_return,
+            )
+        )
 
 
 # --- Custom Exception Hierarchy ---
@@ -1364,7 +1366,8 @@ class RiskManager:
         is_valid, reason = await self._check_portfolio_constraints(size, opportunity)
         if not is_valid:
             self.logger.info(
-                f"SOS: Opportunity {opportunity.symbol} with size ${size:.2f} rejected due to portfolio constraints: {reason}",
+                f"SOS: Opportunity {opportunity.symbol} with size ${size:.2f} "
+                f"rejected due to portfolio constraints: {reason}",
             )
             return None
 

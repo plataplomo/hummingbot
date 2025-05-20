@@ -251,7 +251,8 @@ async def main() -> None:
             exchange_name,
             api_config_data,
         ) in exchanges.items():
-            # The following isinstance check is redundant because 'exchanges' is typed as dict[str, dict[str, Any]],
+            # The following isinstance check is redundant because 'exchanges' is typed as
+            # dict[str, dict[str, Any]],
             # so api_config_data will always be a dict[str, Any].
             # if not isinstance(api_config_data, dict): # REMOVING THIS CHECK
             #     logger.warning(f"Skipping exchange {exchange_name}: config data is not a dict.")

@@ -916,7 +916,8 @@ class CircuitBreakerSystem:
                 # Check if exchange-specific breaker tripped
                 if not exchange_breaker.allow_operation():
                     logger.critical(
-                        f"Exchange-specific API Error circuit breaker '{exchange_breaker.name}' tripped: "
+                        f"Exchange-specific API Error circuit breaker "
+                        f"'{exchange_breaker.name}' tripped: "
                         f"{exchange_breaker.trip_reason}"
                     )
             else:
@@ -1024,7 +1025,8 @@ class CircuitBreakerSystem:
             exchange_api_breaker_item.trip(f"Critical failure: {error_message}")
         elif exchange_api_breaker_item:
             logger.warning(
-                f"Critical failure on {exchange}, but api_errors breaker is a dict, not tripping individual symbol breakers here."
+                f"Critical failure on {exchange}, but api_errors breaker is a dict, "
+                f"not tripping individual symbol breakers here."
             )
 
         # Also trip the global API breaker to ensure all operations are affected
@@ -1047,7 +1049,8 @@ class CircuitBreakerSystem:
                 for sym_breaker in breaker_item_val.values():
                     if isinstance(sym_breaker, VolatilityBreaker):
                         sym_breaker.trip(
-                            f"Critical failure triggered volatility breaker for symbol: {error_message}"
+                            f"Critical failure triggered volatility breaker for symbol: "
+                            f"{error_message}"
                         )
 
     def update_price(self, exchange: str, symbol: str, price: float) -> None:
@@ -1155,7 +1158,8 @@ class CircuitBreakerSystem:
                     if isinstance(specific_breaker_item, APIErrorBreaker):
                         specific_breaker_item.errors.clear()
                     logger.info(
-                        f"Symbol-specific breaker '{specific_breaker_item.name}' for exchange '{exchange}', symbol '{symbol_key}' reset. "
+                        f"Symbol-specific breaker '{specific_breaker_item.name}' for exchange "
+                        f"'{exchange}', symbol '{symbol_key}' reset. "
                         f"Was open: {was_open}, New state: {specific_breaker_item.state.name}"
                     )
                     reset_count += 1
@@ -1164,7 +1168,8 @@ class CircuitBreakerSystem:
             logger.info(f"Reset {reset_count} breakers for exchange '{exchange}'.")
         else:
             logger.info(
-                f"No breakers were actively reset for exchange '{exchange}' (they might have been already closed or map was empty)."
+                f"No breakers were actively reset for exchange '{exchange}' "
+                f"(they might have been already closed or map was empty)."
             )
         return reset_count
 
@@ -1260,7 +1265,8 @@ class CircuitBreakerSystem:
         name = breaker_name_or_key
         try:
             # Final name for the breaker instance
-            # name = breaker_name_or_key # This name should be unique, e.g., "exchange/type" \\ # Removed redundant assignment
+            # name = breaker_name_or_key # This name should be unique, e.g., "exchange/type"
+            # \\ # Removed redundant assignment
             # or "exchange/type/symbol"
 
             # Determine cooldown:

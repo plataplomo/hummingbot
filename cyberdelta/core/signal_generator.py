@@ -505,7 +505,8 @@ class SignalGenerator:
         Args:
             funding_data: A dictionary where keys are internal symbols, and values are
                           dictionaries mapping exchange_ids to FundingRate objects or None.
-                          Example: {"BTC": {"hyperliquid": FundingRate(...), "backpack": FundingRate(...)}, ...}
+                          Example: {"BTC": {"hyperliquid": FundingRate(...),
+                                    "backpack": FundingRate(...)}, ...}
 
         Returns:
             A list of ArbitrageOpportunity objects, sorted by expected profit.
@@ -517,12 +518,14 @@ class SignalGenerator:
 
         if not all_internal_symbols:
             logger.debug(
-                "SG_GEN_OPPS: No internal symbols found in provided funding_data. Cannot generate opportunities."
+                "SG_GEN_OPPS: No internal symbols found in provided funding_data. "
+                "Cannot generate opportunities."
             )
             return []
 
         logger.debug(
-            f"SG_GEN_OPPS: Checking for opportunities across internal symbols: {all_internal_symbols}"
+            f"SG_GEN_OPPS: Checking for opportunities across internal symbols: "
+            f"{all_internal_symbols}"
         )
 
         # --- Main Loop to Generate Opportunities ---
@@ -531,8 +534,8 @@ class SignalGenerator:
             relevant_exchanges = list(funding_data.get(internal_symbol, {}).keys())
             if not relevant_exchanges or len(relevant_exchanges) < 2:
                 logger.debug(
-                    f"SG_GEN_OPPS: Not enough exchange data for {internal_symbol} to find arbitrage. "
-                    f"Need >= 2, Got: {len(relevant_exchanges)}"
+                    f"SG_GEN_OPPS: Not enough exchange data for {internal_symbol} "
+                    f"to find arbitrage. Need >= 2, Got: {len(relevant_exchanges)}"
                 )
                 continue  # Need at least two exchanges for an arbitrage
 
@@ -545,8 +548,9 @@ class SignalGenerator:
                 )
                 if not exchange_specific_symbol:
                     logger.warning(
-                        f"SG_GEN_OPPS: Could not map internal symbol {internal_symbol} to an "
-                        f"exchange-specific symbol for {exchange_id}. Skipping ticker fetch for this pair.",
+                        f"SG_GEN_OPPS: Could not map internal symbol {internal_symbol} "
+                        f"to an exchange-specific symbol for {exchange_id}. "
+                        f"to an exchange-specific symbol for {exchange_id}. Skipping ticker fetch for this pair."
                     )
                     current_tickers[exchange_id] = None  # Store None if mapping fails
                     continue
@@ -554,24 +558,29 @@ class SignalGenerator:
                 ticker = self.data_handler.get_latest_ticker(exchange_id, exchange_specific_symbol)
                 if ticker is None:
                     logger.debug(
-                        f"SG_GEN_OPPS: No ticker data found in DataHandler for {exchange_id} / {exchange_specific_symbol} (internal: {internal_symbol})."
+                        f"SG_TICKER_FETCH_FAIL: No ticker available from DataHandler "
+                        f"for {exchange_id} / {exchange_specific_symbol} (internal: {internal_symbol})."
                     )
                 current_tickers[exchange_id] = ticker
 
-            # Log if any exchange has no ticker for this internal_symbol AFTER attempting all relevant exchanges
-            # This check is better placed after the loop to give a complete picture for the internal_symbol
+            # Log if any exchange has no ticker for this internal_symbol AFTER attempting
+            # all relevant exchanges
+            # This check is better placed after the loop to give a complete picture
+            # for the internal_symbol
             if not any(
                 ticker is not None for ticker in current_tickers.values()
             ):  # Check if all are None for relevant exchanges
                 logger.debug(
-                    f"SG_GEN_OPPS: No valid tickers found via DataHandler for internal symbol {internal_symbol} "
-                    f"across relevant exchanges {relevant_exchanges}, skipping opportunity check for this symbol."
+                    f"SG_GEN_OPPS: No valid tickers found via DataHandler for internal "
+                    f"symbol {internal_symbol} across relevant exchanges {relevant_exchanges}, "
+                    f"skipping opportunity check for this symbol."
                 )
                 continue
 
             # Filter funding_data for the current internal_symbol for clarity
             current_funding_on_exchanges_nullable = funding_data.get(internal_symbol)
-            # This variable is now current_funding_on_exchanges_nullable to reflect it might have Nones
+            # This variable is now current_funding_on_exchanges_nullable to reflect
+            # it might have Nones
 
             if not current_funding_on_exchanges_nullable:
                 logger.debug(
@@ -589,8 +598,9 @@ class SignalGenerator:
             # Ensure we still have enough data points after filtering Nones
             if len(current_funding_on_exchanges) < 2:
                 logger.debug(
-                    f"SG_GEN_OPPS: Not enough valid (non-None) funding rate data for {internal_symbol} to find arbitrage. "
-                    f"Need >= 2, Got: {len(current_funding_on_exchanges)} after filtering Nones."
+                    f"SG_GEN_OPPS: Not enough valid (non-None) funding rate data for "
+                    f"{internal_symbol} to find arbitrage. Need >= 2, "
+                    f"Got: {len(current_funding_on_exchanges)} after filtering Nones."
                 )
                 continue
 
@@ -659,13 +669,15 @@ class SignalGenerator:
                 rate_b = funding_b.funding_rate
 
                 logger.debug(
-                    f"NFD_CHECK_PAIR: {symbol} - {exchange_a} (Rate: {rate_a}) vs {exchange_b} (Rate: {rate_b})"
+                    f"NFD_CHECK_PAIR: {symbol} - {exchange_a} (Rate: {rate_a}) "
+                    f"vs {exchange_b} (Rate: {rate_b})"
                 )
 
                 # FundingRate.funding_rate is Decimal | None, check needed.
                 if rate_a is None or rate_b is None:
                     logger.debug(
-                        f"NFD_SKIP_PAIR: {symbol} - Missing rate for {exchange_a} or {exchange_b}. Skipping."
+                        f"NFD_SKIP_PAIR: {symbol} - Missing rate for {exchange_a} "
+                        f"or {exchange_b}. Skipping."
                     )
                     continue
 
@@ -675,8 +687,9 @@ class SignalGenerator:
                 # Check if the differential exceeds our threshold
                 if abs(funding_differential) < self.min_funding_differential:
                     logger.debug(
-                        f"NFD_SKIP_THRESHOLD: {symbol} - Pair {exchange_a}/{exchange_b}. NFD {funding_differential:.8f} "
-                        f"abs({abs(funding_differential):.8f}) < Min Diff {self.min_funding_differential:.8f}. Skipping."
+                        f"NFD_SKIP_THRESHOLD: {symbol} - Pair {exchange_a}/{exchange_b}. "
+                        f"NFD {funding_differential:.8f} abs({abs(funding_differential):.8f}) "
+                        f"< Min Diff {self.min_funding_differential:.8f}. Skipping."
                     )
                     continue
 
@@ -686,7 +699,8 @@ class SignalGenerator:
 
                 if ticker_a is None or ticker_b is None:
                     logger.debug(
-                        f"NFD_SKIP_TICKER: {symbol} - Missing ticker for {exchange_a} or {exchange_b}. Skipping."
+                        f"NFD_SKIP_TICKER: {symbol} - Missing ticker for {exchange_a} "
+                        f"or {exchange_b}. Skipping."
                     )
                     continue
 
@@ -703,7 +717,9 @@ class SignalGenerator:
                 # Ticker prices can be None, ensure they are valid Decimals
                 if ask_a is None or bid_a is None or ask_b is None or bid_b is None:
                     logger.debug(
-                        f"NFD_SKIP_BID_ASK: {symbol} - Missing bid/ask for {symbol} on {exchange_a} (A:{ask_a}, B:{bid_a}) or {exchange_b} (A:{ask_b}, B:{bid_b}). Skipping."
+                        f"NFD_SKIP_BID_ASK: {symbol} - Missing bid/ask for {symbol} on "
+                        f"{exchange_a} (A:{ask_a}, B:{bid_a}) or "
+                        f"{exchange_b} (A:{ask_b}, B:{bid_b}). Skipping."
                     )
                     continue
 
@@ -712,7 +728,8 @@ class SignalGenerator:
                 price_b_for_nfd = ticker_b.price
                 if price_a_for_nfd is None or price_b_for_nfd is None:
                     logger.debug(
-                        f"NFD_SKIP_MID_PRICE: {symbol} - Missing .price (mid) for {exchange_a} or {exchange_b}. Skipping."
+                        f"NFD_SKIP_MID_PRICE: {symbol} - Missing .price (mid) for "
+                        f"{exchange_a} or {exchange_b}. Skipping."
                     )
                     continue  # Cannot calculate NFD based on .price if missing
 
@@ -731,8 +748,10 @@ class SignalGenerator:
 
                 if expected_profit < self.min_profit_threshold:
                     logger.debug(
-                        f"NFD_SKIP_PROFIT: {symbol} - Pair {exchange_a}/{exchange_b}. ExpProfit {expected_profit:.4f} "
-                        f"< MinProfit {self.min_profit_threshold:.4f}. ValueDiff: {net_funding_value_differential:.4f}, Slippage: {total_slippage:.4f}. Skipping."
+                        f"NFD_SKIP_PROFIT: {symbol} - Pair {exchange_a}/{exchange_b}. "
+                        f"ExpProfit {expected_profit:.4f} < MinProfit {self.min_profit_threshold:.4f}. "
+                        f"ValueDiff: {net_funding_value_differential:.4f}, Slippage: {total_slippage:.4f}. "
+                        f"Skipping."
                     )
                     continue
 
@@ -748,9 +767,12 @@ class SignalGenerator:
                     opportunity_nfd_calculated = actual_long_rate - actual_short_rate
 
                     logger.debug(
-                        f"NFD_OPP_DEBUG: Symbol={symbol}, Case 1 (Long B, Short A) before ArbitrageOpportunity creation. "
-                        f"LongEx: {exchange_b}, ShortEx: {exchange_a}, LongPx: {current_long_price}, ShortPx: {current_short_price}, "
-                        f"LongRate: {actual_long_rate}, ShortRate: {actual_short_rate}, NFD: {opportunity_nfd_calculated}"
+                        f"NFD_OPP_DEBUG: Symbol={symbol}, Case 1 (Long B, Short A) "
+                        f"before ArbitrageOpportunity creation. "
+                        f"LongEx: {exchange_b}, ShortEx: {exchange_a}, "
+                        f"LongPx: {current_long_price}, ShortPx: {current_short_price}, "
+                        f"LongRate: {actual_long_rate}, ShortRate: {actual_short_rate}, "
+                        f"NFD: {opportunity_nfd_calculated}"
                     )
                     opportunity = ArbitrageOpportunity(
                         symbol=symbol,
@@ -765,7 +787,9 @@ class SignalGenerator:
                         timestamp=datetime.now(UTC),
                     )
                     logger.info(
-                        f"NFD_OPP_CREATED: {symbol} - Long {exchange_b} @ {actual_long_rate:.8f}, Short {exchange_a} @ {actual_short_rate:.8f}, NFD: {opportunity_nfd_calculated:.8f}"
+                        f"NFD_OPP_CREATED: {symbol} - Long {exchange_b} @ {actual_long_rate:.8f}, "
+                        f"Short {exchange_a} @ {actual_short_rate:.8f}, "
+                        f"NFD: {opportunity_nfd_calculated:.8f}"
                     )
                 elif funding_differential < Decimal("0"):  # rate_a > rate_b: Long A, Short B
                     actual_long_rate = rate_a
@@ -776,9 +800,12 @@ class SignalGenerator:
                     opportunity_nfd_calculated = actual_long_rate - actual_short_rate
 
                     logger.debug(
-                        f"NFD_OPP_DEBUG: Symbol={symbol}, Case 2 (Long A, Short B) before ArbitrageOpportunity creation. "
-                        f"LongEx: {exchange_a}, ShortEx: {exchange_b}, LongPx: {current_long_price}, ShortPx: {current_short_price}, "
-                        f"LongRate: {actual_long_rate}, ShortRate: {actual_short_rate}, NFD: {opportunity_nfd_calculated}"
+                        f"NFD_OPP_DEBUG: Symbol={symbol}, Case 2 (Long A, Short B) "
+                        f"before ArbitrageOpportunity creation. "
+                        f"LongEx: {exchange_a}, ShortEx: {exchange_b}, "
+                        f"LongPx: {current_long_price}, ShortPx: {current_short_price}, "
+                        f"LongRate: {actual_long_rate}, ShortRate: {actual_short_rate}, "
+                        f"NFD: {opportunity_nfd_calculated}"
                     )
                     opportunity = ArbitrageOpportunity(
                         symbol=symbol,
@@ -793,7 +820,9 @@ class SignalGenerator:
                         timestamp=datetime.now(UTC),
                     )
                     logger.info(
-                        f"NFD_OPP_CREATED: {symbol} - Long {exchange_a} @ {actual_long_rate:.8f}, Short {exchange_b} @ {actual_short_rate:.8f}, NFD: {opportunity_nfd_calculated:.8f}"
+                        f"NFD_OPP_CREATED: {symbol} - Long {exchange_a} @ {actual_long_rate:.8f}, "
+                        f"Short {exchange_b} @ {actual_short_rate:.8f}, "
+                        f"NFD: {opportunity_nfd_calculated:.8f}"
                     )
 
                 if opportunity:  # Only append if an opportunity was actually created

@@ -442,7 +442,8 @@ class PortfolioTracker:
                 )  # Pyright infers list[DerivativePosition]
             else:
                 logger.error(
-                    f"Unexpected data type for positions_data from {exchange_id}: {type(positions_data_raw)}"
+                    f"Unexpected data type for positions_data from {exchange_id}: "
+                    f"{type(positions_data_raw)}"
                 )
                 return False
 
@@ -669,7 +670,8 @@ class PortfolioTracker:
                 if not current_position or current_position.size == Decimal(0):
                     # Opening new position
                     logger.debug(
-                        f"Opening new position for {base_symbol} on {exchange_id} from trade {trade.id}"
+                        f"Opening new position for {base_symbol} on {exchange_id} "
+                        f"from trade {trade.id}"
                     )
                     new_pos = DerivativePosition(
                         exchange=exchange_id,
@@ -832,7 +834,8 @@ class PortfolioTracker:
 
     def get_all_positions(self) -> Sequence[tuple[str, DerivativePosition]]:
         """Retrieves all derivative positions across all exchanges.
-        Conforms to PortfolioTrackerProtocol (DerivativePosition implements Position protocol implicitly).
+        Conforms to PortfolioTrackerProtocol
+        (DerivativePosition implements Position protocol implicitly).
         """
         all_positions_list: list[tuple[str, DerivativePosition]] = []
         for exchange_id, symbol_positions_map in self.positions.items():
@@ -1244,7 +1247,8 @@ class PortfolioTracker:
                                 )
                             except Exception as e:  # Catch other potential errors from str(k)
                                 logger.warning(
-                                    f"Type error processing balance {ex_id_str}/{asset_str} in from_dict: {e}"
+                                    f"Type error processing balance {ex_id_str}/{asset_str} "
+                                    f"in from_dict: {e}"
                                 )
                         elif isinstance(bal_data_any, SpotBalance):  # If already an object
                             tracker.balances[ex_id_str][asset_str] = bal_data_any
@@ -1279,7 +1283,8 @@ class PortfolioTracker:
                                 )
                             except Exception as e:  # Catch other potential errors from str(k)
                                 logger.warning(
-                                    f"Type error processing position {ex_id_str_pos}/{sym_str} in from_dict: {e}"
+                                    f"Type error processing position {ex_id_str_pos}/{sym_str} "
+                                    f"in from_dict: {e}"
                                 )
                         elif isinstance(pos_data_any, DerivativePosition):
                             tracker.positions[ex_id_str_pos][sym_str] = pos_data_any
@@ -1314,7 +1319,8 @@ class PortfolioTracker:
                                 )
                             except Exception as e:  # Catch other potential errors from str(k)
                                 logger.warning(
-                                    f"Type error processing order {ex_id_str_ord}/{ord_id_str} in from_dict: {e}"
+                                    f"Type error processing order {ex_id_str_ord}/{ord_id_str} "
+                                    f"in from_dict: {e}"
                                 )
                         elif isinstance(order_data_any, Order):
                             tracker.orders[ex_id_str_ord][ord_id_str] = order_data_any

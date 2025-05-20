@@ -329,7 +329,8 @@ class OrderVerifier:
             if not symbol_for_api_call and local_order:  # Should not happen if local_order exists
                 logger.warning(f"Local order {order_id} exists but has no symbol for API call.")
 
-            # The test TestOrderVerifier.test_verify_order_execution mocks api_client.get_order for success
+            # The test TestOrderVerifier.test_verify_order_execution mocks api_client.get_order
+            # for success
             # and api_client.get_order_status for the OPEN status failure case.
             # Let's try using get_order_status as the primary source from API for verification.
             # If not available, fallback to get_order might be an option, or specific handling.
@@ -339,7 +340,8 @@ class OrderVerifier:
                 api_client, "get_order"
             ):  # Fallback if get_order_status is not on protocol
                 logger.warning(
-                    f"API client for {exchange} missing get_order_status, falling back to get_order."
+                    f"API client for {exchange} missing get_order_status, "
+                    f"falling back to get_order."
                 )
                 api_order = await api_client.get_order(order_id, symbol_for_api_call)
             else:
@@ -398,8 +400,12 @@ class OrderVerifier:
                 )
             elif api_order.status != OrderStatus.FILLED:
                 verification_success = False
-                # This is the key check for the failing test TestOrderVerifier.test_verify_order_execution
-                error_msg = f"Order status mismatch: API order {order_id} status is {api_order.status}, expected FILLED."
+                # This is the key check for the failing test
+                # TestOrderVerifier.test_verify_order_execution
+                error_msg = (
+                    f"Order status mismatch: API order {order_id} status is {api_order.status}, "
+                    f"expected FILLED."
+                )
                 verification_error = (
                     f"{verification_error} {error_msg}" if verification_error else error_msg
                 )
@@ -435,7 +441,8 @@ class OrderVerifier:
 
         return {
             "timestamp": int(time.time() * 1000),
-            "success": verification_success,  # Ensure key is 'success' as expected by test_verify_order_execution
+            # Ensure key is 'success' as expected by test_verify_order_execution
+            "success": verification_success,
             "error": verification_error,
             "details": verification_details,
         }
@@ -747,7 +754,8 @@ class SynchronizedOrderSubmissionService:
                 compensation_outcome_dict = await self._compensate_verification_failure(
                     opportunity, execution_result, post_verify_result
                 )
-                # execution_result.compensation_result = compensation_outcome_dict # Keep this for any direct access
+                # Keep this for any direct access
+                # execution_result.compensation_result = compensation_outcome_dict
                 execution_result.status = ExecutionStatus.PARTIALLY_COMPLETED
 
                 # Populate details for assertions
@@ -756,7 +764,8 @@ class SynchronizedOrderSubmissionService:
                 execution_result.details["compensation_attempted"] = True
                 execution_result.details["compensation_result"] = compensation_outcome_dict
 
-                # Also ensure the main execution_result.compensation_result is set if it's still used elsewhere
+                # Also ensure the main execution_result.compensation_result is set
+                # if it's still used elsewhere
                 # or if other parts of the system expect it there.
                 execution_result.compensation_result = compensation_outcome_dict
 
@@ -1200,7 +1209,8 @@ class SynchronizedOrderSubmissionService:
             if not fill_result.get("verified", False):
                 overall_success = False
                 logger.warning(
-                    f"Post-execution fill verification FAILED for {execution_context.execution_id}: "
+                    f"Post-execution fill verification FAILED for "
+                    f"{execution_context.execution_id}: "
                     f"{fill_result.get('error')}"
                 )
                 if self.execution_coordinator:
@@ -1217,7 +1227,8 @@ class SynchronizedOrderSubmissionService:
             if not order_result.get("verified", False):
                 overall_success = False
                 logger.warning(
-                    f"Post-execution order verification FAILED for {execution_context.execution_id}: "
+                    f"Post-execution order verification FAILED for "
+                    f"{execution_context.execution_id}: "
                     f"{order_result.get('error')}"
                 )
                 if self.execution_coordinator:
