@@ -195,7 +195,7 @@ class HyperliquidMarketDataService:
             if all_contexts_response and all_contexts_response.asset_ctxs:
                 for asset_ctx in all_contexts_response.asset_ctxs:
                     if asset_ctx.name == symbol:
-                        return HyperliquidMapper.map_raw_ctx_to_ticker(asset_ctx)
+                        return self._mapper.map_raw_ctx_to_ticker(asset_ctx)
 
             # Symbol not found in the contexts
             logger.warning(
@@ -260,7 +260,7 @@ class HyperliquidMarketDataService:
                 status_code=status_code,
                 headers=headers,
             )
-            return HyperliquidMapper.map_raw_order_book(validated_raw_book)
+            return self._mapper.map_raw_order_book(validated_raw_book)
 
         except APIError:
             raise
@@ -344,7 +344,7 @@ class HyperliquidMarketDataService:
             for raw_trade in validated_raw_trades:
                 try:
                     # Use static call to mapper - Name was correct
-                    trade = HyperliquidMapper.transform_raw_public_trade_to_internal(raw_trade)
+                    trade = self._mapper.transform_raw_public_trade_to_internal(raw_trade)
                     if trade:
                         internal_trades.append(trade)
                 except (ValidationError, ValueError) as e_map_item:
@@ -406,7 +406,7 @@ class HyperliquidMarketDataService:
             if all_contexts_response and all_contexts_response.asset_ctxs:
                 for asset_ctx in all_contexts_response.asset_ctxs:
                     if asset_ctx.name == symbol:
-                        return HyperliquidMapper.map_raw_ctx_to_funding_rate(asset_ctx)
+                        return self._mapper.map_raw_ctx_to_funding_rate(asset_ctx)
 
             logger.warning(
                 f"[{self._exchange_name}] Funding rate data (from asset context) not found for symbol '{symbol}'."
@@ -453,7 +453,7 @@ class HyperliquidMarketDataService:
                 symbols_to_process = symbols
             else:
                 symbols_to_process = [
-                    ctx.name for ctx in all_contexts_response.asset_ctxs if ctx.name
+                    str(ctx.name) for ctx in all_contexts_response.asset_ctxs if ctx.name
                 ]
 
             for symbol_name in symbols_to_process:
@@ -461,7 +461,7 @@ class HyperliquidMarketDataService:
                 for asset_ctx in all_contexts_response.asset_ctxs:
                     if asset_ctx.name == symbol_name:
                         try:
-                            rate = HyperliquidMapper.map_raw_ctx_to_funding_rate(asset_ctx)
+                            rate = self._mapper.map_raw_ctx_to_funding_rate(asset_ctx)
                             if rate:
                                 rates.append(rate)
                             found_ctx = True
@@ -516,9 +516,13 @@ class HyperliquidMarketDataService:
         if raw_response_content is None:
             logger.warning(
                 f"[{self._exchange_name}] No content for historical funding rates for {symbol}. "
-                f"Status: {status_code}. Returning empty list."
+                f"Status: {status_code}."
             )
-            return []
+            raise APIError(
+                message=f"No data received for historical funding rates for {symbol}, status: {status_code}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                http_status=status_code,
+            )
 
         raw_funding_history_items = self._response_handler.handle_historical_funding_rates_response(
             raw_response_content=raw_response_content
@@ -578,9 +582,15 @@ class HyperliquidMarketDataService:
         )
 
         if raw_response_content is None:
-            logger.error(f"[{self._exchange_name}] No content received for candles {symbol}.")
+            logger.error(
+                f"[{self._exchange_name}] No content received for candles {symbol}, status: {status_code}."
+            )
             # Consider raising APIError or returning empty list based on desired strictness
-            return []
+            raise APIError(
+                message=f"No data received for market data (candles) for {symbol}, status: {status_code}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                http_status=status_code,
+            )
 
         # Assuming raw_response_content is list[dict[str, Any]] for candles
         # The handler expects RawJsonResponse which can be list.

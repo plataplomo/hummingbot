@@ -130,13 +130,15 @@ class BackpackTradingService:
             # Backpack's cancel order returns the cancelled order details or an error.
             # The response handler needs to determine success.
             # Assuming handle_cancel_order_response returns bool based on successful cancellation.
-            if (
-                raw_data is None
-            ):  # Explicitly check for None if that's a possible "success but no content"
-                logger.warning(
-                    f"[{self._exchange_name}] Cancel order for {order_id} ({symbol}) received no content, assuming failure or unconfirmed success."
+            if raw_data is None:
+                logger.error(
+                    f"[{self._exchange_name}] Cancel order for {order_id} ({symbol}) received no content. Status: {status_code}"
                 )
-                return False  # Or specific handling if None means success for Backpack
+                raise APIError(
+                    message=f"No data received when cancelling order {order_id} ({symbol}), status: {status_code}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code,
+                )
 
             return self._response_handler.handle_cancel_order_response(
                 raw_response_content=raw_data, order_id=order_id, symbol=symbol
