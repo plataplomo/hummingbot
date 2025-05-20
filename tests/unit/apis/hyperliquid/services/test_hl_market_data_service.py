@@ -10,7 +10,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from cyberdelta.apis.hyperliquid.hl_mapper import (
-    HyperliquidCandleMapper,
     HyperliquidMapper,
 )  # Added HyperliquidCandleMapper
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
@@ -22,6 +21,10 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleRequestDetails,
     HyperliquidRawCandleSnapshot,
     HyperliquidRawCandleSnapshotRequestPayload,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
+    HyperliquidRawFundingHistoryItem,
+    RawHlCoinName,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,  # For get_ticker, get_funding_rate
@@ -37,7 +40,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
     HyperliquidRawPublicTrade,
 )
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
-from cyberdelta.core.models.enums import OrderSide  # Added OrderSide import
+from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market import Candle, FundingRate, OrderBook, Ticker, Trade
 
 
@@ -57,15 +60,22 @@ def mock_hl_response_handler() -> MagicMock:
 
 
 @pytest.fixture
+def mock_hl_mapper() -> MagicMock:
+    return MagicMock(spec=HyperliquidMapper)
+
+
+@pytest.fixture
 def hyperliquid_market_data_service(
     mock_http_client_requester: AsyncMock,
     mock_hl_request_builder: MagicMock,
     mock_hl_response_handler: MagicMock,
+    mock_hl_mapper: MagicMock,
 ) -> HyperliquidMarketDataService:
     return HyperliquidMarketDataService(
         http_client_requester=mock_http_client_requester,
         request_builder=mock_hl_request_builder,
         response_handler=mock_hl_response_handler,
+        mapper=mock_hl_mapper,
         exchange_name="hyperliquid_test",
         info_url="https://fakeapi.hyperliquid.com/info",
     )
@@ -83,17 +93,14 @@ class TestHyperliquidMarketDataService:
         mock_hl_response_handler: MagicMock,
     ) -> None:
         """Test get_all_asset_contexts successfully retrieves and processes data."""
-        # build_info_request_payload now returns a Pydantic model
         mock_payload_from_builder = HyperliquidRawMetaAndAssetCtxsRequestPayload(
             type="metaAndAssetCtxs"
         )
         expected_data_dict = mock_payload_from_builder.model_dump(by_alias=True, exclude_none=True)
 
-        # Construct a realistic raw response content based on
-        # HyperliquidRawMetaAndAssetCtxsResponse structure
         mock_raw_response_content: list[RawJsonResponse] = [
-            {"universe": []},  # Meta part
-            [],  # AssetContexts part (empty for simplicity)
+            {"universe": []},
+            [],
         ]
         mock_validated_response = HyperliquidRawMetaAndAssetCtxsResponse(
             meta=HyperliquidRawMetaResponse(universe=[]),
@@ -101,28 +108,24 @@ class TestHyperliquidMarketDataService:
         )
 
         mock_hl_request_builder.build_info_request_payload.return_value = mock_payload_from_builder
-        mock_http_client_requester.request.return_value = (
+        mock_http_client_requester.return_value = (
             mock_raw_response_content,
             200,
             MagicMock(),
         )
-        # The response handler in the SUT is called with the raw_response_content
         mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.return_value = (
             mock_validated_response
         )
 
         result = await hyperliquid_market_data_service.get_all_asset_contexts_raw()
 
-        # Check that the correct request builder method was called
         mock_hl_request_builder.build_info_request_payload.assert_called_once_with()
-        # Check that HttpClient was called with data from the builder
-        mock_http_client_requester.request.assert_called_once_with(
+        mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint_path="/info",
-            data=expected_data_dict,  # Assert with the dumped model dict
-            rate_limiter_service=None,
+            data=expected_data_dict,
+            is_info_endpoint=True,
         )
-        # Check that the response handler was called correctly
         mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.assert_called_once_with(
             mock_raw_response_content
         )
@@ -135,7 +138,6 @@ class TestHyperliquidMarketDataService:
     ) -> None:
         """Test get_ticker successfully retrieves and processes ticker data."""
         symbol_to_find = "BTC"
-        mock_ticker_timestamp = datetime.now(UTC)
 
         mock_raw_asset_ctx_btc = HyperliquidRawAssetCtx(
             name="BTC",
@@ -178,17 +180,20 @@ class TestHyperliquidMarketDataService:
             bid=Decimal("50000.0"),
             ask=Decimal("50000.0"),
             volume=Decimal("1000"),
-            timestamp=mock_ticker_timestamp,
+            timestamp=datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC),
         )
 
-        with patch.object(
-            HyperliquidMapper, "map_raw_ctx_to_ticker", return_value=expected_internal_ticker
-        ) as mock_mapper_method:
-            result_ticker = await hyperliquid_market_data_service.get_ticker(symbol_to_find)
+        hyperliquid_market_data_service._mapper.map_raw_ctx_to_ticker.return_value = (  # type: ignore[attr-defined]
+            expected_internal_ticker
+        )
 
-            hyperliquid_market_data_service.get_all_asset_contexts_raw.assert_called_once()
-            mock_mapper_method.assert_called_once_with(mock_raw_asset_ctx_btc)
-            assert result_ticker == expected_internal_ticker
+        result_ticker = await hyperliquid_market_data_service.get_ticker(symbol_to_find)
+
+        hyperliquid_market_data_service.get_all_asset_contexts_raw.assert_called_once()
+        hyperliquid_market_data_service._mapper.map_raw_ctx_to_ticker.assert_called_once_with(  # type: ignore[attr-defined]
+            mock_raw_asset_ctx_btc
+        )
+        assert result_ticker == expected_internal_ticker
 
     @pytest.mark.asyncio
     async def test_get_ticker_not_found(
@@ -447,74 +452,71 @@ class TestHyperliquidMarketDataService:
         mock_hl_request_builder: MagicMock,
         mock_hl_response_handler: MagicMock,
     ) -> None:
-        """Test get_market_data successfully fetches and processes candle snapshot data."""
+        """Test get_market_data (candles) successfully retrieves and processes data."""
         symbol = "ETH"
-        interval = "1h"  # Test variable for interval
-        start_time_ms = 1672531200000  # Example start time
-        end_time_ms = 1672617600000  # Example end time
+        interval = "1h"
+        start_time_ms = 1678886400000
+        end_time_ms = 1678890000000
 
-        mock_payload_model = HyperliquidRawCandleSnapshotRequestPayload(
+        mock_payload = HyperliquidRawCandleSnapshotRequestPayload(
             type="candleSnapshot",
             req=HyperliquidRawCandleRequestDetails(
                 coin=symbol, interval=interval, startTime=start_time_ms, endTime=end_time_ms
             ),
         )
-        mock_request_payload_data = mock_payload_model.model_dump(by_alias=True, exclude_none=True)
+        expected_request_data = mock_payload.model_dump(by_alias=True, exclude_none=True)
 
-        # This is the raw data from HTTP client
-        mock_raw_response_content_candles: RawJsonResponse = {  # Renamed for clarity
-            "t": [start_time_ms],
-            "o": ["1200.0"],
-            "h": ["1250.0"],
-            "l": ["1190.0"],
-            "c": ["1240.0"],
-            "v": ["1000.0"],
-            "s": "ok",
-        }
-
-        # This is what the response_handler returns
+        mock_raw_response_content: list[RawJsonResponse] = [
+            {
+                "c": "ETH",
+                "t": 1678886400000,
+                "T": 1678889999999,
+                "s": "ok",
+                "i": "1h",
+                "o": [],
+                "h": [],
+                "l": [],
+                "v": [],
+                "n": 0,
+            }
+        ]
         mock_validated_raw_snapshot = HyperliquidRawCandleSnapshot(
-            t=[start_time_ms],
-            o=["1200.0"],
-            h=["1250.0"],
-            l=["1190.0"],
-            c=["1240.0"],
-            v=["1000.0"],
-            s="ok",
+            t=[],
+            o=[],
+            h=[],
+            l=[],
+            c=[],
+            v=[],
+            s="ok",  # Use 'c' for closes list
         )
-
-        # This is what the mapper (and thus the service) should return
         expected_internal_candles = [
             Candle(
-                open_time=datetime.fromtimestamp(start_time_ms / 1000, UTC),
-                open=Decimal("1200.0"),
-                high=Decimal("1250.0"),
-                low=Decimal("1190.0"),
-                close=Decimal("1240.0"),
-                volume=Decimal("1000.0"),
                 symbol=symbol,
+                open=Decimal("100"),
+                high=Decimal("110"),
+                low=Decimal("90"),
+                close=Decimal("105"),
+                volume=Decimal("1000"),
+                open_time=datetime.fromtimestamp(start_time_ms / 1000, UTC),
                 interval=interval,
             )
         ]
 
-        mock_hl_request_builder.build_candle_snapshot_payload.return_value = mock_payload_model
-        mock_http_client_requester.request.return_value = (
-            mock_raw_response_content_candles,
+        mock_hl_request_builder.build_candle_snapshot_payload.return_value = expected_request_data
+        mock_http_client_requester.return_value = (
+            mock_raw_response_content,
             200,
             MagicMock(),
         )
-        # Response handler returns the validated RAW snapshot
         mock_hl_response_handler.handle_info_candle_snapshot_response.return_value = (
             mock_validated_raw_snapshot
         )
-
-        # Patch the mapper method used by the service
-        with patch.object(
-            HyperliquidCandleMapper,
-            "map_raw_candle_snapshot_to_candles",
+        # Mock the static method HyperliquidCandleMapper.map
+        with patch(
+            "cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidCandleMapper.map",
             return_value=expected_internal_candles,
-        ) as mock_mapper_method:
-            result = await hyperliquid_market_data_service.get_market_data(
+        ) as mock_map_candles:
+            result_candles = await hyperliquid_market_data_service.get_market_data(
                 symbol, interval, start_time_ms, end_time_ms
             )
 
@@ -524,22 +526,21 @@ class TestHyperliquidMarketDataService:
                 start_time_ms=start_time_ms,
                 end_time_ms=end_time_ms,
             )
-            mock_http_client_requester.request.assert_called_once_with(
+            mock_http_client_requester.assert_called_once_with(
                 method="POST",
                 endpoint_path="/info",
-                data=mock_request_payload_data,
-                rate_limiter_service=None,
+                data=expected_request_data,
+                is_info_endpoint=True,
             )
             mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
-                raw_response_content=mock_raw_response_content_candles,  # Corrected arg name
-                symbol=symbol,
-                interval=interval,
+                mock_raw_response_content,
+                symbol,
+                interval,
+                200,
+                mock_http_client_requester.return_value[2],
             )
-            # Service method should call the mapper with the validated raw snapshot
-            mock_mapper_method.assert_called_once_with(
-                mock_validated_raw_snapshot, symbol, interval
-            )
-            assert result == expected_internal_candles
+            mock_map_candles.assert_called_once_with(mock_validated_raw_snapshot, symbol, interval)
+            assert result_candles == expected_internal_candles
 
     @pytest.mark.asyncio
     async def test_get_all_asset_contexts_raw_success(
@@ -619,5 +620,90 @@ class TestHyperliquidMarketDataService:
             mock_raw_response_content, mock_status_code, mock_headers
         )
         assert result == mock_validated_response
+
+    @pytest.mark.asyncio
+    async def test_get_historical_funding_rates_success(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_request_builder: MagicMock,
+        mock_hl_response_handler: MagicMock,
+    ) -> None:
+        """Test get_historical_funding_rates successfully retrieves and processes data."""
+        symbol = "ETH"
+        start_time_ms = 1678886400000
+        end_time_ms = 1678890000000
+
+        mock_request_payload = {
+            "type": "fundingHistory",
+            "coin": symbol,
+            "startTime": start_time_ms,
+            "endTime": end_time_ms,
+        }
+        mock_raw_response_data: list[RawJsonResponse] = [
+            {"coin": "ETH", "fundingRate": "0.0001", "premium": "0.00012", "time": 1678886400076},
+            {"coin": "ETH", "fundingRate": "0.00015", "premium": "0.00017", "time": 1678886500076},
+        ]
+        # These would be instances of HyperliquidRawFundingHistoryItem
+        mock_validated_raw_items = [
+            HyperliquidRawFundingHistoryItem(
+                coin=RawHlCoinName("ETH"),
+                fundingRate="0.0001",
+                premium="0.00012",
+                time=1678886400076,
+            ),
+            HyperliquidRawFundingHistoryItem(
+                coin=RawHlCoinName("ETH"),
+                fundingRate="0.00015",
+                premium="0.00017",
+                time=1678886500076,
+            ),
+        ]
+        mock_internal_funding_rates = [
+            FundingRate(
+                symbol="ETH",
+                funding_rate=Decimal("0.0001"),
+                timestamp=datetime.fromtimestamp(1678886400.076, UTC),
+            ),
+            FundingRate(
+                symbol="ETH",
+                funding_rate=Decimal("0.00015"),
+                timestamp=datetime.fromtimestamp(1678886500.076, UTC),
+            ),
+        ]
+
+        mock_hl_request_builder.build_historical_funding_rates_payload.return_value = (
+            mock_request_payload
+        )
+        mock_http_client_requester.return_value = (mock_raw_response_data, 200, MagicMock())
+        mock_hl_response_handler.handle_historical_funding_rates_response.return_value = (
+            mock_validated_raw_items
+        )
+
+        # Patch the static method HyperliquidMapper.transform_raw_funding_history_item_to_internal
+        with patch(
+            "cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMapper.transform_raw_funding_history_item_to_internal",
+            side_effect=mock_internal_funding_rates,
+        ) as mock_transform_method:
+            result = await hyperliquid_market_data_service.get_historical_funding_rates(
+                symbol, start_time_ms, end_time_ms
+            )
+
+            mock_hl_request_builder.build_historical_funding_rates_payload.assert_called_once_with(
+                symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+            )
+            mock_http_client_requester.assert_called_once_with(
+                method="POST",
+                endpoint_path="/info",
+                data=mock_request_payload,
+                is_info_endpoint=True,
+            )
+            mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
+                mock_raw_response_data
+            )
+            assert mock_transform_method.call_count == len(mock_validated_raw_items)
+            for raw_item in mock_validated_raw_items:  # Changed from enumerate
+                mock_transform_method.assert_any_call(raw_item)
+            assert result == mock_internal_funding_rates
 
     # Add more tests for other methods: get_funding_rate, get_order_book, etc.

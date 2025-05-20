@@ -263,14 +263,22 @@ def valid_raw_candle() -> dict[str, Any]:
 def valid_raw_candle_snapshot() -> dict[str, Any]:
     # HyperliquidRawCandleSnapshot expects parallel arrays, not a list of candle dicts
     return {
-        "t": [1678889500000, 1678889560000],
-        "o": ["3000.0", "3010.0"],
-        "h": ["3015.0", "3012.0"],
-        "l": ["2995.0", "3003.0"],
-        "c": ["3010.0", "3005.0"],
-        "v": ["100.5", "80.2"],
+        "t": [1672531200000, 1672531260000],
+        "o": ["1200.0", "1201.0"],
+        "h": ["1250.0", "1205.0"],
+        "l": ["1190.0", "1198.0"],
+        "c": ["1240.0", "1202.0"],
+        "v": ["1000.0", "500.0"],
         "s": "ok",
     }
+
+
+@pytest.fixture
+def valid_raw_historical_funding_rates_data() -> list[dict[str, Any]]:
+    return [
+        {"coin": "ETH", "fundingRate": "0.000123", "premium": "0.0001", "time": 1678886400000},
+        {"coin": "BTC", "fundingRate": "-0.00005", "premium": "-0.00003", "time": 1678882800000},
+    ]
 
 
 @pytest.fixture
@@ -738,18 +746,18 @@ class TestHandleInfoCandleSnapshotResponse:
         assert isinstance(response, HyperliquidRawCandleSnapshot)
         assert response.s == "ok"
         assert len(response.t) == 2
-        assert response.t[0] == 1678889500000
-        assert response.o[0] == "3000.0"
-        assert response.h[0] == "3015.0"
-        assert response.l[0] == "2995.0"
-        assert response.c[0] == "3010.0"
-        assert response.v[0] == "100.5"
-        assert response.t[1] == 1678889560000
-        assert response.o[1] == "3010.0"
-        assert response.h[1] == "3012.0"
-        assert response.l[1] == "3003.0"
-        assert response.c[1] == "3005.0"
-        assert response.v[1] == "80.2"
+        assert response.t[0] == 1672531200000
+        assert response.o[0] == "1200.0"
+        assert response.h[0] == "1250.0"
+        assert response.l[0] == "1190.0"
+        assert response.c[0] == "1240.0"
+        assert response.v[0] == "1000.0"
+        assert response.t[1] == 1672531260000
+        assert response.o[1] == "1201.0"
+        assert response.h[1] == "1205.0"
+        assert response.l[1] == "1198.0"
+        assert response.c[1] == "1202.0"
+        assert response.v[1] == "500.0"
 
     def test_validation_error(self, symbol: str) -> None:
         """Test response missing required field 'candles'."""

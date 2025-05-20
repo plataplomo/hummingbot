@@ -214,7 +214,7 @@ def test_build_get_open_orders_params() -> None:
 def test_build_get_funding_rate_params() -> None:
     """Test build_get_funding_rate_params."""
     params = BackpackRequestBuilder.build_get_funding_rate_params("SOL_PERP")
-    assert params == {}  # Symbol in path, no query params
+    assert params == {"symbol": "SOL_PERP"}
 
 
 def test_build_get_account_info_params() -> None:
