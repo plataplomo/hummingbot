@@ -288,7 +288,7 @@ class TestHttpClient:
         mock_aio_response.text = AsyncMock(return_value=json.dumps(expected_body_dict))
         mock_session_request_method.return_value.__aenter__.return_value = mock_aio_response
 
-        content, processed_headers, raw_headers = await http_client_instance.request(
+        content, status_code, processed_headers, raw_headers = await http_client_instance.request(
             method="GET", endpoint_path="/test", rate_limiter_service=mock_rate_limiter_service
         )
 
@@ -355,11 +355,12 @@ class TestHttpClient:
         mock_aio_response.text = AsyncMock(return_value=expected_text_content)
         mock_session_request_method.return_value.__aenter__.return_value = mock_aio_response
 
-        content, processed_headers, raw_headers = await http_client_instance.request(
+        content, status_code, processed_headers, raw_headers = await http_client_instance.request(
             method="GET", endpoint_path="/text", rate_limiter_service=mock_rate_limiter_service
         )
 
         assert content == expected_text_content
+        assert status_code == 200
         assert processed_headers.content_type == "text/plain"
         assert raw_headers.get("Content-Type") == "text/plain"
         # Further assertions on mock_session_request_method call similar to above test
@@ -384,13 +385,14 @@ class TestHttpClient:
         )  # Should not be called by parser for 204
         mock_session_request_method.return_value.__aenter__.return_value = mock_aio_response
 
-        content, processed_headers, raw_headers = await http_client_instance.request(
+        content, status_code, processed_headers, raw_headers = await http_client_instance.request(
             method="POST",
             endpoint_path="/empty",
             rate_limiter_service=mock_rate_limiter_service,
             data={},
         )
         assert content is None
+        assert status_code == 204
         assert processed_headers.content_type == ""  # Defaults to empty if not present
         assert raw_headers == CIMultiDictProxy(CIMultiDict[str]())
         mock_aio_response.text.assert_not_called()  # Key check for 204 handling
@@ -440,7 +442,7 @@ class TestHttpClient:
             mock_created_session_instance.headers = initial_session_headers.copy()
             MockAiohttpSessionCls.return_value = mock_created_session_instance
 
-            _, processed_headers, raw_headers = await http_client_instance.request(
+            _, status_code, processed_headers, raw_headers = await http_client_instance.request(
                 method="POST",
                 endpoint_path="/signed_action",
                 rate_limiter_service=mock_rate_limiter_service,
@@ -450,6 +452,7 @@ class TestHttpClient:
                 headers=original_headers.copy(),
                 is_signed=True,
             )
+            assert status_code == 200
         assert isinstance(processed_headers, ProcessedResponseHeaders)
         assert processed_headers.content_type == "application/json"
         assert isinstance(raw_headers, CIMultiDictProxy)
@@ -857,9 +860,10 @@ class TestHttpClientRequestResponseParsing:
         )
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
-        content, processed_headers, raw_headers = await http_client_instance.request(
+        content, status_code, processed_headers, raw_headers = await http_client_instance.request(
             "GET", "/test_json", mock_rate_limiter_service
         )
+        assert status_code == 200
 
         assert content == expected_data
         assert processed_headers.content_type == "application/json; charset=utf-8"
@@ -886,9 +890,10 @@ class TestHttpClientRequestResponseParsing:
         )
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
-        content, processed_headers, raw_headers = await http_client_instance.request(
+        content, status_code, processed_headers, raw_headers = await http_client_instance.request(
             "GET", "/test_text", mock_rate_limiter_service
         )
+        assert status_code == 200
 
         assert content == expected_text
         assert processed_headers.content_type == "text/plain"
@@ -916,9 +921,10 @@ class TestHttpClientRequestResponseParsing:
         # The key is that HttpClient._parse_and_validate_response should not call .text() for 204.
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
-        content, processed_headers, raw_headers = await http_client_instance.request(
+        content, status_code, processed_headers, raw_headers = await http_client_instance.request(
             "POST", "/test_204", mock_rate_limiter_service, data={}
         )
+        assert status_code == 204
 
         assert content is None
         assert processed_headers.content_type == ""  # Default if not present
@@ -981,9 +987,10 @@ class TestHttpClientRequestResponseParsing:
         )
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
-        content, processed_headers, _ = await http_client_instance.request(
+        content, status_code, processed_headers, _ = await http_client_instance.request(
             "GET", "/test_ct_missing", mock_rate_limiter_service
         )
+        assert status_code == 200
         assert content == expected_text  # Should be treated as text
         assert processed_headers.content_type == ""  # ProcessedResponseHeaders defaults to empty
         mock_session_instance.request.assert_called_once()

@@ -149,12 +149,6 @@ async def hl_api_instance(
 
 
 @pytest.fixture
-def mock_hyperliquid_mapper() -> MagicMock:
-    """Provides a mock HyperliquidMapper."""
-    return MagicMock(spec=HyperliquidMapper)
-
-
-@pytest.fixture
 def mock_meta_response_content() -> list[RawJsonResponse]:
     """Provides a mock raw JSON response for /info endpoint (meta and asset contexts)."""
     # Based on HyperliquidRawMetaAndAssetCtxsResponse structure
@@ -486,8 +480,10 @@ async def test_place_order_calls_authenticate_and_request(
         with patch.object(
             api, "_request", side_effect=mock_request_side_effect, spec=True
         ) as mock_api_request:
-            with patch.object(api, "_get_asset_index", new_callable=AsyncMock) as mock_get_index:
-                mock_get_index.return_value = 0  # Asset index for BTC
+            with patch.object(
+                api, "_get_asset_index", new_callable=AsyncMock
+            ) as mock_get_asset_index:
+                mock_get_asset_index.return_value = 0  # Mock asset index for BTC
 
                 # Patch the HyperliquidRequestBuilder.build_place_order_payload
                 with patch(
@@ -1501,7 +1497,7 @@ async def test_get_asset_index_success(
     with patch.object(
         hl_api_instance._info_http_client,
         "request",
-        AsyncMock(return_value=(mock_meta_response_content, 200, MagicMock())),
+        AsyncMock(return_value=(mock_meta_response_content, 200, MagicMock(), MagicMock())),
     ) as mock_request:
         # First call - should fetch
         index1 = await hl_api_instance._get_asset_index(symbol)
@@ -1530,7 +1526,9 @@ async def test_get_asset_index_not_found_after_fetch(
     with patch.object(
         hl_api_instance._info_http_client,
         "request",
-        AsyncMock(return_value=(mock_meta_response_content_missing_symbol, 200, MagicMock())),
+        AsyncMock(
+            return_value=(mock_meta_response_content_missing_symbol, 200, MagicMock(), MagicMock())
+        ),
     ) as mock_request:
         with pytest.raises(APIError) as exc_info:
             await hl_api_instance._get_asset_index(symbol)

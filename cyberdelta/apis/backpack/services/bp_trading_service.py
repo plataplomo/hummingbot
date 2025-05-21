@@ -190,6 +190,7 @@ class BackpackTradingService:
                 endpoint_group="private",
                 request_weight=1,
                 is_public_info_endpoint=False,
+                rate_limiter_service=self._rate_limiter_service,
             )
             if raw_data is None or not isinstance(raw_data, list):
                 raise APIError(
@@ -248,6 +249,7 @@ class BackpackTradingService:
                 endpoint_group="private",
                 request_weight=1,
                 is_public_info_endpoint=False,
+                rate_limiter_service=self._rate_limiter_service,
             )
             if status_code == 404:  # Order not found
                 logger.info(f"[{self._exchange_name}] Order {identifier} ({symbol}) not found.")

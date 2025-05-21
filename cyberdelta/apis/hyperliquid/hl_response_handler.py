@@ -113,7 +113,29 @@ class HyperliquidResponseHandler:
                 http_status=status_code,
             )
         try:
-            return HyperliquidRawMetaAndAssetCtxsResponse.model_validate(raw_response_content)
+            # Preprocess the raw_response_content to align with Pydantic models
+            # The raw_response_content is a list: [meta_data, asset_ctxs_data]
+            processed_raw_response_content = raw_response_content  # Create a mutable copy
+
+            if len(processed_raw_response_content) == 2:
+                meta_data = processed_raw_response_content[0]
+                if isinstance(meta_data, dict):
+                    # Remove 'marginTables' from meta_data if present, as it's not in our Pydantic model
+                    meta_data.pop("marginTables", None)
+
+                    # Preprocess 'universe' items within meta_data
+                    if "universe" in meta_data and isinstance(meta_data["universe"], list):
+                        for item in meta_data["universe"]:
+                            if isinstance(item, dict):
+                                # Remove 'marginTableId' if present
+                                item.pop("marginTableId", None)
+                                # Add 'onlyIsolated' if missing
+                                if "onlyIsolated" not in item:
+                                    item["onlyIsolated"] = False  # Default to False if not provided
+
+            return HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
+                processed_raw_response_content
+            )
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
                 e, context, raw_response_content, status_code, headers

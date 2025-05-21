@@ -91,7 +91,6 @@ def test_build_place_order_payload_market_ioc() -> None:
         "side": "Ask",
         "orderType": "Market",
         "quantity": "0.5",
-        "timeInForce": "IOC",
     }
     assert payload == expected_payload
 
@@ -141,9 +140,6 @@ def test_build_place_order_payload_stop_market() -> None:
 
 def test_build_place_order_payload_stop_limit() -> None:
     """Test build_place_order_payload for a STOP_LIMIT order."""
-    # Assuming Backpack uses orderType "Stop" and then includes a price for limit part
-    # Or it might have a distinct orderType like "StopLimit". This needs Backpack doc
-    # verification.
     payload = BackpackRequestBuilder.build_place_order_payload(
         symbol="ETH_USDC",
         side=OrderSide.BUY,
@@ -156,11 +152,11 @@ def test_build_place_order_payload_stop_limit() -> None:
     expected_payload: dict[str, Any] = {
         "symbol": "ETH_USDC",
         "side": "Bid",
-        "orderType": "Stop",  # Assuming Stop, and price implies the limit part
+        "orderType": "Limit",  # Corrected to "Limit"
         "quantity": "0.1",
         "price": "1700",
         "triggerPrice": "1690",
-        "timeInForce": "GTC",  # TIF for the limit order part
+        "timeInForce": "GTC",
     }
     assert payload == expected_payload
 

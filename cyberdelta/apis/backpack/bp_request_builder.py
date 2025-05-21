@@ -173,53 +173,57 @@ class BackpackRequestBuilder:
             api_order_type = "Limit"
         elif order_type == OrderType.MARKET:
             api_order_type = "Market"
-        # Add other mappings as needed based on supported types by Backpack
-        # For now, assume these are the primary ones based on OpenAPI and common usage
+        elif order_type == OrderType.STOP_MARKET:
+            api_order_type = "Stop"  # Backpack uses "Stop" for Stop Market
+        elif order_type == OrderType.STOP_LIMIT:
+            api_order_type = "Limit"  # Backpack uses "Limit" for Stop Limit, with triggerPrice
         else:
-            # Fallback or error for unsupported/unmapped order types
-            # Using .value and capitalizing, but this should be reviewed based on API spec
-            # For strictness, raise error if not explicitly mapped.
-            # api_order_type = order_type.value.capitalize() # Original logic, potentially incorrect
             raise ValueError(f"Unsupported or unmapped order type for Backpack: {order_type}")
 
         payload: dict[str, Any] = {
             "symbol": BackpackRequestBuilder.format_symbol(symbol),
-            "side": api_side,  # Use mapped value
-            "orderType": api_order_type,  # Use mapped value
+            "side": api_side,
+            "orderType": api_order_type,
             "quantity": str(quantity),
         }
 
-        # TimeInForce according to OpenAPI: GTC, IOC, FOK.
-        # Not all might be supported for all order types.
-        if time_in_force == TimeInForce.GTC:
-            payload["timeInForce"] = "GTC"
-        elif time_in_force == TimeInForce.IOC:
-            payload["timeInForce"] = "IOC"
-        elif time_in_force == TimeInForce.FOK:
-            payload["timeInForce"] = "FOK"
+        # Only include timeInForce for Limit and StopLimit orders.
+        if order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT]:
+            if time_in_force == TimeInForce.GTC:
+                payload["timeInForce"] = "GTC"
+            elif time_in_force == TimeInForce.IOC:
+                payload["timeInForce"] = "IOC"
+            elif time_in_force == TimeInForce.FOK:
+                payload["timeInForce"] = "FOK"
+            else:
+                raise ValueError(f"Unsupported or unmapped time in force: {time_in_force}")
+        elif (
+            time_in_force != TimeInForce.GTC
+        ):  # For MARKET and STOP_MARKET, GTC is implicit or not applicable
+            logger.warning(
+                f"time_in_force {time_in_force.value} ignored for order type {order_type.value}"
+            )
 
-        if price is not None and order_type == OrderType.LIMIT:
+        # Price validation and assignment
+        if order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT]:
+            if price is None:
+                raise ValueError(f"Price is required for {order_type.value} orders.")
             payload["price"] = str(price)
+
+        # Trigger price validation and assignment for stop orders
+        if order_type in [OrderType.STOP_MARKET, OrderType.STOP_LIMIT]:
+            if trigger_price is None:
+                raise ValueError(f"Trigger price is required for {order_type.value} orders.")
+            payload["triggerPrice"] = str(trigger_price)
 
         if client_order_id:
             payload["clientId"] = client_order_id
+
         if post_only:
-            # Ensure postOnly is only sent for appropriate order types (usually Limit)
             if order_type == OrderType.LIMIT:
                 payload["postOnly"] = True
             else:
                 logger.warning(f"postOnly=True ignored for non-LIMIT order type {order_type.value}")
-
-        # Common stop order types are STOP_LIMIT and STOP_MARKET.
-        # The following block is commented out as STOP_LIMIT/STOP_MARKET are not currently in the OrderType enum.
-        # If these types are added, this block should be reviewed and uncommented.
-        # if order_type in [OrderType.STOP_LIMIT, OrderType.STOP_MARKET]:
-        #     if trigger_price is None:
-        #         raise ValueError(f"Trigger price is required for {order_type.value} orders.")
-        #     payload["triggerPrice"] = str(trigger_price)
-        #     # For STOP_LIMIT, 'price' (the limit price) would also be required.
-        #     if order_type == OrderType.STOP_LIMIT and price is None: # This line also needs to be part of the comment
-        #         raise ValueError(f"Price is required for {order_type.value} orders.")
 
         return payload
 

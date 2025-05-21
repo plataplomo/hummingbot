@@ -184,40 +184,31 @@ class BackpackResponseHandler:
         context = f"positions ({symbol or 'all'})"
         validated_positions: list[BackpackRawPosition] = []
 
-        if symbol is not None:  # Expect a single position dictionary
-            if not isinstance(raw_response_content, dict):
-                raise APIError(
-                    message=(
-                        f"Unexpected {context} response format: expected dict for single symbol, "
-                        f"got {type(raw_response_content)}"
-                    ),
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
+        if not isinstance(raw_response_content, list):
+            raise APIError(
+                message=f"Unexpected {context} response format: expected list, "
+                f"got {type(raw_response_content)}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            )
+
+        for item in raw_response_content:
+            if not isinstance(item, dict):
+                logger.warning(f"[{__name__}] Skipping non-dict item in {context} list: {item!r}")
+                continue
             try:
-                validated_positions.append(BackpackRawPosition.model_validate(raw_response_content))
+                position = BackpackRawPosition.model_validate(item)
+                if symbol is None or position.symbol == symbol:
+                    validated_positions.append(position)
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
-                    e, f"single position item in {context}", raw_response_content
+                    e, f"single position item in {context}", item
                 ) from e
-        else:  # Expect a list of position dictionaries
-            if not isinstance(raw_response_content, list):
-                raise APIError(
-                    message=f"Unexpected {context} response format: expected list for all symbols, "
-                    f"got {type(raw_response_content)}",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
-            for item in raw_response_content:
-                if not isinstance(item, dict):
-                    logger.warning(
-                        f"[{__name__}] Skipping non-dict item in {context} list: {item!r}"
-                    )
-                    continue
-                try:
-                    validated_positions.append(BackpackRawPosition.model_validate(item))
-                except ValidationError as e:
-                    raise BackpackResponseHandler._handle_validation_error(
-                        e, f"single position item in {context}", item
-                    ) from e
+
+        if symbol is not None and not validated_positions:
+            raise APIError(
+                message=f"No position found for symbol '{symbol}' in {context} response.",
+                code=APIErrorCode.SYMBOL_NOT_FOUND.value,
+            )
         return validated_positions
 
     @staticmethod
