@@ -131,7 +131,7 @@ class TestHyperliquidMarketDataService:
             is_info_endpoint=True,
         )
         mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.assert_called_once_with(
-            mock_raw_response_content, status_code=200, headers=ANY
+            response_content=mock_raw_response_content, status_code=200, headers=ANY
         )
         assert result == mock_validated_response
 
@@ -192,8 +192,10 @@ class TestHyperliquidMarketDataService:
 
         result_ticker = await hyperliquid_market_data_service.get_ticker(symbol_to_find)
 
-        hyperliquid_market_data_service.get_all_asset_contexts_raw.assert_called_once()
-        mock_hl_mapper.map_raw_ctx_to_ticker.assert_called_once_with(mock_raw_asset_ctx_btc)
+        hyperliquid_market_data_service.get_all_asset_contexts_raw.assert_called_once_with()
+        mock_hl_mapper.map_raw_ctx_to_ticker.assert_called_once_with(
+            asset_ctx=mock_raw_asset_ctx_btc
+        )
         assert result_ticker == expected_internal_ticker
 
     @pytest.mark.asyncio
@@ -288,7 +290,9 @@ class TestHyperliquidMarketDataService:
 
         hyperliquid_market_data_service.get_all_asset_contexts_raw.assert_called_once()
         # Assert call on the injected mock_hl_mapper
-        mock_hl_mapper.map_raw_ctx_to_funding_rate.assert_called_once_with(mock_raw_asset_ctx_eth)
+        mock_hl_mapper.map_raw_ctx_to_funding_rate.assert_called_once_with(
+            asset_ctx=mock_raw_asset_ctx_eth
+        )
         assert result_funding_rate == expected_internal_funding_rate
 
     @pytest.mark.asyncio
@@ -350,9 +354,11 @@ class TestHyperliquidMarketDataService:
             is_info_endpoint=True,
         )
         mock_hl_response_handler.handle_info_l2_book_response.assert_called_once_with(
-            mock_raw_response_content, status_code=200, headers=ANY
+            response_content=mock_raw_response_content, status_code=200, headers=ANY
         )
-        mock_hl_mapper.map_raw_order_book.assert_called_once_with(mock_validated_response)
+        mock_hl_mapper.map_raw_order_book.assert_called_once_with(
+            raw_order_book=mock_validated_response
+        )
         assert result_order_book == expected_internal_order_book
 
     @pytest.mark.asyncio
@@ -496,10 +502,12 @@ class TestHyperliquidMarketDataService:
             is_info_endpoint=True,
         )
         mock_hl_response_handler.handle_recent_trades_response.assert_called_once_with(
-            mock_raw_response_content
+            response_content=mock_raw_response_content
         )
         # Mapper is called with validated raw trades, and no limit as service doesn't pass it.
-        mock_hl_mapper.map_raw_trades.assert_called_once_with(mock_validated_response_from_handler)
+        mock_hl_mapper.map_raw_trades.assert_called_once_with(
+            raw_trades=mock_validated_response_from_handler
+        )
         assert result_trades == expected_internal_trades
 
     @pytest.mark.asyncio
@@ -645,10 +653,10 @@ class TestHyperliquidMarketDataService:
             is_info_endpoint=True,
         )
         mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
-            mock_raw_candle_data, status_code=200, headers=ANY
+            response_content=mock_raw_candle_data, status_code=200, headers=ANY
         )
         mock_candle_mapper_instance.map.assert_called_once_with(
-            mock_validated_response, symbol, interval
+            raw_snapshot=mock_validated_response, symbol=symbol, interval=interval
         )
         assert result_candles == expected_candles
 
@@ -692,7 +700,10 @@ class TestHyperliquidMarketDataService:
             )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "No content received from HTTP client for candleSnapshot" in exc_info.value.message
+        assert (
+            f"No data received for market data (candles) for {symbol}, status: 200"
+            in exc_info.value.message
+        )
         mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once_with(
             symbol=symbol,
             interval=interval,
@@ -782,7 +793,7 @@ class TestHyperliquidMarketDataService:
             is_info_endpoint=True,
         )
         mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.assert_called_once_with(
-            mock_raw_response_content, status_code=mock_status_code, headers=ANY
+            response_content=mock_raw_response_content, status_code=mock_status_code, headers=ANY
         )
         assert result == mock_validated_response
 
@@ -898,7 +909,7 @@ class TestHyperliquidMarketDataService:
                 is_info_endpoint=True,
             )
             mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
-                mock_raw_response_data
+                response_content=mock_raw_response_data
             )
             assert mock_transform_method.call_count == len(mock_validated_raw_items)
             for raw_item in mock_validated_raw_items:  # Changed from enumerate
@@ -995,7 +1006,7 @@ class TestHyperliquidMarketDataService:
             is_info_endpoint=True,
         )
         mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
-            mock_raw_response_data, 200, ANY
+            response_content=mock_raw_response_data, status_code=200, headers=ANY
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -1006,7 +1017,7 @@ class TestHyperliquidMarketDataService:
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Test validation error" in exc_info.value.message
         mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
-            mock_raw_response_data
+            response_content=mock_raw_response_data
         )
 
     @pytest.mark.asyncio
@@ -1125,7 +1136,7 @@ class TestHyperliquidMarketDataService:
             is_info_endpoint=True,
         )
         mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
-            mock_raw_response_data, status_code=mock_status_code, headers=mock_headers
+            response_content=mock_raw_response_data
         )
 
         mock_hl_request_builder.build_historical_funding_rates_payload.assert_called_once_with(
@@ -1135,7 +1146,7 @@ class TestHyperliquidMarketDataService:
             method="POST", endpoint_path="/info", data=mock_request_payload, is_info_endpoint=True
         )
         mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
-            mock_raw_response_data  # Handler is called, then it raises the error
+            response_content=mock_raw_response_data
         )
 
     # Add more tests for other methods: get_funding_rate, get_order_book, etc.
