@@ -448,6 +448,7 @@ class TestHandleInfoMetaAndAssetCtxsResponse:
             HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response(
                 raw_data  # No cast needed if raw_data is RawJsonResponse
             )
+        print(f"Actual Pydantic error: {exc_info.value.original_exception}")
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Invalid info (MetaAndAssetCtxs) response from exchange:" in exc_info.value.message
         # The custom validator inside HyperliquidRawMetaAndAssetCtxsResponse.model_validate

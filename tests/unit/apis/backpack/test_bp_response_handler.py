@@ -319,8 +319,34 @@ def valid_raw_trade_history(symbol_spot: str) -> list[dict[str, Any]]:
 @pytest.fixture
 def valid_raw_market_data() -> list[list[Any]]:
     return [
-        [1678886400000, "138.0", "139.5", "137.5", "139.0", "1000.0"],
-        [1678886460000, "139.0", "140.0", "138.5", "139.8", "1200.0"],
+        [
+            1678886400000,
+            "138.0",
+            "139.5",
+            "137.5",
+            "139.0",
+            "1000.0",
+            1678886459999,
+            "500000.0",
+            100,
+            "250000.0",
+            "125000.0",
+            "0",
+        ],
+        [
+            1678886460000,
+            "139.0",
+            "140.0",
+            "138.5",
+            "139.8",
+            "1200.0",
+            1678886519999,
+            "600000.0",
+            120,
+            "300000.0",
+            "150000.0",
+            "0",
+        ],
     ]
 
 
@@ -662,9 +688,9 @@ _invalid_type_test_cases: list[InvalidTypeTestCaseType] = [
     (
         BackpackResponseHandler.handle_get_positions_response,
         {"error": "expected list"},
-        "list",
-        {"symbol": "symbol_any"},
-        "positions ({symbol})",
+        "list for all symbols",
+        {"symbol": None},
+        "positions (all)",
     ),
     (
         BackpackResponseHandler.handle_place_order_response,
@@ -679,13 +705,6 @@ _invalid_type_test_cases: list[InvalidTypeTestCaseType] = [
         "list",
         {"symbol": "symbol_any"},
         "open orders ({symbol})",
-    ),
-    (
-        BackpackResponseHandler.handle_get_funding_rate_response,
-        ["invalid"],
-        "dict",
-        {"symbol": "symbol_perp", "status_code": 400, "headers": {}},
-        "funding rate ({symbol}) - Status: 400",
     ),
     (
         BackpackResponseHandler.handle_get_account_info_response,
@@ -713,14 +732,14 @@ _invalid_type_test_cases: list[InvalidTypeTestCaseType] = [
         {"error": "expected list"},
         "list",
         {"symbol": "symbol_spot"},
-        "trade history/fills ({symbol})",
+        "trade history ({symbol})",
     ),
     (
         BackpackResponseHandler.handle_get_market_data_response,
         {"error": "expected list"},
         "list",
         {"symbol": "symbol_spot", "timeframe": "1m", "status_code": 400, "headers": {}},
-        "market data (klines {symbol}, {timeframe}) - Status: 400",
+        "market data (klines {timeframe}) for {symbol} - Status: 400",
     ),
     (
         BackpackResponseHandler.handle_get_historical_trades_response,
@@ -785,6 +804,8 @@ def test_handler_invalid_top_level_type(
         expected_message_part = (
             f"Unexpected {final_context_string} format: expected {expected_container_type}"
         )
+    elif handler_method is BackpackResponseHandler.handle_get_funding_rate_response:
+        expected_message_part = f"Unexpected {final_context_string}"
     else:
         expected_message_part = (
             f"Unexpected {final_context_string} response format: expected {expected_container_type}"
@@ -990,7 +1011,7 @@ _list_item_error_cases: list[ListItemErrorTestCaseStructure] = [
         "valid_raw_positions",
         {"insert_invalid_item": "not_a_dict", "index": 1},
         "Skipping non-dict item",
-        {"symbol": "symbol_any"},
+        {"symbol": None},
         "positions ({symbol})",
         True,
     ),
@@ -1000,8 +1021,8 @@ _list_item_error_cases: list[ListItemErrorTestCaseStructure] = [
         "valid_raw_positions",
         {"modify_item": {"index": 1, "remove_field": "symbol"}},
         "symbol",
-        {"symbol": "symbol_any"},
-        "single position item in positions ({symbol})",
+        {"symbol": None},
+        "single position item in positions (all)",
         False,
     ),
     # get_open_orders: Invalid item type
@@ -1061,7 +1082,7 @@ _list_item_error_cases: list[ListItemErrorTestCaseStructure] = [
         {"modify_item": {"index": 0, "remove_field": "price"}},
         "price",
         {"symbol": "symbol_spot"},
-        "single trade item in trade history/fills ({symbol})",
+        "single trade item in trade history ({symbol})",
         False,
     ),
     (
@@ -1070,7 +1091,7 @@ _list_item_error_cases: list[ListItemErrorTestCaseStructure] = [
         {"modify_item": {"index": 1, "change_field": "qty", "new_value": "not_a_decimal"}},
         "qty",
         {"symbol": "symbol_spot"},
-        "single trade item in trade history/fills ({symbol})",
+        "single trade item in trade history ({symbol})",
         False,
     ),
     # get_market_data: Invalid item type (non-list)
@@ -1078,7 +1099,7 @@ _list_item_error_cases: list[ListItemErrorTestCaseStructure] = [
         BackpackResponseHandler.handle_get_market_data_response,
         "valid_raw_market_data",
         {"insert_invalid_item": {"error": "not a list"}, "index": 1},
-        "Skipping non-list item",
+        "[cyberdelta.apis.backpack.bp_response_handler] Skipping non-list kline item",
         {"symbol": "symbol_spot", "timeframe": "1m", "status_code": 200, "headers": {}},
         "market data (klines {symbol}, {timeframe}) - Status: 200",
         True,

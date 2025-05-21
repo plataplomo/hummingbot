@@ -116,7 +116,7 @@ async def hl_api_instance(
     _mock_auth_class, _mock_auth_instance = mock_hl_auth_init
     api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_WITH_KEY)
     # Ensure the instance created by API init is replaced by our mock for this test
-    # api._authenticator = mock_auth_instance 
+    # api._authenticator = mock_auth_instance
     # Removed: mock_hl_auth_init fixture should ensure this
 
     method = "POST"
@@ -1595,7 +1595,59 @@ async def test_get_funding_rates_success(
     with patch.object(
         hl_api_instance._info_http_client,  # Target the _info_http_client instance on the API
         "request",
-        AsyncMock(return_value=(mock_meta_response_content, 200, MagicMock())),
+        AsyncMock(
+            return_value=(
+                [
+                    {
+                        "universe": [
+                            {
+                                "name": "BTC",
+                                "szDecimals": 5,
+                                "maxLeverage": 100,
+                                "onlyIsolated": False,
+                            },
+                            {
+                                "name": "ETH",
+                                "szDecimals": 4,
+                                "maxLeverage": 80,
+                                "onlyIsolated": False,
+                            },
+                            {
+                                "name": "SOL",
+                                "szDecimals": 2,
+                                "maxLeverage": 50,
+                                "onlyIsolated": False,
+                            },
+                        ]
+                    },
+                    [
+                        {
+                            "name": "BTC",
+                            "funding": "0.0001",
+                            "markPx": "60000",
+                            "prevDayPx": "59000",
+                            "dayNtlVlm": "100000000",
+                        },
+                        {
+                            "name": "ETH",
+                            "funding": "0.0002",
+                            "markPx": "3000",
+                            "prevDayPx": "2950",
+                            "dayNtlVlm": "50000000",
+                        },
+                        {
+                            "name": "SOL",
+                            "funding": "0.0003",
+                            "markPx": "150",
+                            "prevDayPx": "145",
+                            "dayNtlVlm": "20000000",
+                        },
+                    ],
+                ],
+                200,
+                MagicMock(),
+            )
+        ),
     ) as mock_info_http_client_request_call:  # Renamed mock for clarity
         # Mock the mapper results
         current_time = datetime.now(UTC)
