@@ -188,6 +188,34 @@ class BackpackOrderMapper:
         return OrderType.LIMIT
 
     @staticmethod
+    def map_transfer_status_to_internal(raw_status: str | None) -> InternalTransferStatus:
+        """Maps a raw Backpack transfer status string to the internal `InternalTransferStatus` enum.
+
+        Args:
+            raw_status (str | None): The raw transfer status string from Backpack.
+
+        Returns:
+            InternalTransferStatus: The corresponding internal enum value.
+        """
+        if not raw_status:
+            logger.warning("[BackpackOrderMapper] Empty raw transfer status, mapping to UNKNOWN.")
+            return InternalTransferStatus.UNKNOWN
+
+        status_upper = str(raw_status).upper()
+        # Common terms observed or expected from various exchanges
+        if status_upper in ["COMPLETED", "SUCCESS", "PROCESSED", "SETTLED"]:
+            return InternalTransferStatus.COMPLETED
+        elif status_upper in ["PENDING", "PROCESSING", "CONFIRMING", "SUBMITTED", "REQUESTED"]:
+            return InternalTransferStatus.PENDING
+        elif status_upper in ["FAILED", "FAILURE", "REJECTED", "CANCELLED", "EXPIRED"]:
+            return InternalTransferStatus.FAILED
+        else:
+            logger.warning(
+                f"[BackpackOrderMapper] Unknown Backpack transfer status: '{raw_status}', mapping to UNKNOWN."
+            )
+            return InternalTransferStatus.UNKNOWN
+
+    @staticmethod
     def map_tif_to_internal(bp_tif: str | None) -> TimeInForce:
         """
         Maps a raw Backpack TimeInForce string to the internal `TimeInForce` enum.
@@ -1106,144 +1134,129 @@ class BackpackOrderMapper:
     @staticmethod
     def transform_raw_transfer_to_internal(
         raw_response: RawJsonResponse,
+        exchange_name: str,
         asset: str,
         quantity: Decimal,
         from_account_type_raw: str,
         to_account_type_raw: str,
         client_transfer_id: str | None,
     ) -> Transfer:
-        """
-        Transforms a raw Backpack transfer response into an internal `Transfer` model.
+        """Transforms a raw Backpack transfer JSON response into an internal `Transfer`
+        model.
 
         Args:
-            raw_response: The raw JSON dictionary response from the transfer API call.
-            asset: The asset symbol being transferred.
+            raw_response: The raw JSON dictionary from the transfer API call.
+            exchange_name: The name of the exchange to embed in the internal model.
+            asset: The symbol of the asset transferred (e.g., "USDC").
             quantity: The amount of the asset transferred.
-            from_account_type_raw: The raw string representing the source account type
-                from Backpack.
-            to_account_type_raw: The raw string representing the destination account type
-                from Backpack.
-            client_transfer_id: Client-provided ID for the transfer.
+            from_account_type_raw: The raw string for the source account type.
+            to_account_type_raw: The raw string for the destination account type.
+            client_transfer_id: Optional client-provided ID for the transfer.
 
         Returns:
-            Transfer: The corresponding internal `Transfer` model.
+            Transfer: The internal domain model representing the transfer.
+
+        Raises:
+            ValueError: If essential fields like 'id' or 'status' are missing or if
+                        status mapping fails.
+            ValidationError: If Pydantic validation fails during model creation.
         """
-        try:
-            if not isinstance(raw_response, dict):
-                logger.error(
-                    f"[BackpackOrderMapper] Raw transfer response was not a dictionary. "
-                    f"Type: {type(raw_response)}"
-                )
-                raise ValueError(f"Raw transfer response is not a dict: {type(raw_response)}")
+        logger.debug(
+            f"[BackpackOrderMapper] Transforming raw transfer: {raw_response!r} for {asset}"
+        )
 
-            transfer_id = str(
-                raw_response.get("id", f"fallback_id_{datetime.now(UTC).timestamp()}")
+        if not isinstance(raw_response, dict):
+            logger.error(
+                f"[BackpackOrderMapper] Raw transfer response was not a dictionary. "
+                f"Type: {type(raw_response)}, Value: {raw_response!r}"
             )
-            raw_status = raw_response.get("status")
-            timestamp_from_response = raw_response.get("createdAt")
-            response_msg = None  # Explicitly None
+            raise ValueError(
+                f"Raw transfer response is not a dict: {type(raw_response)}. "
+                f"Expected dict, got: {raw_response!r}"
+            )
 
-            internal_status = InternalTransferStatus.UNKNOWN
-            if raw_status:
-                status_upper = str(raw_status).upper()
-                if status_upper in ["COMPLETED", "SUCCESS", "PROCESSED"]:
-                    internal_status = InternalTransferStatus.COMPLETED
-                elif status_upper == "PENDING":
-                    internal_status = InternalTransferStatus.PENDING
-                elif status_upper in ["FAILED", "FAILURE", "REJECTED"]:
-                    internal_status = InternalTransferStatus.FAILED
-                else:
-                    logger.warning(
-                        f"Unknown Backpack transfer status: {raw_status}, mapping to UNKNOWN."
-                    )
+        transfer_id = raw_response.get("id")
+        raw_status_val = raw_response.get("status")
+        message = raw_response.get("message")
+        timestamp_ms_str = raw_response.get("timestamp")  # Example: Backpack might return this
 
-            # timestamp logic for transfers
-            final_timestamp: datetime = datetime.now(UTC)  # Default
-            if timestamp_from_response is None:
-                pass  # Already defaulted
-            elif isinstance(timestamp_from_response, str):
-                try:
-                    parsed_dt = parse_datetime_utc(timestamp_from_response, field_name="createdAt")
-                    if parsed_dt is not None:
-                        final_timestamp = parsed_dt
-                    else:
-                        logger.warning(
-                            f"String timestamp '{timestamp_from_response}' parsed to None "
-                            f"by parse_datetime_utc, using current time."
-                        )
-                except ValueError:
-                    logger.warning(
-                        f"Could not parse transfer timestamp string "
-                        f"'{timestamp_from_response}' via parse_datetime_utc, "
-                        f"using current time."
-                    )
-            elif isinstance(timestamp_from_response, (int, float)):
-                parsed_dt = None
-                try:
-                    # Try parse_datetime_utc first for int/float as it might have more robust
-                    # heuristics
-                    parsed_dt = parse_datetime_utc(timestamp_from_response, field_name="createdAt")
-                except (
-                    ValueError
-                ):  # Indicates it was not a format parse_datetime_utc recognized for int/float
-                    pass  # Proceed to direct numeric fallback
+        if not transfer_id:
+            raise ValueError("Missing 'id' in raw transfer response.")
 
-                if (
-                    parsed_dt is None
-                ):  # If parse_datetime_utc returned None or raised ValueError for int/float input
-                    try:
-                        numeric_val = float(timestamp_from_response)
-                        # Direct conversion for int/float if parse_datetime_utc path
-                        # didn't yield result
-                        parsed_dt = (
-                            datetime.fromtimestamp(numeric_val / 1000, UTC)
-                            if numeric_val > 1e11  # Assuming values > 10^11 are milliseconds
-                            else datetime.fromtimestamp(numeric_val, UTC)
-                        )
-                    except (TypeError, ValueError, OSError) as e_num_fallback:
-                        logger.warning(
-                            f"Could not parse transfer timestamp numeric fallback "
-                            f"{timestamp_from_response}: {e_num_fallback}, using current time."
-                        )
+        # Ensure raw_status is str or None before passing to mapper
+        raw_status_str: str | None = None
+        if raw_status_val is None:
+            raw_status_str = None
+        elif isinstance(raw_status_val, str):
+            raw_status_str = raw_status_val
+        else:
+            logger.warning(
+                f"[BackpackOrderMapper] Unexpected type for raw transfer status: "
+                f"{type(raw_status_val)}. Value: {raw_status_val!r}. Treating as unknown."
+            )
+            # Defaulting to None will lead to InternalTransferStatus.UNKNOWN
+            raw_status_str = None
 
-                if parsed_dt is not None:
-                    final_timestamp = parsed_dt
-                else:
-                    # This path means parse_datetime_utc (for int/float) and direct numeric
-                    # conversion both failed or resulted in None
-                    logger.warning(
-                        f"Numeric parsing/fallback for {timestamp_from_response} did not "
-                        f"yield a datetime, using current time."
-                    )
-            else:  # Not None, str, int, or float
+        if raw_status_str is None and raw_status_val is not None:
+            # This case means it was not a string, and not None initially.
+            # map_transfer_status_to_internal will handle None as UNKNOWN.
+            # This explicit log ensures we know it was an unexpected type.
+            logger.warning(
+                f"[BackpackOrderMapper] Raw transfer status was of unexpected type "
+                f"{type(raw_status_val)}, will be mapped to UNKNOWN."
+            )
+
+        internal_status = BackpackOrderMapper.map_transfer_status_to_internal(raw_status_str)
+
+        timestamp: datetime
+        if timestamp_ms_str and isinstance(timestamp_ms_str, (str, int)):
+            try:
+                timestamp_ms = int(timestamp_ms_str)
+                timestamp = datetime.fromtimestamp(timestamp_ms / 1000, tz=UTC)
+            except ValueError as e:
                 logger.warning(
-                    f"Unsupported type for transfer timestamp: {type(timestamp_from_response)}, "
-                    f"using current time."
+                    f"[BackpackOrderMapper] Invalid timestamp format '{timestamp_ms_str}' "
+                    f"for transfer '{transfer_id}'. Defaulting to now. Error: {e}"
+                )
+                timestamp = datetime.now(UTC)
+        else:
+            timestamp = datetime.now(UTC)  # Default if no timestamp provided or invalid type
+            if timestamp_ms_str is not None:
+                logger.warning(
+                    f"[BackpackOrderMapper] Unexpected timestamp type '{type(timestamp_ms_str)}' "
+                    f"for transfer '{transfer_id}'. Defaulting to now."
                 )
 
-            bp_details = BackpackTransferDetails(
-                client_id=client_transfer_id,
-                from_account_type=from_account_type_raw,
-                to_account_type=to_account_type_raw,
-            )
+        bp_details = BackpackTransferDetails(
+            client_id=client_transfer_id,
+            from_account_type=from_account_type_raw,
+            to_account_type=to_account_type_raw,
+            # Add other Backpack-specific fields if available in raw_response
+            # e.g., raw_response.get("someBackpackSpecificField")
+        )
 
-            return Transfer(
-                id=transfer_id,
-                exchange=ExchangeName.BACKPACK.value,
-                status=internal_status,
+        try:
+            internal_transfer = Transfer(
+                id=str(transfer_id),  # Ensure ID is string
+                exchange=exchange_name,  # Use passed exchange_name
                 asset=asset,
                 quantity=quantity,
-                timestamp=final_timestamp,  # Ensure this is always datetime
-                response_message=response_msg,
+                status=internal_status,
+                timestamp=timestamp,
+                response_message=str(message) if message is not None else None,
                 bp_details=bp_details,
+                hl_details=None,  # No Hyperliquid details for a Backpack transfer
             )
-        except (ValidationError, TypeError, AttributeError, KeyError) as e:
+            logger.debug(
+                f"[BackpackOrderMapper] Successfully transformed transfer ID '{transfer_id}'."
+            )
+            return internal_transfer
+        except ValidationError as e:
             logger.error(
-                f"[BackpackOrderMapper] Error transforming raw transfer response: {e}. "
-                f"Raw: {raw_response if isinstance(raw_response, dict) else 'Non-dict input'}",
-                exc_info=True,
+                f"[BackpackOrderMapper] Pydantic validation error transforming transfer "
+                f"ID '{transfer_id}': {e}. Raw data: {raw_response!r}"
             )
-            raise ValueError(f"Error transforming raw transfer response: {e}") from e
+            raise
 
     @staticmethod
     def transform_raw_ticker_to_internal(

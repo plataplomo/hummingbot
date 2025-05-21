@@ -53,7 +53,7 @@ def mock_loop() -> MagicMock:
 def default_bp_config() -> dict[str, Any]:
     return {
         "exchange_name": "backpack",
-        "rest_endpoint": "https://api.backpack.test",
+        "base_url": "https://api.backpack.test",
         "ws_endpoint": "wss://ws.backpack.test",
         "rate_limits": {"default_rate": 10, "default_bucket_size": 10},
     }

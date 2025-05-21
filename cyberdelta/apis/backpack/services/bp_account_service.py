@@ -26,7 +26,9 @@ from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
+from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
+from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
@@ -61,6 +63,7 @@ class BackpackAccountService:
     _mapper: BackpackOrderMapper
     _authenticator: IAuthenticator | None
     _exchange_name: str
+    _rate_limiter_service: RateLimiterService
 
     def __init__(
         self,
@@ -69,6 +72,7 @@ class BackpackAccountService:
         response_handler: BackpackResponseHandler,
         authenticator: IAuthenticator | None,
         exchange_name: str,
+        rate_limiter_service: RateLimiterService,
     ) -> None:
         """
         Initialize the BackpackAccountService.
@@ -79,6 +83,7 @@ class BackpackAccountService:
             response_handler: An instance of BackpackResponseHandler.
             authenticator: An instance of IAuthenticator for signed requests.
             exchange_name: The name of the exchange.
+            rate_limiter_service: Service for managing API rate limits.
         """
         self._http_client_requester = http_client_requester
         self._request_builder = request_builder
@@ -86,6 +91,7 @@ class BackpackAccountService:
         self._authenticator = authenticator
         self._exchange_name = exchange_name
         self._mapper = BackpackOrderMapper()  # Re-added mapper instantiation
+        self._rate_limiter_service = rate_limiter_service
 
     async def _get_raw_balances_dict(self) -> dict[str, BackpackRawBalance]:
         """Helper to fetch and validate raw account balances dictionary."""
@@ -105,6 +111,10 @@ class BackpackAccountService:
                 endpoint=endpoint_path,
                 params=params,
                 is_signed=True,
+                rate_limiter_service=self._rate_limiter_service,
+                endpoint_group="private",
+                request_weight=1,
+                is_public_info_endpoint=False,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw balances dict response: {raw_data!r} "
@@ -150,8 +160,8 @@ class BackpackAccountService:
 
     async def _get_raw_positions_list(self, symbol: str | None = None) -> list[BackpackRawPosition]:
         """Helper to fetch and validate raw current open positions list."""
-        endpoint_path = f"/api/v1/positions/{symbol}" if symbol else "/api/v1/positions"
-        # build_get_positions_params returns None as no query params are needed
+        endpoint_path = "/api/v1/positions"
+        # build_get_positions_params returns None if symbol is None, or {"symbol": symbol} if provided
         params = self._request_builder.build_get_positions_params(symbol)
         logger.debug(
             f"[{self._exchange_name}] Requesting raw positions from {endpoint_path} "
@@ -161,7 +171,14 @@ class BackpackAccountService:
         status_code: int = 0
         try:
             raw_data, status_code, _ = await self._http_client_requester(
-                method="GET", endpoint=endpoint_path, params=params, is_signed=True
+                method="GET",
+                endpoint=endpoint_path,
+                params=params,
+                is_signed=True,
+                rate_limiter_service=self._rate_limiter_service,
+                endpoint_group="private",
+                request_weight=1,
+                is_public_info_endpoint=False,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw positions response for '{symbol or 'all'}: "
@@ -225,7 +242,14 @@ class BackpackAccountService:
         status_code: int = 0
         try:
             raw_data, status_code, _ = await self._http_client_requester(
-                method="GET", endpoint=endpoint_path, params=params, is_signed=True
+                method="GET",
+                endpoint=endpoint_path,
+                params=params,
+                is_signed=True,
+                rate_limiter_service=self._rate_limiter_service,
+                endpoint_group="private",
+                request_weight=1,
+                is_public_info_endpoint=False,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw account summary response: {raw_data!r} "
@@ -427,6 +451,10 @@ class BackpackAccountService:
                 endpoint=endpoint_path,
                 data=payload,
                 is_signed=True,
+                rate_limiter_service=self._rate_limiter_service,
+                endpoint_group="private",
+                request_weight=1,
+                is_public_info_endpoint=False,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw transfer response: {raw_data!r} "
@@ -458,6 +486,7 @@ class BackpackAccountService:
                 )
             internal_transfer = self._mapper.transform_raw_transfer_to_internal(
                 raw_response=validated_raw_json_response,  # Pass validated dict
+                exchange_name=self._exchange_name,  # Pass exchange_name
                 asset=asset,
                 quantity=amount,
                 from_account_type_raw=from_account_type,
@@ -494,8 +523,8 @@ class BackpackAccountService:
                 exc_info=True,
             )
             raise APIError(
-                message=f"Unexpected error for transfer: {e_unhandled}",
-                code=APIErrorCode.UNKNOWN.value,
+                message=f"Processing transfer data failed: {e_unhandled}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
                 original_exception=e_unhandled,
                 http_status=status_code,
                 exchange_message=str(raw_data),
@@ -537,6 +566,10 @@ class BackpackAccountService:
                 endpoint=endpoint_path,
                 data=payload,
                 is_signed=True,
+                rate_limiter_service=self._rate_limiter_service,
+                endpoint_group="private",
+                request_weight=1,
+                is_public_info_endpoint=False,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw withdrawal response: {raw_data!r} "
@@ -633,6 +666,10 @@ class BackpackAccountService:
                 endpoint=endpoint_path,
                 params=params,
                 is_signed=True,
+                rate_limiter_service=self._rate_limiter_service,
+                endpoint_group="private",
+                request_weight=1,
+                is_public_info_endpoint=False,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw order history response: {raw_data!r} "
@@ -727,6 +764,10 @@ class BackpackAccountService:
                 endpoint=endpoint_path,
                 params=params,
                 is_signed=True,
+                rate_limiter_service=self._rate_limiter_service,
+                endpoint_group="private",
+                request_weight=1,
+                is_public_info_endpoint=False,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw trade history response: {raw_data!r} "

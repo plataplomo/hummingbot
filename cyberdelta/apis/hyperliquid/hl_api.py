@@ -192,6 +192,8 @@ class HyperliquidAPI(ExchangeAPI):
         self._hl_candle_mapper = HyperliquidCandleMapper()
         self._hl_user_fill_mapper = HyperliquidUserFillMapper()
 
+        self.exchange_name = "hyperliquid"  # Define exchange_name before use
+
         self.market_data_service = HyperliquidMarketDataService(
             http_client_requester=self._market_data_requester_adapter,
             request_builder=self._hl_request_builder,
@@ -615,9 +617,7 @@ class HyperliquidAPI(ExchangeAPI):
                             )
 
                         elif event_type_str == "order":
-                            _handle_order_wrapper = (
-                                HyperliquidWsRawMessageHandler.handle_user_order_update_wrapper_payload
-                            )
+                            _handle_order_wrapper = HyperliquidWsRawMessageHandler.handle_user_order_update_wrapper_payload
                             order_update_wrapper = _handle_order_wrapper(event_item_dict)
                             _handle_order_event = (
                                 HyperliquidWsRawMessageHandler.handle_user_order_event_payload
@@ -628,9 +628,7 @@ class HyperliquidAPI(ExchangeAPI):
                             )
 
                         elif event_type_str == "positionUpdate":
-                            _handle_pos_update = (
-                                HyperliquidWsRawMessageHandler.handle_user_position_update_event_payload
-                            )
+                            _handle_pos_update = HyperliquidWsRawMessageHandler.handle_user_position_update_event_payload
                             validated_position_update = _handle_pos_update(event_item_dict)
                             current_event_payload_for_handler = (
                                 validated_position_update.model_dump(mode="json")

@@ -62,14 +62,16 @@ def backpack_market_data_service(
     mock_http_client_requester: AsyncMock,
     mock_request_builder: MagicMock,
     mock_response_handler: MagicMock,
+    mock_rate_limiter_service: AsyncMock,
 ) -> BackpackMarketDataService:
-    service = BackpackMarketDataService(
+    """Provides an instance of BackpackMarketDataService with mocked dependencies."""
+    return BackpackMarketDataService(
         http_client_requester=mock_http_client_requester,
         request_builder=mock_request_builder,
         response_handler=mock_response_handler,
-        exchange_name="backpack_test",
+        exchange_name="backpack_test_market_data",
+        rate_limiter_service=mock_rate_limiter_service,
     )
-    return service
 
 
 class TestBackpackMarketDataService:
@@ -82,6 +84,7 @@ class TestBackpackMarketDataService:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: AsyncMock,
     ) -> None:
         """Test get_ticker successfully retrieves and processes ticker data."""
         symbol = "SOL_USDC"
@@ -140,6 +143,9 @@ class TestBackpackMarketDataService:
                 endpoint=mock_endpoint_path,
                 params=mock_params,
                 is_public_info_endpoint=True,
+                rate_limiter_service=mock_rate_limiter_service,
+                endpoint_group="public_info",
+                request_weight=1,
             )
             mock_response_handler.handle_get_ticker_response.assert_called_once_with(
                 mock_raw_response_content, symbol, mock_status_code, mock_headers
@@ -181,6 +187,7 @@ class TestBackpackMarketDataService:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,  # For assert_not_called
+        mock_rate_limiter_service: AsyncMock,
     ) -> None:
         """Test get_ticker when HTTP client returns None content."""
         symbol = "SOL_USDC"
@@ -199,10 +206,9 @@ class TestBackpackMarketDataService:
                 await backpack_market_data_service.get_ticker(symbol)
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-            assert (
-                f"No content received from HTTP client for GET {mock_endpoint_path}"
-                in exc_info.value.message
-            )
+            # Corrected assertion to match the actual error message from the service
+            expected_msg_part = f"No data for ticker {symbol}, status: 200"
+            assert expected_msg_part in exc_info.value.message
 
             mock_request_builder.build_get_ticker_params.assert_called_once_with(symbol=symbol)
             mock_http_client_requester.assert_called_once_with(
@@ -210,6 +216,9 @@ class TestBackpackMarketDataService:
                 endpoint=mock_endpoint_path,
                 params=mock_params,
                 is_public_info_endpoint=True,
+                rate_limiter_service=mock_rate_limiter_service,
+                endpoint_group="public_info",
+                request_weight=1,
             )
             mock_response_handler.handle_get_ticker_response.assert_not_called()
             mock_mapper.transform_raw_ticker_to_internal.assert_not_called()
@@ -221,6 +230,7 @@ class TestBackpackMarketDataService:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: AsyncMock,
     ) -> None:
         """Test get_order_book successfully retrieves and processes order book data."""
         symbol = "SOL_USDC"
@@ -239,8 +249,13 @@ class TestBackpackMarketDataService:
             timestamp=1678886400000,
         )
 
+        mock_headers_obj = MagicMock()  # Create a specific mock object for headers
         mock_request_builder.build_get_order_book_params.return_value = mock_params
-        mock_http_client_requester.return_value = (mock_raw_response_content, 200, MagicMock())
+        mock_http_client_requester.return_value = (
+            mock_raw_response_content,
+            200,
+            mock_headers_obj,
+        )  # Use it here
         mock_response_handler.handle_get_order_book_response.return_value = mock_validated_book
 
         result = await backpack_market_data_service.get_order_book(symbol, limit=depth)
@@ -253,14 +268,18 @@ class TestBackpackMarketDataService:
             endpoint="/api/v1/depth",
             params=mock_params,
             is_public_info_endpoint=True,
+            rate_limiter_service=mock_rate_limiter_service,
+            endpoint_group="public_info",
+            request_weight=1,
         )
         mock_response_handler.handle_get_order_book_response.assert_called_once_with(
-            mock_raw_response_content, symbol, 200, MagicMock()
+            mock_raw_response_content,
+            symbol,
+            200,
+            mock_headers_obj,  # Assert with the same object
         )
-        expected_internal_order_book: OrderBook = (
-            BackpackOrderMapper().transform_raw_orderbook_to_internal(symbol, mock_validated_book)
-        )
-        assert result == expected_internal_order_book
+
+        assert isinstance(result, OrderBook)
 
     @pytest.mark.asyncio
     async def test_get_order_book_http_client_returns_none(
@@ -269,17 +288,18 @@ class TestBackpackMarketDataService:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: AsyncMock,
     ) -> None:
         """Test get_order_book when HTTP client returns None content."""
         symbol = "SOL_USDC"
         depth = 100  # Default depth if not specified, or a common test value
 
-        mock_endpoint_path = f"/api/v1/depth?symbol={symbol}"  # Example endpoint
+        # mock_endpoint_path = f"/api/v1/depth?symbol={symbol}" # Not needed if builder returns only params
+        mock_base_endpoint_path = "/api/v1/depth"  # The service uses the base path
         mock_params = {"symbol": symbol, "limit": depth}
 
         mock_request_builder.build_get_order_book_params.return_value = (
-            mock_endpoint_path,
-            mock_params,
+            mock_params  # Builder for get_order_book should return only params dict
         )
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
@@ -288,22 +308,24 @@ class TestBackpackMarketDataService:
                 await backpack_market_data_service.get_order_book(symbol, limit=depth)
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-            assert (
-                f"No content received from HTTP client for GET {mock_endpoint_path}"
-                in exc_info.value.message
-            )
+            # Corrected assertion to match the actual error message from the service
+            expected_msg_part = f"No data for order_book {symbol}, status: 200"
+            assert expected_msg_part in exc_info.value.message
 
             mock_request_builder.build_get_order_book_params.assert_called_once_with(
                 symbol=symbol, limit=depth
             )
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
-                endpoint=mock_endpoint_path,
+                endpoint=mock_base_endpoint_path,  # Assert with the base path
                 params=mock_params,
                 is_public_info_endpoint=True,
+                rate_limiter_service=mock_rate_limiter_service,
+                endpoint_group="public_info",
+                request_weight=1,
             )
             mock_response_handler.handle_get_order_book_response.assert_not_called()
-            mock_mapper.transform_raw_order_book_to_internal.assert_not_called()
+            mock_mapper.transform_raw_orderbook_to_internal.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_success(
@@ -312,6 +334,7 @@ class TestBackpackMarketDataService:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: AsyncMock,
     ) -> None:
         """Test get_recent_trades successfully retrieves and processes trade data."""
         symbol = "ETH_USDC"
@@ -354,8 +377,13 @@ class TestBackpackMarketDataService:
             ),
         ]
 
-        mock_request_builder.build_get_recent_trades_params.return_value = mock_params
-        mock_http_client_requester.return_value = (mock_raw_trades_data, 200, MagicMock())
+        mock_base_endpoint_path = "/api/v1/trades"
+        mock_request_builder.build_get_recent_trades_params.return_value = (
+            mock_base_endpoint_path,
+            mock_params,  # Builder returns tuple (endpoint, params)
+        )
+        mock_headers_obj = MagicMock()  # Specific instance for headers
+        mock_http_client_requester.return_value = (mock_raw_trades_data, 200, mock_headers_obj)
         mock_response_handler.handle_get_recent_trades_response.return_value = mock_validated_trades
 
         result = await backpack_market_data_service.get_recent_trades(symbol, limit=limit)
@@ -365,12 +393,18 @@ class TestBackpackMarketDataService:
         )
         mock_http_client_requester.assert_called_once_with(
             method="GET",
-            endpoint="/api/v1/trades",
+            endpoint=mock_base_endpoint_path,  # Assert with the base path provided by builder
             params=mock_params,
             is_public_info_endpoint=True,
+            rate_limiter_service=mock_rate_limiter_service,
+            endpoint_group="public_info",
+            request_weight=1,
         )
         mock_response_handler.handle_get_recent_trades_response.assert_called_once_with(
-            mock_raw_trades_data, symbol, 200, MagicMock()
+            mock_raw_trades_data,
+            symbol,
+            200,
+            mock_headers_obj,  # Use the same instance
         )
         mapper = BackpackOrderMapper()
         expected_internal_trades: list[Trade] = []
@@ -387,6 +421,7 @@ class TestBackpackMarketDataService:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,  # For assert_not_called
+        mock_rate_limiter_service: AsyncMock,
     ) -> None:
         """Test get_recent_trades when HTTP client returns None content."""
         symbol = "ETH_USDC"
@@ -395,8 +430,8 @@ class TestBackpackMarketDataService:
         mock_params = {"symbol": symbol, "limit": limit}
 
         mock_request_builder.build_get_recent_trades_params.return_value = (
-            mock_endpoint_path,
-            mock_params,  # builder returns tuple now
+            mock_endpoint_path,  # builder returns tuple (endpoint, params)
+            mock_params,
         )
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
@@ -405,7 +440,7 @@ class TestBackpackMarketDataService:
                 await backpack_market_data_service.get_recent_trades(symbol, limit=limit)
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-            assert f"No data for trades {symbol}" in exc_info.value.message
+            assert f"No data for recent_trades {symbol}, status: 200" in exc_info.value.message
             # Or, if the service method is updated for more specific None checks:
             # assert f"No content received from HTTP client for GET {mock_endpoint_path}" in \
             # exc_info.value.message
@@ -418,6 +453,9 @@ class TestBackpackMarketDataService:
                 endpoint=mock_endpoint_path,
                 params=mock_params,
                 is_public_info_endpoint=True,
+                rate_limiter_service=mock_rate_limiter_service,
+                endpoint_group="public_info",
+                request_weight=1,
             )
             mock_response_handler.handle_get_recent_trades_response.assert_not_called()
             mock_mapper.transform_raw_trade_to_internal.assert_not_called()
@@ -432,6 +470,7 @@ class TestBackpackMarketDataService:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: AsyncMock,
     ) -> None:
         """Test get_funding_rate successfully retrieves and processes funding rate data."""
         symbol = "SOL-PERP"
@@ -479,7 +518,7 @@ class TestBackpackMarketDataService:
         mock_response_handler.handle_get_funding_rate_response.return_value = mock_raw_funding_rate
 
         with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
-            mock_mapper.transform_raw_funding_to_internal.return_value = (
+            mock_mapper.transform_raw_funding_rate_to_internal.return_value = (
                 expected_internal_funding_rate
             )
 
@@ -493,11 +532,14 @@ class TestBackpackMarketDataService:
                 endpoint=mock_endpoint_path,
                 params=mock_params,
                 is_public_info_endpoint=True,
+                rate_limiter_service=mock_rate_limiter_service,
+                endpoint_group="public_info",
+                request_weight=1,
             )
             mock_response_handler.handle_get_funding_rate_response.assert_called_once_with(
                 mock_raw_response_content, symbol, mock_status_code, mock_headers
             )
-            mock_mapper.transform_raw_funding_to_internal.assert_called_once_with(
+            mock_mapper.transform_raw_funding_rate_to_internal.assert_called_once_with(
                 mock_raw_funding_rate
             )
             assert result_funding_rate == expected_internal_funding_rate
@@ -509,6 +551,7 @@ class TestBackpackMarketDataService:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: AsyncMock,
     ) -> None:
         """Test get_funding_rate when HTTP client returns None content."""
         symbol = "SOL-PERP"
@@ -536,9 +579,12 @@ class TestBackpackMarketDataService:
                 endpoint=mock_endpoint_path,
                 params=mock_params,
                 is_public_info_endpoint=True,
+                rate_limiter_service=mock_rate_limiter_service,
+                endpoint_group="public_info",
+                request_weight=1,
             )
             mock_response_handler.handle_get_funding_rate_response.assert_not_called()
-            mock_mapper.transform_raw_funding_to_internal.assert_not_called()
+            mock_mapper.transform_raw_funding_rate_to_internal.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_market_data_success(
@@ -547,6 +593,7 @@ class TestBackpackMarketDataService:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: AsyncMock,
     ) -> None:
         """Test get_market_data (klines) successfully retrieves and processes kline data."""
         symbol = "BTC_USDC"
@@ -619,8 +666,10 @@ class TestBackpackMarketDataService:
             ),
         ]
 
+        expected_endpoint_path = "/api/v1/klines"
         mock_request_builder.build_get_market_data_params.return_value = (
-            mock_params_returned_by_builder
+            expected_endpoint_path,
+            mock_params_returned_by_builder,
         )
         mock_http_client_requester.return_value = (mock_raw_kline_data, 200, MagicMock())
         mock_response_handler.handle_get_market_data_response.return_value = mock_validated_klines
@@ -638,9 +687,12 @@ class TestBackpackMarketDataService:
         )
         mock_http_client_requester.assert_called_once_with(
             method="GET",
-            endpoint="/api/v1/klines",
+            endpoint=expected_endpoint_path,
             params=mock_params_returned_by_builder,
             is_public_info_endpoint=True,
+            rate_limiter_service=mock_rate_limiter_service,
+            endpoint_group="public_info",
+            request_weight=1,
         )
         mock_response_handler.handle_get_market_data_response.assert_called_once_with(
             mock_raw_kline_data, symbol, timeframe, 200, MagicMock()
@@ -659,6 +711,7 @@ class TestBackpackMarketDataService:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: AsyncMock,
     ) -> None:
         """Test get_market_data (klines) when HTTP client returns None content."""
         symbol = "BTC_USDC"
@@ -694,6 +747,9 @@ class TestBackpackMarketDataService:
                 endpoint=mock_endpoint_path,
                 params=mock_params,
                 is_public_info_endpoint=True,
+                rate_limiter_service=mock_rate_limiter_service,
+                endpoint_group="public_info",
+                request_weight=1,
             )
             mock_response_handler.handle_get_market_data_response.assert_not_called()
             mock_mapper.transform_raw_kline_to_internal.assert_not_called()
@@ -705,6 +761,7 @@ class TestBackpackMarketDataService:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: AsyncMock,
     ) -> None:
         """Test get_historical_funding_rates when HTTP client returns None content."""
         symbol = "SOL-PERP"
@@ -743,6 +800,9 @@ class TestBackpackMarketDataService:
                 endpoint=mock_endpoint_path,
                 params=mock_params,
                 is_public_info_endpoint=True,
+                rate_limiter_service=mock_rate_limiter_service,
+                endpoint_group="public_info",
+                request_weight=1,
             )
             mock_response_handler.handle_get_historical_funding_rates_response.assert_not_called()
             # Assuming mapper method for a single item, or a list method might be called

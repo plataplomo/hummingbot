@@ -665,7 +665,7 @@ class TestHyperliquidEip712Authenticator:
 
 
 # New tests for connectionId properties, replacing the internal method tests.
-@patch("eth_account.messages.encode_typed_data")
+@patch("cyberdelta.apis.hyperliquid.hl_auth.encode_typed_data")
 @pytest.mark.asyncio
 async def test_prepare_request_connection_id_properties(
     mock_encode_typed_data: MagicMock,  # Mock for encode_typed_data
@@ -704,10 +704,23 @@ async def test_prepare_request_connection_id_properties(
 
     # --- Test Determinism ---
     await auth.prepare_request("POST", "/exchange", None, payload1, None)
+    assert mock_encode_typed_data.called, (
+        "encode_typed_data was not called by the first call to prepare_request"
+    )
+    assert len(mock_encode_typed_data.call_args_list) > 0, (
+        "call_args_list is empty after first call"
+    )
     _args_call1, kwargs_call1 = mock_encode_typed_data.call_args_list[-1]
     conn_id1 = kwargs_call1["full_message"]["message"]["connectionId"]
 
+    mock_encode_typed_data.reset_mock()  # Reset mock before the next call
     await auth.prepare_request("POST", "/exchange", None, payload1, None)  # Identical payload
+    assert mock_encode_typed_data.called, (
+        "encode_typed_data was not called by the second call to prepare_request"
+    )
+    assert len(mock_encode_typed_data.call_args_list) > 0, (
+        "call_args_list is empty after second call"
+    )
     _args_call2, kwargs_call2 = mock_encode_typed_data.call_args_list[-1]
     conn_id1_again = kwargs_call2["full_message"]["message"]["connectionId"]
     assert conn_id1 == conn_id1_again, "connectionId should be deterministic for identical payloads"
@@ -720,11 +733,20 @@ async def test_prepare_request_connection_id_properties(
         "connectionId should be deterministic for payloads with same content but shuffled keys"
     )
 
+    mock_encode_typed_data.reset_mock()  # Reset mock before the next call
     # --- Test Content Sensitivity ---
     await auth.prepare_request("POST", "/exchange", None, payload2, None)  # Different payload
+    assert mock_encode_typed_data.called, (
+        "encode_typed_data was not called by the third call to prepare_request"
+    )
+    assert len(mock_encode_typed_data.call_args_list) > 0, (
+        "call_args_list is empty after third call"
+    )
     _args_call3, kwargs_call3 = mock_encode_typed_data.call_args_list[-1]
     conn_id2 = kwargs_call3["full_message"]["message"]["connectionId"]
     assert conn_id1 != conn_id2, "connectionId should change for different payloads"
 
     # Ensure encode_typed_data was actually called as expected
-    assert mock_encode_typed_data.call_count >= 3  # Or specific number if reset
+    # The call_count is reset, so we check based on the last call group
+    # This assertion might be less useful now with resets, but confirms the last group was called.
+    assert mock_encode_typed_data.call_count == 1  # Should be 1 since last reset

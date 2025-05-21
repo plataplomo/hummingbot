@@ -1080,7 +1080,7 @@ class TestProcessFirstExchangeStatus:
 _invalid_type_test_cases_simple: list[InvalidTypeTestCaseType] = [
     (
         HyperliquidResponseHandler.handle_exchange_response,
-        ["invalid"],  # This is InvalidDataForTestType (RawJsonResponse-like but invalid)
+        ["invalid"],
         "dict",
         {"action_type": "order"},
         "exchange (order)",

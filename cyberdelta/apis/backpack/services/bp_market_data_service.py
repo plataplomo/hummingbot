@@ -41,6 +41,9 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse  # Import ParsedJsonResponse
 
+# Add RateLimiterService import
+from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
+
 # Base API error models
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -78,6 +81,7 @@ class BackpackMarketDataService:
     _response_handler: BackpackResponseHandler
     _mapper: BackpackOrderMapper
     _exchange_name: str
+    _rate_limiter_service: RateLimiterService
 
     def __init__(
         self,
@@ -85,6 +89,7 @@ class BackpackMarketDataService:
         request_builder: BackpackRequestBuilder,
         response_handler: BackpackResponseHandler,
         exchange_name: str,
+        rate_limiter_service: RateLimiterService,
     ) -> None:
         """
         Initialize the BackpackMarketDataService.
@@ -94,12 +99,14 @@ class BackpackMarketDataService:
             request_builder: An instance of BackpackRequestBuilder.
             response_handler: An instance of BackpackResponseHandler.
             exchange_name: The name of the exchange.
+            rate_limiter_service: The rate limiter service.
         """
         self._http_client_requester = http_client_requester
         self._request_builder = request_builder
         self._response_handler = response_handler
         self._exchange_name = exchange_name
         self._mapper = BackpackOrderMapper()
+        self._rate_limiter_service = rate_limiter_service
 
     async def get_ticker(self, symbol: str) -> Ticker:
         """Retrieves the latest ticker information for a specific symbol."""
@@ -118,6 +125,9 @@ class BackpackMarketDataService:
                 endpoint=endpoint_path,  # Corrected from endpoint_path
                 params=params,
                 is_public_info_endpoint=True,
+                rate_limiter_service=self._rate_limiter_service,
+                endpoint_group="public_info",
+                request_weight=1,
             )
             raw_data, status_code, headers = response_tuple
             logger.debug(
@@ -257,19 +267,23 @@ class BackpackMarketDataService:
 
     async def get_order_book(self, symbol: str, limit: int | None = None) -> OrderBook:
         """Retrieves the order book for a specific symbol."""
-        effective_limit = limit if limit is not None else 100  # Default Backpack limit
-        endpoint_path, params = self._request_builder.build_get_order_book_params(
-            symbol=symbol, limit=effective_limit
-        )
-        logger.debug(
-            f"[{self._exchange_name}] Requesting order book for {symbol} (limit: {effective_limit})"
-        )
+        # Define the fixed endpoint path for order book
+        endpoint_path = "/api/v1/depth"
+        # build_get_order_book_params returns only the params dictionary
+        params = self._request_builder.build_get_order_book_params(symbol=symbol, limit=limit)
+        logger.debug(f"[{self._exchange_name}] Requesting order book for {symbol} (limit: {limit})")
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
         headers: Mapping[str, str] = {}
         try:
             response_tuple = await self._http_client_requester(
-                method="GET", endpoint=endpoint_path, params=params, is_public_info_endpoint=True
+                method="GET",
+                endpoint=endpoint_path,
+                params=params,
+                is_public_info_endpoint=True,
+                rate_limiter_service=self._rate_limiter_service,
+                endpoint_group="public_info",
+                request_weight=1,
             )
             raw_data, status_code, headers = response_tuple
             logger.debug(
@@ -347,7 +361,13 @@ class BackpackMarketDataService:
         headers: Mapping[str, str] = {}
         try:
             response_tuple = await self._http_client_requester(
-                method="GET", endpoint=endpoint_path, params=params, is_public_info_endpoint=True
+                method="GET",
+                endpoint=endpoint_path,
+                params=params,
+                is_public_info_endpoint=True,
+                rate_limiter_service=self._rate_limiter_service,
+                endpoint_group="public_info",
+                request_weight=1,
             )
             raw_data_list, status_code, headers = response_tuple
             logger.debug(
@@ -429,7 +449,13 @@ class BackpackMarketDataService:
         headers: Mapping[str, str] = {}
         try:
             response_tuple = await self._http_client_requester(
-                method="GET", endpoint=endpoint_path, params=params, is_public_info_endpoint=True
+                method="GET",
+                endpoint=endpoint_path,
+                params=params,
+                is_public_info_endpoint=True,
+                rate_limiter_service=self._rate_limiter_service,
+                endpoint_group="public_info",
+                request_weight=1,
             )
             raw_data, status_code, headers = response_tuple
             logger.debug(
@@ -578,6 +604,9 @@ class BackpackMarketDataService:
                 # Add is_public_info_endpoint=True if appropriate for this endpoint
                 # Most market data endpoints are public.
                 is_public_info_endpoint=True,
+                rate_limiter_service=self._rate_limiter_service,
+                endpoint_group="public_info",
+                request_weight=1,
             )
 
             raw_funding_interval_rates: list[BackpackRawFundingIntervalRate] = (
@@ -671,7 +700,13 @@ class BackpackMarketDataService:
         headers: Mapping[str, str] = {}
         try:
             response_tuple = await self._http_client_requester(
-                method="GET", endpoint=endpoint_path, params=params, is_public_info_endpoint=True
+                method="GET",
+                endpoint=endpoint_path,
+                params=params,
+                is_public_info_endpoint=True,
+                rate_limiter_service=self._rate_limiter_service,
+                endpoint_group="public_info",
+                request_weight=1,
             )
             raw_data_list, status_code, headers = response_tuple
             logger.debug(
