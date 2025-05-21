@@ -30,6 +30,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.market import Candle
+from cyberdelta.core.models.market.order import CancelOrderResult
 
 # Match the definition in cyberdelta.apis.base.exchange_api.py
 MessageHandler = Callable[..., Coroutine[Any, Any, None]]
@@ -136,8 +137,8 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
         return True
 
-    async def cancel_all_orders(self, symbol: str | None = None) -> None:
-        pass
+    async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
+        return []
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         return [MagicMock(spec=Order)]
@@ -277,8 +278,10 @@ async def test_exchange_api_request_delegates_to_http_client_and_handles_respons
         CIMultiDict(mock_response_headers.items.return_value)
     )
 
+    mock_status_code = 200  # Added status code for the mock
     mock_http_client_request.return_value = (
         mock_response_content,
+        mock_status_code,
         mock_processed_headers,
         mock_raw_headers_multidict,
     )
@@ -296,7 +299,7 @@ async def test_exchange_api_request_delegates_to_http_client_and_handles_respons
         method, endpoint, params=params, data=data_payload, headers=custom_headers, is_signed=True
     )
 
-    assert result == mock_response_content
+    assert result[0] == mock_response_content
     mock_http_client_request.assert_called_once_with(
         method=method,
         endpoint_path=f"{default_config['rest_endpoint']}{endpoint}",

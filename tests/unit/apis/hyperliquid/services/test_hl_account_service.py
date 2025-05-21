@@ -75,6 +75,12 @@ def mock_hl_user_fill_mapper() -> MagicMock:
 
 
 @pytest.fixture
+def mock_http_client():
+    with patch("cyberdelta.apis.connectivity.http_client.HttpClient") as mock:
+        yield mock
+
+
+@pytest.fixture
 def hyperliquid_account_service(
     mock_http_client_requester: AsyncMock,
     mock_request_builder: MagicMock,
@@ -90,7 +96,7 @@ def hyperliquid_account_service(
         response_handler=mock_response_handler,
         authenticator=mock_authenticator,
         exchange_name="hyperliquid_test_account",
-        info_url="https://info.hyperliquid.xyz",
+        info_url="http://test-mock-url",  # Mocked URL to prevent actual network calls
         wallet_address="0xTestWalletAddress",
         mapper=mock_hl_mapper,
         order_mapper=mock_hl_order_mapper,
@@ -528,6 +534,23 @@ class TestHyperliquidAccountService:
         )
         assert result == [mapped_order]
 
+        mock_request_builder.build_order_history_payload.assert_called_once_with(
+            wallet_address="0xTestWalletAddress", start_time_ms=1234567890, end_time_ms=1234567990
+        )
+        mock_http_client_requester.assert_called_once_with(
+            method="POST",
+            endpoint_path="/exchange",
+            data={"foo": "bar"},
+            is_info_endpoint=False,
+            is_signed=False,
+        )
+        mock_response_handler.handle_query_order_history_response.assert_called_once_with(
+            [{"order": 1}]
+        )
+        mock_hl_order_mapper.transform_raw_historical_order_to_internal.assert_called_once_with(
+            MagicMock(order=mock_raw_order)
+        )
+
     @pytest.mark.asyncio
     async def test_get_order_history_symbol_filter(
         self,
@@ -544,8 +567,34 @@ class TestHyperliquidAccountService:
         mock_payload_model.model_dump.return_value = {"foo": "bar"}
         mock_request_builder.build_order_history_payload.return_value = mock_payload_model
         mock_http_client_requester.return_value = ([{"order": 1}], 200, {})
-        mock_raw_order1 = MagicMock()
-        mock_raw_order2 = MagicMock()
+        mock_raw_order1 = MagicMock(
+            oid=1,
+            cloid=None,
+            asset="BTC",
+            side="B",
+            limit_px="10000.0",
+            sz="0.001",
+            timestamp=1672531200000,
+            order_type={"limit": {"tif": "Gtc"}},
+            reduce_only=False,
+            remaining_sz="0.0",
+            status="Filled",
+            status_timestamp=1672531200000,
+        )
+        mock_raw_order2 = MagicMock(
+            oid=2,
+            cloid=None,
+            asset="ETH",
+            side="S",
+            limit_px="2000.0",
+            sz="0.01",
+            timestamp=1672531201000,
+            order_type={"limit": {"tif": "Gtc"}},
+            reduce_only=False,
+            remaining_sz="0.0",
+            status="Filled",
+            status_timestamp=1672531201000,
+        )
         mock_response_handler.handle_query_order_history_response.return_value = [
             MagicMock(order=mock_raw_order1),
             MagicMock(order=mock_raw_order2),
@@ -654,7 +703,7 @@ class TestHyperliquidAccountService:
         )
         mapped_trade = MagicMock(symbol="BTC")
         with patch.object(
-            HyperliquidUserFillMapper, "map", return_value=mapped_trade
+            mock_hl_user_fill_mapper, "map", return_value=mapped_trade
         ) as mocked_map_method:
             result = await hyperliquid_account_service.get_trade_history(symbol="BTC")
             assert result == [mapped_trade]
@@ -692,7 +741,7 @@ class TestHyperliquidAccountService:
             raise AssertionError(f"Unexpected raw_fill_arg: {raw_fill_arg}")
 
         with patch.object(
-            HyperliquidUserFillMapper, "map", side_effect=map_side_effect_func
+            mock_hl_user_fill_mapper, "map", side_effect=map_side_effect_func
         ) as mocked_map_method:
             result = await hyperliquid_account_service.get_trade_history(symbol="BTC")
             assert result == [mapped_trade1]
@@ -735,7 +784,7 @@ class TestHyperliquidAccountService:
         assert excinfo_no_wallet.value.code == APIErrorCode.INVALID_REQUEST.value
         assert "Wallet address is required" in excinfo_no_wallet.value.message
 
-        # APIError from requester (uses the standard hyperliquid_account_service fixture which has 
+        # APIError from requester (uses the standard hyperliquid_account_service fixture which has
         # a wallet address)
         # No need to manipulate _wallet_address here, fixture provides it.
         mock_request_builder.build_user_fills_request_payload.return_value = MagicMock(
@@ -799,9 +848,7 @@ class TestHyperliquidAccountService:
             await hyperliquid_account_service.get_balances()
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            "No content received from HTTP client for clearinghouseState" in exc_info.value.message
-        )
+        assert "No data received for user state (for clearinghouse_state)" in exc_info.value.message
 
         mock_request_builder.build_user_state_payload.assert_called_once_with(
             user_address=wallet_address
@@ -834,9 +881,12 @@ class TestHyperliquidAccountService:
         mock_payload_model = MagicMock()
         # Adjusted to reflect that build_order_history_payload takes user_address
         # and optional symbol
-        mock_payload_dict = {"type": "orderHistory", "user": wallet_address}
-        if symbol:
-            mock_payload_dict["coin"] = symbol  # Hyperliquid uses 'coin' for symbol in this payload
+        mock_payload_dict = {
+            "type": "queryOrderHistory",
+            "user": wallet_address,
+            "startTime": 1234567890,  # Dummy timestamp
+            "endTime": 1234567990,  # Dummy timestamp
+        }
 
         mock_payload_model.model_dump.return_value = mock_payload_dict
         mock_request_builder.build_order_history_payload.return_value = mock_payload_model
@@ -891,7 +941,7 @@ class TestHyperliquidAccountService:
             mock_payload_dict["coin"] = symbol  # Actual payload might differ, adjust if needed
 
         mock_payload_model.model_dump.return_value = mock_payload_dict
-        mock_request_builder.build_user_fills_payload.return_value = mock_payload_model
+        mock_request_builder.build_user_fills_request_payload.return_value = mock_payload_model
 
         mock_http_client_requester.return_value = (
             None,
@@ -906,7 +956,7 @@ class TestHyperliquidAccountService:
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No content received from HTTP client for userFills" in exc_info.value.message
 
-        mock_request_builder.build_user_fills_payload.assert_called_once_with(
+        mock_request_builder.build_user_fills_request_payload.assert_called_once_with(
             user_address=wallet_address
         )
         mock_http_client_requester.assert_called_once_with(
@@ -972,7 +1022,7 @@ class TestHyperliquidAccountService:
                 await hyperliquid_account_service.get_open_orders()  # Removed symbol argument
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-            assert "No content received from HTTP client for openOrders" in exc_info.value.message
+            assert "No data received for open orders" in exc_info.value.message
 
             mock_get_state_helper.assert_called_once()  # Ensure the patched helper was called
             mock_request_builder.build_open_orders_payload.assert_called_once_with(
@@ -1045,9 +1095,9 @@ class TestHyperliquidAccountService:
 
         # Use the injected mock_hl_order_mapper fixture for assertions
         mock_hl_order_mapper.transform_raw_order_to_internal.assert_not_called()
-        # If a specific list mapping method for open orders exists on HyperliquidOrderMapper 
+        # If a specific list mapping method for open orders exists on HyperliquidOrderMapper
         # and is used,
-        # it should be asserted here. For now, assuming individual mapping via 
+        # it should be asserted here. For now, assuming individual mapping via
         # transform_raw_order_to_internal.
         # Example if such a method existed (adjust method name if necessary):
         # if hasattr(mock_hl_order_mapper, "transform_raw_open_orders_list_to_internal"):

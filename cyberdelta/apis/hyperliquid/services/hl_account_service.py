@@ -131,7 +131,7 @@ class HyperliquidAccountService:
                 code=APIErrorCode.INVALID_REQUEST.value,
             )
 
-        endpoint_path = "/info"
+        endpoint_path = self._info_url
         payload_model = self._request_builder.build_user_state_payload(self._wallet_address)
         payload_dict = payload_model.model_dump()
 
