@@ -5,7 +5,7 @@ Unit tests for the HyperliquidMarketDataService.
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
@@ -131,7 +131,7 @@ class TestHyperliquidMarketDataService:
             is_info_endpoint=True,
         )
         mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.assert_called_once_with(
-            mock_raw_response_content
+            mock_raw_response_content, status_code=200, headers=ANY
         )
         assert result == mock_validated_response
 
@@ -279,8 +279,8 @@ class TestHyperliquidMarketDataService:
 
         # Patch datetime.now to control the timestamp
         with patch(
-            "cyberdelta.apis.hyperliquid.services.hl_market_data_service.datetime",
-            now=MagicMock(return_value=current_time),
+            "cyberdelta.apis.hyperliquid.hl_mapper.datetime",
+            new=MagicMock(datetime=MagicMock(now=MagicMock(side_effect=lambda: current_time))),
         ):
             result_funding_rate = await hyperliquid_market_data_service.get_funding_rate(
                 symbol_to_find
@@ -310,7 +310,7 @@ class TestHyperliquidMarketDataService:
         mock_l2_book_request_payload_model = MagicMock(spec=HyperliquidRawL2BookRequestPayload)
         expected_data_dict = {"type": "l2Book", "coin": symbol_to_find}
         mock_l2_book_request_payload_model.model_dump.return_value = expected_data_dict
-        mock_hl_request_builder.build_l2_book_payload.return_value = (
+        mock_hl_request_builder.build_l2_book_request_payload.return_value = (
             mock_l2_book_request_payload_model
         )
 
@@ -333,12 +333,14 @@ class TestHyperliquidMarketDataService:
             200,
             MagicMock(),
         )
-        mock_hl_response_handler.handle_l2_book_response.return_value = mock_validated_response
-        mock_hl_mapper.map_raw_l2_book_to_order_book.return_value = expected_internal_order_book
+        mock_hl_response_handler.handle_info_l2_book_response.return_value = mock_validated_response
+        mock_hl_mapper.map_raw_order_book.return_value = expected_internal_order_book
 
         result_order_book = await hyperliquid_market_data_service.get_order_book(symbol_to_find)
 
-        mock_hl_request_builder.build_l2_book_payload.assert_called_once_with(symbol_to_find)
+        mock_hl_request_builder.build_l2_book_request_payload.assert_called_once_with(
+            symbol_to_find
+        )
         # Ensure the mocked model's dump was called
         mock_l2_book_request_payload_model.model_dump.assert_called_once_with(
             by_alias=True, exclude_none=True
@@ -349,12 +351,10 @@ class TestHyperliquidMarketDataService:
             data=expected_data_dict,  # This comes from the model_dump of the L2BookRequestPayload
             is_info_endpoint=True,
         )
-        mock_hl_response_handler.handle_l2_book_response.assert_called_once_with(
-            mock_raw_response_content
+        mock_hl_response_handler.handle_info_l2_book_response.assert_called_once_with(
+            mock_raw_response_content, status_code=200, headers=ANY
         )
-        mock_hl_mapper.map_raw_l2_book_to_order_book.assert_called_once_with(
-            mock_validated_response
-        )
+        mock_hl_mapper.map_raw_order_book.assert_called_once_with(mock_validated_response)
         assert result_order_book == expected_internal_order_book
 
     @pytest.mark.asyncio
@@ -371,7 +371,9 @@ class TestHyperliquidMarketDataService:
         mock_request_payload_model = MagicMock()
         mock_request_payload_dict = {"type": "l2Book", "coin": symbol}
 
-        mock_hl_request_builder.build_l2_book_payload.return_value = mock_request_payload_model
+        mock_hl_request_builder.build_l2_book_request_payload.return_value = (
+            mock_request_payload_model
+        )
         mock_request_payload_model.model_dump.return_value = mock_request_payload_dict
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
@@ -380,15 +382,15 @@ class TestHyperliquidMarketDataService:
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No content received from HTTP client for l2Book" in exc_info.value.message
-        mock_hl_request_builder.build_l2_book_payload.assert_called_once_with(symbol=symbol)
+        mock_hl_request_builder.build_l2_book_request_payload.assert_called_once_with(symbol=symbol)
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint_path="/info",
             data=mock_request_payload_dict,
             is_info_endpoint=True,
         )
-        mock_hl_response_handler.handle_l2_book_response.assert_not_called()
-        mock_hl_mapper.map_raw_l2_book_to_order_book.assert_not_called()
+        mock_hl_response_handler.handle_info_l2_book_response.assert_not_called()
+        mock_hl_mapper.map_raw_order_book.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_success(
@@ -406,7 +408,9 @@ class TestHyperliquidMarketDataService:
         mock_request_payload_dict = {"type": "recentTrades", "coin": symbol_to_find}
         mock_payload_model = MagicMock()
         mock_payload_model.model_dump.return_value = mock_request_payload_dict
-        mock_hl_request_builder.build_recent_trades_payload.return_value = mock_payload_model
+        mock_hl_request_builder.build_recent_trades_request_payload.return_value = (
+            mock_payload_model
+        )
 
         # Raw trades as received from API
         mock_raw_trade_1 = HyperliquidRawPublicTrade(
@@ -426,8 +430,8 @@ class TestHyperliquidMarketDataService:
             hash="0xhash2",
         )
         mock_raw_response_content: list[RawJsonResponse] = [
-            mock_raw_trade_1.model_dump(by_alias=True),
-            mock_raw_trade_2.model_dump(by_alias=True),
+            mock_raw_trade_1.model_dump(),
+            mock_raw_trade_2.model_dump(),
         ]
 
         # Validated raw trades (output of response_handler)
@@ -483,8 +487,10 @@ class TestHyperliquidMarketDataService:
         result_trades = await hyperliquid_market_data_service.get_recent_trades(symbol_to_find)
 
         # Assertions
-        mock_hl_request_builder.build_recent_trades_payload.assert_called_once_with(symbol_to_find)
-        mock_payload_model.model_dump.assert_called_once_with(by_alias=True, exclude_none=True)
+        mock_hl_request_builder.build_recent_trades_request_payload.assert_called_once_with(
+            symbol_to_find
+        )
+        mock_payload_model.model_dump.assert_called_once_with(exclude_none=True)
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint_path="/info",
@@ -512,7 +518,7 @@ class TestHyperliquidMarketDataService:
         mock_request_payload_model = MagicMock()
         mock_request_payload_dict = {"type": "recentTrades", "coin": symbol}
 
-        mock_hl_request_builder.build_recent_trades_payload.return_value = (
+        mock_hl_request_builder.build_recent_trades_request_payload.return_value = (
             mock_request_payload_model
         )
         mock_request_payload_model.model_dump.return_value = mock_request_payload_dict
@@ -523,7 +529,9 @@ class TestHyperliquidMarketDataService:
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No content received from HTTP client for recentTrades" in exc_info.value.message
-        mock_hl_request_builder.build_recent_trades_payload.assert_called_once_with(symbol=symbol)
+        mock_hl_request_builder.build_recent_trades_request_payload.assert_called_once_with(
+            symbol=symbol
+        )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint_path="/info",
@@ -620,7 +628,7 @@ class TestHyperliquidMarketDataService:
             200,
             MagicMock(),
         )
-        mock_hl_response_handler.handle_candle_snapshot_response.return_value = (
+        mock_hl_response_handler.handle_info_candle_snapshot_response.return_value = (
             mock_validated_response
         )
         mock_candle_mapper_instance.map.return_value = expected_candles
@@ -638,8 +646,8 @@ class TestHyperliquidMarketDataService:
             data=expected_data_dict,
             is_info_endpoint=True,
         )
-        mock_hl_response_handler.handle_candle_snapshot_response.assert_called_once_with(
-            mock_raw_candle_data
+        mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
+            mock_raw_candle_data, 200, ANY
         )
         mock_candle_mapper_instance.map.assert_called_once_with(
             mock_validated_response, symbol, interval
@@ -699,7 +707,7 @@ class TestHyperliquidMarketDataService:
             data=mock_request_payload_dict,
             is_info_endpoint=True,
         )
-        mock_hl_response_handler.handle_candle_snapshot_response.assert_not_called()
+        mock_hl_response_handler.handle_info_candle_snapshot_response.assert_not_called()
         mock_candle_mapper_instance.map.assert_not_called()
 
     @pytest.mark.asyncio
@@ -777,7 +785,7 @@ class TestHyperliquidMarketDataService:
             timeout_seconds=None,
         )
         mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.assert_called_once_with(
-            mock_raw_response_content, mock_status_code, mock_headers
+            mock_raw_response_content, status_code=mock_status_code, headers=ANY
         )
         assert result == mock_validated_response
 
@@ -893,7 +901,7 @@ class TestHyperliquidMarketDataService:
                 is_info_endpoint=True,
             )
             mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
-                mock_raw_response_data
+                mock_raw_response_data, status_code=200, headers=ANY
             )
             assert mock_transform_method.call_count == len(mock_validated_raw_items)
             for raw_item in mock_validated_raw_items:  # Changed from enumerate
@@ -979,6 +987,18 @@ class TestHyperliquidMarketDataService:
             message="Test validation error",
             code=APIErrorCode.INVALID_RESPONSE.value,
             original_exception=original_validation_error,
+        )
+        mock_hl_request_builder.build_historical_funding_rates_payload.assert_called_once_with(
+            symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+        )
+        mock_http_client_requester.assert_called_once_with(
+            method="POST",
+            endpoint_path="/info",
+            data=mock_request_payload,
+            is_info_endpoint=True,
+        )
+        mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
+            mock_raw_response_data, 200, ANY
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -1097,6 +1117,19 @@ class TestHyperliquidMarketDataService:
         assert exc_info.value.code == expected_api_error.code
         assert exc_info.value.message == expected_api_error.message
         assert exc_info.value.http_status == mock_status_code
+
+        mock_hl_request_builder.build_historical_funding_rates_payload.assert_called_once_with(
+            symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+        )
+        mock_http_client_requester.assert_called_once_with(
+            method="POST",
+            endpoint_path="/info",
+            data=mock_request_payload,
+            is_info_endpoint=True,
+        )
+        mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
+            mock_raw_response_data, status_code=mock_status_code, headers=mock_headers
+        )
 
         mock_hl_request_builder.build_historical_funding_rates_payload.assert_called_once_with(
             symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms

@@ -168,9 +168,7 @@ class TestHyperliquidTradingService:
 
         mock_request_payload_model = MagicMock()
         mock_request_payload_dict = {"type": "openOrders", "user": wallet_address}
-        mock_hl_request_builder.build_user_open_orders_payload.return_value = (
-            mock_request_payload_model
-        )
+        mock_hl_request_builder.build_open_orders_payload.return_value = mock_request_payload_model
         mock_request_payload_model.model_dump.return_value = mock_request_payload_dict
         mock_info_http_client_requester.return_value = None
 
@@ -179,7 +177,7 @@ class TestHyperliquidTradingService:
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Fetching open orders returned no content." in exc_info.value.message
-        mock_hl_request_builder.build_user_open_orders_payload.assert_called_once_with(
+        mock_hl_request_builder.build_open_orders_payload.assert_called_once_with(
             user_address=wallet_address
         )
         mock_info_http_client_requester.assert_called_once_with(
@@ -210,7 +208,7 @@ class TestHyperliquidTradingService:
         mock_get_asset_index_callable.return_value = 0
 
         mock_cancel_action = MagicMock()
-        mock_hl_request_builder.build_cancel_order_action.return_value = mock_cancel_action
+        mock_hl_request_builder.build_cancel_order_payload.return_value = mock_cancel_action
         mock_exchange_http_client_requester.return_value = (None, 200, MagicMock())
 
         with pytest.raises(APIError) as exc_info:
@@ -219,7 +217,7 @@ class TestHyperliquidTradingService:
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Exchange action (cancel) returned no content" in exc_info.value.message
         mock_get_asset_index_callable.assert_called_once_with(symbol)
-        mock_hl_request_builder.build_cancel_order_action.assert_called_once_with(
+        mock_hl_request_builder.build_cancel_order_payload.assert_called_once_with(
             asset_index=0, order_id=order_id
         )
         mock_exchange_http_client_requester.assert_called_once()
@@ -239,9 +237,7 @@ class TestHyperliquidTradingService:
 
         mock_request_payload_model = MagicMock()
         mock_request_payload_dict = {"type": "openOrders", "user": wallet_address}
-        mock_hl_request_builder.build_user_open_orders_payload.return_value = (
-            mock_request_payload_model
-        )
+        mock_hl_request_builder.build_open_orders_payload.return_value = mock_request_payload_model
         mock_request_payload_model.model_dump.return_value = mock_request_payload_dict
 
         mock_info_http_client_requester.return_value = None
@@ -252,7 +248,7 @@ class TestHyperliquidTradingService:
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Fetching open orders returned no content." in exc_info.value.message
 
-        mock_hl_request_builder.build_user_open_orders_payload.assert_called_once_with(
+        mock_hl_request_builder.build_open_orders_payload.assert_called_once_with(
             user_address=wallet_address
         )
         mock_info_http_client_requester.assert_called_once_with(
