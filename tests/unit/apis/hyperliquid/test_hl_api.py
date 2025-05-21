@@ -95,6 +95,13 @@ SECRETS_NO_ADDRESS: dict[str, str | None] = {
 
 
 @pytest.fixture
+def mock_hyperliquid_mapper() -> MagicMock:
+    from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidMapper
+
+    return MagicMock(spec=HyperliquidMapper)
+
+
+@pytest.fixture
 def mock_hl_auth_init() -> Generator[tuple[MagicMock, MagicMock], Any]:  # noqa: ANN401
     """Mocks the HyperliquidEip712Authenticator initialization."""
     with patch(
@@ -195,7 +202,6 @@ def mock_meta_response_content_missing_symbol() -> list[RawJsonResponse]:
             "universe": [
                 {"name": "BTC", "szDecimals": 5, "maxLeverage": 100, "onlyIsolated": False},
                 {"name": "ETH", "szDecimals": 4, "maxLeverage": 80, "onlyIsolated": False},
-                # SOL is missing from universe
             ]
         },
         [
@@ -213,7 +219,6 @@ def mock_meta_response_content_missing_symbol() -> list[RawJsonResponse]:
                 "prevDayPx": "2950",
                 "dayNtlVlm": "50000000",
             },
-            # SOL is missing from asset contexts
         ],
     ]
 
@@ -480,10 +485,34 @@ async def test_place_order_calls_authenticate_and_request(
         with patch.object(
             api, "_request", side_effect=mock_request_side_effect, spec=True
         ) as mock_api_request:
+            # Patch the _info_http_client.request call that _get_asset_index makes
+            mock_meta_response_content_fixture = [
+                {
+                    "universe": [
+                        {"name": "BTC", "szDecimals": 5, "maxLeverage": 100, "onlyIsolated": False}
+                    ]
+                },
+                [
+                    {
+                        "name": "BTC",
+                        "funding": "0.0001",
+                        "markPx": "50000",
+                        "prevDayPx": "49000",
+                        "dayNtlVlm": "100",
+                        "impactPx": "50001",
+                    }
+                ],
+            ]
+            # Patch BOTH _request and _info_http_client.request to avoid real network calls
             with patch.object(
-                api, "_get_asset_index", new_callable=AsyncMock
-            ) as mock_get_asset_index:
-                mock_get_asset_index.return_value = 0  # Mock asset index for BTC
+                api._info_http_client, "request", new_callable=AsyncMock
+            ) as mock_info_http_client_request:
+                mock_info_http_client_request.return_value = (
+                    mock_meta_response_content_fixture,
+                    200,
+                    MagicMock(),
+                    MagicMock(),
+                )
 
                 # Patch the HyperliquidRequestBuilder.build_place_order_payload
                 with patch(
@@ -590,7 +619,10 @@ class TestHyperliquidAPIMethodErrors:
         assert exc_info.value.code == APIErrorCode.SERVICE_UNAVAILABLE.value
         assert exc_info.value.http_status == http_status_from_exchange
         assert exc_info.value.message is not None
-        assert exc_info.value is http_failure
+        # Compare attributes, not object identity
+        assert isinstance(exc_info.value.original_exception, HttpRequestFailedError)
+        assert exc_info.value.original_exception.http_status_code == http_status_from_exchange
+        assert exc_info.value.original_exception.response_body == error_body_from_exchange
 
     @pytest.mark.asyncio
     @patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidAPI._request", new_callable=AsyncMock)

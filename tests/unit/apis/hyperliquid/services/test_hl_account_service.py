@@ -204,7 +204,9 @@ class TestHyperliquidAccountService:
         result_balances = await hyperliquid_account_service.get_balances()
 
         # Assertions
-        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
+        mock_request_builder.build_user_state_payload.assert_called_once_with(
+            user_address="0xTestWalletAddress"
+        )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint_path=mock_endpoint_path,
@@ -288,7 +290,9 @@ class TestHyperliquidAccountService:
 
         result = await hyperliquid_account_service.get_positions()
 
-        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
+        mock_request_builder.build_user_state_payload.assert_called_once_with(
+            user_address="0xTestWalletAddress"
+        )
         mock_http_client_requester.assert_called_once()
         mock_response_handler.handle_info_user_state_response.assert_called_once_with(
             raw_response_content=mock_raw_user_state_response_list[0],
@@ -342,7 +346,9 @@ class TestHyperliquidAccountService:
         assert result_doge == []
 
         assert mock_request_builder.build_user_state_payload.call_count == 2
-        mock_request_builder.build_user_state_payload.assert_any_call("0xTestWalletAddress")
+        mock_request_builder.build_user_state_payload.assert_any_call(
+            user_address="0xTestWalletAddress"
+        )
         assert mock_http_client_requester.call_count == 2
         assert mock_response_handler.handle_info_user_state_response.call_count == 2
         mock_response_handler.handle_info_user_state_response.assert_any_call(
@@ -376,7 +382,9 @@ class TestHyperliquidAccountService:
             await hyperliquid_account_service.get_positions()
 
         assert excinfo.value == expected_error
-        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
+        mock_request_builder.build_user_state_payload.assert_called_once_with(
+            user_address="0xTestWalletAddress"
+        )
         mock_http_client_requester.assert_called_once()  # Verifies it was called before erroring
         mock_hl_mapper.map_raw_clearinghouse_state_to_derivative_positions.assert_not_called()
 
@@ -412,7 +420,9 @@ class TestHyperliquidAccountService:
 
         result = await hyperliquid_account_service.get_account_summary()
 
-        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
+        mock_request_builder.build_user_state_payload.assert_called_once_with(
+            user_address="0xTestWalletAddress"
+        )
         mock_http_client_requester.assert_called_once()
         mock_response_handler.handle_info_user_state_response.assert_called_once_with(
             raw_response_content=mock_raw_user_state_response_list[0],
@@ -465,7 +475,9 @@ class TestHyperliquidAccountService:
         )  # Check that original ValueError is preserved
         assert str(excinfo.value.__cause__) == "bad map"
 
-        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
+        mock_request_builder.build_user_state_payload.assert_called_once_with(
+            user_address="0xTestWalletAddress"
+        )
         mock_http_client_requester.assert_called_once()
         mock_response_handler.handle_info_user_state_response.assert_called_once_with(
             raw_response_content=mock_raw_user_state_response_list[0],
@@ -498,7 +510,9 @@ class TestHyperliquidAccountService:
             await hyperliquid_account_service.get_account_summary()
 
         assert excinfo.value == expected_error
-        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
+        mock_request_builder.build_user_state_payload.assert_called_once_with(
+            user_address="0xTestWalletAddress"
+        )
         mock_http_client_requester.assert_called_once()
         mock_hl_mapper.map_raw_clearinghouse_state_to_margin_summary.assert_not_called()
 
@@ -534,8 +548,13 @@ class TestHyperliquidAccountService:
         )
         assert result == [mapped_order]
 
+        expected_start_ms = int(datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
+        expected_end_ms = int(datetime(2024, 1, 2, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
+
         mock_request_builder.build_order_history_payload.assert_called_once_with(
-            wallet_address="0xTestWalletAddress", start_time_ms=1234567890, end_time_ms=1234567990
+            wallet_address="0xTestWalletAddress",
+            start_time_ms=expected_start_ms,
+            end_time_ms=expected_end_ms,
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
@@ -602,8 +621,10 @@ class TestHyperliquidAccountService:
         mapped_order1 = MagicMock(symbol="BTC")
         mapped_order2 = MagicMock(symbol="ETH")
 
-        def map_side_effect(raw: MagicMock, trigger: MagicMock | None = None) -> MagicMock:
-            return mapped_order1 if raw is mock_raw_order1 else mapped_order2
+        def map_side_effect(
+            raw_historical_order: MagicMock, trigger: MagicMock | None = None
+        ) -> MagicMock:
+            return mapped_order1 if raw_historical_order is mock_raw_order1 else mapped_order2
 
         mock_hl_order_mapper.transform_raw_historical_order_to_internal.side_effect = (
             map_side_effect
@@ -819,7 +840,9 @@ class TestHyperliquidAccountService:
             await hyperliquid_account_service.get_balances()
 
         assert exc_info.value == expected_api_error
-        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
+        mock_request_builder.build_user_state_payload.assert_called_once_with(
+            user_address="0xTestWalletAddress"
+        )
         mock_http_client_requester.assert_called_once()
         mock_hl_mapper.map_raw_clearinghouse_state_to_spot_balances.assert_not_called()
 

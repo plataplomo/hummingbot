@@ -139,6 +139,15 @@ class HyperliquidMarketDataService:
                 f"{raw_response_content!r}, Status: {status_code}, Headers: {headers}"
             )
 
+            if raw_response_content is None:
+                _error_msg = f"No content received from HTTP client for metaAndAssetCtxs. Status: {status_code}"
+                logger.error(f"[{self._exchange_name}] {_error_msg}")
+                raise APIError(
+                    message=_error_msg,
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code,
+                )
+
             validated_response: HyperliquidRawMetaAndAssetCtxsResponse = (
                 self._response_handler.handle_info_meta_and_asset_ctxs_response(
                     raw_response_content,
@@ -256,6 +265,15 @@ class HyperliquidMarketDataService:
                 f"{raw_response_content!r}, Status: {status_code}, Headers: {headers}"
             )
 
+            if raw_response_content is None:
+                _error_msg = f"No content received from HTTP client for l2Book for {symbol}. Status: {status_code}"
+                logger.error(f"[{self._exchange_name}] {_error_msg}")
+                raise APIError(
+                    message=_error_msg,
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code,
+                )
+
             validated_raw_book = self._response_handler.handle_info_l2_book_response(
                 raw_response_content,
                 symbol=symbol,
@@ -334,6 +352,15 @@ class HyperliquidMarketDataService:
                 f"[{self._exchange_name}] Raw recent_trades response for {symbol}: "
                 f"{raw_response_content!r}, Status: {status_code}, Headers: {headers}"
             )
+
+            if raw_response_content is None:
+                _error_msg = f"No content received from HTTP client for recentTrades for {symbol}. Status: {status_code}"
+                logger.error(f"[{self._exchange_name}] {_error_msg}")
+                raise APIError(
+                    message=_error_msg,
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code,
+                )
 
             validated_raw_trades = self._response_handler.handle_info_recent_trades_response(
                 raw_response_content,
@@ -605,16 +632,6 @@ class HyperliquidMarketDataService:
 
         # Assuming raw_response_content is list[dict[str, Any]] for candles
         # The handler expects RawJsonResponse which can be list.
-        if not isinstance(raw_response_content, list):
-            logger.error(
-                f"[{self._exchange_name}] Expected list for candle data, "
-                f"got {type(raw_response_content)}."
-            )
-            # Handle error appropriately, perhaps raise APIError
-            raise APIError(
-                f"Unexpected response type for candle data: {type(raw_response_content)}",
-                APIErrorCode.INVALID_RESPONSE.value,
-            )
 
         # The handler expects raw JSON, not already Pydantic validated models typically
         # For candles, it might be list of lists or list of dicts

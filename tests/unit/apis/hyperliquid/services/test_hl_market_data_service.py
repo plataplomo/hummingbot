@@ -288,9 +288,7 @@ class TestHyperliquidMarketDataService:
 
         hyperliquid_market_data_service.get_all_asset_contexts_raw.assert_called_once()
         # Assert call on the injected mock_hl_mapper
-        mock_hl_mapper.map_raw_ctx_to_funding_rate.assert_called_once_with(
-            mock_raw_asset_ctx_eth, current_time
-        )
+        mock_hl_mapper.map_raw_ctx_to_funding_rate.assert_called_once_with(mock_raw_asset_ctx_eth)
         assert result_funding_rate == expected_internal_funding_rate
 
     @pytest.mark.asyncio
@@ -339,7 +337,7 @@ class TestHyperliquidMarketDataService:
         result_order_book = await hyperliquid_market_data_service.get_order_book(symbol_to_find)
 
         mock_hl_request_builder.build_l2_book_request_payload.assert_called_once_with(
-            symbol_to_find
+            symbol=symbol_to_find
         )
         # Ensure the mocked model's dump was called
         mock_l2_book_request_payload_model.model_dump.assert_called_once_with(
@@ -423,7 +421,7 @@ class TestHyperliquidMarketDataService:
         )
         mock_raw_trade_2 = HyperliquidRawPublicTrade(
             coin=symbol_to_find,
-            side="S",
+            side="A",  # Corrected from "S" to "A" for sell
             px="3000.0",
             sz="0.2",
             time=1672531202000,  # ms
@@ -488,7 +486,7 @@ class TestHyperliquidMarketDataService:
 
         # Assertions
         mock_hl_request_builder.build_recent_trades_request_payload.assert_called_once_with(
-            symbol_to_find
+            symbol=symbol_to_find
         )
         mock_payload_model.model_dump.assert_called_once_with(exclude_none=True)
         mock_http_client_requester.assert_called_once_with(
@@ -638,7 +636,7 @@ class TestHyperliquidMarketDataService:
         )
 
         mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once_with(
-            symbol, interval, start_time_ms, end_time_ms
+            symbol=symbol, interval=interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
@@ -647,7 +645,7 @@ class TestHyperliquidMarketDataService:
             is_info_endpoint=True,
         )
         mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
-            mock_raw_candle_data, 200, ANY
+            mock_raw_candle_data, status_code=200, headers=ANY
         )
         mock_candle_mapper_instance.map.assert_called_once_with(
             mock_validated_response, symbol, interval
@@ -782,7 +780,6 @@ class TestHyperliquidMarketDataService:
             endpoint_path="/info",
             data=mock_payload_dict,
             is_info_endpoint=True,
-            timeout_seconds=None,
         )
         mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.assert_called_once_with(
             mock_raw_response_content, status_code=mock_status_code, headers=ANY
@@ -901,7 +898,7 @@ class TestHyperliquidMarketDataService:
                 is_info_endpoint=True,
             )
             mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
-                mock_raw_response_data, status_code=200, headers=ANY
+                mock_raw_response_data
             )
             assert mock_transform_method.call_count == len(mock_validated_raw_items)
             for raw_item in mock_validated_raw_items:  # Changed from enumerate
