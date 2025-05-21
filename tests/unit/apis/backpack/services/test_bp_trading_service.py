@@ -16,6 +16,7 @@ from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
+from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
@@ -51,6 +52,12 @@ def mock_authenticator() -> MagicMock:
 
 
 @pytest.fixture
+def mock_rate_limiter_service() -> AsyncMock:
+    """Provides a mock RateLimiterService."""
+    return AsyncMock(spec=RateLimiterService)
+
+
+@pytest.fixture
 def mock_order_mapper() -> MagicMock:  # Renamed from mock_mapper for clarity
     """Provides a mock BackpackOrderMapper."""
     return MagicMock(spec=BackpackOrderMapper)
@@ -62,6 +69,7 @@ def bp_trading_service(
     mock_request_builder: MagicMock,
     mock_response_handler: MagicMock,
     mock_authenticator: MagicMock,
+    mock_rate_limiter_service: AsyncMock,
 ) -> BackpackTradingService:
     """Provides an instance of BackpackTradingService with mocked dependencies."""
     service = BackpackTradingService(
@@ -70,6 +78,7 @@ def bp_trading_service(
         response_handler=mock_response_handler,
         authenticator=mock_authenticator,
         exchange_name="backpack_test_trading",
+        rate_limiter_service=mock_rate_limiter_service,
     )
     # The service instantiates its own _order_mapper. Tests will patch this.
     return service
@@ -86,6 +95,7 @@ class TestBackpackTradingService:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,  # For assert_not_called
         mock_order_mapper: MagicMock,  # For assert_not_called
+        mock_rate_limiter_service: AsyncMock,
     ) -> None:
         """Test place_order when HTTP client returns None content."""
         symbol = "SOL_USDC"
@@ -129,12 +139,16 @@ class TestBackpackTradingService:
                 post_only=False,
                 trigger_price=None,
             )
-            mock_http_client_requester.assert_called_once_with(
-                method="POST",
-                endpoint="/api/v1/order",
-                data=mock_payload,
-                is_signed=True,
-            )
+            mock_http_client_requester.assert_called_once()
+            call_kwargs = mock_http_client_requester.call_args.kwargs
+            assert call_kwargs.get("method") == "POST"
+            assert call_kwargs.get("endpoint") == "/api/v1/order"
+            assert call_kwargs.get("data") == mock_payload
+            assert call_kwargs.get("is_signed") is True
+            assert call_kwargs.get("endpoint_group") == "private"
+            assert call_kwargs.get("request_weight") == 1
+            assert call_kwargs.get("is_public_info_endpoint") is False
+
             mock_response_handler.handle_place_order_response.assert_not_called()
             mock_order_mapper.transform_raw_order_to_internal.assert_not_called()
 
@@ -145,6 +159,7 @@ class TestBackpackTradingService:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,  # For assert_not_called
+        mock_rate_limiter_service: AsyncMock,
     ) -> None:
         """Test cancel_order when HTTP client returns None content."""
         symbol = "SOL_USDC"
@@ -169,12 +184,16 @@ class TestBackpackTradingService:
         mock_request_builder.build_cancel_order_payload.assert_called_once_with(
             symbol=symbol, order_id=order_id
         )
-        mock_http_client_requester.assert_called_once_with(
-            method="DELETE",
-            endpoint="/api/v1/order",
-            data=mock_payload,
-            is_signed=True,
-        )
+        mock_http_client_requester.assert_called_once()
+        call_kwargs = mock_http_client_requester.call_args.kwargs
+        assert call_kwargs.get("method") == "DELETE"
+        assert call_kwargs.get("endpoint") == "/api/v1/order"
+        assert call_kwargs.get("data") == mock_payload
+        assert call_kwargs.get("is_signed") is True
+        assert call_kwargs.get("endpoint_group") == "private"
+        assert call_kwargs.get("request_weight") == 1
+        assert call_kwargs.get("is_public_info_endpoint") is False
+
         mock_response_handler.handle_cancel_order_response.assert_not_called()
 
     @pytest.mark.asyncio
@@ -185,6 +204,7 @@ class TestBackpackTradingService:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,  # For assert_not_called
         mock_order_mapper: MagicMock,  # For assert_not_called
+        mock_rate_limiter_service: AsyncMock,
     ) -> None:
         """Test get_open_orders when HTTP client returns None content."""
         symbol = "SOL_USDC"
@@ -206,12 +226,17 @@ class TestBackpackTradingService:
             )
 
             mock_request_builder.build_get_open_orders_params.assert_called_once_with(symbol=symbol)
-            mock_http_client_requester.assert_called_once_with(
-                method="GET",
-                endpoint="/api/v1/orders",
-                params=mock_params,
-                is_signed=True,
-            )
+            mock_http_client_requester.assert_called_once()
+            call_kwargs = mock_http_client_requester.call_args.kwargs
+            assert call_kwargs.get("method") == "GET"
+            assert call_kwargs.get("endpoint") == "/api/v1/orders"
+            assert call_kwargs.get("params") == mock_params
+            assert call_kwargs.get("is_signed") is True
+            assert call_kwargs.get("rate_limiter_service") is mock_rate_limiter_service
+            assert call_kwargs.get("endpoint_group") == "private"
+            assert call_kwargs.get("request_weight") == 1
+            assert call_kwargs.get("is_public_info_endpoint") is False
+
             mock_response_handler.handle_get_open_orders_response.assert_not_called()
             mock_order_mapper.transform_raw_order_to_internal.assert_not_called()
 
@@ -223,6 +248,7 @@ class TestBackpackTradingService:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,  # For assert_not_called
         mock_order_mapper: MagicMock,  # For assert_not_called
+        mock_rate_limiter_service: AsyncMock,
     ) -> None:
         """Test get_order when HTTP client returns None content."""
         symbol = "SOL_USDC"
@@ -246,12 +272,17 @@ class TestBackpackTradingService:
             )
 
             mock_request_builder.build_get_order_params.assert_called_once_with(symbol=symbol)
-            mock_http_client_requester.assert_called_once_with(
-                method="GET",
-                endpoint=f"/api/v1/order/{identifier}",
-                params=mock_params,
-                is_signed=True,
-            )
+            mock_http_client_requester.assert_called_once()
+            call_kwargs = mock_http_client_requester.call_args.kwargs
+            assert call_kwargs.get("method") == "GET"
+            assert call_kwargs.get("endpoint") == f"/api/v1/order/{identifier}"
+            assert call_kwargs.get("params") == mock_params
+            assert call_kwargs.get("is_signed") is True
+            assert call_kwargs.get("rate_limiter_service") is mock_rate_limiter_service
+            assert call_kwargs.get("endpoint_group") == "private"
+            assert call_kwargs.get("request_weight") == 1
+            assert call_kwargs.get("is_public_info_endpoint") is False
+
             mock_response_handler.handle_get_order_status_response.assert_not_called()
             mock_order_mapper.transform_raw_order_to_internal.assert_not_called()
 

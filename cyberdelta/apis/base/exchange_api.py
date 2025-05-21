@@ -213,6 +213,7 @@ class ExchangeAPI(ABC):
         headers: dict[str, Any] | None = None,
         is_signed: bool = False,
         endpoint_group: str | None = None,
+        request_weight: int = 1,
         is_public_info_endpoint: bool = False,
     ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
         """
@@ -226,12 +227,13 @@ class ExchangeAPI(ABC):
             data: Request body data.
             headers: HTTP headers.
             is_signed: Whether the request requires authentication.
-            endpoint_group: Optional logical group for the endpoint.
+            endpoint_group: Optional logical group for the endpoint, used for rate limiting.
+            request_weight: Optional request weight for rate limiting.
             is_public_info_endpoint: Flag for specific endpoints (e.g. Hyperliquid INFO).
 
         Returns:
             A tuple containing:
-                - Parsed API response content (JSON dict/list, raw text) or None for empty 
+                - Parsed API response content (JSON dict/list, raw text) or None for empty
                   responses (204).
                 - HTTP status code of the response.
                 - Raw response headers.
@@ -243,29 +245,36 @@ class ExchangeAPI(ABC):
         effective_authenticator = self._authenticator if is_signed else None
 
         response_content: ParsedJsonResponse | str | None = None
-        status_code: int = 0 # Default, will be overwritten
+        status_code: int = 0  # Default, will be overwritten
         response_headers_dict: Mapping[str, str] = {}
 
         try:
+            # Determine which limiter to use
+            # Use endpoint_group if provided, otherwise the raw endpoint string for the limiter key
+            limiter_key_for_get_limiter = endpoint_group if endpoint_group else endpoint
+            limiter = self._rate_limiter_service.get_limiter(method, limiter_key_for_get_limiter)
+
+            # Acquire tokens according to request_weight
+            for _ in range(request_weight):
+                await limiter.acquire()
+
             # HttpClient.request now returns: (content, status_code, processed_headers, raw_headers)
-            content, http_status, _processed_headers, raw_headers_multidict = (
-                await self._http_client.request(
-                    method=method,
-                    endpoint_path=request_url,
-                    params=params,
-                    data=data,
-                    headers=headers,
-                    authenticator=effective_authenticator,
-                    rate_limiter_service=self._rate_limiter_service,
-                    is_signed=is_signed,
-                    request_timeout=self._config.get("request_timeout"),
-                )
+            (
+                response_content,
+                status_code,
+                _processed_headers,
+                response_headers_dict,
+            ) = await self._http_client.request(
+                method=method,
+                endpoint_path=request_url,
+                params=params,
+                data=data,
+                headers=headers,
+                authenticator=effective_authenticator,
+                rate_limiter_service=self._rate_limiter_service,
+                is_signed=is_signed,
             )
-            response_content = content
-            status_code = http_status
-            # Assign the raw headers for rate limit processing and return
-            response_headers_dict = raw_headers_multidict
-            self._update_rate_limit_from_headers(response_headers_dict, method, request_url)
+            self._update_rate_limit_from_headers(response_headers_dict, method, endpoint)
             return response_content, status_code, response_headers_dict
 
         except HttpRequestFailedError as e_http_failed:

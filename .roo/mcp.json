@@ -1,3 +1,30 @@
 {
-  "mcpServers": {}
-}
+  "mcpServers": {
+    "context7-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@upstash/context7-mcp",
+        "--key",
+        "3663940c-ba7a-4739-b5b5-bea8a2c19546"
+      ],
+      "env": {
+        "DEFAULT_MINIMUM_TOKENS": "10000"
+      }
+      
+
+      },
+      "mcp-obsidian": {
+        "command": "uvx",
+        "args": [
+          "mcp-obsidian"
+        ],
+        "env": {
+          "OBSIDIAN_API_KEY": "da46bd7b6264d4f6af938da6b316e7e700950be7568f57bc28414618b23c9aa2",
+          "OBSIDIAN_HOST": "https://127.0.0.1:27124/"
+        }
+      }
+    }
+  }

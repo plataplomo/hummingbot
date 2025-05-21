@@ -19,6 +19,7 @@ from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
+from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import Order
@@ -51,6 +52,7 @@ class BackpackTradingService:
         response_handler: BackpackResponseHandler,
         authenticator: IAuthenticator | None,  # Added authenticator
         exchange_name: str,
+        rate_limiter_service: RateLimiterService,
     ) -> None:
         """
         Initialize the BackpackTradingService.
@@ -60,6 +62,7 @@ class BackpackTradingService:
         self._response_handler = response_handler
         self._authenticator = authenticator
         self._exchange_name = exchange_name
+        self._rate_limiter_service = rate_limiter_service
         self._order_mapper = BackpackOrderMapper()  # Instantiate or use static methods
 
     async def place_order(
@@ -92,7 +95,13 @@ class BackpackTradingService:
         status_code: int = 0
         try:
             raw_data, status_code, _ = await self._http_client_requester(
-                method="POST", endpoint=endpoint, data=payload, is_signed=True
+                method="POST",
+                endpoint=endpoint,
+                data=payload,
+                is_signed=True,
+                endpoint_group="private",
+                request_weight=1,
+                is_public_info_endpoint=False,
             )
             if raw_data is None or not isinstance(raw_data, dict):
                 raise APIError(
@@ -125,7 +134,13 @@ class BackpackTradingService:
         status_code: int = 0
         try:
             raw_data, status_code, _ = await self._http_client_requester(
-                method="DELETE", endpoint=endpoint, data=payload, is_signed=True
+                method="DELETE",
+                endpoint=endpoint,
+                data=payload,
+                is_signed=True,
+                endpoint_group="private",
+                request_weight=1,
+                is_public_info_endpoint=False,
             )
             # Backpack's cancel order returns the cancelled order details or an error.
             # The response handler needs to determine success.
@@ -168,7 +183,13 @@ class BackpackTradingService:
         status_code: int = 0
         try:
             raw_data, status_code, _ = await self._http_client_requester(
-                method="GET", endpoint=endpoint, params=params, is_signed=True
+                method="GET",
+                endpoint=endpoint,
+                params=params,
+                is_signed=True,
+                endpoint_group="private",
+                request_weight=1,
+                is_public_info_endpoint=False,
             )
             if raw_data is None or not isinstance(raw_data, list):
                 raise APIError(
@@ -220,7 +241,13 @@ class BackpackTradingService:
         status_code: int = 0
         try:
             raw_data, status_code, _ = await self._http_client_requester(
-                method="GET", endpoint=endpoint, params=params, is_signed=True
+                method="GET",
+                endpoint=endpoint,
+                params=params,
+                is_signed=True,
+                endpoint_group="private",
+                request_weight=1,
+                is_public_info_endpoint=False,
             )
             if status_code == 404:  # Order not found
                 logger.info(f"[{self._exchange_name}] Order {identifier} ({symbol}) not found.")
@@ -287,9 +314,12 @@ class BackpackTradingService:
                 method="DELETE",
                 endpoint=endpoint,
                 data=payload,
-                is_signed=True,  # data, not params for DELETE body
+                is_signed=True,
+                endpoint_group="private",
+                request_weight=1,
+                is_public_info_endpoint=False,
             )
-            # Backpack's response for cancel all is a list of strings 
+            # Backpack's response for cancel all is a list of strings
             # (order IDs that were cancelled)
             if raw_data is None or not isinstance(raw_data, list):
                 error_message = (
@@ -302,15 +332,15 @@ class BackpackTradingService:
                 # Depending on strictness, either raise or return empty/failed results.
                 # For now, if it's not a list, assume general failure or no orders to cancel.
                 # If some orders were open, this would be a partial failure.
-                # This part needs careful handling based on actual API error 
+                # This part needs careful handling based on actual API error
                 # responses for cancel all.
                 if isinstance(raw_data, dict) and raw_data.get("error"):  # Check for explicit error
                     raise APIError(
                         raw_data.get("error", {}).get(
                             "message", "Failed to cancel all orders due to API error response."
                         ),
-                        APIErrorCode.UNKNOWN.value,  # Using UNKNOWN as OPERATION_FAILED 
-                                                     # is not available
+                        APIErrorCode.UNKNOWN.value,  # Using UNKNOWN as OPERATION_FAILED
+                        # is not available
                         http_status=status_code,
                         exchange_message=str(raw_data),
                     )
@@ -320,13 +350,13 @@ class BackpackTradingService:
                     f"Assuming no orders were cancelled or confirmable."
                 )
                 # Create a generic failure result if no orders could be confirmed cancelled.
-                # This assumes that if there were orders and they failed to cancel, 
+                # This assumes that if there were orders and they failed to cancel,
                 # an error would be raised.
                 # If there were no orders, an empty list response is typical and correct.
                 # If raw_data is None, it's ambiguous.
                 return []  # Or a list with a single generic failure if that's preferred
 
-            # If raw_data is a list, it should be a list of successfully 
+            # If raw_data is a list, it should be a list of successfully
             # cancelled order IDs (strings)
             for cancelled_order_id_any in raw_data:
                 if isinstance(cancelled_order_id_any, str):

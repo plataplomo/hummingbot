@@ -17,6 +17,7 @@ from cyberdelta.apis.models.api_error import (  # Import APIError for test_faile
 from cyberdelta.apis.models.api_error_codes import (  # Corrected import
     APIErrorCode,
 )
+from cyberdelta.config.config_manager import ConfigManager  # Added import
 
 # from cyberdelta.apis.base import APIErrorCode, ExchangeAPI # Removed unused import
 # Core Components

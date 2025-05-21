@@ -157,10 +157,35 @@ class BackpackRequestBuilder:
         Raises:
             ValueError: If required parameters for an order type are missing or invalid.
         """
+        # Map internal OrderSide to Backpack API's side values
+        api_side: str
+        if side == OrderSide.BUY:
+            api_side = "Bid"
+        elif side == OrderSide.SELL:
+            api_side = "Ask"
+        else:
+            # Should not happen if OrderSide enum is used correctly
+            raise ValueError(f"Unsupported order side: {side}")
+
+        # Map internal OrderType to Backpack API's orderType values (case-sensitive)
+        api_order_type: str
+        if order_type == OrderType.LIMIT:
+            api_order_type = "Limit"
+        elif order_type == OrderType.MARKET:
+            api_order_type = "Market"
+        # Add other mappings as needed based on supported types by Backpack
+        # For now, assume these are the primary ones based on OpenAPI and common usage
+        else:
+            # Fallback or error for unsupported/unmapped order types
+            # Using .value and capitalizing, but this should be reviewed based on API spec
+            # For strictness, raise error if not explicitly mapped.
+            # api_order_type = order_type.value.capitalize() # Original logic, potentially incorrect
+            raise ValueError(f"Unsupported or unmapped order type for Backpack: {order_type}")
+
         payload: dict[str, Any] = {
             "symbol": BackpackRequestBuilder.format_symbol(symbol),
-            "side": side.value.capitalize(),  # e.g., "Bid" or "Ask"
-            "orderType": order_type.value.lower(),  # e.g., "limit" or "market"
+            "side": api_side,  # Use mapped value
+            "orderType": api_order_type,  # Use mapped value
             "quantity": str(quantity),
         }
 
@@ -186,13 +211,15 @@ class BackpackRequestBuilder:
                 logger.warning(f"postOnly=True ignored for non-LIMIT order type {order_type.value}")
 
         # Common stop order types are STOP_LIMIT and STOP_MARKET.
-        if order_type in [OrderType.STOP_LIMIT, OrderType.STOP_MARKET]:
-            if trigger_price is None:
-                raise ValueError(f"Trigger price is required for {order_type.value} orders.")
-            payload["triggerPrice"] = str(trigger_price)
-            # For STOP_LIMIT, 'price' (the limit price) would also be required.
-            if order_type == OrderType.STOP_LIMIT and price is None:
-                raise ValueError(f"Price is required for {order_type.value} orders.")
+        # The following block is commented out as STOP_LIMIT/STOP_MARKET are not currently in the OrderType enum.
+        # If these types are added, this block should be reviewed and uncommented.
+        # if order_type in [OrderType.STOP_LIMIT, OrderType.STOP_MARKET]:
+        #     if trigger_price is None:
+        #         raise ValueError(f"Trigger price is required for {order_type.value} orders.")
+        #     payload["triggerPrice"] = str(trigger_price)
+        #     # For STOP_LIMIT, 'price' (the limit price) would also be required.
+        #     if order_type == OrderType.STOP_LIMIT and price is None: # This line also needs to be part of the comment
+        #         raise ValueError(f"Price is required for {order_type.value} orders.")
 
         return payload
 

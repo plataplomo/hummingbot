@@ -118,6 +118,7 @@ class BackpackAPI(ExchangeAPI):
             request_builder=self._bp_request_builder,
             response_handler=self._bp_response_handler,
             exchange_name=self.exchange_name,
+            rate_limiter_service=self._rate_limiter_service,
         )
         self.account_service = BackpackAccountService(
             http_client_requester=service_requester,
@@ -125,6 +126,7 @@ class BackpackAPI(ExchangeAPI):
             response_handler=self._bp_response_handler,
             authenticator=self._bp_authenticator,
             exchange_name=self.exchange_name,
+            rate_limiter_service=self._rate_limiter_service,
         )
 
         self.trading_service = BackpackTradingService(
@@ -133,6 +135,7 @@ class BackpackAPI(ExchangeAPI):
             response_handler=self._bp_response_handler,
             authenticator=self._bp_authenticator,
             exchange_name=self.exchange_name,
+            rate_limiter_service=self._rate_limiter_service,
         )
 
         self.default_headers: dict[str, str] = {
@@ -534,7 +537,7 @@ class BackpackAPI(ExchangeAPI):
         if not symbol:
             _error_msg = "Symbol is required for get_order on Backpack."
             logger.error(f"[{self.exchange_name}] {_error_msg}")
-            # Service method get_order also requires symbol, so this check is fine here or 
+            # Service method get_order also requires symbol, so this check is fine here or
             # let service raise.
             # For consistency with prompt, raising here if strictly needed by service.
             raise ValueError(_error_msg)
@@ -545,7 +548,7 @@ class BackpackAPI(ExchangeAPI):
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order:
-        """Fetch the status of a specific order. Delegates to BackpackTradingService's 
+        """Fetch the status of a specific order. Delegates to BackpackTradingService's
         get_order_status."""
         if not symbol:
             _error_msg = "Symbol is required for get_order_status on Backpack."

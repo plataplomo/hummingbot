@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 from _pytest.logging import LogCaptureFixture
+from multidict import CIMultiDictProxy
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.backpack.bp_auth import BackpackHmacAuthenticator
@@ -29,6 +30,9 @@ from cyberdelta.apis.backpack.models.bp_raw_position import (
     BackpackRawPosition,
 )
 from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
+from cyberdelta.apis.connectivity.connectivity_models import (
+    ProcessedResponseHeaders,
+)
 from cyberdelta.apis.connectivity.http_client import HttpRequestFailedError
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -346,10 +350,12 @@ class TestBackpackAPI_Authentication:
                 f"[TEST DEBUG] Type of authenticator_received: {type(authenticator_received)}",
                 flush=True,
             )
+            # Ensure side_effect returns a 4-tuple: (content, status_code, processed_headers, raw_headers)
             return (
-                mock_order_response_content,
-                MagicMock(),  # mock processed_headers
-                MagicMock(),  # mock raw_headers
+                mock_order_response_content,  # content
+                200,  # status_code (e.g., 200 for success)
+                MagicMock(spec=ProcessedResponseHeaders),  # processed_headers
+                MagicMock(spec=CIMultiDictProxy),  # raw_headers
             )
 
         mock_http_client_request.side_effect = http_client_request_side_effect

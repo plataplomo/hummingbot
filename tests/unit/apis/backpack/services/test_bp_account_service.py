@@ -116,6 +116,7 @@ class TestBackpackAccountService:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: AsyncMock,
     ) -> None:
         """Test transfer successfully initiates a transfer and returns an internal Transfer
         model."""
@@ -173,20 +174,15 @@ class TestBackpackAccountService:
             to_account=to_account,
             client_transfer_id=client_transfer_id,
         )
-        mock_http_client_requester.assert_called_once()
-        _call_pos_args, call_kwargs = mock_http_client_requester.call_args
-        assert not _call_pos_args
-        assert call_kwargs.get("method") == "POST"
-        assert call_kwargs.get("endpoint") == "/api/v1/capital/transfer"
-        assert call_kwargs.get("data") == mock_payload
-        assert call_kwargs.get("is_signed") is True
-        expected_kwarg_keys = {"method", "endpoint", "data", "is_signed"}
-        if "rate_limiter_service" in call_kwargs:
-            expected_kwarg_keys.add("rate_limiter_service")
-        if "endpoint_group" in call_kwargs:  # private endpoints
-            expected_kwarg_keys.add("endpoint_group")
-            expected_kwarg_keys.add("request_weight")
-        assert set(call_kwargs.keys()) == expected_kwarg_keys
+        mock_http_client_requester.assert_called_once_with(
+            method="POST",
+            endpoint="/api/v1/capital/transfer",
+            data=mock_payload,
+            is_signed=True,
+            endpoint_group="private",
+            request_weight=1,
+            is_public_info_endpoint=False,
+        )
 
         mock_response_handler.handle_transfer_response.assert_called_once_with(
             mock_raw_response_content
@@ -252,6 +248,8 @@ class TestBackpackAccountService:
         if "endpoint_group" in call_kwargs:  # private endpoints
             expected_kwarg_keys.add("endpoint_group")
             expected_kwarg_keys.add("request_weight")
+        if "is_public_info_endpoint" in call_kwargs:
+            expected_kwarg_keys.add("is_public_info_endpoint")
         assert set(call_kwargs.keys()) == expected_kwarg_keys
 
     @pytest.mark.asyncio
@@ -311,6 +309,8 @@ class TestBackpackAccountService:
         if "endpoint_group" in call_kwargs:  # private endpoints
             expected_kwarg_keys.add("endpoint_group")
             expected_kwarg_keys.add("request_weight")
+        if "is_public_info_endpoint" in call_kwargs:
+            expected_kwarg_keys.add("is_public_info_endpoint")
         assert set(call_kwargs.keys()) == expected_kwarg_keys
 
     @pytest.mark.asyncio
@@ -357,9 +357,9 @@ class TestBackpackAccountService:
             endpoint="/api/v1/capital/transfer",
             data=mock_payload,
             is_signed=True,
-            rate_limiter_service=mock_rate_limiter_service,
             endpoint_group="private",
             request_weight=1,
+            is_public_info_endpoint=False,
         )
 
     @pytest.mark.asyncio
@@ -409,9 +409,9 @@ class TestBackpackAccountService:
             endpoint="/api/v1/capital",
             params=None,
             is_signed=True,
-            rate_limiter_service=mock_rate_limiter_service,
             endpoint_group="private",
             request_weight=1,
+            is_public_info_endpoint=False,
         )
         mock_response_handler.handle_get_balances_response.assert_called_once_with(
             mock_raw_response_data_dict
@@ -518,9 +518,9 @@ class TestBackpackAccountService:
             endpoint="/api/v1/positions",  # Endpoint for no symbol
             params=None,
             is_signed=True,
-            rate_limiter_service=mock_rate_limiter_service,
             endpoint_group="private",
             request_weight=1,
+            is_public_info_endpoint=False,
         )
         mock_response_handler.handle_get_positions_response.assert_called_with(
             mock_raw_positions_data_item_dict, None
@@ -563,9 +563,9 @@ class TestBackpackAccountService:
             endpoint="/api/v1/positions",
             params={"symbol": symbol_arg},
             is_signed=True,
-            rate_limiter_service=mock_rate_limiter_service,
             endpoint_group="private",
             request_weight=1,
+            is_public_info_endpoint=False,
         )
         mock_response_handler.handle_get_positions_response.assert_called_with(
             mock_raw_positions_data_item_dict, symbol_arg
@@ -768,9 +768,9 @@ class TestBackpackAccountService:
             endpoint=mock_endpoint_path_for_get_balances,
             params=mock_params_from_builder_for_get_balances,
             is_signed=True,
-            rate_limiter_service=mock_rate_limiter_service,
             endpoint_group="private",
             request_weight=1,
+            is_public_info_endpoint=False,
         )
         mock_response_handler.handle_get_balances_response.assert_called_once_with(
             mock_raw_response_dict
@@ -886,9 +886,9 @@ class TestBackpackAccountService:
             endpoint="/api/v1/history/orders",
             params=mock_built_params,
             is_signed=True,
-            rate_limiter_service=mock_rate_limiter_service,
             endpoint_group="private",
             request_weight=1,
+            is_public_info_endpoint=False,
         )
         mock_response_handler.handle_get_order_history_response.assert_called_once_with(
             mock_raw_response_list, symbol
@@ -1032,9 +1032,9 @@ class TestBackpackAccountService:
                 endpoint="/api/v1/history/orders",
                 params=mock_params,
                 is_signed=True,
-                rate_limiter_service=mock_rate_limiter_service,
                 endpoint_group="private",
                 request_weight=1,
+                is_public_info_endpoint=False,
             )
             mock_response_handler.handle_get_order_history_response.assert_not_called()
             mock_mapper.transform_raw_order_to_internal.assert_not_called()
