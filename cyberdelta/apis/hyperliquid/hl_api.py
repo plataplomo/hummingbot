@@ -354,10 +354,11 @@ class HyperliquidAPI(ExchangeAPI):
             logger.error(
                 f"[{self.exchange_name}] API Error fetching asset index for {symbol}: {e_api}"
             )
-            raise APIError(
-                f"Failed to fetch asset index for symbol '{symbol}': {e_api}",
-                code=APIErrorCode.UNKNOWN.value,
+            raise APIError(  # Propagate the original code and http_status
+                f"Failed to fetch asset index for symbol '{symbol}': {e_api.message}",  # Keep informative message
+                code=e_api.code,  # Use original error's code
                 original_exception=e_api,
+                http_status=e_api.http_status,  # Propagate http_status if available
             ) from e_api
 
         try:

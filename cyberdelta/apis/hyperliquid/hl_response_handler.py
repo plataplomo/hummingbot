@@ -129,6 +129,8 @@ class HyperliquidResponseHandler:
                             if isinstance(item, dict):
                                 # Remove 'marginTableId' if present
                                 item.pop("marginTableId", None)
+                                # Remove 'isDelisted' if present
+                                item.pop("isDelisted", None)
                                 # Add 'onlyIsolated' if missing
                                 if "onlyIsolated" not in item:
                                     item["onlyIsolated"] = False  # Default to False if not provided

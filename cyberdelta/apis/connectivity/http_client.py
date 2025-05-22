@@ -8,9 +8,7 @@ from typing import Any
 
 import aiohttp
 from multidict import CIMultiDictProxy
-
-# Removed pydantic imports, now in connectivity_models
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.base.authenticator_interface import (
     AuthenticatedRequestComponents,
@@ -280,7 +278,7 @@ class HttpClient:
         rate_limiter_service: RateLimiterService,
         authenticator: IAuthenticator | None = None,
         params: dict[str, Any] | None = None,
-        data: dict[str, Any] | None = None,
+        data: dict[str, Any] | BaseModel | None = None,
         headers: dict[str, Any] | None = None,
         is_signed: bool = False,
         request_timeout: float | None = None,
@@ -361,7 +359,11 @@ class HttpClient:
                     method,
                     full_url,
                     params=request_params if request_params else None,
-                    json=request_data
+                    json=(
+                        request_data.model_dump(by_alias=True, exclude_none=True)
+                        if isinstance(request_data, BaseModel)
+                        else request_data
+                    )
                     if method.upper() not in ["GET", "DELETE"] and request_data is not None
                     else None,
                     data=None

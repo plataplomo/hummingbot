@@ -300,23 +300,31 @@ async def test_authenticate_no_authenticator_via_public_method(
     if no authenticator is configured."""
     _mock_auth_class, _mock_auth_instance = mock_hl_auth_init
     api = HyperliquidAPI(BASE_API_CONFIG, SECRETS_NO_KEY)
+
     assert api._authenticator is None
 
-    with pytest.raises(APIError, match="HL authenticator not initialized") as excinfo:
-        await api.place_order(
-            symbol="BTC",
-            side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
-            quantity=Decimal("0.001"),
-            price=Decimal("1.0"),
-            time_in_force=TimeInForce.GTC,
-        )
-    assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
+    with patch.object(
+        api._info_http_client,  # Accessing protected member for test setup
+        "request",
+        AsyncMock(return_value=(mock_meta_response_content(), 200, MagicMock(), MagicMock())),
+    ) as mock_info_request:
+        with pytest.raises(APIError, match="HL authenticator not initialized") as excinfo:
+            await api.place_order(
+                symbol="BTC",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("0.001"),
+                price=Decimal("1.0"),
+                time_in_force=TimeInForce.GTC,
+            )
+        assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
+        mock_info_request.assert_called_once()  # Ensure the mock was called to fetch asset index
 
 
 @pytest.mark.asyncio
 async def test_authenticate_prepare_request_fails_via_public_method(
     mock_hl_auth_init: tuple[MagicMock, MagicMock],
+    mock_meta_response_content: list[RawJsonResponse],  # Add fixture for meta content
 ) -> None:
     """Test APIError propagates from authenticator's prepare_request
     when calling a signed public method."""
@@ -328,16 +336,22 @@ async def test_authenticate_prepare_request_fails_via_public_method(
         "Signing failed internally", code=APIErrorCode.AUTHENTICATION_FAILED.value
     )
 
-    with pytest.raises(APIError, match="Signing failed internally") as excinfo:
-        await api.place_order(
-            symbol="BTC",
-            side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
-            quantity=Decimal("0.001"),
-            price=Decimal("1.0"),
-            time_in_force=TimeInForce.GTC,
-        )
-    assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
+    with patch.object(
+        api._info_http_client,  # Accessing protected member for test setup
+        "request",
+        AsyncMock(return_value=(mock_meta_response_content, 200, MagicMock(), MagicMock())),
+    ) as mock_info_request:
+        with pytest.raises(APIError, match="Signing failed internally") as excinfo:
+            await api.place_order(
+                symbol="BTC",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("0.001"),
+                price=Decimal("1.0"),
+                time_in_force=TimeInForce.GTC,
+            )
+        assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
+        mock_info_request.assert_called_once()  # Ensure the mock was called to fetch asset index
 
 
 # --- Signed Endpoint Test Example (place_order) --- #
@@ -703,7 +717,7 @@ class TestHyperliquidAPIMethodErrors:
 
         assert exc_info.value.code == APIErrorCode.SERVICE_UNAVAILABLE.value
         assert exc_info.value.http_status == http_status_from_exchange
-        assert f"HTTP {http_status_from_exchange} Error from HttpClient" in exc_info.value.message
+        assert error_body_from_exchange in exc_info.value.message
         assert exc_info.value.original_exception is http_failure
         assert exc_info.value.exchange_message == error_body_from_exchange
 
@@ -737,7 +751,7 @@ class TestHyperliquidAPIMethodErrors:
             side_val: OrderSide = OrderSide.SELL
             order_type_val: OrderType = OrderType.MARKET
             quantity_val: Decimal = Decimal("1")
-            price_val: Decimal | None = None  # Market order
+            price_val: Decimal | None = Decimal("0")  # Market order needs a price for slippage
             time_in_force_val: TimeInForce = TimeInForce.IOC
             # These are the specific args for the builder for this test case
             # expected_builder_args = { # Commented out as unused
@@ -821,7 +835,7 @@ class TestHyperliquidAPIMethodErrors:
             "status": "ok",
             "data": {"type": "order", "statuses": [{"error": error_message_from_hl}]},
         }
-        mock_hl_request.return_value = mock_hl_response_with_error_obj
+        mock_hl_request.return_value = (mock_hl_response_with_error_obj, 200, MagicMock())
 
         # Patch the HyperliquidRequestBuilder.build_place_order_payload
         with patch(
