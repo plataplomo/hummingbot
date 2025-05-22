@@ -180,14 +180,32 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         )
 
         validated_asset_ctxs: list[HyperliquidRawAssetCtx] = []
+        # Pre-calculate the set of allowed JSON keys for HyperliquidRawAssetCtx
+        allowed_json_keys_for_asset_ctx: set[str] = set()
+        for field_name, field_info in HyperliquidRawAssetCtx.model_fields.items():
+            # Always add the Python field name
+            allowed_json_keys_for_asset_ctx.add(field_name)
+            # If an alias exists and is different from the field name, add it too
+            if field_info.alias and field_info.alias != field_name:
+                allowed_json_keys_for_asset_ctx.add(field_info.alias)
+
         for i, item_obj in enumerate(asset_ctxs_list_of_objects):
             if not isinstance(item_obj, dict):
                 raise ValueError(f"Invalid MetaAndAssetCtxs: asset_ctxs[{i}] must be a dictionary")
-            item_dict = cast(dict[str, Any], item_obj)
-            assert isinstance(item_dict, dict)
+            item_dict_original = cast(dict[str, Any], item_obj)
+            assert isinstance(item_dict_original, dict)
+
+            # Filter item_dict_original to keep only keys that are valid for HyperliquidRawAssetCtx
+            item_dict_filtered = {
+                k: v for k, v in item_dict_original.items() if k in allowed_json_keys_for_asset_ctx
+            }
+
             validated_asset_ctxs.append(
                 HyperliquidRawAssetCtx.model_validate(
-                    item_dict, strict=strict, context=context, from_attributes=from_attributes
+                    item_dict_filtered,  # Use the correctly filtered dictionary
+                    strict=strict,
+                    context=context,
+                    from_attributes=from_attributes,
                 )
             )
 

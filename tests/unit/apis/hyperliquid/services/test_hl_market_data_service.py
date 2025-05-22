@@ -656,7 +656,9 @@ class TestHyperliquidMarketDataService:
                 ANY,  # Use ANY for headers, consistent with service call.
             )
             mock_candle_mapper_instance.map.assert_called_once_with(
-                raw_snapshot=mock_validated_response, symbol=symbol, interval=interval
+                mock_validated_response,
+                symbol,
+                interval,  # Positional arguments
             )
             assert result_candles == expected_candles
 

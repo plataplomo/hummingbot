@@ -139,21 +139,39 @@ class HyperliquidResponseHandler:
                 # Process asset_ctxs_data
                 asset_ctxs_data = processed_raw_response_content[1]
                 if isinstance(asset_ctxs_data, list):
-                    # Only keep keys defined in HyperliquidRawAssetCtx,
-                    # per strict RAW model boundary.
-                    defined_fields = HyperliquidRawAssetCtx.model_fields.keys()
-                    filtered_asset_ctxs: list[RawJson] = []
+                    # Correct, alias-aware filtering for asset_ctxs_data
+                    allowed_json_keys_for_asset_ctx: set[str] = set()
+                    for field_name, field_info in HyperliquidRawAssetCtx.model_fields.items():
+                        if field_info.alias:
+                            allowed_json_keys_for_asset_ctx.add(field_info.alias)
+                        else:
+                            allowed_json_keys_for_asset_ctx.add(field_name)
+
+                    filtered_asset_ctxs_list: list[RawJson] = []
                     for item_obj in asset_ctxs_data:
                         if isinstance(item_obj, dict):
+                            # Perform alias-aware filtering
+                            item_dict_original = item_obj  # item_obj is already a dict here
                             filtered_item_dict = {
-                                k: v for k, v in item_obj.items() if k in defined_fields
+                                k: v
+                                for k, v in item_dict_original.items()
+                                if k in allowed_json_keys_for_asset_ctx
                             }
-                            filtered_asset_ctxs.append(filtered_item_dict)
+                            # Only append if the filtered dict is not empty, or handle as per requirements
+                            # For now, append even if it becomes empty after filtering, Pydantic will catch missing required fields.
+                            filtered_asset_ctxs_list.append(filtered_item_dict)
                         else:
                             logger.warning(
                                 f"Skipping non-dict item in asset_ctxs_data: {item_obj!r}"
                             )
-                    processed_raw_response_content[1] = filtered_asset_ctxs
+                            # Optionally, append the item as is or raise error, depending on strictness
+                            # For now, we are only filtering dicts.
+                    processed_raw_response_content[1] = filtered_asset_ctxs_list
+
+            # The HyperliquidRawMetaAndAssetCtxsResponse.model_validate method
+            # also contains alias-aware filtering. This handler prepares the data,
+            # and the model validator re-validates/re-filters.
+            # This is slightly redundant but ensures correctness at both stages.
             return HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
                 processed_raw_response_content
             )
@@ -161,6 +179,17 @@ class HyperliquidResponseHandler:
             raise HyperliquidResponseHandler._handle_validation_error(
                 e, context, raw_response_content, status_code, headers
             ) from e
+        except Exception as e_generic:  # Catch other exceptions like ValueError
+            logger.error(
+                f"[{HyperliquidResponseHandler.__name__}] Unexpected generic error processing "
+                f"{context}: {e_generic}. Raw: {raw_response_content!r}"
+            )
+            raise APIError(
+                message=f"Unexpected error processing {context}: {e_generic}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                original_exception=e_generic,
+                http_status=status_code,
+            ) from e_generic
 
     @staticmethod
     def handle_info_user_state_response(
