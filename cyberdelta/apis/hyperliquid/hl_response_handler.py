@@ -138,30 +138,22 @@ class HyperliquidResponseHandler:
 
                 # Process asset_ctxs_data
                 asset_ctxs_data = processed_raw_response_content[1]
-                validated_asset_ctxs: list[HyperliquidRawAssetCtx] = []
                 if isinstance(asset_ctxs_data, list):
+                    # Only keep keys defined in HyperliquidRawAssetCtx,
+                    # per strict RAW model boundary.
                     defined_fields = HyperliquidRawAssetCtx.model_fields.keys()
+                    filtered_asset_ctxs: list[RawJson] = []
                     for item_obj in asset_ctxs_data:
                         if isinstance(item_obj, dict):
-                            # Filter out extra fields not defined in HyperliquidRawAssetCtx
                             filtered_item_dict = {
                                 k: v for k, v in item_obj.items() if k in defined_fields
                             }
-                            try:
-                                validated_asset_ctxs.append(
-                                    HyperliquidRawAssetCtx.model_validate(filtered_item_dict)
-                                )
-                            except ValidationError as ve:
-                                logger.warning(
-                                    f"Validation error for asset context item: {ve}. "
-                                    f"Skipping item: {filtered_item_dict!r}"
-                                )
+                            filtered_asset_ctxs.append(filtered_item_dict)
                         else:
                             logger.warning(
                                 f"Skipping non-dict item in asset_ctxs_data: {item_obj!r}"
                             )
-                    processed_raw_response_content[1] = validated_asset_ctxs
-
+                    processed_raw_response_content[1] = filtered_asset_ctxs
             return HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
                 processed_raw_response_content
             )
