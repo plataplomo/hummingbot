@@ -835,7 +835,8 @@ class TestHyperliquidAPIMethodErrors:
             "status": "ok",
             "data": {"type": "order", "statuses": [{"error": error_message_from_hl}]},
         }
-        mock_hl_request.return_value = (mock_hl_response_with_error_obj, 200, MagicMock())
+
+        mock_hl_request.return_value = (mock_hl_response_with_error_obj, 200, {})
 
         # Patch the HyperliquidRequestBuilder.build_place_order_payload
         with patch(

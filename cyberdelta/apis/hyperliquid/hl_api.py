@@ -354,11 +354,12 @@ class HyperliquidAPI(ExchangeAPI):
             logger.error(
                 f"[{self.exchange_name}] API Error fetching asset index for {symbol}: {e_api}"
             )
-            raise APIError(  # Propagate the original code and http_status
-                f"Failed to fetch asset index for symbol '{symbol}': {e_api.message}",  # Keep informative message
-                code=e_api.code,  # Use original error's code
+
+            raise APIError(
+                f"Failed to fetch asset index for symbol '{symbol}': {e_api.message}",
+                code=e_api.code,
                 original_exception=e_api,
-                http_status=e_api.http_status,  # Propagate http_status if available
+                http_status=e_api.http_status,
             ) from e_api
 
         try:
@@ -412,6 +413,20 @@ class HyperliquidAPI(ExchangeAPI):
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e,
             ) from e
+
+    def _update_rate_limit_from_headers(
+        self, headers: Mapping[str, str], method: str, path: str
+    ) -> None:
+        """
+        Update rate limit information based on response headers.
+        Hyperliquid does not typically provide rate limit info in standard headers.
+        This is a placeholder implementation.
+        """
+        logger.debug(
+            f"[{self.exchange_name}] _update_rate_limit_from_headers called "
+            f"(no-op for Hyperliquid). Headers: {headers}, Method: {method}, Path: {path}"
+        )
+        pass
 
     def _construct_subscription_payload(self, topic: str) -> dict[str, Any] | None:
         """Constructs the subscription payload for a given topic for Hyperliquid.
@@ -880,7 +895,7 @@ class HyperliquidAPI(ExchangeAPI):
         except ValueError:
             _error_msg_invalid_oid = f"Invalid order_id format for get_order_status: {order_id}"
             logger.error(f"[{self.exchange_name}] {_error_msg_invalid_oid}")
-            raise APIError(_error_msg_invalid_oid, APIErrorCode.INVALID_REQUEST.value)
+            raise APIError(_error_msg_invalid_oid, APIErrorCode.INVALID_REQUEST.value) from None
 
         order = await self.trading_service.get_order(symbol=symbol, order_id=order_id_int)
         if order is None:
@@ -1115,20 +1130,6 @@ class HyperliquidAPI(ExchangeAPI):
             f"(userEvents) topic: {topic}"
         )
         # Actual subscription is initiated by the caller using self.subscribe(topic, handler)
-
-    def _update_rate_limit_from_headers(
-        self, headers: Mapping[str, str], method: str, path: str
-    ) -> None:
-        """
-        Update rate limit information based on response headers.
-        Hyperliquid does not typically provide rate limit info in standard headers.
-        This is a placeholder implementation.
-        """
-        logger.debug(
-            f"[{self.exchange_name}] _update_rate_limit_from_headers called "
-            f"(no-op for Hyperliquid). Headers: {headers}, Method: {method}, Path: {path}"
-        )
-        pass
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
         """Register a handler for a WebSocket topic and send subscription via WebSocketManager."""

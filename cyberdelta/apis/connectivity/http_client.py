@@ -297,6 +297,14 @@ class HttpClient:
         if method.upper() not in ["GET", "DELETE"] and request_data is not None:
             if isinstance(request_data, BaseModel):
                 json_payload = request_data.model_dump(by_alias=True, exclude_none=True)
+                logger.debug(
+                    f"[{self.exchange_name}] Converted BaseModel to dict for JSON payload. "
+                    f"Original type: {type(request_data)}. Dumped data: {json_payload}"
+                )
+                logger.debug(
+                    f"[{self.exchange_name}] Converted BaseModel to dict for JSON payload. "
+                    f"Original type: {type(request_data)}. Dumped data: {json_payload}"
+                )
             elif isinstance(request_data, dict):
                 json_payload = request_data
             else:
