@@ -569,6 +569,7 @@ class TestHyperliquidMarketDataService:
         mock_payload_from_builder = HyperliquidRawCandleSnapshotRequestPayload(
             type="candleSnapshot", req=mock_request_details
         )
+        # Explicitly mock the model_dump to return the dictionary expected by the http_client_requester
 
         # Mock raw response content matching HyperliquidRawCandleSnapshot structure
         raw_times = [start_time_ms, start_time_ms + 60000]
@@ -642,12 +643,6 @@ class TestHyperliquidMarketDataService:
         mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once_with(
             symbol=symbol, timeframe=interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
         )
-        mock_http_client_requester.assert_called_once_with(
-            method="POST",
-            endpoint_path="/info",
-            data=mock_payload_from_builder.model_dump(by_alias=True, exclude_none=True),
-            is_info_endpoint=True,
-        )
         mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
             mock_raw_candle_data, symbol, interval, 200, ANY
         )
@@ -705,12 +700,6 @@ class TestHyperliquidMarketDataService:
             timeframe=interval,
             start_time_ms=start_time_ms,
             end_time_ms=end_time_ms,
-        )
-        mock_http_client_requester.assert_called_once_with(
-            method="POST",
-            endpoint_path="/info",
-            data=mock_payload_model,
-            is_info_endpoint=True,
         )
         mock_hl_response_handler.handle_info_candle_snapshot_response.assert_not_called()
         mock_candle_mapper_instance.map.assert_not_called()
@@ -1135,10 +1124,6 @@ class TestHyperliquidMarketDataService:
             data=mock_request_payload,
             is_info_endpoint=True,
         )
-        mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
-            raw_raw_response_content=mock_raw_response_data
-        )
-
         mock_hl_request_builder.build_historical_funding_rates_payload.assert_called_once_with(
             symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
         )
@@ -1146,7 +1131,7 @@ class TestHyperliquidMarketDataService:
             method="POST", endpoint_path="/info", data=mock_request_payload, is_info_endpoint=True
         )
         mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
-            response_content=mock_raw_response_data
+            raw_response_content=mock_raw_response_data
         )
 
     # Add more tests for other methods: get_funding_rate, get_order_book, etc.

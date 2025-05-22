@@ -550,7 +550,7 @@ class HyperliquidMarketDataService:
             symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
         )
 
-        raw_response_content, status_code, _ = await self._http_client_requester(
+        raw_response_content, status_code, headers = await self._http_client_requester(
             method="POST",
             endpoint_path="/info",
             data=payload,
@@ -569,8 +569,12 @@ class HyperliquidMarketDataService:
                 http_status=status_code,
             )
 
-        raw_funding_history_items = self._response_handler.handle_historical_funding_rates_response(
-            raw_response_content=raw_response_content
+        raw_funding_history_items: list[
+            cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info.HyperliquidRawFundingHistoryItem
+        ] = self._response_handler.handle_historical_funding_rates_response(
+            raw_response_content=raw_response_content,
+            status_code=status_code,
+            headers=headers,
         )
 
         internal_funding_rates: list[FundingRate] = []
@@ -626,7 +630,9 @@ class HyperliquidMarketDataService:
         raw_response_content, status_code, _ = await self._http_client_requester(
             method="POST",
             endpoint_path="/info",  # Candle data is from /info
-            data=payload,  # Payload itself is a dict[str, Any]
+            data=payload.model_dump(
+                by_alias=True, exclude_none=True
+            ),  # Payload itself is a dict[str, Any]
             is_info_endpoint=True,  # Crucial for routing to the correct HttpClient
         )
 

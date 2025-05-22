@@ -676,7 +676,8 @@ class HyperliquidResponseHandler:
     @staticmethod
     def handle_historical_funding_rates_response(
         raw_response_content: RawJsonResponse,
-        # symbol: str, # Symbol might not be needed if response items contain it
+        status_code: int | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> list[HyperliquidRawFundingHistoryItem]:
         """Validates the /info response for historical funding rates."""
         context = "historical funding rates"
