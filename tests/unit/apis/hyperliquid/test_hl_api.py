@@ -103,7 +103,7 @@ def mock_hyperliquid_mapper() -> MagicMock:
 
 
 @pytest.fixture
-def mock_hl_auth_init() -> Generator[tuple[MagicMock, MagicMock], Any]:  # noqa: ANN401
+def mock_hl_auth_init() -> Generator[tuple[MagicMock, MagicMock], Any]:
     """Mocks the HyperliquidEip712Authenticator initialization."""
     with patch(
         "cyberdelta.apis.hyperliquid.hl_api.HyperliquidEip712Authenticator"
@@ -169,7 +169,9 @@ def mock_meta_response_content() -> list[RawJsonResponse]:
 
 @pytest.fixture
 def mock_meta_response_content_for_btc_only() -> list[RawJsonResponse]:
-    """Provides a mock raw JSON response for /info endpoint (meta and asset contexts) with only BTC."""
+    """Provides a mock raw JSON response for /info endpoint (meta and asset contexts)
+    with only BTC.
+    """
     return [
         {"universe": [{"name": "BTC", "szDecimals": 5, "maxLeverage": 100, "onlyIsolated": False}]},
         [
@@ -311,6 +313,7 @@ async def test_hl_api_init_no_address(
 @pytest.mark.asyncio
 async def test_authenticate_no_authenticator_via_public_method(
     mock_hl_auth_init: tuple[MagicMock, MagicMock],
+    mock_meta_response_content_for_btc_only: list[RawJsonResponse],
 ) -> None:
     """Test APIError is raised when calling a signed public method
     if no authenticator is configured."""
@@ -319,12 +322,11 @@ async def test_authenticate_no_authenticator_via_public_method(
 
     assert api._authenticator is None
 
-    with patch.object(
-        api._info_http_client,
-        "request",
+    with patch(
+        f"{HL_API_PATH}.HttpClient.request",
         new_callable=AsyncMock,
         return_value=(mock_meta_response_content_for_btc_only, 200, MagicMock(), MagicMock()),
-    ) as mock_info_http_client_request:
+    ) as mock_http_client_request:
         with pytest.raises(APIError, match="HL authenticator not initialized") as excinfo:
             await api.place_order(
                 symbol="BTC",
@@ -335,13 +337,14 @@ async def test_authenticate_no_authenticator_via_public_method(
                 time_in_force=TimeInForce.GTC,
             )
         assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
-        mock_info_http_client_request.assert_awaited_once()  # We don't care about args here, just that it was called
+        mock_http_client_request.assert_awaited_once()  # We don't care about args here,
+        # just that it was called
 
 
 @pytest.mark.asyncio
 async def test_authenticate_prepare_request_fails_via_public_method(
     mock_hl_auth_init: tuple[MagicMock, MagicMock],
-    mock_meta_response_content: list[RawJsonResponse],  # Add fixture for meta content
+    mock_meta_response_content_for_btc_only: list[RawJsonResponse],
 ) -> None:
     """Test APIError propagates from authenticator's prepare_request
     when calling a signed public method."""
@@ -353,12 +356,11 @@ async def test_authenticate_prepare_request_fails_via_public_method(
         "Signing failed internally", code=APIErrorCode.AUTHENTICATION_FAILED.value
     )
 
-    with patch.object(
-        api._info_http_client,
-        "request",
+    with patch(
+        f"{HL_API_PATH}.HttpClient.request",
         new_callable=AsyncMock,
         return_value=(mock_meta_response_content_for_btc_only, 200, MagicMock(), MagicMock()),
-    ) as mock_info_http_client_request:
+    ) as mock_http_client_request:
         with pytest.raises(APIError, match="Signing failed internally") as excinfo:
             await api.place_order(
                 symbol="BTC",
@@ -369,7 +371,8 @@ async def test_authenticate_prepare_request_fails_via_public_method(
                 time_in_force=TimeInForce.GTC,
             )
         assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
-        mock_info_http_client_request.assert_awaited_once()  # We don't care about args here, just that it was called
+        mock_http_client_request.assert_awaited_once()  # We don't care about args here,
+        # just that it was called
 
 
 # --- Signed Endpoint Test Example (place_order) --- #
@@ -431,45 +434,32 @@ async def test_place_order_calls_authenticate_and_request(
 
         # Define a side effect for the mocked _request
         async def mock_request_side_effect(
-            *_args: Any,  # noqa: ANN401
-            **kwargs: Any,  # noqa: ANN401
-        ) -> dict[str, Any]:
-            # When api._request("POST", "/exchange", data=..., is_signed=True) is called,
-            # the side_effect receives _args = ("POST", "/exchange") and
-            # kwargs = {"data": ..., "is_signed": True}.
-            # `self` is not part of _args for a side_effect function.
+            *args: Any,
+            **kwargs: Any,
+        ) -> tuple[dict[str, Any], int, MagicMock, MagicMock]:  # Added return type hint
+            # When the service's requester is called, it passes method and endpoint_path
+            # as explicit positional arguments, followed by kwargs.
+            method = args[0]
+            endpoint_path = args[1]
 
             if kwargs.get("is_signed") is True and api._authenticator:
-                actual_method_from_args = _args[0] if _args else None
-                actual_path_from_args = _args[1] if len(_args) > 1 else None
-
-                # Ensure actual_method_from_args and actual_path_from_args are strings
-                if not isinstance(actual_method_from_args, str):
-                    pytest.fail(
-                        f"prepare_request: method from _args[0] not str: "
-                        f"{actual_method_from_args=} ({type(actual_method_from_args)})"
-                    )
-                if not isinstance(actual_path_from_args, str):
-                    pytest.fail(
-                        f"prepare_request: path from _args[1] not str: "
-                        f"{actual_path_from_args=} ({type(actual_path_from_args)})"
-                    )
-
                 # The data passed to prepare_request should be the Pydantic model's dump
                 # Use mock_auth_for_test as api._authenticator points to it in this test context
                 await mock_auth_for_test.prepare_request(
-                    method=actual_method_from_args,
-                    path=actual_path_from_args,
+                    method=method,
+                    path=endpoint_path,
                     params=kwargs.get("params"),
                     data=kwargs.get("data"),  # This data is already model_dumped by api.place_order
                     headers=dict(api.default_headers),
                 )
-            return mock_http_response_content
+            return (mock_http_response_content, 200, MagicMock(), MagicMock())  # Return a tuple
 
         # Patch the _request method on the API instance
-        with patch.object(
-            api, "_request", side_effect=mock_request_side_effect, spec=True
-        ) as mock_api_request:
+        with patch.object(  # This patch needs to be on the service's requester
+            api.trading_service,
+            "_exchange_http_client_requester",
+            side_effect=mock_request_side_effect,
+        ) as mock_service_requester:
             # Patch the _info_http_client.request call that _get_asset_index makes
             # This is CRITICAL to prevent real network calls from _get_asset_index
             with patch.object(
@@ -495,7 +485,6 @@ async def test_place_order_calls_authenticate_and_request(
                                 "markPx": "50000",
                                 "prevDayPx": "49000",
                                 "dayNtlVlm": "100",
-                                # "impactPx": "50001", # Removed as not in HyperliquidRawAssetCtx
                             }
                         ],
                     ],
@@ -561,14 +550,14 @@ async def test_place_order_calls_authenticate_and_request(
                         )
                         mock_build_payload.assert_called_once()
                         mock_auth_for_test.prepare_request.assert_awaited_once()
-                        mock_api_request.assert_awaited_once()
+                        mock_service_requester.assert_awaited_once()
                         assert final_order_call_1 == mock_mapped_order_obj
 
                         # Reset mocks for the second call
                         mock_info_http_client_request.reset_mock()
                         mock_build_payload.reset_mock()
                         mock_auth_for_test.prepare_request.reset_mock()
-                        mock_api_request.reset_mock()
+                        mock_service_requester.reset_mock()
                         mock_get_status.reset_mock()
                         mock_get_status.return_value = (
                             mock_mapped_order_obj  # Re-assign return value
@@ -593,7 +582,7 @@ async def test_place_order_calls_authenticate_and_request(
                         mock_build_payload.assert_called_once()  # Builder still called
                         # Auth still called
                         mock_auth_for_test.prepare_request.assert_awaited_once()
-                        mock_api_request.assert_awaited_once()  # Request still called
+                        mock_service_requester.assert_awaited_once()  # Request still called
                         assert final_order_call_2 == mock_mapped_order_obj
 
                     # Verify builder was called correctly (overall, across both calls
@@ -616,11 +605,11 @@ async def test_place_order_calls_authenticate_and_request(
                     mock_auth_for_test.prepare_request.assert_awaited_once()
 
                     # Verify _request itself was called correctly by place_order
-                    mock_api_request.assert_awaited_once_with(
+                    mock_service_requester.assert_awaited_once_with(
                         method="POST",
-                        endpoint="/exchange",  # _request expects endpoint, not endpoint_path
+                        endpoint_path="/exchange",  # The service's requester expects endpoint_path
                         data=expected_data_for_request,  # Assert with the dumped dict
-                        is_signed=True,
+                        rate_limiter_service=api._rate_limiter_service,  # Add this assertion
                     )
 
                     assert final_order_call_1 == mock_mapped_order_obj
@@ -758,7 +747,12 @@ class TestHyperliquidAPIMethodErrors:
             "status": "ok",
             "data": {"type": "order", "statuses": [error_string_from_hl]},
         }
-        mock_hl_request.return_value = mock_hl_response_with_internal_error
+        mock_hl_request.return_value = (
+            mock_hl_response_with_internal_error,
+            200,
+            MagicMock(),
+            MagicMock(),
+        )
 
         # Patch the HyperliquidRequestBuilder.build_place_order_payload
         with patch(
@@ -854,7 +848,12 @@ class TestHyperliquidAPIMethodErrors:
             "data": {"type": "order", "statuses": [{"error": error_message_from_hl}]},
         }
 
-        mock_hl_request.return_value = (mock_hl_response_with_error_obj, 200, {})
+        mock_hl_request.return_value = (
+            mock_hl_response_with_error_obj,
+            200,
+            MagicMock(),
+            MagicMock(),
+        )
 
         # Patch the HyperliquidRequestBuilder.build_place_order_payload
         with patch(
@@ -1316,7 +1315,7 @@ class TestHyperliquidAPIWebSocketRouting:
         event_type: str,
         raw_event_data: dict[str, Any],
         handler_method_name: str,
-        model_spec: Any,  # noqa: ANN401 - Parametrized test with varying model types
+        model_spec: Any,
         dump_key: str,
     ) -> None:
         """Test _route_ws_message for simple userEvents (fill, positionUpdate)."""

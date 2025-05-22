@@ -546,7 +546,7 @@ def test_BackpackRawTickerEvent_valid_event_time_formats(
 )
 def test_BackpackRawTickerEvent_invalid_fields(
     field: str,
-    value: Any,  # noqa: ANN401 # Intentional Any for testing invalid inputs
+    value: Any,  # Intentional Any for testing invalid inputs
     expected_msg_part: str,
     valid_ticker_event_data: dict[str, Any],
 ) -> None:
@@ -634,7 +634,7 @@ def test_BackpackRawDepthUpdateEvent_empty_levels(valid_depth_update_data: dict[
 )
 def test_BackpackRawDepthUpdateEvent_invalid_fields(
     field: str,
-    value: Any,  # noqa: ANN401 # Intentional Any for testing invalid inputs
+    value: Any,  # Intentional Any for testing invalid inputs
     expected_msg_part: str,
     valid_depth_update_data: dict[str, Any],
 ) -> None:

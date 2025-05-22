@@ -43,7 +43,7 @@ sys.path.insert(0, PROJECT_ROOT)
 class MockResponse:
     def __init__(
         self,
-        data: Any,  # noqa: ANN401 - Mock data can be anything for tests
+        data: Any,
         status: int = 200,
         headers: dict[str, str] | None = None,
         content_type: str = "application/json",
@@ -77,7 +77,7 @@ class MockResponse:
                 headers=cast(Any, self.headers),
             )
 
-    async def json(self) -> Any:  # noqa: ANN401 - Mock data can be anything for tests
+    async def json(self) -> Any:
         return self._data
 
     async def __aenter__(self) -> MockResponse:
@@ -312,7 +312,7 @@ def mock_config() -> MagicMock:
         "data": {"staleness_thresholds": {"ticker": 60, "funding_rate": 300, "orderbook": 60}},
     }
 
-    def getter(key: str, default: Any | None = None) -> Any | None:  # noqa: ANN401 - config getter can return Any
+    def getter(key: str, default: Any | None = None) -> Any | None:
         return _deep_get(config_data, key, default)
 
     mock_cfg = MagicMock(spec=Config)
@@ -474,7 +474,7 @@ def mock_arbitrage_opportunity() -> MagicMock:
     return opportunity
 
 
-def _deep_get(d: dict[str, Any], keys: str, default: Any | None = None) -> Any | None:  # noqa: ANN401 - deep_get can return Any
+def _deep_get(d: dict[str, Any], keys: str, default: Any | None = None) -> Any | None:
     """Helper to get nested dictionary values."""
     keys_list = keys.split(".")
     value: Any = d
@@ -497,11 +497,11 @@ def mock_secrets_manager_with_missing() -> MagicMock:
     # Simulate missing optional keys
     def mock_get(
         key: str,
-        default: Any = None,  # noqa: ANN401 - default can be Any for this flexible mock
+        default: Any = None,
         *,
         _deep_get: bool = False,
         getter: Callable[..., Any] | None = None,  # Changed Any to Callable[..., Any] | None
-    ) -> Any:  # noqa: ANN401 - mock_get can return Any
+    ) -> Any:
         if key == "OPTIONAL_SETTING":
             return None
         elif key == "REQUIRED_DB_PASSWORD":
@@ -518,7 +518,7 @@ def mock_secrets_manager_with_missing() -> MagicMock:
 # --- Async Mocking Helpers ---
 
 
-def mock_get_config() -> dict[str, Any]:  # noqa: ANN401 - Test fixture returns dict
+def mock_get_config() -> dict[str, Any]:
     """Fixture to provide a mock configuration dictionary."""
     return {
         "exchanges": {
@@ -613,7 +613,7 @@ def mock_get_config() -> dict[str, Any]:  # noqa: ANN401 - Test fixture returns 
 
 def create_mock_response(
     status: int = 200,
-    json_data: Any | None = None,  # noqa: ANN401 - JSON data can be Any for tests
+    json_data: Any | None = None,
     text_data: str | None = None,
     headers: dict[str, str] | None = None,
 ) -> MockResponse:
@@ -645,10 +645,10 @@ async def mock_request(
     method: str,
     url: str,
     *,
-    params: dict[str, Any] | None = None,  # noqa: ANN401 - Params can be Any for mock
-    data: Any | None = None,  # noqa: ANN401 - Data can be Any for mock
-    json: Any | None = None,  # noqa: ANN401 - Json can be Any for mock
-    headers: dict[str, Any] | None = None,  # noqa: ANN401 - Headers can be Any for mock
+    params: dict[str, Any] | None = None,
+    data: Any | None = None,
+    json: Any | None = None,
+    headers: dict[str, Any] | None = None,
     status_code: int = 200,
     **kwargs: Any,
 ) -> MockResponse:

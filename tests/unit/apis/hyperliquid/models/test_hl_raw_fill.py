@@ -60,7 +60,7 @@ def test_valid_hyperliquid_fill(valid_fill_data: dict[str, Any]) -> None:
 # )
 # def test_invalid_hyperliquid_fill(
 #     field: str,
-#     invalid_value: Any,  # noqa: ANN401 # Intentional Any for testing invalid inputs
+#     invalid_value: Any,   # Intentional Any for testing invalid inputs
 #     match_pattern: str,
 #     valid_fill_data: dict[str, Any],
 # ) -> None:

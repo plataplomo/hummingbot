@@ -130,7 +130,7 @@ def test_referral_state_item_valid(valid_referral_state_item_data: dict[str, Any
 def test_referral_state_item_invalid(
     valid_referral_state_item_data: dict[str, Any],
     field: str,
-    value: Any | None,  # noqa: ANN401
+    value: Any | None,
 ) -> None:
     data_copy = valid_referral_state_item_data.copy()
     if value is None:
@@ -155,7 +155,7 @@ def test_referrer_data_valid(valid_referrer_data_data: dict[str, Any]) -> None:
 def test_referrer_data_invalid(
     valid_referrer_data_data: dict[str, Any],
     field: str,
-    value: Any | None,  # noqa: ANN401
+    value: Any | None,
 ) -> None:
     data_copy = valid_referrer_data_data.copy()
     if value is None:
@@ -184,7 +184,7 @@ def test_referrer_state_valid(valid_referrer_state_data: dict[str, Any]) -> None
 def test_referrer_state_invalid(
     valid_referrer_state_data: dict[str, Any],
     field: str,
-    value: Any | None,  # noqa: ANN401
+    value: Any | None,
 ) -> None:
     data_copy = valid_referrer_state_data.copy()
     if value is None:
@@ -221,7 +221,7 @@ def test_referral_response_valid(valid_referral_response_data: dict[str, Any]) -
 def test_referral_response_invalid(
     valid_referral_response_data: dict[str, Any],
     field: str,
-    value: Any,  # noqa: ANN401
+    value: Any,
     is_missing_test: bool,
 ) -> None:
     data_copy = valid_referral_response_data.copy()
@@ -247,7 +247,7 @@ def test_referral_response_invalid(
 def test_all_referral_models_extra_fields(
     model_class: type[BaseModel],
     valid_data_fixture_name: str,
-    request: FixtureRequest,  # noqa: ANN401
+    request: FixtureRequest,
 ) -> None:
     """Test that all referral-related models forbid extra fields."""
     valid_data = request.getfixturevalue(valid_data_fixture_name)

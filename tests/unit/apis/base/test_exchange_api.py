@@ -129,8 +129,8 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
 
     async def place_order(
         self,
-        *args: Any,  # noqa: ANN401
-        **kwargs: Any,  # noqa: ANN401
+        *args: Any,
+        **kwargs: Any,
     ) -> Order:
         return MagicMock(spec=Order)
 

@@ -535,7 +535,7 @@ class BackpackAccountService:
         tag: str | None = None,
         client_withdrawal_id: str | None = None,
         two_factor_token: str | None = None,
-        **_kwargs: Any,  # noqa: ANN401 # For potential extra params not yet defined
+        **_kwargs: Any,  # For potential extra params not yet defined
     ) -> Withdrawal:
         """Initiates a withdrawal of funds to an external address."""
         endpoint_path = "/api/v1/capital/withdrawals"

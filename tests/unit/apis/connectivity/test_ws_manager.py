@@ -32,7 +32,7 @@ async def dummy_on_connected_callback() -> None:
 # Helper function for mock side_effect
 def create_async_mock_task_for_side_effect(
     *args: object,
-    **kwargs: object,  # noqa: ANN401 # Generic pass-through for mock/callback
+    **kwargs: object,  # Generic pass-through for mock/callback
 ) -> AsyncMock:
     """Helper to create an AsyncMock, intended for use as a side_effect."""
     return AsyncMock()
@@ -813,7 +813,7 @@ class TestWebSocketManager:
     def test_config_validation_numeric_bounds(
         self,
         field: str,
-        invalid_value: Any,  # noqa: ANN401
+        invalid_value: Any,
         error_part: str,
         default_ws_manager_config: WebSocketManagerConfig,
     ) -> None:

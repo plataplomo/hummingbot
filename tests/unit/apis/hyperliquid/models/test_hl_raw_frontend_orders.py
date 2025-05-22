@@ -87,7 +87,7 @@ def test_frontend_order_invalid_fields(
     valid_frontend_order_data: dict[str, Any],
     field: str,
     value: object,
-    is_missing_test: bool,  # noqa: ANN401
+    is_missing_test: bool,
 ) -> None:
     data_copy = valid_frontend_order_data.copy()
     if is_missing_test:

@@ -42,7 +42,7 @@ def test_builder_fee_valid(valid_builder_fee_data: dict[str, Any]) -> None:
         "false",  # lowercase
     ],
 )
-def test_builder_fee_approved_various_inputs(value: Any) -> None:  # noqa: ANN401
+def test_builder_fee_approved_various_inputs(value: Any) -> None:
     data = {"approved": value}
     if isinstance(value, str) and value.lower() in ["true", "false"]:
         expected_bool = value.lower() == "true"

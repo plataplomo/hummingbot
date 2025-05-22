@@ -330,8 +330,8 @@ class TestBackpackAPI_Authentication:
         mock_build_payload.return_value = expected_builder_payload
 
         def http_client_request_side_effect(
-            *args: Any,  # noqa: ANN401
-            **kwargs: Any,  # noqa: ANN401
+            *args: Any,
+            **kwargs: Any,
         ) -> tuple[dict[str, Any], MagicMock, MagicMock]:
             print("[TEST DEBUG] mock_http_client_request called!", flush=True)
             # Print the authenticator it received
@@ -806,7 +806,7 @@ class TestBackpackAPIWebSocketRouting:
         private_event_type: str,
         raw_event_data_func: Callable[[], dict[str, Any]],
         handler_method_name: str,
-        model_spec: Any,  # noqa: ANN401
+        model_spec: Any,
         dump_key: str,
     ) -> None:
         """Test _route_ws_message for private events (fills, orderUpdate, positionUpdate)."""

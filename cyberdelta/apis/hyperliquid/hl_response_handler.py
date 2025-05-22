@@ -5,6 +5,7 @@ Validates raw JSON data against Pydantic models specific to Hyperliquid's API en
 """
 
 from collections.abc import Mapping
+from typing import cast
 
 from pydantic import ValidationError  # BaseModel, Field no longer used directly here
 
@@ -104,7 +105,8 @@ class HyperliquidResponseHandler:
         context = "info (MetaAndAssetCtxs)"
         if not isinstance(raw_response_content, list):
             logger.error(
-                f"Unexpected {context} format. Status: {status_code}, Headers: {headers}, Raw: {raw_response_content!r}"
+                f"Unexpected {context} format. "
+                f"Status: {status_code}, Headers: {headers}, Raw: {raw_response_content!r}"
             )
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "
@@ -120,7 +122,8 @@ class HyperliquidResponseHandler:
             if len(processed_raw_response_content) == 2:
                 meta_data = processed_raw_response_content[0]
                 if isinstance(meta_data, dict):
-                    # Remove 'marginTables' from meta_data if present, as it's not in our Pydantic model
+                    # Remove 'marginTables' from meta_data if present,
+                    # as it's not in our Pydantic model
                     meta_data.pop("marginTables", None)
 
                     # Preprocess 'universe' items within meta_data
@@ -134,52 +137,15 @@ class HyperliquidResponseHandler:
                                 if "onlyIsolated" not in item:
                                     item["onlyIsolated"] = False  # Default to False if not provided
 
-                # Process asset_ctxs_data
+                # Process asset_ctxs_data (only one block, remove duplication)
                 asset_ctxs_data = processed_raw_response_content[1]
 
                 if isinstance(asset_ctxs_data, list):
-                    processed_asset_ctxs_list: list[dict[str, RawJson]] = []
-                    # Get the expected fields from HyperliquidRawAssetCtx once
-                    asset_ctx_expected_fields = set(HyperliquidRawAssetCtx.model_fields.keys())
-
-                    for i, item_dict in enumerate(asset_ctxs_data):
-                        if not isinstance(item_dict, dict):
-                            logger.warning(
-                                f"Skipping non-dict item at index {i} in asset_ctxs_data. Item: {item_dict!r}"
-                            )
-                            continue  # Skip non-dict items
-
-                        # Filter out extra fields not defined in HyperliquidRawAssetCtx
-                        filtered_item_dict = {
-                            k: v for k, v in item_dict.items() if k in asset_ctx_expected_fields
-                        }
-                        processed_asset_ctxs_list.append(filtered_item_dict)
-
-                    # Update processed_raw_response_content with the filtered asset_ctxs_list
-                    processed_raw_response_content[1] = processed_asset_ctxs_list
-                # Process asset_ctxs_data
-                asset_ctxs_data = processed_raw_response_content[1]
-
-                if isinstance(asset_ctxs_data, list):
-                    processed_asset_ctxs_list: list[dict[str, RawJson]] = []
-                    # Get the expected fields from HyperliquidRawAssetCtx once
-                    asset_ctx_expected_fields = set(HyperliquidRawAssetCtx.model_fields.keys())
-
-                    for i, item_dict in enumerate(asset_ctxs_data):
-                        if not isinstance(item_dict, dict):
-                            logger.warning(
-                                f"Skipping non-dict item at index {i} in asset_ctxs_data. Item: {item_dict!r}"
-                            )
-                            continue  # Skip non-dict items
-
-                        # Filter out extra fields not defined in HyperliquidRawAssetCtx
-                        filtered_item_dict = {
-                            k: v for k, v in item_dict.items() if k in asset_ctx_expected_fields
-                        }
-                        processed_asset_ctxs_list.append(filtered_item_dict)
-
-                    # Update processed_raw_response_content with the filtered asset_ctxs_list
-                    processed_raw_response_content[1] = processed_asset_ctxs_list
+                    # No longer filtering fields here; assume raw_response_content from tests/API
+                    # is structured correctly or will be handled by Pydantic's extra='forbid'
+                    # or 'ignore' settings in the model.
+                    # The original filtering logic was incorrectly removing required fields.
+                    processed_raw_response_content[1] = cast(list[RawJson], asset_ctxs_data)
 
             return HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
                 processed_raw_response_content
@@ -285,7 +251,8 @@ class HyperliquidResponseHandler:
         context = f"info (L2Book for {symbol})"
         if not isinstance(raw_response_content, dict):
             logger.error(
-                f"Unexpected {context} format for {symbol}. Status: {status_code}, Headers: {headers}, Raw: {raw_response_content!r}"
+                f"Unexpected {context} format for {symbol}. "
+                f"Status: {status_code}, Headers: {headers}, Raw: {raw_response_content!r}"
             )
             raise APIError(
                 message=f"Unexpected {context} response format: expected dict, "
@@ -311,7 +278,8 @@ class HyperliquidResponseHandler:
         context = f"info (RecentTrades for {symbol})"
         if not isinstance(raw_response_content, list):
             logger.error(
-                f"Unexpected {context} format for {symbol}. Status: {status_code}, Headers: {headers}, Raw: {raw_response_content!r}"
+                f"Unexpected {context} format for {symbol}. "
+                f"Status: {status_code}, Headers: {headers}, Raw: {raw_response_content!r}"
             )
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "
@@ -333,7 +301,9 @@ class HyperliquidResponseHandler:
                 validated_trades.append(trade)
             except ValidationError as e:
                 logger.error(
-                    f"[HyperliquidResponseHandler] Pydantic validation failed for trade item at index {i} in {context}: {e}. "
+                    f"[HyperliquidResponseHandler] Pydantic validation failed "
+                    f"for trade item at index {i} "
+                    f"in {context}: {e}. "
                     f"Status: {status_code}. Headers: {headers}. Raw data: {item!r}"
                 )
                 # Make the error message more generic to match test expectations
@@ -349,11 +319,16 @@ class HyperliquidResponseHandler:
                 ) from e
             except Exception as e:  # Catch any other unexpected error during instantiation
                 logger.error(
-                    f"[HyperliquidResponseHandler] Unexpected error validating trade item at index {i} in {context}: {e}. "
+                    f"[HyperliquidResponseHandler] Unexpected error validating "
+                    f"trade item at index {i} "
+                    f"in {context}: {e}. "
                     f"Status: {status_code}. Headers: {headers}. Raw data: {item!r}"
                 )
                 raise APIError(
-                    message=f"Unexpected error processing trade item at index {i} in {context} response from exchange: {e}",
+                    message=(
+                        f"Unexpected error processing trade item at index {i} in {context} "
+                        f"response from exchange: {e}"
+                    ),
                     code=APIErrorCode.INVALID_RESPONSE.value,  # Changed from UNEXPECTED_ERROR
                     http_status=status_code,
                 ) from e
@@ -371,7 +346,8 @@ class HyperliquidResponseHandler:
         context = f"info (CandleSnapshot for {symbol} {interval})"
         if not isinstance(raw_response_content, dict):
             logger.error(
-                f"Unexpected {context} format for {symbol} {interval}. Status: {status_code}, Headers: {headers}, Raw: {raw_response_content!r}"
+                f"Unexpected {context} format for {symbol} {interval}. "
+                f"Status: {status_code}, Headers: {headers}, Raw: {raw_response_content!r}"
             )
             raise APIError(
                 message=f"Unexpected {context} response format: expected dict, "
@@ -741,9 +717,13 @@ class HyperliquidResponseHandler:
         for i, item_raw in enumerate(raw_response_content):
             if not isinstance(item_raw, dict):
                 # Revert to a more specific message about type mismatch for this test
-                error_message = f"Expected dict for historical funding rate item, got {type(item_raw).__name__} at index {i}"
+                error_message = (
+                    f"Expected dict for historical funding rate item, "
+                    f"got {type(item_raw).__name__} at index {i}"
+                )
                 logger.error(
-                    f"[HyperliquidResponseHandler] {error_message}. Raw item: {item_raw!r}. Full raw response: {raw_response_content!r}"
+                    f"[HyperliquidResponseHandler] {error_message}. "
+                    f"Raw item: {item_raw!r}. Full raw response: {raw_response_content!r}"
                 )
                 raise APIError(
                     message=error_message,
@@ -758,7 +738,8 @@ class HyperliquidResponseHandler:
                     f"Validation error for historical funding rate item at index {i}: {e.errors()}"
                 )
                 logger.error(
-                    f"{error_message} Full raw response: {raw_response_content!r}. Raw item: {item_raw!r}"
+                    f"{error_message} Full raw response: {raw_response_content!r}. "
+                    f"Raw item: {item_raw!r}"
                 )
                 raise APIError(
                     message=error_message,

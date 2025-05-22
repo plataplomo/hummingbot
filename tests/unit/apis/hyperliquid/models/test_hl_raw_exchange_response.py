@@ -344,7 +344,7 @@ def test_hl_response_invalid(
     ],
 )
 def test_hl_response_data_statuses_validation(
-    statuses_list: Any,  # noqa: ANN401 - Any is needed for test parametrization
+    statuses_list: Any,
     is_valid: bool,
 ) -> None:
     """Test the validation logic for the 'statuses' field specifically."""
