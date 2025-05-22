@@ -140,7 +140,10 @@ class HyperliquidMarketDataService:
             )
 
             if raw_response_content is None:
-                _error_msg = f"No content received from HTTP client for metaAndAssetCtxs. Status: {status_code}"
+                _error_msg = (
+                    f"No content received from HTTP client for metaAndAssetCtxs. "
+                    f"Status: {status_code}"
+                )
                 logger.error(f"[{self._exchange_name}] {_error_msg}")
                 raise APIError(
                     message=_error_msg,
@@ -266,7 +269,10 @@ class HyperliquidMarketDataService:
             )
 
             if raw_response_content is None:
-                _error_msg = f"No content received from HTTP client for l2Book for {symbol}. Status: {status_code}"
+                _error_msg = (
+                    f"No content received from HTTP client for l2Book for {symbol}. "
+                    f"Status: {status_code}"
+                )
                 logger.error(f"[{self._exchange_name}] {_error_msg}")
                 raise APIError(
                     message=_error_msg,
@@ -354,7 +360,10 @@ class HyperliquidMarketDataService:
             )
 
             if raw_response_content is None:
-                _error_msg = f"No content received from HTTP client for recentTrades for {symbol}. Status: {status_code}"
+                _error_msg = (
+                    f"No content received from HTTP client for recentTrades for {symbol}. "
+                    f"Status: {status_code}"
+                )
                 logger.error(f"[{self._exchange_name}] {_error_msg}")
                 raise APIError(
                     message=_error_msg,
@@ -571,12 +580,16 @@ class HyperliquidMarketDataService:
                     raw_item
                 )
                 internal_funding_rates.append(internal_rate)
-            except APIError as e:
+            except (ValidationError, ValueError) as e:
                 logger.error(
-                    f"[{self._exchange_name}] Failed to map raw funding history item for {symbol}: "
-                    f"{e}. Raw item: {raw_item!r}. Skipping."
+                    f"[{self._exchange_name}] Error mapping historical funding rate item: {e}. "
+                    f"Raw: {raw_item!r}"
                 )
-                continue
+                raise APIError(
+                    message=f"Processing historical funding rate data failed: {e}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    original_exception=e,
+                ) from e
 
         return internal_funding_rates
 

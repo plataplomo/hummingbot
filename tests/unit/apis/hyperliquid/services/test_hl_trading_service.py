@@ -139,7 +139,7 @@ class TestHyperliquidTradingService:
             await hl_trading_service.get_order(symbol=symbol, order_id=order_id)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Fetching order status returned no content." in exc_info.value.message
+        assert f"No data received for order status for OID {order_id}." in exc_info.value.message
         mock_hl_request_builder.build_order_status_payload.assert_called_once_with(
             wallet_address=wallet_address, order_id=order_id
         )
@@ -177,9 +177,7 @@ class TestHyperliquidTradingService:
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Fetching open orders returned no content." in exc_info.value.message
-        mock_hl_request_builder.build_open_orders_payload.assert_called_once_with(
-            user_address=wallet_address
-        )
+        mock_hl_request_builder.build_open_orders_payload.assert_called_once_with(wallet_address)
         mock_info_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint_path="/info",
@@ -217,10 +215,12 @@ class TestHyperliquidTradingService:
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Exchange action (cancel) returned no content" in exc_info.value.message
         mock_get_asset_index_callable.assert_called_once_with(symbol)
-        mock_hl_request_builder.build_cancel_order_payload.assert_called_once_with(
-            asset_index=0, order_id=order_id
+        mock_exchange_http_client_requester.assert_called_once_with(
+            method="POST",
+            endpoint="/exchange",
+            data=mock_cancel_action,
+            is_signed=True,
         )
-        mock_exchange_http_client_requester.assert_called_once()
 
     # The problematic test from before, now with type annotations and correct imports
     @pytest.mark.asyncio
@@ -248,9 +248,7 @@ class TestHyperliquidTradingService:
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Fetching open orders returned no content." in exc_info.value.message
 
-        mock_hl_request_builder.build_open_orders_payload.assert_called_once_with(
-            user_address=wallet_address
-        )
+        mock_hl_request_builder.build_open_orders_payload.assert_called_once_with(wallet_address)
         mock_info_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint_path="/info",

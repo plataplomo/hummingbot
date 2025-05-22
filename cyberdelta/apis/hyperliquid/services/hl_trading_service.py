@@ -252,11 +252,14 @@ class HyperliquidTradingService:
                 is_signed=True,
             )
             if raw_response_content is None:
-                logger.warning(
-                    f"[{self._exchange_name}] Order status for OID {order_id} returned no content, "
-                    f"likely not found."
+                logger.error(
+                    f"[{self._exchange_name}] No content received for order status "
+                    f"for OID {order_id}."
                 )
-                return None
+                raise APIError(
+                    message=f"No data received for order status for OID {order_id}.",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                )
 
             historical_order_response: HyperliquidRawHistoricalOrderResponse = (
                 self._response_handler.handle_info_order_status_response(
