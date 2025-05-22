@@ -291,7 +291,23 @@ class HttpClient:
         Now returns content, status_code, processed_headers, and raw_headers.
         """
         request_params = (params or {}).copy()
-        request_data = data
+        request_data = data  # This can be dict | BaseModel | None
+
+        json_payload: dict[str, Any] | None = None
+        if method.upper() not in ["GET", "DELETE"] and request_data is not None:
+            if isinstance(request_data, BaseModel):
+                json_payload = request_data.model_dump(by_alias=True, exclude_none=True)
+            elif isinstance(request_data, dict):
+                json_payload = request_data
+            else:
+                # This case indicates an unexpected type for a JSON payload.
+                # If it's not BaseModel or dict, and we're expecting JSON, this is an error.
+                # For now, we'll log a warning and treat it as a non-JSON payload,
+                # which means it won't be sent via the 'json' parameter.
+                logger.warning(
+                    f"[{self.exchange_name}] Unexpected data type for JSON payload. "
+                    f"Expected BaseModel or dict, got {type(request_data)}. Data: {request_data!r}"
+                )
 
         if endpoint_path.startswith(("http://", "https://")):
             full_url = endpoint_path
@@ -328,7 +344,7 @@ class HttpClient:
                         method=method,
                         path=endpoint_path,
                         params=request_params if request_params else None,
-                        data=request_data if request_data else None,
+                        data=json_payload if json_payload else None,  # Use json_payload here
                         headers=dict(request_headers),
                     )
                 )
@@ -359,16 +375,10 @@ class HttpClient:
                     method,
                     full_url,
                     params=request_params if request_params else None,
-                    json=(
-                        request_data.model_dump(by_alias=True, exclude_none=True)
-                        if isinstance(request_data, BaseModel)
-                        else request_data
-                    )
-                    if method.upper() not in ["GET", "DELETE"] and request_data is not None
+                    json=json_payload
+                    if method.upper() not in ["GET", "DELETE"] and json_payload is not None
                     else None,
-                    data=None
-                    if method.upper() not in ["GET", "DELETE"] and request_data is not None
-                    else request_data,
+                    data=None,  # Explicitly set data to None when json_payload is used.
                     headers=request_headers,
                     timeout=aiohttp.ClientTimeout(total=effective_timeout),
                 ) as response:

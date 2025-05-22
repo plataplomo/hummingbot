@@ -5,7 +5,7 @@ Unit tests for the HyperliquidMarketDataService.
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
-from unittest.mock import ANY, AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
@@ -45,7 +45,8 @@ from cyberdelta.apis.hyperliquid.services.hl_market_data_service import Hyperliq
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models.enums import OrderSide
-from cyberdelta.core.models.market import Candle, FundingRate, OrderBook, Ticker, Trade
+from cyberdelta.core.models.market import FundingRate, OrderBook, Ticker, Trade
+from cyberdelta.core.models.market.candle import Candle
 
 
 @pytest.fixture
