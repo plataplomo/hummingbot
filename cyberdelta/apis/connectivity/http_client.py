@@ -301,10 +301,6 @@ class HttpClient:
                     f"[{self.exchange_name}] Converted BaseModel to dict for JSON payload. "
                     f"Original type: {type(request_data)}. Dumped data: {json_payload}"
                 )
-                logger.debug(
-                    f"[{self.exchange_name}] Converted BaseModel to dict for JSON payload. "
-                    f"Original type: {type(request_data)}. Dumped data: {json_payload}"
-                )
             elif isinstance(request_data, dict):
                 json_payload = request_data
             else:

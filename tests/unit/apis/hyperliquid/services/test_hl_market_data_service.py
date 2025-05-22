@@ -5,7 +5,7 @@ Unit tests for the HyperliquidMarketDataService.
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
@@ -20,7 +20,6 @@ from cyberdelta.apis.hyperliquid.hl_response_handler import (
 )
 from cyberdelta.apis.hyperliquid.models.common_raw_types import RawHlCoinName
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
-    HyperliquidRawCandleRequestDetails,
     HyperliquidRawCandleSnapshot,
     HyperliquidRawCandleSnapshotRequestPayload,
 )
@@ -546,10 +545,8 @@ class TestHyperliquidMarketDataService:
         mock_hl_mapper.map_raw_trades.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch("cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidCandleMapper")
     async def test_get_market_data_success(
         self,
-        mock_candle_mapper_class: MagicMock,
         hyperliquid_market_data_service: HyperliquidMarketDataService,
         mock_http_client_requester: AsyncMock,
         mock_hl_request_builder: MagicMock,
@@ -560,17 +557,6 @@ class TestHyperliquidMarketDataService:
         interval = "1m"
         start_time_ms = 1672531200000  # Example: 2023-01-01 00:00:00 UTC
         end_time_ms = 1672534800000  # Example: 2023-01-01 01:00:00 UTC
-
-        mock_candle_mapper_instance = mock_candle_mapper_class.return_value
-
-        mock_request_details = HyperliquidRawCandleRequestDetails(
-            coin=symbol, interval=interval, startTime=start_time_ms, endTime=end_time_ms
-        )
-        # Explicitly provide type for HyperliquidRawCandleSnapshotRequestPayload
-        mock_payload_from_builder = HyperliquidRawCandleSnapshotRequestPayload(
-            type="candleSnapshot", req=mock_request_details
-        )
-        # Mock model_dump to return dict expected by http_client_requester
 
         # Mock raw response content matching HyperliquidRawCandleSnapshot structure
         raw_times = [start_time_ms, start_time_ms + 60000]
@@ -624,39 +610,55 @@ class TestHyperliquidMarketDataService:
             ),
         ]
 
-        mock_hl_request_builder.build_candle_snapshot_payload.return_value = (
-            mock_payload_from_builder
-        )
-        mock_http_client_requester.return_value = (
-            mock_raw_candle_data,
-            200,
-            MagicMock(),
-        )
-        mock_hl_response_handler.handle_info_candle_snapshot_response.return_value = (
-            mock_validated_response
-        )
-        mock_candle_mapper_instance.map.return_value = expected_candles
+        # Patch the _candle_mapper attribute on the service instance
+        with patch.object(
+            hyperliquid_market_data_service, "_candle_mapper"
+        ) as mock_candle_mapper_instance:
+            mock_hl_request_builder.build_candle_snapshot_payload.return_value = MagicMock(
+                spec=HyperliquidRawCandleSnapshotRequestPayload,
+                model_dump=MagicMock(
+                    return_value={
+                        "type": "candleSnapshot",
+                        "req": {
+                            "coin": symbol,
+                            "interval": interval,
+                            "startTime": start_time_ms,
+                            "endTime": end_time_ms,
+                        },
+                    }
+                ),
+            )
+            mock_http_client_requester.return_value = (
+                mock_raw_candle_data,
+                200,
+                MagicMock(),
+            )
+            mock_hl_response_handler.handle_info_candle_snapshot_response.return_value = (
+                mock_validated_response
+            )
+            mock_candle_mapper_instance.map.return_value = expected_candles
 
-        result_candles = await hyperliquid_market_data_service.get_market_data(
-            symbol, interval, start_time_ms, end_time_ms
-        )
+            result_candles = await hyperliquid_market_data_service.get_market_data(
+                symbol, interval, start_time_ms, end_time_ms
+            )
 
-        mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once_with(
-            symbol=symbol, timeframe=interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
-        )
-        mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
-            mock_raw_candle_data,
-            symbol,
-            interval,
-            200,
-            ANY,  # Use ANY for headers, consistent with service call.
-            # If service passes specific mock, use that instead.
-            # Assumes MagicMock() from mock_http_client_requester return value.
-        )
-        mock_candle_mapper_instance.map.assert_called_once_with(
-            raw_snapshot=mock_validated_response, symbol=symbol, interval=interval
-        )
-        assert result_candles == expected_candles
+            mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once_with(
+                symbol=symbol,
+                timeframe=interval,
+                start_time_ms=start_time_ms,
+                end_time_ms=end_time_ms,
+            )
+            mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
+                mock_raw_candle_data,
+                symbol,
+                interval,
+                200,
+                ANY,  # Use ANY for headers, consistent with service call.
+            )
+            mock_candle_mapper_instance.map.assert_called_once_with(
+                raw_snapshot=mock_validated_response, symbol=symbol, interval=interval
+            )
+            assert result_candles == expected_candles
 
     @pytest.mark.asyncio
     @patch("cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidCandleMapper")

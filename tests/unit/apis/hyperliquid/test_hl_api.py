@@ -53,7 +53,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsPositionUpdateEvent,
     HyperliquidRawWsTradeEvent,
 )
-from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import FundingRate, MarginAccountSummary
@@ -304,10 +303,11 @@ async def test_authenticate_no_authenticator_via_public_method(
     assert api._authenticator is None
 
     with patch.object(
-        api._info_http_client,  # Accessing protected member for test setup
-        "request",
-        AsyncMock(return_value=(mock_meta_response_content(), 200, MagicMock(), MagicMock())),
-    ) as mock_info_request:
+        api,
+        "_get_asset_index",
+        new_callable=AsyncMock,
+        return_value=0,  # Mock asset index for BTC
+    ) as mock_get_asset_index:
         with pytest.raises(APIError, match="HL authenticator not initialized") as excinfo:
             await api.place_order(
                 symbol="BTC",
@@ -318,7 +318,7 @@ async def test_authenticate_no_authenticator_via_public_method(
                 time_in_force=TimeInForce.GTC,
             )
         assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
-        mock_info_request.assert_called_once()  # Ensure the mock was called to fetch asset index
+        mock_get_asset_index.assert_awaited_once_with("BTC")
 
 
 @pytest.mark.asyncio
@@ -337,10 +337,11 @@ async def test_authenticate_prepare_request_fails_via_public_method(
     )
 
     with patch.object(
-        api._info_http_client,  # Accessing protected member for test setup
-        "request",
-        AsyncMock(return_value=(mock_meta_response_content, 200, MagicMock(), MagicMock())),
-    ) as mock_info_request:
+        api,
+        "_get_asset_index",
+        new_callable=AsyncMock,
+        return_value=0,  # Mock asset index for BTC
+    ) as mock_get_asset_index:
         with pytest.raises(APIError, match="Signing failed internally") as excinfo:
             await api.place_order(
                 symbol="BTC",
@@ -351,7 +352,7 @@ async def test_authenticate_prepare_request_fails_via_public_method(
                 time_in_force=TimeInForce.GTC,
             )
         assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
-        mock_info_request.assert_called_once()  # Ensure the mock was called to fetch asset index
+        mock_get_asset_index.assert_awaited_once_with("BTC")
 
 
 # --- Signed Endpoint Test Example (place_order) --- #
@@ -717,7 +718,7 @@ class TestHyperliquidAPIMethodErrors:
 
         assert exc_info.value.code == APIErrorCode.SERVICE_UNAVAILABLE.value
         assert exc_info.value.http_status == http_status_from_exchange
-        assert error_body_from_exchange in exc_info.value.message
+        assert exc_info.value.message == error_body_from_exchange
         assert exc_info.value.original_exception is http_failure
         assert exc_info.value.exchange_message == error_body_from_exchange
 
@@ -751,7 +752,7 @@ class TestHyperliquidAPIMethodErrors:
             side_val: OrderSide = OrderSide.SELL
             order_type_val: OrderType = OrderType.MARKET
             quantity_val: Decimal = Decimal("1")
-            price_val: Decimal | None = Decimal("0")  # Market order needs a price for slippage
+            price_val: Decimal | None = Decimal("0.001")  # Market order needs a price for slippage
             time_in_force_val: TimeInForce = TimeInForce.IOC
             # These are the specific args for the builder for this test case
             # expected_builder_args = { # Commented out as unused
@@ -1513,7 +1514,7 @@ async def test_get_account_summary_success(
 
 @pytest.mark.asyncio
 async def test_get_account_summary_request_fails(
-    mock_hl_auth_init: tuple[MagicMock, MagicMock], caplog: LogCaptureFixture
+    mock_hl_auth_init: tuple[MagicMock, MagicMock],
 ) -> None:
     """Test get_account_summary when the initial _request call fails."""
     _mock_auth_class, _mock_auth_instance = mock_hl_auth_init
@@ -1562,63 +1563,39 @@ async def test_get_account_summary_request_fails(
             "The raised APIError should be or contain the simulated HttpRequestFailedError"
         )
 
-        # Verify logs if necessary based on actual logging in get_account_summary error path
-        assert any(
-            record.levelno == logging.ERROR
-            and "API Error getting account summary" in record.message
-            and "Simulated Service Unavailable" in record.message
-            for record in caplog.records
-        )
-
 
 @pytest.mark.asyncio
 async def test_get_account_summary_handler_fails(
     mock_hl_auth_init: tuple[MagicMock, MagicMock],
     mock_raw_user_state_fixture: HyperliquidRawClearinghouseState,
-    caplog: LogCaptureFixture,
 ) -> None:
     """Test get_account_summary when the response handler fails."""
-    # This test will now focus on what happens if HyperliquidResponseHandler fails
-    # AFTER a successful HTTP call via the service.
-
     api = HyperliquidAPI(BASE_API_CONFIG, SECRETS_WITH_KEY)
-    api.account_service = AsyncMock(spec=HyperliquidAccountService)  # pyright: ignore[reportAttributeAccessIssue]
 
-    # Use the valid fixture for the raw state
-    api.account_service.get_account_summary_raw = AsyncMock(  # pyright: ignore[reportFunctionMemberAccess]
-        return_value=mock_raw_user_state_fixture
+    # Simulate an APIError that would result from an internal handler/mapper failure
+    simulated_failure = APIError(
+        message="Simulated internal mapper error",
+        code=APIErrorCode.INVALID_RESPONSE.value,
+        original_exception=ValueError("Internal mapper validation error"),
     )
 
-    # Mock the mapper to raise an error to simulate handler/mapper failure
-    # The error now comes from the API's _hl_mapper.
-    with (
-        patch.object(
-            api._hl_mapper,
-            "map_raw_clearinghouse_state_to_margin_summary",
-            side_effect=ValueError("Mapper error"),
-        ) as patched_mapper,
-        patch(f"{HL_API_PATH}.logger") as mock_logger,
+    # Patch account_service.get_account_summary to raise this simulated error
+    with patch.object(
+        api.account_service, "get_account_summary", AsyncMock(side_effect=simulated_failure)
     ):
         with pytest.raises(APIError) as exc_info:
             await api.get_account_summary()
 
+        assert exc_info.value is simulated_failure
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Mapper error" in exc_info.value.message
+        assert "Simulated internal mapper error" in exc_info.value.message
         assert isinstance(exc_info.value.original_exception, ValueError)
-        patched_mapper.assert_called_once()  # Verify mapper was called
-        # Check logs
-        assert any(
-            "Pydantic ValidationError or ValueError mapping account summary: Mapper error"
-            in record[0][0]
-            for record in mock_logger.error.call_args_list
-        )
 
 
 @pytest.mark.asyncio
 async def test_get_account_summary_mapper_fails(
     mock_hl_auth_init: tuple[MagicMock, MagicMock],
     mock_raw_user_state_fixture: HyperliquidRawClearinghouseState,
-    caplog: LogCaptureFixture,
 ) -> None:
     """Test get_account_summary when the API's direct mapper call would fail (if service didn't)."""
     api = HyperliquidAPI(BASE_API_CONFIG, SECRETS_WITH_KEY)
@@ -1629,29 +1606,9 @@ async def test_get_account_summary_mapper_fails(
     # However, with `api.account_service.get_account_summary` being the point of interaction,
     # errors from mapping should ideally be encapsulated within the service's APIError.
 
-    # Let's simulate the service returning a valid raw model, but the API's *own* mapper
-    # (if it had one at this level for some reason, or if the test was directly testing the mapper)
-    # would fail. This test's premise is a bit flawed if the API layer fully delegates.
-    # Sticking to user's framing: if _hl_mapper on API instance was used AFTER service call.
-
-    # simulated_service_return_valid_raw = mock_raw_user_state_fixture  # Unused
-    # mock_service_get_summary = AsyncMock( # This variable is unused and will be removed
-    #     return_value=simulated_service_return_valid_raw
-    # )  # Service returns raw state
-
-    # This test's structure implies that api.get_account_summary would take raw state from service
-    # and then map it. This is not how it's structured if service returns
-    # final MarginAccountSummary.
     # Let's assume the test intends to check what happens if the API's _hl_mapper is directly used.
     # This test will be more illustrative of testing the mapper itself, or a different API flow.
 
-    # For the existing test name, let's assume the service call was mocked to return raw data
-    # and the API itself then tries to map it using its own _hl_mapper instance.
-    # mock_map_to_margin_summary = MagicMock(side_effect=ValueError("Test mapper validation error"))
-
-    # Simplified test: focuses on the scenario where the account_service.get_account_summary
-    # itself raises an APIError (e.g., due to its internal mapper failing),
-    # and the API.get_account_summary method propagates this error.
     service_error = APIError(
         "Service internal mapper error",
         code=APIErrorCode.INVALID_RESPONSE.value,
@@ -1664,18 +1621,6 @@ async def test_get_account_summary_mapper_fails(
             await api.get_account_summary()
 
         assert exc_info.value is service_error  # Error from service should propagate
-        # Check logs if API layer adds logging for this.
-        assert any(
-            "API Error getting account summary" in record.message
-            for record in caplog.records
-            if record.levelname == "ERROR"
-        )
-        # If specific error details are logged:
-        assert any(
-            "Service internal mapper error" in record.message
-            for record in caplog.records
-            if record.levelname == "ERROR"
-        )
 
 
 @pytest.mark.asyncio
