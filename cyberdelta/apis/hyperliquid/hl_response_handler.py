@@ -5,7 +5,6 @@ Validates raw JSON data against Pydantic models specific to Hyperliquid's API en
 """
 
 from collections.abc import Mapping
-from typing import cast
 
 from pydantic import ValidationError  # BaseModel, Field no longer used directly here
 
@@ -137,15 +136,31 @@ class HyperliquidResponseHandler:
                                 if "onlyIsolated" not in item:
                                     item["onlyIsolated"] = False  # Default to False if not provided
 
-                # Process asset_ctxs_data (only one block, remove duplication)
+                # Process asset_ctxs_data
                 asset_ctxs_data = processed_raw_response_content[1]
-
+                validated_asset_ctxs: list[HyperliquidRawAssetCtx] = []
                 if isinstance(asset_ctxs_data, list):
-                    # No longer filtering fields here; assume raw_response_content from tests/API
-                    # is structured correctly or will be handled by Pydantic's extra='forbid'
-                    # or 'ignore' settings in the model.
-                    # The original filtering logic was incorrectly removing required fields.
-                    processed_raw_response_content[1] = cast(list[RawJson], asset_ctxs_data)
+                    defined_fields = HyperliquidRawAssetCtx.model_fields.keys()
+                    for item_obj in asset_ctxs_data:
+                        if isinstance(item_obj, dict):
+                            # Filter out extra fields not defined in HyperliquidRawAssetCtx
+                            filtered_item_dict = {
+                                k: v for k, v in item_obj.items() if k in defined_fields
+                            }
+                            try:
+                                validated_asset_ctxs.append(
+                                    HyperliquidRawAssetCtx.model_validate(filtered_item_dict)
+                                )
+                            except ValidationError as ve:
+                                logger.warning(
+                                    f"Validation error for asset context item: {ve}. "
+                                    f"Skipping item: {filtered_item_dict!r}"
+                                )
+                        else:
+                            logger.warning(
+                                f"Skipping non-dict item in asset_ctxs_data: {item_obj!r}"
+                            )
+                    processed_raw_response_content[1] = validated_asset_ctxs
 
             return HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
                 processed_raw_response_content
