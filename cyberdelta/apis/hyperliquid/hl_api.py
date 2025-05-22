@@ -88,19 +88,43 @@ class HyperliquidAPI(ExchangeAPI):
         headers: dict[str, Any] | None = None,
         is_signed: bool = False,
     ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
-        """Adapter for self._request to match MarketDataHttpClientRequesterSig."""
+        """Adapter that routes requests to the appropriate HTTP client based on endpoint type."""
         request_data: dict[str, Any] | None = data
 
-        actual_content, status, actual_headers = await self._request(
-            method=method,
-            endpoint=endpoint_path,
-            params=params,
-            data=request_data,
-            headers=headers,
-            is_signed=is_signed,
-            is_public_info_endpoint=is_info_endpoint if is_info_endpoint is not None else False,
-        )
-        return actual_content, status, actual_headers
+        # Route to the correct HTTP client based on is_info_endpoint flag
+        if is_info_endpoint:
+            # Use the INFO_URL HTTP client for /info endpoints
+            (
+                content_raw,
+                status_code_raw,
+                processed_headers_raw,
+                _,  # raw_headers_raw not needed
+            ) = await self._info_http_client.request(
+                method=method,
+                endpoint_path=endpoint_path,
+                rate_limiter_service=self._rate_limiter_service,
+                authenticator=self._hl_authenticator if is_signed else None,
+                params=params,
+                data=request_data,
+                headers=headers,
+                is_signed=is_signed,
+                request_timeout=None,
+            )
+            # Return the raw content and processed headers to match the expected signature
+            # Cast processed_headers_raw to Mapping[str, str] to match the return type
+            return content_raw, status_code_raw, cast(Mapping[str, str], processed_headers_raw)
+        else:
+            # Use the standard BASE_URL HTTP client for /exchange endpoints
+            actual_content, status, actual_headers = await self._request(
+                method=method,
+                endpoint=endpoint_path,
+                params=params,
+                data=request_data,
+                headers=headers,
+                is_signed=is_signed,
+                is_public_info_endpoint=False,
+            )
+            return actual_content, status, actual_headers
 
     async def _info_request_wrapper(
         self,

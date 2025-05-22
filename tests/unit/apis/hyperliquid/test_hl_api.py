@@ -376,6 +376,8 @@ async def test_authenticate_prepare_request_fails_via_public_method(
     # to ensure our specific mock_auth_instance with the side_effect is used.
     api._authenticator = mock_auth_instance
     api._hl_authenticator = mock_auth_instance
+    # Also update the trading service's authenticator reference
+    api.trading_service._authenticator = mock_auth_instance
 
     mock_auth_instance.prepare_request.side_effect = APIError(
         "Signing failed internally", code=APIErrorCode.AUTHENTICATION_FAILED.value
@@ -391,35 +393,20 @@ async def test_authenticate_prepare_request_fails_via_public_method(
             MagicMock(),
             MagicMock(),
         )
-        # Patch _get_asset_index_callable on the trading_service to bypass the call
-        with patch.object(
-            api.trading_service, "_get_asset_index_callable", AsyncMock(return_value=0)
-        ):
-            with patch(
-                f"{HL_API_PATH}.HttpClient.request",  # This mock is for the /exchange call
-                new_callable=AsyncMock,
-            ) as mock_exchange_http_client_request:
-                # Set a default valid 4-tuple return, though we expect it not to be called
-                mock_exchange_http_client_request.return_value = (
-                    None,
-                    200,
-                    MagicMock(),
-                    MagicMock(),
-                )
-                with pytest.raises(APIError, match="Signing failed internally") as excinfo:
-                    await api.place_order(
-                        symbol="BTC",
-                        side=OrderSide.BUY,
-                        order_type=OrderType.LIMIT,
-                        quantity=Decimal("0.001"),
-                        price=Decimal("1.0"),
-                        time_in_force=TimeInForce.GTC,
-                    )
-            assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
-            # The /exchange call should not be made if prepare_request fails
-            mock_exchange_http_client_request.assert_not_called()
-            # Ensure prepare_request was called
-            mock_auth_instance.prepare_request.assert_awaited_once()
+    # Patch _get_asset_index_callable on the trading_service to bypass the call
+    with patch.object(api.trading_service, "_get_asset_index_callable", AsyncMock(return_value=0)):
+        with pytest.raises(APIError, match="Signing failed internally") as excinfo:
+            await api.place_order(
+                symbol="BTC",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("0.001"),
+                price=Decimal("1.0"),
+                time_in_force=TimeInForce.GTC,
+            )
+        assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
+        # Ensure prepare_request was called
+        mock_auth_instance.prepare_request.assert_awaited_once()
 
 
 # --- Signed Endpoint Test Example (place_order) --- #

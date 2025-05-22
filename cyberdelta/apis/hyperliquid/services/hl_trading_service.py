@@ -106,6 +106,13 @@ class HyperliquidTradingService:
         The builder will wrap this action into the full HyperliquidApiPlaceOrderRequest.
         Returns the raw exchange response Pydantic model.
         """
+        # Early authentication checks - fail fast if auth requirements not met
+        if not self._authenticator:
+            raise APIError(
+                "HL authenticator not initialized (e.g., missing/invalid private key).",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+
         _error_msg_wallet_addr = "Wallet address is required for placing an order."
         if not self._wallet_address:
             raise APIError(_error_msg_wallet_addr, APIErrorCode.AUTHENTICATION_FAILED.value)
@@ -148,6 +155,13 @@ class HyperliquidTradingService:
         The builder wraps this in HyperliquidApiCancelOrderRequest.
         Returns the raw exchange response Pydantic model.
         """
+        # Early authentication checks - fail fast if auth requirements not met
+        if not self._authenticator:
+            raise APIError(
+                "HL authenticator not initialized (e.g., missing/invalid private key).",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+
         _error_msg_wallet_addr = "Wallet address is required for cancelling an order."
         if not self._wallet_address:
             raise APIError(_error_msg_wallet_addr, APIErrorCode.AUTHENTICATION_FAILED.value)

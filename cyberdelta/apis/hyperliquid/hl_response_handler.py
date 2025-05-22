@@ -114,67 +114,102 @@ class HyperliquidResponseHandler:
                 http_status=status_code,
             )
         try:
-            # Preprocess the raw_response_content to align with Pydantic models
             # The raw_response_content is a list: [meta_data, asset_ctxs_data]
-            processed_raw_response_content = raw_response_content  # Create a mutable copy
+            if len(raw_response_content) != 2:
+                raise APIError(
+                    message=f"Unexpected {context} response format: expected 2-element list, "
+                    f"got {len(raw_response_content)} elements",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code,
+                )
 
-            if len(processed_raw_response_content) == 2:
-                meta_data = processed_raw_response_content[0]
-                if isinstance(meta_data, dict):
-                    # Remove 'marginTables' from meta_data if present,
-                    # as it's not in our Pydantic model
-                    meta_data.pop("marginTables", None)
+            meta_data_raw = raw_response_content[0]
+            asset_ctxs_data_raw = raw_response_content[1]
 
-                    # Preprocess 'universe' items within meta_data
-                    if "universe" in meta_data and isinstance(meta_data["universe"], list):
-                        for item in meta_data["universe"]:
-                            if isinstance(item, dict):
-                                # Remove 'marginTableId' if present
-                                item.pop("marginTableId", None)
-                                item.pop("isDelisted", None)
-                                # Add 'onlyIsolated' if missing
-                                if "onlyIsolated" not in item:
-                                    item["onlyIsolated"] = False  # Default to False if not provided
+            if not isinstance(meta_data_raw, dict):
+                raise APIError(
+                    message=f"Unexpected {context} response format: first element (meta) "
+                    f"expected dict, got {type(meta_data_raw).__name__}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code,
+                )
 
-                # Process asset_ctxs_data
-                asset_ctxs_data = processed_raw_response_content[1]
-                if isinstance(asset_ctxs_data, list):
-                    # Correct, alias-aware filtering for asset_ctxs_data
-                    allowed_json_keys_for_asset_ctx: set[str] = set()
-                    for field_name, field_info in HyperliquidRawAssetCtx.model_fields.items():
-                        if field_info.alias:
-                            allowed_json_keys_for_asset_ctx.add(field_info.alias)
-                        else:
-                            allowed_json_keys_for_asset_ctx.add(field_name)
+            if not isinstance(asset_ctxs_data_raw, list):
+                raise APIError(
+                    message=f"Unexpected {context} response format: second element (asset_ctxs) "
+                    f"expected list, got {type(asset_ctxs_data_raw).__name__}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code,
+                )
 
-                    filtered_asset_ctxs_list: list[RawJson] = []
-                    for item_obj in asset_ctxs_data:
-                        if isinstance(item_obj, dict):
-                            # Perform alias-aware filtering
-                            item_dict_original = item_obj  # item_obj is already a dict here
-                            filtered_item_dict = {
-                                k: v
-                                for k, v in item_dict_original.items()
-                                if k in allowed_json_keys_for_asset_ctx
-                            }
-                            # Only append if the filtered dict is not empty, or handle as per requirements
-                            # For now, append even if it becomes empty after filtering, Pydantic will catch missing required fields.
-                            filtered_asset_ctxs_list.append(filtered_item_dict)
-                        else:
-                            logger.warning(
-                                f"Skipping non-dict item in asset_ctxs_data: {item_obj!r}"
-                            )
-                            # Optionally, append the item as is or raise error, depending on strictness
-                            # For now, we are only filtering dicts.
-                    processed_raw_response_content[1] = filtered_asset_ctxs_list
+            # Step 1: Preprocess and validate the meta data
+            meta_data = dict(meta_data_raw)  # Create a mutable copy
 
-            # The HyperliquidRawMetaAndAssetCtxsResponse.model_validate method
-            # also contains alias-aware filtering. This handler prepares the data,
-            # and the model validator re-validates/re-filters.
-            # This is slightly redundant but ensures correctness at both stages.
-            return HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
-                processed_raw_response_content
+            # Remove fields not in our Pydantic model
+            meta_data.pop("marginTables", None)
+
+            # Preprocess 'universe' items within meta_data
+            if "universe" in meta_data and isinstance(meta_data["universe"], list):
+                for item in meta_data["universe"]:
+                    if isinstance(item, dict):
+                        # Remove fields not in our model
+                        item.pop("marginTableId", None)
+                        item.pop("isDelisted", None)
+                        # Add 'onlyIsolated' if missing
+                        if "onlyIsolated" not in item:
+                            item["onlyIsolated"] = False  # Default to False if not provided
+
+            # Validate meta data first to get validated universe
+            from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
+                HyperliquidRawMetaResponse,
             )
+
+            meta_model = HyperliquidRawMetaResponse.model_validate(meta_data)
+
+            # Step 2: Enrich asset contexts with 'name' field from validated meta universe
+            validated_asset_ctxs: list[HyperliquidRawAssetCtx] = []
+
+            for i, raw_ctx_dict_from_api in enumerate(asset_ctxs_data_raw):
+                if not isinstance(raw_ctx_dict_from_api, dict):
+                    logger.warning(
+                        f"Skipping non-dict item in asset_ctxs_data at index {i}: "
+                        f"{raw_ctx_dict_from_api!r}"
+                    )
+                    continue
+
+                # Check if we have a corresponding universe entry
+                if i >= len(meta_model.universe):
+                    logger.warning(
+                        f"Asset context at index {i} has no corresponding universe entry. "
+                        f"Universe has {len(meta_model.universe)} entries. Skipping."
+                    )
+                    continue
+
+                # Create temporary dictionary and add the name from the universe
+                temp_ctx_dict = dict(raw_ctx_dict_from_api)  # Create mutable copy
+                temp_ctx_dict["name"] = meta_model.universe[i].name
+
+                # Filter to only allowed fields for HyperliquidRawAssetCtx
+                allowed_json_keys_for_asset_ctx: set[str] = set()
+                for field_name, field_info in HyperliquidRawAssetCtx.model_fields.items():
+                    if field_info.alias:
+                        allowed_json_keys_for_asset_ctx.add(field_info.alias)
+                    else:
+                        allowed_json_keys_for_asset_ctx.add(field_name)
+
+                filtered_ctx_dict = {
+                    k: v for k, v in temp_ctx_dict.items() if k in allowed_json_keys_for_asset_ctx
+                }
+
+                # Validate each enriched asset context
+                validated_asset_ctx = HyperliquidRawAssetCtx.model_validate(filtered_ctx_dict)
+                validated_asset_ctxs.append(validated_asset_ctx)
+
+            # Step 3: Construct the final response using the validated data
+            return HyperliquidRawMetaAndAssetCtxsResponse(
+                meta=meta_model, asset_ctxs=validated_asset_ctxs
+            )
+
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
                 e, context, raw_response_content, status_code, headers
