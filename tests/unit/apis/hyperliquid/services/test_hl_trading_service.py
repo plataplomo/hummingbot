@@ -212,13 +212,6 @@ class TestHyperliquidTradingService:
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
         mock_get_asset_index_callable.return_value = 0
 
-        mock_cancel_action_model = MagicMock()
-        mock_cancel_action_dict = {
-            "asset": 0,
-            "orderId": order_id,
-        }  # Example dictionary, actual content depends on build_cancel_order_payload
-        mock_cancel_action_model.model_dump.return_value = mock_cancel_action_dict
-        mock_hl_request_builder.build_cancel_order_payload.return_value = mock_cancel_action_model
         mock_exchange_http_client_requester.return_value = (None, 200, MagicMock())
 
         with pytest.raises(APIError) as exc_info:
@@ -227,17 +220,27 @@ class TestHyperliquidTradingService:
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Exchange action (cancel) returned no content" in exc_info.value.message
         mock_get_asset_index_callable.assert_called_once_with(symbol)
-        mock_hl_request_builder.build_cancel_order_payload.assert_called_once_with(
-            wallet_address=wallet_address,
-            asset_index=mock_get_asset_index_callable.return_value,
-            order_id=order_id,
+
+        mock_exchange_http_client_requester.assert_called_once()
+        _args, call_kwargs = mock_exchange_http_client_requester.call_args
+        assert call_kwargs.get("method") == "POST"
+        assert call_kwargs.get("endpoint") == "/exchange"
+        assert call_kwargs.get("is_signed") is True
+
+        # Import HyperliquidApiCancelOrderRequest and HyperliquidRawCancelOrderAction
+        from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
+            HyperliquidApiCancelOrderRequest,
         )
-        mock_exchange_http_client_requester.assert_called_once_with(
-            method="POST",
-            endpoint="/exchange",
-            data=mock_cancel_action_dict,
-            is_signed=True,
+        from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
+            HyperliquidRawCancelOrderAction,
         )
+
+        sent_data = call_kwargs.get("data")
+        assert isinstance(sent_data, HyperliquidApiCancelOrderRequest)
+        assert sent_data.type == "cancel"
+        assert isinstance(sent_data.action, HyperliquidRawCancelOrderAction)
+        assert sent_data.action.asset == mock_get_asset_index_callable.return_value
+        assert sent_data.action.oid == order_id
 
     # The problematic test from before, now with type annotations and correct imports
     @pytest.mark.asyncio
@@ -274,7 +277,7 @@ class TestHyperliquidTradingService:
         mock_info_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint_path="/info",
-            data=mock_request_payload_model_local.model_dump.return_value,  # Use the mocked return value
+            data=mock_request_payload_model_local.model_dump.return_value,  # Mocked return value
             authenticator=mock_authenticator_fixt,
             rate_limiter_service=None,
             is_signed=True,

@@ -316,7 +316,7 @@ async def test_exchange_api_request_delegates_to_http_client_and_handles_respons
     api.mock_update_rate_limit_method.assert_called_once_with(
         mock_raw_headers_multidict,  # This is the CIMultiDictProxy instance
         method,
-        f"{default_config['rest_endpoint']}{endpoint}",
+        endpoint,
     )
 
 

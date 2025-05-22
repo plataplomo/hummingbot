@@ -569,7 +569,7 @@ class TestHyperliquidMarketDataService:
         mock_payload_from_builder = HyperliquidRawCandleSnapshotRequestPayload(
             type="candleSnapshot", req=mock_request_details
         )
-        # Explicitly mock the model_dump to return the dictionary expected by the http_client_requester
+        # Mock model_dump to return dict expected by http_client_requester
 
         # Mock raw response content matching HyperliquidRawCandleSnapshot structure
         raw_times = [start_time_ms, start_time_ms + 60000]
@@ -644,11 +644,13 @@ class TestHyperliquidMarketDataService:
             symbol=symbol, timeframe=interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
         )
         mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
-            raw_response_content=mock_raw_candle_data,
-            symbol=symbol,
-            interval=interval,
-            status_code=200,
-            headers=ANY,
+            mock_raw_candle_data,
+            symbol,
+            interval,
+            200,
+            ANY,  # Use ANY for headers, consistent with service call.
+            # If service passes specific mock, use that instead.
+            # Assumes MagicMock() from mock_http_client_requester return value.
         )
         mock_candle_mapper_instance.map.assert_called_once_with(
             raw_snapshot=mock_validated_response, symbol=symbol, interval=interval
@@ -901,7 +903,7 @@ class TestHyperliquidMarketDataService:
             is_info_endpoint=True,
         )
         mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
-            mock_raw_response_data, 200, mock_headers
+            raw_response_content=mock_raw_response_data, status_code=200, headers=mock_headers
         )
         assert mock_transform_method.call_count == len(mock_validated_raw_items)
         for raw_item in mock_validated_raw_items:

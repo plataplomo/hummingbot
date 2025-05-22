@@ -24,6 +24,9 @@ from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBui
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
+    HyperliquidRawFundingHistoryItem,
+)
 
 # Removed unused raw model imports as handlers return these directly now
 # from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
@@ -569,12 +572,12 @@ class HyperliquidMarketDataService:
                 http_status=status_code,
             )
 
-        raw_funding_history_items: list[
-            cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info.HyperliquidRawFundingHistoryItem
-        ] = self._response_handler.handle_historical_funding_rates_response(
-            raw_response_content=raw_response_content,
-            status_code=status_code,
-            headers=headers,
+        raw_funding_history_items: list[HyperliquidRawFundingHistoryItem] = (
+            self._response_handler.handle_historical_funding_rates_response(
+                raw_response_content=raw_response_content,
+                status_code=status_code,
+                headers=headers,
+            )
         )
 
         internal_funding_rates: list[FundingRate] = []
@@ -627,7 +630,7 @@ class HyperliquidMarketDataService:
             symbol=symbol, timeframe=interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
         )
 
-        raw_response_content, status_code, _ = await self._http_client_requester(
+        raw_response_content, status_code, headers = await self._http_client_requester(
             method="POST",
             endpoint_path="/info",  # Candle data is from /info
             data=payload.model_dump(
@@ -655,6 +658,6 @@ class HyperliquidMarketDataService:
         # The handler expects raw JSON, not already Pydantic validated models typically
         # For candles, it might be list of lists or list of dicts
         raw_candles = self._response_handler.handle_info_candle_snapshot_response(
-            raw_response_content, symbol, interval, status_code
+            raw_response_content, symbol, interval, status_code, headers
         )
         return self._candle_mapper.map(raw_candles, symbol, interval)
