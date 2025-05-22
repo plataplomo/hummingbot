@@ -10,10 +10,11 @@ This version of the service returns Internal Domain Models by using the Hyperliq
 
 from collections.abc import Callable, Coroutine, Mapping
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
+from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidOrderMapper
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
@@ -84,6 +85,7 @@ class HyperliquidTradingService:
         wallet_address: str | None,
         get_asset_index_callable: Callable[[str], Coroutine[Any, Any, int | None]],
         order_mapper: HyperliquidOrderMapper,
+        error_mapper: HyperliquidErrorMapper,
     ) -> None:
         self._exchange_http_client_requester = exchange_http_client_requester
         self._info_http_client_requester = info_http_client_requester
@@ -94,6 +96,7 @@ class HyperliquidTradingService:
         self._wallet_address = wallet_address
         self._get_asset_index_callable = get_asset_index_callable
         self._order_mapper = order_mapper
+        self._error_mapper = error_mapper
         self._action_endpoint = "/exchange"
         self._info_endpoint = "/info"
 
@@ -135,7 +138,7 @@ class HyperliquidTradingService:
                 )
                 raise APIError(_error_msg_no_content, APIErrorCode.INVALID_RESPONSE.value)
             return self._response_handler.handle_exchange_response(
-                raw_content,
+                cast(RawJsonResponse, raw_content),
                 action_type=request_payload_model.type,
             )
         except APIError as e:
@@ -407,9 +410,11 @@ class HyperliquidTradingService:
                             APIErrorCode.UNKNOWN.value,
                         )
                 elif first_status.error:
-                    raise APIError(
-                        f"Failed to place order: {first_status.error}", APIErrorCode.UNKNOWN.value
+                    # Use the error mapper to get the specific error code for this message
+                    mapped_error = self._error_mapper.map_string_error(
+                        first_status.error, http_status=None
                     )
+                    raise mapped_error
             elif "error" in first_status.lower():
                 raise APIError(f"Failed to place order: {first_status}", APIErrorCode.UNKNOWN.value)
 

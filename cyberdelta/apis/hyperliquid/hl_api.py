@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from collections.abc import Mapping
 from datetime import datetime
@@ -16,7 +17,11 @@ from cyberdelta.apis.base.authenticator_interface import (
 )
 from cyberdelta.apis.base.exchange_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.connectivity.connectivity_models import HttpClientConfig
-from cyberdelta.apis.connectivity.http_client import HttpClient, ParsedJsonResponse
+from cyberdelta.apis.connectivity.http_client import (
+    HttpClient,
+    HttpRequestFailedError,
+    ParsedJsonResponse,
+)
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
@@ -292,6 +297,7 @@ class HyperliquidAPI(ExchangeAPI):
             wallet_address=self._wallet_address,
             get_asset_index_callable=self._get_asset_index,
             order_mapper=self._hl_order_mapper,
+            error_mapper=self._hyperliquid_error_mapper,
         )
 
         self.default_headers: dict[str, str] = {
@@ -319,10 +325,6 @@ class HyperliquidAPI(ExchangeAPI):
         data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Uses the HyperliquidEip712Authenticator to prepare request components."""
-        print(
-            f"[DEBUG HL_API _authenticate] Entered. Authenticator: "
-            f"{self._hl_authenticator}, type: {type(self._hl_authenticator)}"
-        )  # DEBUG PRINT
         if not self._hl_authenticator:
             logger.error(
                 f"[{self.exchange_name}] Attempt to call signed endpoint ({method} {path}) "
@@ -335,24 +337,149 @@ class HyperliquidAPI(ExchangeAPI):
 
         current_headers = self.default_headers.copy()
 
-        print(
-            f"[DEBUG HL_API _authenticate] About to await prepare_request. "
-            f"Authenticator: {self._hl_authenticator}",
-            flush=True,
-        )
-        auth_components: AuthenticatedRequestComponents = (
-            await self._hl_authenticator.prepare_request(
-                method, path, params, data, current_headers
+        try:
+            auth_components: AuthenticatedRequestComponents = (
+                await self._hl_authenticator.prepare_request(
+                    method, path, params, data, current_headers
+                )
             )
-        )
-
-        print("[DEBUG HL_API _authenticate] Finished awaiting prepare_request.", flush=True)
+        except APIError:
+            # Re-raise APIErrors from authenticator directly
+            raise
+        except Exception as e:
+            # Wrap other exceptions as authentication failures
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error during authentication preparation "
+                f"for {method} {path}: {e}"
+            )
+            raise APIError(
+                f"Authentication preparation failed: {e}",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+                original_exception=e,
+            ) from e
 
         return {
             "headers": auth_components["headers"],
             "params": auth_components["params"],
             "data": auth_components["data"],
         }
+
+    async def _request(
+        self,
+        method: str,
+        endpoint: str,
+        params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        headers: dict[str, Any] | None = None,
+        is_signed: bool = False,
+        endpoint_group: str | None = None,
+        request_weight: int = 1,
+        is_public_info_endpoint: bool = False,
+    ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
+        """
+        Override _request to enable serialize_none_as_null for Hyperliquid /exchange endpoints.
+        Hyperliquid expects explicit null values for optional fields rather than omitting them.
+        """
+        from urllib.parse import urljoin
+
+        request_url = urljoin(self.rest_endpoint, endpoint.lstrip("/"))
+        effective_authenticator = self._authenticator if is_signed else None
+
+        response_content: ParsedJsonResponse | str | None = None
+        status_code: int = 0  # Default, will be overwritten
+        response_headers_dict: Mapping[str, str] = {}
+
+        try:
+            # Determine which limiter to use
+            limiter_key_for_get_limiter = endpoint_group if endpoint_group else endpoint
+            limiter = self._rate_limiter_service.get_limiter(method, limiter_key_for_get_limiter)
+
+            # Acquire tokens according to request_weight
+            for _ in range(request_weight):
+                await limiter.acquire()
+
+            # Enable serialize_none_as_null for /exchange endpoints (order placement, etc.)
+            serialize_nulls = endpoint.strip("/") == "exchange"
+
+            # HttpClient.request now returns: (content, status_code, processed_headers, raw_headers)
+            (
+                response_content,
+                status_code,
+                _processed_headers,
+                response_headers_dict,
+            ) = await self._http_client.request(
+                method=method,
+                endpoint_path=request_url,
+                params=params,
+                data=data,
+                headers=headers,
+                authenticator=effective_authenticator,
+                rate_limiter_service=self._rate_limiter_service,
+                is_signed=is_signed,
+                serialize_none_as_null=serialize_nulls,
+            )
+            self._update_rate_limit_from_headers(response_headers_dict, method, endpoint)
+            return response_content, status_code, response_headers_dict
+
+        except HttpRequestFailedError as e_http_failed:
+            logger.warning(
+                f"[{self.exchange_name}] HTTP request failed for {method} "
+                f"{request_url}: Status={e_http_failed.http_status}, "
+                f"Body='{e_http_failed.exchange_message}'"
+            )
+            # Error is already HttpRequestFailedError (subclass of APIError)
+            # We need to map its *contents* using the exchange-specific mapper
+            parsed_error_data: dict[str, Any] | None = None
+            if e_http_failed.exchange_message:
+                try:
+                    parsed_error_data = json.loads(e_http_failed.exchange_message)
+                    if not isinstance(parsed_error_data, dict):
+                        parsed_error_data = None  # Only use if it's a dict
+                except json.JSONDecodeError:
+                    pass  # Keep as None
+
+            # Delegate to the new error_mapper instance
+            mapped_error = self.error_mapper.map_exchange_error(
+                status_code=e_http_failed.http_status or 500,  # Ensure status_code is int
+                error_body=e_http_failed.exchange_message or "",
+                error_data=parsed_error_data,
+                request_path=request_url,
+                original_exception=e_http_failed,
+            )
+            raise mapped_error from e_http_failed
+
+        except (TimeoutError, aiohttp.ClientError) as e_client:
+            # These are already raised by HttpClient after its retries
+            logger.error(
+                f"[{self.exchange_name}] Unrecoverable client error for {method} "
+                f"{request_url}: {e_client}"
+            )
+            # Map to a generic APIError
+            mapped_error = self.error_mapper.map_exchange_error(
+                status_code=503,  # Service Unavailable or similar for network issues
+                error_body=str(e_client),
+                error_data=None,
+                request_path=request_url,
+                original_exception=e_client,
+            )
+            raise mapped_error from e_client
+
+        except APIError:  # Re-raise APIErrors (e.g. from authenticator)
+            raise
+        except Exception as e_unhandled:
+            logger.exception(
+                f"[{self.exchange_name}] Unhandled exception during request {method} "
+                f"{request_url}: {e_unhandled}"
+            )
+            # Map to a generic unknown APIError
+            mapped_error = self.error_mapper.map_exchange_error(
+                status_code=500,  # Internal Server Error equivalent
+                error_body=str(e_unhandled),
+                error_data=None,
+                request_path=request_url,
+                original_exception=e_unhandled,
+            )
+            raise mapped_error from e_unhandled
 
     async def _get_asset_index(self, symbol: str) -> int:
         """Fetch or retrieve from cache the asset_index for a given symbol."""

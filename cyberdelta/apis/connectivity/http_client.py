@@ -282,6 +282,7 @@ class HttpClient:
         headers: dict[str, Any] | None = None,
         is_signed: bool = False,
         request_timeout: float | None = None,
+        serialize_none_as_null: bool = False,
     ) -> tuple[
         ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str]
     ]:
@@ -289,6 +290,11 @@ class HttpClient:
         Executes an HTTP request with authentication, rate limiting, and retries.
         Response parsing and validation are delegated to _parse_and_validate_response.
         Now returns content, status_code, processed_headers, and raw_headers.
+
+        Args:
+            serialize_none_as_null: If True, serialize Pydantic models with None values
+                                  as null instead of excluding them. Useful for APIs that
+                                  expect explicit null values.
         """
         request_params = (params or {}).copy()
         request_data = data  # This can be dict | BaseModel | None
@@ -296,7 +302,10 @@ class HttpClient:
         json_payload: dict[str, Any] | None = None
         if method.upper() not in ["GET", "DELETE"] and request_data is not None:
             if isinstance(request_data, BaseModel):
-                json_payload = request_data.model_dump(by_alias=True, exclude_none=True)
+                # Use serialize_none_as_null to determine exclude_none behavior
+                json_payload = request_data.model_dump(
+                    by_alias=True, exclude_none=not serialize_none_as_null
+                )
                 logger.debug(
                     f"[{self.exchange_name}] Converted BaseModel to dict for JSON payload. "
                     f"Original type: {type(request_data)}. Dumped data: {json_payload}"
