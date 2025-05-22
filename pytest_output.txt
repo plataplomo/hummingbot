@@ -5,59 +5,293 @@ rootdir: /home/demute/code/CyberDeltaEngine
 configfile: pyproject.toml
 plugins: dash-3.0.4, mock-3.14.0, asyncio-0.26.0, cov-6.1.1
 asyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
-collecting ... collected 41 items
+collecting ... collected 55 items
 
-tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_balances_success PASSED [  2%]
-tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_balances_no_wallet_address PASSED [  4%]
-tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_positions_success PASSED [  7%]
-tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_positions_symbol_filter PASSED [  9%]
-tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_positions_error_from_state PASSED [ 12%]
-tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_account_summary_success PASSED [ 14%]
-tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_account_summary_validation_error PASSED [ 17%]
-tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_account_summary_error_from_state PASSED [ 19%]
-tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_order_history_success PASSED [ 21%]
-tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_order_history_symbol_filter PASSED [ 24%]
-tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_order_history_error_conditions PASSED [ 26%]
-tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_trade_history_success PASSED [ 29%]
-tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_trade_history_symbol_filter PASSED [ 31%]
-tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_trade_history_error_conditions PASSED [ 34%]
-tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_balances_api_error_from_state PASSED [ 36%]
-tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_balances_http_client_returns_none_in_state_fetch PASSED [ 39%]
-tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_order_history_http_client_returns_none PASSED [ 41%]
-tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_trade_history_http_client_returns_none PASSED [ 43%]
-tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_open_orders_http_client_returns_none PASSED [ 46%]
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_all_asset_contexts_success PASSED [ 48%]
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_ticker_success PASSED [ 51%]
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_ticker_not_found PASSED [ 53%]
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_funding_rate_success PASSED [ 56%]
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_order_book_success PASSED [ 58%]
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_order_book_http_client_returns_none PASSED [ 60%]
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_recent_trades_success PASSED [ 63%]
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_recent_trades_http_client_returns_none PASSED [ 65%]
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_market_data_success FAILED [ 68%]
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_market_data_http_client_returns_none PASSED [ 70%]
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_all_asset_contexts_raw_success PASSED [ 73%]
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_all_asset_contexts_raw_http_client_returns_none PASSED [ 75%]
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_historical_funding_rates_success FAILED [ 78%]
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_historical_funding_rates_http_client_returns_none PASSED [ 80%]
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_historical_funding_rates_response_validation_error PASSED [ 82%]
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_historical_funding_rates_mapper_error PASSED [ 85%]
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_historical_funding_rates_api_error_from_handler PASSED [ 87%]
-tests/unit/apis/hyperliquid/services/test_hl_trading_service.py::TestHyperliquidTradingService::test_place_order_http_client_returns_none_in_exchange_action PASSED [ 90%]
-tests/unit/apis/hyperliquid/services/test_hl_trading_service.py::TestHyperliquidTradingService::test_get_order_http_client_returns_none_in_info_request PASSED [ 92%]
-tests/unit/apis/hyperliquid/services/test_hl_trading_service.py::TestHyperliquidTradingService::test_get_open_orders_http_client_returns_none_in_info_request PASSED [ 95%]
-tests/unit/apis/hyperliquid/services/test_hl_trading_service.py::TestHyperliquidTradingService::test_cancel_order_http_client_returns_none_in_exchange_action FAILED [ 97%]
+tests/unit/apis/base/test_exchange_api.py::test_exchange_api_initialization_creates_rate_limiter_service PASSED [  1%]
+tests/unit/apis/base/test_exchange_api.py::test_exchange_api_request_delegates_to_http_client_and_handles_response FAILED [  3%]
+tests/unit/apis/base/test_exchange_api.py::test_request_error_mapping_from_http_request_failed_error PASSED [  5%]
+tests/unit/apis/base/test_exchange_api.py::test_request_handles_client_error_from_http_client PASSED [  7%]
+tests/unit/apis/base/test_exchange_api.py::test_request_handles_timeout_error_from_http_client PASSED [  9%]
+tests/unit/apis/base/test_exchange_api.py::TestExchangeAPIWebSocketIntegration::test_initialization_with_ws_endpoint PASSED [ 10%]
+tests/unit/apis/base/test_exchange_api.py::TestExchangeAPIWebSocketIntegration::test_initialization_without_ws_endpoint PASSED [ 12%]
+tests/unit/apis/base/test_exchange_api.py::TestExchangeAPIWebSocketIntegration::test_connect_websocket_delegates_to_ws_manager PASSED [ 14%]
+tests/unit/apis/base/test_exchange_api.py::TestExchangeAPIWebSocketIntegration::test_is_connected_property_delegates_to_ws_manager PASSED [ 16%]
+tests/unit/apis/base/test_exchange_api.py::TestExchangeAPIWebSocketIntegration::test_close_delegates_to_ws_manager PASSED [ 18%]
+tests/unit/apis/base/test_exchange_api.py::TestExchangeAPIWebSocketIntegration::test_subscribe_registers_handler_and_sends_if_connected PASSED [ 20%]
+tests/unit/apis/base/test_exchange_api.py::TestExchangeAPIWebSocketIntegration::test_subscribe_logs_warning_if_not_connected PASSED [ 21%]
+tests/unit/apis/base/test_exchange_api.py::TestExchangeAPIWebSocketIntegration::test_resubscribe_sends_for_all_handlers_if_connected PASSED [ 23%]
+tests/unit/apis/base/test_exchange_api.py::TestExchangeAPIWebSocketIntegration::test_on_ws_connected_calls_resubscribe PASSED [ 25%]
+tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_balances_success PASSED [ 27%]
+tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_balances_no_wallet_address PASSED [ 29%]
+tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_positions_success PASSED [ 30%]
+tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_positions_symbol_filter PASSED [ 32%]
+tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_positions_error_from_state PASSED [ 34%]
+tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_account_summary_success PASSED [ 36%]
+tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_account_summary_validation_error PASSED [ 38%]
+tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_account_summary_error_from_state PASSED [ 40%]
+tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_order_history_success PASSED [ 41%]
+tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_order_history_symbol_filter PASSED [ 43%]
+tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_order_history_error_conditions PASSED [ 45%]
+tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_trade_history_success PASSED [ 47%]
+tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_trade_history_symbol_filter PASSED [ 49%]
+tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_trade_history_error_conditions PASSED [ 50%]
+tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_balances_api_error_from_state PASSED [ 52%]
+tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_balances_http_client_returns_none_in_state_fetch PASSED [ 54%]
+tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_order_history_http_client_returns_none PASSED [ 56%]
+tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_trade_history_http_client_returns_none PASSED [ 58%]
+tests/unit/apis/hyperliquid/services/test_hl_account_service.py::TestHyperliquidAccountService::test_get_open_orders_http_client_returns_none PASSED [ 60%]
+tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_all_asset_contexts_success PASSED [ 61%]
+tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_ticker_success PASSED [ 63%]
+tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_ticker_not_found PASSED [ 65%]
+tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_funding_rate_success PASSED [ 67%]
+tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_order_book_success PASSED [ 69%]
+tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_order_book_http_client_returns_none PASSED [ 70%]
+tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_recent_trades_success PASSED [ 72%]
+tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_recent_trades_http_client_returns_none PASSED [ 74%]
+tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_market_data_success FAILED [ 76%]
+tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_market_data_http_client_returns_none PASSED [ 78%]
+tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_all_asset_contexts_raw_success PASSED [ 80%]
+tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_all_asset_contexts_raw_http_client_returns_none PASSED [ 81%]
+tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_historical_funding_rates_success FAILED [ 83%]
+tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_historical_funding_rates_http_client_returns_none PASSED [ 85%]
+tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_historical_funding_rates_response_validation_error PASSED [ 87%]
+tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_historical_funding_rates_mapper_error PASSED [ 89%]
+tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_historical_funding_rates_api_error_from_handler PASSED [ 90%]
+tests/unit/apis/hyperliquid/services/test_hl_trading_service.py::TestHyperliquidTradingService::test_place_order_http_client_returns_none_in_exchange_action PASSED [ 92%]
+tests/unit/apis/hyperliquid/services/test_hl_trading_service.py::TestHyperliquidTradingService::test_get_order_http_client_returns_none_in_info_request PASSED [ 94%]
+tests/unit/apis/hyperliquid/services/test_hl_trading_service.py::TestHyperliquidTradingService::test_get_open_orders_http_client_returns_none_in_info_request PASSED [ 96%]
+tests/unit/apis/hyperliquid/services/test_hl_trading_service.py::TestHyperliquidTradingService::test_cancel_order_http_client_returns_none_in_exchange_action FAILED [ 98%]
 tests/unit/apis/hyperliquid/services/test_hl_trading_service.py::TestHyperliquidTradingService::test_cancel_all_orders_get_open_orders_returns_none PASSED [100%]
 
 =================================== FAILURES ===================================
+___ test_exchange_api_request_delegates_to_http_client_and_handles_response ____
+
+self = <MagicMock id='137492128736528'>
+args = (<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>, 'POST', 'https://test.rest.endpoint/submit_data')
+kwargs = {}
+expected = call(<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>, 'POST', 'https://test.rest.endpoint/submit_data')
+actual = call(<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>, 'POST', '/submit_data')
+_error_message = <function NonCallableMock.assert_called_with.<locals>._error_message at 0x7d0c6167ad40>
+cause = None
+
+    def assert_called_with(self, /, *args, **kwargs):
+        """assert that the last call was made with the specified arguments.
+    
+        Raises an AssertionError if the args and keyword args passed in are
+        different to the last call to the mock."""
+        if self.call_args is None:
+            expected = self._format_mock_call_signature(args, kwargs)
+            actual = 'not called.'
+            error_message = ('expected call not found.\nExpected: %s\n  Actual: %s'
+                    % (expected, actual))
+            raise AssertionError(error_message)
+    
+        def _error_message():
+            msg = self._format_mock_failure_message(args, kwargs)
+            return msg
+        expected = self._call_matcher(_Call((args, kwargs), two=True))
+        actual = self._call_matcher(self.call_args)
+        if actual != expected:
+            cause = expected if isinstance(expected, Exception) else None
+>           raise AssertionError(_error_message()) from cause
+E           AssertionError: expected call not found.
+E           Expected: mock(<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>, 'POST', 'https://test.rest.endpoint/submit_data')
+E             Actual: mock(<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>, 'POST', '/submit_data')
+
+_error_message = <function NonCallableMock.assert_called_with.<locals>._error_message at 0x7d0c6167ad40>
+actual     = call(<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>, 'POST', '/submit_data')
+args       = (<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>,
+ 'POST',
+ 'https://test.rest.endpoint/submit_data')
+cause      = None
+expected   = call(<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>, 'POST', 'https://test.rest.endpoint/submit_data')
+kwargs     = {}
+self       = <MagicMock id='137492128736528'>
+
+/usr/lib/python3.13/unittest/mock.py:979: AssertionError
+
+During handling of the above exception, another exception occurred:
+
+self = <MagicMock id='137492128736528'>
+args = (<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>, 'POST', 'https://test.rest.endpoint/submit_data')
+kwargs = {}
+
+    def assert_called_once_with(self, /, *args, **kwargs):
+        """assert that the mock was called exactly once and that that call was
+        with the specified arguments."""
+        if not self.call_count == 1:
+            msg = ("Expected '%s' to be called once. Called %s times.%s"
+                   % (self._mock_name or 'mock',
+                      self.call_count,
+                      self._calls_repr()))
+            raise AssertionError(msg)
+>       return self.assert_called_with(*args, **kwargs)
+E       AssertionError: expected call not found.
+E       Expected: mock(<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>, 'POST', 'https://test.rest.endpoint/submit_data')
+E         Actual: mock(<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>, 'POST', '/submit_data')
+E       
+E       pytest introspection follows:
+E       
+E       Args:
+E       assert (<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>, 'POST', '/submit_data') == (<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>, 'POST', 'https://test.rest.endpoint/submit_data')
+E         
+E         At index 2 diff: '/submit_data' != 'https://test.rest.endpoint/submit_data'
+E         
+E         Full diff:
+E           (
+E               <CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>,
+E               'POST',
+E         -     'https://test.rest.endpoint/submit_data',
+E         +     '/submit_data',
+E           )
+
+args       = (<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>,
+ 'POST',
+ 'https://test.rest.endpoint/submit_data')
+kwargs     = {}
+self       = <MagicMock id='137492128736528'>
+
+/usr/lib/python3.13/unittest/mock.py:991: AssertionError
+
+During handling of the above exception, another exception occurred:
+
+mock_http_client_request = <AsyncMock name='request' id='137492128738880'>
+exchange_name = 'test_exchange'
+default_config = {'rate_limits': {'default_bucket_size': 10, 'default_rate': 10}, 'rest_endpoint': 'https://test.rest.endpoint', 'ws_endpoint': 'wss://test.ws.endpoint'}
+mock_secrets = {'API_KEY': 'test_key', 'API_SECRET': 'test_secret'}
+mock_error_mapper = <MagicMock spec='IErrorMapper' id='137492128738208'>
+mock_loop = <MagicMock spec='AbstractEventLoop' id='137492128738544'>
+
+    @pytest.mark.asyncio
+    @patch("cyberdelta.apis.connectivity.http_client.HttpClient.request", new_callable=AsyncMock)
+    async def test_exchange_api_request_delegates_to_http_client_and_handles_response(
+        mock_http_client_request: AsyncMock,
+        exchange_name: str,
+        default_config: dict[str, Any],
+        mock_secrets: dict[str, str | None],
+        mock_error_mapper: MagicMock,
+        mock_loop: MagicMock,
+    ) -> None:
+        """
+        Tests that ExchangeAPI._request correctly calls HttpClient.request
+        and processes its successful response (content and headers).
+        """
+        mock_authenticator = AsyncMock(spec=IAuthenticator)  # For signed request part
+        api = ConcreteTestExchangeAPI(
+            exchange_name=exchange_name,
+            config=default_config,
+            secrets=mock_secrets,
+            error_mapper=mock_error_mapper,
+            loop=mock_loop,
+            authenticator=mock_authenticator,  # Pass authenticator here
+        )
+    
+        # Mock return value of HttpClient.request: (content, processed_headers, raw_headers_multidict)
+        mock_response_content = {"data": "success_payload"}
+        # CIMultiDictProxy is tricky to mock directly if not imported; use MagicMock with items()
+        mock_response_headers = MagicMock()
+        mock_response_headers.items.return_value = [
+            ("X-Response-ID", "123"),
+            ("Content-Type", "application/json"),
+        ]
+        # HttpClient.request returns 3 items: content, processed_headers, raw_headers_multidict
+        mock_processed_headers = ProcessedResponseHeaders(content_type="application/json")
+        mock_raw_headers_multidict = CIMultiDictProxy(
+            CIMultiDict(mock_response_headers.items.return_value)
+        )
+    
+        mock_status_code = 200  # Added status code for the mock
+        mock_http_client_request.return_value = (
+            mock_response_content,
+            mock_status_code,
+            mock_processed_headers,
+            mock_raw_headers_multidict,
+        )
+    
+        method = "POST"
+        endpoint = "/submit_data"
+        params = {"query_param": "test"}
+        data_payload = {"request_body": "payload"}
+        custom_headers = {"X-Client-Specific": "value"}
+        # mock_authenticator = AsyncMock(spec=IAuthenticator)  # Already created above
+        # api.authenticator = mock_authenticator # Removed this line
+    
+        # Call _request (as a signed request for this test part)
+        result = await api._request(
+            method, endpoint, params=params, data=data_payload, headers=custom_headers, is_signed=True
+        )
+    
+        assert result[0] == mock_response_content
+        mock_http_client_request.assert_called_once_with(
+            method=method,
+            endpoint_path=f"{default_config['rest_endpoint']}{endpoint}",
+            # Ensure leading slash is removed for http_client
+            rate_limiter_service=api._rate_limiter_service,
+            authenticator=mock_authenticator,
+            params=params,
+            data=data_payload,
+            headers=custom_headers,
+            is_signed=True,
+        )
+        # Check that _update_rate_limit_from_headers was called with the raw_headers_multidict
+        # that HttpClient.request would have returned.
+>       api.mock_update_rate_limit_method.assert_called_once_with(
+            mock_raw_headers_multidict,  # This is the CIMultiDictProxy instance
+            method,
+            f"{default_config['rest_endpoint']}{endpoint}",
+        )
+E       AssertionError: expected call not found.
+E       Expected: mock(<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>, 'POST', 'https://test.rest.endpoint/submit_data')
+E         Actual: mock(<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>, 'POST', '/submit_data')
+E       
+E       pytest introspection follows:
+E       
+E       Args:
+E       assert (<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>, 'POST', '/submit_data') == (<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>, 'POST', 'https://test.rest.endpoint/submit_data')
+E         
+E         At index 2 diff: '/submit_data' != 'https://test.rest.endpoint/submit_data'
+E         
+E         Full diff:
+E           (
+E               <CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>,
+E               'POST',
+E         -     'https://test.rest.endpoint/submit_data',
+E         +     '/submit_data',
+E           )
+
+api        = <test_exchange_api.ConcreteTestExchangeAPI object at 0x7d0c619234d0>
+custom_headers = {'X-Client-Specific': 'value'}
+data_payload = {'request_body': 'payload'}
+default_config = {'rate_limits': {'default_bucket_size': 10, 'default_rate': 10},
+ 'rest_endpoint': 'https://test.rest.endpoint',
+ 'ws_endpoint': 'wss://test.ws.endpoint'}
+endpoint   = '/submit_data'
+exchange_name = 'test_exchange'
+method     = 'POST'
+mock_authenticator = <AsyncMock spec='IAuthenticator' id='137492128739888'>
+mock_error_mapper = <MagicMock spec='IErrorMapper' id='137492128738208'>
+mock_http_client_request = <AsyncMock name='request' id='137492128738880'>
+mock_loop  = <MagicMock spec='AbstractEventLoop' id='137492128738544'>
+mock_processed_headers = ProcessedResponseHeaders(content_type='application/json')
+mock_raw_headers_multidict = <CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>
+mock_response_content = {'data': 'success_payload'}
+mock_response_headers = <MagicMock id='137492128735520'>
+mock_secrets = {'API_KEY': 'test_key', 'API_SECRET': 'test_secret'}
+mock_status_code = 200
+params     = {'query_param': 'test'}
+result     = ({'data': 'success_payload'},
+ 200,
+ <CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>)
+
+tests/unit/apis/base/test_exchange_api.py:316: AssertionError
 ________ TestHyperliquidMarketDataService.test_get_market_data_success _________
 
-self = <MagicMock name='mock.handle_info_candle_snapshot_response' id='129788877540384'>
+self = <MagicMock name='mock.handle_info_candle_snapshot_response' id='137492126130128'>
 args = ()
 kwargs = {'headers': <ANY>, 'interval': '1m', 'raw_response_content': {'c': ['3002', '3008'], 'h': ['3005', '3010'], 'l': ['2995', '3000'], 'o': ['3000', '3002'], ...}, 'status_code': 200, ...}
 expected = call(raw_response_content={'t': [1672531200000, 1672531260000], 'o': ['3000', '3002'], 'h': ['3005', '3010'], 'l': ['2...], 'c': ['3002', '3008'], 'v': ['100', '120'], 's': 'ok'}, symbol='ETH', interval='1m', status_code=200, headers=<ANY>)
 actual = call({'t': [1672531200000, 1672531260000], 'o': ['3000', '3002'], 'h': ['3005', '3010'], 'l': ['2995', '3000'], 'c': ['3002', '3008'], 'v': ['100', '120'], 's': 'ok'}, 'ETH', '1m', 200)
-_error_message = <function NonCallableMock.assert_called_with.<locals>._error_message at 0x760ad40cc0e0>
+_error_message = <function NonCallableMock.assert_called_with.<locals>._error_message at 0x7d0cb6f47420>
 cause = None
 
     def assert_called_with(self, /, *args, **kwargs):
@@ -84,7 +318,7 @@ E           AssertionError: expected call not found.
 E           Expected: handle_info_candle_snapshot_response(raw_response_content={'t': [1672531200000, 1672531260000], 'o': ['3000', '3002'], 'h': ['3005', '3010'], 'l': ['2995', '3000'], 'c': ['3002', '3008'], 'v': ['100', '120'], 's': 'ok'}, symbol='ETH', interval='1m', status_code=200, headers=<ANY>)
 E             Actual: handle_info_candle_snapshot_response({'t': [1672531200000, 1672531260000], 'o': ['3000', '3002'], 'h': ['3005', '3010'], 'l': ['2995', '3000'], 'c': ['3002', '3008'], 'v': ['100', '120'], 's': 'ok'}, 'ETH', '1m', 200)
 
-_error_message = <function NonCallableMock.assert_called_with.<locals>._error_message at 0x760ad40cc0e0>
+_error_message = <function NonCallableMock.assert_called_with.<locals>._error_message at 0x7d0cb6f47420>
 actual     = call({'t': [1672531200000, 1672531260000], 'o': ['3000', '3002'], 'h': ['3005', '3010'], 'l': ['2995', '3000'], 'c': ['3002', '3008'], 'v': ['100', '120'], 's': 'ok'}, 'ETH', '1m', 200)
 args       = ()
 cause      = None
@@ -100,13 +334,13 @@ kwargs     = {'headers': <ANY>,
                           'v': ['100', '120']},
  'status_code': 200,
  'symbol': 'ETH'}
-self       = <MagicMock name='mock.handle_info_candle_snapshot_response' id='129788877540384'>
+self       = <MagicMock name='mock.handle_info_candle_snapshot_response' id='137492126130128'>
 
 /usr/lib/python3.13/unittest/mock.py:979: AssertionError
 
 During handling of the above exception, another exception occurred:
 
-self = <MagicMock name='mock.handle_info_candle_snapshot_response' id='129788877540384'>
+self = <MagicMock name='mock.handle_info_candle_snapshot_response' id='137492126130128'>
 args = ()
 kwargs = {'headers': <ANY>, 'interval': '1m', 'raw_response_content': {'c': ['3002', '3008'], 'h': ['3005', '3010'], 'l': ['2995', '3000'], 'o': ['3000', '3002'], ...}, 'status_code': 200, ...}
 
@@ -229,18 +463,18 @@ kwargs     = {'headers': <ANY>,
                           'v': ['100', '120']},
  'status_code': 200,
  'symbol': 'ETH'}
-self       = <MagicMock name='mock.handle_info_candle_snapshot_response' id='129788877540384'>
+self       = <MagicMock name='mock.handle_info_candle_snapshot_response' id='137492126130128'>
 
 /usr/lib/python3.13/unittest/mock.py:991: AssertionError
 
 During handling of the above exception, another exception occurred:
 
-self = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x760ad4065450>
-mock_candle_mapper_class = <MagicMock name='HyperliquidCandleMapper' id='129788877540720'>
-hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x760b29862c50>
-mock_http_client_requester = <AsyncMock id='129788877958048'>
-mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='129788877958720'>
-mock_hl_response_handler = <MagicMock spec='HyperliquidResponseHandler' id='129788877549792'>
+self = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x7d0c617bea50>
+mock_candle_mapper_class = <MagicMock name='HyperliquidCandleMapper' id='137492126123072'>
+hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x7d0c617bf750>
+mock_http_client_requester = <AsyncMock id='137492126126096'>
+mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='137492126125088'>
+mock_hl_response_handler = <MagicMock spec='HyperliquidResponseHandler' id='137492126124752'>
 
     @pytest.mark.asyncio
     @patch("cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidCandleMapper")
@@ -448,13 +682,13 @@ E         - }
 end_time_ms = 1672534800000
 expected_candles = [Candle(symbol='ETH', interval='1m', open_time=datetime.datetime(2023, 1, 1, 0, 0, tzinfo=datetime.timezone.utc), open=Decimal('3000'), high=Decimal('3005'), low=Decimal('2995'), close=Decimal('3002'), volume=Decimal('100')),
  Candle(symbol='ETH', interval='1m', open_time=datetime.datetime(2023, 1, 1, 0, 1, tzinfo=datetime.timezone.utc), open=Decimal('3002'), high=Decimal('3010'), low=Decimal('3000'), close=Decimal('3008'), volume=Decimal('120'))]
-hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x760b29862c50>
+hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x7d0c617bf750>
 interval   = '1m'
-mock_candle_mapper_class = <MagicMock name='HyperliquidCandleMapper' id='129788877540720'>
-mock_candle_mapper_instance = <MagicMock name='HyperliquidCandleMapper()' id='129788877537696'>
-mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='129788877958720'>
-mock_hl_response_handler = <MagicMock spec='HyperliquidResponseHandler' id='129788877549792'>
-mock_http_client_requester = <AsyncMock id='129788877958048'>
+mock_candle_mapper_class = <MagicMock name='HyperliquidCandleMapper' id='137492126123072'>
+mock_candle_mapper_instance = <MagicMock name='HyperliquidCandleMapper()' id='137492126122736'>
+mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='137492126125088'>
+mock_hl_response_handler = <MagicMock spec='HyperliquidResponseHandler' id='137492126124752'>
+mock_http_client_requester = <AsyncMock id='137492126126096'>
 mock_payload_from_builder = HyperliquidRawCandleSnapshotRequestPayload(type='candleSnapshot', req=HyperliquidRawCandleRequestDetails(coin='ETH', interval='1m', start_time=1672531200000, end_time=1672534800000))
 mock_raw_candle_data = {'c': ['3002', '3008'],
  'h': ['3005', '3010'],
@@ -474,19 +708,19 @@ raw_times  = [1672531200000, 1672531260000]
 raw_volumes = ['100', '120']
 result_candles = [Candle(symbol='ETH', interval='1m', open_time=datetime.datetime(2023, 1, 1, 0, 0, tzinfo=datetime.timezone.utc), open=Decimal('3000'), high=Decimal('3005'), low=Decimal('2995'), close=Decimal('3002'), volume=Decimal('100')),
  Candle(symbol='ETH', interval='1m', open_time=datetime.datetime(2023, 1, 1, 0, 1, tzinfo=datetime.timezone.utc), open=Decimal('3002'), high=Decimal('3010'), low=Decimal('3000'), close=Decimal('3008'), volume=Decimal('120'))]
-self       = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x760ad4065450>
+self       = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x7d0c617bea50>
 start_time_ms = 1672531200000
 symbol     = 'ETH'
 
 tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py:646: AssertionError
 __ TestHyperliquidMarketDataService.test_get_historical_funding_rates_success __
 
-self = <MagicMock name='mock.handle_historical_funding_rates_response' id='129788877960736'>
+self = <MagicMock name='mock.handle_historical_funding_rates_response' id='137492126134832'>
 args = ([{'coin': 'ETH', 'fundingRate': '0.0001', 'premium': '0.00012', 'time': 1678886400076}, {'coin': 'ETH', 'fundingRate': '0.00015', 'premium': '0.00017', 'time': 1678886500076}], 200, {})
 kwargs = {}
 expected = call([{'coin': 'ETH', 'fundingRate': '0.0001', 'premium': '0.00012', 'time': 1678886400076}, {'coin': 'ETH', 'fundingRate': '0.00015', 'premium': '0.00017', 'time': 1678886500076}], 200, {})
 actual = call(raw_response_content=[{'coin': 'ETH', 'fundingRate': '0.0001', 'premium': '0.00012', 'time': 1678886400076}, {'coin': 'ETH', 'fundingRate': '0.00015', 'premium': '0.00017', 'time': 1678886500076}], status_code=200, headers={})
-_error_message = <function NonCallableMock.assert_called_with.<locals>._error_message at 0x760ad3deaf20>
+_error_message = <function NonCallableMock.assert_called_with.<locals>._error_message at 0x7d0c615d4860>
 cause = None
 
     def assert_called_with(self, /, *args, **kwargs):
@@ -513,7 +747,7 @@ E           AssertionError: expected call not found.
 E           Expected: handle_historical_funding_rates_response([{'coin': 'ETH', 'fundingRate': '0.0001', 'premium': '0.00012', 'time': 1678886400076}, {'coin': 'ETH', 'fundingRate': '0.00015', 'premium': '0.00017', 'time': 1678886500076}], 200, {})
 E             Actual: handle_historical_funding_rates_response(raw_response_content=[{'coin': 'ETH', 'fundingRate': '0.0001', 'premium': '0.00012', 'time': 1678886400076}, {'coin': 'ETH', 'fundingRate': '0.00015', 'premium': '0.00017', 'time': 1678886500076}], status_code=200, headers={})
 
-_error_message = <function NonCallableMock.assert_called_with.<locals>._error_message at 0x760ad3deaf20>
+_error_message = <function NonCallableMock.assert_called_with.<locals>._error_message at 0x7d0c615d4860>
 actual     = call(raw_response_content=[{'coin': 'ETH', 'fundingRate': '0.0001', 'premium': '0.00012', 'time': 1678886400076}, {'coin': 'ETH', 'fundingRate': '0.00015', 'premium': '0.00017', 'time': 1678886500076}], status_code=200, headers={})
 args       = ([{'coin': 'ETH',
    'fundingRate': '0.0001',
@@ -528,13 +762,13 @@ args       = ([{'coin': 'ETH',
 cause      = None
 expected   = call([{'coin': 'ETH', 'fundingRate': '0.0001', 'premium': '0.00012', 'time': 1678886400076}, {'coin': 'ETH', 'fundingRate': '0.00015', 'premium': '0.00017', 'time': 1678886500076}], 200, {})
 kwargs     = {}
-self       = <MagicMock name='mock.handle_historical_funding_rates_response' id='129788877960736'>
+self       = <MagicMock name='mock.handle_historical_funding_rates_response' id='137492126134832'>
 
 /usr/lib/python3.13/unittest/mock.py:979: AssertionError
 
 During handling of the above exception, another exception occurred:
 
-self = <MagicMock name='mock.handle_historical_funding_rates_response' id='129788877960736'>
+self = <MagicMock name='mock.handle_historical_funding_rates_response' id='137492126134832'>
 args = ([{'coin': 'ETH', 'fundingRate': '0.0001', 'premium': '0.00012', 'time': 1678886400076}, {'coin': 'ETH', 'fundingRate': '0.00015', 'premium': '0.00017', 'time': 1678886500076}], 200, {})
 kwargs = {}
 
@@ -626,18 +860,18 @@ args       = ([{'coin': 'ETH',
  200,
  {})
 kwargs     = {}
-self       = <MagicMock name='mock.handle_historical_funding_rates_response' id='129788877960736'>
+self       = <MagicMock name='mock.handle_historical_funding_rates_response' id='137492126134832'>
 
 /usr/lib/python3.13/unittest/mock.py:991: AssertionError
 
 During handling of the above exception, another exception occurred:
 
-self = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x760ad4052eb0>
-hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x760ad408fbd0>
-mock_http_client_requester = <AsyncMock id='129788877959728'>
-mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='129788877948976'>
-mock_hl_response_handler = <MagicMock spec='HyperliquidResponseHandler' id='129788877959392'>
-mocker = <pytest_mock.plugin.MockerFixture object at 0x760ad3f75160>
+self = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x7d0c61852eb0>
+hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x7d0c6179f3f0>
+mock_http_client_requester = <AsyncMock id='137492126134496'>
+mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='137492126135840'>
+mock_hl_response_handler = <MagicMock spec='HyperliquidResponseHandler' id='137492126134160'>
+mocker = <pytest_mock.plugin.MockerFixture object at 0x7d0c61567cb0>
 
     @pytest.mark.asyncio
     async def test_get_historical_funding_rates_success(
@@ -790,11 +1024,11 @@ E         +     'status_code': 200,
 E         + }
 
 end_time_ms = 1678890000000
-hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x760ad408fbd0>
+hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x7d0c6179f3f0>
 mock_headers = {}
-mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='129788877948976'>
-mock_hl_response_handler = <MagicMock spec='HyperliquidResponseHandler' id='129788877959392'>
-mock_http_client_requester = <AsyncMock id='129788877959728'>
+mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='137492126135840'>
+mock_hl_response_handler = <MagicMock spec='HyperliquidResponseHandler' id='137492126134160'>
+mock_http_client_requester = <AsyncMock id='137492126134496'>
 mock_internal_funding_rates = [FundingRate(symbol='ETH', timestamp=datetime.datetime(2023, 3, 15, 13, 20, 0, 76000, tzinfo=datetime.timezone.utc), funding_rate=Decimal('0.0001'), predicted_rate=None, mark_price=None, index_price=None, next_funding_time=None, hl_details=None, bp_details=None),
  FundingRate(symbol='ETH', timestamp=datetime.datetime(2023, 3, 15, 13, 21, 40, 76000, tzinfo=datetime.timezone.utc), funding_rate=Decimal('0.00015'), predicted_rate=None, mark_price=None, index_price=None, next_funding_time=None, hl_details=None, bp_details=None)]
 mock_raw_response_data = [{'coin': 'ETH',
@@ -809,20 +1043,20 @@ mock_request_payload = {'coin': 'ETH',
  'endTime': 1678890000000,
  'startTime': 1678886400000,
  'type': 'fundingHistory'}
-mock_transform_method = <MagicMock name='transform_raw_funding_history_item_to_internal' id='129788877959056'>
+mock_transform_method = <MagicMock name='transform_raw_funding_history_item_to_internal' id='137492125829840'>
 mock_validated_raw_items = [HyperliquidRawFundingHistoryItem(coin='ETH', funding_rate='0.0001', premium='0.00012', time=1678886400076),
  HyperliquidRawFundingHistoryItem(coin='ETH', funding_rate='0.00015', premium='0.00017', time=1678886500076)]
-mocker     = <pytest_mock.plugin.MockerFixture object at 0x760ad3f75160>
+mocker     = <pytest_mock.plugin.MockerFixture object at 0x7d0c61567cb0>
 result     = [FundingRate(symbol='ETH', timestamp=datetime.datetime(2023, 3, 15, 13, 20, 0, 76000, tzinfo=datetime.timezone.utc), funding_rate=Decimal('0.0001'), predicted_rate=None, mark_price=None, index_price=None, next_funding_time=None, hl_details=None, bp_details=None),
  FundingRate(symbol='ETH', timestamp=datetime.datetime(2023, 3, 15, 13, 21, 40, 76000, tzinfo=datetime.timezone.utc), funding_rate=Decimal('0.00015'), predicted_rate=None, mark_price=None, index_price=None, next_funding_time=None, hl_details=None, bp_details=None)]
-self       = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x760ad4052eb0>
+self       = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x7d0c61852eb0>
 start_time_ms = 1678886400000
 symbol     = 'ETH'
 
 tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py:903: AssertionError
 _ TestHyperliquidTradingService.test_cancel_order_http_client_returns_none_in_exchange_action _
 
-self = <MagicMock name='mock.build_cancel_order_payload' id='129788877537360'>
+self = <MagicMock name='mock.build_cancel_order_payload' id='137492126131136'>
 args = ()
 kwargs = {'asset_index': 0, 'order_id': 12345, 'wallet_address': '0xWallet'}
 msg = "Expected 'build_cancel_order_payload' to be called once. Called 0 times."
@@ -841,17 +1075,17 @@ E           AssertionError: Expected 'build_cancel_order_payload' to be called o
 args       = ()
 kwargs     = {'asset_index': 0, 'order_id': 12345, 'wallet_address': '0xWallet'}
 msg        = "Expected 'build_cancel_order_payload' to be called once. Called 0 times."
-self       = <MagicMock name='mock.build_cancel_order_payload' id='129788877537360'>
+self       = <MagicMock name='mock.build_cancel_order_payload' id='137492126131136'>
 
 /usr/lib/python3.13/unittest/mock.py:990: AssertionError
 
 During handling of the above exception, another exception occurred:
 
-self = <tests.unit.apis.hyperliquid.services.test_hl_trading_service.TestHyperliquidTradingService object at 0x760ad40602b0>
-make_hl_trading_service = <function make_hl_trading_service.<locals>._factory at 0x760ad3deaca0>
-mock_exchange_http_client_requester = <AsyncMock id='129788877955024'>
-mock_get_asset_index_callable = <AsyncMock id='129788877538368'>
-mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='129788877537696'>
+self = <tests.unit.apis.hyperliquid.services.test_hl_trading_service.TestHyperliquidTradingService object at 0x7d0c617b1350>
+make_hl_trading_service = <function make_hl_trading_service.<locals>._factory at 0x7d0c6173b920>
+mock_exchange_http_client_requester = <AsyncMock id='137492126122400'>
+mock_get_asset_index_callable = <AsyncMock id='137492126125088'>
+mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='137492126127440'>
 
     @pytest.mark.asyncio
     async def test_cancel_order_http_client_returns_none_in_exchange_action(
@@ -892,15 +1126,15 @@ mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='129788
 E       AssertionError: Expected 'build_cancel_order_payload' to be called once. Called 0 times.
 
 exc_info   = <ExceptionInfo APIError('Exchange action (cancel) returned no content.') tblen=3>
-hl_trading_service = <cyberdelta.apis.hyperliquid.services.hl_trading_service.HyperliquidTradingService object at 0x760ad4061f30>
-make_hl_trading_service = <function make_hl_trading_service.<locals>._factory at 0x760ad3deaca0>
+hl_trading_service = <cyberdelta.apis.hyperliquid.services.hl_trading_service.HyperliquidTradingService object at 0x7d0c617b2fd0>
+make_hl_trading_service = <function make_hl_trading_service.<locals>._factory at 0x7d0c6173b920>
 mock_cancel_action_dict = {'asset': 0, 'orderId': 12345}
-mock_cancel_action_model = <MagicMock name='mock.build_cancel_order_payload()' id='129788877550464'>
-mock_exchange_http_client_requester = <AsyncMock id='129788877955024'>
-mock_get_asset_index_callable = <AsyncMock id='129788877538368'>
-mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='129788877537696'>
+mock_cancel_action_model = <MagicMock name='mock.build_cancel_order_payload()' id='137492126133824'>
+mock_exchange_http_client_requester = <AsyncMock id='137492126122400'>
+mock_get_asset_index_callable = <AsyncMock id='137492126125088'>
+mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='137492126127440'>
 order_id   = 12345
-self       = <tests.unit.apis.hyperliquid.services.test_hl_trading_service.TestHyperliquidTradingService object at 0x760ad40602b0>
+self       = <tests.unit.apis.hyperliquid.services.test_hl_trading_service.TestHyperliquidTradingService object at 0x7d0c617b1350>
 symbol     = 'ETH'
 wallet_address = '0xWallet'
 
@@ -908,6 +1142,24 @@ tests/unit/apis/hyperliquid/services/test_hl_trading_service.py:230: AssertionEr
 ------------------------------ Captured log call -------------------------------
 ERROR    cyberdelta.apis.hyperliquid.services.hl_trading_service:hl_trading_service.py:177 [hyperliquid_test_trading] API error cancelling order raw: Exchange action (cancel) returned no content.
 =========================== short test summary info ============================
+FAILED tests/unit/apis/base/test_exchange_api.py::test_exchange_api_request_delegates_to_http_client_and_handles_response - AssertionError: expected call not found.
+Expected: mock(<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>, 'POST', 'https://test.rest.endpoint/submit_data')
+  Actual: mock(<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>, 'POST', '/submit_data')
+
+pytest introspection follows:
+
+Args:
+assert (<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>, 'POST', '/submit_data') == (<CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>, 'POST', 'https://test.rest.endpoint/submit_data')
+  
+  At index 2 diff: '/submit_data' != 'https://test.rest.endpoint/submit_data'
+  
+  Full diff:
+    (
+        <CIMultiDictProxy('X-Response-ID': '123', 'Content-Type': 'application/json')>,
+        'POST',
+  -     'https://test.rest.endpoint/submit_data',
+  +     '/submit_data',
+    )
 FAILED tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_market_data_success - AssertionError: expected call not found.
 Expected: handle_info_candle_snapshot_response(raw_response_content={'t': [1672531200000, 1672531260000], 'o': ['3000', '3002'], 'h': ['3005', '3010'], 'l': ['2995', '3000'], 'c': ['3002', '3008'], 'v': ['100', '120'], 's': 'ok'}, symbol='ETH', interval='1m', status_code=200, headers=<ANY>)
   Actual: handle_info_candle_snapshot_response({'t': [1672531200000, 1672531260000], 'o': ['3000', '3002'], 'h': ['3005', '3010'], 'l': ['2995', '3000'], 'c': ['3002', '3008'], 'v': ['100', '120'], 's': 'ok'}, 'ETH', '1m', 200)
@@ -1071,4 +1323,4 @@ assert {'raw_response_content': [{'coin': 'ETH', 'fundingRate': '0.0001', 'premi
   +     'status_code': 200,
   + }
 FAILED tests/unit/apis/hyperliquid/services/test_hl_trading_service.py::TestHyperliquidTradingService::test_cancel_order_http_client_returns_none_in_exchange_action - AssertionError: Expected 'build_cancel_order_payload' to be called once. Called 0 times.
-========================= 3 failed, 38 passed in 0.33s =========================
+========================= 4 failed, 51 passed in 0.62s =========================

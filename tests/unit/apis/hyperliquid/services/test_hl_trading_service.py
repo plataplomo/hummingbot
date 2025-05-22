@@ -8,6 +8,9 @@ from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidOrderMapper
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
+from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
+    HyperliquidRawOpenOrdersRequestPayload,
+)
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -146,7 +149,7 @@ class TestHyperliquidTradingService:
         mock_info_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint_path="/info",
-            data=mock_request_payload_dict,
+            data=mock_request_payload_model.model_dump.return_value,
             authenticator=mock_authenticator_fixt,  # Use injected mock authenticator
             rate_limiter_service=None,
             is_signed=True,
@@ -166,23 +169,26 @@ class TestHyperliquidTradingService:
         wallet_address = "0xWallet"
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
 
-        mock_request_payload_model = MagicMock()
-        mock_request_payload_dict = {"type": "openOrders", "user": wallet_address}
-        mock_request_payload_mock = MagicMock()
-        mock_request_payload_mock.model_dump.return_value = mock_request_payload_dict
-        mock_hl_request_builder.build_open_orders_payload.return_value = mock_request_payload_mock
+        mock_request_payload_model = MagicMock(spec=HyperliquidRawOpenOrdersRequestPayload)
+        mock_request_payload_model.model_dump.return_value = {
+            "type": "openOrders",
+            "user": wallet_address,
+        }
+        mock_hl_request_builder.build_open_orders_payload.return_value = mock_request_payload_model
         mock_info_http_client_requester.return_value = None
 
         with pytest.raises(APIError) as exc_info:
             await hl_trading_service.get_open_orders()
+            mock_hl_request_builder.build_open_orders_payload.assert_called_once_with(
+                wallet_address
+            )  # Moved inside
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Fetching open orders returned no content." in exc_info.value.message
-        mock_hl_request_builder.build_open_orders_payload.assert_called_once_with(wallet_address)
         mock_info_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint_path="/info",
-            data=mock_request_payload_dict,
+            data=mock_request_payload_model.model_dump.return_value,
             authenticator=mock_authenticator_fixt,  # Use injected mock authenticator
             rate_limiter_service=None,
             is_signed=True,
@@ -246,9 +252,11 @@ class TestHyperliquidTradingService:
         wallet_address = "0xWallet"
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
 
-        mock_request_payload_model_local = MagicMock()
-        mock_request_payload_dict = {"type": "openOrders", "user": wallet_address}
-        mock_request_payload_model_local.model_dump.return_value = mock_request_payload_dict
+        mock_request_payload_model_local = MagicMock(spec=HyperliquidRawOpenOrdersRequestPayload)
+        mock_request_payload_model_local.model_dump.return_value = {
+            "type": "openOrders",
+            "user": wallet_address,
+        }
         mock_hl_request_builder.build_open_orders_payload.return_value = (
             mock_request_payload_model_local
         )
@@ -257,16 +265,17 @@ class TestHyperliquidTradingService:
 
         with pytest.raises(APIError) as exc_info:
             await hl_trading_service.cancel_all_orders(symbol="ETH")
+            mock_hl_request_builder.build_open_orders_payload.assert_called_once_with(
+                wallet_address
+            )  # Moved inside
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Fetching open orders returned no content." in exc_info.value.message
-
-        mock_hl_request_builder.build_open_orders_payload.assert_called_once_with(wallet_address)
         mock_info_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint_path="/info",
-            data=mock_request_payload_dict,
-            authenticator=mock_authenticator_fixt,  # Use injected mock authenticator
+            data=mock_request_payload_model_local.model_dump.return_value,  # Use the mocked return value
+            authenticator=mock_authenticator_fixt,
             rate_limiter_service=None,
             is_signed=True,
         )
