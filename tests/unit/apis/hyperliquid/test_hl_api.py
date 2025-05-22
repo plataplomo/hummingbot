@@ -168,6 +168,23 @@ def mock_meta_response_content() -> list[RawJsonResponse]:
 
 
 @pytest.fixture
+def mock_meta_response_content_for_btc_only() -> list[RawJsonResponse]:
+    """Provides a mock raw JSON response for /info endpoint (meta and asset contexts) with only BTC."""
+    return [
+        {"universe": [{"name": "BTC", "szDecimals": 5, "maxLeverage": 100, "onlyIsolated": False}]},
+        [
+            {
+                "name": "BTC",
+                "funding": "0.0001",
+                "markPx": "60000",
+                "prevDayPx": "59000",
+                "dayNtlVlm": "100000000",
+            }
+        ],
+    ]
+
+
+@pytest.fixture
 def mock_meta_response_content_missing_symbol() -> list[RawJsonResponse]:
     """Mock /info response content where a specific symbol (e.g., SOL) is missing."""
     return [
@@ -303,11 +320,11 @@ async def test_authenticate_no_authenticator_via_public_method(
     assert api._authenticator is None
 
     with patch.object(
-        api,
-        "_get_asset_index",
+        api._info_http_client,
+        "request",
         new_callable=AsyncMock,
-        return_value=0,  # Mock asset index for BTC
-    ) as mock_get_asset_index:
+        return_value=(mock_meta_response_content_for_btc_only, 200, MagicMock(), MagicMock()),
+    ) as mock_info_http_client_request:
         with pytest.raises(APIError, match="HL authenticator not initialized") as excinfo:
             await api.place_order(
                 symbol="BTC",
@@ -318,7 +335,7 @@ async def test_authenticate_no_authenticator_via_public_method(
                 time_in_force=TimeInForce.GTC,
             )
         assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
-        mock_get_asset_index.assert_awaited_once_with("BTC")
+        mock_info_http_client_request.assert_awaited_once()  # We don't care about args here, just that it was called
 
 
 @pytest.mark.asyncio
@@ -337,11 +354,11 @@ async def test_authenticate_prepare_request_fails_via_public_method(
     )
 
     with patch.object(
-        api,
-        "_get_asset_index",
+        api._info_http_client,
+        "request",
         new_callable=AsyncMock,
-        return_value=0,  # Mock asset index for BTC
-    ) as mock_get_asset_index:
+        return_value=(mock_meta_response_content_for_btc_only, 200, MagicMock(), MagicMock()),
+    ) as mock_info_http_client_request:
         with pytest.raises(APIError, match="Signing failed internally") as excinfo:
             await api.place_order(
                 symbol="BTC",
@@ -352,7 +369,7 @@ async def test_authenticate_prepare_request_fails_via_public_method(
                 time_in_force=TimeInForce.GTC,
             )
         assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
-        mock_get_asset_index.assert_awaited_once_with("BTC")
+        mock_info_http_client_request.assert_awaited_once()  # We don't care about args here, just that it was called
 
 
 # --- Signed Endpoint Test Example (place_order) --- #
@@ -850,7 +867,6 @@ class TestHyperliquidAPIMethodErrors:
             quantity_val: Decimal = Decimal("0.001")
             price_val: Decimal = Decimal("1")
             time_in_force_val: TimeInForce = TimeInForce.GTC
-
             expected_action_payload_error_obj = HyperliquidRawPlaceOrderAction(
                 asset=1,
                 isBuy=True,
@@ -973,6 +989,10 @@ class TestHyperliquidAPIWebSocketRouting:
                 typed_expected_sub_details[key] = value
             else:
                 pytest.fail(f"Expected_sub: val type {type(value)} for key {key!r}. Val={value!r}")
+
+        assert sorted(typed_actual_subscription.items()) == sorted(
+            typed_expected_sub_details.items()
+        )
 
         assert sorted(typed_actual_subscription.items()) == sorted(
             typed_expected_sub_details.items()

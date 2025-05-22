@@ -1,7 +1,7 @@
 """
 Response Handler for Hyperliquid API Raw Responses.
 
-Validates raw JSON data against Pydantic models specific to Hyperliquid\'s API endpoints.
+Validates raw JSON data against Pydantic models specific to Hyperliquid's API endpoints.
 """
 
 from collections.abc import Mapping
@@ -133,6 +133,53 @@ class HyperliquidResponseHandler:
                                 # Add 'onlyIsolated' if missing
                                 if "onlyIsolated" not in item:
                                     item["onlyIsolated"] = False  # Default to False if not provided
+
+                # Process asset_ctxs_data
+                asset_ctxs_data = processed_raw_response_content[1]
+
+                if isinstance(asset_ctxs_data, list):
+                    processed_asset_ctxs_list: list[dict[str, RawJson]] = []
+                    # Get the expected fields from HyperliquidRawAssetCtx once
+                    asset_ctx_expected_fields = set(HyperliquidRawAssetCtx.model_fields.keys())
+
+                    for i, item_dict in enumerate(asset_ctxs_data):
+                        if not isinstance(item_dict, dict):
+                            logger.warning(
+                                f"Skipping non-dict item at index {i} in asset_ctxs_data. Item: {item_dict!r}"
+                            )
+                            continue  # Skip non-dict items
+
+                        # Filter out extra fields not defined in HyperliquidRawAssetCtx
+                        filtered_item_dict = {
+                            k: v for k, v in item_dict.items() if k in asset_ctx_expected_fields
+                        }
+                        processed_asset_ctxs_list.append(filtered_item_dict)
+
+                    # Update processed_raw_response_content with the filtered asset_ctxs_list
+                    processed_raw_response_content[1] = processed_asset_ctxs_list
+                # Process asset_ctxs_data
+                asset_ctxs_data = processed_raw_response_content[1]
+
+                if isinstance(asset_ctxs_data, list):
+                    processed_asset_ctxs_list: list[dict[str, RawJson]] = []
+                    # Get the expected fields from HyperliquidRawAssetCtx once
+                    asset_ctx_expected_fields = set(HyperliquidRawAssetCtx.model_fields.keys())
+
+                    for i, item_dict in enumerate(asset_ctxs_data):
+                        if not isinstance(item_dict, dict):
+                            logger.warning(
+                                f"Skipping non-dict item at index {i} in asset_ctxs_data. Item: {item_dict!r}"
+                            )
+                            continue  # Skip non-dict items
+
+                        # Filter out extra fields not defined in HyperliquidRawAssetCtx
+                        filtered_item_dict = {
+                            k: v for k, v in item_dict.items() if k in asset_ctx_expected_fields
+                        }
+                        processed_asset_ctxs_list.append(filtered_item_dict)
+
+                    # Update processed_raw_response_content with the filtered asset_ctxs_list
+                    processed_raw_response_content[1] = processed_asset_ctxs_list
 
             return HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
                 processed_raw_response_content
