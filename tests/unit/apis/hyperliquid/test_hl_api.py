@@ -323,23 +323,40 @@ async def test_authenticate_no_authenticator_via_public_method(
 
     assert api._authenticator is None
 
-    # Patch _get_asset_index to bypass the initial public call
-    with patch.object(api, "_get_asset_index", AsyncMock(return_value=0)):
-        with patch(
-            f"{HL_API_PATH}.HttpClient.request",  # This mock is for the /exchange call
-            new_callable=AsyncMock,
-        ) as mock_exchange_http_client_request:  # This is self._http_client.request
-            # Set a default valid 4-tuple return, though we expect it not to be called
-            mock_exchange_http_client_request.return_value = (None, 200, MagicMock(), MagicMock())
-            with pytest.raises(APIError, match="HL authenticator not initialized") as excinfo:
-                await api.place_order(
-                    symbol="BTC",
-                    side=OrderSide.BUY,
-                    order_type=OrderType.LIMIT,
-                    quantity=Decimal("0.001"),
-                    price=Decimal("1.0"),
-                    time_in_force=TimeInForce.GTC,
+    # Mock _info_http_client.request to return valid meta content, preventing _get_asset_index from failing
+    with patch.object(
+        api._info_http_client, "request", new_callable=AsyncMock
+    ) as mock_info_http_client_request:
+        mock_info_http_client_request.return_value = (
+            mock_meta_response_content_for_btc_only,  # Use the fixture content
+            200,
+            MagicMock(),
+            MagicMock(),
+        )
+        # Patch _get_asset_index_callable on the trading_service to bypass the call
+        with patch.object(
+            api.trading_service, "_get_asset_index_callable", AsyncMock(return_value=0)
+        ):
+            with patch(
+                f"{HL_API_PATH}.HttpClient.request",  # This mock is for the /exchange call
+                new_callable=AsyncMock,
+            ) as mock_exchange_http_client_request:  # This is self._http_client.request
+                # Set a default valid 4-tuple return, though we expect it not to be called
+                mock_exchange_http_client_request.return_value = (
+                    None,
+                    200,
+                    MagicMock(),
+                    MagicMock(),
                 )
+                with pytest.raises(APIError, match="HL authenticator not initialized") as excinfo:
+                    await api.place_order(
+                        symbol="BTC",
+                        side=OrderSide.BUY,
+                        order_type=OrderType.LIMIT,
+                        quantity=Decimal("0.001"),
+                        price=Decimal("1.0"),
+                        time_in_force=TimeInForce.GTC,
+                    )
             assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
             # The /exchange call should not be made if authenticator is missing
             mock_exchange_http_client_request.assert_not_called()
@@ -364,23 +381,40 @@ async def test_authenticate_prepare_request_fails_via_public_method(
         "Signing failed internally", code=APIErrorCode.AUTHENTICATION_FAILED.value
     )
 
-    # Patch _get_asset_index to bypass the initial public call
-    with patch.object(api, "_get_asset_index", AsyncMock(return_value=0)):
-        with patch(
-            f"{HL_API_PATH}.HttpClient.request",  # This mock is for the /exchange call
-            new_callable=AsyncMock,
-        ) as mock_exchange_http_client_request:
-            # Set a default valid 4-tuple return, though we expect it not to be called
-            mock_exchange_http_client_request.return_value = (None, 200, MagicMock(), MagicMock())
-            with pytest.raises(APIError, match="Signing failed internally") as excinfo:
-                await api.place_order(
-                    symbol="BTC",
-                    side=OrderSide.BUY,
-                    order_type=OrderType.LIMIT,
-                    quantity=Decimal("0.001"),
-                    price=Decimal("1.0"),
-                    time_in_force=TimeInForce.GTC,
+    # Mock _info_http_client.request to return valid meta content, preventing _get_asset_index from failing
+    with patch.object(
+        api._info_http_client, "request", new_callable=AsyncMock
+    ) as mock_info_http_client_request:
+        mock_info_http_client_request.return_value = (
+            mock_meta_response_content_for_btc_only,  # Use the fixture content
+            200,
+            MagicMock(),
+            MagicMock(),
+        )
+        # Patch _get_asset_index_callable on the trading_service to bypass the call
+        with patch.object(
+            api.trading_service, "_get_asset_index_callable", AsyncMock(return_value=0)
+        ):
+            with patch(
+                f"{HL_API_PATH}.HttpClient.request",  # This mock is for the /exchange call
+                new_callable=AsyncMock,
+            ) as mock_exchange_http_client_request:
+                # Set a default valid 4-tuple return, though we expect it not to be called
+                mock_exchange_http_client_request.return_value = (
+                    None,
+                    200,
+                    MagicMock(),
+                    MagicMock(),
                 )
+                with pytest.raises(APIError, match="Signing failed internally") as excinfo:
+                    await api.place_order(
+                        symbol="BTC",
+                        side=OrderSide.BUY,
+                        order_type=OrderType.LIMIT,
+                        quantity=Decimal("0.001"),
+                        price=Decimal("1.0"),
+                        time_in_force=TimeInForce.GTC,
+                    )
             assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
             # The /exchange call should not be made if prepare_request fails
             mock_exchange_http_client_request.assert_not_called()
@@ -474,8 +508,15 @@ async def test_place_order_calls_authenticate_and_request(
         with patch.object(
             api,
             "_request",  # Patching HyperliquidAPI._request directly
-            side_effect=mock_request_side_effect,
+            new_callable=AsyncMock,  # Use new_callable to return an AsyncMock
         ) as mock_api_request_method:
+            # Set the return value for _request to be a successful response
+            mock_api_request_method.return_value = (
+                mock_http_response_content,
+                200,
+                MagicMock(),
+                MagicMock(),
+            )
             # Patch the _info_http_client.request call that _get_asset_index makes
             # This is CRITICAL to prevent real network calls from _get_asset_index
             with patch.object(
@@ -565,23 +606,41 @@ async def test_place_order_calls_authenticate_and_request(
                             # Direct access for verification
                             rate_limiter_service=api._rate_limiter_service,
                         )
-                        mock_build_payload.assert_called_once()
-                        mock_auth_for_test.prepare_request.assert_awaited_once()
+                        mock_build_payload.assert_called_once_with(
+                            asset_index=0,  # This is the asset_index returned by _get_asset_index
+                            side=side_val,
+                            order_type=order_type_val,
+                            quantity=quantity_val,
+                            time_in_force=time_in_force_val,
+                            price=price_val,
+                            stop_price=stop_price_val,
+                            client_order_id=client_order_id_val,
+                            reduce_only=reduce_only_val,
+                            post_only=post_only_val,
+                        )
+                        # Assert prepare_request was called with the correct data (model_dumped)
+                        mock_auth_for_test.prepare_request.assert_awaited_once_with(
+                            method="POST",
+                            path="/exchange",
+                            params=None,  # Assuming no params for this call
+                            data=expected_data_for_request,
+                            headers=dict(api.default_headers),
+                        )
                         mock_api_request_method.assert_awaited_once_with(
                             method="POST",
-                            endpoint="/exchange",  # Corrected to 'endpoint'
-                            data=expected_data_for_request,
-                            is_signed=True,  # This is a key kwarg for _request
+                            endpoint="/exchange",
+                            data=auth_prepared_components[
+                                "data"
+                            ],  # This should be the data returned by prepare_request
+                            is_signed=True,
                         )
-                        # mock_service_requester.assert_awaited_once() # Old assertion, remove or update if api._request is the target
                         assert final_order_call_1 == mock_mapped_order_obj
 
                         # Reset mocks for the second call
                         mock_info_http_client_request.reset_mock()
                         mock_build_payload.reset_mock()
                         mock_auth_for_test.prepare_request.reset_mock()
-                        # mock_service_requester.reset_mock() # Old assertion
-                        mock_api_request_method.reset_mock()  # Reset the new mock target
+                        mock_api_request_method.reset_mock()
                         mock_get_status.reset_mock()
                         mock_get_status.return_value = (
                             mock_mapped_order_obj  # Re-assign return value
@@ -603,43 +662,32 @@ async def test_place_order_calls_authenticate_and_request(
                         )
                         # Assertions for second call
                         mock_info_http_client_request.assert_not_called()  # Should use cache
-                        mock_build_payload.assert_called_once()  # Builder still called
-                        # Auth still called
-                        mock_auth_for_test.prepare_request.assert_awaited_once()
-                        # mock_service_requester.assert_awaited_once() # Old assertion
-                        mock_api_request_method.assert_awaited_once()  # Assert new mock target
+                        mock_build_payload.assert_called_once_with(  # Builder still called with cached asset_index
+                            asset_index=0,
+                            side=side_val,
+                            order_type=order_type_val,
+                            quantity=quantity_val,
+                            time_in_force=time_in_force_val,
+                            price=price_val,
+                            stop_price=stop_price_val,
+                            client_order_id=client_order_id_val,
+                            reduce_only=reduce_only_val,
+                            post_only=post_only_val,
+                        )
+                        mock_auth_for_test.prepare_request.assert_awaited_once_with(  # Auth still called
+                            method="POST",
+                            path="/exchange",
+                            params=None,
+                            data=expected_data_for_request,
+                            headers=dict(api.default_headers),
+                        )
+                        mock_api_request_method.assert_awaited_once_with(  # Assert new mock target
+                            method="POST",
+                            endpoint="/exchange",
+                            data=auth_prepared_components["data"],
+                            is_signed=True,
+                        )
                         assert final_order_call_2 == mock_mapped_order_obj
-
-                    # Verify builder was called correctly (overall, across both calls
-                    # if needed, but focus on individual calls is fine)
-                    mock_build_payload.assert_called_once_with(
-                        asset_index=0,
-                        side=side_val,
-                        order_type=order_type_val,
-                        quantity=quantity_val,
-                        time_in_force=time_in_force_val,
-                        price=price_val,
-                        stop_price=None,
-                        client_order_id=None,
-                        reduce_only=False,
-                        post_only=False,
-                    )
-
-                    # Verify prepare_request (on our specific mock instance) was awaited
-                    # via the side_effect
-                    mock_auth_for_test.prepare_request.assert_awaited_once()
-
-                    # Verify _request itself was called correctly by place_order
-                    mock_api_request_method.assert_awaited_once_with(
-                        method="POST",
-                        endpoint="/exchange",  # The service's requester expects endpoint_path
-                        data=expected_data_for_request,  # Assert with the dumped dict
-                        # rate_limiter_service=api._rate_limiter_service,  # Add this assertion
-                        # rate_limiter_service is not directly passed to _request, but used by HttpClient
-                        is_signed=True,  # Added as per _request signature
-                    )
-
-                    assert final_order_call_1 == mock_mapped_order_obj
 
     # --- END OF PRE-SETUP PATCH CONTEXT --- #
 
@@ -850,7 +898,7 @@ class TestHyperliquidAPIWebSocketRouting:
         mock_ws_manager_instance = AsyncMock()
         mock_ws_manager_instance.close = AsyncMock()
 
-        with patch.object(api, "_ws_manager", mock_ws_manager_instance):
+        with patch.object(api, "_ws_manager", new=mock_ws_manager_instance):
             yield api
         # api.close() if called by the test would operate on the instance after the patch
         # on _ws_manager has expired if not handled carefully by test structure.
@@ -946,7 +994,9 @@ class TestHyperliquidAPIWebSocketRouting:
         # mock_auth_class, _ = mock_hl_auth_init
 
         # Simulate no wallet address on the provided API instance for this test's scope
-        with patch.object(api_for_ws_tests, "_wallet_address", None):
+        with patch.object(
+            api_for_ws_tests, "_wallet_address", new=None
+        ):  # Use new=None for patching attributes to None
             # mock_auth_class.assert_not_called() # This assertion is tricky with shared fixture
 
             payload = api_for_ws_tests._construct_subscription_payload("userEvents")
@@ -970,7 +1020,7 @@ class TestHyperliquidAPIWebSocketRouting:
         test_message: dict[str, Any] = {"channel": channel_name, "data": test_data_payload}
 
         # Patch _ws_handlers for the scope of this test
-        with patch.object(api_for_ws_tests, "_ws_handlers", {channel_name: mock_handler}):
+        with patch.object(api_for_ws_tests, "_ws_handlers", new={channel_name: mock_handler}):
             await api_for_ws_tests._handle_websocket_message(test_message)
 
         mock_handler.assert_awaited_once_with(test_data_payload, test_message)
@@ -1650,7 +1700,13 @@ async def test_get_funding_rates_api_error(hl_api_instance: HyperliquidAPI) -> N
         with pytest.raises(APIError) as excinfo:
             await hl_api_instance.get_funding_rates()
 
-        mock_request_call.assert_called_once()
         assert excinfo.value.code == APIErrorCode.SERVICE_UNAVAILABLE.value
         assert isinstance(excinfo.value.original_exception, HttpRequestFailedError)
         assert "Mock HTTP Error from /info endpoint" in str(excinfo.value.message)
+
+        mock_request_call.assert_called_once_with(
+            method="POST",
+            endpoint_path="/info",
+            data={"type": "metaAndAssetCtxs"},
+            rate_limiter_service=hl_api_instance._rate_limiter_service,
+        )
