@@ -206,6 +206,8 @@ class HyperliquidResponseHandler:
                 validated_asset_ctxs.append(validated_asset_ctx)
 
             # Step 3: Construct the final response using the validated data
+            # DO NOT call HyperliquidRawMetaAndAssetCtxsResponse.model_validate()
+            # Instead, construct the response directly with the validated components
             return HyperliquidRawMetaAndAssetCtxsResponse(
                 meta=meta_model, asset_ctxs=validated_asset_ctxs
             )

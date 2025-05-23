@@ -807,7 +807,7 @@ class TestBackpackAPIWebSocketRouting:
         private_event_type: str,
         raw_event_data_func: Callable[[], dict[str, Any]],
         handler_method_name: str,
-        model_spec: Any,
+        model_spec: type[Any],
         dump_key: str,
     ) -> None:
         """Test _route_ws_message for private events (fills, orderUpdate, positionUpdate)."""
