@@ -126,7 +126,7 @@ class HyperliquidTradingService:
             raw_response_tuple = await self._exchange_http_client_requester(
                 method="POST",
                 endpoint=self._action_endpoint,
-                data=request_payload_model,
+                data=request_payload_model.model_dump(by_alias=True, exclude_none=True),
                 is_signed=True,
             )
             raw_content = raw_response_tuple[0]
@@ -178,7 +178,7 @@ class HyperliquidTradingService:
             raw_response_tuple = await self._exchange_http_client_requester(
                 method="POST",
                 endpoint=self._action_endpoint,
-                data=request_payload_model,
+                data=request_payload_model.model_dump(by_alias=True, exclude_none=True),
                 is_signed=True,
             )
             raw_content = raw_response_tuple[0]

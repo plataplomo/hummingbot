@@ -243,19 +243,13 @@ class TestHyperliquidTradingService:
         assert call_kwargs.get("is_signed") is True
 
         # Import HyperliquidApiCancelOrderRequest and HyperliquidRawCancelOrderAction
-        from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
-            HyperliquidApiCancelOrderRequest,
-        )
-        from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
-            HyperliquidRawCancelOrderAction,
-        )
 
         sent_data = call_kwargs.get("data")
-        assert isinstance(sent_data, HyperliquidApiCancelOrderRequest)
-        assert sent_data.type == "cancel"
-        assert isinstance(sent_data.action, HyperliquidRawCancelOrderAction)
-        assert sent_data.action.asset == mock_get_asset_index_callable.return_value
-        assert sent_data.action.oid == order_id
+        assert isinstance(sent_data, dict)  # Should be serialized, not Pydantic object
+        assert sent_data["type"] == "cancel"
+        assert "action" in sent_data
+        assert sent_data["action"]["asset"] == 0  # BTC asset index
+        assert sent_data["action"]["oid"] == 12345
 
     # The problematic test from before, now with type annotations and correct imports
     @pytest.mark.asyncio
