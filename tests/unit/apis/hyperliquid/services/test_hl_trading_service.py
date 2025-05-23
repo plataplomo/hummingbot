@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
+from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidOrderMapper
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
@@ -56,6 +57,12 @@ def mock_hl_response_handler_fixt() -> MagicMock:
 
 
 @pytest.fixture
+def mock_hl_error_mapper() -> MagicMock:
+    """Fixture for the HyperliquidErrorMapper mock."""
+    return MagicMock(spec=HyperliquidErrorMapper)
+
+
+@pytest.fixture
 def make_hl_trading_service(
     mock_exchange_http_client_requester: AsyncMock,
     mock_info_http_client_requester: AsyncMock,
@@ -64,6 +71,7 @@ def make_hl_trading_service(
     mock_authenticator_fixt: MagicMock,
     mock_get_asset_index_callable: AsyncMock,
     mock_hl_order_mapper: MagicMock,
+    mock_hl_error_mapper: MagicMock,
 ) -> Callable[..., HyperliquidTradingService]:
     """Factory fixture to create HyperliquidTradingService instances."""
 
@@ -78,6 +86,7 @@ def make_hl_trading_service(
             wallet_address=wallet_address,
             get_asset_index_callable=mock_get_asset_index_callable,
             order_mapper=mock_hl_order_mapper,
+            error_mapper=mock_hl_error_mapper,
         )
 
     return _factory

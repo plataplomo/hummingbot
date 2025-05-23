@@ -8,6 +8,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
     HyperliquidApiCancelOrderRequest,
     HyperliquidApiEthWithdrawalRequest,
     HyperliquidApiL2UsdTransferRequest,
+    HyperliquidApiPlaceOrderRequest,
     HyperliquidApiTokenWithdrawalRequest,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
@@ -15,11 +16,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshotRequestPayload,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
-    HyperliquidRawBatchPlaceOrderActionPayload,
     HyperliquidRawCancelOrderAction,
     HyperliquidRawEthWithdrawalActionPayload,
     HyperliquidRawL2UsdTransferActionDetails,
-    HyperliquidRawOrderItemSpec,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsRequestPayload,
@@ -31,7 +30,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
     HyperliquidRawLimitOrderTypeDetails,
     HyperliquidRawMarketOrderTypeDetails,
     HyperliquidRawOrderType,
+    HyperliquidRawPlaceOrderAction,
     HyperliquidRawQueryOrderHistoryRequestPayload,
+    HyperliquidRawTriggerDetails,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
     HyperliquidRawOrderStatusRequestPayload,
@@ -209,60 +210,74 @@ class HyperliquidRequestBuilder:
         client_order_id: str | None = None,
         reduce_only: bool = False,
         post_only: bool = False,
-    ) -> HyperliquidRawBatchPlaceOrderActionPayload:
+    ) -> HyperliquidApiPlaceOrderRequest:
         """
         Builds the Pydantic model for placing orders.
-        Returns HyperliquidRawBatchPlaceOrderActionPayload with correct field structure.
+        Returns HyperliquidApiPlaceOrderRequest with full field structure and trigger support.
         """
         is_buy = side == OrderSide.BUY
         sz_str = str(quantity)
 
-        # Set limit price appropriately for market vs. limit orders
-        if order_type == OrderType.LIMIT:
+        # Handle stop order validation
+        if order_type in (OrderType.STOP_MARKET, OrderType.STOP_LIMIT):
+            if stop_price is None:
+                raise ValueError(f"stop_price is required for {order_type.value} orders")
+
+        if order_type == OrderType.STOP_LIMIT and price is None:
+            raise ValueError("price (for triggered limit) is required for STOP_LIMIT.")
+
+        # Set limit price appropriately for order types
+        if order_type in (OrderType.LIMIT, OrderType.STOP_LIMIT):
             if price is None:
-                raise ValueError("Price must be specified for limit orders.")
+                raise ValueError("Price is required for LIMIT orders")
             limit_px_str = str(price)
-        elif order_type == OrderType.MARKET:
+        elif order_type in (OrderType.MARKET, OrderType.STOP_MARKET):
             limit_px_str = "0"
         else:
-            raise ValueError(f"Order type {order_type.value} is not supported.")
+            raise ValueError(f"Order type {order_type.value} is not supported")
 
-        # Construct time-in-force for limit orders
-        if order_type == OrderType.LIMIT:
+        # Handle post_only mapping to ALO time-in-force
+        if post_only and time_in_force != TimeInForce.ALO:
+            time_in_force = TimeInForce.ALO
+
+        # Construct order type details
+        # Note: Both STOP_MARKET and STOP_LIMIT orders use limit order type details
+        # The trigger.is_market field determines whether it executes as market or limit
+        if order_type in (OrderType.LIMIT, OrderType.STOP_LIMIT, OrderType.STOP_MARKET):
             hl_tif_details = HyperliquidRawLimitOrderTypeDetails(
                 tif=HyperliquidRequestBuilder._map_time_in_force_to_hyperliquid(time_in_force)
             )
-            hl_order_type = HyperliquidRawOrderType(limit=hl_tif_details)  # Only set limit field
+            hl_order_type = HyperliquidRawOrderType(limit=hl_tif_details)
         elif order_type == OrderType.MARKET:
             hl_market_details = HyperliquidRawMarketOrderTypeDetails()
-            hl_order_type = HyperliquidRawOrderType(
-                market=hl_market_details
-            )  # Only set market field
+            hl_order_type = HyperliquidRawOrderType(market=hl_market_details)
 
-        # Handle trigger logic (optional for now)
-        # Note: HyperliquidRawOrderItemSpec doesn't have trigger field
-        # Trigger orders would need separate handling
-        if stop_price is not None:
-            raise NotImplementedError(
-                "Trigger orders (stop_price) not yet supported with abbreviated field format"
+        # Handle trigger logic for stop orders
+        trigger_details = None
+        if order_type in (OrderType.STOP_MARKET, OrderType.STOP_LIMIT):
+            if stop_price is None:
+                raise ValueError(f"stop_price is required for {order_type.value} orders")
+
+            is_market = order_type == OrderType.STOP_MARKET
+            trigger_details = HyperliquidRawTriggerDetails(
+                triggerPx=str(stop_price),
+                isMarket=is_market,
+                tpsl="sl",  # Stop-loss trigger type
             )
 
-        # Create the order spec using the alias field names defined in the RAW model
-        order_spec = HyperliquidRawOrderItemSpec(
-            asset_index=asset_index,  # Uses alias 'asset_index' for field 'a'
-            is_buy=is_buy,  # Uses alias 'is_buy' for field 'b'
-            limit_px=limit_px_str,  # Uses alias 'limit_px' for field 'p'
-            size=sz_str,  # Uses alias 'size' for field 's'
-            reduce_only=reduce_only,  # Uses alias 'reduce_only' for field 'r'
-            order_type_details=hl_order_type,  # Uses alias 'order_type_details' for field 't'
-            client_order_id=client_order_id
-            if client_order_id
-            else None,  # Uses alias 'client_order_id' for field 'c'
+        # Create the order action using full field names
+        order_action = HyperliquidRawPlaceOrderAction(
+            asset=asset_index,
+            isBuy=is_buy,
+            limitPx=limit_px_str,
+            sz=sz_str,
+            reduceOnly=reduce_only,
+            orderType=hl_order_type,
+            trigger=trigger_details,
+            cloid=client_order_id,
         )
 
-        return HyperliquidRawBatchPlaceOrderActionPayload(
-            type="order", grouping="na", orders=[order_spec]
-        )
+        return HyperliquidApiPlaceOrderRequest(type="order", actions=[order_action])
 
     @staticmethod
     def build_cancel_order_payload(

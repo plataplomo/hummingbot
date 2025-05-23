@@ -23,9 +23,9 @@ from cyberdelta.apis.hyperliquid.hl_response_handler import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
     HyperliquidApiCancelOrderRequest,
+    HyperliquidApiPlaceOrderRequest,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
-    HyperliquidRawBatchPlaceOrderActionPayload,
     HyperliquidRawCancelOrderAction,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
@@ -101,10 +101,10 @@ class HyperliquidTradingService:
 
     async def _place_order_raw(
         self,
-        place_order_payload: HyperliquidRawBatchPlaceOrderActionPayload,
+        place_order_payload: HyperliquidApiPlaceOrderRequest,
     ) -> tuple[HyperliquidRawExchangeResponse, int]:
         """
-        Private method to place an order, using the raw batch order payload model.
+        Private method to place an order, using the API request payload model.
         The payload is already built by the request builder with the correct format.
         Returns the raw exchange response Pydantic model and HTTP status code.
         """
