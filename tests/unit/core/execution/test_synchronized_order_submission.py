@@ -1186,7 +1186,9 @@ class TestSynchronizedOrderSubmissionService:
                 checkpoint_found = True
                 break
         assert checkpoint_found, (
-            f"Checkpoint {expected_checkpoint_name} with details {expected_details} not found in calls to add_checkpoint. Calls: {mock_coordinator_instance.add_checkpoint.call_args_list}"
+            f"Checkpoint {expected_checkpoint_name} with details {expected_details} "
+            f"not found in calls to add_checkpoint. "
+            f"Calls: {mock_coordinator_instance.add_checkpoint.call_args_list}"
         )
 
         # Reset mocks for next scenario
@@ -1222,7 +1224,9 @@ class TestSynchronizedOrderSubmissionService:
                 checkpoint_found_fail_pos = True
                 break
         assert checkpoint_found_fail_pos, (
-            f"Checkpoint {expected_checkpoint_name_fail_pos} with details {expected_details_fail_pos} not found in calls to add_checkpoint. Calls: {mock_coordinator_instance.add_checkpoint.call_args_list}"
+            f"Checkpoint {expected_checkpoint_name_fail_pos} with details {expected_details_fail_pos} "
+            f"not found in calls to add_checkpoint. "
+            f"Calls: {mock_coordinator_instance.add_checkpoint.call_args_list}"
         )
 
         # Reset mocks
@@ -1257,5 +1261,7 @@ class TestSynchronizedOrderSubmissionService:
                 checkpoint_found_fail_fill = True
                 break
         assert checkpoint_found_fail_fill, (
-            f"Checkpoint {expected_checkpoint_name_fail_fill} with details {expected_details_fail_fill} not found in calls to add_checkpoint. Calls: {mock_coordinator_instance.add_checkpoint.call_args_list}"
+            f"Checkpoint {expected_checkpoint_name_fail_fill} with details {expected_details_fail_fill} "
+            f"not found in calls to add_checkpoint. "
+            f"Calls: {mock_coordinator_instance.add_checkpoint.call_args_list}"
         )

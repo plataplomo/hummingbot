@@ -120,7 +120,9 @@ class TestHttpClientConfig:
             ("retry_delay_seconds", 300.1, "Input should be less than or equal to 300"),
         ],
     )
-    def test_invalid_field_values(self, field: str, invalid_value: Any, error_part: str) -> None:
+    def test_invalid_field_values(
+        self, field: str, invalid_value: str | int | float, error_part: str
+    ) -> None:
         """Test invalid values for various fields, expecting ValidationError."""
         init_data_corrected: dict[str, Any] = {"rest_endpoint": HttpUrl("https://api.example.com")}
         init_data_corrected[field] = invalid_value
@@ -215,7 +217,9 @@ class TestWebSocketManagerConfig:
             ("connection_timeout", 120.1, "Input should be less than or equal to 120"),
         ],
     )
-    def test_invalid_field_values(self, field: str, invalid_value: Any, error_part: str) -> None:
+    def test_invalid_field_values(
+        self, field: str, invalid_value: str | int | float, error_part: str
+    ) -> None:
         """Test invalid values for various fields, expecting ValidationError."""
         init_data_corrected: dict[str, Any] = {"ws_url": AnyUrl("wss://ws.example.com")}
         init_data_corrected[field] = invalid_value

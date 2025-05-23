@@ -688,7 +688,8 @@ class TestBackpackMarketDataService:
                 request_weight=1,
             )
             mock_response_handler.handle_get_market_data_response.assert_not_called()
-            mock_mapper.transform_raw_kline_to_internal.assert_not_called()  # Ensure mapper not called
+            # Ensure mapper not called
+            mock_mapper.transform_raw_kline_to_internal.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_historical_funding_rates_success(

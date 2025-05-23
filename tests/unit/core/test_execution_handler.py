@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 
 from cyberdelta.core.models import (
     Order,
@@ -73,7 +72,7 @@ def create_mock_order(
 # )
 
 
-def mock_get_config(key: str, default: Any = None) -> object | None:
+def mock_get_config(key: str, default: object | None = None) -> object | None:
     """Mock function for Config.get."""
     config_values = {
         "exchanges.mock_hl.enabled": True,
@@ -116,7 +115,7 @@ def create_mock_order_with_details(
     )
 
 
-def test_execution_handler():
+def test_execution_handler() -> None:
     # Create mock Order - This instance was unused, removing it.
     # mock_order = Order(
     #     client_order_id="test_order_123",

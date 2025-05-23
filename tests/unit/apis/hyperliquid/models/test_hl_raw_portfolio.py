@@ -111,7 +111,7 @@ def test_history_entry_invalid_list_input(value_list: list[Any]) -> None:
 
 
 @pytest.mark.parametrize("key_alias, value", [(0, "not-an-int"), (1, "not-a-decimal"), (0, -123)])
-def test_history_entry_invalid_dict_input(key_alias: int, value: Any) -> None:
+def test_history_entry_invalid_dict_input(key_alias: int, value: str | int) -> None:
     data: dict[int | str, Any] = {0: 1741886630493, 1: "0.0"}
     data[key_alias] = value
     with pytest.raises(ValidationError):
@@ -152,7 +152,12 @@ def test_timeframe_data_valid(valid_timeframe_data: dict[str, Any]) -> None:
 def test_timeframe_data_invalid(
     valid_timeframe_data: dict[str, Any],
     field: str,
-    value: Any,
+    value: str
+    | int
+    | float
+    | bool
+    | list[Any]
+    | None,  # Testing specific invalid types for Pydantic validation
     is_missing_test: bool,
 ) -> None:
     data_copy = valid_timeframe_data.copy()
@@ -218,7 +223,7 @@ def test_portfolio_response_valid() -> None:
         [["day", {"vlm": "invalid-decimal"}]],
     ],
 )
-def test_portfolio_response_invalid(invalid_root_data: Any) -> None:
+def test_portfolio_response_invalid(invalid_root_data: str | int | list[Any] | None) -> None:
     with pytest.raises(ValidationError):
         HyperliquidRawPortfolioResponse.model_validate(invalid_root_data)
 

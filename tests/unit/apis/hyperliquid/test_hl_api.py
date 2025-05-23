@@ -1070,7 +1070,8 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
         """Test get_ticker behavior with None symbol input."""
         api = hl_api_with_di()
 
-        # Configure mock service to raise TypeError for None input (simulating real service behavior)
+        # Configure mock service to raise TypeError for None input
+        # (simulating real service behavior)
         def mock_get_ticker_side_effect(symbol: str | None) -> None:
             if symbol is None:
                 raise TypeError("symbol must be a string, not NoneType")

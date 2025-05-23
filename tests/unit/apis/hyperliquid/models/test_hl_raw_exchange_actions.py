@@ -35,6 +35,81 @@ INVALID_DECIMAL_STR_NEGATIVE = "-1.0"
 VALID_LIMIT_ORDER_TYPE_DETAILS_GTC = {"limit": {"tif": "Gtc"}}
 VALID_MARKET_ORDER_TYPE_DETAILS: dict[str, dict[str, Any]] = {"market": {}}
 
+
+# --- Helper Functions ---
+
+
+def set_nested_value(
+    data_dict: dict[str, Any],
+    path: tuple[str | int, ...],
+    value: object,  # Accept any test value for Pydantic validation testing
+) -> None:
+    """Utility to set nested values in dict/list structures for testing.
+
+    This function dynamically traverses nested dict/list structures using mixed
+    str/int path elements. The runtime isinstance checks ensure type safety,
+    but static analysis cannot track the dynamic type changes perfectly.
+    """
+    current_level: dict[str, Any] | list[Any] = data_dict
+
+    for i, key_or_index in enumerate(path):
+        is_final_element = i == len(path) - 1
+
+        # Handle string keys (for dicts)
+        if isinstance(key_or_index, str):
+            if not isinstance(current_level, dict):
+                raise TypeError(
+                    f"Path element '{key_or_index}' requires a dictionary at this level, "
+                    f"but found {type(current_level).__name__} at path {path[: i + 1]}"
+                )
+
+            if is_final_element:
+                # Final element: set the value
+                # DEFENSIVE CHECK: Runtime validation ensures current_level is dict and key_or_index is str
+                current_level[key_or_index] = value
+            else:
+                # Traversal: get next level and validate it's a container
+                # DEFENSIVE CHECK: Runtime validation ensures current_level is dict and key_or_index is str
+                next_level = current_level[key_or_index]
+                if not isinstance(next_level, (dict, list)):
+                    raise TypeError(
+                        f"Cannot traverse non-container type {type(next_level).__name__} "
+                        f"at path {path[: i + 1]}"
+                    )
+                current_level = next_level
+
+        # Handle integer indices (for lists)
+        elif isinstance(key_or_index, int):
+            if not isinstance(current_level, list):
+                raise TypeError(
+                    f"Path index {key_or_index} requires a list at this level, "
+                    f"but found {type(current_level).__name__} at path {path[: i + 1]}"
+                )
+
+            if is_final_element:
+                # Final element: set the value
+                # DEFENSIVE CHECK: Runtime validation ensures current_level is list and key_or_index is int
+                current_level[key_or_index] = value
+            else:
+                # Traversal: get next level and validate it's a container
+                # DEFENSIVE CHECK: Runtime validation ensures current_level is list and key_or_index is int
+                next_level = current_level[key_or_index]
+                if not isinstance(next_level, (dict, list)):
+                    raise TypeError(
+                        f"Cannot traverse non-container type {type(next_level).__name__} "
+                        f"at path {path[: i + 1]}"
+                    )
+                # DEFENSIVE CHECK: next_level validated as container above
+                current_level = next_level
+
+        # Handle unsupported key/index types
+        else:
+            raise TypeError(
+                f"Path elements must be str or int, got {type(key_or_index).__name__} "
+                f"for element '{key_or_index}' at path {path[: i + 1]}"
+            )
+
+
 # --- HyperliquidRawEthWithdrawalActionPayload Tests ---
 
 
@@ -172,7 +247,9 @@ def test_order_item_spec_invalid_fields(
     if value is None and field_alias in base_data:  # Test missing required field
         del base_data[field_alias]
     else:
-        base_data[field_alias] = value  # pyright: ignore[reportArgumentType] # Negative test: intentionally assigning invalid type for validation
+        base_data[field_alias] = (
+            value  # Negative test: intentionally assigning invalid type for validation
+        )
 
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawOrderItemSpec.model_validate(base_data)
@@ -285,57 +362,22 @@ def test_batch_place_order_payload_invalid_fields(
         "orders": [base_order_item_data.copy()],  # Start with one valid order
     }
 
-    # Utility to set nested value
-    def set_nested_value(data_dict: dict[str, Any], path: tuple[str | int, ...], val: Any) -> None:
-        current_level: Any = data_dict  # Start with broader type for traversal
-        for i, key_or_index in enumerate(path):
-            if i == len(path) - 1:  # Last element, so set the value
-                if isinstance(key_or_index, str):
-                    if not isinstance(current_level, dict):
-                        raise TypeError(
-                            f"Path key '{key_or_index}' requires dict level, but found "
-                            f"{type(current_level)}."
-                        )
-                    current_level[key_or_index] = val
-                else:  # key_or_index must be int here
-                    if not isinstance(current_level, list):
-                        raise TypeError(
-                            f"Path index {key_or_index} requires list level, but found "
-                            f"{type(current_level)}."
-                        )
-                    current_level[key_or_index] = val
-            else:  # Not the last element, so traverse deeper
-                if isinstance(key_or_index, str):
-                    if not isinstance(current_level, dict):
-                        raise TypeError(
-                            f"Path key '{key_or_index}' requires dict level for traversal, "
-                            f"but found {type(current_level)}."
-                        )
-                    current_level = current_level[key_or_index]
-                else:  # key_or_index must be int here
-                    if not isinstance(current_level, list):
-                        raise TypeError(
-                            f"Path index {key_or_index} requires list level for traversal, "
-                            f"but found {type(current_level)}."
-                        )
-                    current_level = current_level[key_or_index]
+    # Apply the invalid value at the specified path
+    modified_batch_data = base_batch_data.copy()
+    # Ensure orders list exists and has an item if path targets it
+    if field_path[0] == "orders" and isinstance(field_path[1], int):
+        while len(modified_batch_data["orders"]) <= field_path[1]:
+            modified_batch_data["orders"].append(base_order_item_data.copy())
 
-        # Apply the invalid value at the specified path
-        modified_batch_data = base_batch_data.copy()
-        # Ensure orders list exists and has an item if path targets it
-        if field_path[0] == "orders" and isinstance(field_path[1], int):
-            while len(modified_batch_data["orders"]) <= field_path[1]:
-                modified_batch_data["orders"].append(base_order_item_data.copy())
+    set_nested_value(modified_batch_data, field_path, value)
 
-        set_nested_value(modified_batch_data, field_path, value)
+    with pytest.raises(ValidationError) as exc_info:
+        HyperliquidRawBatchPlaceOrderActionPayload.model_validate(modified_batch_data)
 
-        with pytest.raises(ValidationError) as exc_info:
-            HyperliquidRawBatchPlaceOrderActionPayload.model_validate(modified_batch_data)
-
-        assert any(
-            expected_error_part.lower() in err_detail["msg"].lower()
-            for err_detail in exc_info.value.errors()
-        )
+    assert any(
+        expected_error_part.lower() in err_detail["msg"].lower()
+        for err_detail in exc_info.value.errors()
+    )
 
 
 def test_batch_place_order_payload_orders_empty_list_valid() -> None:
@@ -401,7 +443,7 @@ def test_l2_usd_transfer_action_details_invalid(
     if value is None and field in base_data:
         del base_data[field]
     else:
-        base_data[field] = value  # pyright: ignore[reportArgumentType]
+        base_data[field] = value
 
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawL2UsdTransferActionDetails.model_validate(base_data)
@@ -444,7 +486,7 @@ def test_cancel_order_action_invalid(field: str, value: object, expected_error_p
     if value is None and field in base_data:
         del base_data[field]
     else:
-        base_data[field] = value  # pyright: ignore[reportArgumentType]
+        base_data[field] = value
 
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawCancelOrderAction.model_validate(base_data)

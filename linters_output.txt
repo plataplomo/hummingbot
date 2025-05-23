@@ -1,0 +1,103 @@
+--- MYPY ---
+Running: mypy "tests/unit/apis/"
+tests/unit/apis/connectivity/test_ws_manager.py:455: error: Statement is unreachable  [unreachable]
+tests/unit/apis/backpack/test_bp_api.py:694: error: Statement is unreachable  [unreachable]
+tests/unit/apis/backpack/test_bp_api.py:1011: error: Statement is unreachable  [unreachable]
+Found 3 errors in 2 files (checked 64 source files)
+
+Mypy exit status: 1
+
+--- RUFF ---
+Running: ruff check "tests/unit/apis/"
+tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:68:101: E501 Line too long (107 > 100)
+   |
+66 |             if is_final_element:
+67 |                 # Final element: set the value
+68 |                 # DEFENSIVE CHECK: Runtime validation ensures current_level is dict and key_or_index is str
+   |                                                                                                     ^^^^^^^ E501
+69 |                 current_level[key_or_index] = value
+70 |             else:
+   |
+
+tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:72:101: E501 Line too long (107 > 100)
+   |
+70 |             else:
+71 |                 # Traversal: get next level and validate it's a container
+72 |                 # DEFENSIVE CHECK: Runtime validation ensures current_level is dict and key_or_index is str
+   |                                                                                                     ^^^^^^^ E501
+73 |                 next_level = current_level[key_or_index]
+74 |                 if not isinstance(next_level, (dict, list)):
+   |
+
+tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:74:24: UP038 Use `X | Y` in `isinstance` call instead of `(X, Y)`
+   |
+72 |                 # DEFENSIVE CHECK: Runtime validation ensures current_level is dict and key_or_index is str
+73 |                 next_level = current_level[key_or_index]
+74 |                 if not isinstance(next_level, (dict, list)):
+   |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ UP038
+75 |                     raise TypeError(
+76 |                         f"Cannot traverse non-container type {type(next_level).__name__} "
+   |
+   = help: Convert to `X | Y`
+
+tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:91:101: E501 Line too long (107 > 100)
+   |
+89 |             if is_final_element:
+90 |                 # Final element: set the value
+91 |                 # DEFENSIVE CHECK: Runtime validation ensures current_level is list and key_or_index is int
+   |                                                                                                     ^^^^^^^ E501
+92 |                 current_level[key_or_index] = value
+93 |             else:
+   |
+
+tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:95:101: E501 Line too long (107 > 100)
+   |
+93 |             else:
+94 |                 # Traversal: get next level and validate it's a container
+95 |                 # DEFENSIVE CHECK: Runtime validation ensures current_level is list and key_or_index is int
+   |                                                                                                     ^^^^^^^ E501
+96 |                 next_level = current_level[key_or_index]
+97 |                 if not isinstance(next_level, (dict, list)):
+   |
+
+tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:97:24: UP038 Use `X | Y` in `isinstance` call instead of `(X, Y)`
+   |
+95 |                 # DEFENSIVE CHECK: Runtime validation ensures current_level is list and key_or_index is int
+96 |                 next_level = current_level[key_or_index]
+97 |                 if not isinstance(next_level, (dict, list)):
+   |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ UP038
+98 |                     raise TypeError(
+99 |                         f"Cannot traverse non-container type {type(next_level).__name__} "
+   |
+   = help: Convert to `X | Y`
+
+Found 6 errors.
+No fixes available (2 hidden fixes can be enabled with the `--unsafe-fixes` option).
+
+Ruff exit status: 1
+
+--- PYRIGHT ---
+Running: pyright "tests/unit/apis/"
+/home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:79:17 - error: Type of "current_level" is partially unknown
+    Type of "current_level" is "dict[Unknown, Unknown] | list[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:82:14 - error: Unnecessary isinstance call; "int" is always an instance of "int" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:92:17 - error: Argument of type "int" cannot be assigned to parameter "key" of type "str" in function "__setitem__"
+    "int" is not assignable to "str" (reportArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:96:30 - error: Argument of type "int" cannot be assigned to parameter "key" of type "str" in function "__getitem__"
+    "int" is not assignable to "str" (reportArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:103:17 - error: Type of "current_level" is partially unknown
+    Type of "current_level" is "dict[Unknown, Unknown] | list[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:250:9 - error: Argument of type "object | None" cannot be assigned to parameter "value" of type "int | bool | str | dict[str, dict[str, str]]" in function "__setitem__"
+    Type "object | None" is not assignable to type "int | bool | str | dict[str, dict[str, str]]"
+      Type "object" is not assignable to type "int | bool | str | dict[str, dict[str, str]]"
+        "object" is not assignable to "int"
+        "object" is not assignable to "bool"
+        "object" is not assignable to "str"
+        "object" is not assignable to "dict[str, dict[str, str]]" (reportArgumentType)
+6 errors, 0 warnings, 0 informations 
+WARNING: there is a new pyright version available (v1.1.400 -> v1.1.401).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+
+Pyright exit status: 1

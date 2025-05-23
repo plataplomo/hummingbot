@@ -157,7 +157,12 @@ def test_BackpackRawPosition_valid_int_user_id_str(
 )
 def test_BackpackRawPosition_invalid_fields(
     field: str,
-    value: Any,  # Intentional Any for testing invalid inputs
+    value: str
+    | int
+    | float
+    | bool
+    | dict[str, Any]
+    | None,  # Testing specific invalid types for Pydantic validation
     expected_msg_part: str,
     valid_position_data: dict[str, Any],  # Add fixture dependency
     valid_imf_function_data: dict[str, str],  # Add fixture dependency
@@ -299,7 +304,12 @@ def test_BackpackRawPositionUpdate_valid_timestamp_formats(
 )
 def test_BackpackRawPositionUpdate_invalid_fields(
     field: str,
-    value: Any,  # Intentional Any for testing invalid inputs
+    value: str
+    | int
+    | float
+    | bool
+    | list[Any]
+    | None,  # Testing specific invalid types for Pydantic validation
     expected_msg_part: str,
     valid_position_update_data: dict[str, Any],  # Add fixture dependency
 ) -> None:

@@ -111,7 +111,12 @@ def test_extra_field_forbidden() -> None:
 )
 def test_invalid_field_type_or_missing(
     field_to_invalidate: str,
-    invalid_value: Any,  # Intentionally Any for testing invalid inputs
+    invalid_value: str
+    | int
+    | float
+    | bool
+    | list[Any]
+    | None,  # Testing specific invalid types for Pydantic validation
     expected_msg_part: str,
 ) -> None:
     """Test validation fails if a field has an incorrect type or is missing."""
@@ -156,7 +161,12 @@ def test_missing_field() -> None:
 def test_invalid_list_item_type_or_format(
     list_field: str,
     item_index: int,
-    invalid_item: Any,  # Intentionally Any for testing invalid inputs
+    invalid_item: str
+    | int
+    | float
+    | bool
+    | dict[str, Any]
+    | None,  # Testing specific invalid types for Pydantic validation
     expected_key_terms: tuple[str, ...],
 ) -> None:
     """Test validation fails if an item within a list has an incorrect type or format."""

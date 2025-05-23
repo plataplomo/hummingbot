@@ -130,7 +130,13 @@ def test_referral_state_item_valid(valid_referral_state_item_data: dict[str, Any
 def test_referral_state_item_invalid(
     valid_referral_state_item_data: dict[str, Any],
     field: str,
-    value: Any | None,
+    value: str
+    | int
+    | float
+    | bool
+    | list[Any]
+    | dict[str, Any]
+    | None,  # Testing specific invalid types for Pydantic validation
 ) -> None:
     data_copy = valid_referral_state_item_data.copy()
     if value is None:
@@ -155,7 +161,13 @@ def test_referrer_data_valid(valid_referrer_data_data: dict[str, Any]) -> None:
 def test_referrer_data_invalid(
     valid_referrer_data_data: dict[str, Any],
     field: str,
-    value: Any | None,
+    value: str
+    | int
+    | float
+    | bool
+    | list[Any]
+    | dict[str, Any]
+    | None,  # Testing specific invalid types for Pydantic validation
 ) -> None:
     data_copy = valid_referrer_data_data.copy()
     if value is None:
@@ -184,7 +196,13 @@ def test_referrer_state_valid(valid_referrer_state_data: dict[str, Any]) -> None
 def test_referrer_state_invalid(
     valid_referrer_state_data: dict[str, Any],
     field: str,
-    value: Any | None,
+    value: str
+    | int
+    | float
+    | bool
+    | list[Any]
+    | dict[str, Any]
+    | None,  # Testing specific invalid types for Pydantic validation
 ) -> None:
     data_copy = valid_referrer_state_data.copy()
     if value is None:
@@ -221,7 +239,13 @@ def test_referral_response_valid(valid_referral_response_data: dict[str, Any]) -
 def test_referral_response_invalid(
     valid_referral_response_data: dict[str, Any],
     field: str,
-    value: Any,
+    value: str
+    | int
+    | float
+    | bool
+    | list[Any]
+    | dict[str, Any]
+    | None,  # Testing specific invalid types for Pydantic validation
     is_missing_test: bool,
 ) -> None:
     data_copy = valid_referral_response_data.copy()

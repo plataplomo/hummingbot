@@ -889,7 +889,8 @@ class TestBackpackAPIComprehensiveErrorHandling:
         """Test get_ticker behavior with None symbol input."""
         api = bp_api_with_di()
 
-        # Configure mock service to raise TypeError for None input (simulating real service behavior)
+        # Configure mock service to raise TypeError for None input
+        # (simulating real service behavior)
         def mock_get_ticker_side_effect(symbol: str | None) -> None:
             if symbol is None:
                 raise TypeError("symbol must be a string, not NoneType")
@@ -1102,11 +1103,11 @@ class TestBackpackAPIComprehensiveErrorHandling:
         # Configure service to behave differently for concurrent calls
         call_count = 0
 
-        def get_balances_side_effect() -> list[SpotBalance]:
+        def get_balances_side_effect() -> dict[str, SpotBalance]:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                return []  # First call succeeds with empty list
+                return {}  # First call succeeds with empty dict
             else:
                 raise APIError(
                     message="Concurrent request limit exceeded",
@@ -1117,7 +1118,7 @@ class TestBackpackAPIComprehensiveErrorHandling:
 
         # First call should succeed
         balances1 = await api.get_balances()
-        assert balances1 == []
+        assert not balances1  # Empty dict check instead of comparing to empty list
 
         # Second call should fail
         with pytest.raises(APIError) as exc_info:

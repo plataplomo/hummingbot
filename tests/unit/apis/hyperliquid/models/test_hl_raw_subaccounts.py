@@ -39,7 +39,9 @@ def test_subaccounts_valid() -> None:
         [["nested_list"]],  # Nested list, validator expects flat list of strings
     ],
 )
-def test_subaccounts_invalid_root_list(invalid_list_data: Any) -> None:
+def test_subaccounts_invalid_root_list(
+    invalid_list_data: str | int | dict[str, Any] | None,
+) -> None:
     with pytest.raises(ValidationError):
         HyperliquidRawSubAccountsResponse.model_validate(invalid_list_data)
 

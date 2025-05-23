@@ -15,11 +15,6 @@ def mock_time_patch() -> Generator[MagicMock]:
 
 
 class TestBackpackHmacAuthenticator:
-    def test_initialization(self) -> None:
-        auth = BackpackHmacAuthenticator(api_key="test_key", api_secret="test_secret")
-        assert auth._api_key == "test_key"
-        assert auth._api_secret == "test_secret"
-
     def test_initialization_missing_key_raises_value_error(self, caplog: LogCaptureFixture) -> None:
         with pytest.raises(ValueError, match="API key cannot be empty"):
             BackpackHmacAuthenticator(api_key="", api_secret="test_secret")
@@ -36,6 +31,25 @@ class TestBackpackHmacAuthenticator:
     async def test_init_missing_both_credentials_raises_value_error(self) -> None:
         with pytest.raises(ValueError, match="API key cannot be empty"):
             BackpackHmacAuthenticator(api_key="", api_secret="")
+
+    @pytest.mark.asyncio
+    async def test_initialization(self, mock_time_patch: MagicMock) -> None:
+        """Test that authenticator initializes and works correctly with valid credentials."""
+        auth = BackpackHmacAuthenticator(api_key="test_key", api_secret="test_secret")
+
+        # Test that the authenticator works correctly by calling prepare_request
+        # If credentials were properly stored, this should succeed and return expected headers
+        components = await auth.prepare_request(
+            method="GET", path="/api/v1/test", params=None, data=None, headers=None
+        )
+
+        # Verify that the request was properly authenticated (proves credentials were stored)
+        assert "X-Api-Key" in components["headers"]
+        assert "X-Timestamp" in components["headers"]
+        assert "X-Signature" in components["headers"]
+        assert components["headers"]["X-Api-Key"] == "test_key"
+        # Verify signature is not empty (proves secret was used for signing)
+        assert len(components["headers"]["X-Signature"]) > 0
 
     @pytest.mark.asyncio
     async def test_prepare_request_get_no_params(self, mock_time_patch: MagicMock) -> None:

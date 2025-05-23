@@ -344,7 +344,10 @@ def test_hl_response_invalid(
     ],
 )
 def test_hl_response_data_statuses_validation(
-    statuses_list: Any,
+    statuses_list: list[dict[str, Any]]
+    | str
+    | int
+    | None,  # Testing specific invalid types for Pydantic validation
     is_valid: bool,
 ) -> None:
     """Test the validation logic for the 'statuses' field specifically."""
