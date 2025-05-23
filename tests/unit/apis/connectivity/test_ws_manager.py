@@ -813,7 +813,7 @@ class TestWebSocketManager:
     def test_config_validation_numeric_bounds(
         self,
         field: str,
-        invalid_value: Any,
+        invalid_value: int,
         error_part: str,
         default_ws_manager_config: WebSocketManagerConfig,
     ) -> None:
@@ -853,3 +853,263 @@ class TestWebSocketManager:
 async def test_simple_async_works_in_this_file() -> None:
     await asyncio.sleep(0.001)
     assert True
+
+
+class TestWebSocketManagerComprehensiveErrorHandling:
+    """Comprehensive edge case and failure scenario testing for WebSocketManager."""
+
+    # =============================================================================
+    # I. CONNECTION FAILURE SCENARIOS
+    # =============================================================================
+
+    @pytest.mark.asyncio
+    @patch("aiohttp.ClientSession.ws_connect")
+    async def test_connection_timeout_during_handshake(
+        self,
+        mock_ws_connect: AsyncMock,
+        default_ws_manager_config: WebSocketManagerConfig,
+        caplog: LogCaptureFixture,
+    ) -> None:
+        """Test connection timeout during WebSocket handshake."""
+        # Configure mock to raise timeout during connection
+        mock_ws_connect.side_effect = TimeoutError("Connection handshake timeout")
+
+        manager = WebSocketManager(
+            exchange_name="test_exchange",
+            message_handler=dummy_message_handler,
+            config=default_ws_manager_config,
+            on_connected_callback=dummy_on_connected_callback,
+        )
+
+        # Attempt connection - should fail and retry
+        connect_task = manager.connect()
+        if connect_task:
+            await connect_task
+
+        # Wait for connection attempts to complete
+        await asyncio.sleep(0.2)  # Allow retries to happen
+
+        # Should not be connected after timeout
+        assert not manager.is_connected
+
+        # Should have logged timeout errors
+        assert "Connection handshake timeout" in caplog.text or "TimeoutError" in caplog.text
+
+        await manager.close()
+
+    @pytest.mark.asyncio
+    @patch("aiohttp.ClientSession.ws_connect")
+    async def test_connection_refused_error(
+        self,
+        mock_ws_connect: AsyncMock,
+        default_ws_manager_config: WebSocketManagerConfig,
+        caplog: LogCaptureFixture,
+    ) -> None:
+        """Test connection refused error handling."""
+        # Configure mock to raise connection refused
+        mock_ws_connect.side_effect = OSError("Connection refused")
+
+        manager = WebSocketManager(
+            exchange_name="test_exchange",
+            message_handler=dummy_message_handler,
+            config=default_ws_manager_config,
+            on_connected_callback=dummy_on_connected_callback,
+        )
+
+        connect_task = manager.connect()
+        if connect_task:
+            await connect_task
+        await asyncio.sleep(0.2)  # Allow retries
+
+        assert not manager.is_connected
+        assert "Connection refused" in caplog.text or "OSError" in caplog.text
+
+        await manager.close()
+
+    # =============================================================================
+    # II. MESSAGE HANDLING FAILURE SCENARIOS
+    # =============================================================================
+
+    @pytest.mark.asyncio
+    @patch("aiohttp.ClientSession.ws_connect")
+    async def test_message_handler_exception_isolation(
+        self,
+        mock_ws_connect: AsyncMock,
+        default_ws_manager_config: WebSocketManagerConfig,
+        mock_ws_connection_factory: Callable[..., AsyncMock],
+        caplog: LogCaptureFixture,
+    ) -> None:
+        """Test that message handler exceptions don't crash the connection."""
+
+        # Create a message handler that raises an exception
+        async def failing_message_handler(message: dict[str, Any]) -> None:
+            raise ValueError("Message handler intentionally failed")
+
+        # Create mock connection with a message sequence
+        mock_conn = mock_ws_connection_factory(
+            receive_sequence=[
+                (WSMsgType.TEXT, '{"test": "message1"}', None),
+                (WSMsgType.TEXT, '{"test": "message2"}', None),
+                (WSMsgType.CLOSE, None, None),
+            ]
+        )
+        mock_ws_connect.return_value = mock_conn
+
+        manager = WebSocketManager(
+            exchange_name="test_exchange",
+            message_handler=failing_message_handler,
+            config=default_ws_manager_config,
+            on_connected_callback=dummy_on_connected_callback,
+        )
+
+        connect_task = manager.connect()
+        if connect_task:
+            await connect_task
+        await asyncio.sleep(0.2)  # Allow message processing
+
+        # Connection should still be active despite handler failures
+        assert "Message handler intentionally failed" in caplog.text
+        assert "Error processing WebSocket message" in caplog.text
+
+        await manager.close()
+
+    @pytest.mark.asyncio
+    @patch("aiohttp.ClientSession.ws_connect")
+    async def test_malformed_json_message_handling(
+        self,
+        mock_ws_connect: AsyncMock,
+        default_ws_manager_config: WebSocketManagerConfig,
+        mock_ws_connection_factory: Callable[..., AsyncMock],
+        caplog: LogCaptureFixture,
+    ) -> None:
+        """Test handling of malformed JSON messages."""
+
+        # Track processed messages
+        processed_messages: list[dict[str, Any]] = []
+
+        async def tracking_message_handler(message: dict[str, Any]) -> None:
+            processed_messages.append(message)
+
+        # Create mock connection with malformed JSON
+        mock_conn = mock_ws_connection_factory(
+            receive_sequence=[
+                (WSMsgType.TEXT, '{"valid": "json"}', None),
+                (WSMsgType.TEXT, "{invalid json}", None),  # Malformed
+                (WSMsgType.TEXT, '{"another": "valid"}', None),
+                (WSMsgType.CLOSE, None, None),
+            ]
+        )
+        mock_ws_connect.return_value = mock_conn
+
+        manager = WebSocketManager(
+            exchange_name="test_exchange",
+            message_handler=tracking_message_handler,
+            config=default_ws_manager_config,
+            on_connected_callback=dummy_on_connected_callback,
+        )
+
+        connect_task = manager.connect()
+        if connect_task:
+            await connect_task
+        await asyncio.sleep(0.2)
+
+        # Should have processed valid messages and logged error for invalid
+        assert len(processed_messages) == 2
+        assert processed_messages[0] == {"valid": "json"}
+        assert processed_messages[1] == {"another": "valid"}
+        assert "Failed to parse JSON message" in caplog.text
+
+        await manager.close()
+
+    # =============================================================================
+    # III. SEND OPERATION FAILURE SCENARIOS
+    # =============================================================================
+
+    @pytest.mark.asyncio
+    async def test_send_when_not_connected(
+        self,
+        default_ws_manager_config: WebSocketManagerConfig,
+        caplog: LogCaptureFixture,
+    ) -> None:
+        """Test send operation when WebSocket is not connected."""
+
+        manager = WebSocketManager(
+            exchange_name="test_exchange",
+            message_handler=dummy_message_handler,
+            config=default_ws_manager_config,
+            on_connected_callback=dummy_on_connected_callback,
+        )
+
+        # Try to send without connecting
+        success = await manager.send_json({"test": "message"})
+
+        assert not success
+        assert "Cannot send JSON, WebSocket not connected" in caplog.text
+
+        await manager.close()
+
+    # =============================================================================
+    # IV. RESOURCE MANAGEMENT AND CLEANUP SCENARIOS
+    # =============================================================================
+
+    @pytest.mark.asyncio
+    async def test_double_close_safety(
+        self,
+        default_ws_manager_config: WebSocketManagerConfig,
+    ) -> None:
+        """Test that calling close() multiple times is safe."""
+
+        manager = WebSocketManager(
+            exchange_name="test_exchange",
+            message_handler=dummy_message_handler,
+            config=default_ws_manager_config,
+            on_connected_callback=dummy_on_connected_callback,
+        )
+
+        # Close multiple times
+        await manager.close()
+        await manager.close()
+        await manager.close()
+
+        # Should not raise exceptions or cause issues
+        assert not manager.is_connected
+
+    # =============================================================================
+    # V. CONFIGURATION EDGE CASES
+    # =============================================================================
+
+    @pytest.mark.asyncio
+    @patch("aiohttp.ClientSession.ws_connect")
+    async def test_zero_max_reconnect_attempts(
+        self,
+        mock_ws_connect: AsyncMock,
+        caplog: LogCaptureFixture,
+    ) -> None:
+        """Test behavior with zero max reconnect attempts."""
+
+        config = WebSocketManagerConfig(
+            ws_url=AnyUrl("ws://test.websocket.api/ws"),
+            connection_timeout=1.0,
+            max_reconnect_attempts=0,  # No retries
+            reconnect_delay=0.1,
+            ping_interval=30.0,
+        )
+
+        mock_ws_connect.side_effect = OSError("Connection failed")
+
+        manager = WebSocketManager(
+            exchange_name="test_exchange",
+            message_handler=dummy_message_handler,
+            config=config,
+            on_connected_callback=dummy_on_connected_callback,
+        )
+
+        connect_task = manager.connect()
+        if connect_task:
+            await connect_task
+        await asyncio.sleep(0.2)
+
+        # Should fail immediately without retries
+        assert not manager.is_connected
+
+        await manager.close()

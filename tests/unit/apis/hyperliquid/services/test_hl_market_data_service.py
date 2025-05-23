@@ -1147,3 +1147,646 @@ class TestHyperliquidMarketDataService:
         )
 
     # Add more tests for other methods: get_funding_rate, get_order_book, etc.
+
+    # =============================================================================
+    # COMPREHENSIVE EDGE CASE AND FAILURE SCENARIO TESTS
+    # Based on Angel's prompts for enhancing API client test robustness
+    # =============================================================================
+
+    # I. UNEXPECTED DATA STRUCTURE HANDLING
+
+    @pytest.mark.asyncio
+    async def test_get_ticker_response_handler_validation_error(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_request_builder: MagicMock,
+        mock_hl_response_handler: MagicMock,
+    ) -> None:
+        """Test get_ticker handles ResponseHandler ValidationError gracefully."""
+        symbol = "BTC"
+
+        # Mock request building
+        mock_payload_model = MagicMock()
+        mock_payload_dict = {"type": "metaAndAssetCtxs"}
+        mock_payload_model.model_dump.return_value = mock_payload_dict
+        mock_hl_request_builder.build_info_request_payload.return_value = mock_payload_model
+
+        # Mock HTTP response with malformed data that would cause Pydantic ValidationError
+        mock_malformed_response = [
+            {"universe": "invalid_type_should_be_list"},  # Wrong type
+            {"invalid_structure": True},  # Missing expected fields
+        ]
+        mock_http_client_requester.return_value = (mock_malformed_response, 200, {})
+
+        # Mock response handler to raise APIError wrapping ValidationError
+        validation_error = ValidationError.from_exception_data(
+            title="HyperliquidRawMetaAndAssetCtxsResponse", line_errors=[]
+        )
+        mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.side_effect = APIError(
+            message="Invalid response structure for metaAndAssetCtxs",
+            code=APIErrorCode.INVALID_RESPONSE.value,
+            original_exception=validation_error,
+        )
+
+        # The service should propagate the APIError from response handler
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_ticker(symbol)
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Invalid response structure" in exc_info.value.message
+        mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_order_book_response_handler_raises_api_error(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_request_builder: MagicMock,
+        mock_hl_response_handler: MagicMock,
+    ) -> None:
+        """Test get_order_book propagates APIError from response handler correctly."""
+        symbol = "ETH"
+
+        # Setup request building mocks
+        mock_payload_model = MagicMock()
+        mock_payload_dict = {"type": "l2Book", "coin": symbol}
+        mock_payload_model.model_dump.return_value = mock_payload_dict
+        mock_hl_request_builder.build_l2_book_request_payload.return_value = mock_payload_model
+
+        # Mock HTTP response
+        mock_raw_response = {"malformed": "data"}
+        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
+
+        # Mock response handler to raise APIError
+        mock_hl_response_handler.handle_info_l2_book_response.side_effect = APIError(
+            message="L2Book response validation failed",
+            code=APIErrorCode.INVALID_RESPONSE.value,
+            http_status=200,
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_order_book(symbol)
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "L2Book response validation failed" in exc_info.value.message
+        mock_hl_response_handler.handle_info_l2_book_response.assert_called_once_with(
+            mock_raw_response, symbol=symbol, status_code=200, headers={}
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_recent_trades_empty_successful_response(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_request_builder: MagicMock,
+        mock_hl_response_handler: MagicMock,
+        mock_hl_mapper: MagicMock,
+    ) -> None:
+        """Test get_recent_trades handles empty but successful response correctly."""
+        symbol = "BTC"
+
+        # Setup mocks for request building
+        mock_payload_model = MagicMock()
+        mock_payload_dict = {"type": "recentTrades", "coin": symbol}
+        mock_payload_model.model_dump.return_value = mock_payload_dict
+        mock_hl_request_builder.build_recent_trades_request_payload.return_value = (
+            mock_payload_model
+        )
+
+        # Mock HTTP response with empty list (but successful)
+        mock_empty_response: list[RawJsonResponse] = []
+        mock_http_client_requester.return_value = (mock_empty_response, 200, {})
+
+        # Mock response handler to return empty validated list
+        mock_hl_response_handler.handle_info_recent_trades_response.return_value = []
+
+        result = await hyperliquid_market_data_service.get_recent_trades(symbol)
+
+        assert result == []
+        mock_hl_response_handler.handle_info_recent_trades_response.assert_called_once_with(
+            mock_empty_response, symbol=symbol, status_code=200, headers={}
+        )
+        # Mapper should not be called with empty list
+        mock_hl_mapper.transform_raw_public_trade_to_internal.assert_not_called()
+
+    # II. VARIOUS APIERROR CODE PROPAGATION TESTS
+
+    @pytest.mark.asyncio
+    async def test_get_ticker_rate_limited_error_propagation(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_request_builder: MagicMock,
+        mock_hl_response_handler: MagicMock,
+    ) -> None:
+        """Test get_ticker propagates RATE_LIMITED error correctly."""
+        symbol = "BTC"
+
+        # Setup basic mocks
+        mock_payload_model = MagicMock()
+        mock_hl_request_builder.build_info_request_payload.return_value = mock_payload_model
+        mock_payload_model.model_dump.return_value = {"type": "metaAndAssetCtxs"}
+
+        # Mock HTTP response with rate limit status
+        mock_http_client_requester.return_value = (
+            {"error": "rate limited"},
+            429,
+            {"retry-after": "60"},
+        )
+
+        # Mock response handler to raise RATE_LIMITED APIError
+        mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.side_effect = APIError(
+            message="Rate limit exceeded",
+            code=APIErrorCode.RATE_LIMITED.value,
+            http_status=429,
+            exchange_message="rate limited",
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_ticker(symbol)
+
+        assert exc_info.value.code == APIErrorCode.RATE_LIMITED.value
+        assert exc_info.value.http_status == 429
+        assert "Rate limit exceeded" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_order_book_server_error_propagation(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_request_builder: MagicMock,
+        mock_hl_response_handler: MagicMock,
+    ) -> None:
+        """Test get_order_book propagates SERVER_ERROR correctly."""
+        symbol = "ETH"
+
+        # Setup request building mocks
+        mock_payload_model = MagicMock()
+        mock_payload_dict = {"type": "l2Book", "coin": symbol}
+        mock_payload_model.model_dump.return_value = mock_payload_dict
+        mock_hl_request_builder.build_l2_book_request_payload.return_value = mock_payload_model
+
+        # Mock HTTP response with server error
+        mock_http_client_requester.return_value = ({"error": "internal server error"}, 500, {})
+
+        # Mock response handler to raise SERVER_ERROR APIError
+        mock_hl_response_handler.handle_info_l2_book_response.side_effect = APIError(
+            message="Internal server error occurred",
+            code=APIErrorCode.SERVER_ERROR.value,
+            http_status=500,
+            exchange_message="internal server error",
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_order_book(symbol)
+
+        assert exc_info.value.code == APIErrorCode.SERVER_ERROR.value
+        assert exc_info.value.http_status == 500
+        assert "Internal server error" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_market_data_timeout_error_propagation(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_request_builder: MagicMock,
+        mock_hl_response_handler: MagicMock,
+    ) -> None:
+        """Test get_market_data propagates TIMEOUT error correctly."""
+        symbol = "BTC"
+        interval = "1h"
+        start_time_ms = 1678886400000
+        end_time_ms = 1678890000000
+
+        # Setup request building mocks
+        mock_payload_model = MagicMock()
+        mock_payload_dict = {
+            "type": "candleSnapshot",
+            "req": {
+                "coin": symbol,
+                "interval": interval,
+                "startTime": start_time_ms,
+                "endTime": end_time_ms,
+            },
+        }
+        mock_payload_model.model_dump.return_value = mock_payload_dict
+        mock_hl_request_builder.build_candle_snapshot_payload.return_value = mock_payload_model
+
+        # Mock HTTP client to raise timeout
+        mock_http_client_requester.side_effect = APIError(
+            message="Request timeout after 30 seconds",
+            code=APIErrorCode.TIMEOUT.value,
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_market_data(
+                symbol, interval, start_time_ms, end_time_ms
+            )
+
+        assert exc_info.value.code == APIErrorCode.TIMEOUT.value
+        assert "timeout" in exc_info.value.message.lower()
+
+    # III. MAPPER AND TRANSFORMER ERROR HANDLING
+
+    @pytest.mark.asyncio
+    async def test_get_ticker_mapper_unexpected_exception(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_hl_mapper: MagicMock,
+    ) -> None:
+        """Test get_ticker handles unexpected exceptions from mapper gracefully."""
+        symbol = "BTC"
+
+        # Setup successful response handling up to mapper
+        mock_raw_asset_ctx = HyperliquidRawAssetCtx(
+            name="BTC",
+            funding="0.0001",
+            markPx="50000.0",
+            prevDayPx="49000.0",
+            dayNtlVlm="1000",
+            impactPx="50001.0",
+        )
+        mock_meta_response = HyperliquidRawMetaResponse(
+            universe=[
+                HyperliquidRawAssetDefinition(
+                    name="BTC", szDecimals=5, maxLeverage=100, onlyIsolated=False
+                )
+            ]
+        )
+        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse(
+            meta=mock_meta_response,
+            asset_ctxs=[mock_raw_asset_ctx],
+        )
+
+        hyperliquid_market_data_service.get_all_asset_contexts_raw = AsyncMock(  # type: ignore[method-assign]
+            return_value=mock_all_contexts_response
+        )
+
+        # Mock mapper to raise unexpected exception
+        mock_hl_mapper.map_raw_ctx_to_ticker.side_effect = RuntimeError("Unexpected mapper failure")
+
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_ticker(symbol)
+
+        # Service should wrap unexpected exceptions in APIError
+        assert (
+            exc_info.value.code == APIErrorCode.UNKNOWN.value
+            or exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
+        )
+        assert "RuntimeError" in str(exc_info.value.original_exception)
+
+    @pytest.mark.asyncio
+    async def test_get_recent_trades_mapper_type_error(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_request_builder: MagicMock,
+        mock_hl_response_handler: MagicMock,
+        mock_hl_mapper: MagicMock,
+    ) -> None:
+        """Test get_recent_trades handles TypeError from mapper gracefully."""
+        symbol = "ETH"
+
+        # Setup successful response handling up to mapper
+        mock_payload_model = MagicMock()
+        mock_payload_dict = {"type": "recentTrades", "coin": symbol}
+        mock_payload_model.model_dump.return_value = mock_payload_dict
+        mock_hl_request_builder.build_recent_trades_request_payload.return_value = (
+            mock_payload_model
+        )
+
+        mock_raw_trade = HyperliquidRawPublicTrade(
+            coin=symbol,
+            side="B",
+            px="3000.1",
+            sz="0.5",
+            time=1672531201000,
+            hash="0xhash1",
+        )
+        mock_raw_response = [mock_raw_trade.model_dump()]
+        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
+        mock_hl_response_handler.handle_info_recent_trades_response.return_value = [mock_raw_trade]
+
+        # Mock mapper to raise TypeError
+        mock_hl_mapper.transform_raw_public_trade_to_internal.side_effect = TypeError(
+            "'NoneType' object has no attribute 'strip'"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_recent_trades(symbol)
+
+        # Verify the service properly wraps the TypeError
+        assert (
+            exc_info.value.code == APIErrorCode.UNKNOWN.value
+            or exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
+        )
+        assert "TypeError" in str(exc_info.value.original_exception)
+
+    # IV. REQUEST BUILDER FAILURE SCENARIOS
+
+    @pytest.mark.asyncio
+    async def test_get_order_book_request_builder_failure(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_request_builder: MagicMock,
+    ) -> None:
+        """Test get_order_book handles request builder failures gracefully."""
+        symbol = "BTC"
+
+        # Mock request builder to raise exception
+        mock_hl_request_builder.build_l2_book_request_payload.side_effect = ValueError(
+            "Invalid symbol format for request builder"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_order_book(symbol)
+
+        # Service should wrap request builder failures
+        assert (
+            exc_info.value.code == APIErrorCode.UNKNOWN.value
+            or exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
+        )
+        assert "ValueError" in str(exc_info.value.original_exception)
+        # HTTP client should not be called if request building fails
+        mock_http_client_requester.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_market_data_request_builder_key_error(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_request_builder: MagicMock,
+    ) -> None:
+        """Test get_market_data handles KeyError from request builder."""
+        symbol = "ETH"
+        interval = "1m"
+        start_time_ms = 1678886400000
+        end_time_ms = 1678890000000
+
+        # Mock request builder to raise KeyError
+        mock_hl_request_builder.build_candle_snapshot_payload.side_effect = KeyError(
+            "Missing required config key for candle request"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_market_data(
+                symbol, interval, start_time_ms, end_time_ms
+            )
+
+        assert (
+            exc_info.value.code == APIErrorCode.UNKNOWN.value
+            or exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
+        )
+        assert "KeyError" in str(exc_info.value.original_exception)
+        mock_http_client_requester.assert_not_called()
+
+    # V. HTTP CLIENT EDGE CASES
+
+    @pytest.mark.asyncio
+    async def test_get_historical_funding_rates_http_client_raises_connection_error(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_request_builder: MagicMock,
+    ) -> None:
+        """Test get_historical_funding_rates handles connection errors from HTTP client."""
+        symbol = "BTC"
+        start_time_ms = 1678886400000
+        end_time_ms = 1678890000000
+
+        # Setup request building
+        mock_payload_dict = {
+            "type": "fundingHistory",
+            "coin": symbol,
+            "startTime": start_time_ms,
+            "endTime": end_time_ms,
+        }
+        mock_hl_request_builder.build_historical_funding_rates_payload.return_value = (
+            mock_payload_dict
+        )
+
+        # Mock HTTP client to raise connection error
+        mock_http_client_requester.side_effect = APIError(
+            message="Connection failed to remote server",
+            code=APIErrorCode.SERVICE_UNAVAILABLE.value,
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_historical_funding_rates(
+                symbol, start_time_ms, end_time_ms
+            )
+
+        assert exc_info.value.code == APIErrorCode.SERVICE_UNAVAILABLE.value
+        assert "Connection failed" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_ticker_http_client_returns_malformed_status_and_headers(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_request_builder: MagicMock,
+        mock_hl_response_handler: MagicMock,
+    ) -> None:
+        """Test handling when HTTP client returns unexpected status/headers format."""
+        symbol = "BTC"
+
+        # Setup request building
+        mock_payload_model = MagicMock()
+        mock_payload_dict = {"type": "metaAndAssetCtxs"}
+        mock_payload_model.model_dump.return_value = mock_payload_dict
+        mock_hl_request_builder.build_info_request_payload.return_value = mock_payload_model
+
+        # Mock HTTP client to return malformed response tuple
+        mock_http_client_requester.return_value = (
+            {"data": "some_data"},
+            "invalid_status_code",  # Should be int, not str
+            None,  # Headers should be dict, not None
+        )
+
+        # Response handler should handle this gracefully or service should catch it
+        mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.side_effect = APIError(
+            message="Invalid HTTP response format",
+            code=APIErrorCode.INVALID_RESPONSE.value,
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_ticker(symbol)
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+
+    # VI. BOUNDARY AND EDGE INPUT TESTING
+
+    @pytest.mark.asyncio
+    async def test_get_ticker_with_none_symbol_input(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+    ) -> None:
+        """Test get_ticker behavior with None symbol input."""
+        # This should be handled by type hints in real scenario, but test runtime behavior
+        with pytest.raises((APIError, TypeError, ValueError)):
+            await hyperliquid_market_data_service.get_ticker(None)  # type: ignore[arg-type]
+
+        # Service should handle None input gracefully, either through validation or exception
+
+    @pytest.mark.asyncio
+    async def test_get_ticker_with_empty_string_symbol(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+    ) -> None:
+        """Test get_ticker behavior with empty string symbol."""
+        symbol = ""
+
+        # Setup basic response that would succeed, but no matching asset
+        mock_meta_response = HyperliquidRawMetaResponse(universe=[])
+        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse(
+            meta=mock_meta_response, asset_ctxs=[]
+        )
+
+        hyperliquid_market_data_service.get_all_asset_contexts_raw = AsyncMock(  # type: ignore[method-assign]
+            return_value=mock_all_contexts_response
+        )
+
+        result = await hyperliquid_market_data_service.get_ticker(symbol)
+        assert result is None  # Empty symbol should not match any asset
+
+    @pytest.mark.asyncio
+    async def test_get_market_data_with_invalid_time_range(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_hl_request_builder: MagicMock,
+    ) -> None:
+        """Test get_market_data with invalid time range (end < start)."""
+        symbol = "BTC"
+        interval = "1h"
+        start_time_ms = 1678890000000  # Later time
+        end_time_ms = 1678886400000  # Earlier time
+
+        # Request builder or service should validate time range
+        mock_hl_request_builder.build_candle_snapshot_payload.side_effect = ValueError(
+            "Invalid time range: end_time must be after start_time"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_market_data(
+                symbol, interval, start_time_ms, end_time_ms
+            )
+
+        assert (
+            exc_info.value.code == APIErrorCode.UNKNOWN.value
+            or exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
+        )
+
+    # VII. COMPREHENSIVE ERROR CHAINING TESTS
+
+    @pytest.mark.asyncio
+    async def test_get_funding_rate_full_error_chain_validation(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_hl_mapper: MagicMock,
+    ) -> None:
+        """Test get_funding_rate error handling through complete call chain."""
+        symbol = "ETH"
+
+        # Test scenario where get_all_asset_contexts_raw raises APIError
+        hyperliquid_market_data_service.get_all_asset_contexts_raw = AsyncMock(  # type: ignore[method-assign]
+            side_effect=APIError(
+                message="Asset contexts request failed",
+                code=APIErrorCode.EXCHANGE_SPECIFIC.value,
+                http_status=503,
+            )
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_funding_rate(symbol)
+
+        assert exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
+        assert exc_info.value.http_status == 503
+        assert "Asset contexts request failed" in exc_info.value.message
+
+        # Mapper should not be called if asset contexts fail
+        mock_hl_mapper.map_raw_ctx_to_funding_rate.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_historical_funding_rates_comprehensive_error_scenarios(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_request_builder: MagicMock,
+        mock_hl_response_handler: MagicMock,
+        mock_hl_mapper: MagicMock,
+    ) -> None:
+        """Test multiple error scenarios in get_historical_funding_rates call chain."""
+        symbol = "BTC"
+        start_time_ms = 1678886400000
+        end_time_ms = 1678890000000
+
+        # Setup request building
+        mock_request_payload = {
+            "type": "fundingHistory",
+            "coin": symbol,
+            "startTime": start_time_ms,
+            "endTime": end_time_ms,
+        }
+        mock_hl_request_builder.build_historical_funding_rates_payload.return_value = (
+            mock_request_payload
+        )
+
+        # Test Scenario 1: HTTP client succeeds, response handler succeeds,
+        # mapper fails for some items
+        mock_raw_response = [
+            {"coin": "BTC", "fundingRate": "0.0001", "premium": "0.00012", "time": 1678886400076},
+            {"coin": "BTC", "fundingRate": "0.00015", "premium": "0.00017", "time": 1678886500076},
+        ]
+        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
+
+        mock_validated_items = [
+            HyperliquidRawFundingHistoryItem(
+                coin=RawHlCoinName("BTC"),
+                fundingRate="0.0001",
+                premium="0.00012",
+                time=1678886400076,
+            ),
+            HyperliquidRawFundingHistoryItem(
+                coin=RawHlCoinName("BTC"),
+                fundingRate="0.00015",
+                premium="0.00017",
+                time=1678886500076,
+            ),
+        ]
+        mock_hl_response_handler.handle_historical_funding_rates_response.return_value = (
+            mock_validated_items
+        )
+
+        # Configure mapper to succeed for first item, fail for second
+        mock_successful_funding_rate = FundingRate(
+            symbol="BTC",
+            funding_rate=Decimal("0.0001"),
+            timestamp=datetime.fromtimestamp(1678886400.076, UTC),
+        )
+
+        def mapper_side_effect(item: HyperliquidRawFundingHistoryItem) -> FundingRate:
+            if item.time == 1678886400076:
+                return mock_successful_funding_rate
+            else:
+                raise ValueError("Mapper failed for this specific item")
+
+        mock_hl_mapper.transform_raw_funding_history_item_to_internal.side_effect = (
+            mapper_side_effect
+        )
+
+        # Service should fail when any mapper call fails
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_historical_funding_rates(
+                symbol, start_time_ms, end_time_ms
+            )
+
+        assert (
+            exc_info.value.code == APIErrorCode.UNKNOWN.value
+            or exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
+        )
+        assert "ValueError" in str(exc_info.value.original_exception)
+
+        # Verify mapper was called for both items (first succeeds, second fails)
+        assert mock_hl_mapper.transform_raw_funding_history_item_to_internal.call_count == 2

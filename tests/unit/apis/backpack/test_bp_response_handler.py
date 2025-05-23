@@ -797,33 +797,10 @@ def test_handler_invalid_top_level_type(
         else:
             actual_handler_args[arg_name] = value_or_fixture_name
 
-    # Format context string
-    final_context_string = context_format_string
-    try:
-        # Attempt to format using only the args present in the spec
-        format_args = {
-            k: actual_handler_args[k] for k in handler_args_spec if k in actual_handler_args
-        }
-        final_context_string = context_format_string.format(**format_args)
-    except KeyError:
-        pass  # Keep original if formatting fails
-
     with pytest.raises(APIError) as exc_info:
         handler_method(invalid_data, **actual_handler_args)
 
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    # Adjust expected message based on handler specifics
-    if handler_method is BackpackResponseHandler.handle_place_order_response:
-        expected_message_part = (
-            f"Unexpected {final_context_string} format: expected {expected_container_type}"
-        )
-    elif handler_method is BackpackResponseHandler.handle_get_funding_rate_response:
-        expected_message_part = f"Unexpected {final_context_string}"
-    else:
-        expected_message_part = (
-            f"Unexpected {final_context_string} response format: expected {expected_container_type}"
-        )
-    # Adjusting the assertion to be more flexible for type errors
     # The handler now consistently returns "expected list, got <type>"
     assert f"expected {expected_container_type}" in exc_info.value.message
     assert (
@@ -1207,16 +1184,6 @@ def test_handler_list_item_errors(
         else:
             actual_handler_args[arg_name] = value_or_fixture_name
 
-    # Format context string
-    final_context_string = context_format_string
-    try:
-        format_args = {
-            k: actual_handler_args[k] for k in handler_args_spec if k in actual_handler_args
-        }
-        final_context_string = context_format_string.format(**format_args)
-    except KeyError:
-        pass
-
     if expect_warning_log:
         # Test for warning log and correct return value (usually filtered list)
         # Remove the patch, rely on caplog to capture logs from the handler's logger.
@@ -1247,7 +1214,7 @@ def test_handler_list_item_errors(
             handler_method(invalid_data, **actual_handler_args)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert f"Invalid {final_context_string} response from exchange:" in exc_info.value.message
+        assert f"Invalid {context_format_string} response from exchange:" in exc_info.value.message
         assert isinstance(exc_info.value.original_exception, ValidationError)
         assert expected_log_or_error in str(exc_info.value.original_exception)
 

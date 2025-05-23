@@ -688,7 +688,7 @@ class TestBackpackMarketDataService:
                 request_weight=1,
             )
             mock_response_handler.handle_get_market_data_response.assert_not_called()
-            mock_mapper.transform_raw_kline_to_internal.assert_not_called()  # Ensure mapper also not called
+            mock_mapper.transform_raw_kline_to_internal.assert_not_called()  # Ensure mapper not called
 
     @pytest.mark.asyncio
     async def test_get_historical_funding_rates_success(
@@ -785,7 +785,7 @@ class TestBackpackMarketDataService:
             assert mock_mapper.transform_raw_funding_interval_rate_to_internal.call_count == len(
                 mock_validated_funding_rates_raw
             )
-            for i, raw_item in enumerate(mock_validated_funding_rates_raw):
+            for _i, _raw_item in enumerate(mock_validated_funding_rates_raw):
                 pass  # Placeholder for more specific arg checking once call_count is fixed
 
             assert len(result) == len(mock_internal_funding_rates)
