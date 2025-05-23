@@ -838,7 +838,9 @@ class TestHyperliquidAPIMethodErrors:
 
         # Currently the error code is being mapped to UNKNOWN (200) instead of INVALID_ORDER_SIZE (104)
         # This suggests the error mapping is happening at a different layer than expected
-        assert exc_info.value.code == APIErrorCode.UNKNOWN.value  # Changed from INVALID_ORDER_SIZE
+        assert (
+            exc_info.value.code == APIErrorCode.INVALID_ORDER_SIZE.value
+        )  # Fixed: Error mapping works correctly
         assert exc_info.value.http_status == 200
         assert error_message_from_hl in str(exc_info.value)
         assert exc_info.value.exchange_message == error_message_from_hl

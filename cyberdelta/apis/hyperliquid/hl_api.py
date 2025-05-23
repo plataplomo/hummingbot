@@ -99,25 +99,39 @@ class HyperliquidAPI(ExchangeAPI):
         # Route to the correct HTTP client based on is_info_endpoint flag
         if is_info_endpoint:
             # Use the INFO_URL HTTP client for /info endpoints
-            (
-                content_raw,
-                status_code_raw,
-                processed_headers_raw,
-                _,  # raw_headers_raw not needed
-            ) = await self._info_http_client.request(
-                method=method,
-                endpoint_path=endpoint_path,
-                rate_limiter_service=self._rate_limiter_service,
-                authenticator=self._hl_authenticator if is_signed else None,
-                params=params,
-                data=request_data,
-                headers=headers,
-                is_signed=is_signed,
-                request_timeout=None,
-            )
-            # Return the raw content and processed headers to match the expected signature
-            # Cast processed_headers_raw to Mapping[str, str] to match the return type
-            return content_raw, status_code_raw, cast(Mapping[str, str], processed_headers_raw)
+            try:
+                (
+                    content_raw,
+                    status_code_raw,
+                    processed_headers_raw,
+                    _,  # raw_headers_raw not needed
+                ) = await self._info_http_client.request(
+                    method=method,
+                    endpoint_path=endpoint_path,
+                    rate_limiter_service=self._rate_limiter_service,
+                    authenticator=self._hl_authenticator if is_signed else None,
+                    params=params,
+                    data=request_data,
+                    headers=headers,
+                    is_signed=is_signed,
+                    request_timeout=None,
+                )
+                # Return the raw content and processed headers to match the expected signature
+                # Cast processed_headers_raw to Mapping[str, str] to match the return type
+                return content_raw, status_code_raw, cast(Mapping[str, str], processed_headers_raw)
+            except HttpRequestFailedError as e_http:
+                # Process HTTP errors from info endpoint through the error mapper for consistency
+                mapped_error = self._hyperliquid_error_mapper.map_exchange_error(
+                    status_code=e_http.http_status or 500,  # Provide fallback for None
+                    error_body=e_http.exchange_message,
+                    error_data=None,  # HttpRequestFailedError doesn't have structured error_data
+                    request_path=endpoint_path,
+                    original_exception=e_http,
+                )
+                logger.error(
+                    f"[{self.exchange_name}] HTTP error from info endpoint {endpoint_path}: {e_http}"
+                )
+                raise mapped_error from e_http
         else:
             # Use the standard BASE_URL HTTP client for /exchange endpoints
             actual_content, status, actual_headers = await self._request(

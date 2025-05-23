@@ -101,6 +101,7 @@ class TestHyperliquidTradingService:
         make_hl_trading_service: Callable[..., HyperliquidTradingService],
         mock_exchange_http_client_requester: AsyncMock,
         mock_get_asset_index_callable: AsyncMock,
+        mock_hl_request_builder: MagicMock,
         # mock_authenticator_fixt: MagicMock # Not directly used in this test's assertions
     ) -> None:
         """Test place_order when the exchange HTTP client returns None content."""
@@ -108,6 +109,11 @@ class TestHyperliquidTradingService:
         wallet_address = "0xWallet"
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
         mock_get_asset_index_callable.return_value = 0
+
+        # Configure the mock to return a payload with the correct type attribute
+        mock_payload = MagicMock()
+        mock_payload.type = "order"  # Set the expected type value
+        mock_hl_request_builder.build_place_order_payload.return_value = mock_payload
 
         mock_exchange_http_client_requester.return_value = (None, 200, MagicMock())
 
