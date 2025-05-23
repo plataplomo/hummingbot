@@ -478,7 +478,7 @@ tests/unit/apis/backpack/test_bp_api.py::TestBackpackAPIComprehensiveErrorHandli
 tests/unit/apis/backpack/test_bp_api.py::TestBackpackAPIComprehensiveErrorHandling::test_get_order_history_timeout_error_propagation PASSED [ 28%]
 tests/unit/apis/backpack/test_bp_api.py::TestBackpackAPIComprehensiveErrorHandling::test_get_trade_history_service_unavailable_propagation PASSED [ 28%]
 tests/unit/apis/backpack/test_bp_api.py::TestBackpackAPIComprehensiveErrorHandling::test_place_order_service_unexpected_exception FAILED [ 28%]
-tests/unit/apis/backpack/test_bp_api.py::TestBackpackAPIComprehensiveErrorHandling::test_cancel_order_insufficient_balance_propagation FAILED [ 28%]
+tests/unit/apis/backpack/test_bp_api.py::TestBackpackAPIComprehensiveErrorHandling::test_cancel_order_insufficient_balance_propagation PASSED [ 28%]
 tests/unit/apis/backpack/test_bp_api.py::TestBackpackAPIComprehensiveErrorHandling::test_get_order_order_not_found_propagation PASSED [ 28%]
 tests/unit/apis/backpack/test_bp_api.py::TestBackpackAPIComprehensiveErrorHandling::test_get_open_orders_exchange_specific_error PASSED [ 28%]
 tests/unit/apis/backpack/test_bp_api.py::TestBackpackAPIComprehensiveErrorHandling::test_get_ticker_none_symbol_input FAILED [ 28%]
@@ -1465,8 +1465,8 @@ tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperli
 tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_ticker_rate_limited_error_propagation PASSED [ 86%]
 tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_order_book_server_error_propagation PASSED [ 86%]
 tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_market_data_timeout_error_propagation PASSED [ 87%]
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_ticker_mapper_unexpected_exception FAILED [ 87%]
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_recent_trades_mapper_type_error FAILED [ 87%]
+tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_ticker_mapper_unexpected_exception PASSED [ 87%]
+tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_recent_trades_mapper_type_error PASSED [ 87%]
 tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_order_book_request_builder_failure FAILED [ 87%]
 tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_market_data_request_builder_key_error FAILED [ 87%]
 tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_historical_funding_rates_http_client_raises_connection_error PASSED [ 87%]
@@ -1513,7 +1513,7 @@ tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveError
 tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveErrorHandling::test_get_recent_trades_service_unavailable_propagation PASSED [ 89%]
 tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveErrorHandling::test_place_order_service_unexpected_exception FAILED [ 89%]
 tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveErrorHandling::test_cancel_order_insufficient_funds_propagation FAILED [ 89%]
-tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveErrorHandling::test_get_order_order_not_found_propagation FAILED [ 89%]
+tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveErrorHandling::test_get_order_order_not_found_propagation PASSED [ 89%]
 tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveErrorHandling::test_get_open_orders_exchange_specific_error PASSED [ 90%]
 tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveErrorHandling::test_get_ticker_none_symbol_input FAILED [ 90%]
 tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveErrorHandling::test_get_positions_empty_symbol_input PASSED [ 90%]
@@ -1523,7 +1523,7 @@ tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveError
 tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveErrorHandling::test_multiple_service_error_isolation PASSED [ 90%]
 tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveErrorHandling::test_get_funding_rates_historical_data_error PASSED [ 90%]
 tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveErrorHandling::test_cancel_all_orders_partial_failure PASSED [ 90%]
-tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveErrorHandling::test_complex_operation_authentication_chain_failure FAILED [ 90%]
+tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveErrorHandling::test_complex_operation_authentication_chain_failure PASSED [ 90%]
 tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveErrorHandling::test_concurrent_market_data_requests_error_handling PASSED [ 90%]
 tests/unit/apis/hyperliquid/test_hl_auth.py::test_hl_auth_init_success_with_private_key PASSED [ 90%]
 tests/unit/apis/hyperliquid/test_hl_auth.py::test_hl_auth_init_success_with_account_object PASSED [ 90%]
@@ -1686,10 +1686,10 @@ tests/unit/apis/hyperliquid/test_hl_ws_raw_message_handler.py::test_handle_all_m
 =================================== FAILURES ===================================
 _ TestBackpackAPIComprehensiveErrorHandling.test_get_ticker_empty_successful_response _
 
-self = <AsyncMock name='mock.get_ticker' id='128497918317904'>
+self = <AsyncMock name='mock.get_ticker' id='135603454028368'>
 args = ('UNKNOWN_SYMBOL',), kwargs = {}, expected = call('UNKNOWN_SYMBOL')
 actual = call(symbol='UNKNOWN_SYMBOL')
-_error_message = <function NonCallableMock.assert_called_with.<locals>._error_message at 0x74de40c8bb00>
+_error_message = <function NonCallableMock.assert_called_with.<locals>._error_message at 0x7b54a3d43b00>
 cause = None
 
     def assert_called_with(self, /, *args, **kwargs):
@@ -1716,19 +1716,19 @@ E           AssertionError: expected call not found.
 E           Expected: get_ticker('UNKNOWN_SYMBOL')
 E             Actual: get_ticker(symbol='UNKNOWN_SYMBOL')
 
-_error_message = <function NonCallableMock.assert_called_with.<locals>._error_message at 0x74de40c8bb00>
+_error_message = <function NonCallableMock.assert_called_with.<locals>._error_message at 0x7b54a3d43b00>
 actual     = call(symbol='UNKNOWN_SYMBOL')
 args       = ('UNKNOWN_SYMBOL',)
 cause      = None
 expected   = call('UNKNOWN_SYMBOL')
 kwargs     = {}
-self       = <AsyncMock name='mock.get_ticker' id='128497918317904'>
+self       = <AsyncMock name='mock.get_ticker' id='135603454028368'>
 
 /usr/lib/python3.13/unittest/mock.py:979: AssertionError
 
 During handling of the above exception, another exception occurred:
 
-self = <AsyncMock name='mock.get_ticker' id='128497918317904'>
+self = <AsyncMock name='mock.get_ticker' id='135603454028368'>
 args = ('UNKNOWN_SYMBOL',), kwargs = {}
 
     def assert_called_once_with(self, /, *args, **kwargs):
@@ -1771,15 +1771,15 @@ E         + }
 
 args       = ('UNKNOWN_SYMBOL',)
 kwargs     = {}
-self       = <AsyncMock name='mock.get_ticker' id='128497918317904'>
+self       = <AsyncMock name='mock.get_ticker' id='135603454028368'>
 
 /usr/lib/python3.13/unittest/mock.py:991: AssertionError
 
 During handling of the above exception, another exception occurred:
 
-self = <test_bp_api.TestBackpackAPIComprehensiveErrorHandling object at 0x74de4183e210>
-bp_api_with_di = <function bp_api_with_di.<locals>._create_api at 0x74de40c8be20>
-mock_bp_market_data_service = <MagicMock id='128497918317232'>
+self = <test_bp_api.TestBackpackAPIComprehensiveErrorHandling object at 0x7b54a48f6210>
+bp_api_with_di = <function bp_api_with_di.<locals>._create_api at 0x7b54a3d43e20>
+mock_bp_market_data_service = <MagicMock id='135603454029040'>
 
     @pytest.mark.asyncio
     async def test_get_ticker_empty_successful_response(
@@ -1823,18 +1823,18 @@ E         + {
 E         +     'symbol': 'UNKNOWN_SYMBOL',
 E         + }
 
-api        = <cyberdelta.apis.backpack.bp_api.BackpackAPI object at 0x74de40e1acf0>
-bp_api_with_di = <function bp_api_with_di.<locals>._create_api at 0x74de40c8be20>
-mock_bp_market_data_service = <MagicMock id='128497918317232'>
+api        = <cyberdelta.apis.backpack.bp_api.BackpackAPI object at 0x7b54a3ececf0>
+bp_api_with_di = <function bp_api_with_di.<locals>._create_api at 0x7b54a3d43e20>
+mock_bp_market_data_service = <MagicMock id='135603454029040'>
 result     = None
-self       = <test_bp_api.TestBackpackAPIComprehensiveErrorHandling object at 0x74de4183e210>
+self       = <test_bp_api.TestBackpackAPIComprehensiveErrorHandling object at 0x7b54a48f6210>
 
 tests/unit/apis/backpack/test_bp_api.py:694: AssertionError
 _ TestBackpackAPIComprehensiveErrorHandling.test_place_order_service_unexpected_exception _
 
-self = <test_bp_api.TestBackpackAPIComprehensiveErrorHandling object at 0x74de418ade10>
-bp_api_with_di = <function bp_api_with_di.<locals>._create_api at 0x74de40bc2160>
-mock_bp_trading_service = <MagicMock id='128497918873952'>
+self = <test_bp_api.TestBackpackAPIComprehensiveErrorHandling object at 0x7b54a4965e10>
+bp_api_with_di = <function bp_api_with_di.<locals>._create_api at 0x7b54a3bea160>
+mock_bp_trading_service = <MagicMock id='135603456479584'>
 
     @pytest.mark.asyncio
     async def test_place_order_service_unexpected_exception(
@@ -1856,16 +1856,16 @@ mock_bp_trading_service = <MagicMock id='128497918873952'>
                 time_in_force=TimeInForce.GTC,
             )
 
-api        = <cyberdelta.apis.backpack.bp_api.BackpackAPI object at 0x74de40e1b8a0>
-bp_api_with_di = <function bp_api_with_di.<locals>._create_api at 0x74de40bc2160>
+api        = <cyberdelta.apis.backpack.bp_api.BackpackAPI object at 0x7b54a3ecf8a0>
+bp_api_with_di = <function bp_api_with_di.<locals>._create_api at 0x7b54a3bea160>
 exc_info   = <ExceptionInfo for raises contextmanager>
-mock_bp_trading_service = <MagicMock id='128497918873952'>
-self       = <test_bp_api.TestBackpackAPIComprehensiveErrorHandling object at 0x74de418ade10>
+mock_bp_trading_service = <MagicMock id='135603456479584'>
+self       = <test_bp_api.TestBackpackAPIComprehensiveErrorHandling object at 0x7b54a4965e10>
 
 tests/unit/apis/backpack/test_bp_api.py:800: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <cyberdelta.apis.backpack.bp_api.BackpackAPI object at 0x74de40e1b8a0>
+self = <cyberdelta.apis.backpack.bp_api.BackpackAPI object at 0x7b54a3ecf8a0>
 symbol = 'BTC_USDC', side = <OrderSide.BUY: 'BUY'>
 order_type = <OrderType.LIMIT: 'LIMIT'>, quantity = Decimal('0.1')
 time_in_force = <TimeInForce.GTC: 'GTC'>, price = Decimal('50000')
@@ -1909,7 +1909,7 @@ post_only  = False
 price      = Decimal('50000')
 quantity   = Decimal('0.1')
 reduce_only = False
-self       = <cyberdelta.apis.backpack.bp_api.BackpackAPI object at 0x74de40e1b8a0>
+self       = <cyberdelta.apis.backpack.bp_api.BackpackAPI object at 0x7b54a3ecf8a0>
 side       = <OrderSide.BUY: 'BUY'>
 stop_price = None
 symbol     = 'BTC_USDC'
@@ -1918,7 +1918,7 @@ time_in_force = <TimeInForce.GTC: 'GTC'>
 cyberdelta/apis/backpack/bp_api.py:421: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <AsyncMock name='mock.place_order' id='128497918885040'>, args = ()
+self = <AsyncMock name='mock.place_order' id='135603456490672'>, args = ()
 kwargs = {'client_order_id': None, 'order_type': <OrderType.LIMIT: 'LIMIT'>, 'post_only': False, 'price': Decimal('50000'), ...}
 _call = call(symbol='BTC_USDC', side=<OrderSide.BUY: 'BUY'>, order_type=<OrderType.LIMIT: 'LIMIT'>, quantity=Decimal('0.1'), time_in_force=<TimeInForce.GTC: 'GTC'>, price=Decimal('50000'), stop_price=None, client_order_id=None, post_only=False)
 effect = RuntimeError('Unexpected service failure')
@@ -1950,58 +1950,13 @@ kwargs     = {'client_order_id': None,
  'stop_price': None,
  'symbol': 'BTC_USDC',
  'time_in_force': <TimeInForce.GTC: 'GTC'>}
-self       = <AsyncMock name='mock.place_order' id='128497918885040'>
+self       = <AsyncMock name='mock.place_order' id='135603456490672'>
 
 /usr/lib/python3.13/unittest/mock.py:2321: RuntimeError
-_ TestBackpackAPIComprehensiveErrorHandling.test_cancel_order_insufficient_balance_propagation _
-
-self = <test_bp_api.TestBackpackAPIComprehensiveErrorHandling object at 0x74de418dfc50>
-bp_api_with_di = <function bp_api_with_di.<locals>._create_api at 0x74de40bc1260>
-mock_bp_trading_service = <MagicMock id='128497917113216'>
-
-    @pytest.mark.asyncio
-    async def test_cancel_order_insufficient_balance_propagation(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock
-    ) -> None:
-        """Test cancel_order propagates INSUFFICIENT_FUNDS error correctly."""
-        api = bp_api_with_di()
-    
-        mock_bp_trading_service.cancel_order.side_effect = APIError(
-            message="Insufficient balance for cancellation fee",
-            code=APIErrorCode.INSUFFICIENT_FUNDS.value,
-        )
-    
-        with pytest.raises(APIError) as exc_info:
->           await api.cancel_order("order_123")
-
-api        = <cyberdelta.apis.backpack.bp_api.BackpackAPI object at 0x74de40b24270>
-bp_api_with_di = <function bp_api_with_di.<locals>._create_api at 0x74de40bc1260>
-exc_info   = <ExceptionInfo for raises contextmanager>
-mock_bp_trading_service = <MagicMock id='128497917113216'>
-self       = <test_bp_api.TestBackpackAPIComprehensiveErrorHandling object at 0x74de418dfc50>
-
-tests/unit/apis/backpack/test_bp_api.py:831: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-
-self = <cyberdelta.apis.backpack.bp_api.BackpackAPI object at 0x74de40b24270>
-order_id = 'order_123', symbol = None
-
-    async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
-        """Cancel an existing order. Delegates to BackpackTradingService."""
-        if not symbol:
-            # This check remains in API client as service method requires it.
->           raise ValueError("Symbol is required to cancel an order on Backpack.")
-E           ValueError: Symbol is required to cancel an order on Backpack.
-
-order_id   = 'order_123'
-self       = <cyberdelta.apis.backpack.bp_api.BackpackAPI object at 0x74de40b24270>
-symbol     = None
-
-cyberdelta/apis/backpack/bp_api.py:437: ValueError
 _ TestBackpackAPIComprehensiveErrorHandling.test_get_ticker_none_symbol_input __
 
-self = <test_bp_api.TestBackpackAPIComprehensiveErrorHandling object at 0x74de4169e300>
-bp_api_with_di = <function bp_api_with_di.<locals>._create_api at 0x74de40bc34c0>
+self = <test_bp_api.TestBackpackAPIComprehensiveErrorHandling object at 0x7b54a4756300>
+bp_api_with_di = <function bp_api_with_di.<locals>._create_api at 0x7b54a3d43560>
 
     @pytest.mark.asyncio
     async def test_get_ticker_none_symbol_input(
@@ -2014,14 +1969,14 @@ bp_api_with_di = <function bp_api_with_di.<locals>._create_api at 0x74de40bc34c0
 >       with pytest.raises((APIError, TypeError, ValueError)):
 E       Failed: DID NOT RAISE (<class 'cyberdelta.apis.models.api_error.APIError'>, <class 'TypeError'>, <class 'ValueError'>)
 
-api        = <cyberdelta.apis.backpack.bp_api.BackpackAPI object at 0x74de40e1bbd0>
-bp_api_with_di = <function bp_api_with_di.<locals>._create_api at 0x74de40bc34c0>
-self       = <test_bp_api.TestBackpackAPIComprehensiveErrorHandling object at 0x74de4169e300>
+api        = <cyberdelta.apis.backpack.bp_api.BackpackAPI object at 0x7b54a3ecf460>
+bp_api_with_di = <function bp_api_with_di.<locals>._create_api at 0x7b54a3d43560>
+self       = <test_bp_api.TestBackpackAPIComprehensiveErrorHandling object at 0x7b54a4756300>
 
 tests/unit/apis/backpack/test_bp_api.py:892: Failed
 _ test_handler_list_item_errors[handle_get_recent_trades_response-valid_raw_recent_trades-item_modification1-price-handler_args_spec1-single trade item in recent trades ({symbol}) - Status: 200-False] _
 
-handler_method = <function BackpackResponseHandler.handle_get_recent_trades_response at 0x74de97096d40>
+handler_method = <function BackpackResponseHandler.handle_get_recent_trades_response at 0x7b54fa0a2d40>
 valid_data_fixture = 'valid_raw_recent_trades'
 item_modification = {'modify_item': {'index': 1, 'remove_field': 'price'}}
 expected_log_or_error = 'price'
@@ -2029,7 +1984,7 @@ handler_args_spec = {'headers': {}, 'status_code': 200, 'symbol': 'symbol_spot'}
 context_format_string = 'single trade item in recent trades ({symbol}) - Status: 200'
 expect_warning_log = False
 request = <FixtureRequest for <Function test_handler_list_item_errors[handle_get_recent_trades_response-valid_raw_recent_trades-item_modification1-price-handler_args_spec1-single trade item in recent trades ({symbol}) - Status: 200-False]>>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x74de41918640>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7b54a49d0640>
 
     @pytest.mark.parametrize(
         (
@@ -2130,7 +2085,7 @@ E            +    where APIError("Invalid single trade item in recent trades (SO
 
 actual_handler_args = {'headers': {}, 'status_code': 200, 'symbol': 'SOL_USDC'}
 arg_name   = 'headers'
-caplog     = <_pytest.logging.LogCaptureFixture object at 0x74de41918640>
+caplog     = <_pytest.logging.LogCaptureFixture object at 0x7b54a49d0640>
 context_format_string = 'single trade item in recent trades ({symbol}) - Status: 200'
 dict_item  = {'id': '1002',
  'orderId': 'order124',
@@ -2141,7 +2096,7 @@ exc_info   = <ExceptionInfo APIError("Invalid single trade item in recent trades
 expect_warning_log = False
 expected_log_or_error = 'price'
 handler_args_spec = {'headers': {}, 'status_code': 200, 'symbol': 'symbol_spot'}
-handler_method = <function BackpackResponseHandler.handle_get_recent_trades_response at 0x74de97096d40>
+handler_method = <function BackpackResponseHandler.handle_get_recent_trades_response at 0x7b54fa0a2d40>
 index      = 1
 invalid_data = [{'id': '1001',
   'orderId': 'order123',
@@ -2196,14 +2151,14 @@ price
     For further information visit https://errors.pydantic.dev/2.11/v/missing. Raw data: {'symbol': 'SOL_USDC', 'qty': '0.5', 'time': 1678886403000, 'id': '1002', 'orderId': 'order124'}
 _ test_handler_list_item_errors[handle_get_open_orders_response-valid_raw_open_orders-item_modification6-side-handler_args_spec6-single open order item in open orders ({symbol})-False] _
 
-handler_method = <function BackpackResponseHandler.handle_get_open_orders_response at 0x74de97097380>
+handler_method = <function BackpackResponseHandler.handle_get_open_orders_response at 0x7b54fa0a3380>
 valid_data_fixture = 'valid_raw_open_orders'
 item_modification = {'modify_item': {'index': 1, 'remove_field': 'side'}}
 expected_log_or_error = 'side', handler_args_spec = {'symbol': 'symbol_any'}
 context_format_string = 'single open order item in open orders ({symbol})'
 expect_warning_log = False
 request = <FixtureRequest for <Function test_handler_list_item_errors[handle_get_open_orders_response-valid_raw_open_orders-item_modification6-side-handler_args_spec6-single open order item in open orders ({symbol})-False]>>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x74de40e3a250>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7b54fa2f7850>
 
     @pytest.mark.parametrize(
         (
@@ -2304,7 +2259,7 @@ E            +    where APIError("Invalid single open order item in open orders 
 
 actual_handler_args = {'symbol': 'GENERIC_SYMBOL'}
 arg_name   = 'symbol'
-caplog     = <_pytest.logging.LogCaptureFixture object at 0x74de40e3a250>
+caplog     = <_pytest.logging.LogCaptureFixture object at 0x7b54fa2f7850>
 context_format_string = 'single open order item in open orders ({symbol})'
 dict_item  = {'avgFillPrice': None,
  'clientId': 'clientOrder001',
@@ -2321,7 +2276,7 @@ exc_info   = <ExceptionInfo APIError("Invalid single open order item in open ord
 expect_warning_log = False
 expected_log_or_error = 'side'
 handler_args_spec = {'symbol': 'symbol_any'}
-handler_method = <function BackpackResponseHandler.handle_get_open_orders_response at 0x74de97097380>
+handler_method = <function BackpackResponseHandler.handle_get_open_orders_response at 0x7b54fa0a3380>
 index      = 1
 invalid_data = [{'avgFillPrice': None,
   'clientId': 'clientOrder001',
@@ -2418,7 +2373,7 @@ side
     For further information visit https://errors.pydantic.dev/2.11/v/missing. Raw data: {'id': 'order002', 'clientId': 'clientOrder001', 'symbol': 'BTC_USDT', 'orderType': 'LIMIT', 'quantity': '0.1', 'price': '56000.00', 'timeInForce': 'GTC', 'status': 'NEW', 'createdAt': 1678886411000, 'executedQuantity': '0', 'avgFillPrice': None}
 _ test_handler_list_item_errors[handle_get_order_history_response-valid_raw_order_history-item_modification8-orderType-handler_args_spec8-single order history item in order history ({symbol})-False] _
 
-handler_method = <function BackpackResponseHandler.handle_get_order_history_response at 0x74de97097600>
+handler_method = <function BackpackResponseHandler.handle_get_order_history_response at 0x7b54fa0a3600>
 valid_data_fixture = 'valid_raw_order_history'
 item_modification = {'modify_item': {'index': 1, 'remove_field': 'orderType'}}
 expected_log_or_error = 'orderType'
@@ -2426,7 +2381,7 @@ handler_args_spec = {'symbol': 'symbol_any'}
 context_format_string = 'single order history item in order history ({symbol})'
 expect_warning_log = False
 request = <FixtureRequest for <Function test_handler_list_item_errors[handle_get_order_history_response-valid_raw_order_history-item_modification8-orderType-handler_args_spec8-single order history item in order history ({symbol})-False]>>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x74de40e44e60>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7b54a3efd9a0>
 
     @pytest.mark.parametrize(
         (
@@ -2527,7 +2482,7 @@ E            +    where APIError("Invalid single order history item in order his
 
 actual_handler_args = {'symbol': 'GENERIC_SYMBOL'}
 arg_name   = 'symbol'
-caplog     = <_pytest.logging.LogCaptureFixture object at 0x74de40e44e60>
+caplog     = <_pytest.logging.LogCaptureFixture object at 0x7b54a3efd9a0>
 context_format_string = 'single order history item in order history ({symbol})'
 dict_item  = {'avgFillPrice': '55950.00',
  'clientId': 'clientOrder001',
@@ -2544,7 +2499,7 @@ exc_info   = <ExceptionInfo APIError("Invalid single order history item in order
 expect_warning_log = False
 expected_log_or_error = 'orderType'
 handler_args_spec = {'symbol': 'symbol_any'}
-handler_method = <function BackpackResponseHandler.handle_get_order_history_response at 0x74de97097600>
+handler_method = <function BackpackResponseHandler.handle_get_order_history_response at 0x7b54fa0a3600>
 index      = 1
 invalid_data = [{'avgFillPrice': '140.00',
   'clientId': 'clientOrder001',
@@ -2641,14 +2596,14 @@ orderType
     For further information visit https://errors.pydantic.dev/2.11/v/missing. Raw data: {'id': 'histOrder002', 'clientId': 'clientOrder001', 'symbol': 'BTC_USDT', 'side': 'sell', 'quantity': '0.2', 'price': None, 'timeInForce': 'IOC', 'status': 'FILLED', 'createdAt': 1678886100000, 'executedQuantity': '0.2', 'avgFillPrice': '55950.00'}
 _ test_handler_list_item_errors[handle_get_trade_history_response-valid_raw_trade_history-item_modification10-price-handler_args_spec10-single trade item in trade history ({symbol})-False] _
 
-handler_method = <function BackpackResponseHandler.handle_get_trade_history_response at 0x74de970976a0>
+handler_method = <function BackpackResponseHandler.handle_get_trade_history_response at 0x7b54fa0a36a0>
 valid_data_fixture = 'valid_raw_trade_history'
 item_modification = {'modify_item': {'index': 0, 'remove_field': 'price'}}
 expected_log_or_error = 'price', handler_args_spec = {'symbol': 'symbol_spot'}
 context_format_string = 'single trade item in trade history ({symbol})'
 expect_warning_log = False
 request = <FixtureRequest for <Function test_handler_list_item_errors[handle_get_trade_history_response-valid_raw_trade_history-item_modification10-price-handler_args_spec10-single trade item in trade history ({symbol})-False]>>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x74de40b2e7b0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7b54a3dd9a90>
 
     @pytest.mark.parametrize(
         (
@@ -2749,7 +2704,7 @@ E            +    where APIError("Invalid single trade item in trade history (SO
 
 actual_handler_args = {'symbol': 'SOL_USDC'}
 arg_name   = 'symbol'
-caplog     = <_pytest.logging.LogCaptureFixture object at 0x74de40b2e7b0>
+caplog     = <_pytest.logging.LogCaptureFixture object at 0x7b54a3dd9a90>
 context_format_string = 'single trade item in trade history ({symbol})'
 dict_item  = {'id': 'tradeHist001',
  'orderId': 'histOrderX001',
@@ -2760,7 +2715,7 @@ exc_info   = <ExceptionInfo APIError("Invalid single trade item in trade history
 expect_warning_log = False
 expected_log_or_error = 'price'
 handler_args_spec = {'symbol': 'symbol_spot'}
-handler_method = <function BackpackResponseHandler.handle_get_trade_history_response at 0x74de970976a0>
+handler_method = <function BackpackResponseHandler.handle_get_trade_history_response at 0x7b54fa0a36a0>
 index      = 0
 invalid_data = [{'id': 'tradeHist001',
   'orderId': 'histOrderX001',
@@ -2815,14 +2770,14 @@ price
     For further information visit https://errors.pydantic.dev/2.11/v/missing. Raw data: {'symbol': 'SOL_USDC', 'qty': '1.5', 'time': 1678886000000, 'id': 'tradeHist001', 'orderId': 'histOrderX001'}
 _ test_handler_list_item_errors[handle_get_trade_history_response-valid_raw_trade_history-item_modification11-qty-handler_args_spec11-single trade item in trade history ({symbol})-False] _
 
-handler_method = <function BackpackResponseHandler.handle_get_trade_history_response at 0x74de970976a0>
+handler_method = <function BackpackResponseHandler.handle_get_trade_history_response at 0x7b54fa0a36a0>
 valid_data_fixture = 'valid_raw_trade_history'
 item_modification = {'modify_item': {'change_field': 'qty', 'index': 1, 'new_value': 'not_a_decimal'}}
 expected_log_or_error = 'qty', handler_args_spec = {'symbol': 'symbol_spot'}
 context_format_string = 'single trade item in trade history ({symbol})'
 expect_warning_log = False
 request = <FixtureRequest for <Function test_handler_list_item_errors[handle_get_trade_history_response-valid_raw_trade_history-item_modification11-qty-handler_args_spec11-single trade item in trade history ({symbol})-False]>>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x74de40b2e5f0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7b54a3dd9550>
 
     @pytest.mark.parametrize(
         (
@@ -2923,7 +2878,7 @@ E            +    where APIError("Invalid single trade item in trade history (SO
 
 actual_handler_args = {'symbol': 'SOL_USDC'}
 arg_name   = 'symbol'
-caplog     = <_pytest.logging.LogCaptureFixture object at 0x74de40b2e5f0>
+caplog     = <_pytest.logging.LogCaptureFixture object at 0x7b54a3dd9550>
 context_format_string = 'single trade item in trade history ({symbol})'
 dict_item  = {'id': 'tradeHist002',
  'orderId': 'histOrderX002',
@@ -2935,7 +2890,7 @@ exc_info   = <ExceptionInfo APIError("Invalid single trade item in trade history
 expect_warning_log = False
 expected_log_or_error = 'qty'
 handler_args_spec = {'symbol': 'symbol_spot'}
-handler_method = <function BackpackResponseHandler.handle_get_trade_history_response at 0x74de970976a0>
+handler_method = <function BackpackResponseHandler.handle_get_trade_history_response at 0x7b54fa0a36a0>
 index      = 1
 invalid_data = [{'id': 'tradeHist001',
   'orderId': 'histOrderX001',
@@ -2995,7 +2950,7 @@ qty
     For further information visit https://errors.pydantic.dev/2.11/v/value_error. Raw data: {'symbol': 'SOL_USDC', 'price': '141.05', 'qty': 'not_a_decimal', 'time': 1678886001000, 'id': 'tradeHist002', 'orderId': 'histOrderX002'}
 _ test_handler_list_item_errors[handle_get_historical_trades_response-valid_raw_historical_trades-item_modification14-price-handler_args_spec14-single historical trade item in historical trades ({symbol}) - Status: 200-False] _
 
-handler_method = <function BackpackResponseHandler.handle_get_historical_trades_response at 0x74de970977e0>
+handler_method = <function BackpackResponseHandler.handle_get_historical_trades_response at 0x7b54fa0a37e0>
 valid_data_fixture = 'valid_raw_historical_trades'
 item_modification = {'modify_item': {'index': 1, 'remove_field': 'price'}}
 expected_log_or_error = 'price'
@@ -3003,7 +2958,7 @@ handler_args_spec = {'headers': {}, 'status_code': 200, 'symbol': 'symbol_spot'}
 context_format_string = 'single historical trade item in historical trades ({symbol}) - Status: 200'
 expect_warning_log = False
 request = <FixtureRequest for <Function test_handler_list_item_errors[handle_get_historical_trades_response-valid_raw_historical...ication14-price-handler_args_spec14-single historical trade item in historical trades ({symbol}) - Status: 200-False]>>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x74de40e42750>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7b54a3f06390>
 
     @pytest.mark.parametrize(
         (
@@ -3104,7 +3059,7 @@ E            +    where APIError("Invalid single historical trade item in histor
 
 actual_handler_args = {'headers': {}, 'status_code': 200, 'symbol': 'SOL_USDC'}
 arg_name   = 'headers'
-caplog     = <_pytest.logging.LogCaptureFixture object at 0x74de40e42750>
+caplog     = <_pytest.logging.LogCaptureFixture object at 0x7b54a3f06390>
 context_format_string = 'single historical trade item in historical trades ({symbol}) - Status: 200'
 dict_item  = {'id': '1002',
  'orderId': 'histOrderB',
@@ -3115,7 +3070,7 @@ exc_info   = <ExceptionInfo APIError("Invalid single historical trade item in hi
 expect_warning_log = False
 expected_log_or_error = 'price'
 handler_args_spec = {'headers': {}, 'status_code': 200, 'symbol': 'symbol_spot'}
-handler_method = <function BackpackResponseHandler.handle_get_historical_trades_response at 0x74de970977e0>
+handler_method = <function BackpackResponseHandler.handle_get_historical_trades_response at 0x7b54fa0a37e0>
 index      = 1
 invalid_data = [{'id': '1001',
   'orderId': 'histOrderA',
@@ -3170,11 +3125,11 @@ price
     For further information visit https://errors.pydantic.dev/2.11/v/missing. Raw data: {'id': '1002', 'symbol': 'SOL_USDC', 'qty': '1.0', 'time': 1678880100000, 'orderId': 'histOrderB'}
 _ TestWebSocketManagerComprehensiveErrorHandling.test_message_handler_exception_isolation _
 
-self = <test_ws_manager.TestWebSocketManagerComprehensiveErrorHandling object at 0x74de414ec050>
-mock_ws_connect = <MagicMock name='ws_connect' id='128497914606800'>
+self = <test_ws_manager.TestWebSocketManagerComprehensiveErrorHandling object at 0x7b54a45a0050>
+mock_ws_connect = <MagicMock name='ws_connect' id='135603448990752'>
 default_ws_manager_config = WebSocketManagerConfig(ws_url=AnyUrl('ws://test.websocket.api/ws'), ping_interval=30.0, reconnect_delay=0.1, max_reconnect_attempts=2, connection_timeout=10.0)
-mock_ws_connection_factory = <function mock_ws_connection_factory.<locals>._factory at 0x74de40d66520>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x74de418582f0>
+mock_ws_connection_factory = <function mock_ws_connection_factory.<locals>._factory at 0x7b54a36509a0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7b54a457c3d0>
 
     @pytest.mark.asyncio
     @patch("aiohttp.ClientSession.ws_connect")
@@ -3216,17 +3171,17 @@ caplog = <_pytest.logging.LogCaptureFixture object at 0x74de418582f0>
         # Connection should still be active despite handler failures
 >       assert "Message handler intentionally failed" in caplog.text
 E       assert 'Message handler intentionally failed' in 'ERROR    WebSocketManager.test_exchange:ws_manager.py:273 [test_exchange _establish_connection] Unexpected error during connection attempt 1: object AsyncMock can\'t be used in \'await\' expression\nTraceback (most recent call last):\n  File "/home/demute/code/CyberDeltaEngine/cyberdelta/apis/connectivity/ws_manager.py", line 206, in _establish_connection\n    self._ws_connection = await session.ws_connect(\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<3 lines>...\n    )\n    ^\nTypeError: object AsyncMock can\'t be used in \'await\' expression\nERROR    WebSocketManager.test_exchange:ws_manager.py:273 [test_exchange _establish_connection] Unexpected error during connection attempt 2: object AsyncMock can\'t be used in \'await\' expression\nTraceback (most recent call last):\n  File "/home/demute/code/CyberDeltaEngine/cyberdelta/apis/connectivity/ws_manager.py", line 206, in _establish_connection\n    self._ws_connection = await session.ws_connect(\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<3 lines>...\n    )\n    ^\nTypeError: object AsyncMock can\'t be used in \'await\' expression\nCRITICAL WebSocketManager.test_exchange:ws_manager.py:283 Failed to connect to ws://test.websocket.api/ws after 2 attempts. Giving up.\n'
-E        +  where 'ERROR    WebSocketManager.test_exchange:ws_manager.py:273 [test_exchange _establish_connection] Unexpected error during connection attempt 1: object AsyncMock can\'t be used in \'await\' expression\nTraceback (most recent call last):\n  File "/home/demute/code/CyberDeltaEngine/cyberdelta/apis/connectivity/ws_manager.py", line 206, in _establish_connection\n    self._ws_connection = await session.ws_connect(\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<3 lines>...\n    )\n    ^\nTypeError: object AsyncMock can\'t be used in \'await\' expression\nERROR    WebSocketManager.test_exchange:ws_manager.py:273 [test_exchange _establish_connection] Unexpected error during connection attempt 2: object AsyncMock can\'t be used in \'await\' expression\nTraceback (most recent call last):\n  File "/home/demute/code/CyberDeltaEngine/cyberdelta/apis/connectivity/ws_manager.py", line 206, in _establish_connection\n    self._ws_connection = await session.ws_connect(\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<3 lines>...\n    )\n    ^\nTypeError: object AsyncMock can\'t be used in \'await\' expression\nCRITICAL WebSocketManager.test_exchange:ws_manager.py:283 Failed to connect to ws://test.websocket.api/ws after 2 attempts. Giving up.\n' = <_pytest.logging.LogCaptureFixture object at 0x74de418582f0>.text
+E        +  where 'ERROR    WebSocketManager.test_exchange:ws_manager.py:273 [test_exchange _establish_connection] Unexpected error during connection attempt 1: object AsyncMock can\'t be used in \'await\' expression\nTraceback (most recent call last):\n  File "/home/demute/code/CyberDeltaEngine/cyberdelta/apis/connectivity/ws_manager.py", line 206, in _establish_connection\n    self._ws_connection = await session.ws_connect(\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<3 lines>...\n    )\n    ^\nTypeError: object AsyncMock can\'t be used in \'await\' expression\nERROR    WebSocketManager.test_exchange:ws_manager.py:273 [test_exchange _establish_connection] Unexpected error during connection attempt 2: object AsyncMock can\'t be used in \'await\' expression\nTraceback (most recent call last):\n  File "/home/demute/code/CyberDeltaEngine/cyberdelta/apis/connectivity/ws_manager.py", line 206, in _establish_connection\n    self._ws_connection = await session.ws_connect(\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<3 lines>...\n    )\n    ^\nTypeError: object AsyncMock can\'t be used in \'await\' expression\nCRITICAL WebSocketManager.test_exchange:ws_manager.py:283 Failed to connect to ws://test.websocket.api/ws after 2 attempts. Giving up.\n' = <_pytest.logging.LogCaptureFixture object at 0x7b54a457c3d0>.text
 
-caplog     = <_pytest.logging.LogCaptureFixture object at 0x74de418582f0>
+caplog     = <_pytest.logging.LogCaptureFixture object at 0x7b54a457c3d0>
 connect_task = <Task finished name='test_exchange_ws_establish_conn' coro=<WebSocketManager._establish_connection() done, defined at /home/demute/code/CyberDeltaEngine/cyberdelta/apis/connectivity/ws_manager.py:141> result=None>
 default_ws_manager_config = WebSocketManagerConfig(ws_url=AnyUrl('ws://test.websocket.api/ws'), ping_interval=30.0, reconnect_delay=0.1, max_reconnect_attempts=2, connection_timeout=10.0)
-failing_message_handler = <function TestWebSocketManagerComprehensiveErrorHandling.test_message_handler_exception_isolation.<locals>.failing_message_handler at 0x74de40d66de0>
-manager    = <cyberdelta.apis.connectivity.ws_manager.WebSocketManager object at 0x74de40a7e5d0>
-mock_conn  = <AsyncMock name='ws_connect()' spec='ClientWebSocketResponse' id='128497914595712'>
-mock_ws_connect = <MagicMock name='ws_connect' id='128497914606800'>
-mock_ws_connection_factory = <function mock_ws_connection_factory.<locals>._factory at 0x74de40d66520>
-self       = <test_ws_manager.TestWebSocketManagerComprehensiveErrorHandling object at 0x74de414ec050>
+failing_message_handler = <function TestWebSocketManagerComprehensiveErrorHandling.test_message_handler_exception_isolation.<locals>.failing_message_handler at 0x7b54a3651080>
+manager    = <cyberdelta.apis.connectivity.ws_manager.WebSocketManager object at 0x7b54fadc1a90>
+mock_conn  = <AsyncMock name='ws_connect()' spec='ClientWebSocketResponse' id='135603448993440'>
+mock_ws_connect = <MagicMock name='ws_connect' id='135603448990752'>
+mock_ws_connection_factory = <function mock_ws_connection_factory.<locals>._factory at 0x7b54a36509a0>
+self       = <test_ws_manager.TestWebSocketManagerComprehensiveErrorHandling object at 0x7b54a45a0050>
 
 tests/unit/apis/connectivity/test_ws_manager.py:971: AssertionError
 ------------------------------ Captured log call -------------------------------
@@ -3251,11 +3206,11 @@ TypeError: object AsyncMock can't be used in 'await' expression
 CRITICAL WebSocketManager.test_exchange:ws_manager.py:283 Failed to connect to ws://test.websocket.api/ws after 2 attempts. Giving up.
 _ TestWebSocketManagerComprehensiveErrorHandling.test_malformed_json_message_handling _
 
-self = <test_ws_manager.TestWebSocketManagerComprehensiveErrorHandling object at 0x74de414ec180>
-mock_ws_connect = <MagicMock name='ws_connect' id='128497914608480'>
+self = <test_ws_manager.TestWebSocketManagerComprehensiveErrorHandling object at 0x7b54a45a0180>
+mock_ws_connect = <MagicMock name='ws_connect' id='135603449050656'>
 default_ws_manager_config = WebSocketManagerConfig(ws_url=AnyUrl('ws://test.websocket.api/ws'), ping_interval=30.0, reconnect_delay=0.1, max_reconnect_attempts=2, connection_timeout=10.0)
-mock_ws_connection_factory = <function mock_ws_connection_factory.<locals>._factory at 0x74de40d66e80>
-caplog = <_pytest.logging.LogCaptureFixture object at 0x74de40b22ac0>
+mock_ws_connection_factory = <function mock_ws_connection_factory.<locals>._factory at 0x7b54a3e1ef20>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7b54a3cea120>
 
     @pytest.mark.asyncio
     @patch("aiohttp.ClientSession.ws_connect")
@@ -3302,16 +3257,16 @@ caplog = <_pytest.logging.LogCaptureFixture object at 0x74de40b22ac0>
 E       assert 0 == 2
 E        +  where 0 = len([])
 
-caplog     = <_pytest.logging.LogCaptureFixture object at 0x74de40b22ac0>
+caplog     = <_pytest.logging.LogCaptureFixture object at 0x7b54a3cea120>
 connect_task = <Task finished name='test_exchange_ws_establish_conn' coro=<WebSocketManager._establish_connection() done, defined at /home/demute/code/CyberDeltaEngine/cyberdelta/apis/connectivity/ws_manager.py:141> result=None>
 default_ws_manager_config = WebSocketManagerConfig(ws_url=AnyUrl('ws://test.websocket.api/ws'), ping_interval=30.0, reconnect_delay=0.1, max_reconnect_attempts=2, connection_timeout=10.0)
-manager    = <cyberdelta.apis.connectivity.ws_manager.WebSocketManager object at 0x74de40e45040>
-mock_conn  = <AsyncMock name='ws_connect()' spec='ClientWebSocketResponse' id='128497914609152'>
-mock_ws_connect = <MagicMock name='ws_connect' id='128497914608480'>
-mock_ws_connection_factory = <function mock_ws_connection_factory.<locals>._factory at 0x74de40d66e80>
+manager    = <cyberdelta.apis.connectivity.ws_manager.WebSocketManager object at 0x7b54a3ec4320>
+mock_conn  = <AsyncMock name='ws_connect()' spec='ClientWebSocketResponse' id='135603449049312'>
+mock_ws_connect = <MagicMock name='ws_connect' id='135603449050656'>
+mock_ws_connection_factory = <function mock_ws_connection_factory.<locals>._factory at 0x7b54a3e1ef20>
 processed_messages = []
-self       = <test_ws_manager.TestWebSocketManagerComprehensiveErrorHandling object at 0x74de414ec180>
-tracking_message_handler = <function TestWebSocketManagerComprehensiveErrorHandling.test_malformed_json_message_handling.<locals>.tracking_message_handler at 0x74de40d642c0>
+self       = <test_ws_manager.TestWebSocketManagerComprehensiveErrorHandling object at 0x7b54a45a0180>
+tracking_message_handler = <function TestWebSocketManagerComprehensiveErrorHandling.test_malformed_json_message_handling.<locals>.tracking_message_handler at 0x7b54a3d3d080>
 
 tests/unit/apis/connectivity/test_ws_manager.py:1017: AssertionError
 ------------------------------ Captured log call -------------------------------
@@ -3334,187 +3289,12 @@ Traceback (most recent call last):
     ^
 TypeError: object AsyncMock can't be used in 'await' expression
 CRITICAL WebSocketManager.test_exchange:ws_manager.py:283 Failed to connect to ws://test.websocket.api/ws after 2 attempts. Giving up.
-_ TestHyperliquidMarketDataService.test_get_ticker_mapper_unexpected_exception _
-
-self = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x74de41089710>
-hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x74de40596d50>
-mock_hl_mapper = <MagicMock spec='HyperliquidMapper' id='128497918319248'>
-
-    @pytest.mark.asyncio
-    async def test_get_ticker_mapper_unexpected_exception(
-        self,
-        hyperliquid_market_data_service: HyperliquidMarketDataService,
-        mock_hl_mapper: MagicMock,
-    ) -> None:
-        """Test get_ticker handles unexpected exceptions from mapper gracefully."""
-        symbol = "BTC"
-    
-        # Setup successful response handling up to mapper
-        mock_raw_asset_ctx = HyperliquidRawAssetCtx(
-            name="BTC",
-            funding="0.0001",
-            markPx="50000.0",
-            prevDayPx="49000.0",
-            dayNtlVlm="1000",
-            impactPx="50001.0",
-        )
-        mock_meta_response = HyperliquidRawMetaResponse(
-            universe=[
-                HyperliquidRawAssetDefinition(
-                    name="BTC", szDecimals=5, maxLeverage=100, onlyIsolated=False
-                )
-            ]
-        )
-        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse(
-            meta=mock_meta_response,
-            asset_ctxs=[mock_raw_asset_ctx],
-        )
-    
-        hyperliquid_market_data_service.get_all_asset_contexts_raw = AsyncMock(  # type: ignore[method-assign]
-            return_value=mock_all_contexts_response
-        )
-    
-        # Mock mapper to raise unexpected exception
-        mock_hl_mapper.map_raw_ctx_to_ticker.side_effect = RuntimeError("Unexpected mapper failure")
-    
-        with pytest.raises(APIError) as exc_info:
-            await hyperliquid_market_data_service.get_ticker(symbol)
-    
-        # Service should wrap unexpected exceptions in APIError
-        assert (
-            exc_info.value.code == APIErrorCode.UNKNOWN.value
-            or exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
-        )
->       assert "RuntimeError" in str(exc_info.value.original_exception)
-E       AssertionError: assert 'RuntimeError' in 'Unexpected mapper failure'
-E        +  where 'Unexpected mapper failure' = str(RuntimeError('Unexpected mapper failure'))
-E        +    where RuntimeError('Unexpected mapper failure') = APIError('Unexpected error fetching ticker for BTC: Unexpected mapper failure').original_exception
-E        +      where APIError('Unexpected error fetching ticker for BTC: Unexpected mapper failure') = <ExceptionInfo APIError('Unexpected error fetching ticker for BTC: Unexpected mapper failure') tblen=2>.value
-
-exc_info   = <ExceptionInfo APIError('Unexpected error fetching ticker for BTC: Unexpected mapper failure') tblen=2>
-hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x74de40596d50>
-mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse(meta=HyperliquidRawMetaResponse(universe=[HyperliquidRawAssetDefinition(name='BTC', sz_decimals=5, max_leverage=100, only_isolated=False)]), asset_ctxs=[HyperliquidRawAssetCtx(name='BTC', funding='0.0001', mark_px='50000.0', prev_day_px='49000.0', day_ntl_vlm='1000', impact_px='50001.0')])
-mock_hl_mapper = <MagicMock spec='HyperliquidMapper' id='128497918319248'>
-mock_meta_response = HyperliquidRawMetaResponse(universe=[HyperliquidRawAssetDefinition(name='BTC', sz_decimals=5, max_leverage=100, only_isolated=False)])
-mock_raw_asset_ctx = HyperliquidRawAssetCtx(name='BTC', funding='0.0001', mark_px='50000.0', prev_day_px='49000.0', day_ntl_vlm='1000', impact_px='50001.0')
-self       = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x74de41089710>
-symbol     = 'BTC'
-
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py:1437: AssertionError
------------------------------- Captured log call -------------------------------
-ERROR    cyberdelta.apis.hyperliquid.services.hl_market_data_service:hl_market_data_service.py:226 [hyperliquid_test] Unexpected error in get_ticker for BTC: Unexpected mapper failure
-Traceback (most recent call last):
-  File "/home/demute/code/CyberDeltaEngine/cyberdelta/apis/hyperliquid/services/hl_market_data_service.py", line 214, in get_ticker
-    return self._mapper.map_raw_ctx_to_ticker(asset_ctx)
-           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
-  File "/usr/lib/python3.13/unittest/mock.py", line 1169, in __call__
-    return self._mock_call(*args, **kwargs)
-           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
-  File "/usr/lib/python3.13/unittest/mock.py", line 1173, in _mock_call
-    return self._execute_mock_call(*args, **kwargs)
-           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
-  File "/usr/lib/python3.13/unittest/mock.py", line 1228, in _execute_mock_call
-    raise effect
-RuntimeError: Unexpected mapper failure
-__ TestHyperliquidMarketDataService.test_get_recent_trades_mapper_type_error ___
-
-self = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x74de41089a20>
-hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x74de4053d1c0>
-mock_http_client_requester = <AsyncMock id='128497914595376'>
-mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='128497914605792'>
-mock_hl_response_handler = <MagicMock spec='HyperliquidResponseHandler' id='128497914606464'>
-mock_hl_mapper = <MagicMock spec='HyperliquidMapper' id='128497914595712'>
-
-    @pytest.mark.asyncio
-    async def test_get_recent_trades_mapper_type_error(
-        self,
-        hyperliquid_market_data_service: HyperliquidMarketDataService,
-        mock_http_client_requester: AsyncMock,
-        mock_hl_request_builder: MagicMock,
-        mock_hl_response_handler: MagicMock,
-        mock_hl_mapper: MagicMock,
-    ) -> None:
-        """Test get_recent_trades handles TypeError from mapper gracefully."""
-        symbol = "ETH"
-    
-        # Setup successful response handling up to mapper
-        mock_payload_model = MagicMock()
-        mock_payload_dict = {"type": "recentTrades", "coin": symbol}
-        mock_payload_model.model_dump.return_value = mock_payload_dict
-        mock_hl_request_builder.build_recent_trades_request_payload.return_value = (
-            mock_payload_model
-        )
-    
-        mock_raw_trade = HyperliquidRawPublicTrade(
-            coin=symbol,
-            side="B",
-            px="3000.1",
-            sz="0.5",
-            time=1672531201000,
-            hash="0xhash1",
-        )
-        mock_raw_response = [mock_raw_trade.model_dump()]
-        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
-        mock_hl_response_handler.handle_info_recent_trades_response.return_value = [mock_raw_trade]
-    
-        # Mock mapper to raise TypeError
-        mock_hl_mapper.transform_raw_public_trade_to_internal.side_effect = TypeError(
-            "'NoneType' object has no attribute 'strip'"
-        )
-    
-        with pytest.raises(APIError) as exc_info:
-            await hyperliquid_market_data_service.get_recent_trades(symbol)
-    
-        # Verify the service properly wraps the TypeError
-        assert (
-            exc_info.value.code == APIErrorCode.UNKNOWN.value
-            or exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
-        )
->       assert "TypeError" in str(exc_info.value.original_exception)
-E       assert 'TypeError' in "'NoneType' object has no attribute 'strip'"
-E        +  where "'NoneType' object has no attribute 'strip'" = str(TypeError("'NoneType' object has no attribute 'strip'"))
-E        +    where TypeError("'NoneType' object has no attribute 'strip'") = APIError("Unexpected error processing recent trades for ETH: 'NoneType' object has no attribute 'strip'").original_exception
-E        +      where APIError("Unexpected error processing recent trades for ETH: 'NoneType' object has no attribute 'strip'") = <ExceptionInfo APIError("Unexpected error processing recent trades for ETH: 'NoneType' object has no attribute 'strip'") tblen=2>.value
-
-exc_info   = <ExceptionInfo APIError("Unexpected error processing recent trades for ETH: 'NoneType' object has no attribute 'strip'") tblen=2>
-hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x74de4053d1c0>
-mock_hl_mapper = <MagicMock spec='HyperliquidMapper' id='128497914595712'>
-mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='128497914605792'>
-mock_hl_response_handler = <MagicMock spec='HyperliquidResponseHandler' id='128497914606464'>
-mock_http_client_requester = <AsyncMock id='128497914595376'>
-mock_payload_dict = {'coin': 'ETH', 'type': 'recentTrades'}
-mock_payload_model = <MagicMock name='mock.build_recent_trades_request_payload()' id='128497914594032'>
-mock_raw_response = [{'coin': 'ETH',
-  'hash': '0xhash1',
-  'px': '3000.1',
-  'side': 'B',
-  'sz': '0.5',
-  'time': 1672531201000}]
-mock_raw_trade = HyperliquidRawPublicTrade(coin='ETH', side='B', px='3000.1', sz='0.5', time=1672531201000, hash='0xhash1')
-self       = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x74de41089a20>
-symbol     = 'ETH'
-
-tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py:1484: AssertionError
------------------------------- Captured log call -------------------------------
-ERROR    cyberdelta.apis.hyperliquid.services.hl_market_data_service:hl_market_data_service.py:418 [hyperliquid_test] Unhandled error fetching recent trades for ETH: 'NoneType' object has no attribute 'strip'
-Traceback (most recent call last):
-  File "/home/demute/code/CyberDeltaEngine/cyberdelta/apis/hyperliquid/services/hl_market_data_service.py", line 389, in get_recent_trades
-    trade = self._mapper.transform_raw_public_trade_to_internal(raw_trade)
-  File "/usr/lib/python3.13/unittest/mock.py", line 1169, in __call__
-    return self._mock_call(*args, **kwargs)
-           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
-  File "/usr/lib/python3.13/unittest/mock.py", line 1173, in _mock_call
-    return self._execute_mock_call(*args, **kwargs)
-           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
-  File "/usr/lib/python3.13/unittest/mock.py", line 1228, in _execute_mock_call
-    raise effect
-TypeError: 'NoneType' object has no attribute 'strip'
 _ TestHyperliquidMarketDataService.test_get_order_book_request_builder_failure _
 
-self = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x74de4123e750>
-hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x74de4053d250>
-mock_http_client_requester = <AsyncMock id='128497914606128'>
-mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='128497914607136'>
+self = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x7b54a42f6810>
+hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x7b54a34d4950>
+mock_http_client_requester = <AsyncMock id='135603454019632'>
+mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='135603454024672'>
 
     @pytest.mark.asyncio
     async def test_get_order_book_request_builder_failure(
@@ -3535,16 +3315,16 @@ mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='128497
 >           await hyperliquid_market_data_service.get_order_book(symbol)
 
 exc_info   = <ExceptionInfo for raises contextmanager>
-hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x74de4053d250>
-mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='128497914607136'>
-mock_http_client_requester = <AsyncMock id='128497914606128'>
-self       = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x74de4123e750>
+hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x7b54a34d4950>
+mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='135603454024672'>
+mock_http_client_requester = <AsyncMock id='135603454019632'>
+self       = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x7b54a42f6810>
 symbol     = 'BTC'
 
 tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py:1504: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x74de4053d250>
+self = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x7b54a34d4950>
 symbol = 'BTC'
 
     async def get_order_book(self, symbol: str) -> OrderBook | None:
@@ -3566,13 +3346,13 @@ symbol = 'BTC'
 >       request_payload_model = self._request_builder.build_l2_book_request_payload(symbol=symbol)
 
 endpoint_path = '/info'
-self       = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x74de4053d250>
+self       = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x7b54a34d4950>
 symbol     = 'BTC'
 
 cyberdelta/apis/hyperliquid/services/hl_market_data_service.py:254: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <MagicMock name='mock.build_l2_book_request_payload' id='128497917383008'>
+self = <MagicMock name='mock.build_l2_book_request_payload' id='135603454032400'>
 args = (), kwargs = {'symbol': 'BTC'}
 
     def __call__(self, /, *args, **kwargs):
@@ -3584,12 +3364,12 @@ args = (), kwargs = {'symbol': 'BTC'}
 
 args       = ()
 kwargs     = {'symbol': 'BTC'}
-self       = <MagicMock name='mock.build_l2_book_request_payload' id='128497917383008'>
+self       = <MagicMock name='mock.build_l2_book_request_payload' id='135603454032400'>
 
 /usr/lib/python3.13/unittest/mock.py:1169: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <MagicMock name='mock.build_l2_book_request_payload' id='128497917383008'>
+self = <MagicMock name='mock.build_l2_book_request_payload' id='135603454032400'>
 args = (), kwargs = {'symbol': 'BTC'}
 
     def _mock_call(self, /, *args, **kwargs):
@@ -3597,12 +3377,12 @@ args = (), kwargs = {'symbol': 'BTC'}
 
 args       = ()
 kwargs     = {'symbol': 'BTC'}
-self       = <MagicMock name='mock.build_l2_book_request_payload' id='128497917383008'>
+self       = <MagicMock name='mock.build_l2_book_request_payload' id='135603454032400'>
 
 /usr/lib/python3.13/unittest/mock.py:1173: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <MagicMock name='mock.build_l2_book_request_payload' id='128497917383008'>
+self = <MagicMock name='mock.build_l2_book_request_payload' id='135603454032400'>
 args = (), kwargs = {'symbol': 'BTC'}
 effect = ValueError('Invalid symbol format for request builder')
 
@@ -3619,15 +3399,15 @@ E               ValueError: Invalid symbol format for request builder
 args       = ()
 effect     = ValueError('Invalid symbol format for request builder')
 kwargs     = {'symbol': 'BTC'}
-self       = <MagicMock name='mock.build_l2_book_request_payload' id='128497917383008'>
+self       = <MagicMock name='mock.build_l2_book_request_payload' id='135603454032400'>
 
 /usr/lib/python3.13/unittest/mock.py:1228: ValueError
 _ TestHyperliquidMarketDataService.test_get_market_data_request_builder_key_error _
 
-self = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x74de4123e7b0>
-hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x74de4053ef90>
-mock_http_client_requester = <AsyncMock id='128497917378976'>
-mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='128497917381664'>
+self = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x7b54a42f6870>
+hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x7b54a34baba0>
+mock_http_client_requester = <AsyncMock id='135603454020976'>
+mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='135603454027360'>
 
     @pytest.mark.asyncio
     async def test_get_market_data_request_builder_key_error(
@@ -3654,18 +3434,18 @@ mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='128497
 
 end_time_ms = 1678890000000
 exc_info   = <ExceptionInfo for raises contextmanager>
-hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x74de4053ef90>
+hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x7b54a34baba0>
 interval   = '1m'
-mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='128497917381664'>
-mock_http_client_requester = <AsyncMock id='128497917378976'>
-self       = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x74de4123e7b0>
+mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='135603454027360'>
+mock_http_client_requester = <AsyncMock id='135603454020976'>
+self       = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x7b54a42f6870>
 start_time_ms = 1678886400000
 symbol     = 'ETH'
 
 tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py:1534: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x74de4053ef90>
+self = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x7b54a34baba0>
 symbol = 'ETH', interval = '1m', start_time_ms = 1678886400000
 end_time_ms = 1678890000000
 
@@ -3701,14 +3481,14 @@ end_time_ms = 1678890000000
 
 end_time_ms = 1678890000000
 interval   = '1m'
-self       = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x74de4053ef90>
+self       = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x7b54a34baba0>
 start_time_ms = 1678886400000
 symbol     = 'ETH'
 
 cyberdelta/apis/hyperliquid/services/hl_market_data_service.py:629: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <MagicMock name='mock.build_candle_snapshot_payload' id='128497917391072'>
+self = <MagicMock name='mock.build_candle_snapshot_payload' id='135603454021984'>
 args = ()
 kwargs = {'end_time_ms': 1678890000000, 'start_time_ms': 1678886400000, 'symbol': 'ETH', 'timeframe': '1m'}
 
@@ -3724,12 +3504,12 @@ kwargs     = {'end_time_ms': 1678890000000,
  'start_time_ms': 1678886400000,
  'symbol': 'ETH',
  'timeframe': '1m'}
-self       = <MagicMock name='mock.build_candle_snapshot_payload' id='128497917391072'>
+self       = <MagicMock name='mock.build_candle_snapshot_payload' id='135603454021984'>
 
 /usr/lib/python3.13/unittest/mock.py:1169: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <MagicMock name='mock.build_candle_snapshot_payload' id='128497917391072'>
+self = <MagicMock name='mock.build_candle_snapshot_payload' id='135603454021984'>
 args = ()
 kwargs = {'end_time_ms': 1678890000000, 'start_time_ms': 1678886400000, 'symbol': 'ETH', 'timeframe': '1m'}
 
@@ -3741,12 +3521,12 @@ kwargs     = {'end_time_ms': 1678890000000,
  'start_time_ms': 1678886400000,
  'symbol': 'ETH',
  'timeframe': '1m'}
-self       = <MagicMock name='mock.build_candle_snapshot_payload' id='128497917391072'>
+self       = <MagicMock name='mock.build_candle_snapshot_payload' id='135603454021984'>
 
 /usr/lib/python3.13/unittest/mock.py:1173: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <MagicMock name='mock.build_candle_snapshot_payload' id='128497917391072'>
+self = <MagicMock name='mock.build_candle_snapshot_payload' id='135603454021984'>
 args = ()
 kwargs = {'end_time_ms': 1678890000000, 'start_time_ms': 1678886400000, 'symbol': 'ETH', 'timeframe': '1m'}
 effect = KeyError('Missing required config key for candle request')
@@ -3767,14 +3547,14 @@ kwargs     = {'end_time_ms': 1678890000000,
  'start_time_ms': 1678886400000,
  'symbol': 'ETH',
  'timeframe': '1m'}
-self       = <MagicMock name='mock.build_candle_snapshot_payload' id='128497917391072'>
+self       = <MagicMock name='mock.build_candle_snapshot_payload' id='135603454021984'>
 
 /usr/lib/python3.13/unittest/mock.py:1228: KeyError
 _ TestHyperliquidMarketDataService.test_get_market_data_with_invalid_time_range _
 
-self = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x74de412525d0>
-hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x74de4053d490>
-mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='128497917384352'>
+self = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x7b54a4312490>
+hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x7b54a34b92e0>
+mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='135603454028368'>
 
     @pytest.mark.asyncio
     async def test_get_market_data_with_invalid_time_range(
@@ -3800,17 +3580,17 @@ mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='128497
 
 end_time_ms = 1678886400000
 exc_info   = <ExceptionInfo for raises contextmanager>
-hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x74de4053d490>
+hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x7b54a34b92e0>
 interval   = '1h'
-mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='128497917384352'>
-self       = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x74de412525d0>
+mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='135603454028368'>
+self       = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x7b54a4312490>
 start_time_ms = 1678890000000
 symbol     = 'BTC'
 
 tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py:1672: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x74de4053d490>
+self = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x7b54a34b92e0>
 symbol = 'BTC', interval = '1h', start_time_ms = 1678890000000
 end_time_ms = 1678886400000
 
@@ -3846,14 +3626,14 @@ end_time_ms = 1678886400000
 
 end_time_ms = 1678886400000
 interval   = '1h'
-self       = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x74de4053d490>
+self       = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x7b54a34b92e0>
 start_time_ms = 1678890000000
 symbol     = 'BTC'
 
 cyberdelta/apis/hyperliquid/services/hl_market_data_service.py:629: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <MagicMock name='mock.build_candle_snapshot_payload' id='128497917389728'>
+self = <MagicMock name='mock.build_candle_snapshot_payload' id='135603454032736'>
 args = ()
 kwargs = {'end_time_ms': 1678886400000, 'start_time_ms': 1678890000000, 'symbol': 'BTC', 'timeframe': '1h'}
 
@@ -3869,12 +3649,12 @@ kwargs     = {'end_time_ms': 1678886400000,
  'start_time_ms': 1678890000000,
  'symbol': 'BTC',
  'timeframe': '1h'}
-self       = <MagicMock name='mock.build_candle_snapshot_payload' id='128497917389728'>
+self       = <MagicMock name='mock.build_candle_snapshot_payload' id='135603454032736'>
 
 /usr/lib/python3.13/unittest/mock.py:1169: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <MagicMock name='mock.build_candle_snapshot_payload' id='128497917389728'>
+self = <MagicMock name='mock.build_candle_snapshot_payload' id='135603454032736'>
 args = ()
 kwargs = {'end_time_ms': 1678886400000, 'start_time_ms': 1678890000000, 'symbol': 'BTC', 'timeframe': '1h'}
 
@@ -3886,12 +3666,12 @@ kwargs     = {'end_time_ms': 1678886400000,
  'start_time_ms': 1678890000000,
  'symbol': 'BTC',
  'timeframe': '1h'}
-self       = <MagicMock name='mock.build_candle_snapshot_payload' id='128497917389728'>
+self       = <MagicMock name='mock.build_candle_snapshot_payload' id='135603454032736'>
 
 /usr/lib/python3.13/unittest/mock.py:1173: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <MagicMock name='mock.build_candle_snapshot_payload' id='128497917389728'>
+self = <MagicMock name='mock.build_candle_snapshot_payload' id='135603454032736'>
 args = ()
 kwargs = {'end_time_ms': 1678886400000, 'start_time_ms': 1678890000000, 'symbol': 'BTC', 'timeframe': '1h'}
 effect = ValueError('Invalid time range: end_time must be after start_time')
@@ -3912,17 +3692,17 @@ kwargs     = {'end_time_ms': 1678886400000,
  'start_time_ms': 1678890000000,
  'symbol': 'BTC',
  'timeframe': '1h'}
-self       = <MagicMock name='mock.build_candle_snapshot_payload' id='128497917389728'>
+self       = <MagicMock name='mock.build_candle_snapshot_payload' id='135603454032736'>
 
 /usr/lib/python3.13/unittest/mock.py:1228: ValueError
 _ TestHyperliquidMarketDataService.test_get_historical_funding_rates_comprehensive_error_scenarios _
 
-self = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x74de41252670>
-hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x74de4053f800>
-mock_http_client_requester = <AsyncMock id='128497914605792'>
-mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='128497914594368'>
-mock_hl_response_handler = <MagicMock spec='HyperliquidResponseHandler' id='128497914594704'>
-mock_hl_mapper = <MagicMock spec='HyperliquidMapper' id='128497914593696'>
+self = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x7b54a4312530>
+hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x7b54a34bb410>
+mock_http_client_requester = <AsyncMock id='135603454022992'>
+mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='135603454025008'>
+mock_hl_response_handler = <MagicMock spec='HyperliquidResponseHandler' id='135603454019968'>
+mock_hl_mapper = <MagicMock spec='HyperliquidMapper' id='135603454029040'>
 
     @pytest.mark.asyncio
     async def test_get_historical_funding_rates_comprehensive_error_scenarios(
@@ -4014,12 +3794,12 @@ E        +    where <APIErrorCode.EXCHANGE_SPECIFIC: 201> = APIErrorCode.EXCHANG
 
 end_time_ms = 1678890000000
 exc_info   = <ExceptionInfo APIError('Processing historical funding rate data failed: Mapper failed for this specific item') tblen=2>
-hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x74de4053f800>
-mapper_side_effect = <function TestHyperliquidMarketDataService.test_get_historical_funding_rates_comprehensive_error_scenarios.<locals>.mapper_side_effect at 0x74de40558220>
-mock_hl_mapper = <MagicMock spec='HyperliquidMapper' id='128497914593696'>
-mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='128497914594368'>
-mock_hl_response_handler = <MagicMock spec='HyperliquidResponseHandler' id='128497914594704'>
-mock_http_client_requester = <AsyncMock id='128497914605792'>
+hyperliquid_market_data_service = <cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidMarketDataService object at 0x7b54a34bb410>
+mapper_side_effect = <function TestHyperliquidMarketDataService.test_get_historical_funding_rates_comprehensive_error_scenarios.<locals>.mapper_side_effect at 0x7b54a34e5080>
+mock_hl_mapper = <MagicMock spec='HyperliquidMapper' id='135603454029040'>
+mock_hl_request_builder = <MagicMock spec='HyperliquidRequestBuilder' id='135603454025008'>
+mock_hl_response_handler = <MagicMock spec='HyperliquidResponseHandler' id='135603454019968'>
+mock_http_client_requester = <AsyncMock id='135603454022992'>
 mock_raw_response = [{'coin': 'BTC',
   'fundingRate': '0.0001',
   'premium': '0.00012',
@@ -4035,7 +3815,7 @@ mock_request_payload = {'coin': 'BTC',
 mock_successful_funding_rate = FundingRate(symbol='BTC', timestamp=datetime.datetime(2023, 3, 15, 13, 20, 0, 76000, tzinfo=datetime.timezone.utc), funding_rate=Decimal('0.0001'), predicted_rate=None, mark_price=None, index_price=None, next_funding_time=None, hl_details=None, bp_details=None)
 mock_validated_items = [HyperliquidRawFundingHistoryItem(coin='BTC', funding_rate='0.0001', premium='0.00012', time=1678886400076),
  HyperliquidRawFundingHistoryItem(coin='BTC', funding_rate='0.00015', premium='0.00017', time=1678886500076)]
-self       = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x74de41252670>
+self       = <tests.unit.apis.hyperliquid.services.test_hl_market_data_service.TestHyperliquidMarketDataService object at 0x7b54a4312530>
 start_time_ms = 1678886400000
 symbol     = 'BTC'
 
@@ -4044,9 +3824,9 @@ tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py:1785: Assert
 ERROR    cyberdelta.apis.hyperliquid.services.hl_market_data_service:hl_market_data_service.py:591 [hyperliquid_test] Error mapping historical funding rate item: Mapper failed for this specific item. Raw: HyperliquidRawFundingHistoryItem(coin='BTC', funding_rate='0.00015', premium='0.00017', time=1678886500076)
 _ TestHyperliquidAPIComprehensiveErrorHandling.test_place_order_service_unexpected_exception _
 
-self = <tests.unit.apis.hyperliquid.test_hl_api.TestHyperliquidAPIComprehensiveErrorHandling object at 0x74de412b19d0>
-hl_api_with_di = <function hl_api_with_di.<locals>._create_api at 0x74de40558f40>
-mock_hl_trading_service = <MagicMock spec='HyperliquidTradingService' id='128497909615648'>
+self = <tests.unit.apis.hyperliquid.test_hl_api.TestHyperliquidAPIComprehensiveErrorHandling object at 0x7b54a43699d0>
+hl_api_with_di = <function hl_api_with_di.<locals>._create_api at 0x7b54a350d800>
+mock_hl_trading_service = <MagicMock spec='HyperliquidTradingService' id='135603443909360'>
 
     @pytest.mark.asyncio
     async def test_place_order_service_unexpected_exception(
@@ -4068,16 +3848,16 @@ mock_hl_trading_service = <MagicMock spec='HyperliquidTradingService' id='128497
                 time_in_force=TimeInForce.GTC,
             )
 
-api        = <cyberdelta.apis.hyperliquid.hl_api.HyperliquidAPI object at 0x74de404ece10>
+api        = <cyberdelta.apis.hyperliquid.hl_api.HyperliquidAPI object at 0x7b54a348d950>
 exc_info   = <ExceptionInfo for raises contextmanager>
-hl_api_with_di = <function hl_api_with_di.<locals>._create_api at 0x74de40558f40>
-mock_hl_trading_service = <MagicMock spec='HyperliquidTradingService' id='128497909615648'>
-self       = <tests.unit.apis.hyperliquid.test_hl_api.TestHyperliquidAPIComprehensiveErrorHandling object at 0x74de412b19d0>
+hl_api_with_di = <function hl_api_with_di.<locals>._create_api at 0x7b54a350d800>
+mock_hl_trading_service = <MagicMock spec='HyperliquidTradingService' id='135603443909360'>
+self       = <tests.unit.apis.hyperliquid.test_hl_api.TestHyperliquidAPIComprehensiveErrorHandling object at 0x7b54a43699d0>
 
 tests/unit/apis/hyperliquid/test_hl_api.py:981: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <cyberdelta.apis.hyperliquid.hl_api.HyperliquidAPI object at 0x74de404ece10>
+self = <cyberdelta.apis.hyperliquid.hl_api.HyperliquidAPI object at 0x7b54a348d950>
 symbol = 'BTC', side = <OrderSide.BUY: 'BUY'>
 order_type = <OrderType.LIMIT: 'LIMIT'>, quantity = Decimal('0.1')
 time_in_force = <TimeInForce.GTC: 'GTC'>, price = Decimal('50000')
@@ -4132,7 +3912,7 @@ post_only  = False
 price      = Decimal('50000')
 quantity   = Decimal('0.1')
 reduce_only = False
-self       = <cyberdelta.apis.hyperliquid.hl_api.HyperliquidAPI object at 0x74de404ece10>
+self       = <cyberdelta.apis.hyperliquid.hl_api.HyperliquidAPI object at 0x7b54a348d950>
 side       = <OrderSide.BUY: 'BUY'>
 stop_price = None
 symbol     = 'BTC'
@@ -4141,7 +3921,7 @@ time_in_force = <TimeInForce.GTC: 'GTC'>
 cyberdelta/apis/hyperliquid/hl_api.py:1097: 
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <AsyncMock name='mock.place_order' id='128497909615984'>, args = ()
+self = <AsyncMock name='mock.place_order' id='135603443909696'>, args = ()
 kwargs = {'client_order_id': None, 'order_type': <OrderType.LIMIT: 'LIMIT'>, 'post_only': False, 'price': Decimal('50000'), ...}
 _call = call(symbol='BTC', side=<OrderSide.BUY: 'BUY'>, order_type=<OrderType.LIMIT: 'LIMIT'>, quantity=Decimal('0.1'), price=...0'), time_in_force=<TimeInForce.GTC: 'GTC'>, stop_price=None, client_order_id=None, reduce_only=False, post_only=False)
 effect = RuntimeError('Unexpected service failure')
@@ -4174,14 +3954,14 @@ kwargs     = {'client_order_id': None,
  'stop_price': None,
  'symbol': 'BTC',
  'time_in_force': <TimeInForce.GTC: 'GTC'>}
-self       = <AsyncMock name='mock.place_order' id='128497909615984'>
+self       = <AsyncMock name='mock.place_order' id='135603443909696'>
 
 /usr/lib/python3.13/unittest/mock.py:2321: RuntimeError
 _ TestHyperliquidAPIComprehensiveErrorHandling.test_cancel_order_insufficient_funds_propagation _
 
-self = <tests.unit.apis.hyperliquid.test_hl_api.TestHyperliquidAPIComprehensiveErrorHandling object at 0x74de41265150>
-hl_api_with_di = <function hl_api_with_di.<locals>._create_api at 0x74de4055b600>
-mock_hl_trading_service = <MagicMock spec='HyperliquidTradingService' id='128497917115904'>
+self = <tests.unit.apis.hyperliquid.test_hl_api.TestHyperliquidAPIComprehensiveErrorHandling object at 0x7b54a431d150>
+hl_api_with_di = <function hl_api_with_di.<locals>._create_api at 0x7b54a34e5940>
+mock_hl_trading_service = <MagicMock spec='HyperliquidTradingService' id='135603444404576'>
 
     @pytest.mark.asyncio
     async def test_cancel_order_insufficient_funds_propagation(
@@ -4195,67 +3975,25 @@ mock_hl_trading_service = <MagicMock spec='HyperliquidTradingService' id='128497
             code=APIErrorCode.INSUFFICIENT_FUNDS.value,
         )
     
-        with pytest.raises(APIError) as exc_info:
->           await api.cancel_order("order_123")
-
-api        = <cyberdelta.apis.hyperliquid.hl_api.HyperliquidAPI object at 0x74de405bbed0>
-exc_info   = <ExceptionInfo for raises contextmanager>
-hl_api_with_di = <function hl_api_with_di.<locals>._create_api at 0x74de4055b600>
-mock_hl_trading_service = <MagicMock spec='HyperliquidTradingService' id='128497917115904'>
-self       = <tests.unit.apis.hyperliquid.test_hl_api.TestHyperliquidAPIComprehensiveErrorHandling object at 0x74de41265150>
-
-tests/unit/apis/hyperliquid/test_hl_api.py:1012: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-
-self = <cyberdelta.apis.hyperliquid.hl_api.HyperliquidAPI object at 0x74de405bbed0>
-order_id = 'order_123', symbol = None
-
-    async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
-        """Cancels a specific order by its ID."""
-        if symbol is None:
->           raise ValueError("Symbol is required to cancel an order on Hyperliquid.")
-E           ValueError: Symbol is required to cancel an order on Hyperliquid.
-
-order_id   = 'order_123'
-self       = <cyberdelta.apis.hyperliquid.hl_api.HyperliquidAPI object at 0x74de405bbed0>
-symbol     = None
-
-cyberdelta/apis/hyperliquid/hl_api.py:1113: ValueError
-_ TestHyperliquidAPIComprehensiveErrorHandling.test_get_order_order_not_found_propagation _
-
-self = <tests.unit.apis.hyperliquid.test_hl_api.TestHyperliquidAPIComprehensiveErrorHandling object at 0x74de41265950>
-hl_api_with_di = <function hl_api_with_di.<locals>._create_api at 0x74de4055aa20>
-mock_hl_trading_service = <MagicMock spec='HyperliquidTradingService' id='128497917217488'>
-
-    @pytest.mark.asyncio
-    async def test_get_order_order_not_found_propagation(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock
-    ) -> None:
-        """Test get_order propagates ORDER_NOT_FOUND error correctly."""
-        api = hl_api_with_di()
-    
-        mock_hl_trading_service.get_order.side_effect = APIError(
-            message="Order not found",
-            code=APIErrorCode.ORDER_NOT_FOUND.value,
-            http_status=404,
-        )
-    
 >       with pytest.raises(APIError) as exc_info:
 E       Failed: DID NOT RAISE <class 'cyberdelta.apis.models.api_error.APIError'>
 
-api        = <cyberdelta.apis.hyperliquid.hl_api.HyperliquidAPI object at 0x74de40cd2c10>
+api        = <cyberdelta.apis.hyperliquid.hl_api.HyperliquidAPI object at 0x7b54a3673b10>
 exc_info   = <ExceptionInfo for raises contextmanager>
-hl_api_with_di = <function hl_api_with_di.<locals>._create_api at 0x74de4055aa20>
-mock_hl_trading_service = <MagicMock spec='HyperliquidTradingService' id='128497917217488'>
-self       = <tests.unit.apis.hyperliquid.test_hl_api.TestHyperliquidAPIComprehensiveErrorHandling object at 0x74de41265950>
+hl_api_with_di = <function hl_api_with_di.<locals>._create_api at 0x7b54a34e5940>
+mock_hl_trading_service = <MagicMock spec='HyperliquidTradingService' id='135603444404576'>
+self       = <tests.unit.apis.hyperliquid.test_hl_api.TestHyperliquidAPIComprehensiveErrorHandling object at 0x7b54a431d150>
 
-tests/unit/apis/hyperliquid/test_hl_api.py:1032: Failed
+tests/unit/apis/hyperliquid/test_hl_api.py:1011: Failed
+------------------------------ Captured log setup ------------------------------
+ERROR    asyncio:base_events.py:1865 Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7b54a3f5e490>
 ------------------------------ Captured log call -------------------------------
-WARNING  cyberdelta.apis.hyperliquid.hl_api:hl_api.py:1175 [hyperliquid] Invalid order_id format for get_order: nonexistent_order. Returning None.
+ERROR    cyberdelta.apis.hyperliquid.hl_api:hl_api.py:1117 [hyperliquid] Invalid order_id format for cancellation: order_123
 _ TestHyperliquidAPIComprehensiveErrorHandling.test_get_ticker_none_symbol_input _
 
-self = <tests.unit.apis.hyperliquid.test_hl_api.TestHyperliquidAPIComprehensiveErrorHandling object at 0x74de4126a6c0>
-hl_api_with_di = <function hl_api_with_di.<locals>._create_api at 0x74de4055a480>
+self = <tests.unit.apis.hyperliquid.test_hl_api.TestHyperliquidAPIComprehensiveErrorHandling object at 0x7b54a43226c0>
+hl_api_with_di = <function hl_api_with_di.<locals>._create_api at 0x7b54a3498540>
 
     @pytest.mark.asyncio
     async def test_get_ticker_none_symbol_input(
@@ -4268,73 +4006,11 @@ hl_api_with_di = <function hl_api_with_di.<locals>._create_api at 0x74de4055a480
 >       with pytest.raises((APIError, TypeError, ValueError)):
 E       Failed: DID NOT RAISE (<class 'cyberdelta.apis.models.api_error.APIError'>, <class 'TypeError'>, <class 'ValueError'>)
 
-api        = <cyberdelta.apis.hyperliquid.hl_api.HyperliquidAPI object at 0x74de404ef250>
-hl_api_with_di = <function hl_api_with_di.<locals>._create_api at 0x74de4055a480>
-self       = <tests.unit.apis.hyperliquid.test_hl_api.TestHyperliquidAPIComprehensiveErrorHandling object at 0x74de4126a6c0>
+api        = <cyberdelta.apis.hyperliquid.hl_api.HyperliquidAPI object at 0x7b54a348de50>
+hl_api_with_di = <function hl_api_with_di.<locals>._create_api at 0x7b54a3498540>
+self       = <tests.unit.apis.hyperliquid.test_hl_api.TestHyperliquidAPIComprehensiveErrorHandling object at 0x7b54a43226c0>
 
 tests/unit/apis/hyperliquid/test_hl_api.py:1073: Failed
-_ TestHyperliquidAPIComprehensiveErrorHandling.test_complex_operation_authentication_chain_failure _
-
-self = <tests.unit.apis.hyperliquid.test_hl_api.TestHyperliquidAPIComprehensiveErrorHandling object at 0x74de410cf250>
-hl_api_with_di = <function hl_api_with_di.<locals>._create_api at 0x74de40ad2480>
-mock_hl_trading_service = <MagicMock spec='HyperliquidTradingService' id='128497913997904'>
-
-    @pytest.mark.asyncio
-    async def test_complex_operation_authentication_chain_failure(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock
-    ) -> None:
-        """Test complex operations with authentication chain failures."""
-        api = hl_api_with_di()
-    
-        mock_hl_trading_service.place_order.side_effect = APIError(
-            message="Authentication signature invalid",
-            code=APIErrorCode.AUTHENTICATION_FAILED.value,
-        )
-    
-        mock_hl_trading_service.cancel_order.side_effect = APIError(
-            message="Order not found",
-            code=APIErrorCode.ORDER_NOT_FOUND.value,
-        )
-    
-        # Test place order authentication failure
-        with pytest.raises(APIError) as exc_info:
-            await api.place_order(
-                symbol="BTC",
-                side=OrderSide.BUY,
-                order_type=OrderType.LIMIT,
-                quantity=Decimal("0.1"),
-                price=Decimal("50000"),
-                time_in_force=TimeInForce.GTC,
-            )
-        assert exc_info.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
-    
-        # Test cancel order not found failure
-        with pytest.raises(APIError) as exc_info:
->           await api.cancel_order("nonexistent_order")
-
-api        = <cyberdelta.apis.hyperliquid.hl_api.HyperliquidAPI object at 0x74de404ed450>
-exc_info   = <ExceptionInfo for raises contextmanager>
-hl_api_with_di = <function hl_api_with_di.<locals>._create_api at 0x74de40ad2480>
-mock_hl_trading_service = <MagicMock spec='HyperliquidTradingService' id='128497913997904'>
-self       = <tests.unit.apis.hyperliquid.test_hl_api.TestHyperliquidAPIComprehensiveErrorHandling object at 0x74de410cf250>
-
-tests/unit/apis/hyperliquid/test_hl_api.py:1288: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-
-self = <cyberdelta.apis.hyperliquid.hl_api.HyperliquidAPI object at 0x74de404ed450>
-order_id = 'nonexistent_order', symbol = None
-
-    async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
-        """Cancels a specific order by its ID."""
-        if symbol is None:
->           raise ValueError("Symbol is required to cancel an order on Hyperliquid.")
-E           ValueError: Symbol is required to cancel an order on Hyperliquid.
-
-order_id   = 'nonexistent_order'
-self       = <cyberdelta.apis.hyperliquid.hl_api.HyperliquidAPI object at 0x74de404ed450>
-symbol     = None
-
-cyberdelta/apis/hyperliquid/hl_api.py:1113: ValueError
 =========================== short test summary info ============================
 FAILED tests/unit/apis/backpack/test_bp_api.py::TestBackpackAPIComprehensiveErrorHandling::test_get_ticker_empty_successful_response - AssertionError: expected call not found.
 Expected: get_ticker('UNKNOWN_SYMBOL')
@@ -4364,7 +4040,6 @@ assert {'symbol': 'UNKNOWN_SYMBOL'} == {}
   +     'symbol': 'UNKNOWN_SYMBOL',
   + }
 FAILED tests/unit/apis/backpack/test_bp_api.py::TestBackpackAPIComprehensiveErrorHandling::test_place_order_service_unexpected_exception - RuntimeError: Unexpected service failure
-FAILED tests/unit/apis/backpack/test_bp_api.py::TestBackpackAPIComprehensiveErrorHandling::test_cancel_order_insufficient_balance_propagation - ValueError: Symbol is required to cancel an order on Backpack.
 FAILED tests/unit/apis/backpack/test_bp_api.py::TestBackpackAPIComprehensiveErrorHandling::test_get_ticker_none_symbol_input - Failed: DID NOT RAISE (<class 'cyberdelta.apis.models.api_error.APIError'>, <class 'TypeError'>, <class 'ValueError'>)
 FAILED tests/unit/apis/backpack/test_bp_response_handler.py::test_handler_list_item_errors[handle_get_recent_trades_response-valid_raw_recent_trades-item_modification1-price-handler_args_spec1-single trade item in recent trades ({symbol}) - Status: 200-False] - assert 'Invalid single trade item in recent trades ({symbol}) - Status: 200 response from exchange:' in "Invalid single trade item in recent trades (SOL_USDC) - Status: 200 response from exchange: 1 validation error for BackpackRawTrade\nprice\n  Field required [type=missing, input_value={'symbol': 'SOL_USDC', 'q..., 'orderId': 'order124'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing"
  +  where "Invalid single trade item in recent trades (SOL_USDC) - Status: 200 response from exchange: 1 validation error for BackpackRawTrade\nprice\n  Field required [type=missing, input_value={'symbol': 'SOL_USDC', 'q..., 'orderId': 'order124'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing" = APIError("Invalid single trade item in recent trades (SOL_USDC) - Status: 200 response from exchange: 1 validation error for BackpackRawTrade\nprice\n  Field required [type=missing, input_value={'symbol': 'SOL_USDC', 'q..., 'orderId': 'order124'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing").message
@@ -4385,17 +4060,9 @@ FAILED tests/unit/apis/backpack/test_bp_response_handler.py::test_handler_list_i
  +  where "Invalid single historical trade item in historical trades (SOL_USDC) - Status: 200 response from exchange: 1 validation error for BackpackRawTrade\nprice\n  Field required [type=missing, input_value={'id': '1002', 'symbol': ...'orderId': 'histOrderB'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing" = APIError("Invalid single historical trade item in historical trades (SOL_USDC) - Status: 200 response from exchange: 1 validation error for BackpackRawTrade\nprice\n  Field required [type=missing, input_value={'id': '1002', 'symbol': ...'orderId': 'histOrderB'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing").message
  +    where APIError("Invalid single historical trade item in historical trades (SOL_USDC) - Status: 200 response from exchange: 1 validation error for BackpackRawTrade\nprice\n  Field required [type=missing, input_value={'id': '1002', 'symbol': ...'orderId': 'histOrderB'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing") = <ExceptionInfo APIError("Invalid single historical trade item in historical trades (SOL_USDC) - Status: 200 response from exchange: 1...derId': 'histOrderB'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing") tblen=2>.value
 FAILED tests/unit/apis/connectivity/test_ws_manager.py::TestWebSocketManagerComprehensiveErrorHandling::test_message_handler_exception_isolation - assert 'Message handler intentionally failed' in 'ERROR    WebSocketManager.test_exchange:ws_manager.py:273 [test_exchange _establish_connection] Unexpected error during connection attempt 1: object AsyncMock can\'t be used in \'await\' expression\nTraceback (most recent call last):\n  File "/home/demute/code/CyberDeltaEngine/cyberdelta/apis/connectivity/ws_manager.py", line 206, in _establish_connection\n    self._ws_connection = await session.ws_connect(\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<3 lines>...\n    )\n    ^\nTypeError: object AsyncMock can\'t be used in \'await\' expression\nERROR    WebSocketManager.test_exchange:ws_manager.py:273 [test_exchange _establish_connection] Unexpected error during connection attempt 2: object AsyncMock can\'t be used in \'await\' expression\nTraceback (most recent call last):\n  File "/home/demute/code/CyberDeltaEngine/cyberdelta/apis/connectivity/ws_manager.py", line 206, in _establish_connection\n    self._ws_connection = await session.ws_connect(\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<3 lines>...\n    )\n    ^\nTypeError: object AsyncMock can\'t be used in \'await\' expression\nCRITICAL WebSocketManager.test_exchange:ws_manager.py:283 Failed to connect to ws://test.websocket.api/ws after 2 attempts. Giving up.\n'
- +  where 'ERROR    WebSocketManager.test_exchange:ws_manager.py:273 [test_exchange _establish_connection] Unexpected error during connection attempt 1: object AsyncMock can\'t be used in \'await\' expression\nTraceback (most recent call last):\n  File "/home/demute/code/CyberDeltaEngine/cyberdelta/apis/connectivity/ws_manager.py", line 206, in _establish_connection\n    self._ws_connection = await session.ws_connect(\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<3 lines>...\n    )\n    ^\nTypeError: object AsyncMock can\'t be used in \'await\' expression\nERROR    WebSocketManager.test_exchange:ws_manager.py:273 [test_exchange _establish_connection] Unexpected error during connection attempt 2: object AsyncMock can\'t be used in \'await\' expression\nTraceback (most recent call last):\n  File "/home/demute/code/CyberDeltaEngine/cyberdelta/apis/connectivity/ws_manager.py", line 206, in _establish_connection\n    self._ws_connection = await session.ws_connect(\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<3 lines>...\n    )\n    ^\nTypeError: object AsyncMock can\'t be used in \'await\' expression\nCRITICAL WebSocketManager.test_exchange:ws_manager.py:283 Failed to connect to ws://test.websocket.api/ws after 2 attempts. Giving up.\n' = <_pytest.logging.LogCaptureFixture object at 0x74de418582f0>.text
+ +  where 'ERROR    WebSocketManager.test_exchange:ws_manager.py:273 [test_exchange _establish_connection] Unexpected error during connection attempt 1: object AsyncMock can\'t be used in \'await\' expression\nTraceback (most recent call last):\n  File "/home/demute/code/CyberDeltaEngine/cyberdelta/apis/connectivity/ws_manager.py", line 206, in _establish_connection\n    self._ws_connection = await session.ws_connect(\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<3 lines>...\n    )\n    ^\nTypeError: object AsyncMock can\'t be used in \'await\' expression\nERROR    WebSocketManager.test_exchange:ws_manager.py:273 [test_exchange _establish_connection] Unexpected error during connection attempt 2: object AsyncMock can\'t be used in \'await\' expression\nTraceback (most recent call last):\n  File "/home/demute/code/CyberDeltaEngine/cyberdelta/apis/connectivity/ws_manager.py", line 206, in _establish_connection\n    self._ws_connection = await session.ws_connect(\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<3 lines>...\n    )\n    ^\nTypeError: object AsyncMock can\'t be used in \'await\' expression\nCRITICAL WebSocketManager.test_exchange:ws_manager.py:283 Failed to connect to ws://test.websocket.api/ws after 2 attempts. Giving up.\n' = <_pytest.logging.LogCaptureFixture object at 0x7b54a457c3d0>.text
 FAILED tests/unit/apis/connectivity/test_ws_manager.py::TestWebSocketManagerComprehensiveErrorHandling::test_malformed_json_message_handling - assert 0 == 2
  +  where 0 = len([])
-FAILED tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_ticker_mapper_unexpected_exception - AssertionError: assert 'RuntimeError' in 'Unexpected mapper failure'
- +  where 'Unexpected mapper failure' = str(RuntimeError('Unexpected mapper failure'))
- +    where RuntimeError('Unexpected mapper failure') = APIError('Unexpected error fetching ticker for BTC: Unexpected mapper failure').original_exception
- +      where APIError('Unexpected error fetching ticker for BTC: Unexpected mapper failure') = <ExceptionInfo APIError('Unexpected error fetching ticker for BTC: Unexpected mapper failure') tblen=2>.value
-FAILED tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_recent_trades_mapper_type_error - assert 'TypeError' in "'NoneType' object has no attribute 'strip'"
- +  where "'NoneType' object has no attribute 'strip'" = str(TypeError("'NoneType' object has no attribute 'strip'"))
- +    where TypeError("'NoneType' object has no attribute 'strip'") = APIError("Unexpected error processing recent trades for ETH: 'NoneType' object has no attribute 'strip'").original_exception
- +      where APIError("Unexpected error processing recent trades for ETH: 'NoneType' object has no attribute 'strip'") = <ExceptionInfo APIError("Unexpected error processing recent trades for ETH: 'NoneType' object has no attribute 'strip'") tblen=2>.value
 FAILED tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_order_book_request_builder_failure - ValueError: Invalid symbol format for request builder
 FAILED tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_market_data_request_builder_key_error - KeyError: 'Missing required config key for candle request'
 FAILED tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::TestHyperliquidMarketDataService::test_get_market_data_with_invalid_time_range - ValueError: Invalid time range: end_time must be after start_time
@@ -4409,8 +4076,6 @@ FAILED tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py::Test
  +  and   201 = <APIErrorCode.EXCHANGE_SPECIFIC: 201>.value
  +    where <APIErrorCode.EXCHANGE_SPECIFIC: 201> = APIErrorCode.EXCHANGE_SPECIFIC
 FAILED tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveErrorHandling::test_place_order_service_unexpected_exception - RuntimeError: Unexpected service failure
-FAILED tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveErrorHandling::test_cancel_order_insufficient_funds_propagation - ValueError: Symbol is required to cancel an order on Hyperliquid.
-FAILED tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveErrorHandling::test_get_order_order_not_found_propagation - Failed: DID NOT RAISE <class 'cyberdelta.apis.models.api_error.APIError'>
+FAILED tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveErrorHandling::test_cancel_order_insufficient_funds_propagation - Failed: DID NOT RAISE <class 'cyberdelta.apis.models.api_error.APIError'>
 FAILED tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveErrorHandling::test_get_ticker_none_symbol_input - Failed: DID NOT RAISE (<class 'cyberdelta.apis.models.api_error.APIError'>, <class 'TypeError'>, <class 'ValueError'>)
-FAILED tests/unit/apis/hyperliquid/test_hl_api.py::TestHyperliquidAPIComprehensiveErrorHandling::test_complex_operation_authentication_chain_failure - ValueError: Symbol is required to cancel an order on Hyperliquid.
-======================= 23 failed, 1652 passed in 9.42s ========================
+======================= 18 failed, 1657 passed in 9.46s ========================

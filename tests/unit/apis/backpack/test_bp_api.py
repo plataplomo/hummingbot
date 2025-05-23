@@ -691,7 +691,7 @@ class TestBackpackAPIComprehensiveErrorHandling:
         result = await api.get_ticker("UNKNOWN_SYMBOL")
 
         assert result is None
-        mock_bp_market_data_service.get_ticker.assert_called_once_with("UNKNOWN_SYMBOL")
+        mock_bp_market_data_service.get_ticker.assert_called_once_with(symbol="UNKNOWN_SYMBOL")
 
         await api.close()
 
@@ -828,7 +828,7 @@ class TestBackpackAPIComprehensiveErrorHandling:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await api.cancel_order("order_123")
+            await api.cancel_order("order_123", symbol="SOL_USDC")
 
         assert exc_info.value.code == APIErrorCode.INSUFFICIENT_FUNDS.value
         assert "Insufficient balance" in exc_info.value.message

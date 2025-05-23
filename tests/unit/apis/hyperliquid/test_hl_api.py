@@ -1009,7 +1009,7 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await api.cancel_order("order_123")
+            await api.cancel_order("order_123", symbol="ETH")
 
         assert exc_info.value.code == APIErrorCode.INSUFFICIENT_FUNDS.value
         assert "Insufficient funds" in exc_info.value.message
@@ -1030,7 +1030,7 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await api.get_order("nonexistent_order", symbol="BTC")
+            await api.get_order("99999", symbol="BTC")
 
         assert exc_info.value.code == APIErrorCode.ORDER_NOT_FOUND.value
         assert exc_info.value.http_status == 404
@@ -1285,7 +1285,7 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
 
         # Test cancel order not found failure
         with pytest.raises(APIError) as exc_info:
-            await api.cancel_order("nonexistent_order")
+            await api.cancel_order("99999", symbol="ETH")
         assert exc_info.value.code == APIErrorCode.ORDER_NOT_FOUND.value
 
         await api.close()

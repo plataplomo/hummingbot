@@ -418,17 +418,29 @@ class BackpackAPI(ExchangeAPI):
                 f"[{self.exchange_name}] 'reduce_only' parameter is not supported for place_order "
                 f"and will be ignored."
             )
-        return await self.trading_service.place_order(
-            symbol=symbol,
-            side=side,
-            order_type=order_type,
-            quantity=quantity,
-            time_in_force=time_in_force,
-            price=price,
-            stop_price=stop_price,
-            client_order_id=client_order_id,
-            post_only=post_only,
-        )
+        try:
+            return await self.trading_service.place_order(
+                symbol=symbol,
+                side=side,
+                order_type=order_type,
+                quantity=quantity,
+                time_in_force=time_in_force,
+                price=price,
+                stop_price=stop_price,
+                client_order_id=client_order_id,
+                post_only=post_only,
+            )
+        except APIError:
+            # Re-raise APIError as-is
+            raise
+        except Exception as e:
+            # Wrap unexpected exceptions in APIError
+            logger.error(f"[{self.exchange_name}] Unexpected error in place_order: {e}")
+            raise APIError(
+                message=f"Failed to place order: {str(e)}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
         """Cancel an existing order. Delegates to BackpackTradingService."""

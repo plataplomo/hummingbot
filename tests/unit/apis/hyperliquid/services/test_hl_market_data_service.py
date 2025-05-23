@@ -1434,7 +1434,7 @@ class TestHyperliquidMarketDataService:
             exc_info.value.code == APIErrorCode.UNKNOWN.value
             or exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
         )
-        assert "RuntimeError" in str(exc_info.value.original_exception)
+        assert isinstance(exc_info.value.original_exception, RuntimeError)
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_mapper_type_error(
@@ -1481,7 +1481,7 @@ class TestHyperliquidMarketDataService:
             exc_info.value.code == APIErrorCode.UNKNOWN.value
             or exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
         )
-        assert "TypeError" in str(exc_info.value.original_exception)
+        assert isinstance(exc_info.value.original_exception, TypeError)
 
     # IV. REQUEST BUILDER FAILURE SCENARIOS
 
@@ -1508,7 +1508,7 @@ class TestHyperliquidMarketDataService:
             exc_info.value.code == APIErrorCode.UNKNOWN.value
             or exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
         )
-        assert "ValueError" in str(exc_info.value.original_exception)
+        assert isinstance(exc_info.value.original_exception, ValueError)
         # HTTP client should not be called if request building fails
         mock_http_client_requester.assert_not_called()
 
@@ -1539,7 +1539,7 @@ class TestHyperliquidMarketDataService:
             exc_info.value.code == APIErrorCode.UNKNOWN.value
             or exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
         )
-        assert "KeyError" in str(exc_info.value.original_exception)
+        assert isinstance(exc_info.value.original_exception, KeyError)
         mock_http_client_requester.assert_not_called()
 
     # V. HTTP CLIENT EDGE CASES
@@ -1786,7 +1786,7 @@ class TestHyperliquidMarketDataService:
             exc_info.value.code == APIErrorCode.UNKNOWN.value
             or exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
         )
-        assert "ValueError" in str(exc_info.value.original_exception)
+        assert isinstance(exc_info.value.original_exception, ValueError)
 
         # Verify mapper was called for both items (first succeeds, second fails)
         assert mock_hl_mapper.transform_raw_funding_history_item_to_internal.call_count == 2
