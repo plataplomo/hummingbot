@@ -15,7 +15,6 @@ import pytest_asyncio
 from _pytest.logging import LogCaptureFixture
 from pydantic import ValidationError
 
-from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
 from cyberdelta.apis.connectivity.http_client import HttpRequestFailedError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
@@ -28,18 +27,10 @@ from cyberdelta.apis.hyperliquid.hl_response_handler import (
     RawJsonResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import HyperliquidRawAllMids
-from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
-    HyperliquidApiPlaceOrderRequest,
-)
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawOrder
-from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
-    HyperliquidRawLimitOrderTypeDetails,
-    HyperliquidRawOrderType,
-    HyperliquidRawPlaceOrderAction,
-)
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawAssetPosition,
     HyperliquidRawClearinghouseState,
@@ -380,276 +371,63 @@ async def test_authenticate_prepare_request_fails_via_public_method(
 
 @pytest.mark.asyncio
 @patch("cyberdelta.apis.connectivity.http_client.HttpClient.request", new_callable=AsyncMock)
-async def test_place_order_calls_authenticate_and_request(
+async def test_place_order_delegates_to_trading_service(
     mock_http_client_request: AsyncMock,
     mock_hl_auth_init: tuple[MagicMock, MagicMock],
 ) -> None:
-    """Verify place_order uses the authenticator flow including _authenticate."""
-    # Create a mock authenticator instance FOR THIS TEST
-    mock_auth_for_test = MagicMock(spec=HyperliquidEip712Authenticator)
-    auth_headers = {"X-HL-Signature": "sig123", "X-HL-Timestamp": "ts", "X-HL-Nonce": "1"}
-    auth_params = None
-    # Define the data that the builder is expected to produce as a Pydantic model
-    # Using the correct new format with HyperliquidRawPlaceOrderAction
-    expected_order_action = HyperliquidRawPlaceOrderAction(
-        asset=0,  # asset field for HyperliquidRawPlaceOrderAction
-        isBuy=True,  # isBuy alias
-        limitPx="30000",  # limitPx alias
-        sz="1.0",  # sz alias
-        reduceOnly=False,  # reduceOnly alias
-        orderType=HyperliquidRawOrderType(
-            limit=HyperliquidRawLimitOrderTypeDetails(tif="Gtc")
-        ),  # orderType alias
-        cloid=None,  # cloid for client_order_id
-    )
-    expected_request_model = HyperliquidApiPlaceOrderRequest(
-        type="order", actions=[expected_order_action]
-    )
-    # This is what _request will receive after .model_dump()
-    expected_data_for_request = expected_request_model.model_dump(by_alias=True, exclude_none=True)
+    """Verify place_order correctly delegates to trading_service.place_order()."""
+    _mock_auth_class, _mock_auth_instance = mock_hl_auth_init
+    api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_WITH_KEY)
 
-    auth_prepared_components = AuthenticatedRequestComponents(
-        headers=auth_headers, params=auth_params, data=expected_data_for_request
-    )
-    # Make prepare_request an AsyncMock *on the instance*
-    mock_auth_for_test.prepare_request = AsyncMock(return_value=auth_prepared_components)
+    # Mock the trading service
+    mock_trading_service = AsyncMock()
+    mock_order_result = MagicMock(spec=Order)
+    mock_order_result.exchange_order_id = "12345"
+    mock_trading_service.place_order.return_value = mock_order_result
+    api.trading_service = mock_trading_service
 
-    # Expected response content returned by _request
-    mock_http_response_content = {
-        "status": "ok",
-        "data": {"type": "order", "statuses": [{"resting": {"oid": 12345}}]},
-    }
+    # Define order parameters
+    symbol_val = "BTC"
+    side_val = OrderSide.BUY
+    order_type_val = OrderType.LIMIT
+    quantity_val = Decimal("1.0")
+    price_val = Decimal("30000")
+    time_in_force_val = TimeInForce.GTC
+    client_order_id_val = None
+    reduce_only_val = False
+    post_only_val = False
+    stop_price_val = None
 
-    # Mock the HTTP client response for both exchange and info endpoints
-    mock_http_client_request.return_value = (
-        mock_http_response_content,
-        200,
-        MagicMock(),  # processed_headers
-        MagicMock(),  # raw_headers
+    # Call place_order
+    result = await api.place_order(
+        symbol=symbol_val,
+        side=side_val,
+        order_type=order_type_val,
+        quantity=quantity_val,
+        price=price_val,
+        time_in_force=time_in_force_val,
+        client_order_id=client_order_id_val,
+        reduce_only=reduce_only_val,
+        post_only=post_only_val,
+        stop_price=stop_price_val,
     )
 
-    # Patch the Authenticator constructor within hl_api module scope
-    with patch(
-        "cyberdelta.apis.hyperliquid.hl_api.HyperliquidEip712Authenticator",
-        return_value=mock_auth_for_test,
-    ) as mock_auth_constructor:
-        api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_WITH_KEY)
-        # Assert API instance uses our mock authenticator
-        mock_auth_constructor.assert_called_once_with(
-            wallet_private_key=TEST_PRIVATE_KEY,
-            chain_id=HyperliquidAPI.CHAIN_ID,
-        )
-        assert api._authenticator is mock_auth_for_test
+    # Verify delegation to trading service with correct parameters
+    mock_trading_service.place_order.assert_awaited_once_with(
+        symbol=symbol_val,
+        side=side_val,
+        order_type=order_type_val,
+        quantity=quantity_val,
+        price=price_val,
+        time_in_force=time_in_force_val,
+        stop_price=stop_price_val,
+        client_order_id=client_order_id_val,
+        reduce_only=reduce_only_val,
+        post_only=post_only_val,
+    )
 
-        # Mock the asset index info endpoint response for _get_asset_index
-        def mock_http_client_side_effect(*args, **kwargs):
-            endpoint_path = kwargs.get("endpoint_path", "")
-            data = kwargs.get("data", {})
-
-            if "/info" in endpoint_path:
-                # Check the request type in the data payload
-                request_type = data.get("type") if isinstance(data, dict) else None
-
-                if request_type == "metaAndAssetCtxs":
-                    # Return asset info response for _get_asset_index
-                    return (
-                        [
-                            {
-                                "universe": [
-                                    {
-                                        "name": "BTC",
-                                        "szDecimals": 5,
-                                        "maxLeverage": 100,
-                                        "onlyIsolated": False,
-                                    }
-                                ]
-                            },
-                            [
-                                {
-                                    "name": "BTC",
-                                    "funding": "0.0000125",
-                                    "markPx": "110355.0",
-                                    "prevDayPx": "106375.0",
-                                    "dayNtlVlm": "11460776239.7850627899",
-                                    "impactPx": "110340.0",
-                                }
-                            ],
-                        ],
-                        200,
-                        MagicMock(),
-                        MagicMock(),
-                    )
-                elif request_type == "orderStatus":
-                    # Return order status response for get_order_status
-                    return (
-                        [
-                            {
-                                "order": {
-                                    "oid": 12345,
-                                    "cloid": None,
-                                    "asset": "BTC",
-                                    "side": "B",
-                                    "limitPx": "30000",
-                                    "sz": "1.0",
-                                    "timestamp": 1000000000000,
-                                    "orderType": {"limit": {"tif": "Gtc"}},
-                                    "reduceOnly": False,
-                                    "remainingSz": "1.0",
-                                    "status": "open",
-                                    "statusTimestamp": 1000000000000,
-                                }
-                            }
-                        ],
-                        200,
-                        MagicMock(),
-                        MagicMock(),
-                    )
-                else:
-                    # Unknown info request type, return empty response
-                    return ([], 200, MagicMock(), MagicMock())
-            else:
-                # Return exchange response for /exchange endpoint
-                return (
-                    mock_http_response_content,
-                    200,
-                    MagicMock(),
-                    MagicMock(),
-                )
-
-        mock_http_client_request.side_effect = mock_http_client_side_effect
-
-        # Patch the HyperliquidRequestBuilder.build_place_order_payload
-        with patch(
-            "cyberdelta.apis.hyperliquid.hl_api.HyperliquidRequestBuilder.build_place_order_payload"
-        ) as mock_build_payload:
-            # Define parameters for the place_order call
-            symbol_val: str = "BTC"
-            side_val: OrderSide = OrderSide.BUY
-            order_type_val: OrderType = OrderType.LIMIT
-            quantity_val: Decimal = Decimal("1.0")
-            price_val: Decimal = Decimal("30000")
-            time_in_force_val: TimeInForce = TimeInForce.GTC
-            client_order_id_val: str | None = None
-            reduce_only_val: bool = False
-            post_only_val: bool = False
-            stop_price_val: Decimal | None = None
-
-            mock_build_payload.return_value = (
-                expected_request_model  # Builder returns the Pydantic model
-            )
-
-            # Mock the Order object that get_order_status is expected to return
-            # after successful parsing and mapping by the response handler.
-            mock_mapped_order_obj = MagicMock(spec=Order)  # Order from cyberdelta.core.models
-            mock_mapped_order_obj.exchange_order_id = "12345"
-            mock_mapped_order_obj.symbol = symbol_val
-            # ... add other attributes if place_order uses them
-
-            with patch.object(api, "get_order_status", new_callable=AsyncMock) as mock_get_status:
-                mock_get_status.return_value = mock_mapped_order_obj
-
-                # First call to place_order for this symbol - should fetch asset_index
-                final_order_call_1 = await api.place_order(
-                    symbol=symbol_val,
-                    side=side_val,
-                    order_type=order_type_val,
-                    quantity=quantity_val,
-                    price=price_val,
-                    time_in_force=time_in_force_val,
-                    client_order_id=client_order_id_val,
-                    reduce_only=reduce_only_val,
-                    post_only=post_only_val,
-                    stop_price=stop_price_val,
-                )
-
-                # Verify that HTTP client was called for both info and exchange endpoints
-                assert mock_http_client_request.call_count >= 2  # At least info + exchange calls
-
-                # Verify the asset index info call was made
-                info_calls = [
-                    call for call in mock_http_client_request.call_args_list if "/info" in str(call)
-                ]
-                assert len(info_calls) >= 1, "Expected at least one call to /info endpoint"
-
-                # Verify the exchange order call was made
-                exchange_calls = [
-                    call
-                    for call in mock_http_client_request.call_args_list
-                    if "exchange" in str(call)
-                ]
-                assert len(exchange_calls) >= 1, "Expected at least one call to /exchange endpoint"
-
-                mock_build_payload.assert_called_once_with(
-                    asset_index=0,  # This is the asset_index returned by _get_asset_index
-                    side=side_val,
-                    order_type=order_type_val,
-                    quantity=quantity_val,
-                    time_in_force=time_in_force_val,
-                    price=price_val,
-                    stop_price=stop_price_val,
-                    client_order_id=client_order_id_val,
-                    reduce_only=reduce_only_val,
-                    post_only=post_only_val,
-                )
-
-                # Assert prepare_request was called with the correct data (model_dumped)
-                mock_auth_for_test.prepare_request.assert_awaited_once()
-
-                assert final_order_call_1 == mock_mapped_order_obj
-
-                # Reset mocks for the second call
-                mock_http_client_request.reset_mock()
-                mock_build_payload.reset_mock()
-                mock_auth_for_test.prepare_request.reset_mock()
-                mock_get_status.reset_mock()
-                mock_get_status.return_value = mock_mapped_order_obj  # Re-assign return value
-
-                # Mock only exchange response for second call (asset index should be cached)
-                mock_http_client_request.return_value = (
-                    mock_http_response_content,
-                    200,
-                    MagicMock(),
-                    MagicMock(),
-                )
-
-                # Second call to place_order for the same symbol - should use
-                # cached asset_index
-                final_order_call_2 = await api.place_order(
-                    symbol=symbol_val,
-                    side=side_val,
-                    order_type=order_type_val,
-                    quantity=quantity_val,
-                    price=price_val,
-                    time_in_force=time_in_force_val,
-                    client_order_id=client_order_id_val,
-                    reduce_only=reduce_only_val,
-                    post_only=post_only_val,
-                    stop_price=stop_price_val,
-                )
-
-                # Assertions for second call
-                # Should only call exchange endpoint (no info call due to caching)
-                exchange_calls_only = [
-                    call
-                    for call in mock_http_client_request.call_args_list
-                    if "exchange" in str(call)
-                ]
-                assert len(exchange_calls_only) >= 1, "Expected exchange call for second order"
-
-                mock_build_payload.assert_called_once_with(  # Builder still called with cached asset_index
-                    asset_index=0,
-                    side=side_val,
-                    order_type=order_type_val,
-                    quantity=quantity_val,
-                    time_in_force=time_in_force_val,
-                    price=price_val,
-                    stop_price=stop_price_val,
-                    client_order_id=client_order_id_val,
-                    reduce_only=reduce_only_val,
-                    post_only=post_only_val,
-                )
-                mock_auth_for_test.prepare_request.assert_awaited_once()  # Auth still called
-                assert final_order_call_2 == mock_mapped_order_obj
+    # Verify the result is returned correctly
+    assert result == mock_order_result
 
 
 @pytest.mark.asyncio
@@ -1682,7 +1460,7 @@ async def test_get_funding_rates_api_error(hl_api_instance: HyperliquidAPI) -> N
         # After error mapping, generic 500 errors map to EXCHANGE_SPECIFIC (201)
         assert excinfo.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
         assert excinfo.value.http_status == 500
-        assert "Mock HTTP Error from /info endpoint" in str(excinfo.value.message)
+        assert "Unknown Hyperliquid error (HTTP 500)" in str(excinfo.value.message)
 
         mock_request_call.assert_called_once_with(
             method="POST",

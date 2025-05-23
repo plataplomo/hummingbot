@@ -120,7 +120,7 @@ class HyperliquidAPI(ExchangeAPI):
                 # Cast processed_headers_raw to Mapping[str, str] to match the return type
                 return content_raw, status_code_raw, cast(Mapping[str, str], processed_headers_raw)
             except HttpRequestFailedError as e_http:
-                # Process HTTP errors from info endpoint through the error mapper for consistency
+                # Process HTTP errors through the error mapper for consistency
                 mapped_error = self._hyperliquid_error_mapper.map_exchange_error(
                     status_code=e_http.http_status or 500,  # Provide fallback for None
                     error_body=e_http.exchange_message,
@@ -129,7 +129,7 @@ class HyperliquidAPI(ExchangeAPI):
                     original_exception=e_http,
                 )
                 logger.error(
-                    f"[{self.exchange_name}] HTTP error from info endpoint {endpoint_path}: {e_http}"
+                    f"[{self.exchange_name}] API Error from info endpoint {endpoint_path}: {e_http}"
                 )
                 raise mapped_error from e_http
         else:
@@ -515,16 +515,56 @@ class HyperliquidAPI(ExchangeAPI):
                 data=request_payload_data_dict,
                 rate_limiter_service=self._rate_limiter_service,
             )
+        except HttpRequestFailedError as e_http:
+            # Process HTTP errors through the error mapper for consistency
+            mapped_error = self._hyperliquid_error_mapper.map_exchange_error(
+                status_code=e_http.http_status or 500,  # Provide fallback for None
+                error_body=e_http.exchange_message,
+                error_data=None,  # HttpRequestFailedError doesn't have structured error_data
+                request_path="/info",
+                original_exception=e_http,
+            )
+            logger.error(
+                f"[{self.exchange_name}] API Error fetching asset index for {symbol}: {e_http}"
+            )
+
+            raise APIError(
+                f"Failed to fetch asset index for symbol '{symbol}': {mapped_error.message}",
+                code=mapped_error.code,
+                original_exception=mapped_error,
+                http_status=mapped_error.http_status,
+            ) from e_http
         except APIError as e_api:
+            # For other APIErrors (non-HTTP), also route through error mapper for consistency
+            # This ensures all errors from asset index fetch are consistently mapped
+            if isinstance(e_api, HttpRequestFailedError):
+                # HttpRequestFailedError should have been caught above, but handle just in case
+                mapped_error = self._hyperliquid_error_mapper.map_exchange_error(
+                    status_code=e_api.http_status or 500,
+                    error_body=e_api.exchange_message,
+                    error_data=None,
+                    request_path="/info",
+                    original_exception=e_api,
+                )
+            else:
+                # For generic APIErrors, map as a generic 500 error to ensure consistent transformation
+                mapped_error = self._hyperliquid_error_mapper.map_exchange_error(
+                    status_code=e_api.http_status or 500,
+                    error_body=e_api.message,
+                    error_data=None,
+                    request_path="/info",
+                    original_exception=e_api,
+                )
+
             logger.error(
                 f"[{self.exchange_name}] API Error fetching asset index for {symbol}: {e_api}"
             )
 
             raise APIError(
-                f"Failed to fetch asset index for symbol '{symbol}': {e_api.message}",
-                code=e_api.code,
-                original_exception=e_api,
-                http_status=e_api.http_status,
+                f"Failed to fetch asset index for symbol '{symbol}': {mapped_error.message}",
+                code=mapped_error.code,
+                original_exception=e_api,  # Preserve the original exception
+                http_status=mapped_error.http_status,
             ) from e_api
 
         try:
