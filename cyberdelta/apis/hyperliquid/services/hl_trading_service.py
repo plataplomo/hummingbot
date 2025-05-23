@@ -23,9 +23,9 @@ from cyberdelta.apis.hyperliquid.hl_response_handler import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
     HyperliquidApiCancelOrderRequest,
-    HyperliquidApiPlaceOrderRequest,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
+    HyperliquidRawBatchPlaceOrderActionPayload,
     HyperliquidRawCancelOrderAction,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
@@ -41,7 +41,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOpenOrdersRequestPayload,
     HyperliquidRawOpenOrdersResponse,
 )
-from cyberdelta.apis.hyperliquid.models.hl_raw_order import HyperliquidRawPlaceOrderAction
 from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
     HyperliquidRawOrderStatusRequestPayload,
 )
@@ -102,12 +101,12 @@ class HyperliquidTradingService:
 
     async def _place_order_raw(
         self,
-        place_order_action: HyperliquidRawPlaceOrderAction,
-    ) -> HyperliquidRawExchangeResponse:
+        place_order_payload: HyperliquidRawBatchPlaceOrderActionPayload,
+    ) -> tuple[HyperliquidRawExchangeResponse, int]:
         """
-        Private method to place an order, using the raw action model.
-        The builder will wrap this action into the full HyperliquidApiPlaceOrderRequest.
-        Returns the raw exchange response Pydantic model.
+        Private method to place an order, using the raw batch order payload model.
+        The payload is already built by the request builder with the correct format.
+        Returns the raw exchange response Pydantic model and HTTP status code.
         """
         # Early authentication checks - fail fast if auth requirements not met
         if not self._authenticator:
@@ -120,9 +119,8 @@ class HyperliquidTradingService:
         if not self._wallet_address:
             raise APIError(_error_msg_wallet_addr, APIErrorCode.AUTHENTICATION_FAILED.value)
 
-        request_payload_model: HyperliquidApiPlaceOrderRequest = HyperliquidApiPlaceOrderRequest(
-            type="order", actions=[place_order_action]
-        )
+        # Use the payload directly - it's already in the correct format
+        request_payload_model = place_order_payload
 
         try:
             raw_response_tuple = await self._exchange_http_client_requester(
@@ -132,15 +130,18 @@ class HyperliquidTradingService:
                 is_signed=True,
             )
             raw_content = raw_response_tuple[0]
+            http_status = raw_response_tuple[1]  # Capture the HTTP status code
             if raw_content is None:
                 _error_msg_no_content = (
                     f"Exchange action ({request_payload_model.type}) returned no content."
                 )
                 raise APIError(_error_msg_no_content, APIErrorCode.INVALID_RESPONSE.value)
-            return self._response_handler.handle_exchange_response(
+
+            exchange_response = self._response_handler.handle_exchange_response(
                 cast(RawJsonResponse, raw_content),
                 action_type=request_payload_model.type,
             )
+            return exchange_response, http_status
         except APIError as e:
             logger.error(f"[{self._exchange_name}] API error placing order raw: {e.message}")
             raise
@@ -152,11 +153,11 @@ class HyperliquidTradingService:
     async def _cancel_order_raw(
         self,
         cancel_action: HyperliquidRawCancelOrderAction,
-    ) -> HyperliquidRawExchangeResponse:
+    ) -> tuple[HyperliquidRawExchangeResponse, int]:
         """
         Private method to cancel an order, using the raw action model.
         The builder wraps this in HyperliquidApiCancelOrderRequest.
-        Returns the raw exchange response Pydantic model.
+        Returns the raw exchange response Pydantic model and HTTP status code.
         """
         # Early authentication checks - fail fast if auth requirements not met
         if not self._authenticator:
@@ -181,15 +182,18 @@ class HyperliquidTradingService:
                 is_signed=True,
             )
             raw_content = raw_response_tuple[0]
+            http_status = raw_response_tuple[1]  # Capture the HTTP status code
             if raw_content is None:
                 _error_msg_no_content = (
                     f"Exchange action ({request_payload_model.type}) returned no content."
                 )
                 raise APIError(_error_msg_no_content, APIErrorCode.INVALID_RESPONSE.value)
-            return self._response_handler.handle_exchange_response(
+
+            exchange_response = self._response_handler.handle_exchange_response(
                 raw_content,
                 action_type=request_payload_model.type,
             )
+            return exchange_response, http_status
         except APIError as e:
             logger.error(f"[{self._exchange_name}] API error cancelling order raw: {e.message}")
             raise
@@ -340,36 +344,21 @@ class HyperliquidTradingService:
             _error_msg_asset_idx = f"Asset index for {symbol} not found."
             raise APIError(_error_msg_asset_idx, APIErrorCode.INVALID_SYMBOL.value)
 
-        raw_limit_px_str = str(price)
-        raw_sz_str = str(quantity)
-
-        hl_order_type_obj: Any
-        if order_type == OrderType.LIMIT or (post_only and order_type == OrderType.MARKET):
-            tif_str_val = "Gtc"
-            if time_in_force == TimeInForce.IOC:
-                tif_str_val = "Ioc"
-            if time_in_force == TimeInForce.ALO or post_only:
-                tif_str_val = "Alo"
-            hl_order_type_obj = {"limit": {"tif": tif_str_val}}
-        elif order_type == OrderType.MARKET:
-            hl_order_type_obj = {"market": {}}
-        else:
-            raise ValueError(
-                f"Order type {order_type} basic mapping not fully implemented here, "
-                f"use Limit/Market."
-            )
-
-        place_action = HyperliquidRawPlaceOrderAction(
-            asset=asset_index,
-            isBuy=(side == OrderSide.BUY),
-            limitPx=raw_limit_px_str,
-            sz=raw_sz_str,
-            reduceOnly=reduce_only,
-            orderType=hl_order_type_obj,
-            cloid=client_order_id,
+        # Use the request builder to create the proper payload format
+        place_order_payload = self._request_builder.build_place_order_payload(
+            asset_index=asset_index,
+            side=side,
+            order_type=order_type,
+            quantity=quantity,
+            time_in_force=time_in_force,
+            price=price,
+            stop_price=stop_price,
+            client_order_id=client_order_id,
+            reduce_only=reduce_only,
+            post_only=post_only,
         )
 
-        raw_exchange_response = await self._place_order_raw(place_action)
+        raw_exchange_response, http_status = await self._place_order_raw(place_order_payload)
 
         if raw_exchange_response.data and raw_exchange_response.data.statuses:
             first_status = raw_exchange_response.data.statuses[0]
@@ -412,7 +401,7 @@ class HyperliquidTradingService:
                 elif first_status.error:
                     # Use the error mapper to get the specific error code for this message
                     mapped_error = self._error_mapper.map_string_error(
-                        first_status.error, http_status=None
+                        first_status.error, http_status=http_status
                     )
                     raise mapped_error
             elif "error" in first_status.lower():
@@ -454,7 +443,7 @@ class HyperliquidTradingService:
             raise APIError(_error_msg_asset_idx, APIErrorCode.INVALID_SYMBOL.value)
 
         cancel_action = HyperliquidRawCancelOrderAction(asset=asset_index, oid=order_id)
-        raw_exchange_response = await self._cancel_order_raw(cancel_action)
+        raw_exchange_response, _http_status = await self._cancel_order_raw(cancel_action)
 
         if raw_exchange_response.data and raw_exchange_response.data.statuses:
             first_status = raw_exchange_response.data.statuses[0]

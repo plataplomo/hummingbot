@@ -150,6 +150,34 @@ class HttpClient:
             else:
                 logger.debug(f"[{self.exchange_name}] Internal ClientSession already closed/None.")
 
+    def _clean_order_type_fields(self, data: dict[str, Any]) -> None:
+        """
+        Recursively clean None values from order type structures in JSON payload.
+        This is specifically for Hyperliquid API which expects order types to have
+        only the active field (limit OR market), not both with one as null.
+        """
+        # Handle order type structures: {"limit": {...}, "market": null} -> {"limit": {...}}
+        if "limit" in data and "market" in data:
+            # This looks like an order type structure
+            if data["limit"] is None and data["market"] is not None:
+                del data["limit"]
+            elif data["market"] is None and data["limit"] is not None:
+                del data["market"]
+
+        # Recursively clean nested structures
+        for value in data.values():
+            if isinstance(value, dict):
+                # Type assertion since we've checked isinstance
+                dict_value: dict[str, Any] = value
+                self._clean_order_type_fields(dict_value)
+            elif isinstance(value, list):
+                item: Any
+                for item in value:
+                    if isinstance(item, dict):
+                        # Type assertion since we've checked isinstance
+                        dict_item: dict[str, Any] = item
+                        self._clean_order_type_fields(dict_item)
+
     async def _parse_and_validate_response(
         self,
         response: aiohttp.ClientResponse,
@@ -306,21 +334,27 @@ class HttpClient:
                 json_payload = request_data.model_dump(
                     by_alias=True, exclude_none=not serialize_none_as_null
                 )
+
+                # Special handling for Hyperliquid order types: ensure order type fields
+                # exclude None values even when serialize_none_as_null=True
+                if serialize_none_as_null:
+                    self._clean_order_type_fields(json_payload)
+
                 logger.debug(
                     f"[{self.exchange_name}] Converted BaseModel to dict for JSON payload. "
                     f"Original type: {type(request_data)}. Dumped data: {json_payload}"
                 )
-            elif isinstance(request_data, dict):
-                json_payload = request_data
-            else:
-                # This case indicates an unexpected type for a JSON payload.
-                # If it's not BaseModel or dict, and we're expecting JSON, this is an error.
-                # For now, we'll log a warning and treat it as a non-JSON payload,
-                # which means it won't be sent via the 'json' parameter.
-                logger.warning(
-                    f"[{self.exchange_name}] Unexpected data type for JSON payload. "
-                    f"Expected BaseModel or dict, got {type(request_data)}. Data: {request_data!r}"
+                # Log the actual JSON string that will be sent for debugging serialization issues
+                import json
+
+                json_string = json.dumps(json_payload)
+                logger.info(
+                    f"[{self.exchange_name}] JSON payload to be sent to {endpoint_path}: {json_string}"
                 )
+            else:
+                # DEFENSIVE CHECK: request_data must be dict[str, Any] based on type annotation
+                # since it's not None and not BaseModel. Mypy=[redundant-expr]
+                json_payload = request_data
 
         if endpoint_path.startswith(("http://", "https://")):
             full_url = endpoint_path

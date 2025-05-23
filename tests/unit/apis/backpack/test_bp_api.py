@@ -330,9 +330,9 @@ class TestBackpackAPI_Authentication:
         mock_build_payload.return_value = expected_builder_payload
 
         def http_client_request_side_effect(
-            *args: Any,
-            **kwargs: Any,
-        ) -> tuple[dict[str, Any], MagicMock, MagicMock]:
+            *args: object,
+            **kwargs: object,
+        ) -> tuple[dict[str, Any], int, MagicMock, MagicMock]:
             print("[TEST DEBUG] mock_http_client_request called!", flush=True)
             # Print the authenticator it received
             authenticator_received = kwargs.get("authenticator")
@@ -350,7 +350,8 @@ class TestBackpackAPI_Authentication:
                 f"[TEST DEBUG] Type of authenticator_received: {type(authenticator_received)}",
                 flush=True,
             )
-            # Ensure side_effect returns a 4-tuple: (content, status_code, processed_headers, raw_headers)
+            # Ensure side_effect returns a 4-tuple:
+            # (content, status_code, processed_headers, raw_headers)
             return (
                 mock_order_response_content,  # content
                 200,  # status_code (e.g., 200 for success)
