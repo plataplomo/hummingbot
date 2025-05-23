@@ -834,7 +834,7 @@ class TestHyperliquidMarketDataService:
         mock_http_client_requester: AsyncMock,
         mock_hl_request_builder: MagicMock,
         mock_hl_response_handler: MagicMock,
-        mocker: MagicMock,  # Added type hint for mocker
+        mock_hl_mapper: MagicMock,
     ) -> None:
         """Test get_historical_funding_rates successfully retrieves and processes data."""
         symbol = "ETH"
@@ -888,10 +888,9 @@ class TestHyperliquidMarketDataService:
             mock_validated_raw_items
         )
 
-        mock_transform_method = mocker.patch.object(
-            hyperliquid_market_data_service._mapper,
-            "transform_raw_funding_history_item_to_internal",
-            side_effect=mock_internal_funding_rates,
+        # Configure the mock mapper to return the expected internal funding rates
+        mock_hl_mapper.transform_raw_funding_history_item_to_internal.side_effect = (
+            mock_internal_funding_rates
         )
 
         result = await hyperliquid_market_data_service.get_historical_funding_rates(
@@ -910,9 +909,11 @@ class TestHyperliquidMarketDataService:
         mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
             raw_response_content=mock_raw_response_data, status_code=200, headers=mock_headers
         )
-        assert mock_transform_method.call_count == len(mock_validated_raw_items)
+        assert mock_hl_mapper.transform_raw_funding_history_item_to_internal.call_count == len(
+            mock_validated_raw_items
+        )
         for raw_item in mock_validated_raw_items:
-            mock_transform_method.assert_any_call(raw_item)
+            mock_hl_mapper.transform_raw_funding_history_item_to_internal.assert_any_call(raw_item)
         assert result == mock_internal_funding_rates
 
     @pytest.mark.asyncio
@@ -1027,7 +1028,7 @@ class TestHyperliquidMarketDataService:
         mock_http_client_requester: AsyncMock,
         mock_hl_request_builder: MagicMock,
         mock_hl_response_handler: MagicMock,
-        mocker: MagicMock,
+        mock_hl_mapper: MagicMock,
     ) -> None:
         """Test get_historical_funding_rates when mapper raises an error."""
         symbol = "ETH"
@@ -1059,11 +1060,11 @@ class TestHyperliquidMarketDataService:
             mock_validated_raw_items
         )
 
-        mock_transform_method = mocker.patch.object(
-            hyperliquid_market_data_service._mapper,
-            "transform_raw_funding_history_item_to_internal",
-            side_effect=ValueError("Test mapper error"),
+        # Configure the mock mapper to raise an error
+        mock_hl_mapper.transform_raw_funding_history_item_to_internal.side_effect = ValueError(
+            "Test mapper error"
         )
+
         with pytest.raises(APIError) as exc_info:
             await hyperliquid_market_data_service.get_historical_funding_rates(
                 symbol, start_time_ms, end_time_ms
@@ -1073,7 +1074,9 @@ class TestHyperliquidMarketDataService:
                 "Processing historical funding rate data failed: ValueError('Test mapper error')"
                 in exc_info.value.message
             )
-            mock_transform_method.assert_called_once_with(mock_validated_raw_items[0])
+            mock_hl_mapper.transform_raw_funding_history_item_to_internal.assert_called_once_with(
+                mock_validated_raw_items[0]
+            )
 
     @pytest.mark.asyncio
     async def test_get_historical_funding_rates_api_error_from_handler(

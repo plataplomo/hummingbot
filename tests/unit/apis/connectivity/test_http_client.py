@@ -293,6 +293,7 @@ class TestHttpClient:
         )
 
         assert content == expected_body_dict
+        assert status_code == 200
         assert processed_headers.content_type == "application/json; charset=utf-8"
         assert raw_headers.get("Content-Type") == "application/json; charset=utf-8"
 
