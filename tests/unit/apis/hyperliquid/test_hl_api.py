@@ -211,6 +211,98 @@ def mock_meta_response_content_missing_symbol() -> list[RawJsonResponse]:
     ]
 
 
+@pytest.fixture
+def mock_raw_user_state_fixture() -> HyperliquidRawClearinghouseState:
+    """Provides a valid HyperliquidRawClearinghouseState fixture."""
+    return HyperliquidRawClearinghouseState(
+        assetPositions=[
+            HyperliquidRawAssetPosition(
+                asset="ETH-PERP",
+                position=HyperliquidRawPositionInfo(
+                    coin="ETH-PERP",
+                    szi="1.0",
+                    entryPx="3000.0",
+                    leverage=HyperliquidRawLeverage(type="cross", value=10),
+                    liquidationPx="2700.0",
+                    marginUsed="300.0",
+                    maxLeverage=50,
+                    positionValue="3000.0",
+                    returnOnEquity="0.0",
+                    unrealizedPnl="50.0",
+                ),
+            ),
+            HyperliquidRawAssetPosition(
+                asset="BTC-PERP",
+                position=HyperliquidRawPositionInfo(
+                    coin="BTC-PERP",
+                    szi="-0.1",
+                    entryPx="60000.0",
+                    leverage=HyperliquidRawLeverage(type="isolated", value=5),
+                    liquidationPx="65000.0",
+                    marginUsed="1200.0",
+                    maxLeverage=20,
+                    positionValue="-6000.0",
+                    returnOnEquity="0.0",
+                    unrealizedPnl="-100.0",
+                ),
+            ),
+        ],
+        crossMaintenanceMarginUsed="30.0",
+        crossMarginSummary=HyperliquidRawMarginSummary(
+            accountValue="10000.0",
+            totalMarginUsed="1500.0",
+            totalNtlPos="9000.0",
+            totalRawUsd="8500.0",
+        ),
+        marginSummary=HyperliquidRawMarginSummary(
+            accountValue="10000.0",
+            totalMarginUsed="1500.0",
+            totalNtlPos="9000.0",
+            totalRawUsd="8500.0",
+        ),
+        isolatedMaintenanceMarginUsed="120.0",
+        isolatedMarginSummary=HyperliquidRawMarginSummary(
+            accountValue="0",
+            totalMarginUsed="0",
+            totalNtlPos="0",
+            totalRawUsd="0",
+        ),
+        withdrawable="8500.0",
+    )
+
+
+@pytest.fixture
+def expected_margin_account_summary_from_hl_fixture() -> MarginAccountSummary:
+    """Provides an expected MarginAccountSummary fixture for HL tests."""
+    # This should align with how HyperliquidMapper transforms mock_raw_user_state_fixture
+    # Specifically, total_unrealized_pnl should be sum of mapped positions' PnL.
+    # Mapped positions from mock_raw_user_state_fixture:
+    # ETH-PERP: pnl = 50
+    # BTC-PERP: pnl = -100
+    # Total unrealized = 50 - 100 = -50
+
+    # Ensure UTC is defined correctly
+    # For Pydantic v2, datetime objects should be timezone-aware when comparing.
+    # If datetime.now(UTC) was intended, define UTC = timezone.utc
+    current_utc_time = datetime.now(UTC)
+
+    return MarginAccountSummary(
+        exchange="hyperliquid",
+        timestamp=current_utc_time,
+        total_equity=Decimal("10000.0"),
+        available_equity=Decimal("8500.0"),
+        total_initial_margin_required=None,  # Hyperliquid does not provide this directly
+        total_maintenance_margin_required=Decimal("150.0"),  # cross (30) + isolated (120)
+        total_position_notional=Decimal("9000.0"),  # Based on mock raw user state
+        total_unrealized_pnl=Decimal("-50.0"),  # Sum of PnL from positions
+        hl_details=HyperliquidMarginDetails(
+            cross_maintenance_margin_used=Decimal("30.0"),
+            isolated_maintenance_margin_used=Decimal("120.0"),
+        ),
+        bp_details=None,  # Explicitly None
+    )
+
+
 # --- Initialization Tests --- #
 
 
@@ -654,10 +746,6 @@ class TestHyperliquidAPIWebSocketRouting:
             ("candle:SOL:1m", {"type": "candle", "coin": "SOL", "interval": "1m"}),
         ],
     )
-    @pytest.mark.skip(
-        "Protected method access - requires refactoring to public API or"
-        " explicit decision to allow testing protected method."
-    )
     async def test_construct_subscription_payload_valid_topics(
         self, api_for_ws_tests: HyperliquidAPI, topic: str, expected_sub_details: dict[str, Any]
     ) -> None:
@@ -705,10 +793,6 @@ class TestHyperliquidAPIWebSocketRouting:
         )
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(
-        "Protected method access - requires refactoring to public API or"
-        " explicit decision to allow testing protected method."
-    )
     async def test_construct_subscription_payload_invalid_topic(
         self, api_for_ws_tests: HyperliquidAPI
     ) -> None:
@@ -716,10 +800,6 @@ class TestHyperliquidAPIWebSocketRouting:
         assert payload is None
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(
-        "Protected method access - requires refactoring to public API or"
-        " explicit decision to allow testing protected method."
-    )
     async def test_construct_subscription_payload_user_event_no_address(
         self, api_for_ws_tests: HyperliquidAPI, mock_hl_auth_init: tuple[MagicMock, MagicMock]
     ) -> None:
@@ -742,11 +822,10 @@ class TestHyperliquidAPIWebSocketRouting:
             assert payload is None, "Should not construct userEvents payload without address"
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(
-        "Protected method access - requires refactoring to public API or"
-        " explicit decision to allow testing protected method."
-    )
-    async def test_route_ws_message_known_channel(self, api_for_ws_tests: HyperliquidAPI) -> None:
+    @patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidWsRawMessageHandler")
+    async def test_route_ws_message_known_channel(
+        self, mock_ws_handler_class: MagicMock, api_for_ws_tests: HyperliquidAPI
+    ) -> None:
         mock_handler: AsyncMock = AsyncMock()
         channel_name = "l2Book:ETH"  # Example specific channel name
         # api_for_ws_tests._ws_handlers[channel_name] = mock_handler # Original direct assignment
@@ -765,10 +844,6 @@ class TestHyperliquidAPIWebSocketRouting:
         mock_handler.assert_awaited_once_with(test_data_payload, test_message)
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(
-        "Protected method access - requires refactoring to public API or"
-        " explicit decision to allow testing protected method."
-    )
     async def test_route_ws_message_pong(
         self, api_for_ws_tests: HyperliquidAPI, caplog: LogCaptureFixture
     ) -> None:
@@ -782,10 +857,6 @@ class TestHyperliquidAPIWebSocketRouting:
         assert str(test_message) in caplog.text  # Ensure the message dict representation is there
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(
-        "Protected method access - requires refactoring to public API or"
-        " explicit decision to allow testing protected method."
-    )
     async def test_route_ws_message_error_channel(
         self, api_for_ws_tests: HyperliquidAPI, caplog: LogCaptureFixture
     ) -> None:
@@ -801,10 +872,6 @@ class TestHyperliquidAPIWebSocketRouting:
         assert expected_log in caplog.text
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(
-        "Protected method access - requires refactoring to public API or"
-        " explicit decision to allow testing protected method."
-    )
     async def test_route_ws_message_subscription_response(
         self, api_for_ws_tests: HyperliquidAPI, caplog: LogCaptureFixture
     ) -> None:
@@ -819,10 +886,6 @@ class TestHyperliquidAPIWebSocketRouting:
         assert str(test_message) in caplog.text  # Ensure the message dict representation is there
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(
-        "Protected method access - requires refactoring to public API or"
-        " explicit decision to allow testing protected method."
-    )
     async def test_route_ws_message_no_handler(
         self, api_for_ws_tests: HyperliquidAPI, caplog: LogCaptureFixture
     ) -> None:
@@ -839,10 +902,6 @@ class TestHyperliquidAPIWebSocketRouting:
         assert expected_log in caplog.text
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(
-        "Protected method access - requires refactoring to public API or"
-        " explicit decision to allow testing protected method."
-    )
     async def test_route_ws_message_no_channel(
         self, api_for_ws_tests: HyperliquidAPI, caplog: LogCaptureFixture
     ) -> None:
@@ -866,10 +925,6 @@ class TestHyperliquidAPIWebSocketRouting:
         )
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(
-        "Protected method access - requires refactoring to public API or"
-        " explicit decision to allow testing protected method."
-    )
     async def test_route_ws_message_unknown_channel(
         self, api_for_ws_tests: HyperliquidAPI, caplog: LogCaptureFixture
     ) -> None:
@@ -882,10 +937,6 @@ class TestHyperliquidAPIWebSocketRouting:
 
     @pytest.mark.asyncio
     @patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidWsRawMessageHandler")
-    @pytest.mark.skip(
-        "Protected method access - requires refactoring to public API or"
-        " explicit decision to allow testing protected method."
-    )
     async def test_route_ws_message_l2book_calls_handler(
         self, mock_ws_handler_class: MagicMock, api_for_ws_tests: HyperliquidAPI
     ) -> None:
@@ -915,10 +966,6 @@ class TestHyperliquidAPIWebSocketRouting:
 
     @pytest.mark.asyncio
     @patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidWsRawMessageHandler")
-    @pytest.mark.skip(
-        "Protected method access - requires refactoring to public API or"
-        " explicit decision to allow testing protected method."
-    )
     async def test_route_ws_message_trades_calls_handler(
         self, mock_ws_handler_class: MagicMock, api_for_ws_tests: HyperliquidAPI
     ) -> None:
@@ -957,10 +1004,6 @@ class TestHyperliquidAPIWebSocketRouting:
 
     @pytest.mark.asyncio
     @patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidWsRawMessageHandler")
-    @pytest.mark.skip(
-        "Protected method access - requires refactoring to public API or"
-        " explicit decision to allow testing protected method."
-    )
     async def test_route_ws_message_allmids_calls_handler(
         self, mock_ws_handler_class: MagicMock, api_for_ws_tests: HyperliquidAPI
     ) -> None:
@@ -1013,10 +1056,6 @@ class TestHyperliquidAPIWebSocketRouting:
             ),
         ],
     )
-    @pytest.mark.skip(
-        "Protected method access - requires refactoring to public API or"
-        " explicit decision to allow testing protected method."
-    )
     async def test_route_ws_message_user_events_simple_calls_handler(
         self,
         mock_ws_handler_class: MagicMock,
@@ -1047,10 +1086,6 @@ class TestHyperliquidAPIWebSocketRouting:
     @pytest.mark.asyncio
     @patch(f"{HL_API_PATH}.HyperliquidWsRawMessageHandler.handle_user_order_update_wrapper_payload")
     @patch(f"{HL_API_PATH}.HyperliquidWsRawMessageHandler.handle_user_order_event_payload")
-    @pytest.mark.skip(
-        "Protected method access - requires refactoring to public API or"
-        " explicit decision to allow testing protected method."
-    )
     async def test_route_ws_message_user_event_order_calls_handlers(
         self,
         mock_handle_order_event: MagicMock,
@@ -1110,98 +1145,6 @@ class TestHyperliquidAPIWebSocketRouting:
 
 
 # --- Get Account Summary Tests --- #
-
-
-@pytest.fixture
-def mock_raw_user_state_fixture() -> HyperliquidRawClearinghouseState:
-    """Provides a valid HyperliquidRawClearinghouseState fixture."""
-    return HyperliquidRawClearinghouseState(
-        assetPositions=[
-            HyperliquidRawAssetPosition(
-                asset="ETH-PERP",
-                position=HyperliquidRawPositionInfo(
-                    coin="ETH-PERP",
-                    szi="1.0",
-                    entryPx="3000.0",
-                    leverage=HyperliquidRawLeverage(type="cross", value=10),
-                    liquidationPx="2700.0",
-                    marginUsed="300.0",
-                    maxLeverage=50,
-                    positionValue="3000.0",
-                    returnOnEquity="0.0",
-                    unrealizedPnl="50.0",
-                ),
-            ),
-            HyperliquidRawAssetPosition(
-                asset="BTC-PERP",
-                position=HyperliquidRawPositionInfo(
-                    coin="BTC-PERP",
-                    szi="-0.1",
-                    entryPx="60000.0",
-                    leverage=HyperliquidRawLeverage(type="isolated", value=5),
-                    liquidationPx="65000.0",
-                    marginUsed="1200.0",
-                    maxLeverage=20,
-                    positionValue="-6000.0",
-                    returnOnEquity="0.0",
-                    unrealizedPnl="-100.0",
-                ),
-            ),
-        ],
-        crossMaintenanceMarginUsed="30.0",
-        crossMarginSummary=HyperliquidRawMarginSummary(
-            accountValue="10000.0",
-            totalMarginUsed="1500.0",
-            totalNtlPos="9000.0",
-            totalRawUsd="8500.0",
-        ),
-        marginSummary=HyperliquidRawMarginSummary(
-            accountValue="10000.0",
-            totalMarginUsed="1500.0",
-            totalNtlPos="9000.0",
-            totalRawUsd="8500.0",
-        ),
-        isolatedMaintenanceMarginUsed="120.0",
-        isolatedMarginSummary=HyperliquidRawMarginSummary(
-            accountValue="0",
-            totalMarginUsed="0",
-            totalNtlPos="0",
-            totalRawUsd="0",
-        ),
-        withdrawable="8500.0",
-    )
-
-
-@pytest.fixture
-def expected_margin_account_summary_from_hl_fixture() -> MarginAccountSummary:
-    """Provides an expected MarginAccountSummary fixture for HL tests."""
-    # This should align with how HyperliquidMapper transforms mock_raw_user_state_fixture
-    # Specifically, total_unrealized_pnl should be sum of mapped positions' PnL.
-    # Mapped positions from mock_raw_user_state_fixture:
-    # ETH-PERP: pnl = 50
-    # BTC-PERP: pnl = -100
-    # Total unrealized = 50 - 100 = -50
-
-    # Ensure UTC is defined correctly
-    # For Pydantic v2, datetime objects should be timezone-aware when comparing.
-    # If datetime.now(UTC) was intended, define UTC = timezone.utc
-    current_utc_time = datetime.now(UTC)
-
-    return MarginAccountSummary(
-        exchange="hyperliquid",
-        timestamp=current_utc_time,
-        total_equity=Decimal("10000.0"),
-        available_equity=Decimal("8500.0"),
-        total_initial_margin_required=None,  # Hyperliquid does not provide this directly
-        total_maintenance_margin_required=Decimal("150.0"),  # cross (30) + isolated (120)
-        total_position_notional=Decimal("9000.0"),  # Based on mock raw user state
-        total_unrealized_pnl=Decimal("-50.0"),  # Sum of PnL from positions
-        hl_details=HyperliquidMarginDetails(
-            cross_maintenance_margin_used=Decimal("30.0"),
-            isolated_maintenance_margin_used=Decimal("120.0"),
-        ),
-        bp_details=None,  # Explicitly None
-    )
 
 
 @pytest.mark.asyncio
