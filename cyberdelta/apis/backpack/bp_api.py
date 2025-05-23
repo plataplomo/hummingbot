@@ -343,7 +343,19 @@ class BackpackAPI(ExchangeAPI):
 
     async def get_ticker(self, symbol: str) -> Ticker:
         """Retrieves the latest ticker information for a specific symbol."""
-        return await self.market_data_service.get_ticker(symbol=symbol)
+        try:
+            return await self.market_data_service.get_ticker(symbol=symbol)
+        except APIError:
+            # Re-raise APIError as-is
+            raise
+        except Exception as e:
+            # Wrap unexpected exceptions in APIError
+            logger.error(f"[{self.exchange_name}] Unexpected error in get_ticker: {e}")
+            raise APIError(
+                message=f"Failed to get ticker for symbol {symbol}: {str(e)}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
 
     async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
         """Retrieves the order book for a specific symbol."""

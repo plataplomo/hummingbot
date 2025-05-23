@@ -992,7 +992,8 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
             APIErrorCode.UNKNOWN.value,
             APIErrorCode.EXCHANGE_SPECIFIC.value,
         ]
-        assert "RuntimeError" in str(exc_info.value.original_exception)
+        assert isinstance(exc_info.value.original_exception, RuntimeError)
+        assert "Unexpected service failure" in str(exc_info.value.original_exception)
 
         await api.close()
 
@@ -1009,7 +1010,7 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await api.cancel_order("order_123", symbol="ETH")
+            await api.cancel_order("12345", symbol="ETH")
 
         assert exc_info.value.code == APIErrorCode.INSUFFICIENT_FUNDS.value
         assert "Insufficient funds" in exc_info.value.message
@@ -1064,10 +1065,18 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
 
     @pytest.mark.asyncio
     async def test_get_ticker_none_symbol_input(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI]
+        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_market_data_service: MagicMock
     ) -> None:
         """Test get_ticker behavior with None symbol input."""
         api = hl_api_with_di()
+
+        # Configure mock service to raise TypeError for None input (simulating real service behavior)
+        def mock_get_ticker_side_effect(symbol: str | None) -> None:
+            if symbol is None:
+                raise TypeError("symbol must be a string, not NoneType")
+            return None  # This won't be reached for None input
+
+        mock_hl_market_data_service.get_ticker.side_effect = mock_get_ticker_side_effect
 
         # This should be handled by type hints, but test runtime behavior
         with pytest.raises((APIError, TypeError, ValueError)):

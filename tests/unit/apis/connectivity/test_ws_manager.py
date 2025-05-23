@@ -953,7 +953,8 @@ class TestWebSocketManagerComprehensiveErrorHandling:
                 (WSMsgType.CLOSE, None, None),
             ]
         )
-        mock_ws_connect.return_value = mock_conn
+        # Make ws_connect properly awaitable using side_effect
+        mock_ws_connect.side_effect = AsyncMock(return_value=mock_conn)
 
         manager = WebSocketManager(
             exchange_name="test_exchange",
@@ -999,7 +1000,8 @@ class TestWebSocketManagerComprehensiveErrorHandling:
                 (WSMsgType.CLOSE, None, None),
             ]
         )
-        mock_ws_connect.return_value = mock_conn
+        # Make ws_connect properly awaitable using side_effect
+        mock_ws_connect.side_effect = AsyncMock(return_value=mock_conn)
 
         manager = WebSocketManager(
             exchange_name="test_exchange",
@@ -1017,7 +1019,7 @@ class TestWebSocketManagerComprehensiveErrorHandling:
         assert len(processed_messages) == 2
         assert processed_messages[0] == {"valid": "json"}
         assert processed_messages[1] == {"another": "valid"}
-        assert "Failed to parse JSON message" in caplog.text
+        assert "Received non-JSON WebSocket message" in caplog.text
 
         await manager.close()
 

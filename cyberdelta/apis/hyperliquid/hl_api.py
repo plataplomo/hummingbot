@@ -1094,18 +1094,30 @@ class HyperliquidAPI(ExchangeAPI):
                 APIErrorCode.INVALID_REQUEST.value,
             )
 
-        return await self.trading_service.place_order(
-            symbol=symbol,
-            side=side,
-            order_type=order_type,
-            quantity=quantity,
-            price=final_price,
-            time_in_force=time_in_force,
-            stop_price=stop_price,
-            client_order_id=client_order_id,
-            reduce_only=reduce_only,
-            post_only=post_only,
-        )
+        try:
+            return await self.trading_service.place_order(
+                symbol=symbol,
+                side=side,
+                order_type=order_type,
+                quantity=quantity,
+                price=final_price,
+                time_in_force=time_in_force,
+                stop_price=stop_price,
+                client_order_id=client_order_id,
+                reduce_only=reduce_only,
+                post_only=post_only,
+            )
+        except APIError:
+            # Re-raise APIError as-is
+            raise
+        except Exception as e:
+            # Wrap unexpected exceptions in APIError
+            logger.error(f"[{self.exchange_name}] Unexpected error in place_order: {e}")
+            raise APIError(
+                message=f"Failed to place order for symbol {symbol}: {str(e)}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
         """Cancels a specific order by its ID."""
@@ -1119,7 +1131,19 @@ class HyperliquidAPI(ExchangeAPI):
             )
             return False
 
-        return await self.trading_service.cancel_order(symbol=symbol, order_id=order_id_int)
+        try:
+            return await self.trading_service.cancel_order(symbol=symbol, order_id=order_id_int)
+        except APIError:
+            # Re-raise APIError as-is
+            raise
+        except Exception as e:
+            # Wrap unexpected exceptions in APIError
+            logger.error(f"[{self.exchange_name}] Unexpected error in cancel_order: {e}")
+            raise APIError(
+                message=f"Failed to cancel order {order_id} for symbol {symbol}: {str(e)}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
         """Cancels all open orders, optionally filtered by symbol."""

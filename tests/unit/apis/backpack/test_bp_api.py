@@ -811,7 +811,8 @@ class TestBackpackAPIComprehensiveErrorHandling:
             APIErrorCode.UNKNOWN.value,
             APIErrorCode.EXCHANGE_SPECIFIC.value,
         ]
-        assert "RuntimeError" in str(exc_info.value.original_exception)
+        assert isinstance(exc_info.value.original_exception, RuntimeError)
+        assert "Unexpected service failure" in str(exc_info.value.original_exception)
 
         await api.close()
 
@@ -883,10 +884,18 @@ class TestBackpackAPIComprehensiveErrorHandling:
 
     @pytest.mark.asyncio
     async def test_get_ticker_none_symbol_input(
-        self, bp_api_with_di: Callable[..., BackpackAPI]
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_market_data_service: MagicMock
     ) -> None:
         """Test get_ticker behavior with None symbol input."""
         api = bp_api_with_di()
+
+        # Configure mock service to raise TypeError for None input (simulating real service behavior)
+        def mock_get_ticker_side_effect(symbol: str | None) -> None:
+            if symbol is None:
+                raise TypeError("symbol must be a string, not NoneType")
+            return None  # This won't be reached for None input
+
+        mock_bp_market_data_service.get_ticker.side_effect = mock_get_ticker_side_effect
 
         # This should be handled by type hints, but test runtime behavior
         with pytest.raises((APIError, TypeError, ValueError)):

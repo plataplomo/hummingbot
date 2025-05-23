@@ -237,21 +237,33 @@ class HyperliquidMarketDataService:
 
     async def get_order_book(self, symbol: str) -> OrderBook | None:
         """
-        Retrieves the L2 order book for a specific symbol using a POST request to /info
-        with a specific payload: {"type": "l2Book", "coin": "SYMBOL"}.
+        Retrieves the order book for a specific symbol using a POST request to /info
+        with a payload: {"type": "l2Book", "coin": "SYMBOL"}.
 
         Args:
             symbol: The trading symbol (e.g., "ETH").
 
         Returns:
-            An OrderBook object containing the validated raw order book data.
+            An OrderBook object or None if the symbol is not found.
 
         Raises:
             APIError: If the API request fails or the response is invalid.
         """
         endpoint_path = "/info"
         # Assuming HyperliquidRequestBuilder has or will have this method:
-        request_payload_model = self._request_builder.build_l2_book_request_payload(symbol=symbol)
+        try:
+            request_payload_model = self._request_builder.build_l2_book_request_payload(
+                symbol=symbol
+            )
+        except Exception as e:
+            # Wrap request builder exceptions in APIError
+            logger.error(f"[{self._exchange_name}] Request builder failed for l2Book: {e}")
+            raise APIError(
+                message=f"Failed to build l2Book request for symbol {symbol}: {str(e)}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
+
         request_payload_data: dict[str, Any] = request_payload_model.model_dump(
             by_alias=True, exclude_none=True
         )
@@ -594,7 +606,7 @@ class HyperliquidMarketDataService:
                 )
                 raise APIError(
                     message=f"Processing historical funding rate data failed: {e}",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    code=APIErrorCode.UNKNOWN.value,
                     original_exception=e,
                 ) from e
 
@@ -626,9 +638,21 @@ class HyperliquidMarketDataService:
             f"[{self._exchange_name}] Getting market data (candles) for {symbol}, "
             f"interval {interval}, start {start_time_ms}, end {end_time_ms}"
         )
-        payload = self._request_builder.build_candle_snapshot_payload(
-            symbol=symbol, timeframe=interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
-        )
+        try:
+            payload = self._request_builder.build_candle_snapshot_payload(
+                symbol=symbol,
+                timeframe=interval,
+                start_time_ms=start_time_ms,
+                end_time_ms=end_time_ms,
+            )
+        except Exception as e:
+            # Wrap request builder exceptions in APIError
+            logger.error(f"[{self._exchange_name}] Request builder failed for candle snapshot: {e}")
+            raise APIError(
+                message=f"Failed to build candle snapshot request for symbol {symbol}: {str(e)}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
 
         raw_response_content, status_code, headers = await self._http_client_requester(
             method="POST",
