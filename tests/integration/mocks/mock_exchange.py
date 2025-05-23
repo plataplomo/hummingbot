@@ -26,7 +26,9 @@ from cyberdelta.core.models import (
     TimeInForce,
     Trade,
 )
+from cyberdelta.core.models.enums import CancelOrderResultStatus
 from cyberdelta.core.models.market import Candle
+from cyberdelta.core.models.market.order import CancelOrderResult
 
 # Correct the import to use the new typing module
 # REMOVED INCORRECT IMPORT: from cyberdelta.core.symbol_mapper import Symbol
@@ -48,13 +50,14 @@ class MockErrorMapper(IErrorMapper):
     def map_exchange_error(
         self,
         status_code: int,
-        error_body: str,
+        error_body: str | None,
         error_data: dict[str, Any] | None = None,
         request_path: str | None = None,
+        original_exception: Exception | None = None,
     ) -> APIError:
         exchange_code = getattr(self, "exchange_name", "MockExchange")
         return APIError(
-            message=error_body,
+            message=error_body or "Mock API Error",
             code=APIErrorCode.EXCHANGE_SPECIFIC.value,
             exchange_code=exchange_code,
         )
@@ -805,9 +808,9 @@ class MockExchangeAPI(ExchangeAPI):
         order_id: str,
         symbol: str | None = None,
         client_order_id: str | None = None,
-    ) -> Order:
+    ) -> Order | None:
         """
-        Get a specific order by ID or raise KeyError if not found (params ignored).
+        Get a specific order by ID, returning None if not found.
         """
         # Mark params as unused if necessary for linters
         _ = symbol
@@ -816,8 +819,8 @@ class MockExchangeAPI(ExchangeAPI):
         await self._simulate_latency()
         order = self._orders.get(order_id)
         if order is None:
-            raise KeyError(f"Mock order not found for order_id: {order_id}")
-        # Note: Base class expects Order, not Order | None. Mock now raises if not found.
+            logger.warning(f"Mock order not found for order_id: {order_id}")
+            return None
         return order
 
     # Corrected override signature
@@ -909,7 +912,7 @@ class MockExchangeAPI(ExchangeAPI):
         )
         return []
 
-    async def cancel_all_orders(self, symbol: str | None = None) -> None:
+    async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
         """Mock implementation for cancelling all orders."""
         self._check_error("cancel_all_orders")
         await self._simulate_latency()
@@ -919,17 +922,32 @@ class MockExchangeAPI(ExchangeAPI):
                 if symbol is None or order.symbol == symbol:
                     orders_to_cancel_ids.append(order_id)
 
+        results: list[CancelOrderResult] = []
         for order_id in orders_to_cancel_ids:
+            order = self._orders[order_id]
             self._orders[order_id].status = OrderStatus.CANCELED
             self._orders[order_id].updated_at = datetime.now(UTC)
             if order_id in self.open_orders:
                 del self.open_orders[order_id]
+
+            # Create a CancelOrderResult for each cancelled order
+            results.append(
+                CancelOrderResult(
+                    symbol=order.symbol,
+                    order_id=order_id,
+                    client_order_id=order.client_order_id,
+                    success=True,
+                    message="Successfully cancelled.",
+                    status=CancelOrderResultStatus.SUCCESS,
+                )
+            )
+
         logger.info(
             f"MockExchange {self.exchange_name}: Cancelled all orders "
             f"({len(orders_to_cancel_ids)})"
             f"{' for symbol ' + symbol if symbol else ''}."
         )
-        pass
+        return results
 
     async def get_order_history(
         self,
@@ -991,6 +1009,8 @@ class MockExchangeAPI(ExchangeAPI):
         # For now, this mock's close is mostly a placeholder for testability.
         # pass # This line will be removed
 
-    def set_order_book_behavior(self, behavior: str, data: Any | None = None) -> None:
+    def set_order_book_behavior(
+        self, behavior: str, data: dict[str, str | int | float] | None = None
+    ) -> None:
         """Configures the behavior of get_order_book."""
         # ... existing code ...

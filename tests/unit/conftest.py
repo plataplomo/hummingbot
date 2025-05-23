@@ -1,7 +1,7 @@
 import types
 from collections.abc import Callable
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
 import pytest
@@ -114,12 +114,12 @@ def mock_client_session() -> Callable[..., MockClientSession]:
 def hyperliquid_config() -> dict[str, Any]:
     """Fixture to provide Hyperliquid API configuration."""
     return {
-        "rest_endpoint": "https://api.hyperliquid.xyz",
+        "base_url": "https://api.hyperliquid.xyz",
         "ws_endpoint": "wss://api.hyperliquid.xyz/ws",
         "rate_limits": {
             "default_rate": 10.0,
-            "default_bucket": 50,
-            "endpoints": {"POST:/user": {"rate": 5.0, "bucket": 20}},
+            "default_bucket_size": 50,
+            "endpoints": {"POST:/user": {"rate": 5.0, "bucket_size": 20}},
         },
     }
 
@@ -128,12 +128,12 @@ def hyperliquid_config() -> dict[str, Any]:
 def backpack_config() -> dict[str, Any]:
     """Fixture to provide Backpack API configuration."""
     return {
-        "rest_endpoint": "https://api.backpack.exchange",
+        "base_url": "https://api.backpack.exchange",
         "ws_endpoint": "wss://ws.backpack.exchange",
         "rate_limits": {
             "default_rate": 10.0,
-            "default_bucket": 50,
-            "endpoints": {"GET:/api/v1/depth": {"rate": 5.0, "bucket": 20}},
+            "default_bucket_size": 50,
+            "endpoints": {"GET:/api/v1/depth": {"rate": 5.0, "bucket_size": 20}},
         },
     }
 
@@ -158,11 +158,11 @@ def hyperliquid_secrets() -> dict[str, str]:
 
 
 @pytest.fixture
-def backpack_secrets() -> dict[str, str]:
-    """Fixture to provide Backpack API secrets."""
+def backpack_secrets() -> dict[str, str | None]:
+    """Default secrets for BackpackAPI testing."""
     return {
-        "BACKPACK_API_KEY": "backpack-api-key-123456",
-        "BACKPACK_API_SECRET": "backpack-api-secret-123456",
+        "BACKPACK_API_KEY": "test_api_key",
+        "BACKPACK_API_SECRET": "test_api_secret",
     }
 
 
@@ -203,3 +203,19 @@ def mock_config() -> Callable[..., Config]:
         return Config(config_data)
 
     return _create_config
+
+
+@pytest.fixture
+def mock_hl_http_client() -> MagicMock:
+    """Mock HyperliquidHttpClient."""
+    mock_client = MagicMock()
+    mock_client.close_session = AsyncMock()
+    return mock_client
+
+
+@pytest.fixture
+def mock_bp_http_client() -> MagicMock:
+    """Mock BackpackHttpClient."""
+    mock_client = MagicMock()
+    mock_client.close_session = AsyncMock()
+    return mock_client

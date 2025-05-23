@@ -75,32 +75,58 @@ class BackpackAPI(ExchangeAPI):
     trading_service: BackpackTradingService
     market_data_service: BackpackMarketDataService
 
-    def __init__(self, api_config: dict[str, Any], secrets: dict[str, str | None]) -> None:
+    def __init__(
+        self,
+        api_config: dict[str, Any],
+        secrets: dict[str, str | None],
+        # Optional dependency injection parameters for testing
+        authenticator: BackpackHmacAuthenticator | None = None,
+        error_mapper: BackpackErrorMapper | None = None,
+        response_handler: BackpackResponseHandler | None = None,
+        request_builder: BackpackRequestBuilder | None = None,
+        order_mapper: BackpackOrderMapper | None = None,
+        account_service: BackpackAccountService | None = None,
+        trading_service: BackpackTradingService | None = None,
+        market_data_service: BackpackMarketDataService | None = None,
+    ) -> None:
         """
         Initialize the BackpackAPI client with configuration and secrets.
 
         Args:
             api_config: Dictionary of API configuration parameters.
             secrets: Dictionary of secret values (API key/secret).
+            authenticator: Optional authenticator instance for dependency injection
+            error_mapper: Optional error mapper instance for dependency injection
+            response_handler: Optional response handler instance for dependency injection
+            request_builder: Optional request builder instance for dependency injection
+            order_mapper: Optional order mapper instance for dependency injection
+            account_service: Optional account service instance for dependency injection
+            trading_service: Optional trading service instance for dependency injection
+            market_data_service: Optional market data service instance for dependency injection
         """
         self._api_key = secrets.get("BACKPACK_API_KEY")
         self._api_secret = secrets.get("BACKPACK_API_SECRET")
 
-        if self._api_key and self._api_secret:
-            self._bp_authenticator: BackpackHmacAuthenticator | None = BackpackHmacAuthenticator(
-                api_key=self._api_key, api_secret=self._api_secret
-            )
+        # Use injected authenticator or create one
+        if authenticator is not None:
+            self._bp_authenticator: BackpackHmacAuthenticator | None = authenticator
         else:
-            logger.warning(
-                "Backpack API key/secret not provided. Signed operations will fail. "
-                "Authenticator not initialized."
-            )
-            self._bp_authenticator = None
+            if self._api_key and self._api_secret:
+                self._bp_authenticator = BackpackHmacAuthenticator(
+                    api_key=self._api_key, api_secret=self._api_secret
+                )
+            else:
+                logger.warning(
+                    "Backpack API key/secret not provided. Signed operations will fail. "
+                    "Authenticator not initialized."
+                )
+                self._bp_authenticator = None
 
-        self._backpack_error_mapper = BackpackErrorMapper()
-        self._bp_response_handler = BackpackResponseHandler()
-        self._bp_request_builder = BackpackRequestBuilder(api_config)
-        self._bp_order_mapper = BackpackOrderMapper()
+        # Use injected dependencies or create them
+        self._backpack_error_mapper = error_mapper or BackpackErrorMapper()
+        self._bp_response_handler = response_handler or BackpackResponseHandler()
+        self._bp_request_builder = request_builder or BackpackRequestBuilder(api_config)
+        self._bp_order_mapper = order_mapper or BackpackOrderMapper()
 
         super().__init__(
             exchange_name="backpack",
@@ -113,30 +139,41 @@ class BackpackAPI(ExchangeAPI):
         # Use self._request directly, services will handle the tuple response
         service_requester = self._request
 
-        self.market_data_service = BackpackMarketDataService(
-            http_client_requester=service_requester,
-            request_builder=self._bp_request_builder,
-            response_handler=self._bp_response_handler,
-            exchange_name=self.exchange_name,
-            rate_limiter_service=self._rate_limiter_service,
-        )
-        self.account_service = BackpackAccountService(
-            http_client_requester=service_requester,
-            request_builder=self._bp_request_builder,
-            response_handler=self._bp_response_handler,
-            authenticator=self._bp_authenticator,
-            exchange_name=self.exchange_name,
-            rate_limiter_service=self._rate_limiter_service,
-        )
+        # Use injected services or create them
+        if market_data_service is not None:
+            self.market_data_service = market_data_service
+        else:
+            self.market_data_service = BackpackMarketDataService(
+                http_client_requester=service_requester,
+                request_builder=self._bp_request_builder,
+                response_handler=self._bp_response_handler,
+                exchange_name=self.exchange_name,
+                rate_limiter_service=self._rate_limiter_service,
+            )
 
-        self.trading_service = BackpackTradingService(
-            http_client_requester=service_requester,
-            request_builder=self._bp_request_builder,
-            response_handler=self._bp_response_handler,
-            authenticator=self._bp_authenticator,
-            exchange_name=self.exchange_name,
-            rate_limiter_service=self._rate_limiter_service,
-        )
+        if account_service is not None:
+            self.account_service = account_service
+        else:
+            self.account_service = BackpackAccountService(
+                http_client_requester=service_requester,
+                request_builder=self._bp_request_builder,
+                response_handler=self._bp_response_handler,
+                authenticator=self._bp_authenticator,
+                exchange_name=self.exchange_name,
+                rate_limiter_service=self._rate_limiter_service,
+            )
+
+        if trading_service is not None:
+            self.trading_service = trading_service
+        else:
+            self.trading_service = BackpackTradingService(
+                http_client_requester=service_requester,
+                request_builder=self._bp_request_builder,
+                response_handler=self._bp_response_handler,
+                authenticator=self._bp_authenticator,
+                exchange_name=self.exchange_name,
+                rate_limiter_service=self._rate_limiter_service,
+            )
 
         self.default_headers: dict[str, str] = {
             "Content-Type": "application/json; charset=utf-8",
@@ -340,15 +377,11 @@ class BackpackAPI(ExchangeAPI):
         Returns:
             A list of Candle objects.
         """
-        # Convert milliseconds to seconds for the service layer if provided
-        start_time_sec = int(start_time_ms / 1000) if start_time_ms is not None else None
-        end_time_sec = int(end_time_ms / 1000) if end_time_ms is not None else None
-
         return await self.market_data_service.get_market_data(
             symbol=symbol,
-            interval=timeframe,  # Service uses 'interval'
-            start_time=start_time_sec,
-            end_time=end_time_sec,
+            timeframe=timeframe,  # Service uses 'timeframe'
+            start_time_ms=start_time_ms,  # Service uses 'start_time_ms'
+            end_time_ms=end_time_ms,  # Service uses 'end_time_ms'
             limit=limit,
         )
 

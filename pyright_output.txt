@@ -1,0 +1,485 @@
+/home/demute/code/CyberDeltaEngine/tests/conftest.py
+  /home/demute/code/CyberDeltaEngine/tests/conftest.py:483:13 - error: Type of "value" is partially unknown
+    Type of "value" is "Unknown | None" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/conftest.py:483:21 - error: Type of "get" is partially unknown
+    Type of "get" is "Overload[(key: Unknown, default: None = None, /) -> (Unknown | None), (key: Unknown, default: Unknown, /) -> Unknown, (key: Unknown, default: _T@get, /) -> (Unknown | _T@get)]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/conftest.py:488:12 - error: Return type, "Any | Unknown", is partially unknown (reportUnknownVariableType)
+/home/demute/code/CyberDeltaEngine/tests/integration/conftest.py
+  /home/demute/code/CyberDeltaEngine/tests/integration/conftest.py:106:5 - error: Type of "exchange_config_dict" is partially unknown
+    Type of "exchange_config_dict" is "dict[Unknown, Unknown] | dict[str, Any]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/conftest.py:138:5 - error: Type of "exchange_config_dict_bp" is partially unknown
+    Type of "exchange_config_dict_bp" is "dict[Unknown, Unknown] | dict[str, Any]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/conftest.py:177:10 - error: Arguments missing for parameters "portfolio_tracker", "symbol_mapper" (reportCallIssue)
+  /home/demute/code/CyberDeltaEngine/tests/integration/conftest.py:192:25 - error: Argument type is partially unknown
+    Argument corresponds to parameter "exchanges_config" in function "__init__"
+    Argument type is "dict[Unknown, Unknown]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/conftest.py:249:43 - error: Argument type is partially unknown
+    Argument corresponds to parameter "exchanges_config" in function "__init__"
+    Argument type is "dict[Unknown, Unknown]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/conftest.py:310:55 - error: Unnecessary isinstance call; "dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/home/demute/code/CyberDeltaEngine/tests/integration/test_backtesting.py
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_backtesting.py:134:9 - error: Type of "first_row_data" is partially unknown
+    Type of "first_row_data" is "Series[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_backtesting.py:136:34 - error: Type of "update" is partially unknown
+    Type of "update" is "(current_data: Series[Unknown] | DataFrame) -> dict[str, Any]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_backtesting.py:150:9 - error: Type of "first_close_price" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_backtesting.py:150:34 - error: Type of "iloc" is partially unknown
+    Type of "iloc" is "_iLocIndexerSeries[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_backtesting.py:155:28 - error: Argument type is partially unknown
+    Argument corresponds to parameter "object" in function "__new__"
+    Argument type is "Unknown | Any" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_backtesting.py:242:49 - error: Type of "mean" is partially unknown
+    Type of "mean" is "(axis: Literal['index', 0] | None = ..., skipna: bool = ..., level: None = ..., numeric_only: bool = ..., **kwargs: Unknown) -> float" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_backtesting.py:263:17 - error: Type of parameter "current_data" is partially unknown
+    Parameter type is "Series[Unknown] | DataFrame" (reportUnknownParameterType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_backtesting.py:263:31 - error: Expected type arguments for generic class "Series" (reportMissingTypeArgument)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_backtesting.py:275:44 - error: Type of "index" is partially unknown
+    Type of "index" is "Index[Unknown] | MultiIndex" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_backtesting.py:276:25 - error: Type of "price_val_raw" is partially unknown
+    Type of "price_val_raw" is "Series[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_backtesting.py:285:25 - error: Type of "price_val_raw" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_backtesting.py:285:41 - error: Type of "iloc" is partially unknown
+    Type of "iloc" is "_iLocIndexerSeries[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_backtesting.py:292:41 - error: Argument type is partially unknown
+    Argument corresponds to parameter "object" in function "__new__"
+    Argument type is "Any | Unknown" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_backtesting.py:365:17 - error: Type of parameter "current_data" is partially unknown
+    Parameter type is "Series[Unknown] | DataFrame" (reportUnknownParameterType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_backtesting.py:365:31 - error: Expected type arguments for generic class "Series" (reportMissingTypeArgument)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_backtesting.py:420:17 - error: Type of parameter "current_data" is partially unknown
+    Parameter type is "Series[Unknown] | DataFrame" (reportUnknownParameterType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_backtesting.py:420:31 - error: Expected type arguments for generic class "Series" (reportMissingTypeArgument)
+/home/demute/code/CyberDeltaEngine/tests/integration/test_core_workflow.py
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_core_workflow.py:11:20 - error: Type of "approx" is partially unknown
+    Type of "approx" is "(expected: Unknown, rel: Unknown | None = None, abs: Unknown | None = None, nan_ok: bool = False) -> ApproxBase" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_core_workflow.py:340:21 - error: Type of "current_value" is partially unknown
+    Type of "current_value" is "Any | Unknown" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_core_workflow.py:345:20 - error: Return type, "dict[str, Any] | Any | Unknown", is partially unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_core_workflow.py:379:25 - error: "_deep_get" is not defined (reportUndefinedVariable)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_core_workflow.py:397:25 - error: "_deep_get" is not defined (reportUndefinedVariable)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_core_workflow.py:443:16 - error: Argument of type "Config" cannot be assigned to parameter "config" of type "ConfigManager" in function "__init__"
+    "Config" is not assignable to "ConfigManager" (reportArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_core_workflow.py:444:21 - error: Argument of type "dict[str, MockExchangeAPI]" cannot be assigned to parameter "api_clients" of type "dict[str, ExchangeAPI]" in function "__init__"
+    "dict[str, MockExchangeAPI]" is not assignable to "dict[str, ExchangeAPI]"
+      Type parameter "_VT@dict" is invariant, but "MockExchangeAPI" is not the same as "ExchangeAPI"
+      Consider switching from "dict" to "Mapping" which is covariant in the value type (reportArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_core_workflow.py:545:23 - error: "_update_balance" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_core_workflow.py:555:23 - error: "_update_balance" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_core_workflow.py:606:17 - error: "_open_orders_behavior" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_core_workflow.py:607:17 - error: "_open_orders_behavior" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_core_workflow.py:725:70 - error: Type of "mock_dt_real_now" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_core_workflow.py:1014:5 - error: Variable "original_sg_level" is not accessed (reportUnusedVariable)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_core_workflow.py:1215:70 - error: Type of "mock_dt_real_now" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_core_workflow.py:1230:5 - error: Variable "original_sg_level" is not accessed (reportUnusedVariable)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_core_workflow.py:1637:70 - error: Type of "mock_dt_real_now" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_core_workflow.py:1652:5 - error: Variable "original_sg_level" is not accessed (reportUnusedVariable)
+/home/demute/code/CyberDeltaEngine/tests/integration/test_failure_scenarios.py
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_failure_scenarios.py:155:16 - error: Type of "state" is partially unknown
+    Type of "state" is "BreakerState | Unknown" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_failure_scenarios.py:155:24 - error: Cannot access attribute "state" for class "dict[str, CircuitBreaker]"
+    Attribute "state" is unknown (reportAttributeAccessIssue)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_failure_scenarios.py:162:24 - error: Cannot access attribute "state" for class "dict[str, CircuitBreaker]"
+    Attribute "state" is unknown (reportAttributeAccessIssue)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_failure_scenarios.py:244:16 - error: Type of "state" is partially unknown
+    Type of "state" is "BreakerState | Unknown" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_failure_scenarios.py:244:30 - error: Cannot access attribute "state" for class "dict[str, CircuitBreaker]"
+    Attribute "state" is unknown (reportAttributeAccessIssue)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_failure_scenarios.py:245:39 - error: Type of "name" is partially unknown
+    Type of "name" is "str | Unknown" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_failure_scenarios.py:245:53 - error: Cannot access attribute "name" for class "dict[str, CircuitBreaker]"
+    Attribute "name" is unknown (reportAttributeAccessIssue)
+/home/demute/code/CyberDeltaEngine/tests/integration/test_safety_systems.py
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_safety_systems.py:231:5 - error: Type of "trip" is partially unknown
+    Type of "trip" is "((reason: str) -> None) | Unknown" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_safety_systems.py:231:22 - error: Cannot access attribute "trip" for class "dict[str, CircuitBreaker]"
+    Attribute "trip" is unknown (reportAttributeAccessIssue)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_safety_systems.py:441:17 - error: "_positions" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_safety_systems.py:506:13 - error: Cannot access attribute "symbol" for class "tuple[str, DerivativePosition]"
+    Attribute "symbol" is unknown (reportAttributeAccessIssue)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_safety_systems.py:508:12 - error: Type of "exchange" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_safety_systems.py:508:16 - error: Cannot access attribute "exchange" for class "tuple[str, DerivativePosition]"
+    Attribute "exchange" is unknown (reportAttributeAccessIssue)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_safety_systems.py:508:44 - error: Type of "symbol" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/integration/test_safety_systems.py:508:48 - error: Cannot access attribute "symbol" for class "tuple[str, DerivativePosition]"
+    Attribute "symbol" is unknown (reportAttributeAccessIssue)
+/home/demute/code/CyberDeltaEngine/tests/unit/apis/backpack/services/test_bp_market_data_service.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/backpack/services/test_bp_market_data_service.py:788:17 - error: Variable "i" is not accessed (reportUnusedVariable)
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/backpack/services/test_bp_market_data_service.py:788:20 - error: Variable "raw_item" is not accessed (reportUnusedVariable)
+/home/demute/code/CyberDeltaEngine/tests/unit/apis/backpack/test_bp_auth.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/backpack/test_bp_auth.py:20:21 - error: "_api_key" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/backpack/test_bp_auth.py:21:21 - error: "_api_secret" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+/home/demute/code/CyberDeltaEngine/tests/unit/apis/backpack/test_bp_response_handler.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/backpack/test_bp_response_handler.py:817:9 - error: Variable "expected_message_part" is not accessed (reportUnusedVariable)
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/backpack/test_bp_response_handler.py:821:9 - error: Variable "expected_message_part" is not accessed (reportUnusedVariable)
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/backpack/test_bp_response_handler.py:823:9 - error: Variable "expected_message_part" is not accessed (reportUnusedVariable)
+/home/demute/code/CyberDeltaEngine/tests/unit/apis/base/test_exchange_api.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/base/test_exchange_api.py:76:9 - error: Method "_update_rate_limit_from_headers" overrides class "ExchangeAPI" in an incompatible manner
+    Parameter 2 type mismatch: base parameter is type "Mapping[str, str]", override parameter is type "dict[str, str] | None"
+      Type "Mapping[str, str]" is not assignable to type "dict[str, str] | None"
+        "Mapping[str, str]" is not assignable to "dict[str, str]"
+        "Mapping[str, str]" is not assignable to "None" (reportIncompatibleMethodOverride)
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/base/test_exchange_api.py:250:16 - error: Cannot instantiate abstract class "ConcreteTestExchangeAPI"
+    "ExchangeAPI.subscribe" is not implemented (reportAbstractUsage)
+/home/demute/code/CyberDeltaEngine/tests/unit/apis/connectivity/test_http_client.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/connectivity/test_http_client.py:291:18 - error: Variable "status_code" is not accessed (reportUnusedVariable)
+/home/demute/code/CyberDeltaEngine/tests/unit/apis/connectivity/test_ws_manager.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/connectivity/test_ws_manager.py:453:37 - error: "_ws_connection" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/connectivity/test_ws_manager.py:454:41 - error: "_should_reconnect" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/connectivity/test_ws_manager.py:467:37 - error: "_session" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/connectivity/test_ws_manager.py:756:33 - error: "_logger" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/connectivity/test_ws_manager.py:762:33 - error: "_logger" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+/home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:297:37 - error: Argument type is partially unknown
+    Argument corresponds to parameter "o" in function "__init__"
+    Argument type is "Any | list[Unknown] | Unknown" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:304:37 - error: Argument type is partially unknown
+    Argument corresponds to parameter "o" in function "__init__"
+    Argument type is "Any | dict[Unknown, Unknown] | Unknown" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:312:47 - error: Argument type is partially unknown
+    Argument corresponds to parameter "o" in function "__init__"
+    Argument type is "Any | list[Unknown] | Unknown" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:314:21 - error: Type of "current_level" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:319:47 - error: Argument type is partially unknown
+    Argument corresponds to parameter "o" in function "__init__"
+    Argument type is "Any | dict[Unknown, Unknown] | Unknown" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:321:21 - error: Type of "current_level" is unknown (reportUnknownVariableType)
+/home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py:892:45 - error: "_mapper" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/services/test_hl_market_data_service.py:1063:45 - error: "_mapper" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+/home/demute/code/CyberDeltaEngine/tests/unit/core/test_portfolio_tracker.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_portfolio_tracker.py:871:27 - error: "_update_balance" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_portfolio_tracker.py:955:53 - error: "_get_asset_price_in_base" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_portfolio_tracker.py:969:53 - error: "_get_asset_price_in_base" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_portfolio_tracker.py:1130:9 - error: Type of "symbols_found" is partially unknown
+    Type of "symbols_found" is "set[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_portfolio_tracker.py:1130:26 - error: Type of "symbol" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_portfolio_tracker.py:1130:30 - error: Cannot access attribute "symbol" for class "tuple[str, DerivativePosition]"
+    Attribute "symbol" is unknown (reportAttributeAccessIssue)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_portfolio_tracker.py:1131:9 - error: Type of "exchanges_found" is partially unknown
+    Type of "exchanges_found" is "set[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_portfolio_tracker.py:1131:28 - error: Type of "exchange" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_portfolio_tracker.py:1131:32 - error: Cannot access attribute "exchange" for class "tuple[str, DerivativePosition]"
+    Attribute "exchange" is unknown (reportAttributeAccessIssue)
+/home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_generator.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_generator.py:195:17 - error: Type of "ex_id" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_generator.py:195:24 - error: Type of "exchange_details_any" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_generator.py:197:21 - error: Type of "exchange_details" is partially unknown
+    Type of "exchange_details" is "dict[Unknown, Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_generator.py:261:9 - error: Variable "sample_period_seconds" is not accessed (reportUnusedVariable)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_generator.py:284:24 - error: Type of parameter "ex" is unknown (reportUnknownLambdaType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_generator.py:284:28 - error: Type of parameter "sym" is unknown (reportUnknownLambdaType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_generator.py:284:65 - error: Argument type is unknown
+    Argument corresponds to parameter "exchange" in function "get_funding_iter" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_generator.py:284:69 - error: Argument type is unknown
+    Argument corresponds to parameter "symbol" in function "get_funding_iter" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_generator.py:287:24 - error: Type of parameter "ex" is unknown (reportUnknownLambdaType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_generator.py:287:28 - error: Type of parameter "sym" is unknown (reportUnknownLambdaType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_generator.py:287:65 - error: Argument type is unknown
+    Argument corresponds to parameter "exchange" in function "get_ticker_iter" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_generator.py:287:69 - error: Argument type is unknown
+    Argument corresponds to parameter "symbol" in function "get_ticker_iter" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_generator.py:416:20 - error: Argument of type "CoroutineType[Any, Any, list[ArbitrageOpportunity]]" cannot be assigned to parameter "obj" of type "Sized" in function "len"
+    "CoroutineType[Any, Any, list[ArbitrageOpportunity]]" is incompatible with protocol "Sized"
+      "__len__" is not present (reportArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_generator.py:417:27 - error: "__getitem__" method not defined on type "CoroutineType[Any, Any, list[ArbitrageOpportunity]]" (reportIndexIssue)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_generator.py:418:15 - error: "__getitem__" method not defined on type "CoroutineType[Any, Any, list[ArbitrageOpportunity]]" (reportIndexIssue)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_generator.py:488:20 - error: Argument of type "CoroutineType[Any, Any, list[ArbitrageOpportunity]]" cannot be assigned to parameter "obj" of type "Sized" in function "len"
+    "CoroutineType[Any, Any, list[ArbitrageOpportunity]]" is incompatible with protocol "Sized"
+      "__len__" is not present (reportArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_generator.py:520:26 - error: "_initialize_data_structures" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_generator.py:538:20 - error: Argument of type "CoroutineType[Any, Any, list[ArbitrageOpportunity]]" cannot be assigned to parameter "obj" of type "Sized" in function "len"
+    "CoroutineType[Any, Any, list[ArbitrageOpportunity]]" is incompatible with protocol "Sized"
+      "__len__" is not present (reportArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_generator.py:575:42 - error: "_check_funding_rate_opportunities" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+/home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_queue.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_queue.py:418:24 - error: Type of "mock_storage" is partially unknown
+    Type of "mock_storage" is "dict[Unknown, Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_queue.py:418:24 - error: Type of "get" is partially unknown
+    Type of "get" is "Overload[(key: Unknown, default: None = None, /) -> (Unknown | None), (key: Unknown, default: Unknown, /) -> Unknown, (key: Unknown, default: _T@get, /) -> (Unknown | _T@get)]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_queue.py:418:24 - error: Return type is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_queue.py:454:19 - error: "_clean_expired_signals" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_queue.py:472:21 - error: Type of "_cleanup_task" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_queue.py:472:27 - error: Cannot access attribute "_cleanup_task" for class "PrioritySignalQueue"
+    Attribute "_cleanup_task" is unknown (reportAttributeAccessIssue)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_queue.py:473:25 - error: Type of "_cleanup_task" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_queue.py:473:25 - error: Type of "done" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_queue.py:473:31 - error: Cannot access attribute "_cleanup_task" for class "PrioritySignalQueue"
+    Attribute "_cleanup_task" is unknown (reportAttributeAccessIssue)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_queue.py:590:19 - error: "_clean_expired_signals" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_queue.py:604:17 - error: Type of "_cleanup_task" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_queue.py:604:23 - error: Cannot access attribute "_cleanup_task" for class "PrioritySignalQueue"
+    Attribute "_cleanup_task" is unknown (reportAttributeAccessIssue)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_queue.py:605:21 - error: Type of "_cleanup_task" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_queue.py:605:21 - error: Type of "done" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_queue.py:605:27 - error: Cannot access attribute "_cleanup_task" for class "PrioritySignalQueue"
+    Attribute "_cleanup_task" is unknown (reportAttributeAccessIssue)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_signal_queue.py:665:15 - error: "_clean_expired_signals" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+/home/demute/code/CyberDeltaEngine/tests/unit/core/test_symbol_mapper.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_symbol_mapper.py:47:36 - error: "_exchange_to_internal" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_symbol_mapper.py:48:33 - error: "_exchange_to_internal" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_symbol_mapper.py:49:31 - error: "_exchange_to_internal" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_symbol_mapper.py:50:46 - error: "_exchange_to_internal" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_symbol_mapper.py:51:53 - error: "_exchange_to_internal" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_symbol_mapper.py:89:39 - error: "_exchange_to_internal" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_symbol_mapper.py:90:44 - error: "_exchange_to_internal" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_symbol_mapper.py:91:49 - error: "_exchange_to_internal" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_symbol_mapper.py:92:32 - error: "_internal_to_exchange" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_symbol_mapper.py:218:28 - error: "_exchange_to_internal" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/core/test_symbol_mapper.py:219:28 - error: "_exchange_to_internal" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+/home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_constraints.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_constraints.py:41:42 - error: "_check_portfolio_constraints" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_constraints.py:66:42 - error: "_check_portfolio_constraints" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_constraints.py:91:42 - error: "_check_portfolio_constraints" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+/home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_controls.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_controls.py:101:53 - error: "_apply_portfolio_level_controls" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+/home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_sizing_simple.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_sizing_simple.py:111:9 - error: Type of "risk_config_to_update" is partially unknown
+    Type of "risk_config_to_update" is "Any | dict[Unknown, Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_sizing_simple.py:170:9 - error: Type of "risk_config_to_update" is partially unknown
+    Type of "risk_config_to_update" is "Any | dict[Unknown, Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_sizing_simple.py:228:9 - error: Type of "risk_config_to_update" is partially unknown
+    Type of "risk_config_to_update" is "Any | dict[Unknown, Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_sizing_simple.py:287:9 - error: Type of "risk_config_to_update" is partially unknown
+    Type of "risk_config_to_update" is "Any | dict[Unknown, Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_sizing_simple.py:345:9 - error: Type of "risk_config_to_update_safety" is partially unknown
+    Type of "risk_config_to_update_safety" is "Any | dict[Unknown, Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_sizing_simple.py:353:21 - error: Type of "value" is partially unknown
+    Type of "value" is "Any | Unknown" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_sizing_simple.py:357:20 - error: Return type, "dict[str, Any] | Any | Unknown", is partially unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_sizing_simple.py:409:9 - error: Type of "risk_config_to_update" is partially unknown
+    Type of "risk_config_to_update" is "Any | dict[Unknown, Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_sizing_simple.py:417:21 - error: Type of "value" is partially unknown
+    Type of "value" is "Any | Unknown" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_sizing_simple.py:421:20 - error: Return type, "dict[str, Any] | Any | Unknown", is partially unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_sizing_simple.py:471:9 - error: Type of "risk_config_to_update" is partially unknown
+    Type of "risk_config_to_update" is "Any | dict[Unknown, Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_sizing_simple.py:479:21 - error: Type of "value" is partially unknown
+    Type of "value" is "Any | Unknown" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_sizing_simple.py:483:20 - error: Return type, "dict[str, Any] | Any | Unknown", is partially unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_sizing_simple.py:554:9 - error: Type of "risk_config_live_update_target" is partially unknown
+    Type of "risk_config_live_update_target" is "Any | dict[Unknown, Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_sizing_simple.py:622:13 - error: Type of "global_config_for_opp2" is partially unknown
+    Type of "global_config_for_opp2" is "dict[Unknown, Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_sizing_simple.py:671:9 - error: Type of "update" is partially unknown
+    Type of "update" is "Any | Overload[(m: SupportsKeysAndGetItem[Unknown, Unknown], /, **kwargs: Unknown) -> None, (m: Iterable[tuple[Unknown, Unknown]], /, **kwargs: Unknown) -> None, (**kwargs: Unknown) -> None]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/risk/test_rm_sizing_simple.py:727:9 - error: Type of "update" is partially unknown
+    Type of "update" is "Any | Overload[(m: SupportsKeysAndGetItem[Unknown, Unknown], /, **kwargs: Unknown) -> None, (m: Iterable[tuple[Unknown, Unknown]], /, **kwargs: Unknown) -> None, (**kwargs: Unknown) -> None]" (reportUnknownMemberType)
+/home/demute/code/CyberDeltaEngine/tests/unit/test_data_handler.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_data_handler.py:66:19 - error: Arguments missing for parameters "api_clients", "portfolio_tracker" (reportCallIssue)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_data_handler.py:326:57 - error: "_update_and_notify" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_data_handler.py:340:32 - error: "_process_websocket_messages" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_data_handler.py:413:30 - error: "_maintain_websocket_connection" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_data_handler.py:499:34 - error: "_process_websocket_messages" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_data_handler.py:531:19 - error: Arguments missing for parameters "api_clients", "portfolio_tracker" (reportCallIssue)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_data_handler.py:576:19 - error: Arguments missing for parameters "api_clients", "portfolio_tracker" (reportCallIssue)
+/home/demute/code/CyberDeltaEngine/tests/unit/test_execution_handler.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_execution_handler.py:319:48 - error: "_place_order_with_retry" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_execution_handler.py:341:37 - error: "_place_order_with_retry" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_execution_handler.py:390:49 - error: "_get_order_status" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_execution_handler.py:409:49 - error: "_get_order_status" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_execution_handler.py:502:52 - error: "_compensate_position" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_execution_handler.py:584:41 - error: "_compensate_position" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_execution_handler.py:685:13 - error: Variable "execution" is not accessed (reportUnusedVariable)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_execution_handler.py:687:13 - error: Variable "symbol_from_kwargs" is not accessed (reportUnusedVariable)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_execution_handler.py:689:13 - error: Variable "order_type_from_kwargs" is not accessed (reportUnusedVariable)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_execution_handler.py:690:13 - error: Variable "quantity_from_kwargs" is not accessed (reportUnusedVariable)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_execution_handler.py:1139:41 - error: "_compensate_position" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_execution_handler.py:1225:27 - error: "_add_to_history" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_execution_handler.py:1226:27 - error: "_add_to_history" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+/home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:57:35 - error: Type of "date_range" is partially unknown
+    Type of "date_range" is "(start: str | date | datetime | datetime64[date | int | None] | Timestamp | None = ..., end: str | date | datetime | datetime64[date | int | None] | Timestamp | None = ..., periods: int | None = ..., freq: str | timedelta | Timedelta | BaseOffset = ..., tz: Unknown = ..., normalize: bool = ..., name: Hashable | None = ..., inclusive: Literal['left', 'right', 'both', 'neither'] = ..., unit: Literal['s', 'ms', 'us', 'ns'] | None = ...) -> DatetimeIndex" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:85:9 - error: Type of "set_index" is partially unknown
+    Type of "set_index" is "Overload[(keys: Hashable | Series[Unknown] | Index[Unknown] | ndarray[Unknown, Unknown] | Iterator[Hashable] | Sequence[Hashable] | None, *, drop: bool = ..., append: bool = ..., verify_integrity: bool = ..., inplace: Literal[True]) -> None, (keys: Hashable | Series[Unknown] | Index[Unknown] | ndarray[Unknown, Unknown] | Iterator[Hashable] | Sequence[Hashable] | None, *, drop: bool = ..., append: bool = ..., verify_integrity: bool = ..., inplace: Literal[False] = ...) -> DataFrame]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:96:23 - error: Type of "data" is partially unknown
+    Type of "data" is "Unknown | tuple[Unknown, ...] | Any | Figure" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:97:13 - error: Type of "data" is partially unknown
+    Type of "data" is "tuple[Unknown, ...]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:97:37 - error: Type of "data" is partially unknown
+    Type of "data" is "tuple[Unknown, ...]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:107:23 - error: Type of "data" is partially unknown
+    Type of "data" is "Unknown | tuple[Unknown, ...] | Any | Figure" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:108:13 - error: Type of "data" is partially unknown
+    Type of "data" is "tuple[Unknown, ...]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:108:20 - error: Type of "data" is partially unknown
+    Type of "data" is "tuple[Unknown, ...]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:117:23 - error: Type of "data" is partially unknown
+    Type of "data" is "Unknown | tuple[Unknown, ...] | Any | Figure" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:118:13 - error: Type of "data" is partially unknown
+    Type of "data" is "tuple[Unknown, ...]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:118:37 - error: Type of "data" is partially unknown
+    Type of "data" is "tuple[Unknown, ...]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:127:23 - error: Type of "data" is partially unknown
+    Type of "data" is "Unknown | tuple[Unknown, ...] | Any | Figure" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:128:13 - error: Type of "data" is partially unknown
+    Type of "data" is "tuple[Unknown, ...]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:128:37 - error: Type of "data" is partially unknown
+    Type of "data" is "tuple[Unknown, ...]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:138:23 - error: Type of "data" is partially unknown
+    Type of "data" is "Unknown | tuple[Unknown, ...] | Any | Figure" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:139:13 - error: Type of "data" is partially unknown
+    Type of "data" is "tuple[Unknown, ...]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:139:37 - error: Type of "data" is partially unknown
+    Type of "data" is "tuple[Unknown, ...]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:152:23 - error: Type of "data" is partially unknown
+    Type of "data" is "Unknown | tuple[Unknown, ...] | Any | Figure" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:153:13 - error: Type of "data" is partially unknown
+    Type of "data" is "tuple[Unknown, ...]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:153:37 - error: Type of "data" is partially unknown
+    Type of "data" is "tuple[Unknown, ...]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:177:18 - error: Type of "calculate_sharpe_ratio" is partially unknown
+    Type of "calculate_sharpe_ratio" is "(returns: Series[Unknown], risk_free_rate: float = 0) -> float" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:182:19 - error: Type of "calculate_sortino_ratio" is partially unknown
+    Type of "calculate_sortino_ratio" is "(returns: Series[Unknown], risk_free_rate: float = 0, target_return: float = 0) -> float" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:187:18 - error: Type of "calculate_max_drawdown" is partially unknown
+    Type of "calculate_max_drawdown" is "(returns: Series[Unknown]) -> float" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:193:18 - error: Type of "calculate_calmar_ratio" is partially unknown
+    Type of "calculate_calmar_ratio" is "(returns: Series[Unknown], period: int = 36) -> float" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_performance_visualizer.py:210:19 - error: Type of "calculate_all_metrics" is partially unknown
+    Type of "calculate_all_metrics" is "(returns: Series[Unknown], trades: DataFrame | None = None) -> dict[str, float]" (reportUnknownMemberType)
+/home/demute/code/CyberDeltaEngine/tests/unit/test_position_sizing_integration.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_position_sizing_integration.py:133:32 - error: "_check_opportunity" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_position_sizing_integration.py:158:32 - error: "_generate_entry_signal" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_position_sizing_integration.py:230:32 - error: "_check_opportunity" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_position_sizing_integration.py:271:35 - error: "_generate_entry_signal" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_position_sizing_integration.py:276:45 - error: "_generate_entry_signal" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+/home/demute/code/CyberDeltaEngine/tests/unit/test_simplified_visualizer.py
+  /home/demute/code/CyberDeltaEngine/tests/unit/test_simplified_visualizer.py:82:5 - error: Type of "ioff" is partially unknown
+    Type of "ioff" is "() -> AbstractContextManager[Unknown, bool | None]" (reportUnknownMemberType)
+/home/demute/code/CyberDeltaEngine/tests/validation/test_circuit_breaker.py
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_circuit_breaker.py:579:17 - error: Type of "val" is partially unknown
+    Type of "val" is "bool | int | float | list[str] | Unknown | str" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_circuit_breaker.py:579:23 - error: "__getitem__" method not defined on type "int" (reportIndexIssue)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_circuit_breaker.py:579:23 - error: Argument of type "Literal['circuit_breakers']" cannot be assigned to parameter "key" of type "SupportsIndex | slice[Any, Any, Any]" in function "__getitem__"
+    Type "Literal['circuit_breakers']" is not assignable to type "SupportsIndex | slice[Any, Any, Any]"
+      "Literal['circuit_breakers']" is incompatible with protocol "SupportsIndex"
+        "__index__" is not present
+      "Literal['circuit_breakers']" is not assignable to "slice[Any, Any, Any]" (reportArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_circuit_breaker.py:579:23 - error: "__getitem__" method not defined on type "bool" (reportIndexIssue)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_circuit_breaker.py:579:23 - error: Argument of type "Literal['defaults']" cannot be assigned to parameter "key" of type "SupportsIndex | slice[Any, Any, Any]" in function "__getitem__"
+    Type "Literal['defaults']" is not assignable to type "SupportsIndex | slice[Any, Any, Any]"
+      "Literal['defaults']" is incompatible with protocol "SupportsIndex"
+        "__index__" is not present
+      "Literal['defaults']" is not assignable to "slice[Any, Any, Any]" (reportArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_circuit_breaker.py:579:23 - error: Argument of type "Literal['cooldown_seconds']" cannot be assigned to parameter "key" of type "SupportsIndex | slice[Any, Any, Any]" in function "__getitem__"
+    Type "Literal['cooldown_seconds']" is not assignable to type "SupportsIndex | slice[Any, Any, Any]"
+      "Literal['cooldown_seconds']" is incompatible with protocol "SupportsIndex"
+        "__index__" is not present
+      "Literal['cooldown_seconds']" is not assignable to "slice[Any, Any, Any]" (reportArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_circuit_breaker.py:582:24 - error: Return type, "bool | int | float | list[str] | Unknown | str", is partially unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_circuit_breaker.py:638:13 - error: Type of "trip" is partially unknown
+    Type of "trip" is "((reason: str) -> None) | Unknown" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_circuit_breaker.py:638:25 - error: Cannot access attribute "trip" for class "dict[str, CircuitBreaker]"
+    Attribute "trip" is unknown (reportAttributeAccessIssue)
+/home/demute/code/CyberDeltaEngine/tests/validation/test_multi_tier_funding_provider.py
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_multi_tier_funding_provider.py:148:24 - error: Type of "approx" is partially unknown
+    Type of "approx" is "(expected: Unknown, rel: Unknown | None = None, abs: Unknown | None = None, nan_ok: bool = False) -> ApproxBase" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_multi_tier_funding_provider.py:149:30 - error: Type of "approx" is partially unknown
+    Type of "approx" is "(expected: Unknown, rel: Unknown | None = None, abs: Unknown | None = None, nan_ok: bool = False) -> ApproxBase" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_multi_tier_funding_provider.py:169:24 - error: Type of "approx" is partially unknown
+    Type of "approx" is "(expected: Unknown, rel: Unknown | None = None, abs: Unknown | None = None, nan_ok: bool = False) -> ApproxBase" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_multi_tier_funding_provider.py:170:30 - error: Type of "approx" is partially unknown
+    Type of "approx" is "(expected: Unknown, rel: Unknown | None = None, abs: Unknown | None = None, nan_ok: bool = False) -> ApproxBase" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_multi_tier_funding_provider.py:198:24 - error: Type of "approx" is partially unknown
+    Type of "approx" is "(expected: Unknown, rel: Unknown | None = None, abs: Unknown | None = None, nan_ok: bool = False) -> ApproxBase" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_multi_tier_funding_provider.py:243:24 - error: Type of "approx" is partially unknown
+    Type of "approx" is "(expected: Unknown, rel: Unknown | None = None, abs: Unknown | None = None, nan_ok: bool = False) -> ApproxBase" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_multi_tier_funding_provider.py:244:30 - error: Type of "approx" is partially unknown
+    Type of "approx" is "(expected: Unknown, rel: Unknown | None = None, abs: Unknown | None = None, nan_ok: bool = False) -> ApproxBase" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_multi_tier_funding_provider.py:385:36 - error: "_integrate_funding_data" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_multi_tier_funding_provider.py:396:35 - error: Type of "approx" is partially unknown
+    Type of "approx" is "(expected: Unknown, rel: Unknown | None = None, abs: Unknown | None = None, nan_ok: bool = False) -> ApproxBase" (reportUnknownMemberType)
+/home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:313:38 - error: "_portfolio_tracker" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:314:38 - error: "_config" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:347:72 - error: "_config" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:347:84 - error: Cannot access attribute "side_effect" for class "function"
+    Attribute "side_effect" is unknown (reportFunctionMemberAccess)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:362:53 - error: "_config" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:363:33 - error: Cannot assign to attribute "side_effect" for class "function"
+    Attribute "side_effect" is unknown (reportFunctionMemberAccess)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:369:25 - error: "_reconciliation_interval_secs" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:374:28 - error: "_discrepancy_threshold_percent" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:375:28 - error: "_action_mode" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:378:33 - error: Cannot assign to attribute "side_effect" for class "function"
+    Attribute "side_effect" is unknown (reportFunctionMemberAccess)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:391:38 - error: "_portfolio_tracker" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:398:52 - error: "_config" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:399:56 - error: "_portfolio_tracker" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:424:32 - error: Cannot assign to attribute "side_effect" for class "function"
+    Attribute "side_effect" is unknown (reportFunctionMemberAccess)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:427:21 - error: Argument of type "Any | None" cannot be assigned to parameter "seconds" of type "float" in function "__new__"
+    Type "Any | None" is not assignable to type "float"
+      "None" is not assignable to "float" (reportArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:430:21 - error: Argument of type "Any | None" cannot be assigned to parameter "seconds" of type "float" in function "__new__"
+    Type "Any | None" is not assignable to type "float"
+      "None" is not assignable to "float" (reportArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:439:13 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:465:32 - error: Cannot assign to attribute "side_effect" for class "function"
+    Attribute "side_effect" is unknown (reportFunctionMemberAccess)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:477:13 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:487:24 - error: Argument type is partially unknown
+    Argument corresponds to parameter "obj" in function "len"
+    Argument type is "list[Unknown]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:490:32 - error: Cannot assign to attribute "side_effect" for class "function"
+    Attribute "side_effect" is unknown (reportFunctionMemberAccess)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:498:13 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:535:31 - error: "_portfolio_tracker" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:575:51 - error: "_portfolio_tracker" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:583:9 - error: Type of "mock_reconcile_result" is partially unknown
+    Type of "mock_reconcile_result" is "dict[str, bool | int | datetime | list[Unknown] | None]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:632:20 - error: Cannot assign to attribute "side_effect" for class "function"
+    Attribute "side_effect" is unknown (reportFunctionMemberAccess)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:640:13 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:648:17 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:698:24 - error: Argument type is partially unknown
+    Argument corresponds to parameter "iterable" in function "any"
+    Argument type is "Generator[Unknown, None, None]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:698:62 - error: Type of "call" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:701:24 - error: Argument type is partially unknown
+    Argument corresponds to parameter "iterable" in function "any"
+    Argument type is "Generator[Unknown, None, None]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:701:59 - error: Type of "call" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:751:13 - error: Type of "detail_to_record" is partially unknown
+    Type of "detail_to_record" is "Unknown | DiscrepancyDetail" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:751:32 - error: "__getitem__" method not defined on type "datetime" (reportIndexIssue)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:751:32 - error: "__getitem__" method not defined on type "Literal[True]" (reportIndexIssue)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:752:62 - error: "_record_discrepancy" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:754:24 - error: Type of "symbol" is partially unknown
+    Type of "symbol" is "Unknown | str" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:754:24 - error: Argument type is partially unknown
+    Argument corresponds to parameter "symbol" in function "_record_discrepancy"
+    Argument type is "Unknown | str" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:755:34 - error: Type of "discrepancy_type" is partially unknown
+    Type of "discrepancy_type" is "Unknown | Literal['size', 'entry_price', 'mark_price', 'liquidation_price', 'unrealized_pnl', 'api_parsing_error', 'local_parsing_error', 'reconciliation_error', 'unknown_api_symbol', 'unknown_local_symbol']" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:755:34 - error: Argument type is partially unknown
+    Argument corresponds to parameter "discrepancy_type" in function "_record_discrepancy"
+    Argument type is "Unknown | Literal['size', 'entry_price', 'mark_price', 'liquidation_price', 'unrealized_pnl', 'api_parsing_error', 'local_parsing_error', 'reconciliation_error', 'unknown_api_symbol', 'unknown_local_symbol']" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:756:25 - error: Type of "exchange_value" is partially unknown
+    Type of "exchange_value" is "Unknown | str | None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:756:25 - error: Argument type is partially unknown
+    Argument corresponds to parameter "api_val" in function "_record_discrepancy"
+    Argument type is "Unknown | str | None" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:757:27 - error: Type of "local_value" is partially unknown
+    Type of "local_value" is "Unknown | str | None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:757:27 - error: Argument type is partially unknown
+    Argument corresponds to parameter "local_val" in function "_record_discrepancy"
+    Argument type is "Unknown | str | None" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:758:25 - error: Type of "details" is partially unknown
+    Type of "details" is "Unknown | str | None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:758:25 - error: Argument type is partially unknown
+    Argument corresponds to parameter "details" in function "_record_discrepancy"
+    Argument type is "Unknown | str | None" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:961:31 - error: "_portfolio_tracker" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:1001:51 - error: "_portfolio_tracker" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/tests/validation/test_position_reconciliation.py:1009:9 - error: Type of "mock_reconcile_result" is partially unknown
+    Type of "mock_reconcile_result" is "dict[str, bool | int | datetime | list[Unknown] | None]" (reportUnknownVariableType)
+275 errors, 0 warnings, 0 informations 
+WARNING: there is a new pyright version available (v1.1.400 -> v1.1.401).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+

@@ -194,13 +194,44 @@ class HyperliquidAPI(ExchangeAPI):
             )
             return None
 
-    def __init__(self, api_config: dict[str, Any], secrets: dict[str, str | None]) -> None:
+    def __init__(
+        self,
+        api_config: dict[str, Any],
+        secrets: dict[str, str | None],
+        # Optional dependency injection parameters for testing
+        authenticator: HyperliquidEip712Authenticator | None = None,
+        error_mapper: HyperliquidErrorMapper | None = None,
+        request_builder: HyperliquidRequestBuilder | None = None,
+        response_handler: HyperliquidResponseHandler | None = None,
+        mapper: HyperliquidMapper | None = None,
+        order_mapper: HyperliquidOrderMapper | None = None,
+        candle_mapper: HyperliquidCandleMapper | None = None,
+        user_fill_mapper: HyperliquidUserFillMapper | None = None,
+        http_client: HttpClient | None = None,
+        info_http_client: HttpClient | None = None,
+        account_service: HyperliquidAccountService | None = None,
+        trading_service: HyperliquidTradingService | None = None,
+        market_data_service: HyperliquidMarketDataService | None = None,
+    ) -> None:
         """
         Initialize the HyperliquidAPI client.
 
         Args:
             api_config: Configuration dictionary with connection parameters
             secrets: Dictionary containing private_key and wallet_address
+            authenticator: Optional authenticator instance for dependency injection
+            error_mapper: Optional error mapper instance for dependency injection
+            request_builder: Optional request builder instance for dependency injection
+            response_handler: Optional response handler instance for dependency injection
+            mapper: Optional mapper instance for dependency injection
+            order_mapper: Optional order mapper instance for dependency injection
+            candle_mapper: Optional candle mapper instance for dependency injection
+            user_fill_mapper: Optional user fill mapper instance for dependency injection
+            http_client: Optional HTTP client instance for dependency injection
+            info_http_client: Optional info HTTP client instance for dependency injection
+            account_service: Optional account service instance for dependency injection
+            trading_service: Optional trading service instance for dependency injection
+            market_data_service: Optional market data service instance for dependency injection
         """
         self.rest_endpoint = api_config.get("rest_endpoint", self.BASE_URL)
         self.ws_endpoint = api_config.get("ws_endpoint", self.WS_URL)
@@ -208,43 +239,55 @@ class HyperliquidAPI(ExchangeAPI):
         self._wallet_address = secrets.get("wallet_address")
         private_key = secrets.get("private_key")
 
-        self._hl_authenticator: HyperliquidEip712Authenticator | None = None
-        if private_key and self._wallet_address:
-            try:
-                self._hl_authenticator = HyperliquidEip712Authenticator(
-                    wallet_private_key=private_key,
-                    chain_id=self.CHAIN_ID,
-                )
-            except ValueError as e:
-                logger.error(f"Failed to init HL authenticator: {e}. Signed endpoints will fail.")
-        elif not self._wallet_address:
-            logger.error("HLAPI: Wallet address required, not provided. Most functionality fails.")
+        # Use injected authenticator or create one
+        if authenticator is not None:
+            self._hl_authenticator: HyperliquidEip712Authenticator | None = authenticator
         else:
-            logger.warning(
-                "HLAPI: Private key not provided. Signed endpoints fail or use public data."
-            )
+            self._hl_authenticator = None
+            if private_key and self._wallet_address:
+                try:
+                    self._hl_authenticator = HyperliquidEip712Authenticator(
+                        wallet_private_key=private_key,
+                        chain_id=self.CHAIN_ID,
+                    )
+                except ValueError as e:
+                    logger.error(
+                        f"Failed to init HL authenticator: {e}. Signed endpoints will fail."
+                    )
+            elif not self._wallet_address:
+                logger.error(
+                    "HLAPI: Wallet address required, not provided. Most functionality fails."
+                )
+            else:
+                logger.warning(
+                    "HLAPI: Private key not provided. Signed endpoints fail or use public data."
+                )
 
-        self._hyperliquid_error_mapper = HyperliquidErrorMapper()
-
-        self._hl_request_builder = HyperliquidRequestBuilder()
-        self._hl_response_handler = HyperliquidResponseHandler()
+        # Use injected dependencies or create them
+        self._hyperliquid_error_mapper = error_mapper or HyperliquidErrorMapper()
+        self._hl_request_builder = request_builder or HyperliquidRequestBuilder()
+        self._hl_response_handler = response_handler or HyperliquidResponseHandler()
 
         self._asset_to_index_cache: dict[str, int] = {}
-        self._hl_mapper = HyperliquidMapper()
-        self._hl_order_mapper = HyperliquidOrderMapper()
-        self._hl_candle_mapper = HyperliquidCandleMapper()
-        self._hl_user_fill_mapper = HyperliquidUserFillMapper()
+        self._hl_mapper = mapper or HyperliquidMapper()
+        self._hl_order_mapper = order_mapper or HyperliquidOrderMapper()
+        self._hl_candle_mapper = candle_mapper or HyperliquidCandleMapper()
+        self._hl_user_fill_mapper = user_fill_mapper or HyperliquidUserFillMapper()
 
         self.exchange_name = "hyperliquid"  # Define exchange_name before use
 
-        self.market_data_service = HyperliquidMarketDataService(
-            http_client_requester=self._market_data_requester_adapter,
-            request_builder=self._hl_request_builder,
-            response_handler=self._hl_response_handler,
-            mapper=self._hl_mapper,
-            exchange_name=self.exchange_name,
-            info_url=self.INFO_URL,
-        )
+        # Use injected market data service or create one
+        if market_data_service is not None:
+            self.market_data_service = market_data_service
+        else:
+            self.market_data_service = HyperliquidMarketDataService(
+                http_client_requester=self._market_data_requester_adapter,
+                request_builder=self._hl_request_builder,
+                response_handler=self._hl_response_handler,
+                mapper=self._hl_mapper,
+                exchange_name=self.exchange_name,
+                info_url=self.INFO_URL,
+            )
 
         super().__init__(
             exchange_name="hyperliquid",
@@ -263,56 +306,71 @@ class HyperliquidAPI(ExchangeAPI):
             error_mapper=self._hyperliquid_error_mapper,
         )
 
-        http_client_raw_config = api_config.get("http_client", {})
-        http_client_config = HttpClientConfig(
-            rest_endpoint=HttpUrl(self.BASE_URL),
-            default_request_timeout=http_client_raw_config.get("default_request_timeout", 10.0),
-            max_retries=http_client_raw_config.get("max_retries", 3),
-            retry_delay_seconds=http_client_raw_config.get("retry_delay_seconds", 5.0),
-        )
-        self._http_client = HttpClient(self.exchange_name, http_client_config)
+        # Use injected HTTP clients or create them
+        if http_client is not None:
+            self._http_client = http_client
+        else:
+            http_client_raw_config = api_config.get("http_client", {})
+            http_client_config = HttpClientConfig(
+                rest_endpoint=HttpUrl(self.BASE_URL),
+                default_request_timeout=http_client_raw_config.get("default_request_timeout", 10.0),
+                max_retries=http_client_raw_config.get("max_retries", 3),
+                retry_delay_seconds=http_client_raw_config.get("retry_delay_seconds", 5.0),
+            )
+            self._http_client = HttpClient(self.exchange_name, http_client_config)
 
-        info_http_client_raw_config_for_info_client = api_config.get("http_client", {})
-        info_client_config_obj = HttpClientConfig(
-            rest_endpoint=HttpUrl(self.INFO_URL),
-            default_request_timeout=info_http_client_raw_config_for_info_client.get(
-                "default_request_timeout", 10.0
-            ),
-            max_retries=info_http_client_raw_config_for_info_client.get("max_retries", 3),
-            retry_delay_seconds=info_http_client_raw_config_for_info_client.get(
-                "retry_delay_seconds", 5.0
-            ),
-        )
-        self._info_http_client = HttpClient(
-            exchange_name=f"{self.exchange_name}_info",
-            config=info_client_config_obj,
-        )
+        if info_http_client is not None:
+            self._info_http_client = info_http_client
+        else:
+            info_http_client_raw_config_for_info_client = api_config.get("http_client", {})
+            info_client_config_obj = HttpClientConfig(
+                rest_endpoint=HttpUrl(self.INFO_URL),
+                default_request_timeout=info_http_client_raw_config_for_info_client.get(
+                    "default_request_timeout", 10.0
+                ),
+                max_retries=info_http_client_raw_config_for_info_client.get("max_retries", 3),
+                retry_delay_seconds=info_http_client_raw_config_for_info_client.get(
+                    "retry_delay_seconds", 5.0
+                ),
+            )
+            self._info_http_client = HttpClient(
+                exchange_name=f"{self.exchange_name}_info",
+                config=info_client_config_obj,
+            )
 
-        self.account_service = HyperliquidAccountService(
-            http_client_requester=self._market_data_requester_adapter,
-            request_builder=self._hl_request_builder,
-            response_handler=self._hl_response_handler,
-            authenticator=self._hl_authenticator,
-            exchange_name=self.exchange_name,
-            info_url=self.INFO_URL,
-            wallet_address=self._wallet_address,
-            mapper=self._hl_mapper,
-            order_mapper=self._hl_order_mapper,
-            user_fill_mapper=self._hl_user_fill_mapper,
-        )
+        # Use injected account service or create one
+        if account_service is not None:
+            self.account_service = account_service
+        else:
+            self.account_service = HyperliquidAccountService(
+                http_client_requester=self._market_data_requester_adapter,
+                request_builder=self._hl_request_builder,
+                response_handler=self._hl_response_handler,
+                authenticator=self._hl_authenticator,
+                exchange_name=self.exchange_name,
+                info_url=self.INFO_URL,
+                wallet_address=self._wallet_address,
+                mapper=self._hl_mapper,
+                order_mapper=self._hl_order_mapper,
+                user_fill_mapper=self._hl_user_fill_mapper,
+            )
 
-        self.trading_service = HyperliquidTradingService(
-            exchange_http_client_requester=self._request,
-            info_http_client_requester=self._info_request_wrapper,
-            request_builder=self._hl_request_builder,
-            response_handler=self._hl_response_handler,
-            authenticator=self._hl_authenticator,
-            exchange_name=self.exchange_name,
-            wallet_address=self._wallet_address,
-            get_asset_index_callable=self._get_asset_index,
-            order_mapper=self._hl_order_mapper,
-            error_mapper=self._hyperliquid_error_mapper,
-        )
+        # Use injected trading service or create one
+        if trading_service is not None:
+            self.trading_service = trading_service
+        else:
+            self.trading_service = HyperliquidTradingService(
+                exchange_http_client_requester=self._request,
+                info_http_client_requester=self._info_request_wrapper,
+                request_builder=self._hl_request_builder,
+                response_handler=self._hl_response_handler,
+                authenticator=self._hl_authenticator,
+                exchange_name=self.exchange_name,
+                wallet_address=self._wallet_address,
+                get_asset_index_callable=self._get_asset_index,
+                order_mapper=self._hl_order_mapper,
+                error_mapper=self._hyperliquid_error_mapper,
+            )
 
         self.default_headers: dict[str, str] = {
             "Content-Type": "application/json",
@@ -1086,12 +1144,11 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
-    ) -> Order:
+    ) -> Order | None:
         """
         Retrieves the status of a specific order by its ID.
         For Hyperliquid, symbol is needed for the service layer.
-        This method should return an Order, raising if not found, to match ExchangeAPI.
-        However, the underlying service `get_order` returns `Order | None`.
+        Returns None if not found (to match ExchangeAPI signature).
         """
         if symbol is None:
             raise ValueError("Symbol is required for get_order_status on Hyperliquid.")
@@ -1100,15 +1157,11 @@ class HyperliquidAPI(ExchangeAPI):
         except ValueError:
             _error_msg_invalid_oid = f"Invalid order_id format for get_order_status: {order_id}"
             logger.error(f"[{self.exchange_name}] {_error_msg_invalid_oid}")
-            raise APIError(_error_msg_invalid_oid, APIErrorCode.INVALID_REQUEST.value) from None
+            # Return None instead of raising APIError to match base signature
+            return None
 
         order = await self.trading_service.get_order(symbol=symbol, order_id=order_id_int)
-        if order is None:
-            raise APIError(
-                f"Order with ID '{order_id}' not found for symbol '{symbol}'.",
-                APIErrorCode.ORDER_NOT_FOUND.value,
-            )
-        return order
+        return order  # This already returns Order | None from the service
 
     async def get_order(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
@@ -1135,7 +1188,6 @@ class HyperliquidAPI(ExchangeAPI):
         limit: int | None = None,
         order_id: str | None = None,
         client_order_id: str | None = None,
-        from_id: str | None = None,
     ) -> list[Order]:
         """Retrieves historical orders."""
         if not self._wallet_address:
@@ -1149,9 +1201,9 @@ class HyperliquidAPI(ExchangeAPI):
                 f"directly supported by Hyperliquid's order history mechanism. "
                 f"It will be ignored. Use start_time and end_time for filtering."
             )
-        if order_id or client_order_id or from_id:
+        if order_id or client_order_id:
             logger.warning(
-                f"[{self.exchange_name}] Parameters 'order_id', 'client_order_id', 'from_id' "
+                f"[{self.exchange_name}] Parameters 'order_id', 'client_order_id' "
                 f"for get_order_history are not directly used by the "
                 f"Hyperliquid service call which primarily relies on symbol, start_time, "
                 f"and end_time. These will be ignored."
@@ -1164,11 +1216,7 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_trade_history(
         self,
         symbol: str | None = None,
-        limit: int | None = None,
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-        from_id: str | None = None,
-        order_id: str | None = None,
+        limit: int = 100,
     ) -> list[Trade]:
         """Retrieves historical trades (fills)."""
         if not self._wallet_address:
@@ -1176,13 +1224,11 @@ class HyperliquidAPI(ExchangeAPI):
                 "Wallet address required for get_trade_history.",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
-        if start_time or end_time or limit or from_id or order_id:
+        if limit != 100:
             logger.warning(
-                f"[{self.exchange_name}] Parameters 'start_time', 'end_time', 'limit', "
-                f"'from_id', 'order_id' for get_trade_history are not directly supported by "
-                f"Hyperliquid's user fills mechanism in the same way as other exchanges. "
-                f"Filtering is primarily by symbol. These parameters will be ignored by the "
-                f"direct service call."
+                f"[{self.exchange_name}] 'limit' parameter for get_trade_history is not "
+                f"directly supported by Hyperliquid's user fills mechanism in the same way as other exchanges. "
+                f"Filtering is primarily by symbol. The limit parameter will be ignored."
             )
         return await self.account_service.get_trade_history(symbol=symbol)
 

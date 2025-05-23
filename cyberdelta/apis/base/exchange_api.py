@@ -80,6 +80,8 @@ class ExchangeAPI(ABC):
         error_mapper: IErrorMapper,
         loop: asyncio.AbstractEventLoop | None = None,
         authenticator: IAuthenticator | None = None,
+        http_client: HttpClient | None = None,
+        ws_manager: WebSocketManager | None = None,
     ) -> None:
         """
         Initialize the exchange API client.
@@ -91,6 +93,8 @@ class ExchangeAPI(ABC):
             error_mapper: Instance of an IErrorMapper implementation.
             loop: Optional event loop for rate limiters
             authenticator: Optional authenticator instance for signed requests.
+            http_client: Optional HttpClient instance for dependency injection (testing)
+            ws_manager: Optional WebSocketManager instance for dependency injection (testing)
         """
         self.exchange_name = exchange_name
         self._config = config
@@ -162,37 +166,47 @@ class ExchangeAPI(ABC):
                 f"WebSocket functionality will be disabled."
             )
 
-        self._http_client = HttpClient(
-            exchange_name=self.exchange_name,
-            config=http_client_config,
-        )
-
-        self._ws_manager: WebSocketManager | None = None
-        if self.ws_endpoint:  # At this point, ws_endpoint is either a valid string or None
-            ws_config_data = {"ws_url": self.ws_endpoint}  # ws_url is required
-
-            websocket_params_to_check = {
-                "ws_ping_interval": "ping_interval",
-                "ws_reconnect_delay": "reconnect_delay",
-                "ws_max_reconnect_attempts": "max_reconnect_attempts",
-                "ws_connection_timeout": "connection_timeout",
-            }
-
-            for config_key, model_key in websocket_params_to_check.items():
-                if config_key in self._config:  # Check if key exists in the main config
-                    value = self._config[config_key]
-                    if value is not None:  # Only add if value is not None
-                        ws_config_data[model_key] = value
-
-            # Use model_validate for robust parsing and type coercion.
-            websocket_manager_config = WebSocketManagerConfig.model_validate(ws_config_data)
-
-            self._ws_manager = WebSocketManager(
+        # Use injected HttpClient if provided, otherwise create one
+        if http_client is not None:
+            self._http_client = http_client
+        else:
+            self._http_client = HttpClient(
                 exchange_name=self.exchange_name,
-                config=websocket_manager_config,  # Pass the WebSocketManagerConfig object
-                message_handler=self._handle_websocket_message,
-                on_connected_callback=self._on_ws_connected,
+                config=http_client_config,
             )
+
+        # Use injected WebSocketManager if provided, otherwise create one if ws_endpoint exists
+        # Type annotation: _ws_manager can be None when no WebSocket endpoint is configured
+        self._ws_manager: WebSocketManager | None
+        if ws_manager is not None:
+            self._ws_manager = ws_manager
+        else:
+            self._ws_manager = None
+            if self.ws_endpoint:  # At this point, ws_endpoint is either a valid string or None
+                ws_config_data = {"ws_url": self.ws_endpoint}  # ws_url is required
+
+                websocket_params_to_check = {
+                    "ws_ping_interval": "ping_interval",
+                    "ws_reconnect_delay": "reconnect_delay",
+                    "ws_max_reconnect_attempts": "max_reconnect_attempts",
+                    "ws_connection_timeout": "connection_timeout",
+                }
+
+                for config_key, model_key in websocket_params_to_check.items():
+                    if config_key in self._config:  # Check if key exists in the main config
+                        value = self._config[config_key]
+                        if value is not None:  # Only add if value is not None
+                            ws_config_data[model_key] = value
+
+                # Use model_validate for robust parsing and type coercion.
+                websocket_manager_config = WebSocketManagerConfig.model_validate(ws_config_data)
+
+                self._ws_manager = WebSocketManager(
+                    exchange_name=self.exchange_name,
+                    config=websocket_manager_config,  # Pass the WebSocketManagerConfig object
+                    message_handler=self._handle_websocket_message,
+                    on_connected_callback=self._on_ws_connected,
+                )
 
         logger.info(
             f"[{self.exchange_name}] API initialized. REST: {self.rest_endpoint}, "
