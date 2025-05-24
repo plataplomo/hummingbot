@@ -1,0 +1,513 @@
+"""
+CyberDeltaEngine: Hyperliquid Account Data Mapper
+------------------------------------------------
+
+This module provides the HyperliquidAccountDataMapper class for transforming
+Hyperliquid Raw Account Data models into Internal Domain Models.
+
+Responsibilities:
+- Transform Raw Balances (HyperliquidRawClearinghouseState) to Internal SpotBalance models
+- Transform Raw Positions (HyperliquidRawPositionInfo) to Internal DerivativePosition models
+- Transform Raw Account Summaries to Internal MarginAccountSummary models
+- Transform Raw User Fills to Internal Trade models
+- Transform WebSocket Account Data events to Internal models
+
+All transformation methods follow the standard pattern:
+- Take a validated Raw Pydantic Model as primary input
+- Return fully populated Internal Domain Model with Details slots
+- Handle type conversions, enum mapping, and error cases
+- Raise TransformationError for unmappable data
+"""
+
+import logging
+from datetime import UTC, datetime
+from decimal import Decimal
+
+from cyberdelta.apis.exchange_names import ExchangeName
+from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
+from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import HyperliquidRawUserFill
+from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
+    HyperliquidRawClearinghouseState,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
+    HyperliquidRawWsFillEvent,
+)
+from cyberdelta.core.models import (
+    DerivativePosition,
+    HyperliquidMarginDetails,
+    HyperliquidPositionDetails,
+    HyperliquidSpotBalanceDetails,
+    MarginAccountSummary,
+    SpotBalance,
+    Trade,
+)
+from cyberdelta.core.models.enums import OrderSide
+from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
+from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
+
+logger = logging.getLogger(__name__)
+
+
+class TransformationError(ValueError):
+    """Raised when a validated Raw model cannot be transformed to Internal model."""
+
+    pass
+
+
+class HyperliquidAccountDataMapper:
+    """
+    Domain-focused mapper for Hyperliquid account data transformations.
+
+    This class contains static methods for transforming validated Hyperliquid Raw models
+    related to account data into CyberDeltaEngine Internal Domain Models.
+    """
+
+    @staticmethod
+    def _map_side_to_internal(hl_side: str) -> OrderSide:
+        """
+        Maps a Hyperliquid order side string to internal OrderSide enum.
+
+        Args:
+            hl_side: Raw side string from Hyperliquid ("B" or "A")
+
+        Returns:
+            OrderSide: Mapped internal enum value
+
+        Raises:
+            TransformationError: If side cannot be mapped
+        """
+        if hl_side == "B":
+            return OrderSide.BUY
+        elif hl_side == "A":
+            return OrderSide.SELL
+
+        raise TransformationError(f"Unknown Hyperliquid order side: '{hl_side}'")
+
+    @staticmethod
+    def transform_raw_clearinghouse_state_to_spot_balances(
+        raw_state: HyperliquidRawClearinghouseState,
+    ) -> dict[str, SpotBalance]:
+        """
+        Transforms a HyperliquidRawClearinghouseState to Internal SpotBalance models.
+
+        Args:
+            raw_state: Validated raw clearinghouse state from Hyperliquid
+
+        Returns:
+            dict[str, SpotBalance]: Dictionary mapping asset symbols to SpotBalance models
+
+        Raises:
+            TransformationError: If transformation fails
+        """
+        try:
+            spot_balances: dict[str, SpotBalance] = {}
+
+            # Hyperliquid clearinghouse state provides a single withdrawable amount (in USDC equivalent)
+            # This is the total available balance across all assets
+            if hasattr(raw_state, "withdrawable") and raw_state.withdrawable:
+                balance = parse_decimal_value(
+                    raw_state.withdrawable, allow_none=False, field_name="withdrawable"
+                )
+
+                if balance is not None and balance > Decimal("0"):
+                    # Create HL-specific details
+                    details = HyperliquidSpotBalanceDetails()
+
+                    # Hyperliquid primarily uses USDC for spot balances
+                    spot_balance = SpotBalance(
+                        asset="USDC",
+                        exchange=ExchangeName.HYPERLIQUID.value,
+                        total_quantity=balance,
+                        available_quantity=balance,  # Withdrawable = available
+                        timestamp=datetime.now(UTC),
+                        hl_details=details,
+                    )
+
+                    spot_balances["USDC"] = spot_balance
+
+            return spot_balances
+
+        except Exception as e:
+            raise TransformationError(
+                f"Failed to transform HyperliquidRawClearinghouseState to SpotBalance: {e}"
+            ) from e
+
+    @staticmethod
+    def transform_raw_clearinghouse_state_to_derivative_positions(
+        raw_state: HyperliquidRawClearinghouseState,
+    ) -> dict[str, DerivativePosition]:
+        """
+        Transforms a HyperliquidRawClearinghouseState to Internal DerivativePosition models.
+
+        Args:
+            raw_state: Validated raw clearinghouse state from Hyperliquid
+
+        Returns:
+            dict[str, DerivativePosition]: Dictionary mapping symbols to DerivativePosition models
+
+        Raises:
+            TransformationError: If transformation fails
+        """
+        try:
+            positions: dict[str, DerivativePosition] = {}
+
+            # Extract asset positions from the raw state
+            if hasattr(raw_state, "asset_positions") and raw_state.asset_positions:
+                for position_data in raw_state.asset_positions:
+                    if not hasattr(position_data, "position") or not position_data.position:
+                        continue
+
+                    pos = position_data.position
+                    symbol = getattr(pos, "coin", None)
+
+                    if not symbol:
+                        continue
+
+                    # Parse position size
+                    size_str = getattr(pos, "szi", "0")
+                    size = parse_decimal_value(
+                        size_str, allow_none=False, field_name="position.szi"
+                    )
+
+                    if size is None or size == Decimal("0"):
+                        continue  # Skip zero positions
+
+                    # Parse entry price
+                    entry_price = parse_decimal_value(
+                        getattr(pos, "entryPx", "0"), allow_none=True, field_name="position.entryPx"
+                    )
+
+                    # Parse unrealized PnL
+                    unrealized_pnl = parse_decimal_value(
+                        getattr(pos, "unrealizedPnl", "0"),
+                        allow_none=True,
+                        field_name="position.unrealizedPnl",
+                    )
+
+                    # Parse return on equity (unused for now but available for future use)
+                    # return_on_equity = parse_decimal_value(
+                    #     getattr(pos, "returnOnEquity", "0"),
+                    #     allow_none=True,
+                    #     field_name="position.returnOnEquity",
+                    # )
+
+                    # Create HL-specific details
+                    leverage_value = getattr(pos, "leverage", 1)
+                    max_leverage = getattr(pos, "maxLeverage", 1)
+                    margin_used = parse_decimal_value(
+                        getattr(pos, "marginUsed", None),
+                        allow_none=True,
+                        field_name="position.marginUsed",
+                    )
+
+                    details = HyperliquidPositionDetails(
+                        leverage_type="cross",  # Default to cross leverage
+                        leverage_value=int(leverage_value) if leverage_value else 1,
+                        max_leverage=int(max_leverage) if max_leverage else 1,
+                        margin_used=margin_used,
+                    )
+
+                    # Determine side based on position size
+                    from cyberdelta.core.models.enums import OrderSide
+
+                    side = OrderSide.BUY if size > Decimal("0") else OrderSide.SELL
+
+                    position = DerivativePosition(
+                        exchange=ExchangeName.HYPERLIQUID.value,
+                        symbol=symbol,
+                        side=side,
+                        size=size,
+                        entry_price=entry_price,
+                        mark_price=None,  # Not available in this context
+                        unrealized_pnl=unrealized_pnl,
+                        timestamp=datetime.now(UTC),
+                        hl_details=details,
+                    )
+
+                    positions[symbol] = position
+
+            return positions
+
+        except Exception as e:
+            raise TransformationError(
+                f"Failed to transform HyperliquidRawClearinghouseState to DerivativePosition: {e}"
+            ) from e
+
+    @staticmethod
+    def transform_raw_clearinghouse_state_to_margin_summary(
+        raw_state: HyperliquidRawClearinghouseState,
+    ) -> MarginAccountSummary:
+        """
+        Transforms a HyperliquidRawClearinghouseState to an Internal MarginAccountSummary model.
+
+        Args:
+            raw_state: Validated raw clearinghouse state from Hyperliquid
+
+        Returns:
+            MarginAccountSummary: Internal domain model with HL details populated
+
+        Raises:
+            TransformationError: If transformation fails
+        """
+        try:
+            # Parse margin summary data
+            margin_summary = getattr(raw_state, "margin_summary", None)
+
+            if not margin_summary:
+                raise TransformationError("No margin summary data found in clearinghouse state")
+
+            # Parse core margin fields
+            account_value = parse_decimal_value(
+                getattr(margin_summary, "accountValue", "0"),
+                allow_none=False,
+                field_name="marginSummary.accountValue",
+            )
+
+            total_margin_used = parse_decimal_value(
+                getattr(margin_summary, "totalMarginUsed", "0"),
+                allow_none=False,
+                field_name="marginSummary.totalMarginUsed",
+            )
+
+            # Parse additional fields (available for future use)
+            # total_ntl_pos = parse_decimal_value(
+            #     getattr(margin_summary, "totalNtlPos", "0"),
+            #     allow_none=True,
+            #     field_name="marginSummary.totalNtlPos",
+            # )
+
+            # total_raw_usd = parse_decimal_value(
+            #     getattr(margin_summary, "totalRawUsd", "0"),
+            #     allow_none=True,
+            #     field_name="marginSummary.totalRawUsd",
+            # )
+
+            if account_value is None or total_margin_used is None:
+                raise TransformationError("Required margin summary fields are missing")
+
+            # Calculate available margin
+            available_margin = account_value - total_margin_used
+
+            # Create HL-specific details with required fields
+            details = HyperliquidMarginDetails(
+                cross_maintenance_margin_used=total_margin_used or Decimal("0"),
+                isolated_maintenance_margin_used=Decimal("0"),  # Default for now
+            )
+
+            return MarginAccountSummary(
+                exchange=ExchangeName.HYPERLIQUID.value,
+                timestamp=datetime.now(UTC),
+                total_equity=account_value,
+                available_equity=available_margin,
+                hl_details=details,
+            )
+
+        except Exception as e:
+            raise TransformationError(
+                f"Failed to transform HyperliquidRawClearinghouseState to MarginAccountSummary: {e}"
+            ) from e
+
+    @staticmethod
+    def transform_raw_user_fill_to_internal(raw_fill: HyperliquidRawUserFill) -> Trade:
+        """
+        Transforms a HyperliquidRawUserFill to an Internal Trade model.
+
+        Args:
+            raw_fill: Validated raw user fill from Hyperliquid
+
+        Returns:
+            Trade: Internal domain model with HL details populated
+
+        Raises:
+            TransformationError: If transformation fails
+        """
+        try:
+            # Map side
+            side = HyperliquidAccountDataMapper._map_side_to_internal(raw_fill.side)
+
+            # Parse price and quantity
+            price = parse_decimal_value(raw_fill.px, allow_none=False, field_name="px")
+            quantity = parse_decimal_value(raw_fill.sz, allow_none=False, field_name="sz")
+
+            if price is None or quantity is None:
+                raise TransformationError("Price and quantity are required for trade")
+
+            # Parse timestamp
+            executed_at = parse_datetime_utc(raw_fill.time, field_name="time")
+            if executed_at is None:
+                executed_at = datetime.now(UTC)
+
+            # Parse fee
+            fee = parse_decimal_value(
+                getattr(raw_fill, "fee", "0"), allow_none=True, field_name="fee"
+            ) or Decimal("0")
+
+            # Create HL-specific details
+            trade_hash = getattr(raw_fill, "hash", None)
+            if trade_hash is None:
+                trade_hash = f"unknown_hash_{raw_fill.time}_{raw_fill.coin}"
+
+            details = HyperliquidTradeDetails(
+                trade_hash=str(trade_hash),
+                liquidation_mark_px=parse_decimal_value(
+                    getattr(raw_fill, "liquidationMarkPx", None),
+                    allow_none=True,
+                    field_name="liquidationMarkPx",
+                ),
+                start_position=parse_decimal_value(
+                    getattr(raw_fill, "startPosition", None),
+                    allow_none=True,
+                    field_name="startPosition",
+                ),
+                dir=getattr(raw_fill, "dir", None),
+            )
+
+            return Trade(
+                id=getattr(raw_fill, "hash", f"fill_{raw_fill.time}_{raw_fill.coin}"),
+                symbol=raw_fill.coin,
+                executed_at=executed_at,
+                side=side,
+                order_id=str(getattr(raw_fill, "oid", "unknown")),
+                exchange=ExchangeName.HYPERLIQUID.value,
+                client_order_id=getattr(raw_fill, "cloid", None),
+                price=price,
+                quantity=quantity,
+                fee=fee,
+                fee_asset="USDC",  # HL typically uses USDC for fees
+                is_maker=getattr(raw_fill, "is_maker", None),
+                hl_details=details,
+            )
+
+        except Exception as e:
+            raise TransformationError(
+                f"Failed to transform HyperliquidRawUserFill to Trade: {e}"
+            ) from e
+
+    @staticmethod
+    def transform_raw_fill_to_internal(raw_fill: HyperliquidRawFill) -> Trade:
+        """
+        Transforms a HyperliquidRawFill to an Internal Trade model.
+
+        Args:
+            raw_fill: Validated raw fill from Hyperliquid
+
+        Returns:
+            Trade: Internal domain model with HL details populated
+
+        Raises:
+            TransformationError: If transformation fails
+        """
+        try:
+            # Map side
+            side = HyperliquidAccountDataMapper._map_side_to_internal(raw_fill.side)
+
+            # Parse price and quantity
+            price = parse_decimal_value(raw_fill.px, allow_none=False, field_name="px")
+            quantity = parse_decimal_value(raw_fill.sz, allow_none=False, field_name="sz")
+
+            if price is None or quantity is None:
+                raise TransformationError("Price and quantity are required for trade")
+
+            # Parse timestamp
+            executed_at = parse_datetime_utc(raw_fill.time, field_name="time")
+            if executed_at is None:
+                executed_at = datetime.now(UTC)
+
+            # Parse fee
+            fee = parse_decimal_value(
+                getattr(raw_fill, "fee", "0"), allow_none=True, field_name="fee"
+            ) or Decimal("0")
+
+            # Create HL-specific details
+            details = HyperliquidTradeDetails(
+                trade_hash=raw_fill.hash,
+                liquidation_mark_px=parse_decimal_value(
+                    getattr(raw_fill, "liquidation_mark_px", None),
+                    allow_none=True,
+                    field_name="liquidationMarkPx",
+                ),
+                start_position=parse_decimal_value(
+                    getattr(raw_fill, "start_position", None),
+                    allow_none=True,
+                    field_name="startPosition",
+                ),
+                dir=getattr(raw_fill, "dir", None),
+            )
+
+            return Trade(
+                id=raw_fill.hash,
+                symbol=raw_fill.coin,
+                executed_at=executed_at,
+                side=side,
+                order_id=str(raw_fill.oid),
+                exchange=ExchangeName.HYPERLIQUID.value,
+                client_order_id=raw_fill.cloid,
+                price=price,
+                quantity=quantity,
+                fee=fee,
+                fee_asset="USDC",  # HL typically uses USDC for fees
+                is_maker=raw_fill.is_maker,
+                hl_details=details,
+            )
+
+        except Exception as e:
+            raise TransformationError(
+                f"Failed to transform HyperliquidRawFill to Trade: {e}"
+            ) from e
+
+    @staticmethod
+    def transform_ws_fill_event_to_internal(raw_fill: HyperliquidRawWsFillEvent) -> Trade:
+        """
+        Transforms a WebSocket fill event to an Internal Trade model.
+
+        Args:
+            raw_fill: Validated raw WebSocket fill event from Hyperliquid
+
+        Returns:
+            Trade: Internal domain model with HL details populated
+
+        Raises:
+            TransformationError: If transformation fails
+        """
+        try:
+            # Map side
+            side = HyperliquidAccountDataMapper._map_side_to_internal(raw_fill.side)
+
+            # Parse price and quantity
+            price = parse_decimal_value(raw_fill.px, allow_none=False, field_name="px")
+            quantity = parse_decimal_value(raw_fill.sz, allow_none=False, field_name="sz")
+
+            if price is None or quantity is None:
+                raise TransformationError("Price and quantity are required for trade")
+
+            # Parse timestamp (convert from milliseconds)
+            executed_at = datetime.fromtimestamp(raw_fill.time / 1000, tz=UTC)
+
+            # Create HL-specific details
+            details = HyperliquidTradeDetails(
+                trade_hash=raw_fill.hash,
+                liquidation_mark_px=None,
+                start_position=None,
+                dir=None,
+            )
+
+            return Trade(
+                id=raw_fill.hash,
+                symbol=raw_fill.coin,
+                executed_at=executed_at,
+                side=side,
+                order_id=str(raw_fill.oid),
+                exchange=ExchangeName.HYPERLIQUID.value,
+                client_order_id=raw_fill.cloid,
+                price=price,
+                quantity=quantity,
+                fee=Decimal("0"),  # Fee not available in WS fill events
+                fee_asset=None,
+                is_maker=raw_fill.is_maker,
+                hl_details=details,
+            )
+
+        except Exception as e:
+            raise TransformationError(
+                f"Failed to transform HyperliquidRawWsFillEvent to Trade: {e}"
+            ) from e

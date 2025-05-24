@@ -15,13 +15,13 @@ from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 
 # Import RawJsonResponse from bp_response_handler where it's defined as an alias
 from cyberdelta.apis.backpack.bp_response_handler import (
     BackpackResponseHandler,
 )
+from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarketDataMapper
 from cyberdelta.apis.backpack.models.bp_raw_funding import (
     BackpackRawFundingIntervalRate,
     BackpackRawFundingRate,
@@ -79,7 +79,7 @@ class BackpackMarketDataService:
     _http_client_requester: HttpClientRequesterSig
     _request_builder: BackpackRequestBuilder
     _response_handler: BackpackResponseHandler
-    _mapper: BackpackOrderMapper
+    _mapper: BackpackMarketDataMapper
     _exchange_name: str
     _rate_limiter_service: RateLimiterService
 
@@ -105,7 +105,7 @@ class BackpackMarketDataService:
         self._request_builder = request_builder
         self._response_handler = response_handler
         self._exchange_name = exchange_name
-        self._mapper = BackpackOrderMapper()
+        self._mapper = BackpackMarketDataMapper()
         self._rate_limiter_service = rate_limiter_service
 
     async def get_ticker(self, symbol: str) -> Ticker:
@@ -113,7 +113,8 @@ class BackpackMarketDataService:
         params = self._request_builder.build_get_ticker_params(symbol=symbol)
         endpoint_path = "/api/v1/ticker"  # Define endpoint path in service
         logger.debug(
-            f"[{self._exchange_name}] Requesting ticker for {symbol} from {endpoint_path} with params: {params}"
+            f"[{self._exchange_name}] Requesting ticker for {symbol} from {endpoint_path} "
+            f"with params: {params}"
         )
         raw_data: ParsedJsonResponse | None = None  # For logging in except blocks
         status_code: int = 0
@@ -270,7 +271,8 @@ class BackpackMarketDataService:
         params = self._request_builder.build_get_order_book_params(symbol=symbol, limit=limit)
         endpoint_path = "/api/v1/depth"  # Define endpoint path in service
         logger.debug(
-            f"[{self._exchange_name}] Requesting order book for {symbol} (limit: {limit}) from {endpoint_path} with params: {params}"
+            f"[{self._exchange_name}] Requesting order book for {symbol} (limit: {limit}) "
+            f"from {endpoint_path} with params: {params}"
         )
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
@@ -308,7 +310,7 @@ class BackpackMarketDataService:
                     raw_data, symbol, status_code, headers
                 )
             )
-            internal_order_book = self._mapper.transform_raw_orderbook_to_internal(
+            internal_order_book = self._mapper.transform_raw_order_book_to_internal(
                 symbol, raw_order_book_model
             )
             logger.debug(
@@ -351,7 +353,8 @@ class BackpackMarketDataService:
         params = self._request_builder.build_get_recent_trades_params(symbol=symbol, limit=limit)
         endpoint_path = "/api/v1/trades"  # Define endpoint path in service
         logger.debug(
-            f"[{self._exchange_name}] Requesting recent trades for {symbol} (limit: {limit}) from {endpoint_path} with params: {params}"
+            f"[{self._exchange_name}] Requesting recent trades for {symbol} (limit: {limit}) "
+            f"from {endpoint_path} with params: {params}"
         )
         raw_data_list: ParsedJsonResponse | None = None
         status_code: int = 0
@@ -393,8 +396,7 @@ class BackpackMarketDataService:
             for raw_model in raw_trade_models:
                 try:
                     trade = self._mapper.transform_raw_trade_to_internal(raw_model)
-                    if trade is not None:
-                        internal_trades.append(trade)
+                    internal_trades.append(trade)
                 except (ValidationError, ValueError) as e_map_item:
                     raw_data_str = (
                         raw_model.model_dump_json()
@@ -442,7 +444,8 @@ class BackpackMarketDataService:
         params = self._request_builder.build_get_funding_rate_params(symbol=symbol)
         endpoint_path = "/api/v1/funding"  # Define endpoint path in service
         logger.debug(
-            f"[{self._exchange_name}] Requesting funding rate for {symbol} from {endpoint_path} with params: {params}"
+            f"[{self._exchange_name}] Requesting funding rate for {symbol} from {endpoint_path} "
+            f"with params: {params}"
         )
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
@@ -576,8 +579,8 @@ class BackpackMarketDataService:
         )
         endpoint_path = "/api/v1/funding/history"  # Define endpoint path in service
         logger.debug(
-            f"[{self._exchange_name}] Requesting historical funding rates for {symbol} from {endpoint_path} "
-            f"with params: {params}"
+            f"[{self._exchange_name}] Requesting historical funding rates for {symbol} "
+            f"from {endpoint_path} with params: {params}"
         )
         # Initialize variables before the try block for broader scope in except blocks
         raw_data: ParsedJsonResponse | None = None
@@ -611,8 +614,8 @@ class BackpackMarketDataService:
 
             if not isinstance(raw_data, list):  # raw_data must be a list if not None
                 logger.error(
-                    f"[{self._exchange_name}] Historical funding rates data for {symbol} is not a list: "
-                    f"{type(raw_data)}. Raw: {raw_data!r}, Status: {status_code}"
+                    f"[{self._exchange_name}] Historical funding rates data for {symbol} "
+                    f"is not a list: {type(raw_data)}. Raw: {raw_data!r}, Status: {status_code}"
                 )
                 raise APIError(
                     f"Historical funding rates data for {symbol} is not a list: {type(raw_data)}",
@@ -637,8 +640,8 @@ class BackpackMarketDataService:
                     internal_funding_rates.append(transformed_rate)
                 except (ValidationError, ValueError) as e_map_item:
                     logger.warning(
-                        f"[{self._exchange_name}] Skipping mapping for historical funding rate item "
-                        f"for {symbol}: {e_map_item}. Item: {raw_rate!r}"
+                        f"[{self._exchange_name}] Skipping mapping for historical funding rate "
+                        f"item for {symbol}: {e_map_item}. Item: {raw_rate!r}"
                     )
 
             logger.debug(
@@ -651,8 +654,8 @@ class BackpackMarketDataService:
             raise
         except (ValidationError, ValueError) as e_val:
             logger.error(
-                f"[{self._exchange_name}] Validation/map error for historical funding rates for {symbol}: {e_val}. "
-                f"Raw: {raw_data!r}, Status: {status_code}"
+                f"[{self._exchange_name}] Validation/map error for historical funding rates "
+                f"for {symbol}: {e_val}. Raw: {raw_data!r}, Status: {status_code}"
             )
             raise APIError(
                 message=f"Processing historical funding rates data for {symbol} failed: {e_val}",
@@ -667,12 +670,14 @@ class BackpackMarketDataService:
             )
             current_status_code_str = str(status_code) if status_code != 0 else "N/A"
             logger.error(
-                f"[{self._exchange_name}] Unhandled error fetching historical funding rates for {symbol}: {e_unhandled}. "
-                f"{raw_info_for_log}, Status: {current_status_code_str}",
+                f"[{self._exchange_name}] Unhandled error fetching historical funding rates "
+                f"for {symbol}: {e_unhandled}. {raw_info_for_log}, Status: {current_status_code_str}",
                 exc_info=True,
             )
             raise APIError(
-                message=f"Unhandled error during historical funding rates fetch for {symbol}: {e_unhandled}",
+                message=(
+                    f"Unhandled error during historical funding rates fetch for {symbol}: {e_unhandled}"
+                ),
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e_unhandled,
                 http_status=status_code if status_code != 0 else None,
@@ -699,7 +704,8 @@ class BackpackMarketDataService:
         )
         endpoint_path = "/api/v1/klines"  # Define endpoint path in service
         logger.debug(
-            f"[{self._exchange_name}] Requesting klines for {symbol}@{timeframe} from {endpoint_path} with params: {params}"
+            f"[{self._exchange_name}] Requesting klines for {symbol}@{timeframe} "
+            f"from {endpoint_path} with params: {params}"
         )
         raw_data_list: ParsedJsonResponse | None = None
         status_code: int = 0
