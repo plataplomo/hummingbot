@@ -369,7 +369,7 @@ class ExchangeAPI(ABC):
         """
         # This is a base implementation - exchange-specific classes should override
         # to handle their specific rate limit header formats
-        pass
+        raise NotImplementedError
 
     def _map_error_response(
         self,
@@ -440,8 +440,7 @@ class ExchangeAPI(ABC):
         """Internal method to route incoming WebSocket messages to appropriate handlers."""
         raise NotImplementedError
 
-    @abstractmethod
-    async def subscribe(self, topic: str, handler: MessageHandler) -> None:  # Added return type
+    async def subscribe(self, topic: str, handler: MessageHandler) -> None:
         """Register a handler for a specific WebSocket topic/channel and send subscription."""
         self._ws_handlers[topic] = handler
         if self._ws_manager and self.is_connected:
@@ -470,7 +469,6 @@ class ExchangeAPI(ABC):
         """Helper method to construct exchange-specific subscription payload."""
         raise NotImplementedError
 
-    @abstractmethod
     async def _on_ws_connected(self) -> None:
         """Callback executed by WebSocketManager after a successful connection."""
         logger.info(
@@ -478,7 +476,6 @@ class ExchangeAPI(ABC):
         )
         await self._resubscribe()
 
-    @abstractmethod
     async def _resubscribe(self) -> None:
         """Resubscribe to all registered topics after (re)connection."""
         if not self._ws_handlers:

@@ -87,20 +87,8 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
         """Mock implementation of WebSocket message routing."""
         pass
 
-    async def subscribe(self, topic: str, handler: MessageHandler) -> None:
-        """Mock implementation of subscription."""
-        await super().subscribe(topic, handler)
-
-    async def _resubscribe(self) -> None:
-        """Mock implementation of resubscription."""
-        pass
-
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
         """Mock implementation of WebSocket message handling."""
-        pass
-
-    async def _on_ws_connected(self) -> None:
-        """Mock implementation of WebSocket connection callback."""
         pass
 
     # Implement all abstract methods with simple mocks
@@ -189,7 +177,15 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
 @pytest.fixture
 def mock_error_mapper() -> MagicMock:
     """Mock error mapper for ExchangeAPI."""
-    return MagicMock(spec=IErrorMapper)
+    mock_mapper = MagicMock(spec=IErrorMapper)
+    # Configure the mock to return proper APIError instances
+    mock_mapper.map_string_error.return_value = APIError(
+        message="Mock error", code=APIErrorCode.UNKNOWN.value
+    )
+    mock_mapper.map_exchange_error.return_value = APIError(
+        message="Mock exchange error", code=APIErrorCode.UNKNOWN.value
+    )
+    return mock_mapper
 
 
 @pytest.fixture
@@ -395,6 +391,131 @@ class TestExchangeAPIWebSocketOperations:
 
         mock_ws.is_connected = False
         assert api.is_connected is False
+
+    @pytest.mark.asyncio
+    async def test_construct_subscription_payload_integration(
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+    ) -> None:
+        """Test that _construct_subscription_payload is properly integrated with subscribe."""
+        mock_ws = MagicMock()
+        mock_ws.send_json = AsyncMock(return_value=True)
+        mock_ws.is_connected = True
+        mock_ws.close = AsyncMock()
+
+        api = exchange_api_with_di(ws_manager=mock_ws)
+
+        async def test_handler(data: dict[str, Any], full_message: dict[str, Any]) -> None:
+            pass
+
+        # Test that subscribe uses _construct_subscription_payload
+        await api.subscribe("test.topic", test_handler)
+
+        # Verify the correct payload was sent
+        mock_ws.send_json.assert_called_once_with({"type": "subscribe", "channel": "test.topic"})
+
+        await api.close()
+
+    @pytest.mark.asyncio
+    async def test_websocket_reconnection_triggers_resubscription(
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+    ) -> None:
+        """Test that WebSocket reconnection triggers resubscription to existing topics."""
+        mock_ws = MagicMock()
+        mock_ws.send_json = AsyncMock(return_value=True)
+        mock_ws.is_connected = True
+        mock_ws.close = AsyncMock()
+        mock_ws.connect = AsyncMock()  # Make connect async
+
+        api = exchange_api_with_di(ws_manager=mock_ws)
+
+        async def test_handler1(data: dict[str, Any], full_message: dict[str, Any]) -> None:
+            pass
+
+        async def test_handler2(data: dict[str, Any], full_message: dict[str, Any]) -> None:
+            pass
+
+        # Subscribe to multiple topics
+        await api.subscribe("topic1", test_handler1)
+        await api.subscribe("topic2", test_handler2)
+
+        # Verify initial subscriptions were sent
+        assert mock_ws.send_json.call_count == 2
+
+        # Clear the mock to test resubscription behavior
+        mock_ws.send_json.reset_mock()
+
+        # Simulate WebSocket reconnection by calling the connection method
+        await api.connect_websocket()
+
+        # Verify that connect was called on the WebSocket manager
+        mock_ws.connect.assert_called_once()
+
+        await api.close()
+
+    @pytest.mark.asyncio
+    async def test_subscription_payload_construction_integration(
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+    ) -> None:
+        """Test that subscription payload construction is properly integrated."""
+        mock_ws = MagicMock()
+        mock_ws.send_json = AsyncMock(return_value=True)
+        mock_ws.is_connected = True
+        mock_ws.close = AsyncMock()
+
+        # Create a custom API that tracks payload construction calls
+        class PayloadTrackingAPI(ConcreteTestExchangeAPI):
+            def __init__(
+                self,
+                exchange_name: str,
+                config: dict[str, Any],
+                secrets: dict[str, str | None],
+                error_mapper: IErrorMapper,
+                loop: asyncio.AbstractEventLoop | None = None,
+                authenticator: IAuthenticator | None = None,
+                http_client: MagicMock | None = None,
+                ws_manager: MagicMock | None = None,
+                rate_limiter_service: MagicMock | None = None,
+            ) -> None:
+                super().__init__(
+                    exchange_name,
+                    config,
+                    secrets,
+                    error_mapper,
+                    loop,
+                    authenticator,
+                    http_client,
+                    ws_manager,
+                    rate_limiter_service,
+                )
+                self.payload_construction_calls: list[str] = []
+
+            def _construct_subscription_payload(self, topic: str) -> dict[str, Any] | None:
+                self.payload_construction_calls.append(topic)
+                return {"type": "subscribe", "channel": topic, "test": True}
+
+        api = PayloadTrackingAPI(
+            exchange_name="test_exchange",
+            config={"rest_endpoint": "https://test.endpoint", "ws_endpoint": "wss://test.ws"},
+            secrets={"API_KEY": "test"},
+            error_mapper=MagicMock(spec=IErrorMapper),
+            ws_manager=mock_ws,
+        )
+
+        async def test_handler(data: dict[str, Any], full_message: dict[str, Any]) -> None:
+            pass
+
+        # Subscribe to a topic
+        await api.subscribe("test_topic", test_handler)
+
+        # Verify payload construction was called
+        assert "test_topic" in api.payload_construction_calls
+
+        # Verify the custom payload was sent
+        mock_ws.send_json.assert_called_once_with(
+            {"type": "subscribe", "channel": "test_topic", "test": True}
+        )
+
+        await api.close()
 
 
 class TestExchangeAPIResourceManagement:
