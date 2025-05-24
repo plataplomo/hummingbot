@@ -87,10 +87,9 @@ class HyperliquidTradingDataMapper:
         status_map = {
             "open": OrderStatus.OPEN,
             "filled": OrderStatus.FILLED,
-            "cancelled": OrderStatus.CANCELED,
-            "canceled": OrderStatus.CANCELED,
+            "canceled": OrderStatus.CANCELED,  # Note: Hyperliquid uses "canceled" not "cancelled"
             "rejected": OrderStatus.REJECTED,
-            "partially_filled": OrderStatus.PARTIALLY_FILLED,
+            "expired": OrderStatus.UNKNOWN,  # Map expired to UNKNOWN since we don't have an EXPIRED status
         }
         return status_map.get(hl_status.lower(), OrderStatus.UNKNOWN)
 
@@ -199,10 +198,13 @@ class HyperliquidTradingDataMapper:
 
             quantity_filled = quantity_requested - remaining_sz
 
-            # Parse price
+            # Parse price - handle market orders correctly
             price = parse_decimal_value(
                 str(raw_order.limit_px), allow_none=True, field_name="limitPx"
             )
+            # For market orders, Hyperliquid uses limit_px="0", but internal Order expects price=None
+            if price is not None and price == Decimal("0"):
+                price = None
 
             # Parse timestamps
             created_at = parse_datetime_utc(raw_order.timestamp, field_name="timestamp")
@@ -212,6 +214,8 @@ class HyperliquidTradingDataMapper:
             updated_at = parse_datetime_utc(
                 raw_order.status_timestamp, field_name="statusTimestamp"
             )
+            if updated_at is None:
+                updated_at = created_at
 
             # Parse trigger/stop logic
             stop_price = None
@@ -245,27 +249,50 @@ class HyperliquidTradingDataMapper:
                         f"with quantity_filled={quantity_filled} but no valid price"
                     )
 
-            return Order(
-                exchange_order_id=str(raw_order.oid),
-                symbol=raw_order.asset,
-                side=side,
-                order_type=order_type,
-                status=status,
-                quantity_requested=quantity_requested,
-                quantity_filled=quantity_filled,
-                price=price,
-                average_fill_price=average_fill_price,
-                stop_price=stop_price,
-                time_in_force=time_in_force,
-                trigger_by=trigger_by,
-                exchange=ExchangeName.HYPERLIQUID.value,
-                client_order_id=raw_order.cloid or "",
-                created_at=created_at,
-                updated_at=updated_at,
-                triggered_at=None,
-                strategy_name=None,
-                signal_id=None,
-            )
+            # Handle client_order_id - only include if cloid is available, else let default_factory generate UUID
+            if raw_order.cloid:
+                return Order(
+                    exchange_order_id=str(raw_order.oid),
+                    symbol=raw_order.asset,
+                    side=side,
+                    order_type=order_type,
+                    status=status,
+                    quantity_requested=quantity_requested,
+                    quantity_filled=quantity_filled,
+                    price=price,
+                    average_fill_price=average_fill_price,
+                    stop_price=stop_price,
+                    time_in_force=time_in_force,
+                    trigger_by=trigger_by,
+                    exchange=ExchangeName.HYPERLIQUID.value,
+                    client_order_id=raw_order.cloid,
+                    created_at=created_at,
+                    updated_at=updated_at,
+                    triggered_at=None,
+                    strategy_name=None,
+                    signal_id=None,
+                )
+            else:
+                return Order(
+                    exchange_order_id=str(raw_order.oid),
+                    symbol=raw_order.asset,
+                    side=side,
+                    order_type=order_type,
+                    status=status,
+                    quantity_requested=quantity_requested,
+                    quantity_filled=quantity_filled,
+                    price=price,
+                    average_fill_price=average_fill_price,
+                    stop_price=stop_price,
+                    time_in_force=time_in_force,
+                    trigger_by=trigger_by,
+                    exchange=ExchangeName.HYPERLIQUID.value,
+                    created_at=created_at,
+                    updated_at=updated_at,
+                    triggered_at=None,
+                    strategy_name=None,
+                    signal_id=None,
+                )
 
         except Exception as e:
             raise TransformationError(
@@ -321,10 +348,13 @@ class HyperliquidTradingDataMapper:
 
             quantity_filled = quantity_requested - remaining_sz
 
-            # Parse price
+            # Parse price - handle market orders correctly
             price = parse_decimal_value(
                 str(raw_historical_order.limit_px), allow_none=True, field_name="limitPx"
             )
+            # For market orders, Hyperliquid uses limit_px="0", but internal Order expects price=None
+            if price is not None and price == Decimal("0"):
+                price = None
 
             # Parse timestamps
             created_at = parse_datetime_utc(raw_historical_order.timestamp, field_name="timestamp")
@@ -372,27 +402,51 @@ class HyperliquidTradingDataMapper:
                         f"with quantity_filled={quantity_filled} but no valid price"
                     )
 
-            return Order(
-                exchange_order_id=str(raw_historical_order.oid),
-                symbol=raw_historical_order.asset,
-                side=side,
-                order_type=order_type,
-                status=status,
-                quantity_requested=quantity_requested,
-                quantity_filled=quantity_filled,
-                price=price,
-                average_fill_price=average_fill_price,
-                stop_price=stop_price,
-                time_in_force=time_in_force,
-                trigger_by=trigger_by,
-                exchange=ExchangeName.HYPERLIQUID.value,
-                client_order_id=getattr(raw_historical_order, "cloid", None) or "",
-                created_at=created_at,
-                updated_at=updated_at,
-                triggered_at=None,
-                strategy_name=None,
-                signal_id=None,
-            )
+            # Handle client_order_id - only include if cloid is available, else let default_factory generate UUID
+            cloid = getattr(raw_historical_order, "cloid", None)
+            if cloid:
+                return Order(
+                    exchange_order_id=str(raw_historical_order.oid),
+                    symbol=raw_historical_order.asset,
+                    side=side,
+                    order_type=order_type,
+                    status=status,
+                    quantity_requested=quantity_requested,
+                    quantity_filled=quantity_filled,
+                    price=price,
+                    average_fill_price=average_fill_price,
+                    stop_price=stop_price,
+                    time_in_force=time_in_force,
+                    trigger_by=trigger_by,
+                    exchange=ExchangeName.HYPERLIQUID.value,
+                    client_order_id=cloid,
+                    created_at=created_at,
+                    updated_at=updated_at,
+                    triggered_at=None,
+                    strategy_name=None,
+                    signal_id=None,
+                )
+            else:
+                return Order(
+                    exchange_order_id=str(raw_historical_order.oid),
+                    symbol=raw_historical_order.asset,
+                    side=side,
+                    order_type=order_type,
+                    status=status,
+                    quantity_requested=quantity_requested,
+                    quantity_filled=quantity_filled,
+                    price=price,
+                    average_fill_price=average_fill_price,
+                    stop_price=stop_price,
+                    time_in_force=time_in_force,
+                    trigger_by=trigger_by,
+                    exchange=ExchangeName.HYPERLIQUID.value,
+                    created_at=created_at,
+                    updated_at=updated_at,
+                    triggered_at=None,
+                    strategy_name=None,
+                    signal_id=None,
+                )
 
         except Exception as e:
             raise TransformationError(

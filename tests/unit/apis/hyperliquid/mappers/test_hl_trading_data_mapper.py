@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from _pytest.logging import LogCaptureFixture
+from pydantic import ValidationError
 
 # Third-party imports for type checking only
 if TYPE_CHECKING:
@@ -184,12 +185,10 @@ def test_invalid_order_side_raises_error(
     trading_data_mapper: HyperliquidTradingDataMapper,
     invalid_side: str,
 ) -> None:
-    """Test that invalid order sides raise TransformationError."""
-    raw_order = create_raw_order(side=invalid_side)
-    with pytest.raises(
-        TransformationError, match=f"Unknown Hyperliquid order side: '{invalid_side}'"
-    ):
-        trading_data_mapper.transform_raw_order_to_internal(raw_order)
+    """Test that invalid order sides raise ValidationError at the Raw model level."""
+    # Raw model validation should catch invalid sides before they reach the mapper
+    with pytest.raises(ValidationError):
+        create_raw_order(side=invalid_side)
 
 
 # --- Parameterized Tests for Order Status Mapping ---
@@ -200,14 +199,9 @@ def test_invalid_order_side_raises_error(
     [
         ("open", OrderStatus.OPEN),
         ("filled", OrderStatus.FILLED),
-        ("cancelled", OrderStatus.CANCELED),
         ("canceled", OrderStatus.CANCELED),
         ("rejected", OrderStatus.REJECTED),
-        ("partially_filled", OrderStatus.PARTIALLY_FILLED),
-        ("OPEN", OrderStatus.OPEN),  # Case insensitive
-        ("FILLED", OrderStatus.FILLED),
-        ("unknown_status", OrderStatus.UNKNOWN),
-        ("", OrderStatus.UNKNOWN),
+        ("expired", OrderStatus.UNKNOWN),
     ],
 )
 def test_order_status_mapping(
@@ -215,7 +209,7 @@ def test_order_status_mapping(
     hl_status: str,
     expected_status: OrderStatus,
 ) -> None:
-    """Test order status mapping via historical order transformation."""
+    """Test order status mapping with valid statuses that the Raw model allows."""
     raw_order = create_raw_historical_order(status=hl_status)
     result = trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
     assert result.status == expected_status
@@ -639,16 +633,8 @@ class TestTransformRawHistoricalOrderToInternal:
         mocker: MockerFixture,
     ) -> None:
         """Test handling of historical order without client order ID."""
-
-        # Mock getattr to return None for cloid
-        def mock_getattr(obj: object, attr: str, default: object = None) -> object:
-            if attr == "cloid":
-                return default
-            return getattr(obj, attr, default)
-
-        mocker.patch("builtins.getattr", side_effect=mock_getattr)
-
-        raw_order = create_raw_historical_order()
+        # Create a raw order without cloid instead of using dangerous global patch
+        raw_order = create_raw_historical_order(cloid=None)
         result = trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
         assert result.client_order_id == ""
 
@@ -674,18 +660,9 @@ class TestTransformRawHistoricalOrderToInternal:
         trading_data_mapper: HyperliquidTradingDataMapper,
         mocker: MockerFixture,
     ) -> None:
-        """Test handling of historical order with missing remaining_sz attribute."""
-        # Mock getattr to return "0" for remaining_sz (simulating it's missing and defaults to "0")
-        original_getattr = getattr
-
-        def mock_getattr(obj: object, attr: str, default: object = None) -> object:
-            if attr == "remaining_sz":
-                return "0"
-            return original_getattr(obj, attr, default)
-
-        mocker.patch("builtins.getattr", side_effect=mock_getattr)
-
-        raw_order = create_raw_historical_order()
+        """Test handling of historical order with zero remaining size (fully filled)."""
+        # Create a raw order with zero remaining size to simulate fully filled order
+        raw_order = create_raw_historical_order(sz="10.0", remaining_sz="0.0")
         result = trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
         assert result.quantity_filled == Decimal("10.0")  # All filled since remaining is 0
 
