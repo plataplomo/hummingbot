@@ -47,10 +47,10 @@ def set_nested_value(
     """Utility to set nested values in dict/list structures for testing.
 
     This function dynamically traverses nested dict/list structures using mixed
-    str/int path elements. The runtime isinstance checks ensure type safety,
-    but static analysis cannot track the dynamic type changes perfectly.
+    str/int path elements. The runtime isinstance checks ensure type safety
+    for dynamic traversal and assignment.
     """
-    current_level: dict[str, Any] | list[Any] = data_dict
+    current_level: Any = data_dict
 
     for i, key_or_index in enumerate(path):
         is_final_element = i == len(path) - 1
@@ -65,13 +65,11 @@ def set_nested_value(
 
             if is_final_element:
                 # Final element: set the value
-                # DEFENSIVE CHECK: Runtime validation ensures current_level is dict and key_or_index is str
                 current_level[key_or_index] = value
             else:
                 # Traversal: get next level and validate it's a container
-                # DEFENSIVE CHECK: Runtime validation ensures current_level is dict and key_or_index is str
                 next_level = current_level[key_or_index]
-                if not isinstance(next_level, (dict, list)):
+                if not isinstance(next_level, dict | list):
                     raise TypeError(
                         f"Cannot traverse non-container type {type(next_level).__name__} "
                         f"at path {path[: i + 1]}"
@@ -88,26 +86,19 @@ def set_nested_value(
 
             if is_final_element:
                 # Final element: set the value
-                # DEFENSIVE CHECK: Runtime validation ensures current_level is list and key_or_index is int
                 current_level[key_or_index] = value
             else:
                 # Traversal: get next level and validate it's a container
-                # DEFENSIVE CHECK: Runtime validation ensures current_level is list and key_or_index is int
                 next_level = current_level[key_or_index]
-                if not isinstance(next_level, (dict, list)):
+                if not isinstance(next_level, dict | list):
                     raise TypeError(
                         f"Cannot traverse non-container type {type(next_level).__name__} "
                         f"at path {path[: i + 1]}"
                     )
-                # DEFENSIVE CHECK: next_level validated as container above
                 current_level = next_level
-
-        # Handle unsupported key/index types
         else:
-            raise TypeError(
-                f"Path elements must be str or int, got {type(key_or_index).__name__} "
-                f"for element '{key_or_index}' at path {path[: i + 1]}"
-            )
+            # This should be unreachable given path type annotation
+            raise TypeError(f"Path element must be str or int, got {type(key_or_index).__name__}")
 
 
 # --- HyperliquidRawEthWithdrawalActionPayload Tests ---
@@ -247,9 +238,7 @@ def test_order_item_spec_invalid_fields(
     if value is None and field_alias in base_data:  # Test missing required field
         del base_data[field_alias]
     else:
-        base_data[field_alias] = (
-            value  # Negative test: intentionally assigning invalid type for validation
-        )
+        base_data[field_alias] = value
 
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawOrderItemSpec.model_validate(base_data)
