@@ -691,8 +691,10 @@ class TestBackpackAPIComprehensiveErrorHandling:
         result = await api.get_ticker("UNKNOWN_SYMBOL")
 
         assert result is None
-        mock_bp_market_data_service.get_ticker.assert_called_once_with(symbol="UNKNOWN_SYMBOL")
+        # DEFENSIVE CHECK: Mock assertion after successful test. Mypy=[unreachable]
+        mock_bp_market_data_service.get_ticker.assert_called_once_with(symbol="UNKNOWN_SYMBOL")  # type: ignore[unreachable]
 
+        # DEFENSIVE CHECK: Resource cleanup after test. Mypy=[unreachable]
         await api.close()
 
     @pytest.mark.asyncio
@@ -1008,7 +1010,8 @@ class TestBackpackAPIComprehensiveErrorHandling:
         ticker = await api.get_ticker("BTC_USDC")
         assert ticker is None
 
-        await api.close()
+        # DEFENSIVE CHECK: Resource cleanup after test. Mypy=[unreachable]
+        await api.close()  # type: ignore[unreachable]
 
     # =============================================================================
     # V. COMPLEX MULTI-STEP OPERATION FAILURES
@@ -1125,6 +1128,7 @@ class TestBackpackAPIComprehensiveErrorHandling:
             await api.get_balances()
         assert exc_info.value.code == APIErrorCode.RATE_LIMITED.value
 
+        # DEFENSIVE CHECK: Cleanup after pytest.raises context. Mypy=[unreachable]
         await api.close()
 
 

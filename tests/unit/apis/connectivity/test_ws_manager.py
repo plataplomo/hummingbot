@@ -452,7 +452,8 @@ class TestWebSocketManager:
             assert local_ws_manager.is_connected is False
             # After close(), the manager should be in a state where it won't reconnect
             # We can verify this by attempting to send a message, which should fail
-            send_success = await local_ws_manager.send_json({"test": "message"})
+            # Probably false positive, but we'll ignore it for now
+            send_success = await local_ws_manager.send_json({"test": "message"})  # type: ignore[unreachable]
             assert not send_success
 
             # Assert that ws_connect was not called AGAIN during or after close

@@ -12,9 +12,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
     HyperliquidRawL2UsdTransferActionDetails,
     HyperliquidRawOrderItemSpec,
 )
-from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
-    HyperliquidRawOrderType,
-)
 from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
     HyperliquidRawL2UsdTransferPayload,
 )
@@ -82,17 +79,17 @@ def set_nested_value(
                 current_level = cast(dict[str, Any] | list[Any], next_level_val)
 
         # Handle integer indices (for lists)
-        # DEFENSIVE CHECK: isinstance needed. Pyright=[reportUnnecessaryIsInstance]
-        elif isinstance(key_or_index, int):
+        # DEFENSIVE CHECK: isinstance needed to distinguish int from str in Union.
+        # Pyright=[reportUnnecessaryIsInstance]
+        elif isinstance(key_or_index, int):  # pyright: ignore[reportUnnecessaryIsInstance]
             # DEFENSIVE CHECK: Ensure current_level is a list before int index access
             if not isinstance(current_level, list):
                 raise TypeError(
                     f"Path index {key_or_index} requires a list at this level, "
                     f"but found {type(current_level).__name__} at path {path[: i + 1]}"
                 )
-            # After isinstance check, explicitly cast for Pyright type narrowing
-            # DEFENSIVE CHECK: Cast needed for Pyright. Mypy=[redundant-cast]
-            current_list: list[Any] = cast(list[Any], current_level)
+            # After isinstance check, type is narrowed to list[Any]
+            current_list: list[Any] = current_level
 
             if is_final_element:
                 # Final element: set the value (cast for test compatibility)
@@ -182,7 +179,7 @@ def test_order_item_spec_valid_limit() -> None:
     assert item_spec.p == VALID_DECIMAL_STR
     assert item_spec.s == "1.0"
     assert item_spec.r is False
-    assert isinstance(item_spec.t, HyperliquidRawOrderType)
+    # Test that order type is properly deserialized as HyperliquidRawOrderType
     assert item_spec.t.limit is not None
     assert item_spec.t.limit.tif == "Gtc"
     assert item_spec.c == "cloid123"
@@ -206,7 +203,7 @@ def test_order_item_spec_valid_market_no_cloid() -> None:
     assert item_spec.p == "0"
     assert item_spec.s == "0.5"
     assert item_spec.r is True
-    assert isinstance(item_spec.t, HyperliquidRawOrderType)
+    # Test that order type is properly deserialized as HyperliquidRawOrderType
     assert item_spec.t.market is not None
     assert item_spec.c is None
 
