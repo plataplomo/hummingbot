@@ -12,12 +12,9 @@ import pytest
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
-from cyberdelta.apis.hyperliquid.hl_mapper import (
-    HyperliquidMapper,
-    HyperliquidOrderMapper,
-    HyperliquidUserFillMapper,  # For trade history tests if needed
-)
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
+from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
+from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawAssetPosition,
     HyperliquidRawClearinghouseState,
@@ -57,18 +54,23 @@ def mock_authenticator() -> MagicMock:
 
 
 @pytest.fixture
-def mock_hl_mapper() -> MagicMock:  # For general user state to balance/summary
-    return MagicMock(spec=HyperliquidMapper)
+def mock_hl_account_mapper() -> MagicMock:  # For general user state to balance/summary
+    return MagicMock(spec=HyperliquidAccountDataMapper)
 
 
 @pytest.fixture
-def mock_hl_order_mapper() -> MagicMock:  # For order/fill related mappings
-    return MagicMock(spec=HyperliquidOrderMapper)
+def mock_hl_trading_mapper() -> MagicMock:  # For order/fill related mappings
+    return MagicMock(spec=HyperliquidTradingDataMapper)
 
 
 @pytest.fixture
-def mock_hl_user_fill_mapper() -> MagicMock:
-    return MagicMock(spec=HyperliquidUserFillMapper)
+def mock_hl_order_mapper() -> MagicMock:  # Backward compatibility alias
+    return MagicMock(spec=HyperliquidTradingDataMapper)
+
+
+@pytest.fixture
+def mock_hl_user_fill_mapper() -> MagicMock:  # Backward compatibility alias
+    return MagicMock(spec=HyperliquidTradingDataMapper)
 
 
 @pytest.fixture
@@ -83,9 +85,8 @@ def hyperliquid_account_service(
     mock_request_builder: MagicMock,
     mock_response_handler: MagicMock,
     mock_authenticator: MagicMock,
-    mock_hl_mapper: MagicMock,
-    mock_hl_order_mapper: MagicMock,
-    mock_hl_user_fill_mapper: MagicMock,
+    mock_hl_account_mapper: MagicMock,
+    mock_hl_trading_mapper: MagicMock,
 ) -> HyperliquidAccountService:
     service = HyperliquidAccountService(
         http_client_requester=mock_http_client_requester,
@@ -95,9 +96,8 @@ def hyperliquid_account_service(
         exchange_name="hyperliquid_test_account",
         info_url="http://test-mock-url",  # Mocked URL to prevent actual network calls
         wallet_address="0xTestWalletAddress",
-        mapper=mock_hl_mapper,
-        order_mapper=mock_hl_order_mapper,
-        user_fill_mapper=mock_hl_user_fill_mapper,
+        account_mapper=mock_hl_account_mapper,
+        trading_mapper=mock_hl_trading_mapper,
     )
     return service
 
@@ -112,7 +112,7 @@ class TestHyperliquidAccountService:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_hl_mapper: MagicMock,
+        mock_hl_account_mapper: MagicMock,
     ) -> None:
         """Test get_balances successfully retrieves and processes balance data."""
 
@@ -192,7 +192,7 @@ class TestHyperliquidAccountService:
                 available_quantity=Decimal("1000.5"),
             )
         }
-        mock_hl_mapper.map_raw_clearinghouse_state_to_spot_balances.return_value = (
+        mock_hl_account_mapper.transform_raw_clearinghouse_state_to_spot_balances.return_value = (
             expected_internal_balances
         )
 
@@ -212,7 +212,7 @@ class TestHyperliquidAccountService:
             raw_response_content=mock_raw_user_state_response_list[0],
             user_address="0xTestWalletAddress",
         )
-        mock_hl_mapper.map_raw_clearinghouse_state_to_spot_balances.assert_called_once_with(
+        mock_hl_account_mapper.transform_raw_clearinghouse_state_to_spot_balances.assert_called_once_with(
             mock_processed_raw_clearinghouse_state_model
         )
         assert result_balances == expected_internal_balances
@@ -224,9 +224,8 @@ class TestHyperliquidAccountService:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
         mock_authenticator: MagicMock,
-        mock_hl_mapper: MagicMock,
-        mock_hl_order_mapper: MagicMock,
-        mock_hl_user_fill_mapper: MagicMock,
+        mock_hl_account_mapper: MagicMock,
+        mock_hl_trading_mapper: MagicMock,
     ) -> None:
         """Test get_balances raises APIError if wallet_address is not set in service."""
         # Instantiate service directly with wallet_address=None
@@ -238,9 +237,8 @@ class TestHyperliquidAccountService:
             exchange_name="hyperliquid_test_no_wallet",
             info_url="https://info.hyperliquid.xyz",
             wallet_address=None,  # Key change here
-            mapper=mock_hl_mapper,
-            order_mapper=mock_hl_order_mapper,
-            user_fill_mapper=mock_hl_user_fill_mapper,
+            account_mapper=mock_hl_account_mapper,
+            trading_mapper=mock_hl_trading_mapper,
         )
         with pytest.raises(APIError) as excinfo:
             await service_no_wallet.get_balances()
@@ -600,9 +598,8 @@ class TestHyperliquidAccountService:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
         mock_authenticator: MagicMock,
-        mock_hl_mapper: MagicMock,
-        mock_hl_order_mapper: MagicMock,
-        mock_hl_user_fill_mapper: MagicMock,
+        mock_hl_account_mapper: MagicMock,
+        mock_hl_trading_mapper: MagicMock,
     ) -> None:
         """Test get_order_history error handling for missing wallet, missing times, and APIError
         from requester."""
@@ -615,9 +612,8 @@ class TestHyperliquidAccountService:
             exchange_name="hyperliquid_test_no_wallet_order_hist",
             info_url="https://info.hyperliquid.xyz",
             wallet_address=None,  # Key change here
-            mapper=mock_hl_mapper,
-            order_mapper=mock_hl_order_mapper,
-            user_fill_mapper=mock_hl_user_fill_mapper,
+            account_mapper=mock_hl_account_mapper,
+            trading_mapper=mock_hl_trading_mapper,
         )
         with pytest.raises(APIError) as excinfo_no_wallet:
             await service_no_wallet.get_order_history(
@@ -730,9 +726,8 @@ class TestHyperliquidAccountService:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
         mock_authenticator: MagicMock,
-        mock_hl_mapper: MagicMock,
-        mock_hl_order_mapper: MagicMock,
-        mock_hl_user_fill_mapper: MagicMock,
+        mock_hl_account_mapper: MagicMock,
+        mock_hl_trading_mapper: MagicMock,
     ) -> None:
         """Test get_trade_history error handling for missing wallet and APIError from requester."""
         # No wallet address case: Instantiate service with wallet_address=None
@@ -744,9 +739,8 @@ class TestHyperliquidAccountService:
             exchange_name="hyperliquid_test_no_wallet_trade_hist",
             info_url="https://info.hyperliquid.xyz",
             wallet_address=None,  # Key: Instantiate with None
-            mapper=mock_hl_mapper,
-            order_mapper=mock_hl_order_mapper,
-            user_fill_mapper=mock_hl_user_fill_mapper,
+            account_mapper=mock_hl_account_mapper,
+            trading_mapper=mock_hl_trading_mapper,
         )
         with pytest.raises(APIError) as excinfo_no_wallet:
             await service_no_wallet_trade_hist.get_trade_history(symbol=None)

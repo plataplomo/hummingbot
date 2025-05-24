@@ -248,7 +248,7 @@ class TestBackpackMarketDataService:
 
         with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
             mock_internal_order_book = MagicMock(spec=OrderBook)  # Assume mapper returns this
-            mock_mapper.transform_raw_orderbook_to_internal.return_value = mock_internal_order_book
+            mock_mapper.transform_raw_order_book_to_internal.return_value = mock_internal_order_book
 
             result = await backpack_market_data_service.get_order_book(symbol, limit=depth)
 
@@ -270,7 +270,7 @@ class TestBackpackMarketDataService:
                 200,
                 mock_headers_from_client,  # Use consistent mock
             )
-            mock_mapper.transform_raw_orderbook_to_internal.assert_called_once_with(
+            mock_mapper.transform_raw_order_book_to_internal.assert_called_once_with(
                 symbol, mock_validated_book
             )  # Add symbol to call
             assert result == mock_internal_order_book
@@ -313,7 +313,7 @@ class TestBackpackMarketDataService:
                 request_weight=1,
             )
             mock_response_handler.handle_get_order_book_response.assert_not_called()
-            mock_mapper.transform_raw_orderbook_to_internal.assert_not_called()
+            mock_mapper.transform_raw_order_book_to_internal.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_success(

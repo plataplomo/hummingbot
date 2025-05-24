@@ -12,9 +12,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler, RawJsonResponse
+from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAccountDataMapper
 from cyberdelta.apis.backpack.models.bp_raw_account import (
     BackpackRawBalance,
 )
@@ -82,8 +82,8 @@ def mock_rate_limiter_service() -> AsyncMock:
 
 @pytest.fixture
 def mock_mapper() -> MagicMock:
-    """Provides a mock BackpackOrderMapper."""
-    return MagicMock(spec=BackpackOrderMapper)
+    """Provides a mock BackpackAccountDataMapper."""
+    return MagicMock(spec=BackpackAccountDataMapper)
 
 
 @pytest.fixture

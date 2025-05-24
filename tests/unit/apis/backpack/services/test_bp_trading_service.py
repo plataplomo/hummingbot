@@ -10,9 +10,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
+from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
@@ -59,8 +59,8 @@ def mock_rate_limiter_service() -> AsyncMock:
 
 @pytest.fixture
 def mock_order_mapper() -> MagicMock:  # Renamed from mock_mapper for clarity
-    """Provides a mock BackpackOrderMapper."""
-    return MagicMock(spec=BackpackOrderMapper)
+    """Provides a mock BackpackTradingDataMapper."""
+    return MagicMock(spec=BackpackTradingDataMapper)
 
 
 @pytest.fixture
@@ -111,7 +111,7 @@ class TestBackpackTradingService:
         # Simulate HTTP client returning None for content
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
-        with patch.object(bp_trading_service, "_order_mapper", mock_order_mapper):
+        with patch.object(bp_trading_service, "_trading_mapper", mock_order_mapper):
             with pytest.raises(APIError) as exc_info:
                 await bp_trading_service.place_order(
                     symbol=symbol,
@@ -215,7 +215,7 @@ class TestBackpackTradingService:
         # Simulate HTTP client returning None for content
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
-        with patch.object(bp_trading_service, "_order_mapper", mock_order_mapper):
+        with patch.object(bp_trading_service, "_trading_mapper", mock_order_mapper):
             with pytest.raises(APIError) as exc_info:
                 await bp_trading_service.get_open_orders(symbol=symbol)
 
@@ -261,7 +261,7 @@ class TestBackpackTradingService:
         # Simulate HTTP client returning None for content
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
-        with patch.object(bp_trading_service, "_order_mapper", mock_order_mapper):
+        with patch.object(bp_trading_service, "_trading_mapper", mock_order_mapper):
             with pytest.raises(APIError) as exc_info:
                 await bp_trading_service.get_order(order_id=order_id, symbol=symbol)
 

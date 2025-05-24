@@ -1,3 +1,3 @@
-from .hl_ws_mapper import HyperliquidWebsocketMapper
+from .hl_api import HyperliquidAPI
 
-__all__ = ["HyperliquidWebsocketMapper"]
+__all__ = ["HyperliquidAPI"]

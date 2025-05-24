@@ -10,14 +10,12 @@ from unittest.mock import ANY, AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.hyperliquid.hl_mapper import (
-    HyperliquidMapper,
-)  # Added HyperliquidCandleMapper
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
     RawJsonResponse,
 )
+from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
 from cyberdelta.apis.hyperliquid.models.common_raw_types import RawHlCoinName
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshot,
@@ -65,7 +63,7 @@ def mock_hl_response_handler() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_mapper() -> MagicMock:
-    return MagicMock(spec=HyperliquidMapper)
+    return MagicMock(spec=HyperliquidMarketDataMapper)
 
 
 @pytest.fixture
@@ -215,7 +213,7 @@ class TestHyperliquidMarketDataService:
 
         # If _get_asset_context_by_name returns None, mapper shouldn't be called.
         # If it's called with None, it should handle it or map_raw_ctx_to_ticker might return None.
-        with patch.object(HyperliquidMapper, "map_raw_ctx_to_ticker", return_value=None):
+        with patch.object(HyperliquidMarketDataMapper, "map_raw_ctx_to_ticker", return_value=None):
             result = await hyperliquid_market_data_service.get_ticker(symbol)
             assert result is None
             # Depending on exact internal logic of get_ticker if asset_ctx is None:
@@ -959,7 +957,7 @@ class TestHyperliquidMarketDataService:
         mock_hl_response_handler.handle_historical_funding_rates_response.assert_not_called()
         # Since the mapper method is static, direct check on mock_hl_mapper instance method
         # won't work
-        # To check if HyperliquidMapper.transform_raw_funding_history_item_to_internal was called,
+        # To check if HyperliquidMarketDataMapper.transform_raw_funding_history_item_to_internal was called,
         # we would need to patch it directly if this test was for a success case involving mapping.
         # For a None response, the handler isn't called, so mapping isn't reached.
         # So, no specific assert_not_called for the static mapper method here is needed beyond

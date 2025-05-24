@@ -19,7 +19,9 @@ if TYPE_CHECKING:
 
 # Project-specific imports
 from cyberdelta.apis.exchange_names import ExchangeName
-from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidMapper
+
+# Import fixture from another test file
+from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
@@ -57,15 +59,13 @@ from cyberdelta.core.models.market.ticker import Ticker
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
-# Import fixture from another test file
-
 # Fixtures for HyperliquidMapper tests
 
 
 @pytest.fixture
-def mapper() -> HyperliquidMapper:
-    """Provide an instance of HyperliquidMapper."""
-    return HyperliquidMapper()
+def mapper() -> HyperliquidMarketDataMapper:
+    """Provide an instance of HyperliquidMarketDataMapper."""
+    return HyperliquidMarketDataMapper()
 
 
 @pytest.fixture
@@ -273,7 +273,9 @@ class TestMapRawClearinghouseStateToMarginSummary:
         # The original assertions for summary will likely fail now because other parts of
         # current_raw_state are not updated, but the goal is to see if the debug
         # assertions for current_raw_state.margin_summary pass.
-        summary = HyperliquidMapper.map_raw_clearinghouse_state_to_margin_summary(current_raw_state)
+        summary = HyperliquidAccountDataMapper.map_raw_clearinghouse_state_to_margin_summary(
+            current_raw_state
+        )
 
         assert isinstance(summary, MarginAccountSummary)
         assert summary.exchange == ExchangeName.HYPERLIQUID.value
@@ -321,7 +323,7 @@ class TestMapRawClearinghouseStateToMarginSummary:
             updated_data_python_names,
         )
 
-        summary = HyperliquidMapper.map_raw_clearinghouse_state_to_margin_summary(
+        summary = HyperliquidAccountDataMapper.map_raw_clearinghouse_state_to_margin_summary(
             current_raw_state,
         )
 

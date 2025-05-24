@@ -6,9 +6,9 @@ import pytest
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
-from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidOrderMapper
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
+from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOpenOrdersRequestPayload,
 )
@@ -40,8 +40,8 @@ def mock_get_asset_index_callable() -> AsyncMock:
 
 
 @pytest.fixture
-def mock_hl_order_mapper() -> MagicMock:
-    return MagicMock(spec=HyperliquidOrderMapper)
+def mock_hl_trading_mapper() -> MagicMock:
+    return MagicMock(spec=HyperliquidTradingDataMapper)
 
 
 @pytest.fixture
@@ -70,7 +70,7 @@ def make_hl_trading_service(
     mock_hl_response_handler_fixt: MagicMock,
     mock_authenticator_fixt: MagicMock,
     mock_get_asset_index_callable: AsyncMock,
-    mock_hl_order_mapper: MagicMock,
+    mock_hl_trading_mapper: MagicMock,
     mock_hl_error_mapper: MagicMock,
 ) -> Callable[..., HyperliquidTradingService]:
     """Factory fixture to create HyperliquidTradingService instances."""
@@ -85,7 +85,7 @@ def make_hl_trading_service(
             exchange_name="hyperliquid_test_trading",
             wallet_address=wallet_address,
             get_asset_index_callable=mock_get_asset_index_callable,
-            order_mapper=mock_hl_order_mapper,
+            trading_mapper=mock_hl_trading_mapper,
             error_mapper=mock_hl_error_mapper,
         )
 
