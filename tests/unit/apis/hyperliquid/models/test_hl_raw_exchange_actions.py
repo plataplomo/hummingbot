@@ -305,7 +305,7 @@ def test_batch_place_order_payload_valid() -> None:
         # Test invalid type for is_buy
         (("orders", 0, "is_buy"), "not-a-bool", "Must be a boolean"),
         # Test invalid format for limit_px (not a string)
-        (("orders", 0, "limit_px"), 123.45, "Input should be a valid string"),
+        (("orders", 0, "limit_px"), 123.45, "Expected string, got float"),
         # FIXME: limitPx uses RawFiniteDecimalStr, which allows negative values.
         # This test expects non-negative, which is incorrect for this raw type.
         # (
@@ -314,7 +314,7 @@ def test_batch_place_order_payload_valid() -> None:
         #     "must be non-negative",
         # ),
         # Test invalid format for sz (not parseable to decimal)
-        (("orders", 0, "size"), "not-a-decimal", "must be a parseable finite decimal string"),
+        (("orders", 0, "size"), "not-a-decimal", "Cannot convert 'not-a-decimal' to Decimal"),
         # FIXME: sz uses RawFiniteDecimalStr, which allows negative values.
         # This test expects non-negative, which is incorrect for this raw type.
         # (
@@ -326,13 +326,13 @@ def test_batch_place_order_payload_valid() -> None:
         (("orders", 0, "reduce_only"), "not-a-bool", "Must be a boolean"),
         # Test invalid order type structure (e.g., missing 'limit' or 'market' key)
         (
-            ("orders", 0, "order_type"),
+            ("orders", 0, "order_type_details"),
             {"invalid_key": "value"},
             "Exactly one of 'limit' or 'market' must be provided",
         ),
         # Test invalid tif value within limit order_type
         (
-            ("orders", 0, "order_type", "limit", "tif"),
+            ("orders", 0, "order_type_details", "limit", "tif"),
             "InvalidTif",
             "Invalid value 'InvalidTif'. Expected one of",
         ),
@@ -342,16 +342,15 @@ def test_batch_place_order_payload_invalid_fields(
     field_path: tuple[str | int, ...], value: object, expected_error_part: str
 ) -> None:
     # Base valid data structure for a batch order item
-    # Note: `order_type_details` is a simplified key for testing setup convenience here.
-    # The actual model HyperliquidRawOrderItemSpec expects `order_type` which is
-    # HyperliquidRawOrderType.
+    # Note: The model HyperliquidRawOrderItemSpec expects `order_type_details`
+    # (alias for field `t`) as the JSON key for order type information.
     base_order_item_data: dict[str, Any] = {
         "asset_index": 0,  # Using alias directly for test data setup simplicity
         "is_buy": True,
         "limit_px": VALID_DECIMAL_STR,
         "size": "1.0",
         "reduce_only": False,
-        "order_type": VALID_LIMIT_ORDER_TYPE_DETAILS_GTC,  # Simplified for direct injection
+        "order_type_details": VALID_LIMIT_ORDER_TYPE_DETAILS_GTC,  # Correct alias for field 't'
     }
 
     base_batch_data: dict[str, Any] = {
