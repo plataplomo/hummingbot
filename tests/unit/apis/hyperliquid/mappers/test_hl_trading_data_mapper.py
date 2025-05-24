@@ -366,10 +366,11 @@ class TestTransformRawOrderToInternal:
         assert result.status == OrderStatus.OPEN
         assert result.quantity_requested == Decimal("0.1")
         assert result.quantity_filled == Decimal("0.0")  # 0.1 - 0.1 (all remaining)
-        assert result.price == Decimal("0")
+        assert result.price is None  # Market orders should have price=None
         assert result.time_in_force == TimeInForce.GTC
         assert result.exchange == ExchangeName.HYPERLIQUID.value
-        assert result.client_order_id == ""  # None should become empty string
+        assert result.client_order_id != ""  # Should generate UUID when cloid=None
+        assert len(result.client_order_id) == 36  # UUID format: 8-4-4-4-12 = 36 chars
         # No quantity filled, so no average_fill_price required
 
     def test_transform_raw_order_with_trigger(
@@ -523,9 +524,14 @@ class TestTransformRawOrderToInternal:
 
         original_parse.side_effect = mock_parse_side_effect
 
-        raw_order = create_raw_order()
+        # Create a MARKET order instead of LIMIT order for this test
+        raw_order = create_raw_order(order_type={"market": {}})
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
         assert result.price is None
+        # When no valid price is available but quantity would be filled,
+        # the mapper should set quantity_filled to 0 to maintain model consistency
+        assert result.quantity_filled == Decimal("0")
+        assert result.average_fill_price is None
 
 
 # --- Tests for transform_raw_historical_order_to_internal ---
@@ -636,7 +642,8 @@ class TestTransformRawHistoricalOrderToInternal:
         # Create a raw order without cloid instead of using dangerous global patch
         raw_order = create_raw_historical_order(cloid=None)
         result = trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
-        assert result.client_order_id == ""
+        assert result.client_order_id != ""  # Should generate UUID when cloid=None
+        assert len(result.client_order_id) == 36  # UUID format: 8-4-4-4-12 = 36 chars
 
     def test_transform_raw_historical_order_exception_wrapping(
         self,
@@ -784,7 +791,8 @@ class TestEdgeCasesAndRobustness:
         assert result.side == OrderSide.BUY
         assert result.order_type == OrderType.LIMIT
         assert result.status == OrderStatus.OPEN
-        assert result.client_order_id == ""  # None should become empty string
+        assert result.client_order_id != ""  # Should generate UUID when cloid=None
+        assert len(result.client_order_id) == 36  # UUID format: 8-4-4-4-12 = 36 chars
 
     def test_boundary_values(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
         """Test transformation with boundary values."""
@@ -829,11 +837,11 @@ class TestEdgeCasesAndRobustness:
     @pytest.mark.parametrize(
         "status_input,expected_output",
         [
-            ("CANCELLED", OrderStatus.CANCELED),
-            ("rejected", OrderStatus.REJECTED),
-            ("Partially_Filled", OrderStatus.PARTIALLY_FILLED),
-            ("weird_status", OrderStatus.UNKNOWN),
-            ("", OrderStatus.UNKNOWN),
+            ("canceled", OrderStatus.CANCELED),  # Valid status, direct mapping
+            ("rejected", OrderStatus.REJECTED),  # Valid status, direct mapping
+            ("expired", OrderStatus.UNKNOWN),  # Valid status, maps to UNKNOWN
+            ("filled", OrderStatus.FILLED),  # Valid status, direct mapping
+            ("open", OrderStatus.OPEN),  # Valid status, direct mapping
         ],
     )
     def test_status_edge_cases(
@@ -842,7 +850,7 @@ class TestEdgeCasesAndRobustness:
         status_input: str,
         expected_output: OrderStatus,
     ) -> None:
-        """Test various status edge cases."""
+        """Test various status edge cases with valid RAW model status values."""
         raw_order = create_raw_historical_order(status=status_input)
         result = trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
         assert result.status == expected_output

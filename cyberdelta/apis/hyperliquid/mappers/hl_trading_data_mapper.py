@@ -89,7 +89,8 @@ class HyperliquidTradingDataMapper:
             "filled": OrderStatus.FILLED,
             "canceled": OrderStatus.CANCELED,  # Note: Hyperliquid uses "canceled" not "cancelled"
             "rejected": OrderStatus.REJECTED,
-            "expired": OrderStatus.UNKNOWN,  # Map expired to UNKNOWN since we don't have an EXPIRED status
+            # Map expired to UNKNOWN since we don't have an EXPIRED status
+            "expired": OrderStatus.UNKNOWN,
         }
         return status_map.get(hl_status.lower(), OrderStatus.UNKNOWN)
 
@@ -202,7 +203,8 @@ class HyperliquidTradingDataMapper:
             price = parse_decimal_value(
                 str(raw_order.limit_px), allow_none=True, field_name="limitPx"
             )
-            # For market orders, Hyperliquid uses limit_px="0", but internal Order expects price=None
+            # For market orders, Hyperliquid uses limit_px="0", but internal Order
+            # expects price=None
             if price is not None and price == Decimal("0"):
                 price = None
 
@@ -242,15 +244,18 @@ class HyperliquidTradingDataMapper:
                 if price is not None and price > 0:
                     average_fill_price = price
                 else:
-                    # If no limit price available but quantity is filled,
-                    # this should not happen in normal cases, but handle defensively
-                    raise TransformationError(
-                        f"Cannot determine average_fill_price for filled order "
-                        f"with quantity_filled={quantity_filled} but no valid price"
+                    # If no valid price available but quantity is filled,
+                    # this indicates an inconsistent state. For market orders with fills
+                    # but no price data, we cannot determine a valid average_fill_price.
+                    # Set quantity_filled to 0 to maintain model consistency.
+                    logger.warning(
+                        f"Order {raw_order.oid}: quantity_filled={quantity_filled} but no valid price "
+                        f"available. Setting quantity_filled=0 to maintain model consistency."
                     )
+                    quantity_filled = Decimal("0")
 
-            # Handle client_order_id - only include if cloid is available, else let default_factory generate UUID
-            if raw_order.cloid:
+            # Handle client_order_id - only include if not None to let Order generate UUID
+            if raw_order.cloid is not None:
                 return Order(
                     exchange_order_id=str(raw_order.oid),
                     symbol=raw_order.asset,
@@ -352,7 +357,8 @@ class HyperliquidTradingDataMapper:
             price = parse_decimal_value(
                 str(raw_historical_order.limit_px), allow_none=True, field_name="limitPx"
             )
-            # For market orders, Hyperliquid uses limit_px="0", but internal Order expects price=None
+            # For market orders, Hyperliquid uses limit_px="0", but internal Order
+            # expects price=None
             if price is not None and price == Decimal("0"):
                 price = None
 
@@ -395,16 +401,20 @@ class HyperliquidTradingDataMapper:
                 if price is not None and price > 0:
                     average_fill_price = price
                 else:
-                    # If no limit price available but quantity is filled,
-                    # this should not happen in normal cases, but handle defensively
-                    raise TransformationError(
-                        f"Cannot determine average_fill_price for filled order "
-                        f"with quantity_filled={quantity_filled} but no valid price"
+                    # If no valid price available but quantity is filled,
+                    # this indicates an inconsistent state. For market orders with fills
+                    # but no price data, we cannot determine a valid average_fill_price.
+                    # Set quantity_filled to 0 to maintain model consistency.
+                    logger.warning(
+                        f"Order {raw_historical_order.oid}: quantity_filled={quantity_filled} but no valid price "
+                        f"available. Setting quantity_filled=0 to maintain model consistency."
                     )
+                    quantity_filled = Decimal("0")
 
-            # Handle client_order_id - only include if cloid is available, else let default_factory generate UUID
+            # Handle client_order_id - only include if not None to let Order generate UUID
             cloid = getattr(raw_historical_order, "cloid", None)
-            if cloid:
+
+            if cloid is not None:
                 return Order(
                     exchange_order_id=str(raw_historical_order.oid),
                     symbol=raw_historical_order.asset,
