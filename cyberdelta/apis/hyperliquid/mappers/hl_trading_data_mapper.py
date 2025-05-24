@@ -229,6 +229,22 @@ class HyperliquidTradingDataMapper:
                     elif trigger_type_str.lower() == "last":
                         trigger_by = TriggerType.LAST_PRICE
 
+            # Calculate average_fill_price based on business rules
+            # Rule: average_fill_price must be positive if quantity_filled > 0
+            average_fill_price = None
+            if quantity_filled > 0:
+                # For Hyperliquid orders, avg_px is not available in order data
+                # Use limit price as approximation when available
+                if price is not None and price > 0:
+                    average_fill_price = price
+                else:
+                    # If no limit price available but quantity is filled,
+                    # this should not happen in normal cases, but handle defensively
+                    raise TransformationError(
+                        f"Cannot determine average_fill_price for filled order "
+                        f"with quantity_filled={quantity_filled} but no valid price"
+                    )
+
             return Order(
                 exchange_order_id=str(raw_order.oid),
                 symbol=raw_order.asset,
@@ -238,6 +254,7 @@ class HyperliquidTradingDataMapper:
                 quantity_requested=quantity_requested,
                 quantity_filled=quantity_filled,
                 price=price,
+                average_fill_price=average_fill_price,
                 stop_price=stop_price,
                 time_in_force=time_in_force,
                 trigger_by=trigger_by,
@@ -339,6 +356,22 @@ class HyperliquidTradingDataMapper:
                     elif trigger_type_str.lower() == "last":
                         trigger_by = TriggerType.LAST_PRICE
 
+            # Calculate average_fill_price based on business rules
+            # Rule: average_fill_price must be positive if quantity_filled > 0
+            average_fill_price = None
+            if quantity_filled > 0:
+                # For Hyperliquid orders, avg_px is not available in order data
+                # Use limit price as approximation when available
+                if price is not None and price > 0:
+                    average_fill_price = price
+                else:
+                    # If no limit price available but quantity is filled,
+                    # this should not happen in normal cases, but handle defensively
+                    raise TransformationError(
+                        f"Cannot determine average_fill_price for filled order "
+                        f"with quantity_filled={quantity_filled} but no valid price"
+                    )
+
             return Order(
                 exchange_order_id=str(raw_historical_order.oid),
                 symbol=raw_historical_order.asset,
@@ -348,6 +381,7 @@ class HyperliquidTradingDataMapper:
                 quantity_requested=quantity_requested,
                 quantity_filled=quantity_filled,
                 price=price,
+                average_fill_price=average_fill_price,
                 stop_price=stop_price,
                 time_in_force=time_in_force,
                 trigger_by=trigger_by,

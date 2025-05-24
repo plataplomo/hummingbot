@@ -594,7 +594,8 @@ class TestTransformRawOrderToInternal:
                 return Decimal("1.5")
             if field_name == "limitPx":
                 return Decimal("3000.50")
-            return original_parse.return_value
+            # Return a sensible default instead of calling the mock recursively
+            return Decimal("0.0")
 
         original_parse.side_effect = mock_parse_side_effect
 
@@ -624,7 +625,8 @@ class TestTransformRawOrderToInternal:
                 return Decimal("1.5")
             if field_name == "remainingSz":
                 return Decimal("0.5")
-            return original_parse.return_value
+            # Return a sensible default instead of calling the mock recursively
+            return Decimal("0.0")
 
         original_parse.side_effect = mock_parse_side_effect
 
