@@ -1,9 +1,10 @@
 --- MYPY ---
 Running: mypy "tests/unit/apis/"
+tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:95: error: Redundant cast to "list[Any]"  [redundant-cast]
 tests/unit/apis/connectivity/test_ws_manager.py:455: error: Statement is unreachable  [unreachable]
 tests/unit/apis/backpack/test_bp_api.py:694: error: Statement is unreachable  [unreachable]
 tests/unit/apis/backpack/test_bp_api.py:1011: error: Statement is unreachable  [unreachable]
-Found 3 errors in 2 files (checked 64 source files)
+Found 4 errors in 3 files (checked 64 source files)
 
 Mypy exit status: 1
 
@@ -16,31 +17,8 @@ Ruff exit status: 0
 --- PYRIGHT ---
 Running: pyright "tests/unit/apis/"
 /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py
-  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:63:39 - error: Argument type is partially unknown
-    Argument corresponds to parameter "o" in function "__init__"
-    Argument type is "Any | list[Unknown]" (reportUnknownArgumentType)
-  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:71:17 - error: Type of "next_level" is unknown (reportUnknownVariableType)
-  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:74:68 - error: Argument type is unknown
-    Argument corresponds to parameter "o" in function "__init__" (reportUnknownArgumentType)
-  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:77:17 - error: Type of "current_level" is partially unknown
-    Type of "current_level" is "dict[Unknown, Unknown] | list[Unknown]" (reportUnknownVariableType)
-  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:80:14 - error: Unnecessary isinstance call; "int" is always an instance of "int" (reportUnnecessaryIsInstance)
-  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:84:39 - error: Argument type is partially unknown
-    Argument corresponds to parameter "o" in function "__init__"
-    Argument type is "Any | dict[Unknown, Unknown]" (reportUnknownArgumentType)
-  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:92:17 - error: Type of "next_level" is unknown (reportUnknownVariableType)
-  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:95:68 - error: Argument type is unknown
-    Argument corresponds to parameter "o" in function "__init__" (reportUnknownArgumentType)
-  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:98:17 - error: Type of "current_level" is partially unknown
-    Type of "current_level" is "dict[Unknown, Unknown] | list[Unknown]" (reportUnknownVariableType)
-  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:241:9 - error: Argument of type "object | None" cannot be assigned to parameter "value" of type "int | bool | str | dict[str, dict[str, str]]" in function "__setitem__"
-    Type "object | None" is not assignable to type "int | bool | str | dict[str, dict[str, str]]"
-      Type "object" is not assignable to type "int | bool | str | dict[str, dict[str, str]]"
-        "object" is not assignable to "int"
-        "object" is not assignable to "bool"
-        "object" is not assignable to "str"
-        "object" is not assignable to "dict[str, dict[str, str]]" (reportArgumentType)
-10 errors, 0 warnings, 0 informations 
+  /home/demute/code/CyberDeltaEngine/tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:86:14 - error: Unnecessary isinstance call; "int" is always an instance of "int" (reportUnnecessaryIsInstance)
+1 error, 0 warnings, 0 informations 
 WARNING: there is a new pyright version available (v1.1.400 -> v1.1.401).
 Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
 

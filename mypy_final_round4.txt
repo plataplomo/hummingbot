@@ -1,8 +1,0 @@
-tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:89: error: Unused "type: ignore" comment  [unused-ignore]
-tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:92: error: Unused "type: ignore" comment  [unused-ignore]
-tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:238: error: Unused "type: ignore" comment  [unused-ignore]
-tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_actions.py:358: error: Unused "type: ignore" comment  [unused-ignore]
-tests/unit/apis/connectivity/test_ws_manager.py:455: error: Statement is unreachable  [unreachable]
-tests/unit/apis/backpack/test_bp_api.py:694: error: Statement is unreachable  [unreachable]
-tests/unit/apis/backpack/test_bp_api.py:1011: error: Statement is unreachable  [unreachable]
-Found 7 errors in 3 files (checked 64 source files)

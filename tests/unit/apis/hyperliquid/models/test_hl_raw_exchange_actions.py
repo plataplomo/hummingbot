@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from pydantic import ValidationError
@@ -50,52 +50,64 @@ def set_nested_value(
     str/int path elements. The runtime isinstance checks ensure type safety
     for dynamic traversal and assignment.
     """
-    current_level: Any = data_dict
+    current_level: Any = data_dict  # Start as Any, narrow through type guards
 
     for i, key_or_index in enumerate(path):
         is_final_element = i == len(path) - 1
 
         # Handle string keys (for dicts)
         if isinstance(key_or_index, str):
+            # DEFENSIVE CHECK: Ensure current_level is a dict before string key access
             if not isinstance(current_level, dict):
                 raise TypeError(
                     f"Path element '{key_or_index}' requires a dictionary at this level, "
                     f"but found {type(current_level).__name__} at path {path[: i + 1]}"
                 )
+            # After isinstance check, explicitly cast for Pyright
+            current_dict: dict[str, Any] = cast(dict[str, Any], current_level)
 
             if is_final_element:
-                # Final element: set the value
-                current_level[key_or_index] = value
+                # Final element: set the value (cast for test compatibility)
+                current_dict[key_or_index] = cast(Any, value)
+                return
             else:
                 # Traversal: get next level and validate it's a container
-                next_level = current_level[key_or_index]
-                if not isinstance(next_level, dict | list):
+                next_level_val: Any = current_dict[key_or_index]
+                # DEFENSIVE CHECK: Ensure we can traverse into next_level_val
+                if not isinstance(next_level_val, dict | list):
                     raise TypeError(
-                        f"Cannot traverse non-container type {type(next_level).__name__} "
+                        f"Cannot traverse non-container type {type(next_level_val).__name__} "
                         f"at path {path[: i + 1]}"
                     )
-                current_level = next_level
+                current_level = cast(dict[str, Any] | list[Any], next_level_val)
 
         # Handle integer indices (for lists)
+        # DEFENSIVE CHECK: isinstance needed. Pyright=[reportUnnecessaryIsInstance]
         elif isinstance(key_or_index, int):
+            # DEFENSIVE CHECK: Ensure current_level is a list before int index access
             if not isinstance(current_level, list):
                 raise TypeError(
                     f"Path index {key_or_index} requires a list at this level, "
                     f"but found {type(current_level).__name__} at path {path[: i + 1]}"
                 )
+            # After isinstance check, explicitly cast for Pyright type narrowing
+            # DEFENSIVE CHECK: Cast needed for Pyright. Mypy=[redundant-cast]
+            current_list: list[Any] = cast(list[Any], current_level)
 
             if is_final_element:
-                # Final element: set the value
-                current_level[key_or_index] = value
+                # Final element: set the value (cast for test compatibility)
+                current_list[key_or_index] = cast(Any, value)
+                return
             else:
                 # Traversal: get next level and validate it's a container
-                next_level = current_level[key_or_index]
-                if not isinstance(next_level, dict | list):
+                next_level_list_val: Any = current_list[key_or_index]
+                # DEFENSIVE CHECK: Ensure we can traverse into next_level_list_val
+                if not isinstance(next_level_list_val, dict | list):
                     raise TypeError(
-                        f"Cannot traverse non-container type {type(next_level).__name__} "
+                        f"Cannot traverse non-container type {type(next_level_list_val).__name__} "
                         f"at path {path[: i + 1]}"
                     )
-                current_level = next_level
+                current_level = cast(dict[str, Any] | list[Any], next_level_list_val)
         else:
             # This should be unreachable given path type annotation
             raise TypeError(f"Path element must be str or int, got {type(key_or_index).__name__}")
@@ -238,7 +250,7 @@ def test_order_item_spec_invalid_fields(
     if value is None and field_alias in base_data:  # Test missing required field
         del base_data[field_alias]
     else:
-        base_data[field_alias] = value
+        base_data[field_alias] = cast(Any, value)  # Cast for test compatibility
 
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawOrderItemSpec.model_validate(base_data)
@@ -432,7 +444,7 @@ def test_l2_usd_transfer_action_details_invalid(
     if value is None and field in base_data:
         del base_data[field]
     else:
-        base_data[field] = value
+        base_data[field] = cast(Any, value)  # Cast for test compatibility
 
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawL2UsdTransferActionDetails.model_validate(base_data)
@@ -475,7 +487,7 @@ def test_cancel_order_action_invalid(field: str, value: object, expected_error_p
     if value is None and field in base_data:
         del base_data[field]
     else:
-        base_data[field] = value
+        base_data[field] = cast(Any, value)  # Cast for test compatibility
 
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawCancelOrderAction.model_validate(base_data)
