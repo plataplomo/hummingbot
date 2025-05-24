@@ -85,37 +85,46 @@ def mock_hl_response_handler() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_mapper() -> MagicMock:
-    """Mock HyperliquidMapper."""
-    from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidMapper
+    """Mock HyperliquidMarketDataMapper (for backwards compatibility)."""
+    from cyberdelta.apis.hyperliquid.mappers import HyperliquidMarketDataMapper
 
-    mock_mapper = MagicMock(spec=HyperliquidMapper)
+    mock_mapper = MagicMock(spec=HyperliquidMarketDataMapper)
+    return mock_mapper
+
+
+@pytest.fixture
+def mock_hl_account_mapper() -> MagicMock:
+    """Mock HyperliquidAccountDataMapper."""
+    from cyberdelta.apis.hyperliquid.mappers import HyperliquidAccountDataMapper
+
+    mock_mapper = MagicMock(spec=HyperliquidAccountDataMapper)
     return mock_mapper
 
 
 @pytest.fixture
 def mock_hl_order_mapper() -> MagicMock:
-    """Mock HyperliquidOrderMapper."""
-    from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidOrderMapper
+    """Mock HyperliquidTradingDataMapper (legacy order mapper)."""
+    from cyberdelta.apis.hyperliquid.mappers import HyperliquidTradingDataMapper
 
-    mock_mapper = MagicMock(spec=HyperliquidOrderMapper)
+    mock_mapper = MagicMock(spec=HyperliquidTradingDataMapper)
     return mock_mapper
 
 
 @pytest.fixture
-def mock_hl_candle_mapper() -> MagicMock:
-    """Mock HyperliquidCandleMapper."""
-    from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidCandleMapper
+def mock_hl_trading_mapper() -> MagicMock:
+    """Mock HyperliquidTradingDataMapper."""
+    from cyberdelta.apis.hyperliquid.mappers import HyperliquidTradingDataMapper
 
-    mock_mapper = MagicMock(spec=HyperliquidCandleMapper)
+    mock_mapper = MagicMock(spec=HyperliquidTradingDataMapper)
     return mock_mapper
 
 
 @pytest.fixture
 def mock_hl_user_fill_mapper() -> MagicMock:
-    """Mock HyperliquidUserFillMapper."""
-    from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidUserFillMapper
+    """Mock HyperliquidAccountDataMapper (for user fills)."""
+    from cyberdelta.apis.hyperliquid.mappers import HyperliquidAccountDataMapper
 
-    mock_mapper = MagicMock(spec=HyperliquidUserFillMapper)
+    mock_mapper = MagicMock(spec=HyperliquidAccountDataMapper)
     return mock_mapper
 
 
@@ -173,8 +182,9 @@ def hl_api_with_di(
     mock_hl_request_builder: MagicMock,
     mock_hl_response_handler: MagicMock,
     mock_hl_mapper: MagicMock,
+    mock_hl_account_mapper: MagicMock,
     mock_hl_order_mapper: MagicMock,
-    mock_hl_candle_mapper: MagicMock,
+    mock_hl_trading_mapper: MagicMock,
     mock_hl_user_fill_mapper: MagicMock,
     mock_hl_http_client: MagicMock,
     mock_hl_info_http_client: MagicMock,
@@ -208,10 +218,9 @@ def hl_api_with_di(
             error_mapper=overrides.get("error_mapper", mock_hl_error_mapper),
             request_builder=overrides.get("request_builder", mock_hl_request_builder),
             response_handler=overrides.get("response_handler", mock_hl_response_handler),
-            mapper=overrides.get("mapper", mock_hl_mapper),
-            order_mapper=overrides.get("order_mapper", mock_hl_order_mapper),
-            candle_mapper=overrides.get("candle_mapper", mock_hl_candle_mapper),
-            user_fill_mapper=overrides.get("user_fill_mapper", mock_hl_user_fill_mapper),
+            market_data_mapper=overrides.get("market_data_mapper", mock_hl_mapper),
+            account_data_mapper=overrides.get("account_data_mapper", mock_hl_account_mapper),
+            trading_data_mapper=overrides.get("trading_data_mapper", mock_hl_trading_mapper),
             http_client=overrides.get("http_client", mock_hl_http_client),
             info_http_client=overrides.get("info_http_client", mock_hl_info_http_client),
             account_service=overrides.get("account_service", mock_hl_account_service),

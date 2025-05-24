@@ -97,29 +97,73 @@ class HyperliquidAccountDataMapper:
         try:
             spot_balances: dict[str, SpotBalance] = {}
 
-            # Hyperliquid clearinghouse state provides a single withdrawable amount
-            # (in USDC equivalent)
-            # This is the total available balance across all assets
-            if hasattr(raw_state, "withdrawable") and raw_state.withdrawable:
-                balance = parse_decimal_value(
-                    raw_state.withdrawable, allow_none=False, field_name="withdrawable"
+            # Extract USDC balance from margin summary account value
+            if hasattr(raw_state, "margin_summary") and raw_state.margin_summary:
+                total_usdc = parse_decimal_value(
+                    raw_state.margin_summary.account_value,
+                    allow_none=False,
+                    field_name="margin_summary.account_value",
                 )
 
-                if balance is not None and balance > Decimal("0"):
+                available_usdc = parse_decimal_value(
+                    raw_state.withdrawable, allow_none=True, field_name="withdrawable"
+                )
+
+                if total_usdc is not None and total_usdc > Decimal("0"):
                     # Create HL-specific details
                     details = HyperliquidSpotBalanceDetails()
+
+                    # Use withdrawable as available, or total if withdrawable is None/invalid
+                    if available_usdc is None or available_usdc < Decimal("0"):
+                        available_usdc = Decimal("0")
+                    elif available_usdc > total_usdc:
+                        available_usdc = total_usdc
 
                     # Hyperliquid primarily uses USDC for spot balances
                     spot_balance = SpotBalance(
                         asset="USDC",
                         exchange=ExchangeName.HYPERLIQUID.value,
-                        total_quantity=balance,
-                        available_quantity=balance,  # Withdrawable = available
+                        total_quantity=total_usdc,
+                        available_quantity=available_usdc,
                         timestamp=datetime.now(UTC),
                         hl_details=details,
                     )
 
                     spot_balances["USDC"] = spot_balance
+
+            # Check for other spot assets in asset positions
+            if hasattr(raw_state, "asset_positions") and raw_state.asset_positions:
+                for asset_pos in raw_state.asset_positions:
+                    asset_name = asset_pos.asset
+
+                    # Skip USDC as it's handled above, and skip obvious perps
+                    if asset_name == "USDC" or "-PERP" in asset_name.upper():
+                        continue
+
+                    # Process potential spot assets
+                    if hasattr(asset_pos, "position") and asset_pos.position:
+                        pos = asset_pos.position
+                        size_str = getattr(pos, "szi", "0")
+                        size = parse_decimal_value(
+                            size_str,
+                            allow_none=True,
+                            field_name=f"asset_positions.{asset_name}.szi",
+                        )
+
+                        if size is not None and size > Decimal("0"):
+                            # Create HL-specific details
+                            details = HyperliquidSpotBalanceDetails()
+
+                            spot_balance = SpotBalance(
+                                asset=asset_name,
+                                exchange=ExchangeName.HYPERLIQUID.value,
+                                total_quantity=size,
+                                available_quantity=size,  # Assume all available for spot
+                                timestamp=datetime.now(UTC),
+                                hl_details=details,
+                            )
+
+                            spot_balances[asset_name] = spot_balance
 
             return spot_balances
 
@@ -169,15 +213,30 @@ class HyperliquidAccountDataMapper:
                         continue  # Skip zero positions
 
                     # Parse entry price
-                    entry_price = parse_decimal_value(
-                        getattr(pos, "entryPx", "0"), allow_none=True, field_name="position.entryPx"
-                    )
+                    entry_price_str = pos.entry_px
+                    entry_price = None
+                    if entry_price_str and entry_price_str != "0":
+                        try:
+                            entry_price = parse_decimal_value(
+                                entry_price_str, allow_none=True, field_name="position.entry_px"
+                            )
+                        except (ValueError, TypeError) as e:
+                            logger.warning(
+                                f"Failed to parse entry price for {symbol}: {entry_price_str}, error: {e}"
+                            )
+
+                    # Skip positions with no entry price (invalid derivative positions)
+                    if entry_price is None or entry_price <= Decimal("0"):
+                        logger.warning(
+                            f"Skipping position for {symbol} due to invalid or zero entry price: {entry_price_str}"
+                        )
+                        continue
 
                     # Parse unrealized PnL
                     unrealized_pnl = parse_decimal_value(
-                        getattr(pos, "unrealizedPnl", "0"),
+                        pos.unrealized_pnl or "0",
                         allow_none=True,
-                        field_name="position.unrealizedPnl",
+                        field_name="position.unrealized_pnl",
                     )
 
                     # Parse return on equity (unused for now but available for future use)
@@ -188,19 +247,33 @@ class HyperliquidAccountDataMapper:
                     # )
 
                     # Create HL-specific details
-                    leverage_value = getattr(pos, "leverage", 1)
-                    max_leverage = getattr(pos, "maxLeverage", 1)
+                    leverage_obj = pos.leverage
+                    max_leverage = pos.max_leverage or 1
                     margin_used = parse_decimal_value(
-                        getattr(pos, "marginUsed", None),
+                        pos.margin_used,
                         allow_none=True,
-                        field_name="position.marginUsed",
+                        field_name="position.margin_used",
                     )
 
+                    # Extract leverage value from HyperliquidRawLeverage object
+                    leverage_value = 1  # Default
+                    leverage_type = "cross"  # Default
+                    if leverage_obj:
+                        leverage_value = leverage_obj.value or 1
+                        leverage_type = leverage_obj.type or "cross"
+
                     details = HyperliquidPositionDetails(
-                        leverage_type="cross",  # Default to cross leverage
+                        leverage_type=leverage_type,
                         leverage_value=int(leverage_value) if leverage_value else 1,
                         max_leverage=int(max_leverage) if max_leverage else 1,
                         margin_used=margin_used,
+                    )
+
+                    # Parse liquidation price
+                    liquidation_price = parse_decimal_value(
+                        pos.liquidation_px,
+                        allow_none=True,
+                        field_name="position.liquidation_px",
                     )
 
                     # Determine side based on position size
@@ -215,6 +288,7 @@ class HyperliquidAccountDataMapper:
                         size=size,
                         entry_price=entry_price,
                         mark_price=None,  # Not available in this context
+                        liquidation_price=liquidation_price,
                         unrealized_pnl=unrealized_pnl,
                         timestamp=datetime.now(UTC),
                         hl_details=details,
@@ -254,47 +328,81 @@ class HyperliquidAccountDataMapper:
 
             # Parse core margin fields
             account_value = parse_decimal_value(
-                getattr(margin_summary, "accountValue", "0"),
+                margin_summary.account_value,
                 allow_none=False,
-                field_name="marginSummary.accountValue",
+                field_name="marginSummary.account_value",
             )
 
             total_margin_used = parse_decimal_value(
-                getattr(margin_summary, "totalMarginUsed", "0"),
+                margin_summary.total_margin_used,
                 allow_none=False,
-                field_name="marginSummary.totalMarginUsed",
+                field_name="marginSummary.total_margin_used",
             )
 
-            # Parse additional fields (available for future use)
-            # total_ntl_pos = parse_decimal_value(
-            #     getattr(margin_summary, "totalNtlPos", "0"),
-            #     allow_none=True,
-            #     field_name="marginSummary.totalNtlPos",
-            # )
+            # Parse additional fields for completeness
+            total_ntl_pos = parse_decimal_value(
+                margin_summary.total_ntl_pos,
+                allow_none=True,
+                field_name="marginSummary.total_ntl_pos",
+            )
 
-            # total_raw_usd = parse_decimal_value(
-            #     getattr(margin_summary, "totalRawUsd", "0"),
-            #     allow_none=True,
-            #     field_name="marginSummary.totalRawUsd",
-            # )
+            # total_raw_usd not needed for MarginAccountSummary
 
             if account_value is None or total_margin_used is None:
                 raise TransformationError("Required margin summary fields are missing")
 
-            # Calculate available margin
-            available_margin = account_value - total_margin_used
+            # Parse maintenance margin fields from the clearinghouse state
+            cross_mmr = parse_decimal_value(
+                raw_state.cross_maintenance_margin_used,
+                allow_none=False,
+                field_name="cross_maintenance_margin_used",
+            )
+            isolated_mmr = parse_decimal_value(
+                raw_state.isolated_maintenance_margin_used,
+                allow_none=False,
+                field_name="isolated_maintenance_margin_used",
+            )
+
+            if cross_mmr is None or isolated_mmr is None:
+                raise TransformationError("Required maintenance margin fields are missing")
+
+            # Calculate total maintenance margin
+            total_maintenance_margin = cross_mmr + isolated_mmr
+
+            # Calculate available margin (withdrawable from raw state)
+            withdrawable = parse_decimal_value(
+                raw_state.withdrawable,
+                allow_none=False,
+                field_name="withdrawable",
+            )
+
+            if withdrawable is None:
+                raise TransformationError("Withdrawable field is required")
+
+            # Calculate total unrealized PnL from derivative positions
+            derivative_positions = HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+                raw_state
+            )
+            total_unrealized_pnl = Decimal("0")
+            for position in derivative_positions.values():
+                if position.unrealized_pnl is not None and position.unrealized_pnl.is_finite():
+                    total_unrealized_pnl += position.unrealized_pnl
 
             # Create HL-specific details with required fields
             details = HyperliquidMarginDetails(
-                cross_maintenance_margin_used=total_margin_used or Decimal("0"),
-                isolated_maintenance_margin_used=Decimal("0"),  # Default for now
+                cross_maintenance_margin_used=cross_mmr,
+                isolated_maintenance_margin_used=isolated_mmr,
             )
 
             return MarginAccountSummary(
                 exchange=ExchangeName.HYPERLIQUID.value,
                 timestamp=datetime.now(UTC),
                 total_equity=account_value,
-                available_equity=available_margin,
+                available_equity=withdrawable,
+                total_initial_margin_required=total_margin_used,
+                total_maintenance_margin_required=total_maintenance_margin,
+                total_position_notional=total_ntl_pos,
+                total_unrealized_pnl=total_unrealized_pnl,
                 hl_details=details,
             )
 
@@ -369,7 +477,7 @@ class HyperliquidAccountDataMapper:
                 price=price,
                 quantity=quantity,
                 fee=fee,
-                fee_asset="USDC",  # HL typically uses USDC for fees
+                fee_asset=raw_fill.coin,  # Fee asset is the traded symbol
                 is_maker=getattr(raw_fill, "is_maker", None),
                 hl_details=details,
             )
@@ -431,17 +539,17 @@ class HyperliquidAccountDataMapper:
             )
 
             return Trade(
-                id=raw_fill.hash,
+                id=str(raw_fill.tid),
                 symbol=raw_fill.coin,
                 executed_at=executed_at,
                 side=side,
                 order_id=str(raw_fill.oid),
                 exchange=ExchangeName.HYPERLIQUID.value,
-                client_order_id=raw_fill.cloid,
+                client_order_id=raw_fill.cloid if raw_fill.cloid else None,
                 price=price,
                 quantity=quantity,
                 fee=fee,
-                fee_asset="USDC",  # HL typically uses USDC for fees
+                fee_asset=raw_fill.coin,  # Fee asset is the traded symbol
                 is_maker=raw_fill.is_maker,
                 hl_details=details,
             )

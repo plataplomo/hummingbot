@@ -187,12 +187,14 @@ class TestHyperliquidMarketDataService:
             timestamp=datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC),
         )
 
-        mock_hl_mapper.map_raw_ctx_to_ticker.return_value = expected_internal_ticker
+        mock_hl_mapper.transform_raw_asset_ctx_to_ticker.return_value = expected_internal_ticker
 
         result_ticker = await hyperliquid_market_data_service.get_ticker(symbol_to_find)
 
         hyperliquid_market_data_service.get_all_asset_contexts_raw.assert_called_once_with()
-        mock_hl_mapper.map_raw_ctx_to_ticker.assert_called_once_with(mock_raw_asset_ctx_btc)
+        mock_hl_mapper.transform_raw_asset_ctx_to_ticker.assert_called_once_with(
+            mock_raw_asset_ctx_btc
+        )
         assert result_ticker == expected_internal_ticker
 
     @pytest.mark.asyncio
@@ -213,12 +215,14 @@ class TestHyperliquidMarketDataService:
 
         # If _get_asset_context_by_name returns None, mapper shouldn't be called.
         # If it's called with None, it should handle it or map_raw_ctx_to_ticker might return None.
-        with patch.object(HyperliquidMarketDataMapper, "map_raw_ctx_to_ticker", return_value=None):
+        with patch.object(
+            HyperliquidMarketDataMapper, "transform_raw_asset_ctx_to_ticker", return_value=None
+        ):
             result = await hyperliquid_market_data_service.get_ticker(symbol)
             assert result is None
             # Depending on exact internal logic of get_ticker if asset_ctx is None:
             # mock_mapper_method.assert_not_called() or ensure it was called and returned None.
-            # For this test, we assume if context is not found, map_raw_ctx_to_ticker might
+            # For this test, we assume if context is not found, transform_raw_asset_ctx_to_ticker might
             # not be called or if it is (e.g. with None), it's mocked to return None.
 
     @pytest.mark.asyncio
@@ -274,11 +278,13 @@ class TestHyperliquidMarketDataService:
         )
 
         # Use the injected mock_hl_mapper
-        mock_hl_mapper.map_raw_ctx_to_funding_rate.return_value = expected_internal_funding_rate
+        mock_hl_mapper.transform_raw_asset_ctx_to_funding_rate.return_value = (
+            expected_internal_funding_rate
+        )
 
         # Patch datetime.now to control the timestamp
         with patch(
-            "cyberdelta.apis.hyperliquid.hl_mapper.datetime",
+            "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper.datetime",
             new=MagicMock(datetime=MagicMock(now=MagicMock(side_effect=lambda: current_time))),
         ):
             result_funding_rate = await hyperliquid_market_data_service.get_funding_rate(
@@ -287,7 +293,9 @@ class TestHyperliquidMarketDataService:
 
         hyperliquid_market_data_service.get_all_asset_contexts_raw.assert_called_once()
         # Assert call on the injected mock_hl_mapper
-        mock_hl_mapper.map_raw_ctx_to_funding_rate.assert_called_once_with(mock_raw_asset_ctx_eth)
+        mock_hl_mapper.transform_raw_asset_ctx_to_funding_rate.assert_called_once_with(
+            mock_raw_asset_ctx_eth
+        )
         assert result_funding_rate == expected_internal_funding_rate
 
     @pytest.mark.asyncio
@@ -332,7 +340,9 @@ class TestHyperliquidMarketDataService:
             mock_headers,
         )
         mock_hl_response_handler.handle_info_l2_book_response.return_value = mock_validated_response
-        mock_hl_mapper.map_raw_order_book.return_value = expected_internal_order_book
+        mock_hl_mapper.transform_raw_order_book_to_internal.return_value = (
+            expected_internal_order_book
+        )
 
         result_order_book = await hyperliquid_market_data_service.get_order_book(symbol_to_find)
 
@@ -352,7 +362,9 @@ class TestHyperliquidMarketDataService:
         mock_hl_response_handler.handle_info_l2_book_response.assert_called_once_with(
             mock_raw_response_content, symbol=symbol_to_find, status_code=200, headers=mock_headers
         )
-        mock_hl_mapper.map_raw_order_book.assert_called_once_with(mock_validated_response)
+        mock_hl_mapper.transform_raw_order_book_to_internal.assert_called_once_with(
+            mock_validated_response
+        )
         assert result_order_book == expected_internal_order_book
 
     @pytest.mark.asyncio
@@ -388,7 +400,7 @@ class TestHyperliquidMarketDataService:
             is_info_endpoint=True,
         )
         mock_hl_response_handler.handle_info_l2_book_response.assert_not_called()
-        mock_hl_mapper.map_raw_order_book.assert_not_called()
+        mock_hl_mapper.transform_raw_order_book_to_internal.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_success(
@@ -540,7 +552,7 @@ class TestHyperliquidMarketDataService:
             is_info_endpoint=True,
         )
         mock_hl_response_handler.handle_info_recent_trades_response.assert_not_called()
-        mock_hl_mapper.map_raw_trades.assert_not_called()
+        mock_hl_mapper.transform_raw_public_trade_to_internal.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_market_data_success(
@@ -608,10 +620,8 @@ class TestHyperliquidMarketDataService:
             ),
         ]
 
-        # Patch the _candle_mapper attribute on the service instance
-        with patch.object(
-            hyperliquid_market_data_service, "_candle_mapper"
-        ) as mock_candle_mapper_instance:
+        # Patch the _mapper attribute on the service instance
+        with patch.object(hyperliquid_market_data_service, "_mapper") as mock_mapper_instance:
             mock_hl_request_builder.build_candle_snapshot_payload.return_value = MagicMock(
                 spec=HyperliquidRawCandleSnapshotRequestPayload,
                 model_dump=MagicMock(
@@ -634,7 +644,9 @@ class TestHyperliquidMarketDataService:
             mock_hl_response_handler.handle_info_candle_snapshot_response.return_value = (
                 mock_validated_response
             )
-            mock_candle_mapper_instance.map.return_value = expected_candles
+            mock_mapper_instance.transform_raw_candle_snapshot_to_candles.return_value = (
+                expected_candles
+            )
 
             result_candles = await hyperliquid_market_data_service.get_market_data(
                 symbol, interval, start_time_ms, end_time_ms
@@ -653,7 +665,7 @@ class TestHyperliquidMarketDataService:
                 200,
                 ANY,  # Use ANY for headers, consistent with service call.
             )
-            mock_candle_mapper_instance.map.assert_called_once_with(
+            mock_mapper_instance.transform_raw_candle_snapshot_to_candles.assert_called_once_with(
                 mock_validated_response,
                 symbol,
                 interval,  # Positional arguments
@@ -661,10 +673,8 @@ class TestHyperliquidMarketDataService:
             assert result_candles == expected_candles
 
     @pytest.mark.asyncio
-    @patch("cyberdelta.apis.hyperliquid.services.hl_market_data_service.HyperliquidCandleMapper")
     async def test_get_market_data_http_client_returns_none(
         self,
-        mock_candle_mapper_class: MagicMock,
         hyperliquid_market_data_service: HyperliquidMarketDataService,
         mock_http_client_requester: AsyncMock,
         mock_hl_request_builder: MagicMock,
@@ -675,8 +685,6 @@ class TestHyperliquidMarketDataService:
         interval = "1h"
         start_time_ms = 1678886400000
         end_time_ms = 1678890000000
-
-        mock_candle_mapper_instance = mock_candle_mapper_class.return_value
 
         # Use a proper mock for the request payload model
         mock_payload_model = MagicMock()
@@ -711,7 +719,7 @@ class TestHyperliquidMarketDataService:
             end_time_ms=end_time_ms,
         )
         mock_hl_response_handler.handle_info_candle_snapshot_response.assert_not_called()
-        mock_candle_mapper_instance.map.assert_not_called()
+        # Mapper should not be called since HTTP client returned None
 
     @pytest.mark.asyncio
     async def test_get_all_asset_contexts_raw_success(
@@ -1422,7 +1430,9 @@ class TestHyperliquidMarketDataService:
         )
 
         # Mock mapper to raise unexpected exception
-        mock_hl_mapper.map_raw_ctx_to_ticker.side_effect = RuntimeError("Unexpected mapper failure")
+        mock_hl_mapper.transform_raw_asset_ctx_to_ticker.side_effect = RuntimeError(
+            "Unexpected mapper failure"
+        )
 
         with pytest.raises(APIError) as exc_info:
             await hyperliquid_market_data_service.get_ticker(symbol)
@@ -1704,7 +1714,7 @@ class TestHyperliquidMarketDataService:
         assert "Asset contexts request failed" in exc_info.value.message
 
         # Mapper should not be called if asset contexts fail
-        mock_hl_mapper.map_raw_ctx_to_funding_rate.assert_not_called()
+        mock_hl_mapper.transform_raw_asset_ctx_to_funding_rate.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_historical_funding_rates_comprehensive_error_scenarios(

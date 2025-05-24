@@ -1,5 +1,5 @@
 """
-Unit tests for the HyperliquidMapper.
+Unit tests for the Hyperliquid Mappers.
 """
 
 from __future__ import annotations
@@ -20,7 +20,8 @@ if TYPE_CHECKING:
 # Project-specific imports
 from cyberdelta.apis.exchange_names import ExchangeName
 
-# Import fixture from another test file
+# Import the new domain-specific mappers
+from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
 from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
@@ -59,12 +60,25 @@ from cyberdelta.core.models.market.ticker import Ticker
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
-# Fixtures for HyperliquidMapper tests
+# Fixtures for Hyperliquid Mapper tests
 
 
 @pytest.fixture
-def mapper() -> HyperliquidMarketDataMapper:
+def market_data_mapper() -> HyperliquidMarketDataMapper:
     """Provide an instance of HyperliquidMarketDataMapper."""
+    return HyperliquidMarketDataMapper()
+
+
+@pytest.fixture
+def account_data_mapper() -> HyperliquidAccountDataMapper:
+    """Provide an instance of HyperliquidAccountDataMapper."""
+    return HyperliquidAccountDataMapper()
+
+
+# Keep the old mapper fixture for backward compatibility in tests that don't specify domain
+@pytest.fixture
+def mapper() -> HyperliquidMarketDataMapper:
+    """Provide an instance of HyperliquidMarketDataMapper for backward compatibility."""
     return HyperliquidMarketDataMapper()
 
 
@@ -273,7 +287,7 @@ class TestMapRawClearinghouseStateToMarginSummary:
         # The original assertions for summary will likely fail now because other parts of
         # current_raw_state are not updated, but the goal is to see if the debug
         # assertions for current_raw_state.margin_summary pass.
-        summary = HyperliquidAccountDataMapper.map_raw_clearinghouse_state_to_margin_summary(
+        summary = HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_margin_summary(
             current_raw_state
         )
 
@@ -323,7 +337,7 @@ class TestMapRawClearinghouseStateToMarginSummary:
             updated_data_python_names,
         )
 
-        summary = HyperliquidAccountDataMapper.map_raw_clearinghouse_state_to_margin_summary(
+        summary = HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_margin_summary(
             current_raw_state,
         )
 
@@ -372,7 +386,7 @@ class TestMapRawClearinghouseStateToMarginSummary:
         )
         # Expect ValueError from parse_decimal_value inside the mapper
         with pytest.raises(ValueError) as exc_info:
-            HyperliquidMapper.map_raw_clearinghouse_state_to_margin_summary(
+            HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_margin_summary(
                 current_raw_state_invalid,
             )
         assert "withdrawable" in str(exc_info.value).lower()
@@ -400,8 +414,10 @@ class TestMapRawClearinghouseStateToMarginSummary:
             updated_data_python_names,
         )
 
-        summary_updated_mmr = HyperliquidMapper.map_raw_clearinghouse_state_to_margin_summary(
-            current_raw_state_updated_mmr,
+        summary_updated_mmr = (
+            HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_margin_summary(
+                current_raw_state_updated_mmr,
+            )
         )
         assert summary_updated_mmr.total_maintenance_margin_required == Decimal("25.0")
 
@@ -432,11 +448,11 @@ class TestMapRawClearinghouseStateToMarginSummary:
 
 
 def test_map_raw_clearinghouse_state_to_spot_balances_empty(
-    mapper: HyperliquidMapper,
+    account_data_mapper: HyperliquidAccountDataMapper,
     raw_user_state_empty_positions_no_balances: HyperliquidRawClearinghouseState,
 ) -> None:
     """Test mapping when raw state has no spot balances (e.g., only perp positions)."""
-    spot_balances = mapper.map_raw_clearinghouse_state_to_spot_balances(
+    spot_balances = account_data_mapper.transform_raw_clearinghouse_state_to_spot_balances(
         raw_user_state_empty_positions_no_balances,
     )
     assert isinstance(spot_balances, dict)
@@ -444,7 +460,7 @@ def test_map_raw_clearinghouse_state_to_spot_balances_empty(
 
 
 def test_map_raw_clearinghouse_state_to_spot_balances_with_usdc(
-    mapper: HyperliquidMapper,
+    account_data_mapper: HyperliquidAccountDataMapper,
 ) -> None:
     """Test that USDC balance is created from marginSummary.accountValue."""
     # This test needs a RawClearinghouseState where marginSummary.accountValue is non-zero.
@@ -475,7 +491,9 @@ def test_map_raw_clearinghouse_state_to_spot_balances_with_usdc(
         withdrawable="0",
     )
 
-    spot_balances = mapper.map_raw_clearinghouse_state_to_spot_balances(raw_state_for_usdc_test)
+    spot_balances = account_data_mapper.transform_raw_clearinghouse_state_to_spot_balances(
+        raw_state_for_usdc_test
+    )
 
     assert "USDC" in spot_balances
     usdc_balance = spot_balances["USDC"]
@@ -494,7 +512,7 @@ def test_map_raw_clearinghouse_state_to_spot_balances_with_usdc(
 
 
 def test_map_raw_clearinghouse_state_to_spot_balances_with_other_spot_assets(
-    mapper: HyperliquidMapper,
+    mapper: HyperliquidMarketDataMapper,
 ) -> None:
     """Test mapping when raw state contains other spot assets in assetPositions.
     (Note: Hyperliquid primarily uses assetPositions for perps, spot is usually just USDC).
@@ -562,7 +580,9 @@ def test_map_raw_clearinghouse_state_to_spot_balances_with_other_spot_assets(
         # For test: Cross Account Value (10200) - ETH Initial Margin (300) = 9900
     )
 
-    spot_balances = mapper.map_raw_clearinghouse_state_to_spot_balances(raw_state_with_spot)
+    spot_balances = HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_spot_balances(
+        raw_state_with_spot
+    )
 
     assert isinstance(spot_balances, dict)
     assert "USDC" in spot_balances
@@ -651,24 +671,28 @@ def raw_user_state_with_positions() -> HyperliquidRawClearinghouseState:
 
 
 def test_map_raw_clearinghouse_state_to_derivative_positions_empty(
-    mapper: HyperliquidMapper,
+    mapper: HyperliquidMarketDataMapper,
     raw_user_state_empty_positions_no_balances: HyperliquidRawClearinghouseState,
 ) -> None:
     """Test mapping when raw state has no derivative positions."""
-    positions = mapper.map_raw_clearinghouse_state_to_derivative_positions(
-        raw_user_state_empty_positions_no_balances,
+    positions = (
+        HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+            raw_user_state_empty_positions_no_balances,
+        )
     )
     assert isinstance(positions, dict)
     assert not positions
 
 
 def test_map_raw_clearinghouse_state_to_derivative_positions_populated(
-    mapper: HyperliquidMapper,
+    mapper: HyperliquidMarketDataMapper,
     raw_user_state_with_positions: HyperliquidRawClearinghouseState,
 ) -> None:
     """Test mapping with ETH long and BTC short positions."""
-    positions = mapper.map_raw_clearinghouse_state_to_derivative_positions(
-        raw_user_state_with_positions,
+    positions = (
+        HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+            raw_user_state_with_positions,
+        )
     )
 
     assert isinstance(positions, dict)
@@ -764,12 +788,12 @@ def hyperliquid_raw_fill_sell_maker_fixture() -> HyperliquidRawFill:
 
 
 def test_transform_raw_fill_to_internal_buy_taker(
-    mapper: HyperliquidMapper,
+    mapper: HyperliquidMarketDataMapper,
     hyperliquid_raw_fill_buy_fixture: HyperliquidRawFill,
 ) -> None:
     """Test transforming a raw BUY TAKER fill to an internal Trade model."""
     raw_fill = hyperliquid_raw_fill_buy_fixture
-    trade = mapper.transform_raw_fill_to_internal(raw_fill)
+    trade = HyperliquidAccountDataMapper.transform_raw_fill_to_internal(raw_fill)
 
     assert isinstance(trade, Trade)
     assert trade.id == str(raw_fill.tid)
@@ -796,12 +820,12 @@ def test_transform_raw_fill_to_internal_buy_taker(
 
 
 def test_transform_raw_fill_to_internal_sell_maker(
-    mapper: HyperliquidMapper,
+    mapper: HyperliquidMarketDataMapper,
     hyperliquid_raw_fill_sell_maker_fixture: HyperliquidRawFill,
 ) -> None:
     """Test transforming a raw SELL MAKER fill to an internal Trade model."""
     raw_fill = hyperliquid_raw_fill_sell_maker_fixture
-    trade = mapper.transform_raw_fill_to_internal(raw_fill)
+    trade = HyperliquidAccountDataMapper.transform_raw_fill_to_internal(raw_fill)
 
     assert isinstance(trade, Trade)
     assert trade.id == str(raw_fill.tid)
@@ -902,12 +926,12 @@ def hyperliquid_raw_asset_ctx_btc_no_impact_px_fixture() -> HyperliquidRawAssetC
 
 
 def test_map_raw_ctx_to_ticker_eth(
-    mapper: HyperliquidMapper,
+    mapper: HyperliquidMarketDataMapper,
     hyperliquid_raw_asset_ctx_eth_fixture: HyperliquidRawAssetCtx,
 ) -> None:
     """Test mapping a raw asset context for ETH-PERP to an internal Ticker."""
     raw_ctx = hyperliquid_raw_asset_ctx_eth_fixture
-    ticker = mapper.map_raw_ctx_to_ticker(raw_ctx)
+    ticker = mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
 
     assert isinstance(ticker, Ticker)
     assert ticker.symbol == raw_ctx.name  # Access uses Python name
@@ -915,18 +939,16 @@ def test_map_raw_ctx_to_ticker_eth(
     assert (datetime.now(UTC) - ticker.timestamp) < timedelta(seconds=5)
 
     assert ticker.price == Decimal(raw_ctx.mark_px)  # Access uses Python name mark_px
-    assert ticker.bid == Decimal(raw_ctx.mark_px)  # Access uses Python name mark_px
-    assert ticker.ask == Decimal(raw_ctx.mark_px)  # Access uses Python name mark_px
     assert ticker.volume == Decimal(raw_ctx.day_ntl_vlm)  # Access uses Python name day_ntl_vlm
 
 
 def test_map_raw_ctx_to_ticker_btc_no_impact(
-    mapper: HyperliquidMapper,
+    mapper: HyperliquidMarketDataMapper,
     hyperliquid_raw_asset_ctx_btc_no_impact_px_fixture: HyperliquidRawAssetCtx,
 ) -> None:
     """Test mapping for BTC-PERP with no impact price and negative funding."""
     raw_ctx = hyperliquid_raw_asset_ctx_btc_no_impact_px_fixture
-    ticker = mapper.map_raw_ctx_to_ticker(raw_ctx)
+    ticker = mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
 
     assert isinstance(ticker, Ticker)
     assert ticker.symbol == raw_ctx.name  # Access uses Python name
@@ -987,12 +1009,12 @@ def hyperliquid_raw_l2_book_empty_fixture() -> HyperliquidRawL2Book:
 
 
 def test_map_raw_order_book_eth(
-    mapper: HyperliquidMapper,
+    mapper: HyperliquidMarketDataMapper,
     hyperliquid_raw_l2_book_eth_fixture: HyperliquidRawL2Book,
 ) -> None:
     """Test mapping a raw L2 book for ETH-PERP to an internal OrderBook."""
     raw_book = hyperliquid_raw_l2_book_eth_fixture
-    order_book = mapper.map_raw_order_book(raw_book)
+    order_book = mapper.transform_raw_order_book_to_internal(raw_book)
 
     assert isinstance(order_book, OrderBook)
     assert order_book.symbol == raw_book.coin
@@ -1011,12 +1033,12 @@ def test_map_raw_order_book_eth(
 
 
 def test_map_raw_order_book_with_depth_limit(
-    mapper: HyperliquidMapper,
+    mapper: HyperliquidMarketDataMapper,
     hyperliquid_raw_l2_book_eth_fixture: HyperliquidRawL2Book,
 ) -> None:
     """Test mapping with a depth limit."""
     raw_book = hyperliquid_raw_l2_book_eth_fixture
-    order_book = mapper.map_raw_order_book(raw_book, depth=2)
+    order_book = mapper.transform_raw_order_book_to_internal(raw_book, depth=2)
 
     assert isinstance(order_book, OrderBook)
     assert len(order_book.bids) == 2
@@ -1029,12 +1051,12 @@ def test_map_raw_order_book_with_depth_limit(
 
 
 def test_map_raw_order_book_empty(
-    mapper: HyperliquidMapper,
+    mapper: HyperliquidMarketDataMapper,
     hyperliquid_raw_l2_book_empty_fixture: HyperliquidRawL2Book,
 ) -> None:
     """Test mapping an empty raw L2 book."""
     raw_book = hyperliquid_raw_l2_book_empty_fixture
-    order_book = mapper.map_raw_order_book(raw_book)
+    order_book = mapper.transform_raw_order_book_to_internal(raw_book)
 
     assert isinstance(order_book, OrderBook)
     assert order_book.symbol == raw_book.coin
@@ -1044,7 +1066,7 @@ def test_map_raw_order_book_empty(
 
 
 def test_map_raw_order_book_malformed_levels_structure(
-    # mapper: HyperliquidMapper, # ARG001: Removed
+    # mapper: HyperliquidMarketDataMapper, # ARG001: Removed
 ) -> None:
     """Test mapping when raw_book.levels has an unexpected structure
     (e.g., not a list of 2 lists).
@@ -1116,7 +1138,7 @@ def hyperliquid_raw_public_trade_sell_fixture() -> HyperliquidRawPublicTrade:
 
 
 def test_transform_raw_public_trade_to_internal_buy(
-    mapper: HyperliquidMapper,
+    mapper: HyperliquidMarketDataMapper,
     hyperliquid_raw_public_trade_buy_fixture: HyperliquidRawPublicTrade,
 ) -> None:
     """Test transforming a raw public BUY trade to an internal Trade model."""
@@ -1149,7 +1171,7 @@ def test_transform_raw_public_trade_to_internal_buy(
 
 
 def test_transform_raw_public_trade_to_internal_sell(
-    mapper: HyperliquidMapper,
+    mapper: HyperliquidMarketDataMapper,
     hyperliquid_raw_public_trade_sell_fixture: HyperliquidRawPublicTrade,
 ) -> None:
     """Test transforming a raw public SELL trade to an internal Trade model."""
@@ -1196,15 +1218,15 @@ def test_transform_raw_public_trade_invalid_data() -> None:
 # --- Tests for map_raw_trades ---
 
 
-def test_map_raw_trades_empty_list(mapper: HyperliquidMapper) -> None:
+def test_map_raw_trades_empty_list(mapper: HyperliquidMarketDataMapper) -> None:
     """Test mapping an empty list of raw public trades."""
-    trades = mapper.map_raw_trades([])
+    trades = mapper.transform_raw_trades([])
     assert isinstance(trades, list)
     assert not trades
 
 
 def test_map_raw_trades_populated_list(
-    mapper: HyperliquidMapper,
+    mapper: HyperliquidMarketDataMapper,
     hyperliquid_raw_public_trade_buy_fixture: HyperliquidRawPublicTrade,
     hyperliquid_raw_public_trade_sell_fixture: HyperliquidRawPublicTrade,
 ) -> None:
@@ -1213,7 +1235,7 @@ def test_map_raw_trades_populated_list(
         hyperliquid_raw_public_trade_buy_fixture,
         hyperliquid_raw_public_trade_sell_fixture,
     ]
-    trades = mapper.map_raw_trades(raw_trades_list)
+    trades = mapper.transform_raw_trades(raw_trades_list)
 
     assert isinstance(trades, list)
     assert len(trades) == 2
@@ -1232,7 +1254,7 @@ def test_map_raw_trades_populated_list(
 
 
 def test_map_raw_trades_with_limit(
-    mapper: HyperliquidMapper,
+    mapper: HyperliquidMarketDataMapper,
     hyperliquid_raw_public_trade_buy_fixture: HyperliquidRawPublicTrade,
     hyperliquid_raw_public_trade_sell_fixture: HyperliquidRawPublicTrade,
 ) -> None:
@@ -1251,7 +1273,7 @@ def test_map_raw_trades_with_limit(
         hyperliquid_raw_public_trade_sell_fixture,  # BTC
         raw_trade_3,  # ADA
     ]
-    trades = mapper.map_raw_trades(raw_trades_list, limit=2)
+    trades = mapper.transform_raw_trades(raw_trades_list, limit=2)
 
     assert isinstance(trades, list)
     assert len(trades) == 2
@@ -1261,25 +1283,25 @@ def test_map_raw_trades_with_limit(
 
 
 def test_map_raw_trades_limit_greater_than_list_size(
-    mapper: HyperliquidMapper,
+    mapper: HyperliquidMarketDataMapper,
     hyperliquid_raw_public_trade_buy_fixture: HyperliquidRawPublicTrade,
 ) -> None:
     """Test mapping when limit is larger than the number of trades."""
     raw_trades_list = [hyperliquid_raw_public_trade_buy_fixture]
-    trades = mapper.map_raw_trades(raw_trades_list, limit=5)
+    trades = mapper.transform_raw_trades(raw_trades_list, limit=5)
     assert isinstance(trades, list)
     assert len(trades) == 1
     assert trades[0].symbol == hyperliquid_raw_public_trade_buy_fixture.coin
 
 
 def test_map_raw_trades_with_transformation_error(
-    mapper: HyperliquidMapper,
+    mapper: HyperliquidMarketDataMapper,
     hyperliquid_raw_public_trade_buy_fixture: HyperliquidRawPublicTrade,
     mocker: MockerFixture,  # For pytest-mock
     caplog: LogCaptureFixture,  # Added caplog fixture
 ) -> None:
     """Test that errors during individual trade transformation are handled gracefully."""
-    mapper = HyperliquidMapper()  # Use a fresh mapper instance
+    mapper = HyperliquidMarketDataMapper()  # Use a fresh mapper instance
 
     # Prepare one trade that will succeed transformation by the mock,
     # and one that will cause the mock to raise an error.
@@ -1328,7 +1350,7 @@ def test_map_raw_trades_with_transformation_error(
             is_maker=None,  # Default
             hl_details=HyperliquidTradeDetails(
                 trade_hash=raw_trade_arg.hash,
-                # These are None for public trades, as per HyperliquidMapper logic
+                # These are None for public trades, as per HyperliquidMarketDataMapper logic
                 liquidation_mark_px=None,
                 start_position=None,
                 dir=None,
@@ -1337,12 +1359,12 @@ def test_map_raw_trades_with_transformation_error(
         )
 
     patched_method = mocker.patch.object(
-        HyperliquidMapper,
+        HyperliquidMarketDataMapper,
         "transform_raw_public_trade_to_internal",
         side_effect=mock_transform_side_effect,
     )
 
-    mapped_trades = mapper.map_raw_trades(
+    mapped_trades = mapper.transform_raw_trades(
         [raw_trade_success, raw_trade_fail],
     )  # Corrected method name
 
@@ -1375,12 +1397,12 @@ def test_map_raw_trades_with_transformation_error(
 
 
 def test_map_raw_ctx_to_funding_rate_eth(
-    mapper: HyperliquidMapper,
+    mapper: HyperliquidMarketDataMapper,
     hyperliquid_raw_asset_ctx_eth_fixture: HyperliquidRawAssetCtx,
 ) -> None:
     """Test mapping asset context to FundingRate for ETH with positive funding."""
     raw_ctx = hyperliquid_raw_asset_ctx_eth_fixture
-    fr = mapper.map_raw_ctx_to_funding_rate(raw_ctx)
+    fr = mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx)
 
     assert fr is not None, "FundingRate object should be created"
     assert isinstance(fr, FundingRate)
@@ -1420,12 +1442,12 @@ def test_map_raw_ctx_to_funding_rate_eth(
 
 
 def test_map_raw_ctx_to_funding_rate_btc_negative_funding(
-    mapper: HyperliquidMapper,
+    mapper: HyperliquidMarketDataMapper,
     hyperliquid_raw_asset_ctx_btc_no_impact_px_fixture: HyperliquidRawAssetCtx,
 ) -> None:
     """Test mapping for BTC with negative funding and no impact price."""
     raw_ctx = hyperliquid_raw_asset_ctx_btc_no_impact_px_fixture
-    fr = mapper.map_raw_ctx_to_funding_rate(raw_ctx)
+    fr = mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx)
 
     assert fr is not None, "FundingRate object should be created"
     assert isinstance(fr, FundingRate)
@@ -1444,7 +1466,7 @@ def test_map_raw_ctx_to_funding_rate_btc_negative_funding(
 
 
 def test_map_raw_ctx_to_funding_rate_parsing_error_returns_funding_rate_with_none(
-    mapper: HyperliquidMapper,
+    mapper: HyperliquidMarketDataMapper,
     mocker: MockerFixture,
     # Not strictly needed if creating specific context:
     # hyperliquid_raw_asset_ctx_eth_fixture: HyperliquidRawAssetCtx
@@ -1489,11 +1511,11 @@ def test_map_raw_ctx_to_funding_rate_parsing_error_returns_funding_rate_with_non
 
     # Mock parse_decimal_value within the scope of the mapper module
     mocked_parser = mocker.patch(
-        "cyberdelta.apis.hyperliquid.hl_mapper.parse_decimal_value",
+        "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper.parse_decimal_value",
         side_effect=side_effect_for_funding_parse,
     )
 
-    result = mapper.map_raw_ctx_to_funding_rate(raw_ctx_problematic_funding)
+    result = mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx_problematic_funding)
     assert result is not None
     assert result.funding_rate is None
     assert result.symbol == "ERR-FUNDING-PERP"

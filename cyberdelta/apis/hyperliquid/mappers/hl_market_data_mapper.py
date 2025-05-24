@@ -263,37 +263,64 @@ class HyperliquidMarketDataMapper:
             TransformationError: If transformation fails
         """
         try:
-            # Check if funding data is available
-            if not raw_asset_ctx.funding:
-                return None
-
-            funding_rate = parse_decimal_value(
-                raw_asset_ctx.funding, allow_none=False, field_name="funding"
+            # Parse mark price first
+            mark_price = parse_decimal_value(
+                raw_asset_ctx.mark_px, allow_none=True, field_name="mark_px"
             )
 
-            if funding_rate is None:
-                return None
+            # Parse hourly funding rate
+            hourly_funding_rate = None
+            funding_rate_8hr = None
 
-            # Create timestamp - use current time since funding data doesn't include timestamp
-            timestamp = datetime.now(UTC)
+            try:
+                hourly_funding_rate = parse_decimal_value(
+                    raw_asset_ctx.funding, allow_none=True, field_name="funding"
+                )
+
+                if hourly_funding_rate is not None and hourly_funding_rate.is_finite():
+                    # Convert hourly rate to 8-hour rate
+                    funding_rate_8hr = hourly_funding_rate * Decimal("8")
+
+            except ValueError:
+                logger.warning(
+                    f"Could not parse funding rate for {raw_asset_ctx.name}. Setting to None."
+                )
+
+            # Calculate next funding time (start of next hour)
+            from datetime import timedelta
+
+            now_utc = datetime.now(UTC)
+            next_funding_time = now_utc.replace(minute=0, second=0, microsecond=0) + timedelta(
+                hours=1
+            )
+
+            # Parse additional HL-specific details
+            impact_px = parse_decimal_value(
+                raw_asset_ctx.impact_px, allow_none=True, field_name="impact_px"
+            )
 
             # Create HL-specific details
             details = HyperliquidFundingDetails(
-                # Add any HL-specific funding rate fields here
+                hl_funding_hourly=hourly_funding_rate,
+                hl_impact_px=impact_px,
             )
 
             return FundingRate(
                 symbol=raw_asset_ctx.name,
-                timestamp=timestamp,
-                funding_rate=funding_rate,
-                next_funding_time=None,  # Not available in asset context
+                timestamp=datetime.now(UTC),
+                funding_rate=funding_rate_8hr,  # 8-hour rate for compatibility with tests
+                predicted_rate=None,
+                mark_price=mark_price,
+                index_price=None,
+                next_funding_time=next_funding_time,
                 hl_details=details,
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform HyperliquidRawAssetCtx to FundingRate: {e}"
-            ) from e
+            logger.error(
+                f"Error mapping raw asset context to FundingRate for {raw_asset_ctx.name}: {e}"
+            )
+            return None
 
     @staticmethod
     def transform_raw_funding_history_item_to_internal(
@@ -523,3 +550,40 @@ class HyperliquidMarketDataMapper:
             raise TransformationError(
                 f"Failed to transform HyperliquidRawWsBookUpdate to OrderBook: {e}"
             ) from e
+
+    @staticmethod
+    def transform_raw_trades(
+        raw_public_trades: list[HyperliquidRawPublicTrade], limit: int | None = None
+    ) -> list[Trade]:
+        """
+        Transforms a list of HyperliquidRawPublicTrade to Internal Trade models.
+
+        Args:
+            raw_public_trades: List of validated raw public trade data from Hyperliquid
+            limit: Optional limit on number of trades to return
+
+        Returns:
+            list[Trade]: List of internal domain models
+
+        Raises:
+            TransformationError: If transformation fails
+        """
+        trades: list[Trade] = []
+
+        for raw_trade in raw_public_trades:
+            try:
+                trade = HyperliquidMarketDataMapper.transform_raw_public_trade_to_internal(
+                    raw_trade
+                )
+                trades.append(trade)
+            except Exception as e:
+                logger.warning(
+                    f"Skipping public trade due to transformation error: {e}. "
+                    f"Raw: {raw_trade.model_dump()}"
+                )
+                continue
+
+        # Apply limit if specified
+        if limit is not None and limit > 0:
+            return trades[:limit]
+        return trades
