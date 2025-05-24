@@ -15,6 +15,7 @@ Tests all public transformation methods with various scenarios including:
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from unittest.mock import patch
 
 import pytest
 
@@ -171,33 +172,35 @@ def create_raw_account_summary(
     auto_lend: bool = False,
     auto_realize_pnl: bool = False,
     auto_repay_borrows: bool = False,
-    borrow_limit: Decimal = Decimal("5000.0"),
-    futures_maker_fee: Decimal = Decimal("0.0002"),
-    futures_taker_fee: Decimal = Decimal("0.0005"),
-    leverage_limit: Decimal = Decimal("10.0"),
+    borrow_limit: str = "5000.0",
+    futures_maker_fee: str = "0.0002",
+    futures_taker_fee: str = "0.0005",
+    leverage_limit: str = "10.0",
     limit_orders: int = 100,
     liquidating: bool = False,
-    position_limit: Decimal = Decimal("1000000.0"),
-    spot_maker_fee: Decimal = Decimal("0.001"),
-    spot_taker_fee: Decimal = Decimal("0.001"),
+    position_limit: str = "1000000.0",
+    spot_maker_fee: str = "0.001",
+    spot_taker_fee: str = "0.001",
     trigger_orders: int = 50,
 ) -> BackpackRawAccountSummary:
     """Helper function to create BackpackRawAccountSummary instances for testing."""
-    return BackpackRawAccountSummary(
-        autoBorrowSettlements=auto_borrow_settlements,
-        autoLend=auto_lend,
-        autoRealizePnl=auto_realize_pnl,
-        autoRepayBorrows=auto_repay_borrows,
-        borrowLimit=borrow_limit,
-        futuresMakerFee=futures_maker_fee,
-        futuresTakerFee=futures_taker_fee,
-        leverageLimit=leverage_limit,
-        limitOrders=limit_orders,
-        liquidating=liquidating,
-        positionLimit=position_limit,
-        spotMakerFee=spot_maker_fee,
-        spotTakerFee=spot_taker_fee,
-        triggerOrders=trigger_orders,
+    return BackpackRawAccountSummary.model_validate(
+        {
+            "autoBorrowSettlements": auto_borrow_settlements,
+            "autoLend": auto_lend,
+            "autoRealizePnl": auto_realize_pnl,
+            "autoRepayBorrows": auto_repay_borrows,
+            "borrowLimit": borrow_limit,
+            "futuresMakerFee": futures_maker_fee,
+            "futuresTakerFee": futures_taker_fee,
+            "leverageLimit": leverage_limit,
+            "limitOrders": limit_orders,
+            "liquidating": liquidating,
+            "positionLimit": position_limit,
+            "spotMakerFee": spot_maker_fee,
+            "spotTakerFee": spot_taker_fee,
+            "triggerOrders": trigger_orders,
+        }
     )
 
 
@@ -205,10 +208,10 @@ def create_raw_order(
     id: str = "order123",
     symbol: str = "SOL-USDC",
     side: str = "Buy",
-    order_type: str = "Limit",
+    order_type: str = "LIMIT",
     quantity: str = "10.0",
     price: str = "100.50",
-    status: str = "New",
+    status: str = "NEW",
     time_in_force: str = "GTC",
     created_at: str = "2024-01-15T10:30:00Z",
     executed_quantity: str = "0.0",
@@ -276,16 +279,18 @@ def create_raw_withdrawal_response(
     is_internal: bool = False,
 ) -> BackpackRawWithdrawalResponse:
     """Helper function to create BackpackRawWithdrawalResponse instances for testing."""
-    return BackpackRawWithdrawalResponse(
-        id=id,
-        status=status,
-        blockchain="Ethereum",
-        quantity=quantity,
-        fee=fee,
-        symbol="USDC",
-        toAddress=to_address,
-        createdAt=datetime.fromisoformat(created_at.replace("Z", "+00:00")),
-        isInternal=is_internal,
+    return BackpackRawWithdrawalResponse.model_validate(
+        {
+            "id": id,
+            "status": status,
+            "blockchain": blockchain,
+            "quantity": quantity,
+            "fee": fee,
+            "symbol": symbol,
+            "toAddress": to_address,
+            "createdAt": created_at,
+            "isInternal": is_internal,
+        }
     )
 
 
@@ -332,18 +337,28 @@ class TestFillTransformation:
 
         result = mapper.transform_raw_fill_to_internal(raw_fill)
 
+        # DEFENSIVE CHECK: result could be None if price/quantity is zero.
+        # Mypy=[union-attr] Ruff=[N/A]
+        assert result is not None, "Expected Trade object but got None"
         assert result.side == OrderSide.SELL
 
     def test_transform_raw_fill_transformation_error(
         self, mapper: BackpackAccountDataMapper
     ) -> None:
         """Test that transformation errors are properly wrapped."""
-        raw_fill = create_raw_fill(price="invalid_price")
+        # Create a valid raw fill
+        raw_fill = create_raw_fill()
 
-        with pytest.raises(
-            TransformationError, match="Failed to transform BackpackRawFill to Trade"
-        ):
-            mapper.transform_raw_fill_to_internal(raw_fill)
+        # Mock parse_decimal_value to raise an error during transformation
+        with patch(
+            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value"
+        ) as mock_parse:
+            mock_parse.side_effect = ValueError("Invalid decimal value")
+
+            with pytest.raises(
+                TransformationError, match="Failed to transform BackpackRawFill to Trade"
+            ):
+                mapper.transform_raw_fill_to_internal(raw_fill)
 
 
 class TestBalanceTransformation:
@@ -395,12 +410,19 @@ class TestBalanceTransformation:
         self, mapper: BackpackAccountDataMapper
     ) -> None:
         """Test that transformation errors are properly wrapped."""
-        raw_balance = create_raw_balance(available="invalid_amount")
+        # Create a valid raw balance
+        raw_balance = create_raw_balance()
 
-        with pytest.raises(
-            TransformationError, match="Failed to transform BackpackRawBalance to SpotBalance"
-        ):
-            mapper.transform_raw_balance_to_internal("USDC", raw_balance)
+        # Mock parse_decimal_value to raise an error during transformation
+        with patch(
+            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value"
+        ) as mock_parse:
+            mock_parse.side_effect = ValueError("Invalid decimal value")
+
+            with pytest.raises(
+                TransformationError, match="Failed to transform raw balance to internal"
+            ):
+                mapper.transform_raw_balance_to_internal("USDC", raw_balance)
 
 
 class TestPositionTransformation:
@@ -446,13 +468,19 @@ class TestPositionTransformation:
         self, mapper: BackpackAccountDataMapper
     ) -> None:
         """Test that transformation errors are properly wrapped."""
-        raw_position = create_raw_position(net_quantity="invalid_size")
+        # Create a valid raw position
+        raw_position = create_raw_position()
 
-        with pytest.raises(
-            TransformationError,
-            match="Failed to transform BackpackRawPosition to DerivativePosition",
-        ):
-            mapper.transform_raw_position_to_internal(raw_position)
+        # Mock parse_decimal_value to raise an error during transformation
+        with patch(
+            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value"
+        ) as mock_parse:
+            mock_parse.side_effect = ValueError("Invalid decimal value")
+
+            with pytest.raises(
+                TransformationError, match="Failed to transform raw position to internal"
+            ):
+                mapper.transform_raw_position_to_internal(raw_position)
 
 
 class TestAccountSummaryTransformation:
@@ -471,7 +499,9 @@ class TestAccountSummaryTransformation:
         )
 
         assert isinstance(result, MarginAccountSummary)
-        assert result.total_equity == Decimal("1100.0")  # From balance total
+        assert result.total_equity == Decimal(
+            "1105.0"
+        )  # From balance total (1100.0) + position unrealized PnL (5.0)
         assert result.available_equity == Decimal("1000.0")  # From balance available
         assert result.exchange == ExchangeName.BACKPACK.value
         assert result.bp_details is not None
@@ -499,10 +529,10 @@ class TestOrderTransformation:
             id="order123",
             symbol="SOL-USDC",
             side="Buy",
-            order_type="Limit",
+            order_type="LIMIT",
             quantity="10.0",
             price="100.50",
-            status="New",
+            status="NEW",
             time_in_force="GTC",
             created_at=test_timestamp,
         )
@@ -548,12 +578,12 @@ class TestOrderTransformation:
     @pytest.mark.parametrize(
         "bp_status,expected_status",
         [
-            ("New", OrderStatus.NEW),
-            ("Filled", OrderStatus.FILLED),
-            ("Cancelled", OrderStatus.CANCELED),
-            ("Partially_Filled", OrderStatus.PARTIALLY_FILLED),
-            ("Rejected", OrderStatus.REJECTED),
-            ("Expired", OrderStatus.EXPIRED),
+            ("NEW", OrderStatus.NEW),
+            ("FILLED", OrderStatus.FILLED),
+            ("CANCELLED", OrderStatus.CANCELED),
+            ("PARTIALLY_FILLED", OrderStatus.PARTIALLY_FILLED),
+            ("REJECTED", OrderStatus.REJECTED),
+            ("EXPIRED", OrderStatus.EXPIRED),
         ],
     )
     def test_transform_raw_order_status_mapping(
@@ -573,10 +603,10 @@ class TestOrderTransformation:
     @pytest.mark.parametrize(
         "bp_type,expected_type",
         [
-            ("Limit", OrderType.LIMIT),
-            ("Market", OrderType.MARKET),
-            ("Stop", OrderType.STOP_MARKET),
-            ("Stop_Limit", OrderType.STOP_LIMIT),
+            ("LIMIT", OrderType.LIMIT),
+            ("MARKET", OrderType.MARKET),
+            ("STOP", OrderType.STOP_MARKET),
+            ("TAKE_PROFIT", OrderType.TAKE_PROFIT_MARKET),
         ],
     )
     def test_transform_raw_order_type_mapping(
@@ -587,7 +617,11 @@ class TestOrderTransformation:
         expected_type: OrderType,
     ) -> None:
         """Test order transformation with different type values."""
-        raw_order = create_raw_order(order_type=bp_type, created_at=test_timestamp)
+        # For STOP orders, provide a trigger price since it's required
+        trigger_price = "99.00" if bp_type == "STOP" else None
+        raw_order = create_raw_order(
+            order_type=bp_type, created_at=test_timestamp, trigger_price=trigger_price
+        )
 
         result = mapper.transform_raw_order_to_internal(raw_order)
 
@@ -622,7 +656,7 @@ class TestTradeTransformation:
     def test_transform_raw_trade_to_internal_happy_path(
         self, mapper: BackpackAccountDataMapper, test_timestamp: str
     ) -> None:
-        """Test successful transformation of BackpackRawTrade to internal Trade."""
+        """Test that BackpackRawTrade transformation returns None due to missing side info."""
         raw_trade = create_raw_trade(
             id="trade123",
             symbol="SOL-USDC",
@@ -635,37 +669,66 @@ class TestTradeTransformation:
 
         result = mapper.transform_raw_trade_to_internal(raw_trade)
 
-        assert result is not None
-        assert isinstance(result, Trade)
-        assert result.id == "trade123"
-        assert result.symbol == "SOL-USDC"
-        assert result.price == Decimal("100.50")
-        assert result.quantity == Decimal("10.0")
-        assert result.side == OrderSide.BUY  # Default side for BackpackRawTrade
-        assert result.order_id == "order123"
-        assert result.exchange == ExchangeName.BACKPACK.value
-        assert result.executed_at == datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)
-        assert result.bp_details is not None
+        # Backpack REST API for trades lacks side information, so mapper returns None
+        assert result is None
 
     def test_transform_raw_trade_missing_price(
         self, mapper: BackpackAccountDataMapper, test_timestamp: str
     ) -> None:
         """Test trade transformation with missing price returns None."""
-        raw_trade = create_raw_trade(price="", time=test_timestamp)
+        # Create a valid raw trade first
+        raw_trade = create_raw_trade(time=test_timestamp)
 
-        result = mapper.transform_raw_trade_to_internal(raw_trade)
+        # Mock parse_decimal_value to return None for price
+        with patch(
+            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value"
+        ) as mock_parse:
 
-        assert result is None
+            def side_effect(
+                value: str, allow_none: bool = False, field_name: str = ""
+            ) -> Decimal | None:
+                if field_name == "price":
+                    return None
+                # For other fields, call the real function
+                from cyberdelta.utils.parsing import parse_decimal_value as real_parse
+
+                return real_parse(value, allow_none=allow_none, field_name=field_name)
+
+            mock_parse.side_effect = side_effect
+
+            with pytest.raises(
+                TransformationError, match="price missing/invalid in BackpackRawTrade"
+            ):
+                mapper.transform_raw_trade_to_internal(raw_trade)
 
     def test_transform_raw_trade_missing_quantity(
         self, mapper: BackpackAccountDataMapper, test_timestamp: str
     ) -> None:
         """Test trade transformation with missing quantity returns None."""
-        raw_trade = create_raw_trade(qty="", time=test_timestamp)
+        # Create a valid raw trade first
+        raw_trade = create_raw_trade(time=test_timestamp)
 
-        result = mapper.transform_raw_trade_to_internal(raw_trade)
+        # Mock parse_decimal_value to return None for quantity
+        with patch(
+            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value"
+        ) as mock_parse:
 
-        assert result is None
+            def side_effect(
+                value: str, allow_none: bool = False, field_name: str = ""
+            ) -> Decimal | None:
+                if field_name == "quantity":
+                    return None
+                # For other fields, call the real function
+                from cyberdelta.utils.parsing import parse_decimal_value as real_parse
+
+                return real_parse(value, allow_none=allow_none, field_name=field_name)
+
+            mock_parse.side_effect = side_effect
+
+            with pytest.raises(
+                TransformationError, match="quantity missing/invalid in BackpackRawTrade"
+            ):
+                mapper.transform_raw_trade_to_internal(raw_trade)
 
 
 class TestTransferTransformation:
@@ -790,21 +853,27 @@ class TestWithdrawalTransformation:
         self, mapper: BackpackAccountDataMapper
     ) -> None:
         """Test that transformation errors are properly wrapped."""
-        raw_response = create_raw_withdrawal_response(status="invalid_status")
+        # Create a valid raw withdrawal response
+        raw_response = create_raw_withdrawal_response()
 
-        with pytest.raises(
-            TransformationError,
-            match="Failed to transform BackpackRawWithdrawalResponse to Withdrawal",
-        ):
-            mapper.transform_raw_withdrawal_response_to_internal(
-                raw_response=raw_response,
-                asset="USDC",
-                quantity=Decimal("1000.0"),
-                address="0xabc123",
-                network="ethereum",
-                client_withdrawal_id=None,
-                tag=None,
-            )
+        # Mock parse_decimal_value to raise an error during transformation
+        with patch(
+            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value"
+        ) as mock_parse:
+            mock_parse.side_effect = ValueError("Invalid decimal value")
+
+            with pytest.raises(
+                TransformationError, match="Failed to transform raw withdrawal to internal"
+            ):
+                mapper.transform_raw_withdrawal_response_to_internal(
+                    raw_response=raw_response,
+                    asset="USDC",
+                    quantity=Decimal("1000.0"),
+                    address="0xabc123",
+                    network="Ethereum",
+                    client_withdrawal_id=None,
+                    tag=None,
+                )
 
 
 class TestEdgeCasesAndRobustness:
@@ -823,6 +892,9 @@ class TestEdgeCasesAndRobustness:
 
         result = mapper.transform_raw_fill_to_internal(raw_fill)
 
+        # DEFENSIVE CHECK: result could be None if price/quantity is zero.
+        # Mypy=[union-attr] Ruff=[N/A]
+        assert result is not None, "Expected Trade object but got None"
         assert result.price == Decimal("0.000001")
         assert result.quantity == Decimal("999999999.999999")
         assert result.fee == Decimal("0.000000001")
@@ -838,9 +910,8 @@ class TestEdgeCasesAndRobustness:
 
         result = mapper.transform_raw_fill_to_internal(raw_fill)
 
-        assert result.price == Decimal("0.0")
-        assert result.quantity == Decimal("0.0")
-        assert result.fee == Decimal("0.0")
+        # Mapper returns None for zero price/quantity since Trade model requires positive values
+        assert result is None
 
     def test_unicode_symbol_handling(
         self, mapper: BackpackAccountDataMapper, test_timestamp: str
@@ -850,13 +921,19 @@ class TestEdgeCasesAndRobustness:
 
         result = mapper.transform_raw_fill_to_internal(raw_fill)
 
+        # DEFENSIVE CHECK: result could be None if price/quantity is zero.
+        # Mypy=[union-attr] Ruff=[N/A]
+        assert result is not None, "Expected Trade object but got None"
         assert result.symbol == "SOL-USDC"
 
     def test_very_long_ids(self, mapper: BackpackAccountDataMapper, test_timestamp: str) -> None:
         """Test handling of very long ID strings."""
-        long_id = "a" * 1000
+        # Use a long ID that's within the validation limits (max 128 chars)
+        long_id = "a" * 120  # Just under the 128 char limit
         raw_fill = create_raw_fill(order_id=long_id, timestamp=test_timestamp)
 
         result = mapper.transform_raw_fill_to_internal(raw_fill)
 
+        # Should handle long IDs gracefully
+        assert result is not None
         assert result.order_id == long_id

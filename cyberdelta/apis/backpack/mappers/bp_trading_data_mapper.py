@@ -18,6 +18,7 @@ All transformation methods follow the standard pattern:
 """
 
 import logging
+import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -50,7 +51,7 @@ class BackpackTradingDataMapper:
         Maps a Backpack order side string to internal OrderSide enum.
 
         Args:
-            bp_side: Raw side string from Backpack ("Buy", "Sell")
+            bp_side: Raw side string from Backpack ("Buy", "Sell", "Bid", "Ask")
 
         Returns:
             OrderSide: Mapped internal enum value
@@ -59,9 +60,9 @@ class BackpackTradingDataMapper:
             TransformationError: If side cannot be mapped
         """
         side_lower = bp_side.lower() if bp_side else ""
-        if side_lower == "buy":
+        if side_lower in ("buy", "bid"):
             return OrderSide.BUY
-        elif side_lower == "sell":
+        elif side_lower in ("sell", "ask"):
             return OrderSide.SELL
 
         raise TransformationError(f"Unknown Backpack order side: '{bp_side}'")
@@ -104,6 +105,8 @@ class BackpackTradingDataMapper:
             "market": OrderType.MARKET,
             "stop": OrderType.STOP_MARKET,
             "stop_limit": OrderType.STOP_LIMIT,
+            "trailing_stop": OrderType.STOP_MARKET,
+            "take_profit": OrderType.LIMIT,
         }
         return type_map.get(bp_type.lower(), OrderType.LIMIT)
 
@@ -203,12 +206,12 @@ class BackpackTradingDataMapper:
                 price=order_price,
                 time_in_force=mapped_tif,
                 exchange=ExchangeName.BACKPACK.value,
-                client_order_id=client_order_id or "",
+                client_order_id=client_order_id or str(uuid.uuid4()),
                 created_at=created_timestamp or datetime.now(UTC),
                 updated_at=updated_timestamp,
                 triggered_at=None,
-                strategy_name="",
-                signal_id="",
+                strategy_name=None,
+                signal_id=None,
             )
 
         except Exception as e:
@@ -299,12 +302,12 @@ class BackpackTradingDataMapper:
                 average_fill_price=average_fill_price,
                 time_in_force=mapped_tif,
                 exchange=ExchangeName.BACKPACK.value,
-                client_order_id=raw_order.clientId or "",
+                client_order_id=raw_order.clientId or str(uuid.uuid4()),
                 created_at=created_timestamp,
                 updated_at=updated_timestamp,
                 triggered_at=triggered_timestamp,
-                strategy_name="",
-                signal_id="",
+                strategy_name=None,
+                signal_id=None,
                 reduce_only=raw_order.reduceOnly or False,
                 post_only=raw_order.postOnly or False,
             )

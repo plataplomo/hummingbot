@@ -20,6 +20,7 @@ All transformation methods follow the standard pattern:
 """
 
 import logging
+import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -36,6 +37,8 @@ from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import (
     BackpackMarginDetails,
+    BackpackOrderDetails,
+    BackpackPositionDetails,
     BackpackSpotBalanceDetails,
     BackpackTransferDetails,
     BackpackWithdrawalDetails,
@@ -46,9 +49,12 @@ from cyberdelta.core.models import (
     Trade,
 )
 from cyberdelta.core.models.enums import (
+    OrderExpiryReason,
     OrderSide,
     OrderStatus,
     OrderType,
+    OrderUpdateOrigin,
+    SelfTradePrevention,
     TimeInForce,
     TriggerType,
 )
@@ -98,7 +104,9 @@ class BackpackAccountDataMapper:
     def _map_status_to_internal(bp_status: str) -> OrderStatus:
         """Maps a Backpack order status string to internal OrderStatus enum."""
         status_lower = bp_status.lower() if bp_status else ""
-        if status_lower in ("new", "open", "pending"):
+        if status_lower == "new":
+            return OrderStatus.NEW
+        elif status_lower in ("open", "pending"):
             return OrderStatus.OPEN
         elif status_lower in ("filled", "executed"):
             return OrderStatus.FILLED
@@ -185,7 +193,7 @@ class BackpackAccountDataMapper:
             return InternalTransferStatus.UNKNOWN
 
     @staticmethod
-    def transform_raw_fill_to_internal(raw_fill: BackpackRawFill) -> Trade:
+    def transform_raw_fill_to_internal(raw_fill: BackpackRawFill) -> Trade | None:
         """
         Transforms a BackpackRawFill to an Internal Trade model.
 
@@ -193,7 +201,7 @@ class BackpackAccountDataMapper:
             raw_fill: Validated raw fill from Backpack
 
         Returns:
-            Trade: Internal domain model with BP details populated
+            Trade | None: Internal domain model with BP details populated, or None if price or quantity is zero
 
         Raises:
             TransformationError: If transformation fails
@@ -210,6 +218,13 @@ class BackpackAccountDataMapper:
 
             if price is None or quantity is None:
                 raise TransformationError("Price and quantity are required for trade")
+
+            # Check if price or quantity is zero - Trade model requires positive values
+            if price <= Decimal("0") or quantity <= Decimal("0"):
+                logger.warning(
+                    f"Skipping trade {raw_fill.trade_id} with zero price ({price}) or quantity ({quantity})"
+                )
+                return None
 
             # Parse timestamp
             executed_at = parse_datetime_utc(raw_fill.timestamp, field_name="timestamp")
@@ -375,8 +390,22 @@ class BackpackAccountDataMapper:
 
             timestamp = datetime.now(UTC)
 
-            # Create BackpackPositionDetails (Optional - skipping for now)
-            bp_details = None
+            # Create BackpackPositionDetails with available data
+            imf_base_dec = parse_decimal_value(raw.imf_function.base, allow_none=True)
+            imf_factor_dec = parse_decimal_value(raw.imf_function.factor, allow_none=True)
+            mmf_base_dec = parse_decimal_value(raw.mmf_function.base, allow_none=True)
+            mmf_factor_dec = parse_decimal_value(raw.mmf_function.factor, allow_none=True)
+            cumulative_funding_dec = parse_decimal_value(
+                raw.cumulative_funding_payment, allow_none=True
+            )
+
+            bp_details = BackpackPositionDetails(
+                imf_base=imf_base_dec,
+                imf_factor=imf_factor_dec,
+                mmf_base=mmf_base_dec,
+                mmf_factor=mmf_factor_dec,
+                cumulative_funding=cumulative_funding_dec,
+            )
 
             return DerivativePosition(
                 exchange=ExchangeName.BACKPACK,
@@ -612,7 +641,7 @@ class BackpackAccountDataMapper:
             internal_status = InternalWithdrawalStatus.UNKNOWN
             if raw_status:
                 status_upper = raw_status.upper()
-                if status_upper in ["COMPLETED", "SUCCESS", "PROCESSED"]:
+                if status_upper in ["COMPLETED", "SUCCESS", "PROCESSED", "CONFIRMED"]:
                     internal_status = InternalWithdrawalStatus.COMPLETED
                 elif status_upper == "PENDING":
                     internal_status = InternalWithdrawalStatus.PENDING
@@ -703,8 +732,75 @@ class BackpackAccountDataMapper:
             parsed_stop_price = parse_decimal_value(raw.triggerPrice)
             parsed_avg_fill_price = parse_decimal_value(raw.avgFillPrice)
 
+            # Create BackpackOrderDetails with available data
+            executed_quote_quantity = parse_decimal_value(
+                raw.executedQuoteQuantity, allow_none=True
+            )
+
+            # Map self trade prevention string to enum if available
+            stp_enum = None
+            if raw.selfTradePrevention:
+                stp_str = raw.selfTradePrevention.upper()
+                if stp_str == "REJECT_TAKER" or stp_str == "REJECTTAKER":
+                    stp_enum = SelfTradePrevention.REJECT_TAKER
+                elif stp_str == "REJECT_MAKER" or stp_str == "REJECTMAKER":
+                    stp_enum = SelfTradePrevention.REJECT_MAKER
+                elif stp_str == "REJECT_BOTH" or stp_str == "REJECTBOTH":
+                    stp_enum = SelfTradePrevention.REJECT_BOTH
+                elif stp_str == "NONE":
+                    stp_enum = SelfTradePrevention.NONE
+
+            # Map expiry reason string to enum if available
+            expiry_enum = None
+            if raw.expiryReason:
+                expiry_str = raw.expiryReason.upper()
+                if expiry_str == "USER_CANCELLED" or expiry_str == "CANCELLED":
+                    expiry_enum = OrderExpiryReason.USER_CANCELLED
+                elif expiry_str == "LIQUIDATION":
+                    expiry_enum = OrderExpiryReason.LIQUIDATION
+                elif expiry_str == "INSUFFICIENT_FUNDS":
+                    expiry_enum = OrderExpiryReason.INSUFFICIENT_FUNDS
+                elif expiry_str == "SELF_TRADE_PREVENTION":
+                    expiry_enum = OrderExpiryReason.SELF_TRADE_PREVENTION
+                elif expiry_str == "POST_ONLY_TAKER":
+                    expiry_enum = OrderExpiryReason.POST_ONLY_TAKER
+                elif expiry_str == "FILL_OR_KILL":
+                    expiry_enum = OrderExpiryReason.FILL_OR_KILL
+                elif expiry_str == "IMMEDIATE_OR_CANCEL":
+                    expiry_enum = OrderExpiryReason.IMMEDIATE_OR_CANCEL
+                else:
+                    expiry_enum = OrderExpiryReason.UNKNOWN
+
+            # Map origin string to enum if available
+            origin_enum = None
+            if raw.origin:
+                origin_str = raw.origin.upper()
+                if origin_str == "USER":
+                    origin_enum = OrderUpdateOrigin.USER
+                elif origin_str == "LIQUIDATION_AUTOCLOSE":
+                    origin_enum = OrderUpdateOrigin.LIQUIDATION_AUTOCLOSE
+                elif origin_str == "ADL_AUTOCLOSE":
+                    origin_enum = OrderUpdateOrigin.ADL_AUTOCLOSE
+                elif origin_str == "COLLATERAL_CONVERSION":
+                    origin_enum = OrderUpdateOrigin.COLLATERAL_CONVERSION
+                elif origin_str == "SETTLEMENT_AUTOCLOSE":
+                    origin_enum = OrderUpdateOrigin.SETTLEMENT_AUTOCLOSE
+                elif origin_str == "BACKSTOP_LIQUIDITY_PROVIDER":
+                    origin_enum = OrderUpdateOrigin.BACKSTOP_LIQUIDITY_PROVIDER
+                else:
+                    origin_enum = OrderUpdateOrigin.UNKNOWN
+
+            bp_details = BackpackOrderDetails(
+                executed_quote_quantity=executed_quote_quantity,
+                self_trade_prevention=stp_enum,
+                expiry_reason=expiry_enum,
+                origin=origin_enum,
+                # Note: Other fields like sl_trigger_price, tp_trigger_price etc. are not available
+                # in the basic BackpackRawOrder model and would need to come from other API endpoints
+            )
+
             return Order(
-                client_order_id=raw.clientId or "",
+                client_order_id=raw.clientId or str(uuid.uuid4()),
                 exchange_order_id=raw.id,
                 related_order_id=raw.relatedOrderId,
                 exchange=ExchangeName.BACKPACK,
@@ -727,6 +823,7 @@ class BackpackAccountDataMapper:
                 strategy_name=None,
                 signal_id=None,
                 trades=[],
+                bp_details=bp_details,
             )
         except Exception as e:
             raise TransformationError(f"Failed to transform raw order to internal: {e}") from e

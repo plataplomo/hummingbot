@@ -56,7 +56,7 @@ def test_timestamp() -> str:
 @pytest.fixture
 def test_timestamp_ms() -> int:
     """Fixture providing a consistent test timestamp in milliseconds."""
-    return 1705316600000  # 2024-01-15T10:30:00Z
+    return 1705314600000  # 2024-01-15T10:30:00Z
 
 
 def create_raw_ticker(
@@ -121,7 +121,7 @@ def create_raw_funding_rate(
     rate: str = "0.0001",
     mark_price: str = "100.50",
     index_price: str = "100.25",
-    time: int = 1705316600000,
+    time: int = 1705314600000,
 ) -> BackpackRawFundingRate:
     """Helper function to create BackpackRawFundingRate instances for testing."""
     return BackpackRawFundingRate(
@@ -136,7 +136,7 @@ def create_raw_funding_rate(
 def create_raw_funding_interval_rate(
     symbol: str = "SOL-USDC",
     rate: str = "0.0001",
-    time: int = 1705316600000,
+    time: int = 1705314600000,
 ) -> BackpackRawFundingIntervalRate:
     """Helper function to create BackpackRawFundingIntervalRate instances for testing."""
     return BackpackRawFundingIntervalRate(
@@ -148,28 +148,32 @@ def create_raw_funding_interval_rate(
 
 def create_raw_kline(
     symbol: str = "SOL-USDC",
-    start_time_ms: int = 1705316600000,
-    open_price: Decimal = Decimal("100.00"),
-    high_price: Decimal = Decimal("101.00"),
-    low_price: Decimal = Decimal("99.50"),
-    close_price: Decimal = Decimal("100.50"),
-    volume: Decimal = Decimal("1000.0"),
+    start_time_ms: int = 1705314600000,
+    open_price: str = "100.00",
+    high_price: str = "101.00",
+    low_price: str = "99.50",
+    close_price: str = "100.50",
+    volume: str = "1000.0",
 ) -> BackpackRawKline:
     """Helper function to create BackpackRawKline instances for testing."""
-    return BackpackRawKline(
-        startTimeMs=start_time_ms,
-        openPrice=open_price,
-        highPrice=high_price,
-        lowPrice=low_price,
-        closePrice=close_price,
-        volume=volume,
-        endTimeMs=start_time_ms + 3600000,  # 1 hour later
-        quoteVolume=Decimal("100500.0"),
-        tradeCount=100,
-        takerBuyBaseVolume=Decimal("500.0"),
-        takerBuyQuoteVolume=Decimal("50250.0"),
-        ignored="0",
-    )
+    # BackpackRawKline expects a list/tuple of 12 elements in this order:
+    # [start_time_ms, open_price, high_price, low_price, close_price, volume,
+    #  end_time_ms, quote_volume, trade_count, taker_buy_base_volume, taker_buy_quote_volume, ignored]
+    kline_data = [
+        start_time_ms,  # start_time_ms (int)
+        open_price,  # open_price (string)
+        high_price,  # high_price (string)
+        low_price,  # low_price (string)
+        close_price,  # close_price (string)
+        volume,  # volume (string)
+        start_time_ms + 3600000,  # end_time_ms (int) - 1 hour later
+        "100500.0",  # quote_volume (string)
+        100,  # trade_count (int)
+        "500.0",  # taker_buy_base_volume (string)
+        "50250.0",  # taker_buy_quote_volume (string)
+        "0",  # ignored (string)
+    ]
+    return BackpackRawKline.model_validate(kline_data)
 
 
 def create_raw_ticker_event(
@@ -181,7 +185,7 @@ def create_raw_ticker_event(
     volume: str = "1000.0",
     quote_volume: str = "100500.0",
     price_change_percent: str = "0.5",
-    event_time: int = 1705316600000,
+    event_time: int = 1705314600000,
 ) -> BackpackRawTickerEvent:
     """Helper function to create BackpackRawTickerEvent instances for testing."""
     return BackpackRawTickerEvent(
@@ -202,7 +206,7 @@ def create_raw_depth_event(
     last_update_id: str = "12345",
     bids: list[tuple[str, str]] | None = None,
     asks: list[tuple[str, str]] | None = None,
-    event_time: int = 1705316600000,
+    event_time: int = 1705314600000,
 ) -> BackpackRawDepthUpdateEvent:
     """Helper function to create BackpackRawDepthUpdateEvent instances for testing."""
     if bids is None:
@@ -225,10 +229,10 @@ def create_raw_trade_event(
     q: str = "10.0",
     t: str = "trade123",
     m: bool = False,
-    event_time: int = 1705316600000,
+    event_time: int = 1705314600000,
     buyer_id: str = "buyer123",
     seller_id: str = "seller123",
-    trade_time: int = 1705316600000,
+    trade_time: int = 1705314600000,
 ) -> BackpackRawTradeEvent:
     """Helper function to create BackpackRawTradeEvent instances for testing."""
     return BackpackRawTradeEvent(
@@ -390,20 +394,27 @@ class TestTickerTransformation:
         mock_now = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
         mock_datetime.now.return_value = mock_now
 
-        # Cannot create BackpackRawTicker with None time, so test with invalid but valid string
+        # Create a valid raw ticker first
         raw_ticker = BackpackRawTicker(
             symbol="SOL-USDC",
             price="100.50",
             bid="100.25",
             ask="100.75",
             volume="1000.0",
-            time="invalid_timestamp",  # This will cause parsing to fail and use current time
+            time="2024-01-15T10:30:00Z",
         )
 
-        result = mapper.transform_raw_ticker_to_internal(raw_ticker)
+        # Mock parse_datetime_utc to return None for timestamp parsing
+        with patch(
+            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_datetime_utc"
+        ) as mock_parse:
+            mock_parse.return_value = None
 
-        # The mapper should handle invalid timestamp gracefully
-        assert result.timestamp is not None
+            result = mapper.transform_raw_ticker_to_internal(raw_ticker)
+
+            assert isinstance(result, Ticker)
+            assert result.timestamp == mock_now
+            mock_datetime.now.assert_called_once_with(UTC)
 
     def test_transform_raw_ticker_transformation_error(
         self, mapper: BackpackMarketDataMapper
@@ -414,7 +425,9 @@ class TestTickerTransformation:
 
         # This test relies on the actual transformation logic to cause an error
         # We'll use an invalid decimal that passes basic validation but fails transformation
-        with patch("cyberdelta.utils.parsing.parse_decimal_value") as mock_parse:
+        with patch(
+            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value"
+        ) as mock_parse:
             mock_parse.side_effect = ValueError("Invalid decimal")
 
             with pytest.raises(
@@ -469,29 +482,39 @@ class TestOrderBookTransformation:
         mock_now = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
         mock_datetime.now.return_value = mock_now
 
-        # Cannot create BackpackRawOrderBook with None timestamp, so test with invalid string
-        raw_book = BackpackRawOrderBook(
+        # Create a valid raw order book and mock the timestamp parsing to return None
+        raw_book = create_raw_order_book(
             bids=[("100.25", "10.0"), ("100.00", "5.0")],
             asks=[("100.75", "8.0"), ("101.00", "12.0")],
-            lastUpdateId="12345",
-            timestamp="invalid_timestamp",  # This will cause parsing to fail and use current time
+            timestamp="2024-01-15T10:30:00Z",
         )
 
-        result = mapper.transform_raw_order_book_to_internal("SOL-USDC", raw_book)
+        with patch(
+            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_datetime_utc"
+        ) as mock_parse:
+            mock_parse.return_value = None
 
-        # The mapper should handle invalid timestamp gracefully
-        assert result.timestamp is not None
+            result = mapper.transform_raw_order_book_to_internal("SOL-USDC", raw_book)
+
+            # The mapper should handle invalid timestamp gracefully by using current time
+            assert result.timestamp == mock_now
 
     def test_transform_raw_order_book_transformation_error(
         self, mapper: BackpackMarketDataMapper
     ) -> None:
         """Test that transformation errors are properly wrapped."""
-        raw_book = create_raw_order_book(bids=[("invalid_price", "10.0")])
+        # Create a valid order book and mock parsing to cause error
+        raw_book = create_raw_order_book(bids=[("100.25", "10.0")])
 
-        with pytest.raises(
-            TransformationError, match="Failed to transform BackpackRawOrderBook to OrderBook"
-        ):
-            mapper.transform_raw_order_book_to_internal("SOL-USDC", raw_book)
+        with patch(
+            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value"
+        ) as mock_parse:
+            mock_parse.side_effect = ValueError("Invalid decimal")
+
+            with pytest.raises(
+                TransformationError, match="Failed to transform BackpackRawOrderBook to OrderBook"
+            ):
+                mapper.transform_raw_order_book_to_internal("SOL-USDC", raw_book)
 
 
 class TestTradeTransformation:
@@ -529,7 +552,9 @@ class TestTradeTransformation:
         # Cannot create BackpackRawTrade with None price, so patch parsing to return None
         raw_trade = create_raw_trade(price="100.50", time=test_timestamp)
 
-        with patch("cyberdelta.utils.parsing.parse_decimal_value") as mock_parse:
+        with patch(
+            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value"
+        ) as mock_parse:
             mock_parse.return_value = None
 
             with pytest.raises(TransformationError, match="price is required for trade"):
@@ -542,12 +567,14 @@ class TestTradeTransformation:
         # Cannot create BackpackRawTrade with None qty, so patch parsing to return None
         raw_trade = create_raw_trade(qty="10.0", time=test_timestamp)
 
-        with patch("cyberdelta.utils.parsing.parse_decimal_value") as mock_parse:
+        with patch(
+            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value"
+        ) as mock_parse:
             # Return None only for quantity field
             def mock_parse_side_effect(
                 value: object, allow_none: bool = False, field_name: str = ""
             ) -> Decimal | None:
-                if field_name == "qty":
+                if field_name == "quantity":
                     return None
                 return Decimal("100.50")  # Valid for price
 
@@ -564,20 +591,25 @@ class TestTradeTransformation:
         mock_now = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
         mock_datetime.now.return_value = mock_now
 
-        # Cannot create BackpackRawTrade with None time, so test with invalid string
-        raw_trade = BackpackRawTrade(
+        # Create a valid raw trade and mock the timestamp parsing to return None
+        raw_trade = create_raw_trade(
             id="trade123",
             symbol="SOL-USDC",
             price="100.50",
             qty="10.0",
-            time="invalid_timestamp",  # This will cause parsing to fail and use current time
-            orderId="order123",
+            time="2024-01-15T10:30:00Z",
+            order_id="order123",
         )
 
-        result = mapper.transform_raw_trade_to_internal(raw_trade)
+        with patch(
+            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_datetime_utc"
+        ) as mock_parse:
+            mock_parse.return_value = None
 
-        # The mapper should handle invalid timestamp gracefully
-        assert result.executed_at is not None
+            result = mapper.transform_raw_trade_to_internal(raw_trade)
+
+            # The mapper should handle invalid timestamp gracefully by using current time
+            assert result.executed_at == mock_now
 
     def test_transform_raw_trade_transformation_error(
         self, mapper: BackpackMarketDataMapper
@@ -585,7 +617,9 @@ class TestTradeTransformation:
         """Test that transformation errors are properly wrapped."""
         raw_trade = create_raw_trade(price="100.50")
 
-        with patch("cyberdelta.utils.parsing.parse_decimal_value") as mock_parse:
+        with patch(
+            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value"
+        ) as mock_parse:
             mock_parse.side_effect = ValueError("Invalid decimal")
 
             with pytest.raises(
@@ -606,7 +640,7 @@ class TestFundingRateTransformation:
             rate="0.0001",
             mark_price="100.50",
             index_price="100.25",
-            time=1705316600000,
+            time=1705314600000,
         )
 
         result = mapper.transform_raw_funding_rate_to_internal(raw_funding)
@@ -624,7 +658,7 @@ class TestFundingRateTransformation:
         raw_funding = create_raw_funding_interval_rate(
             symbol="SOL-USDC",
             rate="0.0001",
-            time=1705316600000,
+            time=1705314600000,
         )
 
         result = mapper.transform_raw_funding_interval_rate_to_internal(raw_funding, "SOL-USDC")
@@ -646,11 +680,11 @@ class TestKlineTransformation:
         raw_kline = create_raw_kline(
             symbol="SOL-USDC",
             start_time_ms=test_timestamp_ms,
-            open_price=Decimal("100.00"),
-            high_price=Decimal("101.00"),
-            low_price=Decimal("99.50"),
-            close_price=Decimal("100.50"),
-            volume=Decimal("1000.0"),
+            open_price="100.00",
+            high_price="101.00",
+            low_price="99.50",
+            close_price="100.50",
+            volume="1000.0",
         )
 
         result = mapper.transform_raw_kline_to_internal("SOL-USDC", "1h", raw_kline)
@@ -668,14 +702,20 @@ class TestKlineTransformation:
         self, mapper: BackpackMarketDataMapper
     ) -> None:
         """Test that transformation errors are properly wrapped."""
-        # Create invalid kline data that will cause transformation error
-        raw_kline = create_raw_kline(open_price=Decimal("invalid_price"))
+        # Create a valid raw kline
+        raw_kline = create_raw_kline()
 
-        with pytest.raises(
-            TransformationError,
-            match="Failed to transform BackpackRawKline to Candle",
-        ):
-            mapper.transform_raw_kline_to_internal("SOL-USDC", "1h", raw_kline)
+        # Mock parse_decimal_value to raise an error during transformation
+        with patch(
+            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value"
+        ) as mock_parse:
+            mock_parse.side_effect = ValueError("Invalid decimal value")
+
+            with pytest.raises(
+                TransformationError,
+                match="Failed to transform BackpackRawKline to Candle",
+            ):
+                mapper.transform_raw_kline_to_internal("SOL-USDC", "1h", raw_kline)
 
 
 class TestWebSocketEventTransformation:
@@ -737,7 +777,7 @@ class TestWebSocketEventTransformation:
             event_time=test_timestamp_ms,
             buyer_id="buyer123",
             seller_id="seller123",
-            trade_time=1705316600000,
+            trade_time=1705314600000,
         )
 
         result = mapper.transform_ws_trade_event_to_internal(raw_trade)
@@ -840,8 +880,8 @@ class TestEdgeCasesAndRobustness:
     def test_very_long_trade_id(
         self, mapper: BackpackMarketDataMapper, test_timestamp: str
     ) -> None:
-        """Test transformation with very long trade ID."""
-        long_id = "a" * 1000  # 1000 character ID
+        """Test transformation with maximum allowed trade ID length."""
+        long_id = "a" * 64  # 64 character ID (max allowed by BackpackRawTrade.id)
         raw_trade = create_raw_trade(
             id=long_id,
             time=test_timestamp,
