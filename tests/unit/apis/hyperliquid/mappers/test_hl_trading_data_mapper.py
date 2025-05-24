@@ -47,42 +47,76 @@ def trading_data_mapper() -> HyperliquidTradingDataMapper:
 
 
 @pytest.fixture
-def hyperliquid_raw_order_buy_limit_fixture() -> HyperliquidRawOrder:
-    """Provides a valid HyperliquidRawOrder for a BUY limit order."""
-    timestamp_ms = int(datetime.now(UTC).timestamp() * 1000)
+def base_timestamp() -> int:
+    """Provide a consistent timestamp for tests."""
+    return int(datetime.now(UTC).timestamp() * 1000)
+
+
+def create_raw_order(
+    side: str = "B",
+    status: str = "open",
+    order_type: dict[str, Any] | None = None,
+    limit_px: str = "3000.50",
+    sz: str = "1.5",
+    remaining_sz: str = "0.5",
+    oid: int = 12345,
+    cloid: str | None = "test_order_001",
+    asset: str = "ETH-PERP",
+    timestamp: int | None = None,
+) -> HyperliquidRawOrder:
+    """Create a HyperliquidRawOrder with customizable parameters."""
+    if timestamp is None:
+        timestamp = int(datetime.now(UTC).timestamp() * 1000)
+    if order_type is None:
+        order_type = {"limit": {"tif": "Gtc"}}
+
     return HyperliquidRawOrder(
-        oid=12345,
-        cloid="test_buy_limit_001",
-        asset="ETH-PERP",
-        side="B",
-        limitPx="3000.50",
-        sz="1.5",
-        timestamp=timestamp_ms,
-        orderType={"limit": {"tif": "Gtc"}},
+        oid=oid,
+        cloid=cloid,
+        asset=asset,
+        side=side,
+        limitPx=limit_px,
+        sz=sz,
+        timestamp=timestamp,
+        orderType=order_type,
         reduceOnly=False,
-        remainingSz="0.5",
-        status="open",
-        statusTimestamp=timestamp_ms + 1000,
+        remainingSz=remaining_sz,
+        status=status,
+        statusTimestamp=timestamp + 1000,
     )
 
 
-@pytest.fixture
-def hyperliquid_raw_order_sell_market_fixture() -> HyperliquidRawOrder:
-    """Provides a valid HyperliquidRawOrder for a SELL market order."""
-    timestamp_ms = int(datetime.now(UTC).timestamp() * 1000)
-    return HyperliquidRawOrder(
-        oid=67890,
-        cloid=None,
-        asset="BTC-PERP",
-        side="A",
-        limitPx="0",  # Market orders typically have 0 limit price
-        sz="0.1",
-        timestamp=timestamp_ms,
-        orderType={"market": {}},
-        reduceOnly=True,
-        remainingSz="0.1",  # All remaining for open market order
-        status="open",  # Only "open" is valid for HyperliquidRawOrder
-        statusTimestamp=timestamp_ms + 2000,
+def create_raw_historical_order(
+    side: str = "B",
+    status: str = "filled",
+    order_type: dict[str, Any] | None = None,
+    limit_px: str = "100.25",
+    sz: str = "10.0",
+    remaining_sz: str = "2.5",
+    oid: int = 98765,
+    cloid: str | None = "test_historical_001",
+    asset: str = "SOL-PERP",
+    timestamp: int | None = None,
+) -> HyperliquidRawHistoricalOrder:
+    """Create a HyperliquidRawHistoricalOrder with customizable parameters."""
+    if timestamp is None:
+        timestamp = int(datetime.now(UTC).timestamp() * 1000)
+    if order_type is None:
+        order_type = {"limit": {"tif": "Ioc"}}
+
+    return HyperliquidRawHistoricalOrder(
+        oid=oid,
+        cloid=cloid,
+        asset=asset,
+        side=side,
+        limitPx=limit_px,
+        sz=sz,
+        timestamp=timestamp,
+        orderType=order_type,
+        reduceOnly=False,
+        remainingSz=remaining_sz,
+        status=status,
+        statusTimestamp=timestamp + 5000,
     )
 
 
@@ -106,322 +140,193 @@ def hyperliquid_raw_trigger_info_take_profit_fixture() -> HyperliquidRawTriggerI
     )
 
 
-@pytest.fixture
-def hyperliquid_raw_historical_order_fixture() -> HyperliquidRawHistoricalOrder:
-    """Provides a valid HyperliquidRawHistoricalOrder."""
-    timestamp_ms = int(datetime.now(UTC).timestamp() * 1000)
-    return HyperliquidRawHistoricalOrder(
-        oid=98765,
-        cloid="test_historical_001",
-        asset="SOL-PERP",
-        side="B",
-        limitPx="100.25",
-        sz="10.0",
-        timestamp=timestamp_ms,
-        orderType={"limit": {"tif": "Ioc"}},
-        reduceOnly=False,
-        remainingSz="2.5",
-        status="filled",  # "filled" is valid for HyperliquidRawHistoricalOrder
-        statusTimestamp=timestamp_ms + 5000,
-    )
+# --- Parameterized Tests for Order Side Mapping ---
 
 
-# --- Tests for _map_side_to_internal ---
+@pytest.mark.parametrize(
+    "hl_side,expected_side",
+    [
+        ("B", OrderSide.BUY),
+        ("A", OrderSide.SELL),
+    ],
+)
+class TestOrderSideMapping:
+    """Tests for order side mapping through public transformation methods."""
 
-
-class TestMapSideToInternal:
-    """Tests for the _map_side_to_internal method."""
-
-    def test_map_side_buy(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
-        """Test mapping 'B' to OrderSide.BUY."""
-        # Access the protected method using getattr to avoid linter warnings
-        map_side_method = trading_data_mapper._map_side_to_internal
-        result = map_side_method("B")
-        assert result == OrderSide.BUY
-
-    def test_map_side_sell(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
-        """Test mapping 'A' to OrderSide.SELL."""
-        map_side_method = trading_data_mapper._map_side_to_internal
-        result = map_side_method("A")
-        assert result == OrderSide.SELL
-
-    def test_map_side_invalid(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
-        """Test mapping invalid side raises TransformationError."""
-        map_side_method = trading_data_mapper._map_side_to_internal
-        with pytest.raises(TransformationError, match="Unknown Hyperliquid order side: 'X'"):
-            map_side_method("X")
-
-    def test_map_side_empty_string(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
-        """Test mapping empty string raises TransformationError."""
-        map_side_method = trading_data_mapper._map_side_to_internal
-        with pytest.raises(TransformationError, match="Unknown Hyperliquid order side: ''"):
-            map_side_method("")
-
-    def test_map_side_lowercase(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
-        """Test mapping lowercase side strings raises TransformationError."""
-        map_side_method = trading_data_mapper._map_side_to_internal
-        with pytest.raises(TransformationError, match="Unknown Hyperliquid order side: 'b'"):
-            map_side_method("b")
-
-
-# --- Tests for _map_status_to_internal ---
-
-
-class TestMapStatusToInternal:
-    """Tests for the _map_status_to_internal method."""
-
-    def test_map_status_open(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
-        """Test mapping 'open' to OrderStatus.OPEN."""
-        map_status_method = trading_data_mapper._map_status_to_internal
-        result = map_status_method("open")
-        assert result == OrderStatus.OPEN
-
-    def test_map_status_filled(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
-        """Test mapping 'filled' to OrderStatus.FILLED."""
-        map_status_method = trading_data_mapper._map_status_to_internal
-        result = map_status_method("filled")
-        assert result == OrderStatus.FILLED
-
-    def test_map_status_cancelled(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
-        """Test mapping 'cancelled' to OrderStatus.CANCELED."""
-        map_status_method = trading_data_mapper._map_status_to_internal
-        result = map_status_method("cancelled")
-        assert result == OrderStatus.CANCELED
-
-    def test_map_status_canceled(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
-        """Test mapping 'canceled' (US spelling) to OrderStatus.CANCELED."""
-        map_status_method = trading_data_mapper._map_status_to_internal
-        result = map_status_method("canceled")
-        assert result == OrderStatus.CANCELED
-
-    def test_map_status_rejected(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
-        """Test mapping 'rejected' to OrderStatus.REJECTED."""
-        map_status_method = trading_data_mapper._map_status_to_internal
-        result = map_status_method("rejected")
-        assert result == OrderStatus.REJECTED
-
-    def test_map_status_partially_filled(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
-    ) -> None:
-        """Test mapping 'partially_filled' to OrderStatus.PARTIALLY_FILLED."""
-        map_status_method = trading_data_mapper._map_status_to_internal
-        result = map_status_method("partially_filled")
-        assert result == OrderStatus.PARTIALLY_FILLED
-
-    def test_map_status_case_insensitive(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
-    ) -> None:
-        """Test that status mapping is case-insensitive."""
-        map_status_method = trading_data_mapper._map_status_to_internal
-        result = map_status_method("OPEN")
-        assert result == OrderStatus.OPEN
-
-    def test_map_status_unknown(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
-        """Test mapping unknown status returns OrderStatus.UNKNOWN."""
-        map_status_method = trading_data_mapper._map_status_to_internal
-        result = map_status_method("unknown_status")
-        assert result == OrderStatus.UNKNOWN
-
-    def test_map_status_empty_string(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
-    ) -> None:
-        """Test mapping empty string returns OrderStatus.UNKNOWN."""
-        map_status_method = trading_data_mapper._map_status_to_internal
-        result = map_status_method("")
-        assert result == OrderStatus.UNKNOWN
-
-
-# --- Tests for _map_type_to_internal ---
-
-
-class TestMapTypeToInternal:
-    """Tests for the _map_type_to_internal method."""
-
-    def test_map_type_limit_no_trigger(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
-    ) -> None:
-        """Test mapping limit order without trigger."""
-        order_type: dict[str, Any] = {"limit": {"tif": "Gtc"}}
-        map_type_method = trading_data_mapper._map_type_to_internal
-        result = map_type_method(order_type, None)
-        assert result == OrderType.LIMIT
-
-    def test_map_type_market_no_trigger(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
-    ) -> None:
-        """Test mapping market order without trigger."""
-        order_type: dict[str, Any] = {"market": {}}
-        map_type_method = trading_data_mapper._map_type_to_internal
-        result = map_type_method(order_type, None)
-        assert result == OrderType.MARKET
-
-    def test_map_type_limit_with_stop_loss_trigger(
+    def test_raw_order_side_mapping(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_trigger_info_stop_loss_fixture: HyperliquidRawTriggerInfo,
+        hl_side: str,
+        expected_side: OrderSide,
     ) -> None:
-        """Test mapping limit order with stop loss trigger."""
-        order_type: dict[str, Any] = {"limit": {"tif": "Gtc"}}
-        map_type_method = trading_data_mapper._map_type_to_internal
-        result = map_type_method(order_type, hyperliquid_raw_trigger_info_stop_loss_fixture)
-        assert result == OrderType.STOP_LIMIT
+        """Test order side mapping via raw order transformation."""
+        raw_order = create_raw_order(side=hl_side)
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+        assert result.side == expected_side
 
-    def test_map_type_limit_with_take_profit_trigger(
+    def test_historical_order_side_mapping(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_trigger_info_take_profit_fixture: HyperliquidRawTriggerInfo,
+        hl_side: str,
+        expected_side: OrderSide,
     ) -> None:
-        """Test mapping limit order with take profit trigger."""
-        order_type: dict[str, Any] = {"limit": {"tif": "Gtc"}}
-        map_type_method = trading_data_mapper._map_type_to_internal
-        result = map_type_method(order_type, hyperliquid_raw_trigger_info_take_profit_fixture)
-        assert result == OrderType.TAKE_PROFIT_LIMIT
-
-    def test_map_type_market_with_stop_loss_trigger(
-        self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_trigger_info_stop_loss_fixture: HyperliquidRawTriggerInfo,
-    ) -> None:
-        """Test mapping market order with stop loss trigger."""
-        order_type: dict[str, Any] = {"market": {}}
-        map_type_method = trading_data_mapper._map_type_to_internal
-        result = map_type_method(order_type, hyperliquid_raw_trigger_info_stop_loss_fixture)
-        assert result == OrderType.STOP_MARKET
-
-    def test_map_type_market_with_take_profit_trigger(
-        self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_trigger_info_take_profit_fixture: HyperliquidRawTriggerInfo,
-    ) -> None:
-        """Test mapping market order with take profit trigger."""
-        order_type: dict[str, Any] = {"market": {}}
-        map_type_method = trading_data_mapper._map_type_to_internal
-        result = map_type_method(order_type, hyperliquid_raw_trigger_info_take_profit_fixture)
-        assert result == OrderType.TAKE_PROFIT_MARKET
-
-    def test_map_type_unknown_defaults_to_limit(
-        self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
-        caplog: LogCaptureFixture,
-    ) -> None:
-        """Test mapping unknown order type defaults to LIMIT with warning."""
-        order_type: dict[str, Any] = {"unknown": {}}
-        map_type_method = trading_data_mapper._map_type_to_internal
-        result = map_type_method(order_type, None)
-        assert result == OrderType.LIMIT
-        assert "Unknown orderType structure" in caplog.text
-        assert "Defaulting to LIMIT" in caplog.text
-
-    def test_map_type_empty_dict_defaults_to_limit(
-        self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
-        caplog: LogCaptureFixture,
-    ) -> None:
-        """Test mapping empty order type dict defaults to LIMIT with warning."""
-        order_type: dict[str, Any] = {}
-        map_type_method = trading_data_mapper._map_type_to_internal
-        result = map_type_method(order_type, None)
-        assert result == OrderType.LIMIT
-        assert "Unknown orderType structure" in caplog.text
+        """Test order side mapping via historical order transformation."""
+        raw_order = create_raw_historical_order(side=hl_side)
+        result = trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
+        assert result.side == expected_side
 
 
-# --- Tests for _map_time_in_force ---
+@pytest.mark.parametrize(
+    "invalid_side",
+    ["X", "", "b", "buy", "sell", "invalid"],
+)
+def test_invalid_order_side_raises_error(
+    trading_data_mapper: HyperliquidTradingDataMapper,
+    invalid_side: str,
+) -> None:
+    """Test that invalid order sides raise TransformationError."""
+    raw_order = create_raw_order(side=invalid_side)
+    with pytest.raises(
+        TransformationError, match=f"Unknown Hyperliquid order side: '{invalid_side}'"
+    ):
+        trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
 
-class TestMapTimeInForce:
-    """Tests for the _map_time_in_force method."""
-
-    def test_map_tif_gtc(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
-        """Test mapping GTC time in force."""
-        order_type: dict[str, Any] = {"limit": {"tif": "Gtc"}}
-        map_tif_method = trading_data_mapper._map_time_in_force
-        result = map_tif_method(order_type)
-        assert result == TimeInForce.GTC
-
-    def test_map_tif_ioc(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
-        """Test mapping IOC time in force."""
-        order_type: dict[str, Any] = {"limit": {"tif": "Ioc"}}
-        map_tif_method = trading_data_mapper._map_time_in_force
-        result = map_tif_method(order_type)
-        assert result == TimeInForce.IOC
-
-    def test_map_tif_alo(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
-        """Test mapping ALO time in force."""
-        order_type: dict[str, Any] = {"limit": {"tif": "Alo"}}
-        map_tif_method = trading_data_mapper._map_time_in_force
-        result = map_tif_method(order_type)
-        assert result == TimeInForce.ALO
-
-    def test_map_tif_case_insensitive(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
-    ) -> None:
-        """Test that TIF mapping is case-insensitive."""
-        order_type: dict[str, Any] = {"limit": {"tif": "GTC"}}
-        map_tif_method = trading_data_mapper._map_time_in_force
-        result = map_tif_method(order_type)
-        assert result == TimeInForce.GTC
-
-    def test_map_tif_market_order_defaults_to_gtc(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
-    ) -> None:
-        """Test that market orders default to GTC."""
-        order_type: dict[str, Any] = {"market": {}}
-        map_tif_method = trading_data_mapper._map_time_in_force
-        result = map_tif_method(order_type)
-        assert result == TimeInForce.GTC
-
-    def test_map_tif_no_limit_defaults_to_gtc(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
-    ) -> None:
-        """Test that order types without limit default to GTC."""
-        order_type: dict[str, Any] = {"unknown": {}}
-        map_tif_method = trading_data_mapper._map_time_in_force
-        result = map_tif_method(order_type)
-        assert result == TimeInForce.GTC
-
-    def test_map_tif_empty_limit_defaults_to_gtc(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
-    ) -> None:
-        """Test that limit orders without tif default to GTC."""
-        order_type: dict[str, Any] = {"limit": {}}
-        map_tif_method = trading_data_mapper._map_time_in_force
-        result = map_tif_method(order_type)
-        assert result == TimeInForce.GTC
-
-    def test_map_tif_unknown_value_defaults_to_gtc(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
-    ) -> None:
-        """Test that unknown TIF values default to GTC."""
-        order_type: dict[str, Any] = {"limit": {"tif": "unknown"}}
-        map_tif_method = trading_data_mapper._map_time_in_force
-        result = map_tif_method(order_type)
-        assert result == TimeInForce.GTC
-
-    def test_map_tif_non_string_value_defaults_to_gtc(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
-    ) -> None:
-        """Test that non-string TIF values default to GTC."""
-        order_type: dict[str, Any] = {"limit": {"tif": 123}}
-        map_tif_method = trading_data_mapper._map_time_in_force
-        result = map_tif_method(order_type)
-        assert result == TimeInForce.GTC
+# --- Parameterized Tests for Order Status Mapping ---
 
 
-# --- Tests for transform_raw_order_to_internal ---
+@pytest.mark.parametrize(
+    "hl_status,expected_status",
+    [
+        ("open", OrderStatus.OPEN),
+        ("filled", OrderStatus.FILLED),
+        ("cancelled", OrderStatus.CANCELED),
+        ("canceled", OrderStatus.CANCELED),
+        ("rejected", OrderStatus.REJECTED),
+        ("partially_filled", OrderStatus.PARTIALLY_FILLED),
+        ("OPEN", OrderStatus.OPEN),  # Case insensitive
+        ("FILLED", OrderStatus.FILLED),
+        ("unknown_status", OrderStatus.UNKNOWN),
+        ("", OrderStatus.UNKNOWN),
+    ],
+)
+def test_order_status_mapping(
+    trading_data_mapper: HyperliquidTradingDataMapper,
+    hl_status: str,
+    expected_status: OrderStatus,
+) -> None:
+    """Test order status mapping via historical order transformation."""
+    raw_order = create_raw_historical_order(status=hl_status)
+    result = trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
+    assert result.status == expected_status
+
+
+# --- Parameterized Tests for Order Type Mapping ---
+
+
+@pytest.mark.parametrize(
+    "order_type_dict,trigger_tpsl,expected_type",
+    [
+        ({"limit": {"tif": "Gtc"}}, None, OrderType.LIMIT),
+        ({"market": {}}, None, OrderType.MARKET),
+        ({"limit": {"tif": "Gtc"}}, "sl", OrderType.STOP_LIMIT),
+        ({"limit": {"tif": "Gtc"}}, "tp", OrderType.TAKE_PROFIT_LIMIT),
+        ({"market": {}}, "sl", OrderType.STOP_MARKET),
+        ({"market": {}}, "tp", OrderType.TAKE_PROFIT_MARKET),
+    ],
+)
+def test_order_type_mapping(
+    trading_data_mapper: HyperliquidTradingDataMapper,
+    order_type_dict: dict[str, Any],
+    trigger_tpsl: str | None,
+    expected_type: OrderType,
+) -> None:
+    """Test order type mapping with and without triggers."""
+    raw_order = create_raw_order(order_type=order_type_dict)
+
+    trigger = None
+    if trigger_tpsl:
+        trigger = HyperliquidRawTriggerInfo(
+            triggerPx="2900.00",
+            isMarket=True,
+            tpsl=trigger_tpsl,
+        )
+
+    result = trading_data_mapper.transform_raw_order_to_internal(raw_order, trigger)
+    assert result.order_type == expected_type
+
+
+@pytest.mark.parametrize(
+    "unknown_order_type",
+    [
+        {"unknown": {}},
+        {},
+        {"invalid_type": {"some": "data"}},
+    ],
+)
+def test_unknown_order_type_defaults_to_limit(
+    trading_data_mapper: HyperliquidTradingDataMapper,
+    unknown_order_type: dict[str, Any],
+    caplog: LogCaptureFixture,
+) -> None:
+    """Test that unknown order types default to LIMIT with warning."""
+    raw_order = create_raw_order(order_type=unknown_order_type)
+    result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+
+    assert result.order_type == OrderType.LIMIT
+    assert "Unknown orderType structure" in caplog.text
+    assert "Defaulting to LIMIT" in caplog.text
+
+
+# --- Parameterized Tests for Time In Force Mapping ---
+
+
+@pytest.mark.parametrize(
+    "order_type_dict,expected_tif",
+    [
+        ({"limit": {"tif": "Gtc"}}, TimeInForce.GTC),
+        ({"limit": {"tif": "Ioc"}}, TimeInForce.IOC),
+        ({"limit": {"tif": "Alo"}}, TimeInForce.ALO),
+        ({"limit": {"tif": "GTC"}}, TimeInForce.GTC),  # Case insensitive
+        ({"limit": {"tif": "IOC"}}, TimeInForce.IOC),
+        ({"limit": {"tif": "ALO"}}, TimeInForce.ALO),
+        ({"market": {}}, TimeInForce.GTC),  # Market orders default to GTC
+        ({"limit": {}}, TimeInForce.GTC),  # No TIF defaults to GTC
+        ({"limit": {"tif": "unknown"}}, TimeInForce.GTC),  # Unknown TIF defaults to GTC
+        ({"limit": {"tif": 123}}, TimeInForce.GTC),  # Non-string TIF defaults to GTC
+        ({"unknown": {}}, TimeInForce.GTC),  # Unknown order type defaults to GTC
+    ],
+)
+def test_time_in_force_mapping(
+    trading_data_mapper: HyperliquidTradingDataMapper,
+    order_type_dict: dict[str, Any],
+    expected_tif: TimeInForce,
+) -> None:
+    """Test time in force mapping through order transformation."""
+    raw_order = create_raw_order(order_type=order_type_dict)
+    result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+    assert result.time_in_force == expected_tif
+
+
+# --- Comprehensive Transformation Tests ---
 
 
 class TestTransformRawOrderToInternal:
     """Tests for the transform_raw_order_to_internal method."""
 
     def test_transform_raw_order_buy_limit_happy_path(
-        self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_order_buy_limit_fixture: HyperliquidRawOrder,
+        self, trading_data_mapper: HyperliquidTradingDataMapper
     ) -> None:
         """Test successful transformation of a BUY limit order."""
-        result = trading_data_mapper.transform_raw_order_to_internal(
-            hyperliquid_raw_order_buy_limit_fixture
+        raw_order = create_raw_order(
+            side="B",
+            order_type={"limit": {"tif": "Gtc"}},
+            limit_px="3000.50",
+            sz="1.5",
+            remaining_sz="0.5",
         )
+
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
         assert isinstance(result, Order)
         assert result.exchange_order_id == "12345"
@@ -434,7 +339,7 @@ class TestTransformRawOrderToInternal:
         assert result.price == Decimal("3000.50")
         assert result.time_in_force == TimeInForce.GTC
         assert result.exchange == ExchangeName.HYPERLIQUID.value
-        assert result.client_order_id == "test_buy_limit_001"
+        assert result.client_order_id == "test_order_001"
         assert result.created_at is not None
         assert result.updated_at is not None
         assert result.stop_price is None
@@ -443,14 +348,21 @@ class TestTransformRawOrderToInternal:
         assert result.average_fill_price == Decimal("3000.50")  # Uses the limit price
 
     def test_transform_raw_order_sell_market_happy_path(
-        self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_order_sell_market_fixture: HyperliquidRawOrder,
+        self, trading_data_mapper: HyperliquidTradingDataMapper
     ) -> None:
         """Test successful transformation of a SELL market order."""
-        result = trading_data_mapper.transform_raw_order_to_internal(
-            hyperliquid_raw_order_sell_market_fixture
+        raw_order = create_raw_order(
+            side="A",
+            order_type={"market": {}},
+            limit_px="0",  # Market orders typically have 0 limit price
+            sz="0.1",
+            remaining_sz="0.1",  # All remaining for open market order
+            oid=67890,
+            cloid=None,
+            asset="BTC-PERP",
         )
+
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
         assert isinstance(result, Order)
         assert result.exchange_order_id == "67890"
@@ -469,12 +381,12 @@ class TestTransformRawOrderToInternal:
     def test_transform_raw_order_with_trigger(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_order_buy_limit_fixture: HyperliquidRawOrder,
         hyperliquid_raw_trigger_info_stop_loss_fixture: HyperliquidRawTriggerInfo,
     ) -> None:
         """Test transformation with trigger information."""
+        raw_order = create_raw_order()
         result = trading_data_mapper.transform_raw_order_to_internal(
-            hyperliquid_raw_order_buy_limit_fixture, hyperliquid_raw_trigger_info_stop_loss_fixture
+            raw_order, hyperliquid_raw_trigger_info_stop_loss_fixture
         )
 
         assert result.order_type == OrderType.STOP_LIMIT
@@ -484,7 +396,6 @@ class TestTransformRawOrderToInternal:
     def test_transform_raw_order_with_trigger_mark_price(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_order_buy_limit_fixture: HyperliquidRawOrder,
         mocker: MockerFixture,
     ) -> None:
         """Test transformation with trigger that has mark price trigger type."""
@@ -493,16 +404,14 @@ class TestTransformRawOrderToInternal:
         trigger.tpsl = "sl"
         trigger.trigger_type = "mark"
 
-        result = trading_data_mapper.transform_raw_order_to_internal(
-            hyperliquid_raw_order_buy_limit_fixture, trigger
-        )
+        raw_order = create_raw_order()
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order, trigger)
 
         assert result.trigger_by == TriggerType.MARK_PRICE
 
     def test_transform_raw_order_with_trigger_last_price(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_order_buy_limit_fixture: HyperliquidRawOrder,
         mocker: MockerFixture,
     ) -> None:
         """Test transformation with trigger that has last price trigger type."""
@@ -511,16 +420,14 @@ class TestTransformRawOrderToInternal:
         trigger.tpsl = "sl"
         trigger.trigger_type = "last"
 
-        result = trading_data_mapper.transform_raw_order_to_internal(
-            hyperliquid_raw_order_buy_limit_fixture, trigger
-        )
+        raw_order = create_raw_order()
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order, trigger)
 
         assert result.trigger_by == TriggerType.LAST_PRICE
 
     def test_transform_raw_order_missing_size_raises_error(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_order_buy_limit_fixture: HyperliquidRawOrder,
         mocker: MockerFixture,
     ) -> None:
         """Test that missing size raises TransformationError."""
@@ -530,15 +437,13 @@ class TestTransformRawOrderToInternal:
         )
         mock_parse.return_value = None
 
+        raw_order = create_raw_order()
         with pytest.raises(TransformationError, match="quantity_requested \\(sz\\) is required"):
-            trading_data_mapper.transform_raw_order_to_internal(
-                hyperliquid_raw_order_buy_limit_fixture
-            )
+            trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
     def test_transform_raw_order_missing_timestamp_raises_error(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_order_buy_limit_fixture: HyperliquidRawOrder,
         mocker: MockerFixture,
     ) -> None:
         """Test that missing timestamp raises TransformationError."""
@@ -548,15 +453,13 @@ class TestTransformRawOrderToInternal:
         )
         mock_parse.return_value = None
 
+        raw_order = create_raw_order()
         with pytest.raises(TransformationError, match="created_at \\(timestamp\\) is required"):
-            trading_data_mapper.transform_raw_order_to_internal(
-                hyperliquid_raw_order_buy_limit_fixture
-            )
+            trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
     def test_transform_raw_order_parsing_exception_raises_transformation_error(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_order_buy_limit_fixture: HyperliquidRawOrder,
         mocker: MockerFixture,
     ) -> None:
         """Test that parsing exceptions are wrapped in TransformationError."""
@@ -566,17 +469,15 @@ class TestTransformRawOrderToInternal:
         )
         mock_parse.side_effect = ValueError("Mock parsing error")
 
+        raw_order = create_raw_order()
         with pytest.raises(
             TransformationError, match="Failed to transform HyperliquidRawOrder to Order"
         ):
-            trading_data_mapper.transform_raw_order_to_internal(
-                hyperliquid_raw_order_buy_limit_fixture
-            )
+            trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
     def test_transform_raw_order_edge_case_none_remaining_sz(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_order_buy_limit_fixture: HyperliquidRawOrder,
         mocker: MockerFixture,
     ) -> None:
         """Test handling of None remaining_sz (should default to 0)."""
@@ -586,7 +487,7 @@ class TestTransformRawOrderToInternal:
         )
 
         def mock_parse_side_effect(
-            value: Any, allow_none: bool = False, field_name: str = ""
+            value: object, allow_none: bool = False, field_name: str = ""
         ) -> Decimal | None:
             if field_name == "remainingSz":
                 return None
@@ -599,15 +500,13 @@ class TestTransformRawOrderToInternal:
 
         original_parse.side_effect = mock_parse_side_effect
 
-        result = trading_data_mapper.transform_raw_order_to_internal(
-            hyperliquid_raw_order_buy_limit_fixture
-        )
+        raw_order = create_raw_order()
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
         assert result.quantity_filled == Decimal("1.5")  # 1.5 - 0.0 (default)
 
     def test_transform_raw_order_edge_case_none_limit_px(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_order_buy_limit_fixture: HyperliquidRawOrder,
         mocker: MockerFixture,
     ) -> None:
         """Test handling of None limit_px (should work for market orders)."""
@@ -617,7 +516,7 @@ class TestTransformRawOrderToInternal:
         )
 
         def mock_parse_side_effect(
-            value: Any, allow_none: bool = False, field_name: str = ""
+            value: object, allow_none: bool = False, field_name: str = ""
         ) -> Decimal | None:
             if field_name == "limitPx":
                 return None
@@ -630,9 +529,8 @@ class TestTransformRawOrderToInternal:
 
         original_parse.side_effect = mock_parse_side_effect
 
-        result = trading_data_mapper.transform_raw_order_to_internal(
-            hyperliquid_raw_order_buy_limit_fixture
-        )
+        raw_order = create_raw_order()
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
         assert result.price is None
 
 
@@ -643,14 +541,11 @@ class TestTransformRawHistoricalOrderToInternal:
     """Tests for the transform_raw_historical_order_to_internal method."""
 
     def test_transform_raw_historical_order_happy_path(
-        self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_historical_order_fixture: HyperliquidRawHistoricalOrder,
+        self, trading_data_mapper: HyperliquidTradingDataMapper
     ) -> None:
         """Test successful transformation of a historical order."""
-        result = trading_data_mapper.transform_raw_historical_order_to_internal(
-            hyperliquid_raw_historical_order_fixture
-        )
+        raw_order = create_raw_historical_order()
+        result = trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
 
         assert isinstance(result, Order)
         assert result.exchange_order_id == "98765"
@@ -672,13 +567,12 @@ class TestTransformRawHistoricalOrderToInternal:
     def test_transform_raw_historical_order_with_trigger(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_historical_order_fixture: HyperliquidRawHistoricalOrder,
         hyperliquid_raw_trigger_info_take_profit_fixture: HyperliquidRawTriggerInfo,
     ) -> None:
         """Test transformation of historical order with trigger."""
+        raw_order = create_raw_historical_order()
         result = trading_data_mapper.transform_raw_historical_order_to_internal(
-            hyperliquid_raw_historical_order_fixture,
-            hyperliquid_raw_trigger_info_take_profit_fixture,
+            raw_order, hyperliquid_raw_trigger_info_take_profit_fixture
         )
 
         assert result.order_type == OrderType.TAKE_PROFIT_LIMIT
@@ -687,7 +581,6 @@ class TestTransformRawHistoricalOrderToInternal:
     def test_transform_raw_historical_order_missing_size_raises_error(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_historical_order_fixture: HyperliquidRawHistoricalOrder,
         mocker: MockerFixture,
     ) -> None:
         """Test that missing size in historical order raises TransformationError."""
@@ -696,15 +589,13 @@ class TestTransformRawHistoricalOrderToInternal:
         )
         mock_parse.return_value = None
 
+        raw_order = create_raw_historical_order()
         with pytest.raises(TransformationError, match="quantity_requested \\(sz\\) is required"):
-            trading_data_mapper.transform_raw_historical_order_to_internal(
-                hyperliquid_raw_historical_order_fixture
-            )
+            trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
 
     def test_transform_raw_historical_order_missing_timestamp_raises_error(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_historical_order_fixture: HyperliquidRawHistoricalOrder,
         mocker: MockerFixture,
     ) -> None:
         """Test that missing timestamp in historical order raises TransformationError."""
@@ -713,15 +604,13 @@ class TestTransformRawHistoricalOrderToInternal:
         )
         mock_parse.return_value = None
 
+        raw_order = create_raw_historical_order()
         with pytest.raises(TransformationError, match="created_at \\(timestamp\\) is required"):
-            trading_data_mapper.transform_raw_historical_order_to_internal(
-                hyperliquid_raw_historical_order_fixture
-            )
+            trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
 
     def test_transform_raw_historical_order_no_status_timestamp_uses_created_at(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_historical_order_fixture: HyperliquidRawHistoricalOrder,
         mocker: MockerFixture,
     ) -> None:
         """Test that when status_timestamp is missing, updated_at uses created_at."""
@@ -730,7 +619,7 @@ class TestTransformRawHistoricalOrderToInternal:
             "cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper.parse_datetime_utc"
         )
 
-        def mock_parse_side_effect(value: Any, field_name: str = "") -> datetime | None:
+        def mock_parse_side_effect(value: object, field_name: str = "") -> datetime | None:
             if field_name == "timestamp":
                 return mock_created_at
             if field_name == "statusTimestamp":
@@ -739,37 +628,33 @@ class TestTransformRawHistoricalOrderToInternal:
 
         mock_parse.side_effect = mock_parse_side_effect
 
-        result = trading_data_mapper.transform_raw_historical_order_to_internal(
-            hyperliquid_raw_historical_order_fixture
-        )
+        raw_order = create_raw_historical_order()
+        result = trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
         assert result.created_at == mock_created_at
         assert result.updated_at == mock_created_at
 
     def test_transform_raw_historical_order_edge_case_no_cloid(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_historical_order_fixture: HyperliquidRawHistoricalOrder,
         mocker: MockerFixture,
     ) -> None:
         """Test handling of historical order without client order ID."""
 
         # Mock getattr to return None for cloid
-        def mock_getattr(obj: Any, attr: str, default: Any = None) -> Any:
+        def mock_getattr(obj: object, attr: str, default: object = None) -> object:
             if attr == "cloid":
                 return default
             return getattr(obj, attr, default)
 
         mocker.patch("builtins.getattr", side_effect=mock_getattr)
 
-        result = trading_data_mapper.transform_raw_historical_order_to_internal(
-            hyperliquid_raw_historical_order_fixture
-        )
+        raw_order = create_raw_historical_order()
+        result = trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
         assert result.client_order_id == ""
 
     def test_transform_raw_historical_order_exception_wrapping(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_historical_order_fixture: HyperliquidRawHistoricalOrder,
         mocker: MockerFixture,
     ) -> None:
         """Test that exceptions are properly wrapped in TransformationError."""
@@ -778,33 +663,30 @@ class TestTransformRawHistoricalOrderToInternal:
         )
         mock_parse.side_effect = ValueError("Mock parsing error")
 
+        raw_order = create_raw_historical_order()
         with pytest.raises(
             TransformationError, match="Failed to transform HyperliquidRawHistoricalOrder to Order"
         ):
-            trading_data_mapper.transform_raw_historical_order_to_internal(
-                hyperliquid_raw_historical_order_fixture
-            )
+            trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
 
     def test_transform_raw_historical_order_edge_case_zero_remaining_sz(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_historical_order_fixture: HyperliquidRawHistoricalOrder,
         mocker: MockerFixture,
     ) -> None:
         """Test handling of historical order with missing remaining_sz attribute."""
         # Mock getattr to return "0" for remaining_sz (simulating it's missing and defaults to "0")
         original_getattr = getattr
 
-        def mock_getattr(obj: Any, attr: str, default: Any = None) -> Any:
+        def mock_getattr(obj: object, attr: str, default: object = None) -> object:
             if attr == "remaining_sz":
                 return "0"
             return original_getattr(obj, attr, default)
 
         mocker.patch("builtins.getattr", side_effect=mock_getattr)
 
-        result = trading_data_mapper.transform_raw_historical_order_to_internal(
-            hyperliquid_raw_historical_order_fixture
-        )
+        raw_order = create_raw_historical_order()
+        result = trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
         assert result.quantity_filled == Decimal("10.0")  # All filled since remaining is 0
 
 
@@ -817,19 +699,19 @@ class TestTradingDataMapperIntegration:
     def test_complete_order_lifecycle_transformation(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_order_buy_limit_fixture: HyperliquidRawOrder,
         hyperliquid_raw_trigger_info_stop_loss_fixture: HyperliquidRawTriggerInfo,
-        hyperliquid_raw_historical_order_fixture: HyperliquidRawHistoricalOrder,
     ) -> None:
         """Test transformation of orders through different lifecycle stages."""
         # Transform live order
+        live_order_raw = create_raw_order()
         live_order = trading_data_mapper.transform_raw_order_to_internal(
-            hyperliquid_raw_order_buy_limit_fixture, hyperliquid_raw_trigger_info_stop_loss_fixture
+            live_order_raw, hyperliquid_raw_trigger_info_stop_loss_fixture
         )
 
         # Transform historical order
+        historical_order_raw = create_raw_historical_order()
         historical_order = trading_data_mapper.transform_raw_historical_order_to_internal(
-            hyperliquid_raw_historical_order_fixture
+            historical_order_raw
         )
 
         # Both should be valid orders
@@ -853,8 +735,6 @@ class TestTradingDataMapperIntegration:
     def test_error_handling_consistency(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_order_buy_limit_fixture: HyperliquidRawOrder,
-        hyperliquid_raw_historical_order_fixture: HyperliquidRawHistoricalOrder,
         mocker: MockerFixture,
     ) -> None:
         """Test that error handling is consistent across different transformation methods."""
@@ -865,31 +745,33 @@ class TestTradingDataMapperIntegration:
         mock_parse.side_effect = ValueError("Consistent error")
 
         # Both methods should raise TransformationError
+        raw_order = create_raw_order()
         with pytest.raises(TransformationError):
-            trading_data_mapper.transform_raw_order_to_internal(
-                hyperliquid_raw_order_buy_limit_fixture
-            )
+            trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
+        historical_raw_order = create_raw_historical_order()
         with pytest.raises(TransformationError):
-            trading_data_mapper.transform_raw_historical_order_to_internal(
-                hyperliquid_raw_historical_order_fixture
-            )
+            trading_data_mapper.transform_raw_historical_order_to_internal(historical_raw_order)
 
-    def test_all_helper_methods_work_together(
-        self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_order_buy_limit_fixture: HyperliquidRawOrder,
+    def test_all_mapping_logic_works_together(
+        self, trading_data_mapper: HyperliquidTradingDataMapper
     ) -> None:
-        """Test that all helper methods work together properly in a transformation."""
-        result = trading_data_mapper.transform_raw_order_to_internal(
-            hyperliquid_raw_order_buy_limit_fixture
+        """Test that all mapping logic works together properly in a transformation."""
+        raw_order = create_raw_order(
+            side="B",  # Should map to BUY
+            order_type={"limit": {"tif": "Gtc"}},  # Should map to LIMIT, GTC
+            limit_px="3000.50",
+            sz="1.5",
+            remaining_sz="0.5",
         )
 
-        # Verify that all helper methods contributed correctly
-        assert result.side == OrderSide.BUY  # _map_side_to_internal
-        assert result.status == OrderStatus.OPEN  # _map_status_to_internal
-        assert result.order_type == OrderType.LIMIT  # _map_type_to_internal
-        assert result.time_in_force == TimeInForce.GTC  # _map_time_in_force
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+
+        # Verify that all mapping methods contributed correctly
+        assert result.side == OrderSide.BUY  # side mapping
+        assert result.status == OrderStatus.OPEN  # status mapping
+        assert result.order_type == OrderType.LIMIT  # type mapping
+        assert result.time_in_force == TimeInForce.GTC  # TIF mapping
 
         # Verify the result is a complete, valid Order
         assert result.exchange == ExchangeName.HYPERLIQUID.value
@@ -905,25 +787,17 @@ class TestTradingDataMapperIntegration:
 class TestEdgeCasesAndRobustness:
     """Tests for edge cases and robustness of the trading data mapper."""
 
-    def test_minimal_order_data(
-        self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
-    ) -> None:
+    def test_minimal_order_data(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
         """Test transformation with minimal required order data."""
-        timestamp_ms = int(datetime.now(UTC).timestamp() * 1000)
-        minimal_order = HyperliquidRawOrder(
+        minimal_order = create_raw_order(
+            side="B",
+            order_type={"limit": {"tif": "Gtc"}},  # Use limit order type
+            limit_px="50000.0",  # Positive price for limit order
+            sz="1",
+            remaining_sz="1",  # All remaining (no fills)
             oid=1,
             cloid=None,
             asset="BTC",
-            side="B",
-            limitPx="50000.0",  # Positive price for limit order
-            sz="1",
-            timestamp=timestamp_ms,
-            orderType={"limit": {"tif": "Gtc"}},  # Use limit order type
-            reduceOnly=False,
-            remainingSz="1",  # All remaining (no fills)
-            status="open",  # Only valid status for HyperliquidRawOrder
-            statusTimestamp=timestamp_ms,
         )
 
         result = trading_data_mapper.transform_raw_order_to_internal(minimal_order)
@@ -935,25 +809,17 @@ class TestEdgeCasesAndRobustness:
         assert result.status == OrderStatus.OPEN
         assert result.client_order_id == ""  # None should become empty string
 
-    def test_boundary_values(
-        self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
-    ) -> None:
+    def test_boundary_values(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
         """Test transformation with boundary values."""
-        timestamp_ms = int(datetime.now(UTC).timestamp() * 1000)
-        boundary_order = HyperliquidRawOrder(
+        boundary_order = create_raw_order(
+            side="A",
+            order_type={"limit": {"tif": "Alo"}},
+            limit_px="999999.999999",  # High precision price
+            sz="0.000001",  # Very small size
+            remaining_sz="0.000001",  # All remaining
             oid=999999999,  # Large order ID
             cloid="x" * 64,  # Max length client order ID
             asset="A" * 64,  # Max length asset
-            side="A",
-            limitPx="999999.999999",  # High precision price
-            sz="0.000001",  # Very small size
-            timestamp=timestamp_ms,
-            orderType={"limit": {"tif": "Alo"}},
-            reduceOnly=True,
-            remainingSz="0.000001",  # All remaining
-            status="open",  # Only valid status for HyperliquidRawOrder
-            statusTimestamp=timestamp_ms,
         )
 
         result = trading_data_mapper.transform_raw_order_to_internal(boundary_order)
@@ -969,7 +835,6 @@ class TestEdgeCasesAndRobustness:
     def test_complex_trigger_scenarios(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
-        hyperliquid_raw_order_buy_limit_fixture: HyperliquidRawOrder,
         mocker: MockerFixture,
     ) -> None:
         """Test complex trigger scenarios with various attributes."""
@@ -978,27 +843,29 @@ class TestEdgeCasesAndRobustness:
         minimal_trigger.trigger_px = "100.0"
         # No tpsl or trigger_type attributes
 
-        result = trading_data_mapper.transform_raw_order_to_internal(
-            hyperliquid_raw_order_buy_limit_fixture, minimal_trigger
-        )
+        raw_order = create_raw_order()
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order, minimal_trigger)
 
         assert result.stop_price == Decimal("100.0")
         assert result.trigger_by is None  # Should handle missing trigger_type gracefully
 
-    def test_status_edge_cases(
-        self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
-    ) -> None:
-        """Test various status edge cases."""
-        test_cases = [
+    @pytest.mark.parametrize(
+        "status_input,expected_output",
+        [
             ("CANCELLED", OrderStatus.CANCELED),
             ("rejected", OrderStatus.REJECTED),
             ("Partially_Filled", OrderStatus.PARTIALLY_FILLED),
             ("weird_status", OrderStatus.UNKNOWN),
             ("", OrderStatus.UNKNOWN),
-        ]
-
-        map_status_method = trading_data_mapper._map_status_to_internal
-        for status_input, expected_output in test_cases:
-            result = map_status_method(status_input)
-            assert result == expected_output, f"Failed for status: {status_input}"
+        ],
+    )
+    def test_status_edge_cases(
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
+        status_input: str,
+        expected_output: OrderStatus,
+    ) -> None:
+        """Test various status edge cases."""
+        raw_order = create_raw_historical_order(status=status_input)
+        result = trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
+        assert result.status == expected_output
