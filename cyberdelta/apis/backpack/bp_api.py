@@ -5,7 +5,9 @@ CyberDeltaEngine: Backpack Exchange Integration
 This module implements the Backpack exchange adapter for CyberDeltaEngine, including:
 - REST and WebSocket API client (`BackpackAPI`)
 - Centralized error mapping and normalization (`BackpackErrorMapper`)
-- Order and event transformation utilities (`BackpackOrderMapper`)
+
+- Domain-specific data transformation mappers (`BackpackAccountDataMapper`,
+  `BackpackMarketDataMapper`, `BackpackTradingDataMapper`)
 
 **Key architectural patterns:**
 - All external (exchange) errors are mapped to canonical APIErrorCode values, validated and
@@ -27,10 +29,12 @@ from typing import Any
 
 from cyberdelta.apis.backpack.bp_auth import BackpackHmacAuthenticator
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
-from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 from cyberdelta.apis.backpack.bp_ws_raw_message_handler import BackpackWsRawMessageHandler
+from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAccountDataMapper
+from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarketDataMapper
+from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
@@ -84,7 +88,11 @@ class BackpackAPI(ExchangeAPI):
         error_mapper: BackpackErrorMapper | None = None,
         response_handler: BackpackResponseHandler | None = None,
         request_builder: BackpackRequestBuilder | None = None,
-        order_mapper: BackpackOrderMapper | None = None,
+        # New domain-specific mappers
+        account_data_mapper: BackpackAccountDataMapper | None = None,
+        market_data_mapper: BackpackMarketDataMapper | None = None,
+        trading_data_mapper: BackpackTradingDataMapper | None = None,
+        # Services
         account_service: BackpackAccountService | None = None,
         trading_service: BackpackTradingService | None = None,
         market_data_service: BackpackMarketDataService | None = None,
@@ -99,7 +107,10 @@ class BackpackAPI(ExchangeAPI):
             error_mapper: Optional error mapper instance for dependency injection
             response_handler: Optional response handler instance for dependency injection
             request_builder: Optional request builder instance for dependency injection
-            order_mapper: Optional order mapper instance for dependency injection
+
+            account_data_mapper: Optional account data mapper instance for dependency injection
+            market_data_mapper: Optional market data mapper instance for dependency injection
+            trading_data_mapper: Optional trading data mapper instance for dependency injection
             account_service: Optional account service instance for dependency injection
             trading_service: Optional trading service instance for dependency injection
             market_data_service: Optional market data service instance for dependency injection
@@ -126,7 +137,11 @@ class BackpackAPI(ExchangeAPI):
         self._backpack_error_mapper = error_mapper or BackpackErrorMapper()
         self._bp_response_handler = response_handler or BackpackResponseHandler()
         self._bp_request_builder = request_builder or BackpackRequestBuilder(api_config)
-        self._bp_order_mapper = order_mapper or BackpackOrderMapper()
+
+        # Create instances of the new domain-specific mappers
+        self._bp_account_data_mapper = account_data_mapper or BackpackAccountDataMapper()
+        self._bp_market_data_mapper = market_data_mapper or BackpackMarketDataMapper()
+        self._bp_trading_data_mapper = trading_data_mapper or BackpackTradingDataMapper()
 
         super().__init__(
             exchange_name="backpack",
@@ -149,6 +164,7 @@ class BackpackAPI(ExchangeAPI):
                 response_handler=self._bp_response_handler,
                 exchange_name=self.exchange_name,
                 rate_limiter_service=self._rate_limiter_service,
+                mapper=self._bp_market_data_mapper,
             )
 
         if account_service is not None:
@@ -161,6 +177,7 @@ class BackpackAPI(ExchangeAPI):
                 authenticator=self._bp_authenticator,
                 exchange_name=self.exchange_name,
                 rate_limiter_service=self._rate_limiter_service,
+                mapper=self._bp_account_data_mapper,
             )
 
         if trading_service is not None:
@@ -173,6 +190,7 @@ class BackpackAPI(ExchangeAPI):
                 authenticator=self._bp_authenticator,
                 exchange_name=self.exchange_name,
                 rate_limiter_service=self._rate_limiter_service,
+                mapper=self._bp_trading_data_mapper,
             )
 
         self.default_headers: dict[str, str] = {

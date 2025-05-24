@@ -996,7 +996,7 @@ class HyperliquidMapper:
         raw_item: HyperliquidRawFundingHistoryItem,
     ) -> FundingRate:
         """
-        Transforms a raw historical funding rate item from Hyperliquid to the internal 
+        Transforms a raw historical funding rate item from Hyperliquid to the internal
         FundingRate model.
         Args:
             raw_item: The raw historical funding rate item.

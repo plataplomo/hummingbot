@@ -25,18 +25,23 @@ from cyberdelta.apis.connectivity.http_client import (
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
-from cyberdelta.apis.hyperliquid.hl_mapper import (
-    HyperliquidCandleMapper,
-    HyperliquidMapper,
-    HyperliquidOrderMapper,
-    HyperliquidUserFillMapper,
-)
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
     RawJsonResponse,
 )
 from cyberdelta.apis.hyperliquid.hl_ws_raw_message_handler import HyperliquidWsRawMessageHandler
+
+# Create instances of the new domain-specific mappers
+from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import (
+    HyperliquidAccountDataMapper,
+)
+from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import (
+    HyperliquidMarketDataMapper,
+)
+from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import (
+    HyperliquidTradingDataMapper,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsResponse,
 )
@@ -203,12 +208,14 @@ class HyperliquidAPI(ExchangeAPI):
         error_mapper: HyperliquidErrorMapper | None = None,
         request_builder: HyperliquidRequestBuilder | None = None,
         response_handler: HyperliquidResponseHandler | None = None,
-        mapper: HyperliquidMapper | None = None,
-        order_mapper: HyperliquidOrderMapper | None = None,
-        candle_mapper: HyperliquidCandleMapper | None = None,
-        user_fill_mapper: HyperliquidUserFillMapper | None = None,
+        # Domain-specific mappers
+        account_data_mapper: HyperliquidAccountDataMapper | None = None,
+        market_data_mapper: HyperliquidMarketDataMapper | None = None,
+        trading_data_mapper: HyperliquidTradingDataMapper | None = None,
+        # HTTP clients
         http_client: HttpClient | None = None,
         info_http_client: HttpClient | None = None,
+        # Services
         account_service: HyperliquidAccountService | None = None,
         trading_service: HyperliquidTradingService | None = None,
         market_data_service: HyperliquidMarketDataService | None = None,
@@ -223,10 +230,9 @@ class HyperliquidAPI(ExchangeAPI):
             error_mapper: Optional error mapper instance for dependency injection
             request_builder: Optional request builder instance for dependency injection
             response_handler: Optional response handler instance for dependency injection
-            mapper: Optional mapper instance for dependency injection
-            order_mapper: Optional order mapper instance for dependency injection
-            candle_mapper: Optional candle mapper instance for dependency injection
-            user_fill_mapper: Optional user fill mapper instance for dependency injection
+            account_data_mapper: Optional account data mapper instance for dependency injection
+            market_data_mapper: Optional market data mapper instance for dependency injection
+            trading_data_mapper: Optional trading data mapper instance for dependency injection
             http_client: Optional HTTP client instance for dependency injection
             info_http_client: Optional info HTTP client instance for dependency injection
             account_service: Optional account service instance for dependency injection
@@ -268,11 +274,12 @@ class HyperliquidAPI(ExchangeAPI):
         self._hl_request_builder = request_builder or HyperliquidRequestBuilder()
         self._hl_response_handler = response_handler or HyperliquidResponseHandler()
 
+        # Use injected mappers or create them
+        self._account_mapper = account_data_mapper or HyperliquidAccountDataMapper()
+        self._trading_mapper = trading_data_mapper or HyperliquidTradingDataMapper()
+        self._market_data_mapper = market_data_mapper or HyperliquidMarketDataMapper()
+
         self._asset_to_index_cache: dict[str, int] = {}
-        self._hl_mapper = mapper or HyperliquidMapper()
-        self._hl_order_mapper = order_mapper or HyperliquidOrderMapper()
-        self._hl_candle_mapper = candle_mapper or HyperliquidCandleMapper()
-        self._hl_user_fill_mapper = user_fill_mapper or HyperliquidUserFillMapper()
 
         self.exchange_name = "hyperliquid"  # Define exchange_name before use
 
@@ -284,7 +291,7 @@ class HyperliquidAPI(ExchangeAPI):
                 http_client_requester=self._market_data_requester_adapter,
                 request_builder=self._hl_request_builder,
                 response_handler=self._hl_response_handler,
-                mapper=self._hl_mapper,
+                mapper=self._market_data_mapper,
                 exchange_name=self.exchange_name,
                 info_url=self.INFO_URL,
             )
@@ -350,9 +357,8 @@ class HyperliquidAPI(ExchangeAPI):
                 exchange_name=self.exchange_name,
                 info_url=self.INFO_URL,
                 wallet_address=self._wallet_address,
-                mapper=self._hl_mapper,
-                order_mapper=self._hl_order_mapper,
-                user_fill_mapper=self._hl_user_fill_mapper,
+                account_mapper=self._account_mapper,
+                trading_mapper=self._trading_mapper,
             )
 
         # Use injected trading service or create one
@@ -368,7 +374,7 @@ class HyperliquidAPI(ExchangeAPI):
                 exchange_name=self.exchange_name,
                 wallet_address=self._wallet_address,
                 get_asset_index_callable=self._get_asset_index,
-                order_mapper=self._hl_order_mapper,
+                trading_mapper=self._trading_mapper,
                 error_mapper=self._hyperliquid_error_mapper,
             )
 
@@ -605,7 +611,8 @@ class HyperliquidAPI(ExchangeAPI):
                     original_exception=e_api,
                 )
             else:
-                # For generic APIErrors, map as a generic 500 error to ensure consistent transformation
+                # For generic APIErrors, map as a generic 500 error to ensure consistent
+                # transformation
                 mapped_error = self._hyperliquid_error_mapper.map_exchange_error(
                     status_code=e_api.http_status or 500,
                     error_body=e_api.message,
@@ -1251,8 +1258,9 @@ class HyperliquidAPI(ExchangeAPI):
         if limit != 100:
             logger.warning(
                 f"[{self.exchange_name}] 'limit' parameter for get_trade_history is not "
-                f"directly supported by Hyperliquid's user fills mechanism in the same way as other exchanges. "
-                f"Filtering is primarily by symbol. The limit parameter will be ignored."
+                f"directly supported by Hyperliquid's user fills mechanism in the same way "
+                f"as other exchanges. Filtering is primarily by symbol. The limit parameter "
+                f"will be ignored."
             )
         return await self.account_service.get_trade_history(symbol=symbol)
 

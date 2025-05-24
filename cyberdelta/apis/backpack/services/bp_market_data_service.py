@@ -90,6 +90,7 @@ class BackpackMarketDataService:
         response_handler: BackpackResponseHandler,
         exchange_name: str,
         rate_limiter_service: RateLimiterService,
+        mapper: BackpackMarketDataMapper | None = None,
     ) -> None:
         """
         Initialize the BackpackMarketDataService.
@@ -100,12 +101,13 @@ class BackpackMarketDataService:
             response_handler: An instance of BackpackResponseHandler.
             exchange_name: The name of the exchange.
             rate_limiter_service: The rate limiter service.
+            mapper: Optional mapper instance for dependency injection.
         """
         self._http_client_requester = http_client_requester
         self._request_builder = request_builder
         self._response_handler = response_handler
         self._exchange_name = exchange_name
-        self._mapper = BackpackMarketDataMapper()
+        self._mapper = mapper or BackpackMarketDataMapper()
         self._rate_limiter_service = rate_limiter_service
 
     async def get_ticker(self, symbol: str) -> Ticker:

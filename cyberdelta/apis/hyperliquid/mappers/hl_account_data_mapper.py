@@ -32,6 +32,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsFillEvent,
 )
+from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import (
     DerivativePosition,
     HyperliquidMarginDetails,
@@ -46,12 +47,6 @@ from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 logger = logging.getLogger(__name__)
-
-
-class TransformationError(ValueError):
-    """Raised when a validated Raw model cannot be transformed to Internal model."""
-
-    pass
 
 
 class HyperliquidAccountDataMapper:
@@ -102,7 +97,8 @@ class HyperliquidAccountDataMapper:
         try:
             spot_balances: dict[str, SpotBalance] = {}
 
-            # Hyperliquid clearinghouse state provides a single withdrawable amount (in USDC equivalent)
+            # Hyperliquid clearinghouse state provides a single withdrawable amount
+            # (in USDC equivalent)
             # This is the total available balance across all assets
             if hasattr(raw_state, "withdrawable") and raw_state.withdrawable:
                 balance = parse_decimal_value(

@@ -22,18 +22,16 @@ from pydantic import ValidationError
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 
 # Mappers
-from cyberdelta.apis.hyperliquid.hl_mapper import (
-    HyperliquidMapper,
-    HyperliquidOrderMapper,
-    HyperliquidUserFillMapper,
-)
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
     RawJsonResponse,
 )
+from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
+from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
 
-# Import for queryOrderHistory: HyperliquidRawHistoricalOrder for mapper, HyperliquidRawHistoricalOrderResponse for handler return type
+# Import for queryOrderHistory: HyperliquidRawHistoricalOrder for mapper,
+# HyperliquidRawHistoricalOrderResponse for handler return type
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
     HyperliquidRawHistoricalOrder,
     HyperliquidRawHistoricalOrderResponse,
@@ -86,9 +84,8 @@ class HyperliquidAccountService:
     _http_client_requester: HttpClientRequesterSig
     _request_builder: HyperliquidRequestBuilder
     _response_handler: HyperliquidResponseHandler
-    _mapper: HyperliquidMapper  # Primary mapper
-    _order_mapper: HyperliquidOrderMapper  # For order/trade specific mappings
-    _user_fill_mapper: HyperliquidUserFillMapper  # For user fill (trade history) mappings
+    _account_mapper: HyperliquidAccountDataMapper  # For account data mappings
+    _trading_mapper: HyperliquidTradingDataMapper  # For trading data mappings
     _authenticator: IAuthenticator | None
     _exchange_name: str
     _info_url: str  # Specific to Hyperliquid for some requests
@@ -104,9 +101,8 @@ class HyperliquidAccountService:
         info_url: str,
         wallet_address: str | None,
         # Add mapper dependencies
-        mapper: HyperliquidMapper,
-        order_mapper: HyperliquidOrderMapper,
-        user_fill_mapper: HyperliquidUserFillMapper,
+        account_mapper: HyperliquidAccountDataMapper,
+        trading_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         self._http_client_requester = http_client_requester
         self._request_builder = request_builder
@@ -116,9 +112,8 @@ class HyperliquidAccountService:
         self._info_url = info_url
         self._wallet_address = wallet_address
         # Assign injected mappers
-        self._mapper = mapper
-        self._order_mapper = order_mapper
-        self._user_fill_mapper = user_fill_mapper
+        self._account_mapper = account_mapper
+        self._trading_mapper = trading_mapper
 
     async def _get_raw_clearinghouse_state(self) -> HyperliquidRawClearinghouseState:
         """Helper to fetch and validate the raw HyperliquidClearinghouseState."""
@@ -226,7 +221,7 @@ class HyperliquidAccountService:
         """Retrieves all account balances (spot balances derived from user state)."""
         # Error logging and specific APIError for balances context handled within helper
         raw_clearinghouse_state = await self._get_raw_clearinghouse_state()
-        internal_balances = self._mapper.map_raw_clearinghouse_state_to_spot_balances(
+        internal_balances = self._account_mapper.transform_raw_clearinghouse_state_to_spot_balances(
             raw_clearinghouse_state
         )
         logger.debug(f"[{self._exchange_name}] Mapped internal balances: {internal_balances}")
@@ -236,8 +231,10 @@ class HyperliquidAccountService:
         """Retrieves derivative positions, optionally filtered by symbol."""
         raw_clearinghouse_state = await self._get_raw_clearinghouse_state()
         # Assuming mapper returns Dict[str, DerivativePosition] where key is symbol
-        all_positions_dict = self._mapper.map_raw_clearinghouse_state_to_derivative_positions(
-            raw_clearinghouse_state
+        all_positions_dict = (
+            self._account_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
+                raw_clearinghouse_state
+            )
         )
 
         if symbol:
@@ -261,8 +258,10 @@ class HyperliquidAccountService:
         """Retrieves general account information or summary from the clearinghouse state."""
         try:
             raw_clearinghouse_state = await self._get_raw_clearinghouse_state()
-            internal_summary = self._mapper.map_raw_clearinghouse_state_to_margin_summary(
-                raw_clearinghouse_state
+            internal_summary = (
+                self._account_mapper.transform_raw_clearinghouse_state_to_margin_summary(
+                    raw_clearinghouse_state
+                )
             )
             logger.debug(
                 f"[{self._exchange_name}] Mapped internal account summary: {internal_summary}"
@@ -380,7 +379,7 @@ class HyperliquidAccountService:
                 for raw_hist_order in actual_raw_historical_orders:
                     try:
                         mapped_order = (
-                            self._order_mapper.transform_raw_historical_order_to_internal(
+                            self._trading_mapper.transform_raw_historical_order_to_internal(
                                 raw_historical_order=raw_hist_order,
                                 trigger=None,  # Assuming no separate trigger info
                                 # for historical orders here
@@ -394,7 +393,7 @@ class HyperliquidAccountService:
                         logger.warning(
                             f"[{self._exchange_name}] Error mapping historical order item: "
                             f"{e_map_item}. Raw: "
-                            f"{raw_hist_order.model_dump_json() if hasattr(raw_hist_order, 'model_dump_json') else raw_hist_order!r}"
+                            f"{raw_hist_order.model_dump_json() if hasattr(raw_hist_order, 'model_dump_json') else str(raw_hist_order)}"
                         )
 
             if symbol:
@@ -520,8 +519,10 @@ class HyperliquidAccountService:
             if validated_fills_response and validated_fills_response.root:
                 for raw_fill_obj in validated_fills_response.root:
                     try:
-                        # Use the injected user_fill_mapper instance
-                        mapped_trade = self._user_fill_mapper.map(raw_fill_obj)
+                        # Use the injected account_mapper instance
+                        mapped_trade = self._account_mapper.transform_raw_user_fill_to_internal(
+                            raw_fill_obj
+                        )
                         # Check if mapped_trade is not None before accessing attributes or appending
                         if mapped_trade is not None:
                             if symbol is None or mapped_trade.symbol == symbol:
@@ -655,8 +656,8 @@ class HyperliquidAccountService:
 
             for raw_order in raw_orders_list:  # raw_order is HyperliquidRawOpenOrder
                 # Use transform_raw_order_to_internal, passing .order and .trigger
-                internal_order = self._order_mapper.transform_raw_order_to_internal(
-                    raw=raw_order.order,  # This is HyperliquidRawOrderData
+                internal_order = self._trading_mapper.transform_raw_order_to_internal(
+                    raw_order=raw_order.order,  # This is HyperliquidRawOrderData
                     trigger=raw_order.trigger,  # This is HyperliquidRawTriggerData | None
                 )
                 internal_orders.append(internal_order)

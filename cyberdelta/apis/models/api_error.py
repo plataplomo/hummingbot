@@ -85,3 +85,9 @@ class APIError(Exception):
                 or code_val == 2  # NETWORK_ISSUE
             )
         return False
+
+
+class TransformationError(ValueError):
+    """Raised when a validated Raw model cannot be transformed to Internal model."""
+
+    pass

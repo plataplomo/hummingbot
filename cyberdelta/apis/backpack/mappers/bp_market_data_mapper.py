@@ -40,6 +40,7 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawTradeEvent,
 )
 from cyberdelta.apis.exchange_names import ExchangeName
+from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import OrderBook, Ticker, Trade
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market import Candle
@@ -48,12 +49,6 @@ from cyberdelta.core.models.market.trade import BackpackTradeDetails
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 logger = logging.getLogger(__name__)
-
-
-class TransformationError(ValueError):
-    """Raised when a validated Raw model cannot be transformed to Internal model."""
-
-    pass
 
 
 class BackpackMarketDataMapper:

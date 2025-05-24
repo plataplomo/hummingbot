@@ -4,7 +4,7 @@ CyberDeltaEngine: Backpack Trading Service
 
 This service encapsulates the logic for trading operations on the Backpack Exchange.
 It uses the HttpClient (via a requester callable), BackpackRequestBuilder,
-BackpackResponseHandler, and BackpackOrderMapper to interact with the API
+BackpackResponseHandler, and BackpackTradingDataMapper to interact with the API
 and returns Internal Domain Models.
 """
 
@@ -13,9 +13,9 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Mapping
 from decimal import Decimal
 
-from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
+from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
@@ -53,9 +53,19 @@ class BackpackTradingService:
         authenticator: IAuthenticator | None,  # Added authenticator
         exchange_name: str,
         rate_limiter_service: RateLimiterService,
+        mapper: BackpackTradingDataMapper | None = None,
     ) -> None:
         """
         Initialize the BackpackTradingService.
+
+        Args:
+            http_client_requester: A callable for making API requests.
+            request_builder: An instance of BackpackRequestBuilder.
+            response_handler: An instance of BackpackResponseHandler.
+            authenticator: An instance of IAuthenticator for signed requests.
+            exchange_name: The name of the exchange.
+            rate_limiter_service: Service for managing API rate limits.
+            mapper: Optional mapper instance for dependency injection.
         """
         self._http_client_requester = http_client_requester
         self._request_builder = request_builder
@@ -63,7 +73,9 @@ class BackpackTradingService:
         self._authenticator = authenticator
         self._exchange_name = exchange_name
         self._rate_limiter_service = rate_limiter_service
-        self._order_mapper = BackpackOrderMapper()  # Instantiate or use static methods
+        self._trading_mapper = (
+            mapper or BackpackTradingDataMapper()
+        )  # Instantiate or use static methods
 
     async def place_order(
         self,
@@ -113,7 +125,7 @@ class BackpackTradingService:
             raw_order_model: BackpackRawOrder = self._response_handler.handle_place_order_response(
                 raw_data
             )
-            internal_order = self._order_mapper.transform_raw_order_to_internal(raw_order_model)
+            internal_order = self._trading_mapper.transform_raw_order_to_internal(raw_order_model)
             return internal_order
         except APIError:
             raise
@@ -204,7 +216,7 @@ class BackpackTradingService:
                 self._response_handler.handle_get_open_orders_response(raw_data, symbol)
             )
             internal_orders = [
-                self._order_mapper.transform_raw_order_to_internal(ro) for ro in raw_orders_list
+                self._trading_mapper.transform_raw_order_to_internal(ro) for ro in raw_orders_list
             ]
             return internal_orders
         except APIError:
@@ -265,7 +277,7 @@ class BackpackTradingService:
             raw_order_model: BackpackRawOrder = (
                 self._response_handler.handle_get_order_status_response(raw_data, identifier)
             )
-            internal_order = self._order_mapper.transform_raw_order_to_internal(raw_order_model)
+            internal_order = self._trading_mapper.transform_raw_order_to_internal(raw_order_model)
             return internal_order
         except APIError as e:
             # Allow ORDER_NOT_FOUND from handler to propagate if it maps it

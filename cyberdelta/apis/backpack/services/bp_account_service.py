@@ -4,7 +4,7 @@ CyberDeltaEngine: Backpack Account Service
 
 This service encapsulates the logic for fetching and managing account-specific
 information from the Backpack Exchange. It uses the HttpClient, BackpackRequestBuilder,
-BackpackResponseHandler, and BackpackOrderMapper to interact with the API
+BackpackResponseHandler, and BackpackAccountDataMapper to interact with the API
 and returns Internal Domain Models.
 """
 
@@ -13,13 +13,13 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Mapping
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any  # Keep Any for **kwargs in withdraw
+from typing import TYPE_CHECKING  # Keep Any for **kwargs in withdraw
 
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler, RawJsonResponse
+from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAccountDataMapper
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
@@ -60,7 +60,7 @@ class BackpackAccountService:
     _http_client_requester: HttpClientRequesterSig
     _request_builder: BackpackRequestBuilder
     _response_handler: BackpackResponseHandler
-    _mapper: BackpackOrderMapper
+    _mapper: BackpackAccountDataMapper
     _authenticator: IAuthenticator | None
     _exchange_name: str
     _rate_limiter_service: RateLimiterService
@@ -73,6 +73,7 @@ class BackpackAccountService:
         authenticator: IAuthenticator | None,
         exchange_name: str,
         rate_limiter_service: RateLimiterService,
+        mapper: BackpackAccountDataMapper | None = None,
     ) -> None:
         """
         Initialize the BackpackAccountService.
@@ -84,13 +85,16 @@ class BackpackAccountService:
             authenticator: An instance of IAuthenticator for signed requests.
             exchange_name: The name of the exchange.
             rate_limiter_service: Service for managing API rate limits.
+            mapper: Optional mapper instance for dependency injection.
         """
         self._http_client_requester = http_client_requester
         self._request_builder = request_builder
         self._response_handler = response_handler
         self._authenticator = authenticator
         self._exchange_name = exchange_name
-        self._mapper = BackpackOrderMapper()  # Re-added mapper instantiation
+        self._mapper = (
+            mapper or BackpackAccountDataMapper()
+        )  # Updated to use account-specific mapper
         self._rate_limiter_service = rate_limiter_service
 
     async def _get_raw_balances_dict(self) -> dict[str, BackpackRawBalance]:
@@ -160,7 +164,7 @@ class BackpackAccountService:
     async def _get_raw_positions_list(self, symbol: str | None = None) -> list[BackpackRawPosition]:
         """Helper to fetch and validate raw current open positions list."""
         endpoint_path = "/api/v1/positions"
-        # build_get_positions_params returns None if symbol is None, or {"symbol": symbol} if provided
+        # build_get_positions_params returns None if symbol is None, or {"symbol": symbol}
         params = self._request_builder.build_get_positions_params(symbol)
         logger.debug(
             f"[{self._exchange_name}] Requesting raw positions from {endpoint_path} "
@@ -535,7 +539,7 @@ class BackpackAccountService:
         tag: str | None = None,
         client_withdrawal_id: str | None = None,
         two_factor_token: str | None = None,
-        **_kwargs: Any,  # For potential extra params not yet defined
+        **_kwargs: dict[str, str],  # For potential extra params not yet defined
     ) -> Withdrawal:
         """Initiates a withdrawal of funds to an external address."""
         endpoint_path = "/api/v1/capital/withdrawals"

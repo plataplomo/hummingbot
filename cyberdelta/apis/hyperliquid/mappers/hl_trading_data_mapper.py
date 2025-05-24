@@ -30,6 +30,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrder,
     HyperliquidRawTriggerInfo,
 )
+from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
     OrderSide,
@@ -41,12 +42,6 @@ from cyberdelta.core.models.enums import (
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 logger = logging.getLogger(__name__)
-
-
-class TransformationError(ValueError):
-    """Raised when a validated Raw model cannot be transformed to Internal model."""
-
-    pass
 
 
 class HyperliquidTradingDataMapper:

@@ -16,14 +16,15 @@ from pydantic import ValidationError
 
 # Project-specific imports for connectivity and base types
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
-from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidCandleMapper, HyperliquidMapper
 
-# Mappers
 # Hyperliquid-specific imports
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
 )
+
+# Mappers
+from cyberdelta.apis.hyperliquid.mappers import HyperliquidMarketDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
     HyperliquidRawFundingHistoryItem,
 )
@@ -72,15 +73,14 @@ class HyperliquidMarketDataService:
     _response_handler: HyperliquidResponseHandler
     _exchange_name: str
     _info_url: str
-    _mapper: HyperliquidMapper
-    _candle_mapper: HyperliquidCandleMapper
+    _mapper: HyperliquidMarketDataMapper
 
     def __init__(
         self,
         http_client_requester: HttpClientRequesterSig,
         request_builder: HyperliquidRequestBuilder,
         response_handler: HyperliquidResponseHandler,
-        mapper: HyperliquidMapper,
+        mapper: HyperliquidMarketDataMapper,
         exchange_name: str,
         info_url: str,
     ) -> None:
@@ -93,7 +93,7 @@ class HyperliquidMarketDataService:
                 API requests.
             response_handler: An instance of HyperliquidResponseHandler for validating
                 API responses.
-            mapper: An instance of HyperliquidMapper for mapping raw data to internal models.
+            mapper: An instance of HyperliquidMarketDataMapper for mapping raw data to internal models.
             exchange_name: The name of the exchange.
             info_url: The base URL for the exchange's API.
         """
@@ -101,7 +101,6 @@ class HyperliquidMarketDataService:
         self._request_builder = request_builder
         self._response_handler = response_handler
         self._mapper = mapper
-        self._candle_mapper = HyperliquidCandleMapper()
         self._exchange_name = exchange_name
         self._info_url = info_url
 
@@ -211,7 +210,7 @@ class HyperliquidMarketDataService:
             if all_contexts_response and all_contexts_response.asset_ctxs:
                 for asset_ctx in all_contexts_response.asset_ctxs:
                     if asset_ctx.name == symbol:
-                        return self._mapper.map_raw_ctx_to_ticker(asset_ctx)
+                        return self._mapper.transform_raw_asset_ctx_to_ticker(asset_ctx)
 
             # Symbol not found in the contexts
             logger.warning(
@@ -301,7 +300,7 @@ class HyperliquidMarketDataService:
                 status_code=status_code,
                 headers=headers,
             )
-            return self._mapper.map_raw_order_book(validated_raw_book)
+            return self._mapper.transform_raw_order_book_to_internal(validated_raw_book)
 
         except APIError:
             raise
@@ -461,7 +460,7 @@ class HyperliquidMarketDataService:
             if all_contexts_response and all_contexts_response.asset_ctxs:
                 for asset_ctx in all_contexts_response.asset_ctxs:
                     if asset_ctx.name == symbol:
-                        return self._mapper.map_raw_ctx_to_funding_rate(asset_ctx)
+                        return self._mapper.transform_raw_asset_ctx_to_funding_rate(asset_ctx)
 
             logger.warning(
                 f"[{self._exchange_name}] Funding rate data (from asset context) not found "
@@ -517,7 +516,7 @@ class HyperliquidMarketDataService:
                 for asset_ctx in all_contexts_response.asset_ctxs:
                     if asset_ctx.name == symbol_name:
                         try:
-                            rate = self._mapper.map_raw_ctx_to_funding_rate(asset_ctx)
+                            rate = self._mapper.transform_raw_asset_ctx_to_funding_rate(asset_ctx)
                             if rate:
                                 rates.append(rate)
                             found_ctx = True
@@ -684,4 +683,4 @@ class HyperliquidMarketDataService:
         raw_candles = self._response_handler.handle_info_candle_snapshot_response(
             raw_response_content, symbol, interval, status_code, headers
         )
-        return self._candle_mapper.map(raw_candles, symbol, interval)
+        return self._mapper.transform_raw_candle_snapshot_to_candles(raw_candles, symbol, interval)

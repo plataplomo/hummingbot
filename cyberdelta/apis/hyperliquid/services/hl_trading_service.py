@@ -15,12 +15,14 @@ from typing import Any, cast
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
-from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidOrderMapper
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
     RawJsonResponse,
 )
+
+# Internal Domain Models & Mappers
+from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
     HyperliquidApiCancelOrderRequest,
     HyperliquidApiPlaceOrderRequest,
@@ -46,8 +48,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
 )
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-
-# Internal Domain Models & Mappers
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
     CancelOrderResultStatus,
@@ -83,7 +83,7 @@ class HyperliquidTradingService:
         exchange_name: str,
         wallet_address: str | None,
         get_asset_index_callable: Callable[[str], Coroutine[Any, Any, int | None]],
-        order_mapper: HyperliquidOrderMapper,
+        trading_mapper: HyperliquidTradingDataMapper,
         error_mapper: HyperliquidErrorMapper,
     ) -> None:
         self._exchange_http_client_requester = exchange_http_client_requester
@@ -94,7 +94,7 @@ class HyperliquidTradingService:
         self._exchange_name = exchange_name
         self._wallet_address = wallet_address
         self._get_asset_index_callable = get_asset_index_callable
-        self._order_mapper = order_mapper
+        self._trading_mapper = trading_mapper
         self._error_mapper = error_mapper
         self._action_endpoint = "/exchange"
         self._info_endpoint = "/info"
@@ -319,7 +319,7 @@ class HyperliquidTradingService:
 
         trigger_info = getattr(raw_historical_order, "trigger", None)
 
-        return self._order_mapper.transform_raw_historical_order_to_internal(
+        return self._trading_mapper.transform_raw_historical_order_to_internal(
             raw_historical_order=raw_historical_order, trigger=trigger_info
         )
 
@@ -422,8 +422,8 @@ class HyperliquidTradingService:
 
             if symbol is None or raw_order_details.asset.upper() == symbol.upper():
                 try:
-                    mapped_order = self._order_mapper.transform_raw_order_to_internal(
-                        raw=raw_order_details, trigger=raw_trigger_details
+                    mapped_order = self._trading_mapper.transform_raw_order_to_internal(
+                        raw_order=raw_order_details, trigger=raw_trigger_details
                     )
                     internal_orders.append(mapped_order)
                 except Exception as e:
