@@ -138,7 +138,7 @@ class TestBackpackAccountServiceAccountInfo:
         """Test get_account_info handles validation error from response handler."""
         mock_request_builder.build_get_account_info_params.return_value = None
         mock_http_client_requester.return_value = ({"invalid": "summary"}, 200, {})
-        mock_response_handler.handle_get_account_summary_response.side_effect = Exception(
+        mock_response_handler.handle_get_account_info_response.side_effect = Exception(
             "Validation failed"
         )
 
@@ -159,7 +159,7 @@ class TestBackpackAccountServiceAccountInfo:
         """Test get_account_info handles unexpected exception via public API."""
         mock_request_builder.build_get_account_info_params.return_value = None
         mock_http_client_requester.return_value = ({"equity": "100"}, 200, {})
-        mock_response_handler.handle_get_account_summary_response.side_effect = Exception(
+        mock_response_handler.handle_get_account_info_response.side_effect = Exception(
             "Unexpected error"
         )
 
@@ -180,7 +180,7 @@ class TestBackpackAccountServiceAccountInfo:
         """Test get_account_info handles validation error from response handler."""
         mock_request_builder.build_get_account_info_params.return_value = None
         mock_http_client_requester.return_value = ({"invalid": "summary"}, 200, {})
-        mock_response_handler.handle_get_account_summary_response.side_effect = Exception(
+        mock_response_handler.handle_get_account_info_response.side_effect = Exception(
             "Validation failed"
         )
 
@@ -201,7 +201,7 @@ class TestBackpackAccountServiceAccountInfo:
         """Test get_account_info handles unexpected exception."""
         mock_request_builder.build_get_account_info_params.return_value = None
         mock_http_client_requester.return_value = ({"equity": "100"}, 200, {})
-        mock_response_handler.handle_get_account_summary_response.side_effect = Exception(
+        mock_response_handler.handle_get_account_info_response.side_effect = Exception(
             "Unexpected error"
         )
 

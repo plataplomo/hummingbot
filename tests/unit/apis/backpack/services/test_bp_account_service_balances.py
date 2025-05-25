@@ -243,8 +243,11 @@ class TestBackpackAccountServiceBalances:
         """Test get_balances handles validation error from response handler."""
         mock_request_builder.build_get_balances_params.return_value = None
         mock_http_client_requester.return_value = ({"invalid": "data"}, 200, {})
-        mock_response_handler.handle_get_balances_response.side_effect = ValidationError(
-            "Validation failed"
+        mock_response_handler.handle_get_balances_response.side_effect = (
+            ValidationError.from_exception_data(
+                title="ValidationError",
+                line_errors=[],
+            )
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -285,8 +288,11 @@ class TestBackpackAccountServiceBalances:
         """Test get_balances handles validation error from response handler."""
         mock_request_builder.build_get_balances_params.return_value = None
         mock_http_client_requester.return_value = ({"invalid": "data"}, 200, {})
-        mock_response_handler.handle_get_balances_response.side_effect = ValidationError(
-            "Validation failed"
+        mock_response_handler.handle_get_balances_response.side_effect = (
+            ValidationError.from_exception_data(
+                title="ValidationError",
+                line_errors=[],
+            )
         )
 
         with pytest.raises(APIError) as exc_info:

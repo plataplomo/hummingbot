@@ -418,8 +418,11 @@ class TestBackpackAccountServiceHistoryOperations:
 
         mock_request_builder.build_withdraw_payload.return_value = mock_payload
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
-        mock_response_handler.handle_withdraw_response.side_effect = ValidationError(
-            "Validation failed"
+        mock_response_handler.handle_withdraw_response.side_effect = (
+            ValidationError.from_exception_data(
+                title="ValidationError",
+                line_errors=[],
+            )
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -451,8 +454,8 @@ class TestBackpackAccountServiceHistoryOperations:
         with pytest.raises(APIError) as exc_info:
             await bp_account_service.withdraw(asset=asset, amount=amount, address=address)
 
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Processing withdrawal data failed" in exc_info.value.message
+        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+        assert "Unexpected error for withdrawal" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_trade_history_success(
@@ -470,13 +473,11 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_params = {"symbol": symbol, "limit": limit}
         mock_raw_trade_data = {
             "id": "trade_123",
+            "orderId": "order_123",
             "symbol": symbol,
-            "side": "buy",
-            "quantity": "10.0",
+            "qty": "10.0",
             "price": "100.0",
-            "timestamp": 1234567890000,
-            "fee": "0.1",
-            "feeAsset": "USDC",
+            "time": 1234567890000,
         }
         mock_raw_response = [mock_raw_trade_data]
         mock_validated_raw_trades = [BackpackRawTrade.model_validate(mock_raw_trade_data)]
@@ -576,8 +577,11 @@ class TestBackpackAccountServiceHistoryOperations:
 
         mock_request_builder.build_get_trade_history_params.return_value = mock_params
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
-        mock_response_handler.handle_get_trade_history_response.side_effect = ValidationError(
-            "Validation failed"
+        mock_response_handler.handle_get_trade_history_response.side_effect = (
+            ValidationError.from_exception_data(
+                title="ValidationError",
+                line_errors=[],
+            )
         )
 
         with pytest.raises(APIError) as exc_info:
