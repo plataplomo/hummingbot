@@ -176,10 +176,12 @@ def test_user_role_response_extra_field() -> None:
 
 def test_user_role_data_none_valid() -> None:
     # Test when 'data' is explicitly None or missing, which is valid
-    response_with_none_data = HyperliquidRawUserRoleResponse.model_validate({
-        "role": "user",
-        "data": None,
-    })
+    response_with_none_data = HyperliquidRawUserRoleResponse.model_validate(
+        {
+            "role": "user",
+            "data": None,
+        }
+    )
     assert response_with_none_data.data is None
 
     response_without_data = HyperliquidRawUserRoleResponse.model_validate({"role": "vault"})
