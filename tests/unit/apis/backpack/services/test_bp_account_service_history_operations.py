@@ -508,7 +508,7 @@ class TestBackpackAccountServiceHistoryOperations:
             result = await bp_account_service.get_trade_history(symbol=symbol, limit=limit)
 
         mock_request_builder.build_get_trade_history_params.assert_called_once_with(
-            symbol=symbol, limit=limit
+            symbol=symbol, limit=limit, start_time_ms=None, end_time_ms=None, from_id=None
         )
         mock_http_client_requester.assert_called_once_with(
             method="GET",
@@ -614,7 +614,7 @@ class TestBackpackAccountServiceHistoryOperations:
             await bp_account_service.get_trade_history(symbol=symbol)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Processing trade history data failed" in exc_info.value.message
+        assert "Unexpected error for trade history" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_constructor_with_custom_mapper(

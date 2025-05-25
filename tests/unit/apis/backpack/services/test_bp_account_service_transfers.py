@@ -354,7 +354,7 @@ class TestBackpackAccountServiceTransfers:
         mock_request_builder.build_internal_transfer_payload.return_value = mock_payload
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_transfer_response.return_value = mock_raw_response
-        mock_mapper.transform_raw_transfer_response_to_internal.return_value = mock_transfer
+        mock_mapper.transform_raw_transfer_to_internal.return_value = mock_transfer
 
         with patch.object(bp_account_service, "_mapper", mock_mapper):
             result = await bp_account_service.transfer(

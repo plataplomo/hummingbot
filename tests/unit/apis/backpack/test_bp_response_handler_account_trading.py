@@ -1,5 +1,6 @@
 """Unit tests for BackpackResponseHandler account and trading response functionality."""
 
+from decimal import Decimal
 from typing import Any, cast
 
 import pytest
@@ -244,15 +245,15 @@ class TestHandleGetAccountInfoResponse:
         assert summary.auto_lend is False
         assert summary.auto_realize_pnl is True
         assert summary.auto_repay_borrows is True
-        assert summary.borrow_limit == "100000.0"
-        assert summary.futures_maker_fee == "0.0002"
-        assert summary.futures_taker_fee == "0.0005"
-        assert summary.leverage_limit == "20.0"
+        assert summary.borrow_limit == Decimal("100000.0")
+        assert summary.futures_maker_fee == Decimal("0.0002")
+        assert summary.futures_taker_fee == Decimal("0.0005")
+        assert summary.leverage_limit == Decimal("20.0")
         assert summary.limit_orders == 50
         assert summary.liquidating is False
-        assert summary.position_limit == "500000.0"
-        assert summary.spot_maker_fee == "0.0008"
-        assert summary.spot_taker_fee == "0.0010"
+        assert summary.position_limit == Decimal("500000.0")
+        assert summary.spot_maker_fee == Decimal("0.0008")
+        assert summary.spot_taker_fee == Decimal("0.0010")
         assert summary.trigger_orders == 20
 
     def test_validation_error_missing_field(self) -> None:
@@ -746,7 +747,7 @@ class TestAccountTradingEdgeCases:
         summary = BackpackResponseHandler.handle_get_account_info_response(
             cast(RawJsonResponse, raw_data)
         )
-        assert summary.borrow_limit == "0.0"
-        assert summary.leverage_limit == "1.0"
+        assert summary.borrow_limit == Decimal("0.0")
+        assert summary.leverage_limit == Decimal("1.0")
         assert summary.limit_orders == 0
         assert summary.liquidating is True

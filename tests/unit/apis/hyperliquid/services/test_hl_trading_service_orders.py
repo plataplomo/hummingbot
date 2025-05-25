@@ -137,7 +137,7 @@ class TestHyperliquidTradingServiceOrders:
             strategy_name=None,
             signal_id=None,
         )
-        mock_hl_response_handler.handle_place_order_response.return_value = expected_order
+        mock_hl_response_handler.handle_exchange_response.return_value = expected_order
 
         result = await hl_trading_service.place_order(
             symbol=symbol,
@@ -159,7 +159,7 @@ class TestHyperliquidTradingServiceOrders:
             rate_limiter_service=None,
             is_signed=True,
         )
-        mock_hl_response_handler.handle_place_order_response.assert_called_once_with(
+        mock_hl_response_handler.handle_exchange_response.assert_called_once_with(
             mock_response_content, 200, {"content-type": "application/json"}
         )
 
@@ -247,7 +247,12 @@ class TestHyperliquidTradingServiceOrders:
             strategy_name=None,
             signal_id=None,
         )
-        mock_hl_response_handler.handle_get_order_response.return_value = expected_order
+        # Create a mock response object that has an .order attribute
+        mock_historical_order_response = MagicMock()
+        mock_historical_order_response.order = expected_order
+        mock_hl_response_handler.handle_info_order_status_response.return_value = (
+            mock_historical_order_response
+        )
 
         result = await hl_trading_service.get_order(symbol=symbol, order_id=order_id)
 
@@ -263,7 +268,7 @@ class TestHyperliquidTradingServiceOrders:
             rate_limiter_service=None,
             is_signed=True,
         )
-        mock_hl_response_handler.handle_get_order_response.assert_called_once_with(
+        mock_hl_response_handler.handle_info_order_status_response.assert_called_once_with(
             mock_response_content, 200, {"content-type": "application/json"}
         )
 
@@ -369,7 +374,7 @@ class TestHyperliquidTradingServiceOrders:
                 signal_id=None,
             ),
         ]
-        mock_hl_response_handler.handle_get_open_orders_response.return_value = expected_orders
+        mock_hl_response_handler.handle_info_open_orders_response.return_value = expected_orders
 
         result = await hl_trading_service.get_open_orders()
 
@@ -383,7 +388,7 @@ class TestHyperliquidTradingServiceOrders:
             rate_limiter_service=None,
             is_signed=True,
         )
-        mock_hl_response_handler.handle_get_open_orders_response.assert_called_once_with(
+        mock_hl_response_handler.handle_info_open_orders_response.assert_called_once_with(
             mock_response_content, 200, {"content-type": "application/json"}
         )
 
@@ -466,13 +471,18 @@ class TestHyperliquidTradingServiceOrders:
 
         # Mock response handler
         expected_success = True
-        mock_hl_response_handler.handle_cancel_order_response.return_value = expected_success
+        mock_hl_response_handler.handle_exchange_response.return_value = expected_success
 
-        result = await hl_trading_service.cancel_order(symbol=symbol, order_id=order_id)
+        result = await hl_trading_service.cancel_order(
+            symbol=symbol,
+            order_id=order_id,
+        )
 
-        assert result is expected_success
+        assert result == expected_success
         mock_get_asset_index_callable.assert_called_once_with(symbol)
-        mock_hl_request_builder.build_cancel_order_payload.assert_called_once()
+        mock_hl_request_builder.build_cancel_order_payload.assert_called_once_with(
+            order_id=order_id,
+        )
         mock_exchange_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint_path="/exchange",
@@ -481,6 +491,6 @@ class TestHyperliquidTradingServiceOrders:
             rate_limiter_service=None,
             is_signed=True,
         )
-        mock_hl_response_handler.handle_cancel_order_response.assert_called_once_with(
+        mock_hl_response_handler.handle_exchange_response.assert_called_once_with(
             mock_response_content, 200, {"content-type": "application/json"}
         )

@@ -255,24 +255,30 @@ class BackpackTradingDataMapper:
 
             # Parse price
             order_price = None
-            if raw_order.price:
-                order_price = parse_decimal_value(
+            if raw_order.price and raw_order.price != "0":
+                parsed_price = parse_decimal_value(
                     raw_order.price, allow_none=True, field_name="price"
                 )
+                if parsed_price is not None and parsed_price > 0:
+                    order_price = parsed_price
 
             # Parse stop price
             stop_price = None
-            if raw_order.triggerPrice:
-                stop_price = parse_decimal_value(
+            if raw_order.triggerPrice and raw_order.triggerPrice != "0":
+                parsed_stop_price = parse_decimal_value(
                     raw_order.triggerPrice, allow_none=True, field_name="triggerPrice"
                 )
+                if parsed_stop_price is not None and parsed_stop_price > 0:
+                    stop_price = parsed_stop_price
 
             # Parse average fill price
             average_fill_price = None
-            if raw_order.avgFillPrice:
-                average_fill_price = parse_decimal_value(
+            if raw_order.avgFillPrice and raw_order.avgFillPrice != "0":
+                parsed_avg_price = parse_decimal_value(
                     raw_order.avgFillPrice, allow_none=True, field_name="avgFillPrice"
                 )
+                if parsed_avg_price is not None and parsed_avg_price > 0:
+                    average_fill_price = parsed_avg_price
 
             # Parse timestamps
             created_timestamp = parse_datetime_utc(raw_order.createdAt, field_name="createdAt")

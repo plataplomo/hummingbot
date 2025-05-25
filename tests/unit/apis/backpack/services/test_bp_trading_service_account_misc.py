@@ -49,14 +49,14 @@ class TestBackpackTradingServiceAccountMisc:
             relatedOrderId="rel_123",
             symbol=symbol,
             side="Bid",
-            orderType="Limit",
+            orderType="LIMIT",
             quantity="10.0",
             price="100.0",
             executedQuantity="0",
             executedQuoteQuantity="0",
             triggerPrice="0",
             avgFillPrice="0",
-            status="New",
+            status="NEW",
             timeInForce="GTC",
             triggerBy="last",
             reduceOnly=False,
@@ -112,14 +112,14 @@ class TestBackpackTradingServiceAccountMisc:
             relatedOrderId="rel_123",
             symbol=symbol,
             side="Bid",
-            orderType="Limit",
+            orderType="LIMIT",
             quantity="10.0",
             price="100.0",
             executedQuantity="0",
             executedQuoteQuantity="0",
             triggerPrice="0",
             avgFillPrice="0",
-            status="New",
+            status="NEW",
             timeInForce="GTC",
             triggerBy="last",
             reduceOnly=False,
@@ -162,12 +162,14 @@ class TestBackpackTradingServiceAccountMisc:
         time_in_force = TimeInForce.GTC
 
         mock_payload = {"symbol": symbol, "side": side.value}
+        # Convert internal OrderSide to Backpack side format
+        bp_side = "Bid" if side == OrderSide.BUY else "Ask"
         mock_raw_order = BackpackRawOrder(
             id="123",
             clientId="client_123",
             relatedOrderId="rel_123",
             symbol=symbol,
-            side=side.value,
+            side=bp_side,
             orderType=order_type.value,
             quantity=str(quantity),
             price=str(price),
@@ -175,7 +177,7 @@ class TestBackpackTradingServiceAccountMisc:
             executedQuoteQuantity="0",
             triggerPrice="0",
             avgFillPrice="0",
-            status="New",
+            status="NEW",
             timeInForce=time_in_force.value,
             triggerBy="last",
             reduceOnly=False,
@@ -228,14 +230,14 @@ class TestBackpackTradingServiceAccountMisc:
             relatedOrderId="rel_123",
             symbol=symbol,
             side="Bid",
-            orderType="Limit",
+            orderType="LIMIT",
             quantity="10.0",
             price="100.0",
             executedQuantity="5.0",
             executedQuoteQuantity="500.0",
             triggerPrice="0",
             avgFillPrice="100.0",
-            status="PartiallyFilled",
+            status="PARTIALLY_FILLED",
             timeInForce="GTC",
             triggerBy="last",
             reduceOnly=False,
@@ -248,7 +250,7 @@ class TestBackpackTradingServiceAccountMisc:
             origin="API",
         )
 
-        mock_request_builder.build_get_order_status_params.return_value = {
+        mock_request_builder.build_get_order_params.return_value = {
             "symbol": symbol,
             "orderId": order_id,
         }
@@ -263,7 +265,7 @@ class TestBackpackTradingServiceAccountMisc:
         call_args = mock_http_client_requester.call_args
         assert call_args[1]["is_signed"] is True
         assert call_args[1]["method"] == "GET"
-        assert call_args[1]["endpoint"] == "/api/v1/order"
+        assert call_args[1]["endpoint"] == f"/api/v1/order/{order_id}"
         assert result is not None
 
     @pytest.mark.asyncio
@@ -316,14 +318,14 @@ class TestBackpackTradingServiceAccountMisc:
                 relatedOrderId="rel_1",
                 symbol="SOL_USDC",
                 side="Bid",
-                orderType="Limit",
+                orderType="LIMIT",
                 quantity="10.0",
                 price="20.0",
                 executedQuantity="0",
                 executedQuoteQuantity="0",
                 triggerPrice="0",
                 avgFillPrice="0",
-                status="New",
+                status="NEW",
                 timeInForce="GTC",
                 triggerBy="last",
                 reduceOnly=False,
@@ -341,14 +343,14 @@ class TestBackpackTradingServiceAccountMisc:
                 relatedOrderId="rel_2",
                 symbol="ETH_USDC",
                 side="Ask",
-                orderType="Market",
+                orderType="MARKET",
                 quantity="5.0",
                 price="0",
                 executedQuantity="0",
                 executedQuoteQuantity="0",
                 triggerPrice="0",
                 avgFillPrice="0",
-                status="New",
+                status="NEW",
                 timeInForce="GTC",
                 triggerBy="last",
                 reduceOnly=False,
@@ -406,14 +408,14 @@ class TestBackpackTradingServiceAccountMisc:
             relatedOrderId="rel",
             symbol=symbol,
             side="Bid",
-            orderType="Limit",
+            orderType="LIMIT",
             quantity="10.0",
             price="100.0",
             executedQuantity="0",
             executedQuoteQuantity="0",
             triggerPrice="0",
             avgFillPrice="0",
-            status="New",
+            status="NEW",
             timeInForce="GTC",
             triggerBy="last",
             reduceOnly=False,

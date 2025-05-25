@@ -233,11 +233,11 @@ class HyperliquidResponseHandler:
         raw_response_content: RawJsonResponse, user_address: str
     ) -> HyperliquidRawUserStateResponse:
         """Validates the /info response for user_state."""
-        context = f"info (UserState for {user_address})"
+        context = f"info (user state for {user_address})"
         if not isinstance(raw_response_content, dict):
             raise APIError(
                 message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
         try:
@@ -252,11 +252,11 @@ class HyperliquidResponseHandler:
         raw_response_content: RawJsonResponse, user_address: str
     ) -> HyperliquidRawOpenOrdersResponse:
         """Validates the /info response for open_orders."""
-        context = f"info (OpenOrders for {user_address})"
+        context = f"info (open orders for {user_address})"
         if not isinstance(raw_response_content, list):
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
         try:
@@ -271,7 +271,7 @@ class HyperliquidResponseHandler:
         raw_response_content: RawJsonResponse, user_address: str
     ) -> HyperliquidRawUserFillsResponse:
         """Validates the /info response for user_fills."""
-        context = f"info (UserFills for {user_address})"
+        context = f"info (user fills for {user_address})"
         if not isinstance(raw_response_content, list):
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "
@@ -290,11 +290,11 @@ class HyperliquidResponseHandler:
         raw_response_content: RawJsonResponse, symbol: str
     ) -> HyperliquidRawAssetCtx:
         """Validates the /info response for funding rate (per symbol)."""
-        context = f"info (FundingRate for {symbol})"
+        context = f"info (funding rate for {symbol})"
         if not isinstance(raw_response_content, dict):
             raise APIError(
                 message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
         try:
@@ -321,7 +321,7 @@ class HyperliquidResponseHandler:
         headers: Mapping[str, str] | None = None,
     ) -> HyperliquidRawOrderBookResponse:
         """Validates the /info response for l2Book."""
-        context = f"info (L2Book for {symbol})"
+        context = f"info (l2 book for {symbol})"
         if not isinstance(raw_response_content, dict):
             logger.error(
                 f"Unexpected {context} format for {symbol}. "
@@ -329,7 +329,7 @@ class HyperliquidResponseHandler:
             )
             raise APIError(
                 message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 http_status=status_code,
             )
@@ -348,7 +348,7 @@ class HyperliquidResponseHandler:
         headers: Mapping[str, str] | None = None,
     ) -> list[HyperliquidRawPublicTrade]:
         """Validates the /info response for recentTrades."""
-        context = f"info (RecentTrades for {symbol})"
+        context = f"info (recent trades for {symbol})"
         if not isinstance(raw_response_content, list):
             logger.error(
                 f"Unexpected {context} format for {symbol}. "
@@ -381,7 +381,7 @@ class HyperliquidResponseHandler:
                 )
                 # Make the error message more generic to match test expectations
                 error_message = (
-                    f"Invalid single recent trade item in info (RecentTrades for {symbol}) "
+                    f"Invalid single recent trade item (index {i}) in {context} "
                     f"response from exchange. Details: {e.errors()}"
                 )
                 raise APIError(
@@ -416,7 +416,7 @@ class HyperliquidResponseHandler:
         headers: Mapping[str, str] | None = None,
     ) -> HyperliquidRawCandleSnapshot:
         """Validates the /info response for candle_snapshot."""
-        context = f"info (CandleSnapshot for {symbol} {interval})"
+        context = f"info (candle snapshot for {symbol})"
         if not isinstance(raw_response_content, dict):
             logger.error(
                 f"Unexpected {context} format for {symbol} {interval}. "
@@ -424,7 +424,7 @@ class HyperliquidResponseHandler:
             )
             raise APIError(
                 message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 http_status=status_code,
             )
@@ -777,11 +777,12 @@ class HyperliquidResponseHandler:
         headers: Mapping[str, str] | None = None,
     ) -> list[HyperliquidRawFundingHistoryItem]:
         """Validates the /info response for historical funding rates."""
-        context = "historical funding rates"
+        context = "historical_funding_rates"
         if not isinstance(raw_response_content, list):
             # Construct the more specific error message expected by the test
             error_message = (
-                f"Expected list for {context}, got {type(raw_response_content).__name__}"
+                f"Unexpected {context} response format: expected list, "
+                f"got {type(raw_response_content).__name__}"
             )
             logger.error(f"{error_message}. Raw: {raw_response_content!r}")
             raise APIError(message=error_message, code=APIErrorCode.INVALID_RESPONSE.value)
@@ -808,7 +809,8 @@ class HyperliquidResponseHandler:
                 validated_rates.append(validated_item)
             except ValidationError as e:
                 error_message = (
-                    f"Validation error for historical funding rate item at index {i}: {e.errors()}"
+                    f"Invalid single funding history item (index {i}) in {context} "
+                    f"response from exchange. Details: {e.errors()}"
                 )
                 logger.error(
                     f"{error_message} Full raw response: {raw_response_content!r}. "

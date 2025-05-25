@@ -186,8 +186,8 @@ class TestHyperliquidTradingServiceManagement:
                 signal_id=None,
             ),
         ]
-        mock_hl_response_handler.handle_get_open_orders_response.return_value = mock_open_orders
-        mock_hl_response_handler.handle_cancel_order_response.return_value = True
+        mock_hl_response_handler.handle_info_open_orders_response.return_value = mock_open_orders
+        mock_hl_response_handler.handle_exchange_response.return_value = True
 
         # Execute cancel_all_orders
         result = await hl_trading_service.cancel_all_orders(symbol=symbol)
@@ -302,8 +302,8 @@ class TestHyperliquidTradingServiceManagement:
                 signal_id=None,
             ),
         ]
-        mock_hl_response_handler.handle_get_open_orders_response.return_value = mock_open_orders
-        mock_hl_response_handler.handle_cancel_order_response.return_value = True
+        mock_hl_response_handler.handle_info_open_orders_response.return_value = mock_open_orders
+        mock_hl_response_handler.handle_exchange_response.return_value = True
 
         # Execute cancel_all_orders without symbol filter
         result = await hl_trading_service.cancel_all_orders()
@@ -350,7 +350,7 @@ class TestHyperliquidTradingServiceManagement:
         )
 
         # Mock response handler to return empty list
-        mock_hl_response_handler.handle_get_open_orders_response.return_value = []
+        mock_hl_response_handler.handle_info_open_orders_response.return_value = []
 
         # Execute cancel_all_orders
         result = await hl_trading_service.cancel_all_orders()

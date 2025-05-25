@@ -28,6 +28,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_open_orders successfully retrieves open orders."""
         symbol = "SOL_USDC"
@@ -70,14 +71,14 @@ class TestBackpackTradingServiceQueryStatus:
                 relatedOrderId="order_123",
                 symbol=symbol,
                 side="Bid",
-                orderType="Limit",
+                orderType="LIMIT",
                 quantity="10.0",
                 price="100.0",
                 executedQuantity="0",
                 executedQuoteQuantity="0",
                 triggerPrice="0",
                 avgFillPrice="0",
-                status="New",
+                status="NEW",
                 timeInForce="GTC",
                 triggerBy="last",
                 reduceOnly=False,
@@ -114,6 +115,7 @@ class TestBackpackTradingServiceQueryStatus:
                 endpoint_group="private",
                 request_weight=1,
                 is_public_info_endpoint=False,
+                rate_limiter_service=mock_rate_limiter_service,
             )
             mock_response_handler.handle_get_open_orders_response.assert_called_once_with(
                 mock_raw_response_content, symbol
@@ -128,6 +130,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_open_orders when HTTP client returns None content."""
         symbol = "SOL_USDC"
@@ -154,6 +157,7 @@ class TestBackpackTradingServiceQueryStatus:
                 endpoint_group="private",
                 request_weight=1,
                 is_public_info_endpoint=False,
+                rate_limiter_service=mock_rate_limiter_service,
             )
             mock_response_handler.handle_get_open_orders_response.assert_not_called()
             mock_mapper.transform_raw_order_to_internal.assert_not_called()
@@ -165,6 +169,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_open_orders handles validation error from response handler."""
         symbol = "SOL_USDC"
@@ -193,6 +198,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_open_orders handles unexpected exception."""
         symbol = "SOL_USDC"
@@ -218,6 +224,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_order_status successfully retrieves order status."""
         symbol = "SOL_USDC"
@@ -237,7 +244,7 @@ class TestBackpackTradingServiceQueryStatus:
             "executedQuoteQuantity": "500.0",
             "triggerPrice": "0",
             "avgFillPrice": "100.0",
-            "status": "PartiallyFilled",
+            "status": "PARTIALLY_FILLED",
             "timeInForce": "GTC",
             "triggerBy": "last",
             "reduceOnly": False,
@@ -258,14 +265,14 @@ class TestBackpackTradingServiceQueryStatus:
             relatedOrderId="order_123",
             symbol=symbol,
             side="Bid",
-            orderType="Limit",
+            orderType="LIMIT",
             quantity="10.0",
             price="100.0",
             executedQuantity="5.0",
             executedQuoteQuantity="500.0",
             triggerPrice="0",
             avgFillPrice="100.0",
-            status="PartiallyFilled",
+            status="PARTIALLY_FILLED",
             timeInForce="GTC",
             triggerBy="last",
             reduceOnly=False,
@@ -279,7 +286,7 @@ class TestBackpackTradingServiceQueryStatus:
         )
         mock_internal_order = MagicMock()
 
-        mock_request_builder.build_get_order_status_params.return_value = mock_params
+        mock_request_builder.build_get_order_params.return_value = mock_params
         mock_http_client_requester.return_value = (
             mock_raw_response_content,
             mock_status_code,
@@ -292,20 +299,19 @@ class TestBackpackTradingServiceQueryStatus:
 
             result = await bp_trading_service.get_order_status(order_id=order_id, symbol=symbol)
 
-            mock_request_builder.build_get_order_status_params.assert_called_once_with(
-                order_id=order_id, symbol=symbol, client_order_id=None
-            )
+            mock_request_builder.build_get_order_params.assert_called_once_with(symbol=symbol)
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
-                endpoint=mock_endpoint_path,
+                endpoint=f"{mock_endpoint_path}/{order_id}",
                 params=mock_params,
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
                 is_public_info_endpoint=False,
+                rate_limiter_service=mock_rate_limiter_service,
             )
             mock_response_handler.handle_get_order_status_response.assert_called_once_with(
-                mock_raw_response_content, order_id, symbol
+                mock_raw_response_content, order_id
             )
             mock_mapper.transform_raw_order_to_internal.assert_called_once_with(mock_raw_order)
             assert result == mock_internal_order
@@ -317,6 +323,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_order_status when HTTP client returns None content."""
         symbol = "SOL_USDC"
@@ -324,7 +331,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_endpoint_path = "/api/v1/order"
         mock_params = {"symbol": symbol, "orderId": order_id}
 
-        mock_request_builder.build_get_order_status_params.return_value = mock_params
+        mock_request_builder.build_get_order_params.return_value = mock_params
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
         with patch.object(bp_trading_service, "_trading_mapper", autospec=True) as mock_mapper:
@@ -332,20 +339,19 @@ class TestBackpackTradingServiceQueryStatus:
                 await bp_trading_service.get_order_status(symbol=symbol, order_id=order_id)
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-            expected_msg_part = f"No data for get_order_status {symbol}, status: 200"
+            expected_msg_part = f"Get order {order_id} ({symbol}) returned invalid data"
             assert expected_msg_part in exc_info.value.message
 
-            mock_request_builder.build_get_order_status_params.assert_called_once_with(
-                symbol=symbol, order_id=order_id, client_order_id=None
-            )
+            mock_request_builder.build_get_order_params.assert_called_once_with(symbol=symbol)
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
-                endpoint=mock_endpoint_path,
+                endpoint=f"{mock_endpoint_path}/{order_id}",
                 params=mock_params,
                 is_signed=True,
-                is_public_info_endpoint=False,
-                endpoint_group="trading",
+                endpoint_group="private",
                 request_weight=1,
+                is_public_info_endpoint=False,
+                rate_limiter_service=mock_rate_limiter_service,
             )
             mock_response_handler.handle_get_order_status_response.assert_not_called()
             mock_mapper.transform_raw_order_to_internal.assert_not_called()
@@ -357,6 +363,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_order_status handles validation error from response handler."""
         symbol = "SOL_USDC"
@@ -364,7 +371,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_params = {"symbol": symbol, "orderId": order_id}
         mock_raw_response = {"invalid": "order_data"}
 
-        mock_request_builder.build_get_order_status_params.return_value = mock_params
+        mock_request_builder.build_get_order_params.return_value = mock_params
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
 
         # Create a ValidationError by trying to validate invalid data
@@ -376,8 +383,8 @@ class TestBackpackTradingServiceQueryStatus:
         with pytest.raises(APIError) as exc_info:
             await bp_trading_service.get_order_status(symbol=symbol, order_id=order_id)
 
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Processing get_order_status failed" in exc_info.value.message
+        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+        assert f"Unexpected error getting order {order_id} ({symbol})" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_order_status_unexpected_exception(
@@ -386,6 +393,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_order_status handles unexpected exception."""
         symbol = "SOL_USDC"
@@ -393,7 +401,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_params = {"symbol": symbol, "orderId": order_id}
         mock_raw_response = {"id": order_id, "symbol": symbol}
 
-        mock_request_builder.build_get_order_status_params.return_value = mock_params
+        mock_request_builder.build_get_order_params.return_value = mock_params
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_order_status_response.side_effect = Exception(
             "Unexpected error"
@@ -403,7 +411,7 @@ class TestBackpackTradingServiceQueryStatus:
             await bp_trading_service.get_order_status(symbol=symbol, order_id=order_id)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected error for get_order_status" in exc_info.value.message
+        assert f"Unexpected error getting order {order_id} ({symbol})" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_order_status_not_found(
@@ -411,13 +419,14 @@ class TestBackpackTradingServiceQueryStatus:
         bp_trading_service: BackpackTradingService,
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_order_status when order is not found."""
         symbol = "SOL_USDC"
         order_id = "nonexistent_order"
 
         mock_params = {"symbol": symbol, "orderId": order_id}
-        mock_request_builder.build_get_order_status_params.return_value = mock_params
+        mock_request_builder.build_get_order_params.return_value = mock_params
         mock_http_client_requester.return_value = (None, 404, {})
 
         with pytest.raises(APIError) as exc_info:
@@ -433,6 +442,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_order successfully retrieves an order."""
         symbol = "SOL_USDC"
@@ -453,7 +463,7 @@ class TestBackpackTradingServiceQueryStatus:
             "executedQuoteQuantity": "500.0",
             "triggerPrice": "0",
             "avgFillPrice": "100.0",
-            "status": "PartiallyFilled",
+            "status": "PARTIALLY_FILLED",
             "timeInForce": "GTC",
             "triggerBy": "last",
             "reduceOnly": False,
@@ -474,14 +484,14 @@ class TestBackpackTradingServiceQueryStatus:
             relatedOrderId="order_123",
             symbol=symbol,
             side="Bid",
-            orderType="Limit",
+            orderType="LIMIT",
             quantity="10.0",
             price="100.0",
             executedQuantity="5.0",
             executedQuoteQuantity="500.0",
             triggerPrice="0",
             avgFillPrice="100.0",
-            status="PartiallyFilled",
+            status="PARTIALLY_FILLED",
             timeInForce="GTC",
             triggerBy="last",
             reduceOnly=False,
@@ -519,6 +529,7 @@ class TestBackpackTradingServiceQueryStatus:
                 endpoint_group="private",
                 request_weight=1,
                 is_public_info_endpoint=False,
+                rate_limiter_service=mock_rate_limiter_service,
             )
             mock_response_handler.handle_get_order_status_response.assert_called_once_with(
                 mock_raw_response_content, order_id
@@ -533,10 +544,12 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_order when HTTP client returns None content."""
         symbol = "SOL_USDC"
         order_id = "12345"
+        mock_endpoint_path = "/api/v1/order"
         mock_params = {"symbol": symbol}
 
         mock_request_builder.build_get_order_params.return_value = mock_params
@@ -551,6 +564,16 @@ class TestBackpackTradingServiceQueryStatus:
             assert expected_msg_part in exc_info.value.message
 
             mock_request_builder.build_get_order_params.assert_called_once_with(symbol=symbol)
+            mock_http_client_requester.assert_called_once_with(
+                method="GET",
+                endpoint=f"{mock_endpoint_path}/{order_id}",
+                params=mock_params,
+                is_signed=True,
+                endpoint_group="private",
+                request_weight=1,
+                is_public_info_endpoint=False,
+                rate_limiter_service=mock_rate_limiter_service,
+            )
             mock_response_handler.handle_get_order_status_response.assert_not_called()
             mock_mapper.transform_raw_order_to_internal.assert_not_called()
 
@@ -561,6 +584,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_order handles validation error from response handler."""
         symbol = "SOL_USDC"
@@ -590,6 +614,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_all_open_orders successfully retrieves all open orders."""
         mock_endpoint_path = "/api/v1/orders"
@@ -656,14 +681,14 @@ class TestBackpackTradingServiceQueryStatus:
                 relatedOrderId="rel_1",
                 symbol="SOL_USDC",
                 side="Bid",
-                orderType="Limit",
+                orderType="LIMIT",
                 quantity="10.0",
                 price="20.0",
                 executedQuantity="0",
                 executedQuoteQuantity="0",
                 triggerPrice="0",
                 avgFillPrice="0",
-                status="New",
+                status="NEW",
                 timeInForce="GTC",
                 triggerBy="last",
                 reduceOnly=False,
@@ -681,14 +706,14 @@ class TestBackpackTradingServiceQueryStatus:
                 relatedOrderId="rel_2",
                 symbol="ETH_USDC",
                 side="Ask",
-                orderType="Market",
+                orderType="MARKET",
                 quantity="5.0",
                 price="0",
                 executedQuantity="0",
                 executedQuoteQuantity="0",
                 triggerPrice="0",
                 avgFillPrice="0",
-                status="New",
+                status="NEW",
                 timeInForce="GTC",
                 triggerBy="last",
                 reduceOnly=False,
@@ -725,6 +750,7 @@ class TestBackpackTradingServiceQueryStatus:
                 endpoint_group="private",
                 request_weight=1,
                 is_public_info_endpoint=False,
+                rate_limiter_service=mock_rate_limiter_service,
             )
             mock_response_handler.handle_get_open_orders_response.assert_called_once_with(
                 mock_raw_response_content, None

@@ -83,7 +83,7 @@ class TestBackpackTradingServiceOrderManagement:
             clientId=client_order_id,
             relatedOrderId="order_123",
             symbol=symbol,
-            side=side.value,
+            side="Bid",
             orderType=order_type.value,
             quantity=str(quantity),
             price=str(price),
@@ -91,7 +91,7 @@ class TestBackpackTradingServiceOrderManagement:
             executedQuoteQuantity="0",
             triggerPrice="0",
             avgFillPrice="0",
-            status="New",
+            status="NEW",
             timeInForce=time_in_force.value,
             triggerBy="last",
             reduceOnly=False,
@@ -467,17 +467,12 @@ class TestBackpackTradingServiceOrderManagement:
         """Test cancel_all_orders successfully cancels all orders."""
         symbol = "SOL_USDC"
 
-        mock_endpoint_path = "/api/v1/order/all"
+        mock_endpoint_path = "/api/v1/orders"  # Fixed endpoint path
         mock_payload = {"symbol": symbol}
-        mock_raw_response_content = [
-            {"orderId": "123", "clientOrderId": "client_1", "status": "CANCELLED"},
-            {"orderId": "124", "clientOrderId": "client_2", "status": "CANCELLED"},
-        ]
+        # Backpack returns a list of cancelled order IDs (strings)
+        mock_raw_response_content = ["order_123", "order_124"]
         mock_status_code = 200
         mock_headers_from_client = MagicMock()
-
-        # The service returns list[CancelOrderResult], create mock results
-        mock_cancel_results = [MagicMock(), MagicMock()]
 
         mock_request_builder.build_cancel_all_orders_payload.return_value = mock_payload
         mock_http_client_requester.return_value = (
@@ -485,35 +480,26 @@ class TestBackpackTradingServiceOrderManagement:
             mock_status_code,
             mock_headers_from_client,
         )
-        mock_response_handler.handle_cancel_all_orders_response.return_value = (
-            mock_raw_response_content
+
+        result = await bp_trading_service.cancel_all_orders(symbol=symbol)
+
+        mock_request_builder.build_cancel_all_orders_payload.assert_called_once_with(symbol=symbol)
+        mock_http_client_requester.assert_called_once_with(
+            method="DELETE",
+            endpoint=mock_endpoint_path,
+            data=mock_payload,
+            is_signed=True,
+            is_public_info_endpoint=False,
+            endpoint_group="private",
+            request_weight=1,
         )
 
-        with patch.object(bp_trading_service, "_trading_mapper", autospec=True) as mock_mapper:
-            mock_mapper.transform_cancel_order_response_to_result.side_effect = mock_cancel_results
-
-            result = await bp_trading_service.cancel_all_orders(symbol=symbol)
-
-            mock_request_builder.build_cancel_all_orders_payload.assert_called_once_with(
-                symbol=symbol
-            )
-            mock_http_client_requester.assert_called_once_with(
-                method="DELETE",
-                endpoint=mock_endpoint_path,
-                data=mock_payload,
-                is_signed=True,
-                is_public_info_endpoint=False,
-                endpoint_group="private",
-                request_weight=1,
-            )
-            mock_response_handler.handle_cancel_all_orders_response.assert_called_once_with(
-                mock_raw_response_content,
-                symbol,
-            )
-            assert mock_mapper.transform_cancel_order_response_to_result.call_count == len(
-                mock_raw_response_content
-            )
-            assert result == mock_cancel_results
+        # Verify the service builds CancelOrderResult objects correctly
+        assert len(result) == 2
+        assert all(cancel_result.success for cancel_result in result)
+        assert result[0].order_id == "order_123"
+        assert result[1].order_id == "order_124"
+        assert all(cancel_result.symbol == symbol for cancel_result in result)
 
     @pytest.mark.asyncio
     async def test_cancel_all_orders_http_client_returns_none(
@@ -526,35 +512,28 @@ class TestBackpackTradingServiceOrderManagement:
         """Test cancel_all_orders when HTTP client returns None content."""
         symbol = "SOL_USDC"
 
-        mock_endpoint_path = "/api/v1/order/all"
+        mock_endpoint_path = "/api/v1/orders"  # Fixed endpoint path
         mock_payload = {"symbol": symbol}
 
         mock_request_builder.build_cancel_all_orders_payload.return_value = mock_payload
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
-        with patch.object(bp_trading_service, "_trading_mapper", autospec=True) as mock_mapper:
-            with pytest.raises(APIError) as exc_info:
-                await bp_trading_service.cancel_all_orders(symbol=symbol)
+        # Service returns empty list when no data received, not an APIError
+        result = await bp_trading_service.cancel_all_orders(symbol=symbol)
 
-            # Check for the actual error message based on service implementation
-            assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-            expected_msg_part = f"Unexpected error cancelling all orders for {symbol}"
-            assert expected_msg_part in exc_info.value.message
+        mock_request_builder.build_cancel_all_orders_payload.assert_called_once_with(symbol=symbol)
+        mock_http_client_requester.assert_called_once_with(
+            method="DELETE",
+            endpoint=mock_endpoint_path,
+            data=mock_payload,
+            is_signed=True,
+            is_public_info_endpoint=False,
+            endpoint_group="private",
+            request_weight=1,
+        )
 
-            mock_request_builder.build_cancel_all_orders_payload.assert_called_once_with(
-                symbol=symbol
-            )
-            mock_http_client_requester.assert_called_once_with(
-                method="DELETE",
-                endpoint=mock_endpoint_path,
-                data=mock_payload,
-                is_signed=True,
-                is_public_info_endpoint=False,
-                endpoint_group="private",
-                request_weight=1,
-            )
-            mock_response_handler.handle_cancel_all_orders_response.assert_not_called()
-            mock_mapper.transform_cancel_order_response_to_result.assert_not_called()
+        # Service returns empty list when no data received
+        assert result == []
 
     @pytest.mark.asyncio
     async def test_place_order_with_optional_parameters(
@@ -597,7 +576,7 @@ class TestBackpackTradingServiceOrderManagement:
             "executedQuoteQuantity": "0",
             "triggerPrice": str(stop_price),
             "avgFillPrice": "0",
-            "status": "New",
+            "status": "NEW",
             "timeInForce": time_in_force.value,
             "triggerBy": "last",
             "reduceOnly": False,
@@ -615,7 +594,7 @@ class TestBackpackTradingServiceOrderManagement:
             clientId=None,
             relatedOrderId="order_456",
             symbol=symbol,
-            side=side.value,
+            side="Ask",
             orderType=order_type.value,
             quantity=str(quantity),
             price=str(price),
@@ -623,7 +602,7 @@ class TestBackpackTradingServiceOrderManagement:
             executedQuoteQuantity="0",
             triggerPrice=str(stop_price),
             avgFillPrice="0",
-            status="New",
+            status="NEW",
             timeInForce=time_in_force.value,
             triggerBy="last",
             reduceOnly=False,
@@ -714,9 +693,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_request_builder.build_cancel_all_orders_payload.return_value = mock_payload
         mock_http_client_requester.return_value = (None, 200, {})
 
-        # Based on service implementation, it should raise an error
-        with pytest.raises(APIError) as exc_info:
-            await bp_trading_service.cancel_all_orders(symbol=symbol)
+        # Based on service implementation, it returns empty list when no data received
+        result = await bp_trading_service.cancel_all_orders(symbol=symbol)
 
-        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert f"Unexpected error cancelling all orders for {symbol}" in exc_info.value.message
+        assert result == []

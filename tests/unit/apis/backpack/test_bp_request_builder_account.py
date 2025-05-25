@@ -65,7 +65,9 @@ class TestBuildGetFundingRateParams:
     def test_build_get_funding_rate_params_perp_symbol(self, symbol_perp: str) -> None:
         """Test build_get_funding_rate_params with perp symbol."""
         params = BackpackRequestBuilder.build_get_funding_rate_params(symbol_perp)
-        assert params == {"symbol": symbol_perp}
+        # The symbol should be formatted (dash to underscore conversion)
+        expected_symbol = symbol_perp.replace("-", "_").upper()
+        assert params == {"symbol": expected_symbol}
 
     def test_build_get_funding_rate_params_formats_symbol(self) -> None:
         """Test build_get_funding_rate_params formats symbol correctly."""

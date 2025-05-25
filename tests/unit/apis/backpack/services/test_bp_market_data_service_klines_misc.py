@@ -323,12 +323,13 @@ class TestBackpackMarketDataServiceKlinesMisc:
         mock_request_builder.build_get_ticker_params.return_value = {"symbol": "TEST"}
         mock_http_client_requester.return_value = ({"symbol": "TEST", "price": "100.0"}, 200, {})
         mock_response_handler.handle_get_ticker_response.return_value = MagicMock()
-        mock_mapper.transform_raw_ticker_to_internal.return_value = MagicMock()
 
-        with patch.object(service, "_mapper", mock_mapper):
-            await service.get_ticker("TEST")
+        # Configure the mock to have the method and set its return value
+        mock_mapper.transform_raw_ticker_to_internal = MagicMock(return_value=MagicMock())
 
-        # Verify the injected mapper was used
+        await service.get_ticker("TEST")
+
+        # Verify the mapper method was called
         mock_mapper.transform_raw_ticker_to_internal.assert_called_once()
 
     @pytest.mark.asyncio
@@ -354,12 +355,12 @@ class TestBackpackMarketDataServiceKlinesMisc:
         mock_http_client_requester.return_value = ({"symbol": "TEST", "price": "100.0"}, 200, {})
         mock_response_handler.handle_get_ticker_response.return_value = MagicMock()
 
-        # Mock the mapper for this test
-        mock_mapper = MagicMock(spec=BackpackMarketDataMapper)
-        mock_mapper.transform_raw_ticker_to_internal.return_value = MagicMock()
-
-        with patch.object(service, "_mapper", mock_mapper):
+        # Mock the static method on the class
+        with patch.object(
+            BackpackMarketDataMapper, "transform_raw_ticker_to_internal"
+        ) as mock_transform:
+            mock_transform.return_value = MagicMock()
             await service.get_ticker("TEST")
 
-        # Verify the default mapper functionality works
-        mock_mapper.transform_raw_ticker_to_internal.assert_called_once()
+        # Verify the static method was called
+        mock_transform.assert_called_once()

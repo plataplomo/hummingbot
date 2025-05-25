@@ -214,8 +214,11 @@ class TestBackpackAccountServicePositions:
         mock_params = {"symbol": symbol}
         mock_request_builder.build_get_positions_params.return_value = mock_params
         mock_http_client_requester.return_value = ([{"invalid": "position"}], 200, {})
-        mock_response_handler.handle_get_positions_response.side_effect = ValidationError(
-            "Validation failed"
+        mock_response_handler.handle_get_positions_response.side_effect = (
+            ValidationError.from_exception_data(
+                title="ValidationError",
+                line_errors=[],
+            )
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -257,10 +260,24 @@ class TestBackpackAccountServicePositions:
         """Test get_positions with None symbol (all positions scenario)."""
         mock_raw_position_data = {
             "symbol": "SOL_USDC",
-            "side": "long",
-            "size": "10.0",
+            "breakEvenPrice": "100.0",
             "entryPrice": "100.0",
-            "unrealizedPnl": "50.0",
+            "estLiquidationPrice": "90.0",
+            "imf": "0.1",
+            "imfFunction": {"base": "0.05", "factor": "0.01"},
+            "markPrice": "105.0",
+            "mmf": "0.05",
+            "mmfFunction": {"base": "0.03", "factor": "0.005"},
+            "netCost": "1000.0",
+            "netQuantity": "10.0",
+            "netExposureQuantity": "10.0",
+            "netExposureNotional": "1050.0",
+            "pnlRealized": "0.0",
+            "pnlUnrealized": "50.0",
+            "cumulativeFundingPayment": "5.0",
+            "userId": 123,
+            "positionId": "pos123",
+            "cumulativeInterest": "0.0",
         }
         mock_raw_response = [mock_raw_position_data]
         mock_validated_positions = [BackpackRawPosition.model_validate(mock_raw_position_data)]
@@ -304,10 +321,24 @@ class TestBackpackAccountServicePositions:
         proper DerivativePosition construction."""
         mock_raw_position_data = {
             "symbol": "SOL_USDC",
-            "side": "long",
-            "size": "10.0",
+            "breakEvenPrice": "100.0",
             "entryPrice": "100.0",
-            "unrealizedPnl": "50.0",
+            "estLiquidationPrice": "90.0",
+            "imf": "0.1",
+            "imfFunction": {"base": "0.05", "factor": "0.01"},
+            "markPrice": "105.0",
+            "mmf": "0.05",
+            "mmfFunction": {"base": "0.03", "factor": "0.005"},
+            "netCost": "1000.0",
+            "netQuantity": "10.0",
+            "netExposureQuantity": "10.0",
+            "netExposureNotional": "1050.0",
+            "pnlRealized": "0.0",
+            "pnlUnrealized": "50.0",
+            "cumulativeFundingPayment": "5.0",
+            "userId": 123,
+            "positionId": "pos123",
+            "cumulativeInterest": "0.0",
         }
         mock_raw_response = [mock_raw_position_data]
         mock_validated_positions = [BackpackRawPosition.model_validate(mock_raw_position_data)]
@@ -351,8 +382,11 @@ class TestBackpackAccountServicePositions:
         mock_params = {"symbol": symbol}
         mock_request_builder.build_get_positions_params.return_value = mock_params
         mock_http_client_requester.return_value = ([{"invalid": "position"}], 200, {})
-        mock_response_handler.handle_get_positions_response.side_effect = ValidationError(
-            "Validation failed"
+        mock_response_handler.handle_get_positions_response.side_effect = (
+            ValidationError.from_exception_data(
+                title="ValidationError",
+                line_errors=[],
+            )
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -439,8 +473,11 @@ class TestBackpackAccountServicePositions:
         mock_request_builder.build_get_positions_params.return_value = {"symbol": symbol}
         mock_http_client_requester.return_value = ([mock_raw_position.model_dump()], 200, {})
         mock_response_handler.handle_get_positions_response.return_value = [mock_raw_position]
-        mock_mapper.transform_raw_position_to_internal.side_effect = ValidationError(
-            "Mapping error"
+        mock_mapper.transform_raw_position_to_internal.side_effect = (
+            ValidationError.from_exception_data(
+                title="ValidationError",
+                line_errors=[],
+            )
         )
 
         with patch.object(bp_account_service, "_mapper", mock_mapper):

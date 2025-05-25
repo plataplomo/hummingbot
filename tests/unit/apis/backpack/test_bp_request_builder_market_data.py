@@ -18,7 +18,8 @@ class TestBuildGetTickerParams:
     def test_build_get_ticker_params_perp_symbol(self, symbol_perp: str) -> None:
         """Test build_get_ticker_params with perp symbol."""
         params = BackpackRequestBuilder.build_get_ticker_params(symbol_perp)
-        assert params == {"symbol": symbol_perp}
+        expected_symbol = symbol_perp.replace("-", "_").upper()
+        assert params == {"symbol": expected_symbol}
 
     def test_build_get_ticker_params_formats_symbol(self) -> None:
         """Test build_get_ticker_params formats symbol correctly."""
@@ -116,7 +117,7 @@ class TestBuildGetMarketDataParams:
     def test_build_get_market_data_params_basic(self, symbol_spot: str) -> None:
         """Test build_get_market_data_params with basic parameters."""
         params = BackpackRequestBuilder.build_get_market_data_params(
-            symbol_spot, "1h", 100, None, None
+            symbol_spot, "1h", None, None, 100
         )
         expected = {"symbol": symbol_spot, "interval": "1h", "limit": 100}
         assert params == expected
@@ -126,7 +127,7 @@ class TestBuildGetMarketDataParams:
     ) -> None:
         """Test build_get_market_data_params with start and end times."""
         params = BackpackRequestBuilder.build_get_market_data_params(
-            symbol_spot, "5m", 50, past_timestamp_ms, current_timestamp_ms
+            symbol_spot, "5m", past_timestamp_ms, current_timestamp_ms, 50
         )
         expected = {
             "symbol": symbol_spot,
@@ -140,7 +141,7 @@ class TestBuildGetMarketDataParams:
     def test_build_get_market_data_params_formats_symbol(self) -> None:
         """Test build_get_market_data_params formats symbol correctly."""
         params = BackpackRequestBuilder.build_get_market_data_params(
-            "SOL-USDC", "1m", 200, None, None
+            "SOL-USDC", "1m", None, None, 200
         )
         expected = {"symbol": "SOL_USDC", "interval": "1m", "limit": 200}
         assert params == expected
@@ -159,7 +160,7 @@ class TestBuildGetMarketDataParams:
     ) -> None:
         """Test build_get_market_data_params with various timeframes."""
         params = BackpackRequestBuilder.build_get_market_data_params(
-            symbol_spot, timeframe, limit, None, None
+            symbol_spot, timeframe, None, None, limit
         )
         expected = {"symbol": symbol_spot, "interval": expected_interval, "limit": limit}
         assert params == expected
@@ -181,7 +182,8 @@ class TestBuildGetHistoricalTradesParams:
         params = BackpackRequestBuilder.build_get_historical_trades_params(
             symbol_perp, 50, "trade123"
         )
-        expected = {"symbol": symbol_perp, "limit": 50, "fromId": "trade123"}
+        expected_symbol = symbol_perp.replace("-", "_").upper()
+        expected = {"symbol": expected_symbol, "limit": 50, "fromId": "trade123"}
         assert params == expected
 
     def test_build_get_historical_trades_params_formats_symbol(self) -> None:

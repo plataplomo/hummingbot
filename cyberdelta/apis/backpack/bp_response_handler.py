@@ -75,7 +75,7 @@ class BackpackResponseHandler:
         if not isinstance(raw_response_content, dict):
             raise APIError(
                 message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
         try:
@@ -97,7 +97,7 @@ class BackpackResponseHandler:
         if not isinstance(raw_response_content, dict):
             raise APIError(
                 message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
         try:
@@ -119,7 +119,7 @@ class BackpackResponseHandler:
         if not isinstance(raw_response_content, list):
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
@@ -146,7 +146,7 @@ class BackpackResponseHandler:
         if not isinstance(raw_response_content, dict):
             raise APIError(
                 message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
@@ -187,7 +187,7 @@ class BackpackResponseHandler:
         if not isinstance(raw_response_content, list):
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
@@ -220,7 +220,7 @@ class BackpackResponseHandler:
         if not isinstance(raw_response_content, dict):
             raise APIError(
                 message=f"Unexpected {context} format: expected dict, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
         try:
@@ -255,7 +255,7 @@ class BackpackResponseHandler:
         if not isinstance(raw_response_content, list):
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
@@ -299,14 +299,14 @@ class BackpackResponseHandler:
                     raise APIError(
                         message=(
                             f"Unexpected item type in list for {context} response: "
-                            f"expected dict, got {type(raw_response_content[0])}"
+                            f"expected dict, got {type(raw_response_content[0]).__name__}"
                         ),
                         code=APIErrorCode.INVALID_RESPONSE.value,
                     )
             else:
                 raise APIError(
                     message=f"Unexpected {context} response format: expected dict or list, "
-                    f"got {type(raw_response_content)}",
+                    f"got {type(raw_response_content).__name__}",
                     code=APIErrorCode.INVALID_RESPONSE.value,
                 )
         else:
@@ -328,7 +328,7 @@ class BackpackResponseHandler:
         if not isinstance(raw_response_content, dict):
             raise APIError(
                 message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
         try:
@@ -347,7 +347,7 @@ class BackpackResponseHandler:
         if not isinstance(raw_response_content, dict):
             raise APIError(
                 message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
         try:
@@ -366,7 +366,7 @@ class BackpackResponseHandler:
         if not isinstance(raw_response_content, list):
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
@@ -395,7 +395,7 @@ class BackpackResponseHandler:
         if not isinstance(raw_response_content, list):
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
@@ -425,7 +425,7 @@ class BackpackResponseHandler:
         if not isinstance(raw_response_content, list):
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
@@ -474,7 +474,7 @@ class BackpackResponseHandler:
         if not isinstance(raw_response_content, list):
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
@@ -506,7 +506,7 @@ class BackpackResponseHandler:
         if not isinstance(raw_response_content, dict):
             raise APIError(
                 message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
         try:
@@ -535,11 +535,11 @@ class BackpackResponseHandler:
             # Let's strictly expect a list or raise.
             logger.error(
                 f"[{__name__}] Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content)}. Raw: {raw_response_content!r}"
+                f"got {type(raw_response_content).__name__}. Raw: {raw_response_content!r}"
             )
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 metadata={"raw_response": raw_response_content},  # Pass raw content in metadata
             )
@@ -585,7 +585,7 @@ class BackpackResponseHandler:
         if not isinstance(raw_response_content, dict):
             raise APIError(
                 message=(
-                    f"Unexpected {context} format: expected dict, got {type(raw_response_content)}"
+                    f"Unexpected {context} format: expected dict, got {type(raw_response_content).__name__}"
                 ),
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
@@ -636,7 +636,7 @@ class BackpackResponseHandler:
         if not isinstance(raw_response_content, dict):
             raise APIError(
                 message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
         try:
@@ -660,7 +660,7 @@ class BackpackResponseHandler:
         if not isinstance(raw_response_content, list):
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content)}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
