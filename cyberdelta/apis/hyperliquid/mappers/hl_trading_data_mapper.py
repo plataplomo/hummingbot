@@ -249,8 +249,9 @@ class HyperliquidTradingDataMapper:
                     # but no price data, we cannot determine a valid average_fill_price.
                     # Set quantity_filled to 0 to maintain model consistency.
                     logger.warning(
-                        f"Order {raw_order.oid}: quantity_filled={quantity_filled} but no valid price "
-                        f"available. Setting quantity_filled=0 to maintain model consistency."
+                        f"Order {raw_order.oid}: quantity_filled={quantity_filled} "
+                        f"but no valid price available. Setting quantity_filled=0 to "
+                        f"maintain model consistency."
                     )
                     quantity_filled = Decimal("0")
 
@@ -406,8 +407,9 @@ class HyperliquidTradingDataMapper:
                     # but no price data, we cannot determine a valid average_fill_price.
                     # Set quantity_filled to 0 to maintain model consistency.
                     logger.warning(
-                        f"Order {raw_historical_order.oid}: quantity_filled={quantity_filled} but no valid price "
-                        f"available. Setting quantity_filled=0 to maintain model consistency."
+                        f"Order {raw_historical_order.oid}: quantity_filled={quantity_filled} "
+                        f"but no valid price available. Setting quantity_filled=0 to "
+                        f"maintain model consistency."
                     )
                     quantity_filled = Decimal("0")
 
@@ -462,3 +464,27 @@ class HyperliquidTradingDataMapper:
             raise TransformationError(
                 f"Failed to transform HyperliquidRawHistoricalOrder to Order: {e}"
             ) from e
+
+    @staticmethod
+    def transform_ws_order_update_to_internal_order(
+        raw_order: HyperliquidRawOrder,
+        trigger: HyperliquidRawTriggerInfo | None = None,
+    ) -> Order:
+        """
+        Transforms a HyperliquidRawOrder (from WebSocket order update event) to an
+        Internal Order model.
+
+        This is an alias for transform_raw_order_to_internal for consistency with
+        WebSocket naming.
+
+        Args:
+            raw_order: Validated raw order data from Hyperliquid WebSocket
+            trigger: Optional trigger info for stop/take profit orders
+
+        Returns:
+            Order: Internal domain model with populated fields
+
+        Raises:
+            TransformationError: If transformation fails
+        """
+        return HyperliquidTradingDataMapper.transform_raw_order_to_internal(raw_order, trigger)

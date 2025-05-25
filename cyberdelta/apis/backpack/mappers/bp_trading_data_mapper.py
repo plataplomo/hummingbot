@@ -22,7 +22,7 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder, BackpackRawOrderUpdate
 from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import Order
@@ -320,3 +320,91 @@ class BackpackTradingDataMapper:
 
         except Exception as e:
             raise TransformationError(f"Failed to transform BackpackRawOrder to Order: {e}") from e
+
+    @staticmethod
+    def transform_ws_order_update_to_internal_order(
+        raw_order_update: BackpackRawOrderUpdate,
+    ) -> Order:
+        """
+        Transforms a BackpackRawOrderUpdate (WebSocket order update event) to an
+        Internal Order model.
+
+        Args:
+            raw_order_update: Validated raw order update event data from Backpack WebSocket
+
+        Returns:
+            Order: Internal domain model with populated fields
+
+        Raises:
+            TransformationError: If transformation fails
+        """
+        try:
+            # Map enums
+            mapped_side = BackpackTradingDataMapper._map_side_to_internal(raw_order_update.side)
+            mapped_type = BackpackTradingDataMapper._map_type_to_internal(
+                raw_order_update.order_type
+            )
+            mapped_status = BackpackTradingDataMapper._map_status_to_internal(
+                raw_order_update.order_status
+            )
+            mapped_tif = BackpackTradingDataMapper._map_time_in_force(
+                raw_order_update.time_in_force or "gtc"
+            )
+
+            # Parse quantities
+            if raw_order_update.quantity:
+                quantity_requested = parse_decimal_value(
+                    raw_order_update.quantity, allow_none=False, field_name="quantity"
+                )
+                # DEFENSIVE CHECK: Ensure quantity_requested is not None after parsing.
+                # Mypy=[unreachable] Ruff=[unreachable]
+                if quantity_requested is None:
+                    quantity_requested = Decimal("0")
+            else:
+                quantity_requested = Decimal("0")
+
+            # For WebSocket order updates, we don't have filled quantity info
+            quantity_filled = Decimal("0")
+
+            # Parse price
+            order_price = None
+            if raw_order_update.price:
+                order_price = parse_decimal_value(
+                    raw_order_update.price, allow_none=True, field_name="price"
+                )
+
+            # Parse timestamps
+            event_timestamp = None
+            if raw_order_update.event_time:
+                event_timestamp = parse_datetime_utc(
+                    raw_order_update.event_time, field_name="event_time"
+                )
+
+            if event_timestamp is None:
+                event_timestamp = datetime.now(UTC)
+
+            return Order(
+                exchange_order_id=f"ws_order_{raw_order_update.event_type}_{int(event_timestamp.timestamp())}",
+                symbol=raw_order_update.symbol,
+                side=mapped_side,
+                order_type=mapped_type,
+                status=mapped_status,
+                quantity_requested=quantity_requested,
+                quantity_filled=quantity_filled,
+                price=order_price,
+                time_in_force=mapped_tif,
+                exchange=ExchangeName.BACKPACK.value,
+                client_order_id=raw_order_update.client_order_id or str(uuid.uuid4()),
+                created_at=event_timestamp,
+                updated_at=event_timestamp,
+                triggered_at=None,
+                strategy_name=None,
+                signal_id=None,
+                reduce_only=False,
+                post_only=False,
+            )
+
+        except Exception as e:
+            raise TransformationError(
+                f"Failed to transform BackpackRawOrderUpdate to Order: {e}"
+            ) from e

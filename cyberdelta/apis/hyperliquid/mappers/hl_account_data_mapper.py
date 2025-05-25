@@ -22,6 +22,7 @@ All transformation methods follow the standard pattern:
 import logging
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
 from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
@@ -31,6 +32,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsFillEvent,
+    HyperliquidRawWsPositionUpdateEvent,
 )
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import (
@@ -222,15 +224,15 @@ class HyperliquidAccountDataMapper:
                             )
                         except (ValueError, TypeError) as e:
                             logger.warning(
-                                f"Failed to parse entry price for {symbol}: {entry_price_str}, error: {e}"
+                                f"Failed to parse entry price for {symbol}: "
+                                f"{entry_price_str}, error: {e}"
                             )
 
                     # Skip positions with no entry price (invalid derivative positions)
                     if entry_price is None or entry_price <= Decimal("0"):
-                        logger.warning(
-                            f"Skipping position for {symbol} due to invalid or zero entry price: {entry_price_str}"
+                        raise TransformationError(
+                            f"Invalid or zero entry price for {symbol}: {entry_price_str}"
                         )
-                        continue
 
                     # Parse unrealized PnL
                     unrealized_pnl = parse_decimal_value(
@@ -380,7 +382,8 @@ class HyperliquidAccountDataMapper:
                 raise TransformationError("Withdrawable field is required")
 
             # Calculate total unrealized PnL from derivative positions
-            derivative_positions = HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+            mapper = HyperliquidAccountDataMapper
+            derivative_positions = mapper.transform_raw_clearinghouse_state_to_derivative_positions(
                 raw_state
             )
             total_unrealized_pnl = Decimal("0")
@@ -614,4 +617,144 @@ class HyperliquidAccountDataMapper:
         except Exception as e:
             raise TransformationError(
                 f"Failed to transform HyperliquidRawWsFillEvent to Trade: {e}"
+            ) from e
+
+    @staticmethod
+    def transform_raw_position_to_internal(
+        position_info: dict[str, Any] | object,
+        symbol: str,
+        timestamp: datetime,
+    ) -> DerivativePosition:
+        """
+        Transforms raw position info to an Internal DerivativePosition model.
+
+        Args:
+            position_info: Raw position info from Hyperliquid
+            symbol: Asset symbol
+            timestamp: Position timestamp
+
+        Returns:
+            DerivativePosition: Internal domain model with populated fields
+
+        Raises:
+            TransformationError: If transformation fails
+        """
+        try:
+            # Parse position size
+            size_str = getattr(position_info, "szi", "0")
+            size = parse_decimal_value(size_str, allow_none=False, field_name="position.szi")
+
+            if size is None or size == Decimal("0"):
+                raise TransformationError("Position size is required and must be non-zero")
+
+            # Parse entry price
+            entry_price_str = getattr(position_info, "entry_px", None)
+            entry_price = None
+            if entry_price_str and entry_price_str != "0":
+                try:
+                    entry_price = parse_decimal_value(
+                        entry_price_str, allow_none=True, field_name="position.entry_px"
+                    )
+                except (ValueError, TypeError) as e:
+                    logger.warning(
+                        f"Failed to parse entry price for {symbol}: {entry_price_str}, error: {e}"
+                    )
+
+            # Skip positions with no entry price (invalid derivative positions)
+            if entry_price is None or entry_price <= Decimal("0"):
+                raise TransformationError(
+                    f"Invalid or zero entry price for {symbol}: {entry_price_str}"
+                )
+
+            # Parse unrealized PnL
+            unrealized_pnl = parse_decimal_value(
+                getattr(position_info, "unrealized_pnl", "0"),
+                allow_none=True,
+                field_name="position.unrealized_pnl",
+            )
+
+            # Create HL-specific details
+            leverage_obj = getattr(position_info, "leverage", None)
+            max_leverage = getattr(position_info, "max_leverage", 1)
+            margin_used = parse_decimal_value(
+                getattr(position_info, "margin_used", "0"),
+                allow_none=True,
+                field_name="position.margin_used",
+            )
+
+            # Extract leverage value from HyperliquidRawLeverage object
+            leverage_value = 1  # Default
+            leverage_type = "cross"  # Default
+            if leverage_obj:
+                leverage_value = getattr(leverage_obj, "value", 1) or 1
+                leverage_type = getattr(leverage_obj, "type", "cross") or "cross"
+
+            details = HyperliquidPositionDetails(
+                leverage_type=leverage_type,
+                leverage_value=int(leverage_value) if leverage_value else 1,
+                max_leverage=int(max_leverage) if max_leverage else 1,
+                margin_used=margin_used,
+            )
+
+            # Parse liquidation price
+            liquidation_price = parse_decimal_value(
+                getattr(position_info, "liquidation_px", None),
+                allow_none=True,
+                field_name="position.liquidation_px",
+            )
+
+            # Determine side based on position size
+            from cyberdelta.core.models.enums import OrderSide
+
+            side = OrderSide.BUY if size > Decimal("0") else OrderSide.SELL
+
+            return DerivativePosition(
+                exchange=ExchangeName.HYPERLIQUID.value,
+                symbol=symbol,
+                side=side,
+                size=size,
+                entry_price=entry_price,
+                mark_price=None,  # Not available in this context
+                liquidation_price=liquidation_price,
+                unrealized_pnl=unrealized_pnl,
+                timestamp=timestamp,
+                hl_details=details,
+            )
+
+        except Exception as e:
+            raise TransformationError(f"Failed to transform raw position to internal: {e}") from e
+
+    @staticmethod
+    def transform_ws_position_update_to_internal_position(
+        raw_position_update: HyperliquidRawWsPositionUpdateEvent,
+    ) -> DerivativePosition:
+        """
+        Transforms a HyperliquidRawWsPositionUpdateEvent (WebSocket position update event) to an
+        Internal DerivativePosition model.
+
+        Args:
+            raw_position_update: Validated raw position update event data from Hyperliquid WebSocket
+
+        Returns:
+            DerivativePosition: Internal domain model with populated fields
+
+        Raises:
+            TransformationError: If transformation fails
+        """
+        try:
+            # Extract position info from the WebSocket event
+            position_info = raw_position_update.position
+            symbol = raw_position_update.asset
+            timestamp = parse_datetime_utc(str(raw_position_update.time), field_name="time")
+            if timestamp is None:
+                timestamp = datetime.now(UTC)
+
+            # Use the existing position transformation logic
+            return HyperliquidAccountDataMapper.transform_raw_position_to_internal(
+                position_info, symbol, timestamp
+            )
+
+        except Exception as e:
+            raise TransformationError(
+                f"Failed to transform WebSocket position update to internal: {e}"
             ) from e

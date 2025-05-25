@@ -30,7 +30,10 @@ from cyberdelta.apis.backpack.bp_response_handler import RawJsonResponse
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
-from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
+from cyberdelta.apis.backpack.models.bp_raw_position import (
+    BackpackRawPosition,
+    BackpackRawPositionUpdate,
+)
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill, BackpackRawTrade
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
 from cyberdelta.apis.exchange_names import ExchangeName
@@ -201,7 +204,8 @@ class BackpackAccountDataMapper:
             raw_fill: Validated raw fill from Backpack
 
         Returns:
-            Trade | None: Internal domain model with BP details populated, or None if price or quantity is zero
+            Trade | None: Internal domain model with BP details populated, or None if
+                         price or quantity is zero
 
         Raises:
             TransformationError: If transformation fails
@@ -222,7 +226,8 @@ class BackpackAccountDataMapper:
             # Check if price or quantity is zero - Trade model requires positive values
             if price <= Decimal("0") or quantity <= Decimal("0"):
                 logger.warning(
-                    f"Skipping trade {raw_fill.trade_id} with zero price ({price}) or quantity ({quantity})"
+                    f"Skipping trade {raw_fill.trade_id} with zero price ({price}) "
+                    f"or quantity ({quantity})"
                 )
                 return None
 
@@ -795,8 +800,9 @@ class BackpackAccountDataMapper:
                 self_trade_prevention=stp_enum,
                 expiry_reason=expiry_enum,
                 origin=origin_enum,
-                # Note: Other fields like sl_trigger_price, tp_trigger_price etc. are not available
-                # in the basic BackpackRawOrder model and would need to come from other API endpoints
+                # Note: Other fields like sl_trigger_price, tp_trigger_price etc. are not
+                # available in the basic BackpackRawOrder model and would need to come from
+                # other API endpoints
             )
 
             return Order(
@@ -867,3 +873,118 @@ class BackpackAccountDataMapper:
             return None
         except Exception as e:
             raise TransformationError(f"Failed to transform raw trade to internal: {e}") from e
+
+    @staticmethod
+    def transform_ws_fill_event_to_internal_trade(raw_fill: BackpackRawFill) -> Trade | None:
+        """
+        Transforms a WebSocket fill event (BackpackRawFill) to an Internal Trade model.
+
+        This is an alias for transform_raw_fill_to_internal for consistency with WebSocket naming.
+
+        Args:
+            raw_fill: Validated raw fill event from Backpack WebSocket
+
+        Returns:
+            Trade | None: Internal domain model with BP details populated, or None if
+                         price or quantity is zero
+
+        Raises:
+            TransformationError: If transformation fails
+        """
+        return BackpackAccountDataMapper.transform_raw_fill_to_internal(raw_fill)
+
+    @staticmethod
+    def transform_ws_position_update_to_internal_position(
+        raw_position_update: BackpackRawPositionUpdate,
+    ) -> DerivativePosition:
+        """
+        Transforms a BackpackRawPositionUpdate (WebSocket position update event) to an
+        Internal DerivativePosition model.
+
+        Args:
+            raw_position_update: Validated raw position update event data from Backpack WebSocket
+
+        Returns:
+            DerivativePosition: Internal domain model with populated fields
+
+        Raises:
+            TransformationError: If transformation fails
+        """
+        try:
+            # Parse core numeric fields defensively
+            if raw_position_update.net_quantity:
+                size_dec = parse_decimal_value(
+                    raw_position_update.net_quantity, allow_none=False, field_name="net_quantity"
+                )
+                # DEFENSIVE CHECK: Ensure size_dec is not None after parsing.
+                # Mypy=[unreachable] Ruff=[unreachable]
+                if size_dec is None:
+                    size_dec = Decimal("0")
+            else:
+                size_dec = Decimal("0")
+
+            # Parse optional fields
+            entry_price_dec = None
+            if raw_position_update.entry_price:
+                entry_price_dec = parse_decimal_value(raw_position_update.entry_price)
+
+            mark_price_dec = None
+            if raw_position_update.mark_price:
+                mark_price_dec = parse_decimal_value(raw_position_update.mark_price)
+
+            liq_price_dec = None
+            if raw_position_update.liquidation_price:
+                liq_price_dec = parse_decimal_value(raw_position_update.liquidation_price)
+
+            # Determine side
+            side = OrderSide.BUY if size_dec > Decimal("0") else OrderSide.SELL
+            if size_dec == Decimal("0"):
+                entry_price_dec = None
+
+            # Parse timestamp from event_time
+            timestamp = datetime.now(UTC)
+            if raw_position_update.event_time:
+                event_timestamp = parse_datetime_utc(
+                    raw_position_update.event_time, field_name="event_time"
+                )
+                if event_timestamp is not None:
+                    timestamp = event_timestamp
+
+            # Create BackpackPositionDetails with available data
+            imf_dec = None
+            if raw_position_update.initial_margin_fraction:
+                imf_dec = parse_decimal_value(
+                    raw_position_update.initial_margin_fraction, allow_none=True
+                )
+
+            mmf_dec = None
+            if raw_position_update.maintenance_margin_fraction:
+                mmf_dec = parse_decimal_value(
+                    raw_position_update.maintenance_margin_fraction, allow_none=True
+                )
+
+            bp_details = BackpackPositionDetails(
+                imf_base=imf_dec,
+                imf_factor=None,  # Not available in position update
+                mmf_base=mmf_dec,
+                mmf_factor=None,  # Not available in position update
+                cumulative_funding=None,  # Not available in position update
+            )
+
+            return DerivativePosition(
+                exchange=ExchangeName.BACKPACK,
+                symbol=raw_position_update.symbol,
+                timestamp=timestamp,
+                side=side,
+                size=size_dec,
+                entry_price=entry_price_dec,
+                mark_price=mark_price_dec,
+                liquidation_price=liq_price_dec,
+                unrealized_pnl=None,  # Not available in position update
+                realized_pnl=None,  # Not available in position update
+                bp_details=bp_details,
+            )
+        except Exception as e:
+            raise TransformationError(
+                f"Failed to transform WebSocket position update to internal: {e}"
+            ) from e

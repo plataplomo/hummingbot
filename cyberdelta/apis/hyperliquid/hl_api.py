@@ -48,7 +48,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
-from cyberdelta.apis.models.api_error import APIError
+from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
     DerivativePosition,
@@ -275,9 +275,9 @@ class HyperliquidAPI(ExchangeAPI):
         self._hl_response_handler = response_handler or HyperliquidResponseHandler()
 
         # Use injected mappers or create them
-        self._account_mapper = account_data_mapper or HyperliquidAccountDataMapper()
-        self._trading_mapper = trading_data_mapper or HyperliquidTradingDataMapper()
-        self._market_data_mapper = market_data_mapper or HyperliquidMarketDataMapper()
+        self._hl_account_data_mapper = account_data_mapper or HyperliquidAccountDataMapper()
+        self._hl_trading_data_mapper = trading_data_mapper or HyperliquidTradingDataMapper()
+        self._hl_market_data_mapper = market_data_mapper or HyperliquidMarketDataMapper()
 
         self._asset_to_index_cache: dict[str, int] = {}
 
@@ -291,7 +291,7 @@ class HyperliquidAPI(ExchangeAPI):
                 http_client_requester=self._market_data_requester_adapter,
                 request_builder=self._hl_request_builder,
                 response_handler=self._hl_response_handler,
-                mapper=self._market_data_mapper,
+                mapper=self._hl_market_data_mapper,
                 exchange_name=self.exchange_name,
                 info_url=self.INFO_URL,
             )
@@ -357,8 +357,8 @@ class HyperliquidAPI(ExchangeAPI):
                 exchange_name=self.exchange_name,
                 info_url=self.INFO_URL,
                 wallet_address=self._wallet_address,
-                account_mapper=self._account_mapper,
-                trading_mapper=self._trading_mapper,
+                account_mapper=self._hl_account_data_mapper,
+                trading_mapper=self._hl_trading_data_mapper,
             )
 
         # Use injected trading service or create one
@@ -374,7 +374,7 @@ class HyperliquidAPI(ExchangeAPI):
                 exchange_name=self.exchange_name,
                 wallet_address=self._wallet_address,
                 get_asset_index_callable=self._get_asset_index,
-                trading_mapper=self._trading_mapper,
+                trading_mapper=self._hl_trading_data_mapper,
                 error_mapper=self._hyperliquid_error_mapper,
             )
 
@@ -773,9 +773,7 @@ class HyperliquidAPI(ExchangeAPI):
                 )
         elif channel == "trades":
             coin_for_topic_str: str | None = None
-            if isinstance(message.get("coin"), str):
-                coin_for_topic_str = message.get("coin")
-            elif isinstance(raw_data_any, list):
+            if isinstance(raw_data_any, list):
                 checked_list_for_topic_derivation: list[Any] = raw_data_any
                 if checked_list_for_topic_derivation:
                     first_item_for_topic_any: Any = checked_list_for_topic_derivation[0]
@@ -816,51 +814,62 @@ class HyperliquidAPI(ExchangeAPI):
                         "l2Book data not dict",
                         code=APIErrorCode.INVALID_RESPONSE.value,
                     )
-                validated_model = HyperliquidWsRawMessageHandler.handle_l2book_payload(
+                validated_book_model = HyperliquidWsRawMessageHandler.handle_l2book_payload(
                     cast(dict[str, Any], raw_data_any)
                 )
-                payload_for_handler = validated_model.model_dump(mode="json")
+
+                try:
+                    # Transform raw validated model to internal domain model
+                    internal_orderbook = (
+                        self._hl_market_data_mapper.transform_ws_book_update_to_internal(
+                            validated_book_model
+                        )
+                    )
+                    await app_handler(internal_orderbook, message)  # type: ignore[arg-type]
+                except TransformationError as e_transform:
+                    logger.error(
+                        f"[{self.exchange_name}] Failed to transform l2Book data: {e_transform}"
+                    )
+                return
 
             elif channel == "trades":
                 if not isinstance(raw_data_any, list):
                     raise APIError(
-                        "Trades data not list",
+                        "trades data not list",
                         code=APIErrorCode.INVALID_RESPONSE.value,
                     )
 
+                # Convert list items to dict format for validation
+                trade_payloads: list[dict[str, Any]] = []
                 # Explicitly type the list after check, elements are still Any
-                checked_list_of_any: list[Any] = raw_data_any
-                typed_trades_input_list: list[dict[str, Any]] = []
-                for item_loop_var_any in checked_list_of_any:
-                    if not isinstance(item_loop_var_any, dict):
+                checked_list_of_trades: list[Any] = raw_data_any
+                for item in checked_list_of_trades:
+                    if not isinstance(item, dict):
                         logger.warning(
-                            f"[{self.exchange_name}] Trades list item not dict: "
-                            f"{item_loop_var_any}. Msg: {message}. Skipping item."
+                            f"[{self.exchange_name}] Trades list item not dict: {item}. Skipping."
                         )
                         continue
-                    # Cast here for Pyright
-                    item_dict = cast(dict[str, Any], item_loop_var_any)
-                    typed_trades_input_list.append(item_dict)
+                    trade_payloads.append(cast(dict[str, Any], item))
 
-                if not typed_trades_input_list and raw_data_any:
-                    logger.warning(
-                        f"[{self.exchange_name}] All items in trades list were invalid. "
-                        f"Original raw_data: {raw_data_any}"
-                    )
-                    return  # payload_for_handler remains None, handled below
-
-                if typed_trades_input_list:
+                if trade_payloads:
                     validated_trade_models = (
-                        HyperliquidWsRawMessageHandler.handle_public_trades_payload(
-                            typed_trades_input_list
-                        )
+                        HyperliquidWsRawMessageHandler.handle_public_trades_payload(trade_payloads)
                     )
-                    # For multiple trades, app_handler is called for each
-                    # So payload_for_handler isn't used for the list itself here
-                    for trade_model in validated_trade_models:
-                        single_trade_payload = trade_model.model_dump(mode="json")
-                        await app_handler(single_trade_payload, message)
-                    return  # All handled, exit before final app_handler call
+                    for validated_trade_model in validated_trade_models:
+                        try:
+                            # Transform raw validated model to internal domain model
+                            internal_trade = (
+                                self._hl_market_data_mapper.transform_ws_trade_event_to_internal(
+                                    validated_trade_model
+                                )
+                            )
+                            await app_handler(internal_trade, message)  # type: ignore[arg-type]
+                        except TransformationError as e_transform:
+                            logger.error(
+                                f"[{self.exchange_name}] Failed to transform trade "
+                                f"data: {e_transform}"
+                            )
+                return
 
             elif channel == "userEvents":
                 if not isinstance(raw_data_any, list):
@@ -889,7 +898,6 @@ class HyperliquidAPI(ExchangeAPI):
                         continue
 
                     event_type_str: str = event_type_any
-                    current_event_payload_for_handler: dict[str, Any] | None = None
 
                     try:
                         if event_type_str == "fill":
@@ -898,9 +906,17 @@ class HyperliquidAPI(ExchangeAPI):
                                     event_item_dict
                                 )
                             )
-                            current_event_payload_for_handler = validated_fill.model_dump(
-                                mode="json"
-                            )
+                            try:
+                                # Transform raw validated model to internal domain model
+                                internal_trade = self._hl_account_data_mapper.transform_ws_fill_event_to_internal(
+                                    validated_fill
+                                )
+                                await app_handler(internal_trade, message)  # type: ignore[arg-type]
+                            except TransformationError as e_transform:
+                                logger.error(
+                                    f"[{self.exchange_name}] Failed to transform fill "
+                                    f"event: {e_transform}"
+                                )
 
                         elif event_type_str == "order":
                             _handle_order_wrapper = HyperliquidWsRawMessageHandler.handle_user_order_update_wrapper_payload
@@ -909,26 +925,39 @@ class HyperliquidAPI(ExchangeAPI):
                                 HyperliquidWsRawMessageHandler.handle_user_order_event_payload
                             )
                             validated_order_details = _handle_order_event(order_update_wrapper.data)
-                            current_event_payload_for_handler = validated_order_details.model_dump(
-                                mode="json"
-                            )
+                            try:
+                                # Transform raw validated model to internal domain model
+                                internal_order = self._hl_trading_data_mapper.transform_ws_order_update_to_internal_order(
+                                    validated_order_details
+                                )
+                                await app_handler(internal_order, message)  # type: ignore[arg-type]
+                            except TransformationError as e_transform:
+                                logger.error(
+                                    f"[{self.exchange_name}] Failed to transform order "
+                                    f"event: {e_transform}"
+                                )
 
                         elif event_type_str == "positionUpdate":
                             _handle_pos_update = HyperliquidWsRawMessageHandler.handle_user_position_update_event_payload
                             validated_position_update = _handle_pos_update(event_item_dict)
-                            current_event_payload_for_handler = (
-                                validated_position_update.model_dump(mode="json")
-                            )
+                            try:
+                                # Transform raw validated model to internal domain model
+                                internal_position = self._hl_account_data_mapper.transform_ws_position_update_to_internal_position(
+                                    validated_position_update
+                                )
+                                await app_handler(internal_position, message)  # type: ignore[arg-type]
+                            except TransformationError as e_transform:
+                                logger.error(
+                                    f"[{self.exchange_name}] Failed to transform position "
+                                    f"event: {e_transform}"
+                                )
 
                         else:
                             logger.debug(
                                 f"[{self.exchange_name}] Unhandled userEvent type: "
                                 f"{event_type_str}. Passing raw item: {event_item_dict}"
                             )
-                            current_event_payload_for_handler = event_item_dict
-
-                        if current_event_payload_for_handler:
-                            await app_handler(current_event_payload_for_handler, message)
+                            await app_handler(event_item_dict, message)
 
                     except (APIError, ValidationError) as e_user_event_item:
                         logger.error(
