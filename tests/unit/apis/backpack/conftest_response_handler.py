@@ -1,0 +1,330 @@
+"""Shared fixtures for BackpackResponseHandler unit tests."""
+
+from typing import Any
+
+import pytest
+
+
+@pytest.fixture
+def symbol_spot() -> str:
+    return "SOL_USDC"
+
+
+@pytest.fixture
+def symbol_perp() -> str:
+    return "SOL-PERP"
+
+
+@pytest.fixture
+def symbol_any() -> str:
+    """Generic symbol fixture for tests not specific to spot/perp."""
+    return "GENERIC_SYMBOL"
+
+
+@pytest.fixture
+def order_id() -> str:
+    return "987654321"
+
+
+@pytest.fixture
+def client_id() -> str:
+    return "clientOrder001"
+
+
+@pytest.fixture
+def valid_raw_ticker(symbol_spot: str) -> dict[str, Any]:
+    return {
+        "symbol": symbol_spot,
+        "price": "140.50",
+        "bid": "140.49",
+        "ask": "140.51",
+        "volume": "500000.0",
+        "time": 1678886400000,
+    }
+
+
+@pytest.fixture
+def valid_raw_order_book(symbol_spot: str) -> dict[str, Any]:
+    return {
+        "bids": [["140.10", "10"], ["140.00", "20"]],
+        "asks": [["140.20", "15"], ["140.30", "25"]],
+        "lastUpdateId": "update123",
+        "timestamp": 1678886401000,
+    }
+
+
+@pytest.fixture
+def valid_raw_trade_item(symbol_spot: str) -> dict[str, Any]:
+    return {
+        "symbol": symbol_spot,
+        "price": "141.00",
+        "qty": "1.5",
+        "time": 1678886402000,
+        "id": "1001",
+        "orderId": "order123",
+    }
+
+
+@pytest.fixture
+def valid_raw_recent_trades(valid_raw_trade_item: dict[str, Any]) -> list[dict[str, Any]]:
+    item1 = valid_raw_trade_item.copy()
+    item2 = valid_raw_trade_item.copy()
+    item2["id"] = "1002"
+    item2["price"] = "141.01"
+    item2["qty"] = "0.5"
+    item2["time"] = 1678886403000
+    item2["orderId"] = "order124"
+    return [item1, item2]
+
+
+@pytest.fixture
+def valid_raw_market_data() -> list[list[Any]]:
+    return [
+        [
+            1678886400000,
+            "138.0",
+            "139.5",
+            "137.5",
+            "139.0",
+            "1000.0",
+            1678886459999,
+            "500000.0",
+            100,
+            "250000.0",
+            "125000.0",
+            "0",
+        ],
+        [
+            1678886460000,
+            "139.0",
+            "140.0",
+            "138.5",
+            "139.8",
+            "1200.0",
+            1678886519999,
+            "600000.0",
+            120,
+            "300000.0",
+            "150000.0",
+            "0",
+        ],
+    ]
+
+
+@pytest.fixture
+def valid_raw_historical_trades(symbol_spot: str) -> list[dict[str, Any]]:
+    trade1 = {
+        "id": "1001",
+        "symbol": symbol_spot,
+        "price": "135.00",
+        "qty": "2.0",
+        "time": 1678880000000,
+        "orderId": "histOrderA",
+    }
+    trade2 = {
+        "id": "1002",
+        "symbol": symbol_spot,
+        "price": "135.10",
+        "qty": "1.0",
+        "time": 1678880100000,
+        "orderId": "histOrderB",
+    }
+    return [trade1, trade2]
+
+
+@pytest.fixture
+def valid_raw_balance_item() -> dict[str, Any]:
+    return {
+        "asset": "SOL",
+        "available": "10.5",
+        "total": "12.5",
+    }
+
+
+@pytest.fixture
+def valid_raw_balances(valid_raw_balance_item: dict[str, Any]) -> dict[str, Any]:
+    usdc_item = valid_raw_balance_item.copy()
+    usdc_item["asset"] = "USDC"
+    usdc_item["available"] = "1000.0"
+    usdc_item["total"] = "1050.0"
+    return {"SOL": valid_raw_balance_item, "USDC": usdc_item}
+
+
+@pytest.fixture
+def valid_raw_position_item(symbol_spot: str) -> dict[str, Any]:
+    return {
+        "symbol": symbol_spot,
+        "breakEvenPrice": "131.00",
+        "entryPrice": "130.00",
+        "estLiquidationPrice": "120.00",
+        "imf": "0.1",
+        "imfFunction": {"base": "0.005", "factor": "0.000001"},
+        "markPrice": "135.00",
+        "mmf": "0.05",
+        "mmfFunction": {"base": "0.002", "factor": "0.0000005"},
+        "netCost": "325.00",
+        "netQuantity": "2.5",
+        "netExposureQuantity": "2.5",
+        "netExposureNotional": "337.50",
+        "pnlRealized": "10.00",
+        "pnlUnrealized": "12.50",
+        "cumulativeFundingPayment": "-0.50",
+        "userId": 1,
+        "positionId": "pos123",
+        "cumulativeInterest": "0.0",
+    }
+
+
+@pytest.fixture
+def valid_raw_positions(valid_raw_position_item: dict[str, Any]) -> list[dict[str, Any]]:
+    item2 = valid_raw_position_item.copy()
+    item2["symbol"] = "BTC_USDT"
+    item2["breakEvenPrice"] = "54900.00"
+    item2["entryPrice"] = "55000.00"
+    item2["estLiquidationPrice"] = "60000.00"
+    item2["markPrice"] = "54000.00"
+    item2["netCost"] = "-5500.00"
+    item2["netQuantity"] = "-0.1"
+    item2["netExposureQuantity"] = "-0.1"
+    item2["netExposureNotional"] = "-5400.00"
+    item2["pnlRealized"] = "50.00"
+    item2["pnlUnrealized"] = "100.00"
+    item2["cumulativeFundingPayment"] = "1.20"
+    item2["positionId"] = "pos456"
+    return [valid_raw_position_item, item2]
+
+
+@pytest.fixture
+def valid_raw_account_summary() -> dict[str, Any]:
+    return {
+        "autoBorrowSettlements": True,
+        "autoLend": False,
+        "autoRealizePnl": True,
+        "autoRepayBorrows": True,
+        "borrowLimit": "100000.0",
+        "futuresMakerFee": "0.0002",
+        "futuresTakerFee": "0.0005",
+        "leverageLimit": "20.0",
+        "limitOrders": 50,
+        "liquidating": False,
+        "positionLimit": "500000.0",
+        "spotMakerFee": "0.0008",
+        "spotTakerFee": "0.0010",
+        "triggerOrders": 20,
+    }
+
+
+@pytest.fixture
+def valid_raw_order(order_id: str, client_id: str, symbol_spot: str) -> dict[str, Any]:
+    return {
+        "id": order_id,
+        "clientId": client_id,
+        "symbol": symbol_spot,
+        "side": "buy",
+        "orderType": "LIMIT",
+        "quantity": "10.0",
+        "price": "140.00",
+        "timeInForce": "GTC",
+        "status": "NEW",
+        "createdAt": 1678886405000,
+        "executedQuantity": "0",
+        "avgFillPrice": None,
+    }
+
+
+@pytest.fixture
+def valid_raw_open_orders(valid_raw_order: dict[str, Any]) -> list[dict[str, Any]]:
+    item2 = valid_raw_order.copy()
+    item2["id"] = "order002"
+    item2["symbol"] = "BTC_USDT"
+    item2["side"] = "sell"
+    item2["quantity"] = "0.1"
+    item2["price"] = "56000.00"
+    item2["createdAt"] = 1678886411000
+    return [valid_raw_order, item2]
+
+
+@pytest.fixture
+def valid_raw_funding_rate(symbol_perp: str) -> dict[str, Any]:
+    return {
+        "symbol": symbol_perp,
+        "rate": "0.000123",
+        "markPrice": "140.00",
+        "indexPrice": "139.90",
+        "time": 1678887000000,
+    }
+
+
+@pytest.fixture
+def valid_raw_withdrawal() -> dict[str, Any]:
+    return {
+        "id": 12345,
+        "blockchain": "Solana",
+        "quantity": "100.0",
+        "fee": "0.01",
+        "symbol": "USDC",
+        "status": "confirmed",
+        "toAddress": "SOLANA_ADDRESS_HERE",
+        "createdAt": "2023-03-15T10:00:00.000Z",
+        "isInternal": False,
+    }
+
+
+@pytest.fixture
+def valid_raw_order_history(valid_raw_order: dict[str, Any]) -> list[dict[str, Any]]:
+    item1 = valid_raw_order.copy()
+    item1["id"] = "histOrder001"
+    item1["status"] = "FILLED"
+    item1["executedQuantity"] = "10.0"
+    item1["avgFillPrice"] = "140.00"
+    item1["createdAt"] = 1678886000000
+
+    item2 = valid_raw_order.copy()
+    item2["id"] = "histOrder002"
+    item2["symbol"] = "BTC_USDT"
+    item2["side"] = "sell"
+    item2["orderType"] = "MARKET"
+    item2["quantity"] = "0.2"
+    item2["price"] = None
+    item2["timeInForce"] = "IOC"
+    item2["status"] = "FILLED"
+    item2["executedQuantity"] = "0.2"
+    item2["avgFillPrice"] = "55950.00"
+    item2["createdAt"] = 1678886100000
+
+    return [item1, item2]
+
+
+@pytest.fixture
+def valid_raw_trade_history(symbol_spot: str) -> list[dict[str, Any]]:
+    trade1 = {
+        "symbol": symbol_spot,
+        "price": "141.00",
+        "qty": "1.5",
+        "time": 1678886000000,
+        "id": "tradeHist001",
+        "orderId": "histOrderX001",
+    }
+    trade2 = {
+        "symbol": symbol_spot,
+        "price": "141.05",
+        "qty": "0.75",
+        "time": 1678886001000,
+        "id": "tradeHist002",
+        "orderId": "histOrderX002",
+    }
+    return [trade1, trade2]
+
+
+@pytest.fixture
+def valid_raw_order_status(valid_raw_order: dict[str, Any]) -> dict[str, Any]:
+    order_copy = valid_raw_order.copy()
+    order_copy["id"] = "statusOrder123"
+    order_copy["clientId"] = "clientStatus001"
+    order_copy["side"] = "sell"
+    order_copy["price"] = "142.00"
+    order_copy["status"] = "FILLED"
+    order_copy["createdAt"] = 1678889000000
+    order_copy["executedQuantity"] = "10.0"
+    order_copy["avgFillPrice"] = "142.00"
+    return order_copy
