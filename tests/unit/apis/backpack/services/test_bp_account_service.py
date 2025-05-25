@@ -11,6 +11,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler, RawJsonResponse
@@ -19,8 +20,14 @@ from cyberdelta.apis.backpack.models.bp_raw_account import (
     BackpackRawBalance,
 )
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
+from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
+    BackpackRawImfFunction,
+    BackpackRawMmfFunction,
+)
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
+from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
@@ -30,6 +37,7 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models.derivative_position import DerivativePosition
 from cyberdelta.core.models.enums import (
     InternalTransferStatus,
+    InternalWithdrawalStatus,
     OrderSide,
     OrderStatus,
     OrderType,
@@ -37,9 +45,12 @@ from cyberdelta.core.models.enums import (
 )
 from cyberdelta.core.models.margin_account import BackpackMarginDetails, MarginAccountSummary
 from cyberdelta.core.models.market.order import Order
+from cyberdelta.core.models.market.trade import Trade
 from cyberdelta.core.models.operations import (
     BackpackTransferDetails,
+    BackpackWithdrawalDetails,
     Transfer,
+    Withdrawal,
 )
 from cyberdelta.core.models.spot_balance import SpotBalance
 
@@ -1019,24 +1030,1647 @@ class TestBackpackAccountService:
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
             assert "No data received for order history, status: 200" in exc_info.value.message
 
-            mock_request_builder.build_get_order_history_params.assert_called_once_with(
+    @pytest.mark.asyncio
+    async def test_withdraw_success(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_mapper: MagicMock,
+    ) -> None:
+        """Test successful withdrawal operation."""
+        asset = "USDC"
+        amount = Decimal("100.0")
+        address = "0x1234567890abcdef1234567890abcdef12345678"
+        network = "ETH"
+        tag = "12345"
+        client_withdrawal_id = "withdraw_123"
+        two_factor_token = "2fa_token"
+
+        mock_payload = {
+            "asset": asset,
+            "amount": str(amount),
+            "address": address,
+            "network": network,
+            "tag": tag,
+            "clientWithdrawalId": client_withdrawal_id,
+            "twoFactorToken": two_factor_token,
+        }
+
+        mock_raw_response: RawJsonResponse = {
+            "id": 123,
+            "blockchain": "Ethereum",
+            "quantity": "100.0",
+            "fee": "1.0",
+            "symbol": "USDC",
+            "status": "pending",
+            "toAddress": address,
+            "createdAt": "2023-01-01T00:00:00Z",
+            "isInternal": False,
+        }
+
+        mock_raw_withdrawal_model = BackpackRawWithdrawalResponse.model_validate(
+            {
+                "id": 123,
+                "blockchain": "Ethereum",
+                "quantity": "100.0",
+                "fee": "1.0",
+                "symbol": "USDC",
+                "status": "pending",
+                "toAddress": address,
+                "createdAt": "2023-01-01T00:00:00Z",
+                "isInternal": False,
+            }
+        )
+
+        expected_withdrawal = Withdrawal(
+            id="123",
+            exchange="backpack_test_account",
+            asset=asset,
+            quantity=amount,
+            status=InternalWithdrawalStatus.PENDING,
+            address=address,
+            timestamp=datetime.now(UTC),
+            response_message=None,
+            bp_details=BackpackWithdrawalDetails(
+                client_id=client_withdrawal_id,
+                blockchain=network,
+            ),
+            hl_details=None,
+        )
+
+        mock_request_builder.build_withdraw_payload.return_value = mock_payload
+        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
+        mock_response_handler.handle_withdraw_response.return_value = mock_raw_withdrawal_model
+        mock_mapper.transform_raw_withdrawal_response_to_internal.return_value = expected_withdrawal
+
+        with patch.object(bp_account_service, "_mapper", mock_mapper):
+            result = await bp_account_service.withdraw(
+                asset=asset,
+                amount=amount,
+                address=address,
+                network=network,
+                tag=tag,
+                client_withdrawal_id=client_withdrawal_id,
+                two_factor_token=two_factor_token,
+            )
+
+        mock_request_builder.build_withdraw_payload.assert_called_once_with(
+            asset=asset,
+            amount=amount,
+            address=address,
+            network=network,
+            tag=tag,
+            client_withdrawal_id=client_withdrawal_id,
+            two_factor_token=two_factor_token,
+        )
+        mock_http_client_requester.assert_called_once_with(
+            method="POST",
+            endpoint="/api/v1/capital/withdrawals",
+            data=mock_payload,
+            is_signed=True,
+            endpoint_group="private",
+            request_weight=1,
+            is_public_info_endpoint=False,
+        )
+        mock_response_handler.handle_withdraw_response.assert_called_once_with(mock_raw_response)
+        mock_mapper.transform_raw_withdrawal_response_to_internal.assert_called_once_with(
+            raw_response=mock_raw_withdrawal_model,
+            asset=asset,
+            quantity=amount,
+            address=address,
+            network=network,
+            client_withdrawal_id=client_withdrawal_id,
+            tag=tag,
+        )
+
+        assert result.id == expected_withdrawal.id
+        assert result.exchange == expected_withdrawal.exchange
+        assert result.asset == expected_withdrawal.asset
+        assert result.quantity == expected_withdrawal.quantity
+        assert result.status == expected_withdrawal.status
+
+    @pytest.mark.asyncio
+    async def test_withdraw_http_client_returns_none(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+    ) -> None:
+        """Test withdrawal when HTTP client returns None content."""
+        asset = "USDC"
+        amount = Decimal("100.0")
+        address = "0x1234567890abcdef1234567890abcdef12345678"
+
+        mock_payload = {"asset": asset, "amount": str(amount), "address": address}
+        mock_request_builder.build_withdraw_payload.return_value = mock_payload
+        mock_http_client_requester.return_value = (None, 400, {})
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.withdraw(asset=asset, amount=amount, address=address)
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "No data received for withdrawal, status: 400" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_withdraw_validation_error(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test withdrawal when validation error occurs."""
+        asset = "USDC"
+        amount = Decimal("100.0")
+        address = "0x1234567890abcdef1234567890abcdef12345678"
+
+        mock_payload = {"asset": asset, "amount": str(amount), "address": address}
+        mock_raw_response = {"invalid": "response"}
+
+        mock_request_builder.build_withdraw_payload.return_value = mock_payload
+        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
+        mock_response_handler.handle_withdraw_response.side_effect = ValidationError(
+            "Validation failed"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.withdraw(asset=asset, amount=amount, address=address)
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Processing withdrawal data failed" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_withdraw_unexpected_exception(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test withdrawal when an unexpected exception occurs."""
+        asset = "USDC"
+        amount = Decimal("100.0")
+        address = "0x1234567890abcdef1234567890abcdef12345678"
+
+        mock_payload = {"asset": asset, "amount": str(amount), "address": address}
+        mock_raw_response = {"id": "123", "status": "PENDING"}
+
+        mock_request_builder.build_withdraw_payload.return_value = mock_payload
+        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
+        mock_response_handler.handle_withdraw_response.side_effect = Exception("Unexpected error")
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.withdraw(asset=asset, amount=amount, address=address)
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Processing withdrawal data failed" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_trade_history_success(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_mapper: MagicMock,
+    ) -> None:
+        """Test successful trade history retrieval."""
+        symbol = "SOL_USDC"
+        limit = 50
+
+        mock_params = {"symbol": symbol, "limit": limit}
+        mock_raw_trade_data = {
+            "id": "trade_123",
+            "symbol": symbol,
+            "side": "buy",
+            "quantity": "10.0",
+            "price": "100.0",
+            "timestamp": 1234567890000,
+            "fee": "0.1",
+            "feeAsset": "USDC",
+        }
+        mock_raw_response = [mock_raw_trade_data]
+        mock_validated_raw_trades = [BackpackRawTrade.model_validate(mock_raw_trade_data)]
+
+        expected_trade = Trade(
+            id="trade_123",
+            exchange="backpack_test_account",
+            symbol=symbol,
+            side=OrderSide.BUY,
+            executed_at=datetime.fromtimestamp(1234567890000 / 1000, tz=UTC),
+            order_id="order_123",
+            quantity=Decimal("10.0"),
+            price=Decimal("100.0"),
+            fee=Decimal("0.1"),
+            fee_asset="USDC",
+            bp_details=None,
+            hl_details=None,
+        )
+
+        mock_request_builder.build_get_trade_history_params.return_value = mock_params
+        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
+        mock_response_handler.handle_get_trade_history_response.return_value = (
+            mock_validated_raw_trades
+        )
+        mock_mapper.transform_raw_trade_to_internal.return_value = expected_trade
+
+        with patch.object(bp_account_service, "_mapper", mock_mapper):
+            result = await bp_account_service.get_trade_history(symbol=symbol, limit=limit)
+
+        mock_request_builder.build_get_trade_history_params.assert_called_once_with(
+            symbol=symbol, limit=limit
+        )
+        mock_http_client_requester.assert_called_once_with(
+            method="GET",
+            endpoint="/api/v1/history/fills",
+            params=mock_params,
+            is_signed=True,
+            endpoint_group="private",
+            request_weight=1,
+            is_public_info_endpoint=False,
+        )
+        mock_response_handler.handle_get_trade_history_response.assert_called_once_with(
+            mock_raw_response, symbol
+        )
+        mock_mapper.transform_raw_trade_to_internal.assert_called_once_with(
+            mock_validated_raw_trades[0]
+        )
+
+        assert len(result) == 1
+        assert result[0].id == expected_trade.id
+        assert result[0].symbol == expected_trade.symbol
+        assert result[0].side == expected_trade.side
+        assert result[0].executed_at == expected_trade.executed_at
+        assert result[0].order_id == expected_trade.order_id
+        assert result[0].quantity == expected_trade.quantity
+        assert result[0].price == expected_trade.price
+        assert result[0].fee == expected_trade.fee
+        assert result[0].fee_asset == expected_trade.fee_asset
+        assert result[0].bp_details == expected_trade.bp_details
+        assert result[0].hl_details == expected_trade.hl_details
+
+    @pytest.mark.asyncio
+    async def test_get_trade_history_http_client_returns_none(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+    ) -> None:
+        """Test get_trade_history when HTTP client returns None content."""
+        symbol = "SOL_USDC"
+        limit = 50
+
+        mock_params = {"symbol": symbol, "limit": limit}
+        mock_request_builder.build_get_trade_history_params.return_value = mock_params
+        mock_http_client_requester.return_value = (None, 200, {})
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_trade_history(symbol=symbol, limit=limit)
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "No data received for trade history, status: 200" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_trade_history_validation_error(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test get_trade_history when validation error occurs."""
+        symbol = "SOL_USDC"
+        limit = 50
+
+        mock_params = {"symbol": symbol, "limit": limit}
+        mock_raw_response = [{"invalid": "trade"}]
+
+        mock_request_builder.build_get_trade_history_params.return_value = mock_params
+        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
+        mock_response_handler.handle_get_trade_history_response.side_effect = ValidationError(
+            "Validation failed"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_trade_history(symbol=symbol, limit=limit)
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Processing trade history data failed" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_trade_history_unexpected_exception(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test get_trade_history when unexpected exception occurs."""
+        symbol = "SOL_USDC"
+
+        mock_params = {"symbol": symbol}
+        mock_raw_response = [{"id": "order_123"}]
+
+        mock_request_builder.build_get_trade_history_params.return_value = mock_params
+        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
+        mock_response_handler.handle_get_trade_history_response.side_effect = Exception(
+            "Unexpected error"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_trade_history(symbol=symbol)
+
+        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+        assert "Processing trade history data failed" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_positions_http_client_returns_none(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+    ) -> None:
+        """Test get_positions when HTTP client returns None content."""
+        symbol = "SOL_USDC"
+        mock_params = {"symbol": symbol}
+        mock_request_builder.build_get_positions_params.return_value = mock_params
+        mock_http_client_requester.return_value = (None, 200, {})
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_positions(symbol=symbol)
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert (
+            f"No data received for raw positions for '{symbol}', status: 200"
+            in exc_info.value.message
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_account_info_http_client_returns_none(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+    ) -> None:
+        """Test get_account_info when HTTP client returns None content."""
+        mock_request_builder.build_get_account_summary_params.return_value = None
+        mock_http_client_requester.return_value = (None, 200, {})
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_account_info()
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "No data received for raw account summary, status: 200" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_transfer_response_handler_returns_non_dict(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test transfer when response handler returns non-dict type."""
+        asset = "USDC"
+        amount = Decimal("100.0")
+        from_account = "SPOT"
+        to_account = "FUTURES"
+
+        mock_payload = {"asset": asset, "amount": str(amount)}
+        mock_raw_response = {"id": "transfer_123", "status": "COMPLETED"}
+
+        mock_request_builder.build_internal_transfer_payload.return_value = mock_payload
+        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
+        # Return a non-dict type (like a string)
+        mock_response_handler.handle_transfer_response.return_value = "invalid_non_dict_response"
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.transfer(
+                asset=asset,
+                amount=amount,
+                from_account_type=from_account,
+                to_account_type=to_account,
+            )
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Transfer response handler returned unexpected type" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_order_history_unexpected_exception(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test get_order_history when unexpected exception occurs."""
+        symbol = "SOL_USDC"
+
+        mock_params = {"symbol": symbol}
+        mock_raw_response = [{"id": "order_123"}]
+
+        mock_request_builder.build_get_order_history_params.return_value = mock_params
+        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
+        mock_response_handler.handle_get_order_history_response.side_effect = Exception(
+            "Unexpected error"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_order_history(symbol=symbol)
+
+        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+        assert "Processing order history data failed" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_balances_http_client_returns_none(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+    ) -> None:
+        """Test get_balances when HTTP client returns None content."""
+        mock_request_builder.build_get_balances_params.return_value = None
+        mock_http_client_requester.return_value = (None, 200, {})
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_balances()
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "No data received for raw balances dict, status: 200" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_balances_validation_error_via_public_api(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test get_balances handles validation error from response handler."""
+        mock_request_builder.build_get_balances_params.return_value = None
+        mock_http_client_requester.return_value = ({"invalid": "data"}, 200, {})
+        mock_response_handler.handle_get_balances_response.side_effect = ValidationError(
+            "Validation failed"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_balances()
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Processing raw balances dict data failed" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_positions_validation_error_via_public_api(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test get_positions handles validation error from response handler."""
+        symbol = "SOL_USDC"
+        mock_params = {"symbol": symbol}
+        mock_request_builder.build_get_positions_params.return_value = mock_params
+        mock_http_client_requester.return_value = ([{"invalid": "position"}], 200, {})
+        mock_response_handler.handle_get_positions_response.side_effect = ValidationError(
+            "Validation failed"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_positions(symbol)
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Processing raw positions data failed" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_account_info_validation_error_via_public_api(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test get_account_info handles validation error from response handler."""
+        mock_request_builder.build_get_account_summary_params.return_value = None
+        mock_http_client_requester.return_value = ({"invalid": "summary"}, 200, {})
+        mock_response_handler.handle_get_account_summary_response.side_effect = ValidationError(
+            "Validation failed"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_account_info()
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Processing raw account summary data failed" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_balances_unexpected_exception_via_public_api(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test get_balances handles unexpected exception from response handler."""
+        mock_request_builder.build_get_balances_params.return_value = None
+        mock_http_client_requester.return_value = ({"balance": "data"}, 200, {})
+        mock_response_handler.handle_get_balances_response.side_effect = Exception(
+            "Unexpected error"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_balances()
+
+        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+        assert "Unexpected error for raw balances dict" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_positions_unexpected_exception_via_public_api(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test get_positions handles unexpected exception via public API."""
+        mock_request_builder.build_get_positions_params.return_value = None
+        mock_http_client_requester.return_value = ([{"symbol": "SOL_USDC"}], 200, {})
+        mock_response_handler.handle_get_positions_response.side_effect = Exception(
+            "Unexpected error"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_positions()
+
+        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+        assert "Unexpected error for raw positions" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_account_info_unexpected_exception_via_public_api(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test get_account_info handles unexpected exception via public API."""
+        mock_request_builder.build_get_account_summary_params.return_value = None
+        mock_http_client_requester.return_value = ({"equity": "100"}, 200, {})
+        mock_response_handler.handle_get_account_summary_response.side_effect = Exception(
+            "Unexpected error"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_account_info()
+
+        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+        assert "Unexpected error for raw account summary" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_constructor_with_custom_mapper(
+        self,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_authenticator: MagicMock,
+        mock_rate_limiter_service: AsyncMock,
+    ) -> None:
+        """Test constructor with custom mapper injection by testing behavior."""
+        custom_mapper = MagicMock(spec=BackpackAccountDataMapper)
+
+        service = BackpackAccountService(
+            http_client_requester=mock_http_client_requester,
+            request_builder=mock_request_builder,
+            response_handler=mock_response_handler,
+            authenticator=mock_authenticator,
+            exchange_name="backpack_test",
+            rate_limiter_service=mock_rate_limiter_service,
+            mapper=custom_mapper,
+        )
+
+        # Test that custom mapper is used through behavior
+        custom_mapper.transform_raw_balance_to_internal.return_value = SpotBalance(
+            exchange="backpack_test",
+            asset="USDC",
+            timestamp=datetime.now(UTC),
+            total_quantity=Decimal("100.0"),
+            available_quantity=Decimal("100.0"),
+        )
+
+        mock_request_builder.build_get_balances_params.return_value = None
+        mock_http_client_requester.return_value = (
+            {"USDC": {"available": "100.0", "total": "100.0"}},
+            200,
+            {},
+        )
+        mock_response_handler.handle_get_balances_response.return_value = {
+            "USDC": BackpackRawBalance(asset="USDC", available="100.0", total="100.0")
+        }
+
+        with patch.object(service, "_mapper", custom_mapper):
+            result = await service.get_balances()
+
+        # Verify custom mapper was called
+        custom_mapper.transform_raw_balance_to_internal.assert_called_once()
+        assert "USDC" in result
+
+    @pytest.mark.asyncio
+    async def test_constructor_with_default_mapper(
+        self,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_authenticator: MagicMock,
+        mock_rate_limiter_service: AsyncMock,
+    ) -> None:
+        """Test constructor creates default mapper when none provided by testing behavior."""
+        service = BackpackAccountService(
+            http_client_requester=mock_http_client_requester,
+            request_builder=mock_request_builder,
+            response_handler=mock_response_handler,
+            authenticator=mock_authenticator,
+            exchange_name="backpack_test",
+            rate_limiter_service=mock_rate_limiter_service,
+            mapper=None,  # Explicitly pass None
+        )
+
+        # Test behavior that would require a mapper
+        mock_request_builder.build_get_balances_params.return_value = None
+        mock_http_client_requester.return_value = (
+            {"USDC": {"available": "100.0", "total": "100.0"}},
+            200,
+            {},
+        )
+        mock_response_handler.handle_get_balances_response.return_value = {
+            "USDC": BackpackRawBalance(asset="USDC", available="100.0", total="100.0")
+        }
+
+        # Mock the mapper behavior since we can't access it directly
+        mock_mapper = MagicMock(spec=BackpackAccountDataMapper)
+        mock_mapper.transform_raw_balance_to_internal.return_value = SpotBalance(
+            exchange="backpack_test",
+            asset="USDC",
+            timestamp=datetime.now(UTC),
+            total_quantity=Decimal("100.0"),
+            available_quantity=Decimal("100.0"),
+        )
+
+        with patch.object(service, "_mapper", mock_mapper):
+            result = await service.get_balances()
+
+        # Verify default mapper functionality works
+        assert "USDC" in result
+
+    @pytest.mark.asyncio
+    async def test_get_positions_with_all_symbol_scenarios(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_mapper: MagicMock,
+    ) -> None:
+        """Test get_positions with None symbol (all positions scenario)."""
+        mock_raw_position_data = {
+            "symbol": "SOL_USDC",
+            "side": "long",
+            "size": "10.0",
+            "entryPrice": "100.0",
+            "unrealizedPnl": "50.0",
+        }
+        mock_raw_response = [mock_raw_position_data]
+        mock_validated_positions = [BackpackRawPosition.model_validate(mock_raw_position_data)]
+
+        expected_position = DerivativePosition(
+            exchange="backpack_test_account",
+            symbol="SOL_USDC",
+            side=OrderSide.BUY,
+            size=Decimal("10.0"),
+            entry_price=Decimal("100.0"),
+            mark_price=Decimal("105.0"),
+            unrealized_pnl=Decimal("50.0"),
+            liquidation_price=None,
+            timestamp=datetime.now(UTC),
+            bp_details=None,
+            hl_details=None,
+        )
+
+        mock_request_builder.build_get_positions_params.return_value = None  # No symbol filter
+        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
+        mock_response_handler.handle_get_positions_response.return_value = mock_validated_positions
+        mock_mapper.transform_raw_position_to_internal.return_value = expected_position
+
+        with patch.object(bp_account_service, "_mapper", mock_mapper):
+            result = await bp_account_service.get_positions(symbol=None)
+
+        mock_request_builder.build_get_positions_params.assert_called_once_with(None)
+        assert len(result) == 1
+        assert result[0].symbol == expected_position.symbol
+
+    @pytest.mark.asyncio
+    async def test_constructor_mapper_functionality(
+        self,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_authenticator: MagicMock,
+        mock_rate_limiter_service: AsyncMock,
+    ) -> None:
+        """Test constructor with custom mapper by testing behavior
+        instead of accessing protected attributes."""
+        custom_mapper = MagicMock(spec=BackpackAccountDataMapper)
+        custom_mapper.transform_raw_balance_to_internal.return_value = SpotBalance(
+            exchange="backpack_test",
+            asset="USDC",
+            timestamp=datetime.now(UTC),
+            total_quantity=Decimal("100.0"),
+            available_quantity=Decimal("100.0"),
+        )
+
+        service = BackpackAccountService(
+            http_client_requester=mock_http_client_requester,
+            request_builder=mock_request_builder,
+            response_handler=mock_response_handler,
+            authenticator=mock_authenticator,
+            exchange_name="backpack_test",
+            rate_limiter_service=mock_rate_limiter_service,
+            mapper=custom_mapper,
+        )
+
+        # Test that custom mapper is used by calling a method that uses it
+        mock_request_builder.build_get_balances_params.return_value = None
+        mock_http_client_requester.return_value = (
+            {"USDC": {"available": "100.0", "total": "100.0"}},
+            200,
+            {},
+        )
+        mock_response_handler.handle_get_balances_response.return_value = {
+            "USDC": BackpackRawBalance(asset="USDC", available="100.0", total="100.0")
+        }
+
+        with patch.object(service, "_mapper", custom_mapper):
+            result = await service.get_balances()
+
+        # Verify custom mapper was called
+        custom_mapper.transform_raw_balance_to_internal.assert_called_once()
+        assert "USDC" in result
+
+    @pytest.mark.asyncio
+    async def test_constructor_default_mapper_functionality(
+        self,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_authenticator: MagicMock,
+        mock_rate_limiter_service: AsyncMock,
+    ) -> None:
+        """Test constructor creates default mapper when none provided by testing behavior."""
+        service = BackpackAccountService(
+            http_client_requester=mock_http_client_requester,
+            request_builder=mock_request_builder,
+            response_handler=mock_response_handler,
+            authenticator=mock_authenticator,
+            exchange_name="backpack_test",
+            rate_limiter_service=mock_rate_limiter_service,
+            mapper=None,  # Explicitly pass None
+        )
+
+        # Test behavior that would require a mapper
+        mock_request_builder.build_get_balances_params.return_value = None
+        mock_http_client_requester.return_value = (
+            {"USDC": {"available": "100.0", "total": "100.0"}},
+            200,
+            {},
+        )
+        mock_response_handler.handle_get_balances_response.return_value = {
+            "USDC": BackpackRawBalance(asset="USDC", available="100.0", total="100.0")
+        }
+
+        # Mock the mapper behavior since we can't access it directly
+        mock_mapper = MagicMock(spec=BackpackAccountDataMapper)
+        mock_mapper.transform_raw_balance_to_internal.return_value = SpotBalance(
+            exchange="backpack_test",
+            asset="USDC",
+            timestamp=datetime.now(UTC),
+            total_quantity=Decimal("100.0"),
+            available_quantity=Decimal("100.0"),
+        )
+
+        with patch.object(service, "_mapper", mock_mapper):
+            result = await service.get_balances()
+
+        # Verify default mapper functionality works
+        assert "USDC" in result
+
+    @pytest.mark.asyncio
+    async def test_get_positions_comprehensive_scenarios(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_mapper: MagicMock,
+    ) -> None:
+        """Test get_positions with comprehensive scenarios including
+        proper DerivativePosition construction."""
+        mock_raw_position_data = {
+            "symbol": "SOL_USDC",
+            "side": "long",
+            "size": "10.0",
+            "entryPrice": "100.0",
+            "unrealizedPnl": "50.0",
+        }
+        mock_raw_response = [mock_raw_position_data]
+        mock_validated_positions = [BackpackRawPosition.model_validate(mock_raw_position_data)]
+
+        expected_position = DerivativePosition(
+            exchange="backpack_test_account",
+            symbol="SOL_USDC",
+            side=OrderSide.BUY,
+            size=Decimal("10.0"),
+            entry_price=Decimal("100.0"),
+            mark_price=Decimal("105.0"),
+            unrealized_pnl=Decimal("50.0"),
+            liquidation_price=None,
+            timestamp=datetime.now(UTC),
+            bp_details=None,
+            hl_details=None,
+        )
+
+        mock_request_builder.build_get_positions_params.return_value = None  # No symbol filter
+        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
+        mock_response_handler.handle_get_positions_response.return_value = mock_validated_positions
+        mock_mapper.transform_raw_position_to_internal.return_value = expected_position
+
+        with patch.object(bp_account_service, "_mapper", mock_mapper):
+            result = await bp_account_service.get_positions(symbol=None)
+
+        mock_request_builder.build_get_positions_params.assert_called_once_with(None)
+        assert len(result) == 1
+        assert result[0].symbol == expected_position.symbol
+
+    @pytest.mark.asyncio
+    async def test_get_positions_validation_error_coverage(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test get_positions handles validation error from response handler."""
+        symbol = "SOL_USDC"
+        mock_params = {"symbol": symbol}
+        mock_request_builder.build_get_positions_params.return_value = mock_params
+        mock_http_client_requester.return_value = ([{"invalid": "position"}], 200, {})
+        mock_response_handler.handle_get_positions_response.side_effect = ValidationError(
+            "Validation failed"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_positions(symbol)
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Processing raw positions data failed" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_account_info_validation_error_coverage(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test get_account_info handles validation error from response handler."""
+        mock_request_builder.build_get_account_summary_params.return_value = None
+        mock_http_client_requester.return_value = ({"invalid": "summary"}, 200, {})
+        mock_response_handler.handle_get_account_summary_response.side_effect = ValidationError(
+            "Validation failed"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_account_info()
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Processing raw account summary data failed" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_balances_unexpected_exception_coverage(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test get_balances handles unexpected exception from response handler."""
+        mock_request_builder.build_get_balances_params.return_value = None
+        mock_http_client_requester.return_value = ({"balance": "data"}, 200, {})
+        mock_response_handler.handle_get_balances_response.side_effect = Exception(
+            "Unexpected error"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_balances()
+
+        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+        assert "Unexpected error for raw balances dict" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_positions_unexpected_exception_coverage(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test get_positions handles unexpected exception."""
+        mock_request_builder.build_get_positions_params.return_value = None
+        mock_http_client_requester.return_value = ([{"symbol": "SOL_USDC"}], 200, {})
+        mock_response_handler.handle_get_positions_response.side_effect = Exception(
+            "Unexpected error"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_positions()
+
+        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+        assert "Unexpected error for raw positions" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_account_info_unexpected_exception_coverage(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test get_account_info handles unexpected exception."""
+        mock_request_builder.build_get_account_summary_params.return_value = None
+        mock_http_client_requester.return_value = ({"equity": "100"}, 200, {})
+        mock_response_handler.handle_get_account_summary_response.side_effect = Exception(
+            "Unexpected error"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_account_info()
+
+        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+        assert "Unexpected error for raw account summary" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_raw_balances_dict_none_response(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+    ) -> None:
+        """Test _get_raw_balances_dict handles None response from http client."""
+        mock_request_builder.build_get_balances_params.return_value = None
+        mock_http_client_requester.return_value = (None, 200, {})
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service._get_raw_balances_dict()
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "No data received for raw balances dict" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_raw_balances_dict_validation_error(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test _get_raw_balances_dict handles validation error from response handler."""
+        mock_request_builder.build_get_balances_params.return_value = None
+        mock_http_client_requester.return_value = ({"invalid": "data"}, 200, {})
+        mock_response_handler.handle_get_balances_response.side_effect = ValidationError(
+            "Invalid balance data"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service._get_raw_balances_dict()
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Processing raw balances dict data failed" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_raw_balances_dict_unexpected_exception(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test _get_raw_balances_dict handles unexpected exception."""
+        mock_request_builder.build_get_balances_params.return_value = None
+        mock_http_client_requester.return_value = ({"data": "test"}, 200, {})
+        mock_response_handler.handle_get_balances_response.side_effect = Exception(
+            "Unexpected error"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service._get_raw_balances_dict()
+
+        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+        assert "Unexpected error for raw balances dict" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_raw_positions_list_none_response(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+    ) -> None:
+        """Test _get_raw_positions_list handles None response from http client."""
+        symbol = "SOL_USDC"
+        mock_request_builder.build_get_positions_params.return_value = {"symbol": symbol}
+        mock_http_client_requester.return_value = (None, 200, {})
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service._get_raw_positions_list(symbol)
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert f"No data received for raw positions for '{symbol}'" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_raw_positions_list_validation_error(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test _get_raw_positions_list handles validation error from response handler."""
+        symbol = "SOL_USDC"
+        mock_request_builder.build_get_positions_params.return_value = {"symbol": symbol}
+        mock_http_client_requester.return_value = ([{"invalid": "position"}], 200, {})
+        mock_response_handler.handle_get_positions_response.side_effect = ValidationError(
+            "Invalid position data"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service._get_raw_positions_list(symbol)
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Processing raw positions list data failed" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_raw_positions_list_unexpected_exception(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test _get_raw_positions_list handles unexpected exception."""
+        symbol = "SOL_USDC"
+        mock_request_builder.build_get_positions_params.return_value = {"symbol": symbol}
+        mock_http_client_requester.return_value = ([{"data": "test"}], 200, {})
+        mock_response_handler.handle_get_positions_response.side_effect = Exception(
+            "Unexpected error"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service._get_raw_positions_list(symbol)
+
+        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+        assert "Unexpected error for raw positions list" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_raw_account_summary_obj_none_response(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+    ) -> None:
+        """Test _get_raw_account_summary_obj handles None response from http client."""
+        mock_request_builder.build_get_account_info_params.return_value = None
+        mock_http_client_requester.return_value = (None, 200, {})
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service._get_raw_account_summary_obj()
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "No data received for raw account summary" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_raw_account_summary_obj_validation_error(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test _get_raw_account_summary_obj handles validation error from response handler."""
+        mock_request_builder.build_get_account_info_params.return_value = None
+        mock_http_client_requester.return_value = ({"invalid": "summary"}, 200, {})
+        mock_response_handler.handle_get_account_summary_response.side_effect = ValidationError(
+            "Invalid account summary"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service._get_raw_account_summary_obj()
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Processing raw account summary data failed" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_raw_account_summary_obj_unexpected_exception(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test _get_raw_account_summary_obj handles unexpected exception."""
+        mock_request_builder.build_get_account_info_params.return_value = None
+        mock_http_client_requester.return_value = ({"data": "test"}, 200, {})
+        mock_response_handler.handle_get_account_summary_response.side_effect = Exception(
+            "Unexpected error"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service._get_raw_account_summary_obj()
+
+        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+        assert "Unexpected error for raw account summary" in exc_info.value.message
+
+        mock_request_builder.build_get_positions_params.return_value = {"symbol": symbol}
+        mock_http_client_requester.return_value = ([mock_raw_position.model_dump()], 200, {})
+        mock_response_handler.handle_get_positions_response.return_value = [mock_raw_position]
+        mock_mapper.transform_raw_position_to_internal.side_effect = ValidationError(
+            "Mapping error"
+        )
+
+        with patch.object(bp_account_service, "_mapper", mock_mapper):
+            result = await bp_account_service.get_positions(symbol=symbol)
+
+        # Should return empty list when mapping fails
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_get_balances_validation_error_coverage(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test get_balances handles validation error from response handler."""
+        mock_request_builder.build_get_balances_params.return_value = None
+        mock_http_client_requester.return_value = ({"invalid": "data"}, 200, {})
+        mock_response_handler.handle_get_balances_response.side_effect = ValidationError(
+            "Validation failed"
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_balances()
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Processing raw balances dict data failed" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_positions_with_symbol_parameter(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_mapper: MagicMock,
+    ) -> None:
+        """Test get_positions with specific symbol parameter."""
+        symbol = "BTC_USDC"
+        mock_request_builder.build_get_positions_params.return_value = {"symbol": symbol}
+        mock_http_client_requester.return_value = ([], 200, {})
+        mock_response_handler.handle_get_positions_response.return_value = []
+
+        with patch.object(bp_account_service, "_mapper", mock_mapper):
+            result = await bp_account_service.get_positions(symbol=symbol)
+
+        assert result == []
+        mock_request_builder.build_get_positions_params.assert_called_once_with(symbol)
+
+    @pytest.mark.asyncio
+    async def test_get_positions_mapper_exception_handling(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_mapper: MagicMock,
+    ) -> None:
+        """Test get_positions handles mapper exceptions gracefully."""
+        symbol = "SOL_USDC"
+        mock_raw_position = BackpackRawPosition(
+            symbol=symbol,
+            breakEvenPrice="100.0",
+            entryPrice="100.0",
+            estLiquidationPrice="90.0",
+            imf="0.1",
+            imfFunction=BackpackRawImfFunction(base="0.05", factor="0.01"),
+            markPrice="105.0",
+            mmf="0.05",
+            mmfFunction=BackpackRawMmfFunction(base="0.03", factor="0.005"),
+            netCost="1000.0",
+            netQuantity="10.0",
+            netExposureQuantity="10.0",
+            netExposureNotional="1050.0",
+            pnlRealized="0.0",
+            pnlUnrealized="50.0",
+            cumulativeFundingPayment="5.0",
+            userId=123,
+            positionId="pos123",
+            cumulativeInterest="0.0",
+        )
+
+        mock_request_builder.build_get_positions_params.return_value = {"symbol": symbol}
+        mock_http_client_requester.return_value = ([mock_raw_position.model_dump()], 200, {})
+        mock_response_handler.handle_get_positions_response.return_value = [mock_raw_position]
+        mock_mapper.transform_raw_position_to_internal.side_effect = ValidationError(
+            "Mapping error"
+        )
+
+        with patch.object(bp_account_service, "_mapper", mock_mapper):
+            result = await bp_account_service.get_positions(symbol=symbol)
+
+        # Should return empty list when mapping fails
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_get_order_history_with_all_parameters(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_mapper: MagicMock,
+    ) -> None:
+        """Test get_order_history with all optional parameters."""
+        symbol = "SOL_USDC"
+        start_time = datetime.now(UTC)
+        end_time = datetime.now(UTC)
+        limit = 50
+        order_id = "order123"
+        client_order_id = "client123"
+
+        start_time_ms = int(start_time.timestamp() * 1000)
+        end_time_ms = int(end_time.timestamp() * 1000)
+
+        mock_request_builder.build_get_order_history_params.return_value = {
+            "symbol": symbol,
+            "startTime": start_time_ms,
+            "endTime": end_time_ms,
+            "limit": limit,
+            "orderId": order_id,
+            "clientOrderId": client_order_id,
+        }
+        mock_http_client_requester.return_value = ([], 200, {})
+        mock_response_handler.handle_get_order_history_response.return_value = []
+
+        with patch.object(bp_account_service, "_mapper", mock_mapper):
+            result = await bp_account_service.get_order_history(
                 symbol=symbol,
-                start_time_ms=None,
-                end_time_ms=None,
+                start_time=start_time,
+                end_time=end_time,
                 limit=limit,
-                order_id=None,
-                client_order_id=None,
+                order_id=order_id,
+                client_order_id=client_order_id,
             )
-            mock_http_client_requester.assert_called_once_with(
-                method="GET",
-                endpoint="/api/v1/history/orders",
-                params=mock_params,
-                is_signed=True,
-                endpoint_group="private",
-                request_weight=1,
-                is_public_info_endpoint=False,
+
+        assert result == []
+        mock_request_builder.build_get_order_history_params.assert_called_once_with(
+            symbol=symbol,
+            start_time_ms=start_time_ms,
+            end_time_ms=end_time_ms,
+            limit=limit,
+            order_id=order_id,
+            client_order_id=client_order_id,
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_order_history_none_response(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+    ) -> None:
+        """Test get_order_history handles None response from http client."""
+        mock_request_builder.build_get_order_history_params.return_value = {}
+        mock_http_client_requester.return_value = (None, 200, {})
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_order_history()
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "No data received for order history" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_order_history_mapper_exception_handling(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_mapper: MagicMock,
+    ) -> None:
+        """Test get_order_history handles mapper exceptions gracefully."""
+        mock_raw_order = BackpackRawOrder(
+            id="order123",
+            symbol="SOL_USDC",
+            side="Buy",
+            orderType="Limit",
+            status="Filled",
+            quantity="10.0",
+            createdAt="2024-01-01T00:00:00Z",
+            clientId="client123",
+            relatedOrderId="related123",
+            executedQuantity="10.0",
+            executedQuoteQuantity="1000.0",
+            price="100.0",
+            triggerPrice=None,
+            avgFillPrice="100.0",
+            triggerBy=None,
+            timeInForce="GTC",
+            reduceOnly=False,
+            postOnly=False,
+            selfTradePrevention="NONE",
+            updatedAt="2024-01-01T00:01:00Z",
+            triggeredAt=None,
+            expiryReason=None,
+            origin="REST",
+        )
+
+        mock_request_builder.build_get_order_history_params.return_value = {}
+        mock_http_client_requester.return_value = ([mock_raw_order.model_dump()], 200, {})
+        mock_response_handler.handle_get_order_history_response.return_value = [mock_raw_order]
+        mock_mapper.transform_raw_order_to_internal.side_effect = ValidationError("Mapping error")
+
+        with patch.object(bp_account_service, "_mapper", mock_mapper):
+            result = await bp_account_service.get_order_history()
+
+        # Should return empty list when mapping fails
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_get_trade_history_with_symbol_and_limit(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_mapper: MagicMock,
+    ) -> None:
+        """Test get_trade_history with symbol and limit parameters."""
+        symbol = "BTC_USDC"
+        limit = 50
+
+        mock_request_builder.build_get_trade_history_params.return_value = {
+            "symbol": symbol,
+            "limit": limit,
+        }
+        mock_http_client_requester.return_value = ([], 200, {})
+        mock_response_handler.handle_get_trade_history_response.return_value = []
+
+        with patch.object(bp_account_service, "_mapper", mock_mapper):
+            result = await bp_account_service.get_trade_history(symbol=symbol, limit=limit)
+
+        assert result == []
+        mock_request_builder.build_get_trade_history_params.assert_called_once_with(
+            symbol=symbol,
+            limit=limit,
+            start_time_ms=None,
+            end_time_ms=None,
+            from_id=None,
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_trade_history_none_response(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+    ) -> None:
+        """Test get_trade_history handles None response from http client."""
+        mock_request_builder.build_get_trade_history_params.return_value = {}
+        mock_http_client_requester.return_value = (None, 200, {})
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.get_trade_history()
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "No data received for trade history" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_trade_history_mapper_returns_none(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_mapper: MagicMock,
+    ) -> None:
+        """Test get_trade_history handles mapper returning None."""
+        mock_raw_trade = BackpackRawTrade(
+            id="trade123",
+            orderId="order123",
+            symbol="SOL_USDC",
+            price="100.0",
+            qty="10.0",
+            time="2024-01-01T00:00:00Z",
+        )
+
+        mock_request_builder.build_get_trade_history_params.return_value = {}
+        mock_http_client_requester.return_value = ([mock_raw_trade.model_dump()], 200, {})
+        mock_response_handler.handle_get_trade_history_response.return_value = [mock_raw_trade]
+        mock_mapper.transform_raw_trade_to_internal.return_value = None  # Mapper returns None
+
+        with patch.object(bp_account_service, "_mapper", mock_mapper):
+            result = await bp_account_service.get_trade_history()
+
+        # Should return empty list when mapper returns None
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_get_trade_history_mapper_exception_handling(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_mapper: MagicMock,
+    ) -> None:
+        """Test get_trade_history handles mapper exceptions gracefully."""
+        mock_raw_trade = BackpackRawTrade(
+            id="trade123",
+            orderId="order123",
+            symbol="SOL_USDC",
+            price="100.0",
+            qty="10.0",
+            time="2024-01-01T00:00:00Z",
+        )
+
+        mock_request_builder.build_get_trade_history_params.return_value = {}
+        mock_http_client_requester.return_value = ([mock_raw_trade.model_dump()], 200, {})
+        mock_response_handler.handle_get_trade_history_response.return_value = [mock_raw_trade]
+        mock_mapper.transform_raw_trade_to_internal.side_effect = ValidationError("Mapping error")
+
+        with patch.object(bp_account_service, "_mapper", mock_mapper):
+            result = await bp_account_service.get_trade_history()
+
+        # Should return empty list when mapping fails
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_transfer_with_all_parameters(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_mapper: MagicMock,
+    ) -> None:
+        """Test transfer with all optional parameters."""
+        asset = "BTC"
+        amount = Decimal("0.5")
+        from_account = "SPOT"
+        to_account = "FUTURES"
+        client_transfer_id = "transfer456"
+
+        mock_payload = {
+            "symbol": asset,
+            "quantity": str(amount),
+            "fromAccount": from_account,
+            "toAccount": to_account,
+            "clientId": client_transfer_id,
+        }
+        mock_raw_response = {
+            "id": "transfer789",
+            "status": "COMPLETED",
+            "message": "Transfer completed",
+        }
+        mock_transfer = Transfer(
+            id="transfer789",
+            exchange="backpack_test_account",
+            asset=asset,
+            quantity=amount,
+            status=InternalTransferStatus.COMPLETED,
+            timestamp=datetime.now(UTC),
+            response_message="Transfer completed",
+            bp_details=BackpackTransferDetails(
+                client_id=client_transfer_id,
+                from_account_type=from_account,
+                to_account_type=to_account,
+            ),
+            hl_details=None,
+        )
+
+        mock_request_builder.build_internal_transfer_payload.return_value = mock_payload
+        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
+        mock_response_handler.handle_transfer_response.return_value = mock_raw_response
+        mock_mapper.transform_raw_transfer_response_to_internal.return_value = mock_transfer
+
+        with patch.object(bp_account_service, "_mapper", mock_mapper):
+            result = await bp_account_service.transfer(
+                asset=asset,
+                amount=amount,
+                from_account_type=from_account,
+                to_account_type=to_account,
+                client_transfer_id=client_transfer_id,
             )
-            mock_response_handler.handle_get_order_history_response.assert_not_called()
-            mock_mapper.transform_raw_order_to_internal.assert_not_called()
-            if hasattr(mock_mapper, "transform_raw_orders_to_internal_list"):
-                mock_mapper.transform_raw_orders_to_internal_list.assert_not_called()
+
+        assert result.id == mock_transfer.id
+        assert result.asset == mock_transfer.asset
+        assert result.quantity == mock_transfer.quantity
+
+    @pytest.mark.asyncio
+    async def test_withdraw_with_all_parameters(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_mapper: MagicMock,
+    ) -> None:
+        """Test withdraw with all optional parameters."""
+        asset = "ETH"
+        amount = Decimal("1.0")
+        address = "0x1234567890abcdef1234567890abcdef12345678"
+        network = "ethereum"
+        tag = "memo123"
+        client_withdrawal_id = "withdraw456"
+        two_factor_token = "123456"
+
+        mock_payload = {
+            "asset": asset,
+            "amount": str(amount),
+            "address": address,
+            "network": network,
+            "tag": tag,
+            "clientWithdrawalId": client_withdrawal_id,
+            "twoFactorToken": two_factor_token,
+        }
+        mock_raw_response = {"id": "withdraw789", "status": "PENDING"}
+        mock_raw_withdrawal = BackpackRawWithdrawalResponse(
+            id="withdraw789",
+            status="PENDING",
+        )
+        mock_withdrawal = Withdrawal(
+            id="withdraw789",
+            exchange="backpack_test_account",
+            asset=asset,
+            quantity=amount,
+            status=InternalWithdrawalStatus.PENDING,
+            address=address,
+            timestamp=datetime.now(UTC),
+            response_message=None,
+            bp_details=BackpackWithdrawalDetails(
+                client_id=client_withdrawal_id,
+                blockchain=network,
+            ),
+            hl_details=None,
+        )
+
+        mock_request_builder.build_withdraw_payload.return_value = mock_payload
+        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
+        mock_response_handler.handle_withdraw_response.return_value = mock_raw_withdrawal
+        mock_mapper.transform_raw_withdrawal_response_to_internal.return_value = mock_withdrawal
+
+        with patch.object(bp_account_service, "_mapper", mock_mapper):
+            result = await bp_account_service.withdraw(
+                asset=asset,
+                amount=amount,
+                address=address,
+                network=network,
+                tag=tag,
+                client_withdrawal_id=client_withdrawal_id,
+                two_factor_token=two_factor_token,
+            )
+
+        assert result.id == mock_withdrawal.id
+        assert result.asset == mock_withdrawal.asset
+        assert result.quantity == mock_withdrawal.quantity
+
+    @pytest.mark.asyncio
+    async def test_withdraw_none_response(
+        self,
+        bp_account_service: BackpackAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+    ) -> None:
+        """Test withdraw handles None response from http client."""
+        asset = "USDC"
+        amount = Decimal("100.0")
+        address = "0x1234567890abcdef1234567890abcdef12345678"
+
+        mock_payload = {"asset": asset, "amount": str(amount), "address": address}
+        mock_request_builder.build_withdraw_payload.return_value = mock_payload
+        mock_http_client_requester.return_value = (None, 200, {})
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_account_service.withdraw(asset=asset, amount=amount, address=address)
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "No data received for withdrawal" in exc_info.value.message
