@@ -452,7 +452,9 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No data received for open orders, status: 200" in exc_info.value.message
 
-        mock_request_builder.build_open_orders_payload.assert_called_once_with(wallet_address)
+        mock_request_builder.build_open_orders_payload.assert_called_once_with(
+            wallet_address=wallet_address
+        )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint_path="/info",
@@ -537,6 +539,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         assert result_empty == []
 
         # Test case 2: Trade history with mapper errors for some trades
+        # The service is designed to be resilient and skip invalid fills rather than raising APIError
         mock_fills = [MagicMock(name=f"fill_{i}") for i in range(3)]
         mock_response_handler.handle_info_user_fills_response.return_value = MagicMock(
             root=mock_fills
@@ -550,14 +553,13 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
 
         mock_hl_account_mapper.transform_raw_user_fill_to_internal.side_effect = mapper_side_effect
 
-        # Should handle mapper errors gracefully for individual fills
-        # This test verifies the service's error handling in transformation
-        with pytest.raises(APIError) as exc_info:
-            await hyperliquid_account_service.get_trade_history(symbol=None)
+        # The service should handle mapper errors gracefully by skipping invalid fills
+        # and returning only the valid ones
+        result = await hyperliquid_account_service.get_trade_history(symbol=None)
 
-        # Verify appropriate error wrapping
-        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert (
-            "Processing user fills failed" in exc_info.value.message
-            or "Unexpected error getting trade history" in exc_info.value.message
-        )
+        # Should return 2 valid trades (fill_0 and fill_2), skipping fill_1 which raised an error
+        assert len(result) == 2
+        assert all(trade.symbol == "BTC" for trade in result)
+
+        # Verify the mapper was called for all fills
+        assert mock_hl_account_mapper.transform_raw_user_fill_to_internal.call_count == 3

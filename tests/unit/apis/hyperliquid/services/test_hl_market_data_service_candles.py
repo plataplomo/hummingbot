@@ -91,6 +91,9 @@ class TestHyperliquidMarketDataServiceCandles:
             ),
         ]
 
+        # Create a mock headers object to use consistently
+        mock_headers = MagicMock()
+
         # Patch the _mapper attribute on the service instance
         with patch.object(hyperliquid_market_data_service, "_mapper") as mock_mapper_instance:
             mock_hl_request_builder.build_candle_snapshot_payload.return_value = MagicMock(
@@ -110,7 +113,7 @@ class TestHyperliquidMarketDataServiceCandles:
             mock_http_client_requester.return_value = (
                 mock_raw_candle_data,
                 200,
-                MagicMock(),
+                mock_headers,
             )
             mock_hl_response_handler.handle_info_candle_snapshot_response.return_value = (
                 mock_validated_response
@@ -134,7 +137,7 @@ class TestHyperliquidMarketDataServiceCandles:
                 symbol,
                 interval,
                 200,
-                MagicMock(),  # headers - we use MagicMock() for consistency with the test setup
+                mock_headers,  # Use the same mock headers object
             )
             mock_mapper_instance.transform_raw_candle_snapshot_to_candles.assert_called_once_with(
                 mock_validated_response,

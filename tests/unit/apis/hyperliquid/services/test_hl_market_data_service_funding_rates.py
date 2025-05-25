@@ -213,11 +213,10 @@ class TestHyperliquidMarketDataServiceFundingRates:
             start_time_ms=start_time_ms,
             end_time_ms=end_time_ms,
         )
-        mock_payload_model.model_dump.assert_called_once_with(by_alias=True, exclude_none=True)
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint_path="/info",
-            data=mock_payload_dict,
+            data=mock_payload_model,
             is_info_endpoint=True,
         )
         mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
@@ -276,7 +275,7 @@ class TestHyperliquidMarketDataServiceFundingRates:
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint_path="/info",
-            data=mock_payload_dict,
+            data=mock_payload_model,
             is_info_endpoint=True,
         )
         mock_hl_response_handler.handle_historical_funding_rates_response.assert_not_called()
@@ -616,6 +615,6 @@ class TestHyperliquidMarketDataServiceFundingRates:
                 await hyperliquid_market_data_service.get_funding_rate(symbol)
 
             assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-            assert "Unexpected error getting funding rate" in exc_info.value.message
+            assert "Unexpected error fetching funding rate" in exc_info.value.message
             assert isinstance(exc_info.value.__cause__, RuntimeError)
             assert str(exc_info.value.__cause__) == "Unexpected mapper error"

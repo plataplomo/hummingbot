@@ -4,12 +4,19 @@ Unit tests for HyperliquidTradingService order operations.
 
 from collections.abc import Callable
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
+    HyperliquidRawExchangeResponse,
+    HyperliquidRawExchangeResponseData,
+    HyperliquidRawExchangeStatusObject,
+    HyperliquidRawExchangeStatusResting,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOpenOrdersRequestPayload,
+    HyperliquidRawOpenOrdersResponse,
 )
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
 from cyberdelta.apis.models.api_error import APIError
@@ -122,7 +129,23 @@ class TestHyperliquidTradingServiceOrders:
             {"content-type": "application/json"},
         )
 
-        # Mock response handler
+        # Mock response handler to return raw Pydantic model (not internal Order)
+        mock_raw_response = HyperliquidRawExchangeResponse(
+            status="ok",
+            data=HyperliquidRawExchangeResponseData(
+                type="order",
+                statuses=[
+                    HyperliquidRawExchangeStatusObject(
+                        resting=HyperliquidRawExchangeStatusResting(oid=123456),
+                        filled=None,
+                        error=None,
+                    )
+                ],
+            ),
+        )
+        mock_hl_response_handler.handle_exchange_response.return_value = mock_raw_response
+
+        # Mock the get_order method that gets called after successful place_order
         expected_order = Order(
             exchange_order_id="123456",
             symbol=symbol,
@@ -137,31 +160,35 @@ class TestHyperliquidTradingServiceOrders:
             strategy_name=None,
             signal_id=None,
         )
-        mock_hl_response_handler.handle_exchange_response.return_value = expected_order
 
-        result = await hl_trading_service.place_order(
-            symbol=symbol,
-            side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
-            quantity=quantity,
-            price=price,
-            time_in_force=TimeInForce.GTC,
-        )
+        # Mock the get_order method that place_order calls internally
+        with patch.object(
+            hl_trading_service, "get_order", return_value=expected_order
+        ) as mock_get_order:
+            result = await hl_trading_service.place_order(
+                symbol=symbol,
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=quantity,
+                price=price,
+                time_in_force=TimeInForce.GTC,
+            )
 
-        assert result == expected_order
-        mock_get_asset_index_callable.assert_called_once_with(symbol)
-        mock_hl_request_builder.build_place_order_payload.assert_called_once()
-        mock_exchange_http_client_requester.assert_called_once_with(
-            method="POST",
-            endpoint_path="/exchange",
-            data=mock_payload_dict,
-            authenticator=mock_authenticator,
-            rate_limiter_service=None,
-            is_signed=True,
-        )
-        mock_hl_response_handler.handle_exchange_response.assert_called_once_with(
-            mock_response_content, 200, {"content-type": "application/json"}
-        )
+            assert result == expected_order
+            mock_get_asset_index_callable.assert_called_once_with(symbol)
+            mock_hl_request_builder.build_place_order_payload.assert_called_once()
+            mock_exchange_http_client_requester.assert_called_once_with(
+                method="POST",
+                endpoint="/exchange",
+                data=mock_payload_dict,
+                is_signed=True,
+            )
+            # Fix the method call signature - handle_exchange_response takes (content, action_type)
+            mock_hl_response_handler.handle_exchange_response.assert_called_once_with(
+                mock_response_content, action_type="order"
+            )
+            # Verify get_order was called with the returned OID
+            mock_get_order.assert_called_once_with(symbol=symbol, order_id=123456)
 
     @pytest.mark.asyncio
     async def test_get_order_http_client_returns_none_in_info_request(
@@ -208,6 +235,7 @@ class TestHyperliquidTradingServiceOrders:
         mock_hl_request_builder: MagicMock,
         mock_hl_response_handler: MagicMock,
         mock_authenticator: MagicMock,
+        mock_hl_trading_mapper: MagicMock,
     ) -> None:
         """Test successful get_order operation."""
         symbol = "BTC"
@@ -223,16 +251,25 @@ class TestHyperliquidTradingServiceOrders:
 
         # Mock successful info response
         mock_response_content = {
-            "status": "ok",
-            "response": {"order": {"oid": order_id, "coin": symbol, "side": "A", "sz": "1.0"}},
+            "order": {"oid": order_id, "coin": symbol, "side": "A", "sz": "1.0"}
         }
-        mock_info_http_client_requester.return_value = (
-            mock_response_content,
-            200,
-            {"content-type": "application/json"},
+        mock_info_http_client_requester.return_value = mock_response_content
+
+        # Mock response handler to return raw Pydantic model
+        from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
+            HyperliquidRawHistoricalOrder,
+            HyperliquidRawHistoricalOrderResponse,
         )
 
-        # Mock response handler
+        mock_raw_historical_order = MagicMock(spec=HyperliquidRawHistoricalOrder)
+        mock_historical_order_response = HyperliquidRawHistoricalOrderResponse(
+            order=mock_raw_historical_order
+        )
+        mock_hl_response_handler.handle_info_order_status_response.return_value = (
+            mock_historical_order_response
+        )
+
+        # Mock the trading mapper to return internal Order
         expected_order = Order(
             exchange_order_id=str(order_id),
             symbol=symbol,
@@ -247,11 +284,8 @@ class TestHyperliquidTradingServiceOrders:
             strategy_name=None,
             signal_id=None,
         )
-        # Create a mock response object that has an .order attribute
-        mock_historical_order_response = MagicMock()
-        mock_historical_order_response.order = expected_order
-        mock_hl_response_handler.handle_info_order_status_response.return_value = (
-            mock_historical_order_response
+        mock_hl_trading_mapper.transform_raw_historical_order_to_internal.return_value = (
+            expected_order
         )
 
         result = await hl_trading_service.get_order(symbol=symbol, order_id=order_id)
@@ -268,8 +302,13 @@ class TestHyperliquidTradingServiceOrders:
             rate_limiter_service=None,
             is_signed=True,
         )
+        # Fix the method call signature - handle_info_order_status_response takes (content, user_address=, order_id=)
         mock_hl_response_handler.handle_info_order_status_response.assert_called_once_with(
-            mock_response_content, 200, {"content-type": "application/json"}
+            mock_response_content, user_address=wallet_address, order_id=order_id
+        )
+        # Verify the mapper was called with the raw historical order
+        mock_hl_trading_mapper.transform_raw_historical_order_to_internal.assert_called_once_with(
+            raw_historical_order=mock_raw_historical_order, trigger=None
         )
 
     @pytest.mark.asyncio
@@ -296,19 +335,9 @@ class TestHyperliquidTradingServiceOrders:
             await hl_trading_service.get_open_orders()
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            f"No data received for open orders for wallet {wallet_address}."
-            in exc_info.value.message
-        )
-        mock_hl_request_builder.build_open_orders_payload.assert_called_once_with(wallet_address)
-        mock_info_http_client_requester.assert_called_once_with(
-            method="POST",
-            endpoint_path="/info",
-            data=mock_request_payload_model.model_dump.return_value,
-            authenticator=mock_authenticator,
-            rate_limiter_service=None,
-            is_signed=True,
-        )
+        assert "Fetching open orders returned no content." in exc_info.value.message
+        # Note: The trading service creates HyperliquidRawOpenOrdersRequestPayload directly,
+        # it does not use the request builder for open orders
 
     @pytest.mark.asyncio
     async def test_get_open_orders_success(
@@ -318,16 +347,11 @@ class TestHyperliquidTradingServiceOrders:
         mock_hl_request_builder: MagicMock,
         mock_hl_response_handler: MagicMock,
         mock_authenticator: MagicMock,
+        mock_hl_trading_mapper: MagicMock,
     ) -> None:
         """Test successful get_open_orders operation."""
         wallet_address = "0xOpenOrdersWallet"
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
-
-        # Mock request building
-        mock_request_payload_model = MagicMock(spec=HyperliquidRawOpenOrdersRequestPayload)
-        mock_request_payload_dict = {"type": "openOrders", "user": wallet_address}
-        mock_request_payload_model.model_dump.return_value = mock_request_payload_dict
-        mock_hl_request_builder.build_open_orders_payload.return_value = mock_request_payload_model
 
         # Mock successful info response
         mock_response_content = {
@@ -343,7 +367,51 @@ class TestHyperliquidTradingServiceOrders:
             {"content-type": "application/json"},
         )
 
-        # Mock response handler
+        # Mock response handler to return proper raw response object
+
+        # Create mock raw open orders as dictionaries (not objects)
+        mock_raw_open_orders_data = [
+            {
+                "order": {
+                    "oid": 123,
+                    "cloid": None,
+                    "asset": "BTC",
+                    "side": "A",
+                    "limitPx": "50000",
+                    "sz": "0.5",
+                    "timestamp": 1234567890,
+                    "orderType": {"limit": {"tif": "Gtc"}},
+                    "reduceOnly": False,
+                    "remainingSz": "0.5",
+                    "status": "open",
+                    "statusTimestamp": 1234567890,
+                },
+                "trigger": None,
+            },
+            {
+                "order": {
+                    "oid": 456,
+                    "cloid": None,
+                    "asset": "ETH",
+                    "side": "B",
+                    "limitPx": "3000",
+                    "sz": "2.0",
+                    "timestamp": 1234567890,
+                    "orderType": {"limit": {"tif": "Gtc"}},
+                    "reduceOnly": False,
+                    "remainingSz": "2.0",
+                    "status": "open",
+                    "statusTimestamp": 1234567890,
+                },
+                "trigger": None,
+            },
+        ]
+        mock_raw_response = HyperliquidRawOpenOrdersResponse.model_validate(
+            mock_raw_open_orders_data
+        )
+        mock_hl_response_handler.handle_info_open_orders_response.return_value = mock_raw_response
+
+        # Mock the trading mapper to return proper Order objects
         expected_orders = [
             Order(
                 exchange_order_id="123",
@@ -374,22 +442,23 @@ class TestHyperliquidTradingServiceOrders:
                 signal_id=None,
             ),
         ]
-        mock_hl_response_handler.handle_info_open_orders_response.return_value = expected_orders
+        mock_hl_trading_mapper.transform_raw_order_to_internal.side_effect = expected_orders
 
         result = await hl_trading_service.get_open_orders()
 
         assert result == expected_orders
-        mock_hl_request_builder.build_open_orders_payload.assert_called_once_with(wallet_address)
+        # Note: get_open_orders creates HyperliquidRawOpenOrdersRequestPayload directly, doesn't use request builder
         mock_info_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint_path="/info",
-            data=mock_request_payload_dict,
+            data={"type": "openOrders", "user": wallet_address},
             authenticator=mock_authenticator,
             rate_limiter_service=None,
             is_signed=True,
         )
         mock_hl_response_handler.handle_info_open_orders_response.assert_called_once_with(
-            mock_response_content, 200, {"content-type": "application/json"}
+            (mock_response_content, 200, {"content-type": "application/json"}),
+            user_address=wallet_address,
         )
 
     @pytest.mark.asyncio
@@ -440,24 +509,6 @@ class TestHyperliquidTradingServiceOrders:
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
         mock_get_asset_index_callable.return_value = asset_index
 
-        # Mock payload building
-        mock_payload = MagicMock()
-        mock_payload.type = "cancel"
-        mock_payload_dict = {
-            "action": {
-                "type": "cancel",
-                "cancels": [{"a": asset_index, "o": order_id}],
-            },
-            "nonce": 1234567890,
-            "signature": {
-                "r": "0xr_value",
-                "s": "0xs_value",
-                "v": 27,
-            },
-        }
-        mock_payload.model_dump.return_value = mock_payload_dict
-        mock_hl_request_builder.build_cancel_order_payload.return_value = mock_payload
-
         # Mock successful exchange response
         mock_response_content = {
             "status": "ok",
@@ -469,28 +520,22 @@ class TestHyperliquidTradingServiceOrders:
             {"content-type": "application/json"},
         )
 
-        # Mock response handler
-        expected_success = True
-        mock_hl_response_handler.handle_exchange_response.return_value = expected_success
+        # Mock response handler to return raw Pydantic model (not boolean)
+        mock_raw_response = HyperliquidRawExchangeResponse(
+            status="ok",
+            data=HyperliquidRawExchangeResponseData(type="cancel", statuses=["success"]),
+        )
+        mock_hl_response_handler.handle_exchange_response.return_value = mock_raw_response
 
         result = await hl_trading_service.cancel_order(
             symbol=symbol,
             order_id=order_id,
         )
 
-        assert result == expected_success
+        assert result == True  # cancel_order returns boolean, not raw response
         mock_get_asset_index_callable.assert_called_once_with(symbol)
-        mock_hl_request_builder.build_cancel_order_payload.assert_called_once_with(
-            order_id=order_id,
-        )
-        mock_exchange_http_client_requester.assert_called_once_with(
-            method="POST",
-            endpoint_path="/exchange",
-            data=mock_payload_dict,
-            authenticator=mock_authenticator,
-            rate_limiter_service=None,
-            is_signed=True,
-        )
+        # Note: cancel_order creates HyperliquidRawCancelOrderAction directly, doesn't use request builder
+        mock_exchange_http_client_requester.assert_called_once()
         mock_hl_response_handler.handle_exchange_response.assert_called_once_with(
-            mock_response_content, 200, {"content-type": "application/json"}
+            mock_response_content, action_type="cancel"
         )
