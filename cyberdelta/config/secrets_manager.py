@@ -80,13 +80,13 @@ class SecretsManager:
         # Return the first default path as fallback
         return default_paths[0]
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: object = None) -> object:
         """
         Get a secret value by key.
 
         Args:
-            key: The key to look up (supports dot notation for nested keys)
-            default: Default value if key doesn't exist
+            key: The secret key to retrieve
+            default: Default value to return if key is not found
 
         Returns:
             The secret value or default

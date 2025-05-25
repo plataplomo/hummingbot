@@ -163,7 +163,9 @@ class CircuitBreaker(ABC):
         pass
 
     @abstractmethod
-    def check(self, *args: Any, **kwargs: Any) -> None:
+    def check(
+        self, *args: Any, **kwargs: Any
+    ) -> None:  # Any required for flexible circuit breaker implementations
         """
         Check if the circuit breaker should trip.
 

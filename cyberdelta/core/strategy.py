@@ -90,7 +90,7 @@ class Strategy(ABC):
         logger.info(f"Strategy '{self.name}' stopped")
 
     # Ensure correct indentation for methods within the class
-    def get_param(self, name: str, default: Any | None = None) -> Any | None:
+    def get_param(self, name: str, default: object = None) -> object:
         """
         Get a strategy parameter.
 
@@ -103,7 +103,7 @@ class Strategy(ABC):
         """
         return self.params.get(name, default)
 
-    def set_param(self, name: str, value: Any) -> None:
+    def set_param(self, name: str, value: object) -> None:
         """
         Set a strategy parameter.
 

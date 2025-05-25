@@ -458,7 +458,7 @@ class BackpackResponseHandler:
                     message=f"Unexpected error validating kline item: {e_unk_item}",
                     code=APIErrorCode.INVALID_RESPONSE.value,
                     original_exception=e_unk_item,
-                )
+                ) from e_unk_item
 
         return validated_klines
 

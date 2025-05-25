@@ -348,7 +348,7 @@ def mock_config(mock_config_dict: dict[str, Any], mocker: MockerFixture) -> Conf
                 return default
             raise KeyError(
                 f"Full key '{key}' not found in mock_config_dict config and no default provided."
-            )
+            ) from None
         except Exception as e:
             # Using the module-level logger if `logger` is defined in this file scope
             # If not, import logging and use logging.error

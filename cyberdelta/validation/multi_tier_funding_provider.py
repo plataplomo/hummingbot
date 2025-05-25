@@ -38,7 +38,9 @@ class MultiTierFundingProvider:
     metrics, source reliability, and data freshness.
     """
 
-    def __init__(self, config: dict[str, Any], funding_rate_validator: Any | None = None) -> None:
+    def __init__(
+        self, config: dict[str, Any], funding_rate_validator: object | None = None
+    ) -> None:
         """
         Initialize the multi-tier funding provider.
 

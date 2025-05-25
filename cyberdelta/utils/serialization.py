@@ -40,7 +40,7 @@ class CyberDeltaJSONEncoder(json.JSONEncoder):
 
 
 # Helper function to easily dump JSON with the custom encoder
-def dump_json(data: Any, **kwargs: Any) -> str:
+def dump_json(data: object, **kwargs: Any) -> str:
     """Dump data to JSON string using the custom CyberDeltaJSONEncoder."""
     return json.dumps(data, cls=CyberDeltaJSONEncoder, **kwargs)
 

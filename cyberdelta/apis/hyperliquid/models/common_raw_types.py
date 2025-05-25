@@ -7,10 +7,12 @@ encountered in Hyperliquid API responses. These types centralize validation logi
 for raw models, ensuring consistency and adhering to project rules.
 """
 
+from __future__ import annotations
+
 from collections.abc import (
     Callable,  # Added Dict, Any for potential future use / broader compatibility if needed
 )
-from typing import Annotated, Any
+from typing import Annotated
 
 from pydantic import (
     AfterValidator,
@@ -701,10 +703,11 @@ RawStatusStringHL = Annotated[
 """A raw string representing a known exchange status (e.g., canceled, modified)."""
 
 
-def _validate_timestamp_ms(value: Any) -> int:
+def _validate_timestamp_ms(value: int | str | float) -> int:
     """Validate if the value is an integer and a plausible millisecond timestamp."""
     if not isinstance(value, int):
-        raise TypeError("Timestamp must be an integer.")
+        raise ValueError(f"Timestamp must be an integer, got {type(value).__name__}")
+
     if value <= 0:
         raise ValueError("Millisecond timestamp must be positive for Hyperliquid funding history.")
     return value
@@ -738,20 +741,15 @@ class RawHlCoinName(str):
     """Represents a coin name from Hyperliquid, typically a non-empty uppercase string."""
 
     @classmethod
-    def _validate(cls, value: Any, _: core_schema.ValidationInfo) -> "RawHlCoinName":
-        if not isinstance(value, str):
-            raise ValueError("Coin name must be a string")
-        if not value:
+    def _validate(cls, value: str, _: core_schema.ValidationInfo) -> RawHlCoinName:
+        if not value or not value.strip():
             raise ValueError("Coin name cannot be empty")
-        # Optional: Add further validation like ensuring it's uppercase if that's a strict rule.
-        # if not value.isupper():
-        #     raise ValueError(f"Coin name '{value}' must be uppercase.")
         return cls(value)
 
     @classmethod
     def __get_pydantic_core_schema__(
         cls,
-        source_type: Any,
+        source_type: type[str],
         handler: GetCoreSchemaHandler,
     ) -> core_schema.CoreSchema:
         # Use with_info_plain_validator_function as recommended by linter

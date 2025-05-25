@@ -157,41 +157,45 @@ class ConfigManager:
         position_size_params = []
 
         if "risk" in self.config and "max_position_size" in self.config["risk"]:
-            position_size_params.append((
-                "risk.max_position_size",
-                self.config["risk"]["max_position_size"],
-            ))
+            position_size_params.append(
+                (
+                    "risk.max_position_size",
+                    self.config["risk"]["max_position_size"],
+                )
+            )
 
         if (
             "risk" in self.config
             and "global" in self.config["risk"]
             and "max_position_usd" in self.config["risk"]["global"]
         ):
-            position_size_params.append((
-                "risk.global.max_position_usd",
-                self.config["risk"]["global"]["max_position_usd"],
-            ))
+            position_size_params.append(
+                (
+                    "risk.global.max_position_usd",
+                    self.config["risk"]["global"]["max_position_usd"],
+                )
+            )
 
         if "trading" in self.config and "max_position_size" in self.config["trading"]:
-            position_size_params.append((
-                "trading.max_position_size",
-                self.config["trading"]["max_position_size"],
-            ))
+            position_size_params.append(
+                (
+                    "trading.max_position_size",
+                    self.config["trading"]["max_position_size"],
+                )
+            )
 
         return len(position_size_params) > 1
 
-    def get(self, key_path: str, default: Any = None) -> Any:
+    def get(self, key_path: str, default: object = None) -> object:
         """
         Get a configuration value by key path.
 
-        Supports dot notation for accessing nested configuration values.
-
         Args:
-            key_path: Dot-separated path to config value (e.g., "general.log_level")
-            default: Default value if key doesn't exist
+            key_path: Dot-separated path to the configuration value
+            default: Default value to return if key is not found
 
         Returns:
-            Configuration value or default
+            The configuration value or default
         """
         if not self.loaded:
             self.load()

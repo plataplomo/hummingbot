@@ -12,11 +12,12 @@ according to the defined Raw WS Pydantic models before being processed further
 by the application.
 """
 
-from typing import Any, TypeVar
 import logging
+from typing import Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
+from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import HyperliquidRawAllMids
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawOrder
 from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsBookUpdate,
@@ -26,7 +27,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsTradeEvent,  # For public trades stream
     # HyperliquidRawWsUserEvent, # If a general user event wrapper exists
 )
-from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import HyperliquidRawAllMids
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 

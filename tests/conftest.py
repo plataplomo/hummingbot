@@ -43,7 +43,7 @@ sys.path.insert(0, PROJECT_ROOT)
 class MockResponse:
     def __init__(
         self,
-        data: Any,
+        data: object,  # Test data can be any JSON-serializable object
         status: int = 200,
         headers: dict[str, str] | None = None,
         content_type: str = "application/json",
@@ -77,7 +77,7 @@ class MockResponse:
                 headers=cast(Any, self.headers),
             )
 
-    async def json(self) -> Any:
+    async def json(self) -> object:  # JSON data can be any serializable object
         return self._data
 
     async def __aenter__(self) -> MockResponse:
@@ -312,7 +312,7 @@ def mock_config() -> MagicMock:
         "data": {"staleness_thresholds": {"ticker": 60, "funding_rate": 300, "orderbook": 60}},
     }
 
-    def getter(key: str, default: Any | None = None) -> Any | None:
+    def getter(key: str, default: object = None) -> object:
         return _deep_get(config_data, key, default)
 
     mock_cfg = MagicMock(spec=Config)
@@ -474,7 +474,7 @@ def mock_arbitrage_opportunity() -> MagicMock:
     return opportunity
 
 
-def _deep_get(d: dict[str, Any], keys: str, default: Any | None = None) -> Any | None:
+def _deep_get(d: dict[str, Any], keys: str, default: object = None) -> object:
     """Helper to get nested dictionary values."""
     keys_list = keys.split(".")
     value: Any = d
@@ -497,11 +497,11 @@ def mock_secrets_manager_with_missing() -> MagicMock:
     # Simulate missing optional keys
     def mock_get(
         key: str,
-        default: Any = None,
+        default: object = None,
         *,
         _deep_get: bool = False,
-        getter: Callable[..., Any] | None = None,  # Changed Any to Callable[..., Any] | None
-    ) -> Any:
+        getter: Callable[..., object] | None = None,
+    ) -> object:
         if key == "OPTIONAL_SETTING":
             return None
         elif key == "REQUIRED_DB_PASSWORD":
@@ -613,7 +613,7 @@ def mock_get_config() -> dict[str, Any]:
 
 def create_mock_response(
     status: int = 200,
-    json_data: Any | None = None,
+    json_data: object | None = None,  # JSON data can be any serializable object
     text_data: str | None = None,
     headers: dict[str, str] | None = None,
 ) -> MockResponse:
@@ -646,11 +646,11 @@ async def mock_request(
     url: str,
     *,
     params: dict[str, Any] | None = None,
-    data: Any | None = None,
-    json: Any | None = None,
+    data: object | None = None,  # Request data can be any serializable object
+    json: object | None = None,  # JSON data can be any serializable object
     headers: dict[str, Any] | None = None,
     status_code: int = 200,
-    **kwargs: Any,
+    **kwargs: object,  # Additional kwargs for flexibility
 ) -> MockResponse:
     text_data = str(json) if json else ""
     actual_headers = headers if headers else {}

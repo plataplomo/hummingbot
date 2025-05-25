@@ -187,7 +187,7 @@ class SimplePerformanceTracker:
 
         except AttributeError as e:
             logger.error(f"Invalid TradeSignal format: {e}")
-            raise ValueError(f"TradeSignal is missing required attributes: {e}")
+            raise ValueError(f"TradeSignal is missing required attributes: {e}") from e
 
     def track_signal_execution(self, signal_id: str, executed: bool) -> None:
         """

@@ -458,7 +458,9 @@ class DataHandler:
             if exchange_id in self.ws_tasks:
                 del self.ws_tasks[exchange_id]
 
-    async def _update_and_notify(self, exchange_id: str, message: Any) -> None:
+    async def _update_and_notify(
+        self, exchange_id: str, message: dict[str, object] | list[object] | str
+    ) -> None:
         """Parse raw message and update internal state / notify observers."""
         client = self.api_clients.get(exchange_id)
         if not client or not hasattr(client, "parse_ws_message"):

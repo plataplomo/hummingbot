@@ -93,13 +93,13 @@ class Config:
                 self.set(config_path, typed_value)
                 logger.debug(f"Set configuration {config_path} from environment variable {key}")
 
-    def get(self, key: str, default: Any | None = None) -> Any | None:
+    def get(self, key: str, default: object = None) -> object:
         """
         Get a configuration value.
 
         Args:
-            key: Configuration key with dot notation (e.g., 'exchanges.hyperliquid.enabled')
-            default: Default value to return if key is not found
+            key: Configuration key
+            default: Default value if key doesn't exist
 
         Returns:
             Configuration value or default
@@ -115,13 +115,13 @@ class Config:
 
         return value
 
-    def set(self, key: str, value: Any) -> None:
+    def set(self, key: str, value: object) -> None:
         """
         Set a configuration value.
 
         Args:
-            key: Configuration key with dot notation (e.g., 'exchanges.hyperliquid.enabled')
-            value: Value to set
+            key: Configuration key
+            value: Configuration value
         """
         parts = key.split(".")
         current: Any = self.config_data
