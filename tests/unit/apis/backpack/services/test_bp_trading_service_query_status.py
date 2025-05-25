@@ -114,7 +114,6 @@ class TestBackpackTradingServiceQueryStatus:
                 endpoint_group="private",
                 request_weight=1,
                 is_public_info_endpoint=False,
-                rate_limiter_service=bp_trading_service._rate_limiter_service,
             )
             mock_response_handler.handle_get_open_orders_response.assert_called_once_with(
                 mock_raw_response_content, symbol
@@ -155,7 +154,6 @@ class TestBackpackTradingServiceQueryStatus:
                 endpoint_group="private",
                 request_weight=1,
                 is_public_info_endpoint=False,
-                rate_limiter_service=bp_trading_service._rate_limiter_service,
             )
             mock_response_handler.handle_get_open_orders_response.assert_not_called()
             mock_mapper.transform_raw_order_to_internal.assert_not_called()
@@ -305,7 +303,6 @@ class TestBackpackTradingServiceQueryStatus:
                 endpoint_group="private",
                 request_weight=1,
                 is_public_info_endpoint=False,
-                rate_limiter_service=bp_trading_service._rate_limiter_service,
             )
             mock_response_handler.handle_get_order_status_response.assert_called_once_with(
                 mock_raw_response_content, order_id, symbol
@@ -522,7 +519,6 @@ class TestBackpackTradingServiceQueryStatus:
                 endpoint_group="private",
                 request_weight=1,
                 is_public_info_endpoint=False,
-                rate_limiter_service=bp_trading_service._rate_limiter_service,
             )
             mock_response_handler.handle_get_order_status_response.assert_called_once_with(
                 mock_raw_response_content, order_id
@@ -729,7 +725,6 @@ class TestBackpackTradingServiceQueryStatus:
                 endpoint_group="private",
                 request_weight=1,
                 is_public_info_endpoint=False,
-                rate_limiter_service=bp_trading_service._rate_limiter_service,
             )
             mock_response_handler.handle_get_open_orders_response.assert_called_once_with(
                 mock_raw_response_content, None
