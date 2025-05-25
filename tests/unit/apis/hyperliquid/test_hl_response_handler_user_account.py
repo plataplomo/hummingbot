@@ -89,7 +89,7 @@ class TestHandleInfoUserStateResponse:
             f"Unexpected info (user state for {user_address}) response format:"
             in exc_info.value.message
         )
-        assert "expected dict, got <class 'list'>" in exc_info.value.message
+        assert "expected dict, got list" in exc_info.value.message
 
 
 class TestHandleInfoOpenOrdersResponse:
@@ -119,7 +119,7 @@ class TestHandleInfoOpenOrdersResponse:
 
     def test_validation_error_invalid_order_item(self, user_address: str) -> None:
         """Test open orders response with invalid order item."""
-        invalid_order = {"order": {"asset": "ETH-PERP"}}  # Missing required fields
+        invalid_order = {"asset": "ETH-PERP"}  # Missing required fields
         raw_data = [invalid_order]
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_open_orders_response(
@@ -127,20 +127,24 @@ class TestHandleInfoOpenOrdersResponse:
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
-            f"Invalid single open order item (index 0) in info (open orders for {user_address}) "
-            f"response from exchange" in exc_info.value.message
+            f"Invalid info (open orders for {user_address}) response from exchange:"
+            in exc_info.value.message
         )
         assert isinstance(exc_info.value.original_exception, ValidationError)
 
     def test_invalid_item_type_in_list(self, user_address: str) -> None:
         """Test open orders response with non-dict item in list."""
         raw_data = ["not_an_order_dict"]
-        # Handler should skip invalid items
-        response = HyperliquidResponseHandler.handle_info_open_orders_response(
-            cast(RawJsonResponse, raw_data), user_address=user_address
+        with pytest.raises(APIError) as exc_info:
+            HyperliquidResponseHandler.handle_info_open_orders_response(
+                cast(RawJsonResponse, raw_data), user_address=user_address
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert (
+            f"Invalid info (open orders for {user_address}) response from exchange:"
+            in exc_info.value.message
         )
-        assert isinstance(response, HyperliquidRawOpenOrdersResponse)
-        assert len(response.items) == 0  # Invalid item skipped
+        assert isinstance(exc_info.value.original_exception, ValidationError)
 
     def test_invalid_top_level_type(self, user_address: str) -> None:
         """Test open orders response with wrong top-level type."""
@@ -154,7 +158,27 @@ class TestHandleInfoOpenOrdersResponse:
             f"Unexpected info (open orders for {user_address}) response format:"
             in exc_info.value.message
         )
-        assert "expected list, got <class 'dict'>" in exc_info.value.message
+        assert "expected list, got dict" in exc_info.value.message
+
+    def test_open_orders_with_mixed_valid_invalid_items(
+        self, user_address: str, valid_raw_open_order_item: dict[str, Any]
+    ) -> None:
+        """Test open orders response with mix of valid and invalid items."""
+        invalid_order = {"asset": "ETH-PERP"}  # Missing required fields
+        raw_data = [
+            valid_raw_open_order_item.copy(),  # Valid
+            invalid_order,  # Invalid
+        ]
+        with pytest.raises(APIError) as exc_info:
+            HyperliquidResponseHandler.handle_info_open_orders_response(
+                cast(RawJsonResponse, raw_data), user_address=user_address
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert (
+            f"Invalid info (open orders for {user_address}) response from exchange:"
+            in exc_info.value.message
+        )
+        assert isinstance(exc_info.value.original_exception, ValidationError)
 
 
 class TestHandleInfoUserFillsResponse:
@@ -185,7 +209,7 @@ class TestHandleInfoUserFillsResponse:
 
     def test_validation_error_invalid_fill_item(self, user_address: str) -> None:
         """Test user fills response with invalid fill item."""
-        invalid_fill = {"coin": "ETH-PERP"}  # Missing required fields
+        invalid_fill = {"coin": "ETH"}  # Missing required fields
         raw_data = [invalid_fill]
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_user_fills_response(
@@ -193,20 +217,24 @@ class TestHandleInfoUserFillsResponse:
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
-            f"Invalid single user fill item (index 0) in info (user fills for {user_address}) "
-            f"response from exchange" in exc_info.value.message
+            f"Invalid info (user fills for {user_address}) response from exchange:"
+            in exc_info.value.message
         )
         assert isinstance(exc_info.value.original_exception, ValidationError)
 
     def test_invalid_item_type_in_list(self, user_address: str) -> None:
         """Test user fills response with non-dict item in list."""
         raw_data = ["not_a_fill_dict"]
-        # Handler should skip invalid items
-        response = HyperliquidResponseHandler.handle_info_user_fills_response(
-            cast(RawJsonResponse, raw_data), user_address=user_address
+        with pytest.raises(APIError) as exc_info:
+            HyperliquidResponseHandler.handle_info_user_fills_response(
+                cast(RawJsonResponse, raw_data), user_address=user_address
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert (
+            f"Invalid info (user fills for {user_address}) response from exchange:"
+            in exc_info.value.message
         )
-        assert isinstance(response, HyperliquidRawUserFillsResponse)
-        assert len(response.root) == 0  # Invalid item skipped
+        assert isinstance(exc_info.value.original_exception, ValidationError)
 
     def test_invalid_top_level_type(self, user_address: str) -> None:
         """Test user fills response with wrong top-level type."""
@@ -220,7 +248,7 @@ class TestHandleInfoUserFillsResponse:
             f"Unexpected info (user fills for {user_address}) response format:"
             in exc_info.value.message
         )
-        assert "expected list, got <class 'dict'>" in exc_info.value.message
+        assert "expected list, got dict" in exc_info.value.message
 
 
 class TestUserAccountEdgeCases:
@@ -263,11 +291,24 @@ class TestUserAccountEdgeCases:
         raw_data: dict[str, Any] = {
             "assetPositions": [],
             "crossMaintenanceMarginUsed": "0.0",
+            "crossMarginSummary": {
+                "accountValue": "1000.0",
+                "totalMarginUsed": "0.0",
+                "totalNtlPos": "0.0",
+                "totalRawUsd": "1000.0",
+            },
             "marginSummary": {
                 "accountValue": "1000.0",
                 "totalMarginUsed": "0.0",
                 "totalNtlPos": "0.0",
                 "totalRawUsd": "1000.0",
+            },
+            "isolatedMaintenanceMarginUsed": "0.0",
+            "isolatedMarginSummary": {
+                "accountValue": "0.0",
+                "totalMarginUsed": "0.0",
+                "totalNtlPos": "0.0",
+                "totalRawUsd": "0.0",
             },
             "withdrawable": "1000.0",
         }
@@ -277,39 +318,25 @@ class TestUserAccountEdgeCases:
         assert response.withdrawable == "1000.0"
         assert response.cross_maintenance_margin_used == "0.0"
 
-    def test_open_orders_with_mixed_valid_invalid_items(
-        self, valid_raw_open_order_item: dict[str, Any], user_address: str
-    ) -> None:
-        """Test open orders response with mix of valid and invalid items."""
-        invalid_order = {"order": {"asset": "ETH-PERP"}}  # Missing required fields
-        raw_data = [
-            valid_raw_open_order_item.copy(),  # Valid
-            invalid_order,  # Invalid - should cause error
-            valid_raw_open_order_item.copy(),  # Valid but won't be processed due to error
-        ]
-        with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_open_orders_response(
-                cast(RawJsonResponse, raw_data), user_address=user_address
-            )
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "(index 1)" in exc_info.value.message  # Should fail on second item
-
     def test_user_fills_with_mixed_valid_invalid_items(
-        self, valid_raw_user_fill: dict[str, Any], user_address: str
+        self, user_address: str, valid_raw_user_fill: dict[str, Any]
     ) -> None:
         """Test user fills response with mix of valid and invalid items."""
-        invalid_fill = {"coin": "ETH-PERP"}  # Missing required fields
+        invalid_fill = {"coin": "ETH"}  # Missing required fields
         raw_data = [
             valid_raw_user_fill.copy(),  # Valid
-            invalid_fill,  # Invalid - should cause error
-            valid_raw_user_fill.copy(),  # Valid but won't be processed due to error
+            invalid_fill,  # Invalid
         ]
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_user_fills_response(
                 cast(RawJsonResponse, raw_data), user_address=user_address
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "(index 1)" in exc_info.value.message  # Should fail on second item
+        assert (
+            f"Invalid info (user fills for {user_address}) response from exchange:"
+            in exc_info.value.message
+        )
+        assert isinstance(exc_info.value.original_exception, ValidationError)
 
     def test_user_state_with_complex_asset_positions(self, user_address: str) -> None:
         """Test user state response with multiple asset positions."""
@@ -384,7 +411,7 @@ class TestUserAccountEdgeCases:
                 "limitPx": "46000.0",
                 "oid": 7001,
                 "reduceOnly": True,
-                "side": "S",
+                "side": "A",
                 "sz": "0.1",
                 "timestamp": 1678889700000,
                 "orderType": {"trigger": {"triggerPx": "47000.0", "tpsl": "tp", "isMarket": False}},

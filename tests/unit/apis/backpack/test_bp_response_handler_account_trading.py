@@ -632,7 +632,7 @@ class TestHandleGetOrderStatusResponse:
                 cast(RawJsonResponse, raw_data), order_id
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert f"order status ({order_id})" in exc_info.value.message
+        assert f"order status (id={order_id})" in exc_info.value.message
         assert isinstance(exc_info.value.original_exception, ValidationError)
 
     def test_invalid_top_level_type(self, order_id: str) -> None:

@@ -305,8 +305,34 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         mock_payload_model.model_dump.return_value = {"foo": "bar"}
         mock_request_builder.build_user_fills_request_payload.return_value = mock_payload_model
         mock_http_client_requester.return_value = ([{"fill": 1}], 200, {})
-        mock_raw_fill1 = MagicMock(name="raw_fill1")
-        mock_raw_fill2 = MagicMock(name="raw_fill2")
+        mock_raw_fill1 = MagicMock(
+            oid=1,
+            cloid=None,
+            asset="BTC",
+            side="B",
+            limit_px="10000.0",
+            sz="0.001",
+            timestamp=1672531200000,
+            order_type={"limit": {"tif": "Gtc"}},
+            reduce_only=False,
+            remaining_sz="0.0",
+            status="Filled",
+            status_timestamp=1672531200000,
+        )
+        mock_raw_fill2 = MagicMock(
+            oid=2,
+            cloid=None,
+            asset="ETH",
+            side="S",
+            limit_px="2000.0",
+            sz="0.01",
+            timestamp=1672531201000,
+            order_type={"limit": {"tif": "Gtc"}},
+            reduce_only=False,
+            remaining_sz="0.0",
+            status="Filled",
+            status_timestamp=1672531201000,
+        )
         mock_response_handler.handle_info_user_fills_response.return_value = MagicMock(
             root=[mock_raw_fill1, mock_raw_fill2]
         )
@@ -540,16 +566,16 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
 
         # Test case 2: Trade history with mapper errors for some trades
         # The service is designed to be resilient and skip invalid fills rather than raising APIError
-        mock_fills = [MagicMock(name=f"fill_{i}") for i in range(3)]
+        mock_fills = [MagicMock(hash=f"fill_{i}") for i in range(3)]
         mock_response_handler.handle_info_user_fills_response.return_value = MagicMock(
             root=mock_fills
         )
 
         # Configure mapper to succeed for some, fail for others
         def mapper_side_effect(fill: MagicMock) -> MagicMock:
-            if fill.name == "fill_1":
+            if fill.hash == "fill_1":
                 raise ValueError("Invalid fill data")
-            return MagicMock(symbol="BTC", id=fill.name)
+            return MagicMock(symbol="BTC", id=fill.hash)
 
         mock_hl_account_mapper.transform_raw_user_fill_to_internal.side_effect = mapper_side_effect
 

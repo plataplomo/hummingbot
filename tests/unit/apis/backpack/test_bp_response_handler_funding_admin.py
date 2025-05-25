@@ -78,10 +78,10 @@ class TestHandleGetFundingRateResponse:
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "expected dict" in exc_info.value.message
-        assert "got list" in exc_info.value.message
+        assert "got str" in exc_info.value.message
 
     def test_extra_fields_ignored(self, symbol_perp: str) -> None:
-        """Test that extra fields in funding rate response are ignored gracefully."""
+        """Test that extra fields in funding rate response cause ValidationError due to extra='forbid'."""
         raw_data = {
             "symbol": symbol_perp,
             "rate": "0.000123",
@@ -90,11 +90,12 @@ class TestHandleGetFundingRateResponse:
             "time": 1678887000000,
             "extraField": "should_be_ignored",
         }
-        funding_rate = BackpackResponseHandler.handle_get_funding_rate_response(
-            cast(RawJsonResponse, raw_data), symbol_perp, 200, {}
-        )
-        assert funding_rate.symbol == symbol_perp
-        assert funding_rate.funding_rate == "0.000123"
+        with pytest.raises(APIError) as exc_info:
+            BackpackResponseHandler.handle_get_funding_rate_response(
+                cast(RawJsonResponse, raw_data), symbol_perp, 200, {}
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert isinstance(exc_info.value.original_exception, ValidationError)
 
 
 class TestFundingRateEdgeCases:

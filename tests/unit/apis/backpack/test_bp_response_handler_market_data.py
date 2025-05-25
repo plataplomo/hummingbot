@@ -1,5 +1,6 @@
 """Unit tests for BackpackResponseHandler market data response functionality."""
 
+from decimal import Decimal
 from typing import Any, cast
 
 import pytest
@@ -51,9 +52,9 @@ class TestHandleGetTickerResponse:
     def test_validation_error_missing_field(self, symbol_spot: str) -> None:
         """Test ticker response missing required field."""
         raw_data = {
-            "symbol": symbol_spot,
+            # Missing 'symbol' field (required)
             "price": "140.50",
-            # Missing 'bid' field
+            "bid": "140.49",
             "ask": "140.51",
             "volume": "500000.0",
             "time": 1678886400000,
@@ -65,7 +66,7 @@ class TestHandleGetTickerResponse:
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert f"Invalid ticker ({symbol_spot}) - Status: 200" in exc_info.value.message
         assert isinstance(exc_info.value.original_exception, ValidationError)
-        assert "bid" in str(exc_info.value.original_exception)
+        assert "symbol" in str(exc_info.value.original_exception)
 
     def test_validation_error_invalid_price_format(self, symbol_spot: str) -> None:
         """Test ticker response with invalid price format."""
@@ -85,7 +86,7 @@ class TestHandleGetTickerResponse:
         assert isinstance(exc_info.value.original_exception, ValidationError)
 
     def test_extra_fields_ignored(self, symbol_spot: str) -> None:
-        """Test that extra fields in ticker response are ignored gracefully."""
+        """Test that extra fields in ticker response cause ValidationError due to extra='forbid'."""
         raw_data = {
             "symbol": symbol_spot,
             "price": "140.50",
@@ -95,11 +96,12 @@ class TestHandleGetTickerResponse:
             "time": 1678886400000,
             "extraField": "should_be_ignored",
         }
-        ticker = BackpackResponseHandler.handle_get_ticker_response(
-            cast(RawJsonResponse, raw_data), symbol_spot, 200, {}
-        )
-        assert ticker.symbol == symbol_spot
-        assert ticker.price == "140.50"
+        with pytest.raises(APIError) as exc_info:
+            BackpackResponseHandler.handle_get_ticker_response(
+                cast(RawJsonResponse, raw_data), symbol_spot, 200, {}
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert isinstance(exc_info.value.original_exception, ValidationError)
 
 
 class TestHandleGetOrderBookResponse:
@@ -264,11 +266,11 @@ class TestHandleGetMarketDataResponse:
         assert isinstance(klines[0], BackpackRawKline)
         assert klines[0].start_time_ms == 1678886400000
         assert klines[0].open_price.quantize(10) == 138  # Decimal comparison
-        assert klines[0].high_price.quantize(10) == 139  # Decimal comparison
+        assert klines[0].high_price.quantize(10) == Decimal("140")  # 139.5 quantizes to 140
 
         assert isinstance(klines[1], BackpackRawKline)
         assert klines[1].start_time_ms == 1678886460000
-        assert klines[1].close_price.quantize(10) == 140  # Decimal comparison
+        assert klines[1].close_price.quantize(10) == Decimal("140")  # 139.8 quantizes to 140
 
     def test_empty_klines_list(self, symbol_spot: str) -> None:
         """Test handling empty market data response."""

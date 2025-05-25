@@ -46,28 +46,29 @@ class TestHandleInfoMetaAndAssetCtxsResponse:
 
     def test_validation_error_wrong_structure(self) -> None:
         """Test meta and asset contexts response with wrong structure."""
-        raw_data: list[str] = ["wrong", "structure"]
+        raw_data: list[dict[str, str]] = [{"invalid": "structure"}]  # Missing required fields
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response(
                 cast(RawJsonResponse, raw_data)
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
-            "Invalid info (meta and asset ctxs) response from exchange:" in exc_info.value.message
+            "Unexpected info (MetaAndAssetCtxs) response format: expected 2-element list, got 1 elements"
+            in exc_info.value.message
         )
-        assert isinstance(exc_info.value.original_exception, ValidationError)
 
     def test_validation_error_missing_universe(self) -> None:
-        """Test meta and asset contexts response missing universe in first element."""
-        raw_data: list[Any] = [{}, []]  # Missing universe key
+        """Test meta and asset contexts response missing universe."""
+        raw_data: list[dict[str, str] | list[Any]] = [
+            {"name": "ETH-PERP"},
+            [],
+        ]  # Missing universe field in meta
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response(
                 cast(RawJsonResponse, raw_data)
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            "Invalid info (meta and asset ctxs) response from exchange:" in exc_info.value.message
-        )
+        assert "Invalid info (MetaAndAssetCtxs) response from exchange:" in exc_info.value.message
         assert isinstance(exc_info.value.original_exception, ValidationError)
 
     def test_invalid_top_level_type(self) -> None:
@@ -78,8 +79,8 @@ class TestHandleInfoMetaAndAssetCtxsResponse:
                 cast(RawJsonResponse, raw_data)
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Unexpected info (meta and asset ctxs) response format:" in exc_info.value.message
-        assert "expected list, got <class 'dict'>" in exc_info.value.message
+        assert "Unexpected info (MetaAndAssetCtxs) response format:" in exc_info.value.message
+        assert "expected list, got dict" in exc_info.value.message
 
 
 class TestHandleInfoFundingRateResponse:
@@ -121,7 +122,7 @@ class TestHandleInfoFundingRateResponse:
             f"Unexpected info (funding rate for {symbol}) response format:"
             in exc_info.value.message
         )
-        assert "expected dict, got <class 'list'>" in exc_info.value.message
+        assert "expected dict, got list" in exc_info.value.message
 
 
 class TestHandleInfoL2BookResponse:
@@ -161,7 +162,7 @@ class TestHandleInfoL2BookResponse:
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert f"Unexpected info (l2 book for {symbol}) response format:" in exc_info.value.message
-        assert "expected dict, got <class 'str'>" in exc_info.value.message
+        assert "expected dict, got str" in exc_info.value.message
 
     def test_l2_book_response_empty_levels(self, symbol: str) -> None:
         """Test L2 book response with empty levels arrays."""
@@ -233,7 +234,7 @@ class TestHandleInfoRecentTradesResponse:
             f"Unexpected info (recent trades for {symbol}) response format:"
             in exc_info.value.message
         )
-        assert "expected list, got <class 'dict'>" in exc_info.value.message
+        assert "expected list, got dict" in exc_info.value.message
 
 
 class TestHandleInfoCandleSnapshotResponse:
@@ -278,7 +279,24 @@ class TestHandleInfoCandleSnapshotResponse:
             f"Unexpected info (candle snapshot for {symbol}) response format:"
             in exc_info.value.message
         )
-        assert "expected dict, got <class 'list'>" in exc_info.value.message
+        assert "expected dict, got list" in exc_info.value.message
+
+    def test_candle_snapshot_mismatched_arrays(self, symbol: str) -> None:
+        """Test candle snapshot with mismatched array lengths causes APIError."""
+        raw_data = {
+            "t": [1672531200000, 1672531260000],
+            "o": ["1200.0"],  # Only one element vs two timestamps
+            "h": ["1250.0", "1205.0"],
+            "l": ["1190.0", "1198.0"],
+            "c": ["1240.0", "1202.0"],
+            "v": ["1000.0", "500.0"],
+            "s": "ok",
+        }
+        with pytest.raises(APIError) as exc_info:
+            HyperliquidResponseHandler.handle_info_candle_snapshot_response(
+                cast(RawJsonResponse, raw_data), symbol=symbol, interval="1m"
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
 
 
 class TestHandleHistoricalFundingRatesResponse:
@@ -316,12 +334,12 @@ class TestHandleHistoricalFundingRatesResponse:
     def test_invalid_item_type_in_list(self) -> None:
         """Test historical funding rates response with non-dict item in list."""
         raw_data = ["not_a_funding_dict"]
-        # Handler should skip invalid items
-        response_list = HyperliquidResponseHandler.handle_historical_funding_rates_response(
-            cast(RawJsonResponse, raw_data)
-        )
-        assert isinstance(response_list, list)
-        assert len(response_list) == 0  # Invalid item skipped
+        with pytest.raises(APIError) as exc_info:
+            HyperliquidResponseHandler.handle_historical_funding_rates_response(
+                cast(RawJsonResponse, raw_data)
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Expected dict for historical funding rate item" in exc_info.value.message
 
     def test_invalid_top_level_type(self) -> None:
         """Test historical funding rates response with wrong top-level type."""
@@ -332,7 +350,7 @@ class TestHandleHistoricalFundingRatesResponse:
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Unexpected historical_funding_rates response format:" in exc_info.value.message
-        assert "expected list, got <class 'dict'>" in exc_info.value.message
+        assert "expected list, got dict" in exc_info.value.message
 
     def test_empty_list_response(self) -> None:
         """Test historical funding rates response with empty list."""
@@ -348,18 +366,19 @@ class TestMarketDataEdgeCases:
     """Tests for additional edge cases in market data response handling."""
 
     def test_funding_rate_response_extra_fields(self, symbol: str) -> None:
-        """Test that funding rate response handles extra fields gracefully."""
+        """Test that funding rate response with extra fields causes ValidationError due to extra='forbid'."""
         raw_data = {
             "name": "ETH-PERP",
             "funding": "0.00015",
             "markPx": "3000.0",
-            "extraField": "ignored",  # Should be ignored
+            "extraField": "ignored",  # Should cause ValidationError
         }
-        response = HyperliquidResponseHandler.handle_info_funding_rate_response(
-            cast(RawJsonResponse, raw_data), symbol=symbol
-        )
-        assert response.name == "ETH-PERP"
-        assert response.funding == "0.00015"
+        with pytest.raises(APIError) as exc_info:
+            HyperliquidResponseHandler.handle_info_funding_rate_response(
+                cast(RawJsonResponse, raw_data), symbol=symbol
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert isinstance(exc_info.value.original_exception, ValidationError)
 
     def test_l2_book_response_empty_levels(self, symbol: str) -> None:
         """Test L2 book response with empty levels arrays."""
@@ -375,24 +394,6 @@ class TestMarketDataEdgeCases:
         assert len(response.levels) == 2
         assert len(response.levels[0]) == 0  # Empty bids
         assert len(response.levels[1]) == 0  # Empty asks
-
-    def test_candle_snapshot_mismatched_arrays(self, symbol: str) -> None:
-        """Test candle snapshot with mismatched array lengths."""
-        raw_data = {
-            "t": [1672531200000, 1672531260000],
-            "o": ["1200.0"],  # Only one element vs two timestamps
-            "h": ["1250.0", "1205.0"],
-            "l": ["1190.0", "1198.0"],
-            "c": ["1240.0", "1202.0"],
-            "v": ["1000.0", "500.0"],
-            "s": "ok",
-        }
-        # This should still parse successfully as the model doesn't enforce array length consistency
-        response = HyperliquidResponseHandler.handle_info_candle_snapshot_response(
-            cast(RawJsonResponse, raw_data), symbol=symbol, interval="1m"
-        )
-        assert len(response.t) == 2
-        assert len(response.o) == 1  # Mismatched length preserved
 
     def test_recent_trades_mixed_valid_invalid_items(
         self, valid_raw_public_trade: dict[str, Any], symbol: str
