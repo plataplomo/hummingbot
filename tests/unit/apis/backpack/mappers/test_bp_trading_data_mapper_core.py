@@ -1,5 +1,14 @@
 """
-Unit tests for the Backpack Trading Data Mapper.
+CyberDeltaEngine: Backpack Trading Data Mapper Core Tests
+---------------------------------------------------------
+
+Comprehensive test suite for BackpackTradingDataMapper core transformations.
+Tests fundamental transformation methods and mapping logic including:
+- Order side, status, type, and time-in-force mappings
+- Raw order to internal order transformations
+- Order data to internal order transformations
+- Core business logic validation
+- Basic error handling scenarios
 """
 
 from __future__ import annotations
@@ -52,15 +61,14 @@ def create_raw_order(
     order_type: str = "LIMIT",  # Valid value from BP_ORDER_TYPES
     price: str | None = "3000.50",
     quantity: str = "1.5",
-    executed_quantity: str
-    | None = "0.0",  # Changed from "0.5" to "0.0" to avoid business logic validation
+    executed_quantity: str | None = "0.0",
     order_id: str = "12345",
     client_id: str | None = "test_order_001",
     symbol: str = "SOL_USDC",
     time_in_force: str | None = "GTC",
     created_at: str | None = None,
     updated_at: str | None = None,
-    avg_fill_price: str | None = None,  # Add parameter for average fill price
+    avg_fill_price: str | None = None,
 ) -> BackpackRawOrder:
     """Create a BackpackRawOrder with customizable parameters."""
     if created_at is None:
@@ -81,7 +89,7 @@ def create_raw_order(
         executedQuoteQuantity=None,
         price=price,
         triggerPrice=None,
-        avgFillPrice=avg_fill_price,  # Use the parameter
+        avgFillPrice=avg_fill_price,
         triggerBy=None,
         timeInForce=time_in_force,
         reduceOnly=False,
@@ -105,8 +113,8 @@ def create_raw_order(
         ("Sell", OrderSide.SELL),
         ("buy", OrderSide.BUY),  # Case insensitive
         ("sell", OrderSide.SELL),
-        ("Bid", OrderSide.BUY),  # Changed from "BUY" to "Bid" (valid in BP_EXTENDED_ORDER_SIDES)
-        ("Ask", OrderSide.SELL),  # Changed from "SELL" to "Ask" (valid in BP_EXTENDED_ORDER_SIDES)
+        ("Bid", OrderSide.BUY),
+        ("Ask", OrderSide.SELL),
     ],
 )
 class TestOrderSideMapping:
@@ -137,14 +145,14 @@ class TestOrderSideMapping:
             order_type="LIMIT",
             status="NEW",
             quantity="1.0",
-            price="100.0",  # Add required price for LIMIT orders
+            price="100.0",
         )
         assert result.side == expected_side
 
 
 @pytest.mark.parametrize(
     "invalid_side",
-    ["X", "", "b", "s", "invalid", "Long", "Short"],
+    ["X", "", "b", "s", "invalid", "Long", "Short", "UP", "DOWN"],
 )
 def test_invalid_order_side_raises_error(
     trading_data_mapper: BackpackTradingDataMapper,
@@ -159,7 +167,7 @@ def test_invalid_order_side_raises_error(
             order_type="LIMIT",
             status="NEW",
             quantity="1.0",
-            price="100.0",  # Add required price for LIMIT orders
+            price="100.0",
         )
 
 
@@ -174,10 +182,8 @@ def test_invalid_order_side_raises_error(
         ("CANCELLED", OrderStatus.CANCELED),
         ("REJECTED", OrderStatus.REJECTED),
         ("PARTIALLY_FILLED", OrderStatus.PARTIALLY_FILLED),
-        (
-            "EXPIRED",
-            OrderStatus.UNKNOWN,
-        ),  # Changed from "UNKNOWN_STATUS" to "EXPIRED" (valid in BP_ORDER_STATUSES)
+        ("EXPIRED", OrderStatus.UNKNOWN),
+        # Remove invalid statuses that aren't supported by BackpackRawOrder validation
     ],
 )
 def test_order_status_mapping(
@@ -185,10 +191,63 @@ def test_order_status_mapping(
     bp_status: str,
     expected_status: OrderStatus,
 ) -> None:
-    """Test order status mapping with valid and invalid statuses."""
+    """Test order status mapping with valid and extended statuses."""
     raw_order = create_raw_order(status=bp_status)
     result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
     assert result.status == expected_status
+
+
+# Add separate test for unsupported statuses using order_data method
+def test_unsupported_order_status_via_data_method(
+    trading_data_mapper: BackpackTradingDataMapper,
+) -> None:
+    """Test unsupported order statuses via order data method."""
+    # Test "pending" which actually maps to OPEN according to the mapper
+    result_pending = trading_data_mapper.transform_order_data_to_internal(
+        order_id="12345",
+        symbol="SOL_USDC",
+        side="Buy",
+        order_type="LIMIT",
+        status="PENDING",
+        quantity="1.0",
+        price="100.0",
+    )
+    assert result_pending.status == OrderStatus.OPEN
+
+    # Test truly unsupported statuses that map to UNKNOWN
+    unsupported_statuses = ["OPEN", "ACTIVE", "INVALID", "NONSENSE"]
+    for status in unsupported_statuses:
+        result = trading_data_mapper.transform_order_data_to_internal(
+            order_id="12345",
+            symbol="SOL_USDC",
+            side="Buy",
+            order_type="LIMIT",
+            status=status,
+            quantity="1.0",
+            price="100.0",
+        )
+        assert result.status == OrderStatus.UNKNOWN
+
+
+@pytest.mark.parametrize(
+    "invalid_status",
+    ["UNKNOWN_STATUS", "INVALID", "", "xyz", "123"],
+)
+def test_invalid_order_status_defaults_to_unknown(
+    trading_data_mapper: BackpackTradingDataMapper,
+    invalid_status: str,
+) -> None:
+    """Test that invalid order statuses default to UNKNOWN."""
+    result = trading_data_mapper.transform_order_data_to_internal(
+        order_id="12345",
+        symbol="SOL_USDC",
+        side="Buy",
+        order_type="LIMIT",
+        status=invalid_status,
+        quantity="1.0",
+        price="100.0",
+    )
+    assert result.status == OrderStatus.UNKNOWN
 
 
 # --- Parameterized Tests for Order Type Mapping ---
@@ -199,10 +258,8 @@ def test_order_status_mapping(
     [
         ("LIMIT", OrderType.LIMIT),
         ("MARKET", OrderType.MARKET),
-        (
-            "TAKE_PROFIT",
-            OrderType.LIMIT,
-        ),  # Changed from "TRAILING_STOP" to "TAKE_PROFIT" to avoid stop_price requirement
+        ("TAKE_PROFIT", OrderType.LIMIT),
+        # Remove invalid order types that aren't supported by BackpackRawOrder validation
     ],
 )
 def test_order_type_mapping(
@@ -211,7 +268,6 @@ def test_order_type_mapping(
     expected_type: OrderType,
 ) -> None:
     """Test order type mapping with various types."""
-    # Create order with appropriate parameters based on type
     if bp_type in ["LIMIT", "TAKE_PROFIT"]:
         # LIMIT orders require price
         raw_order = create_raw_order(order_type=bp_type, price="3000.50")
@@ -228,6 +284,7 @@ def test_order_type_mapping(
     [
         ("STOP", OrderType.STOP_MARKET),
         ("TRAILING_STOP", OrderType.STOP_MARKET),
+        # Remove STOP_MARKET as it's not a valid orderType in BackpackRawOrder
     ],
 )
 def test_stop_order_type_mapping(
@@ -258,6 +315,7 @@ def test_stop_order_type_mapping(
         ("fok", TimeInForce.FOK),
         ("unknown", TimeInForce.GTC),  # Unknown defaults to GTC
         (None, TimeInForce.GTC),  # None defaults to GTC
+        # Remove empty string as it causes validation error
     ],
 )
 def test_time_in_force_mapping(
@@ -269,6 +327,24 @@ def test_time_in_force_mapping(
     raw_order = create_raw_order(time_in_force=bp_tif)
     result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
     assert result.time_in_force == expected_tif
+
+
+# Test empty string TIF separately using order data method
+def test_empty_time_in_force_mapping(
+    trading_data_mapper: BackpackTradingDataMapper,
+) -> None:
+    """Test empty string time in force mapping via order data method."""
+    result = trading_data_mapper.transform_order_data_to_internal(
+        order_id="12345",
+        symbol="SOL_USDC",
+        side="Buy",
+        order_type="LIMIT",
+        status="NEW",
+        quantity="1.0",
+        price="100.0",
+        time_in_force="",  # Empty string
+    )
+    assert result.time_in_force == TimeInForce.GTC
 
 
 # --- Comprehensive Transformation Tests ---
@@ -283,11 +359,11 @@ class TestTransformRawOrderToInternal:
         """Test successful transformation of a BUY limit order."""
         raw_order = create_raw_order(
             side="Buy",
-            order_type="LIMIT",  # Changed from "Limit" to "LIMIT" (valid in BP_ORDER_TYPES)
+            order_type="LIMIT",
             price="3000.50",
             quantity="1.5",
             executed_quantity="0.5",
-            avg_fill_price="3001.00",  # Add average fill price to satisfy business logic validation
+            avg_fill_price="3001.00",
         )
 
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
@@ -301,9 +377,7 @@ class TestTransformRawOrderToInternal:
         assert result.quantity_requested == Decimal("1.5")
         assert result.quantity_filled == Decimal("0.5")
         assert result.price == Decimal("3000.50")
-        assert result.average_fill_price == Decimal(
-            "3001.00"
-        )  # Add assertion for average fill price
+        assert result.average_fill_price == Decimal("3001.00")
         assert result.time_in_force == TimeInForce.GTC
         assert result.exchange == ExchangeName.BACKPACK.value
         assert result.client_order_id == "test_order_001"
@@ -319,10 +393,10 @@ class TestTransformRawOrderToInternal:
         raw_order = create_raw_order(
             side="Sell",
             order_type="MARKET",
-            price=None,  # Market orders may not have price
+            price=None,
             quantity="0.1",
-            executed_quantity="0.1",  # Fully executed
-            avg_fill_price="50000.00",  # Add average fill price since quantity_filled > 0
+            executed_quantity="0.1",
+            avg_fill_price="50000.00",
             order_id="67890",
             client_id=None,
             symbol="BTC_USDC",
@@ -338,10 +412,8 @@ class TestTransformRawOrderToInternal:
         assert result.status == OrderStatus.OPEN
         assert result.quantity_requested == Decimal("0.1")
         assert result.quantity_filled == Decimal("0.1")
-        assert result.price is None  # Market orders should have price=None
-        assert result.average_fill_price == Decimal(
-            "50000.00"
-        )  # Add assertion for average fill price
+        assert result.price is None
+        assert result.average_fill_price == Decimal("50000.00")
         assert result.time_in_force == TimeInForce.GTC
         assert result.exchange == ExchangeName.BACKPACK.value
         assert result.client_order_id is not None and len(result.client_order_id) > 0
@@ -350,11 +422,7 @@ class TestTransformRawOrderToInternal:
         self, trading_data_mapper: BackpackTradingDataMapper
     ) -> None:
         """Test transformation with stop price."""
-        raw_order = create_raw_order(
-            order_type="STOP",
-            price="3000.00",
-        )
-        # Add trigger price to the raw order
+        raw_order = create_raw_order(order_type="STOP", price="3000.00")
         raw_order = raw_order.model_copy(update={"triggerPrice": "2900.00"})
 
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
@@ -366,10 +434,7 @@ class TestTransformRawOrderToInternal:
         self, trading_data_mapper: BackpackTradingDataMapper
     ) -> None:
         """Test transformation with average fill price."""
-        raw_order = create_raw_order(
-            executed_quantity="1.0",
-        )
-        # Add average fill price to the raw order
+        raw_order = create_raw_order(executed_quantity="1.0")
         raw_order = raw_order.model_copy(update={"avgFillPrice": "3001.25"})
 
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
@@ -382,7 +447,6 @@ class TestTransformRawOrderToInternal:
         mocker: MockerFixture,
     ) -> None:
         """Test that missing quantity raises TransformationError."""
-        # Mock parse_decimal_value to return None for the quantity field
         mock_parse = mocker.patch(
             "cyberdelta.apis.backpack.mappers.bp_trading_data_mapper.parse_decimal_value"
         )
@@ -398,7 +462,6 @@ class TestTransformRawOrderToInternal:
         mocker: MockerFixture,
     ) -> None:
         """Test that missing created_at raises TransformationError."""
-        # Mock parse_datetime_utc to return None for the createdAt field
         mock_parse = mocker.patch(
             "cyberdelta.apis.backpack.mappers.bp_trading_data_mapper.parse_datetime_utc"
         )
@@ -414,7 +477,6 @@ class TestTransformRawOrderToInternal:
         mocker: MockerFixture,
     ) -> None:
         """Test that parsing exceptions are wrapped in TransformationError."""
-        # Mock parse_decimal_value to raise an exception
         mock_parse = mocker.patch(
             "cyberdelta.apis.backpack.mappers.bp_trading_data_mapper.parse_decimal_value"
         )
@@ -435,15 +497,15 @@ class TestTransformRawOrderToInternal:
         raw_order = raw_order.model_copy(
             update={
                 "triggeredAt": triggered_time,
-                "triggerPrice": "2900.00",  # Add trigger price for STOP order
+                "triggerPrice": "2900.00",
             }
         )
 
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
         assert result.triggered_at is not None
-        assert result.triggered_at.isoformat() == triggered_time  # Compare ISO strings directly
-        assert result.stop_price == Decimal("2900.00")  # Add assertion for stop price
+        assert result.triggered_at.isoformat() == triggered_time
+        assert result.stop_price == Decimal("2900.00")
 
     def test_transform_raw_order_reduce_only_and_post_only(
         self, trading_data_mapper: BackpackTradingDataMapper
@@ -457,8 +519,37 @@ class TestTransformRawOrderToInternal:
         assert result.reduce_only is True
         assert result.post_only is True
 
+    def test_transform_raw_order_high_precision_values(
+        self, trading_data_mapper: BackpackTradingDataMapper
+    ) -> None:
+        """Test transformation with high precision decimal values."""
+        raw_order = create_raw_order(
+            quantity="1.123456789012345",
+            price="50000.987654321098765",
+            executed_quantity="0.123456789012345",
+            avg_fill_price="50001.111111111111111",
+        )
 
-# --- Tests for transform_order_data_to_internal ---
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+
+        assert result.quantity_requested == Decimal("1.123456789012345")
+        assert result.price == Decimal("50000.987654321098765")
+        assert result.quantity_filled == Decimal("0.123456789012345")
+        assert result.average_fill_price == Decimal("50001.111111111111111")
+
+    def test_transform_raw_order_zero_values_handled(
+        self, trading_data_mapper: BackpackTradingDataMapper
+    ) -> None:
+        """Test transformation with zero values."""
+        raw_order = create_raw_order(
+            executed_quantity="0.0",  # No fills yet
+            avg_fill_price=None,  # No average fill price when no fills
+        )
+
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+
+        assert result.quantity_filled == Decimal("0.0")
+        assert result.average_fill_price is None
 
 
 class TestTransformOrderDataToInternal:
@@ -478,7 +569,7 @@ class TestTransformOrderDataToInternal:
             order_type="MARKET",
             status="FILLED",
             quantity="2.0",
-            price=None,  # Market order
+            price=None,
             client_order_id="client_123",
             time_in_force="IOC",
             created_at=created_at,
@@ -492,7 +583,7 @@ class TestTransformOrderDataToInternal:
         assert result.order_type == OrderType.MARKET
         assert result.status == OrderStatus.FILLED
         assert result.quantity_requested == Decimal("2.0")
-        assert result.quantity_filled == Decimal("0")  # Default when not provided
+        assert result.quantity_filled == Decimal("0")
         assert result.price is None
         assert result.time_in_force == TimeInForce.IOC
         assert result.exchange == ExchangeName.BACKPACK.value
@@ -511,7 +602,7 @@ class TestTransformOrderDataToInternal:
             order_type="LIMIT",
             status="NEW",
             quantity="1.0",
-            price="3000.00",  # Add price for LIMIT order
+            price="3000.00",
         )
 
         assert isinstance(result, Order)
@@ -522,12 +613,10 @@ class TestTransformOrderDataToInternal:
         assert result.status == OrderStatus.OPEN
         assert result.quantity_requested == Decimal("1.0")
         assert result.quantity_filled == Decimal("0")
-        assert result.price == Decimal("3000.00")  # Update assertion for price
-        assert result.time_in_force == TimeInForce.GTC  # Default
-        assert (
-            result.client_order_id is not None and len(result.client_order_id) > 0
-        )  # Changed assertion to expect UUID
-        assert result.created_at is not None  # Should be set to current time
+        assert result.price == Decimal("3000.00")
+        assert result.time_in_force == TimeInForce.GTC
+        assert result.client_order_id is not None and len(result.client_order_id) > 0
+        assert result.created_at is not None
 
     def test_transform_order_data_with_price(
         self, trading_data_mapper: BackpackTradingDataMapper
@@ -589,227 +678,55 @@ class TestTransformOrderDataToInternal:
                 quantity="1.0",
             )
 
-
-# --- Integration Tests ---
-
-
-class TestTradingDataMapperIntegration:
-    """Integration tests for the complete trading data mapper functionality."""
-
-    def test_complete_order_transformation_consistency(
+    def test_transform_order_data_case_insensitive_mappings(
         self, trading_data_mapper: BackpackTradingDataMapper
     ) -> None:
-        """Test that both transformation methods produce consistent results."""
-        # Create raw order
-        raw_order = create_raw_order(
-            side="Buy",
-            order_type="LIMIT",
-            status="FILLED",
-            quantity="1.0",
-            executed_quantity="1.0",  # Fully filled
-            avg_fill_price="3000.00",  # Add average fill price since quantity_filled > 0
-            price="3000.00",
-            time_in_force="IOC",
+        """Test transformation with case insensitive enum values."""
+        result = trading_data_mapper.transform_order_data_to_internal(
+            order_id="789",
+            symbol="ADA_USDC",
+            side="sell",  # lowercase
+            order_type="market",  # lowercase
+            status="filled",  # lowercase
+            quantity="100.0",
+            time_in_force="ioc",  # lowercase
         )
 
-        # Transform via raw order method
-        result_raw = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+        assert result.side == OrderSide.SELL
+        assert result.order_type == OrderType.MARKET
+        assert result.status == OrderStatus.FILLED
+        assert result.time_in_force == TimeInForce.IOC
 
-        # Transform via order data method
-        result_data = trading_data_mapper.transform_order_data_to_internal(
-            order_id=raw_order.id,
-            symbol=raw_order.symbol,
-            side=raw_order.side,
-            order_type=raw_order.orderType,
-            status=raw_order.status,
-            quantity=raw_order.quantity,
-            price=raw_order.price,
-            client_order_id=raw_order.clientId,
-            time_in_force=raw_order.timeInForce,
-            created_at=str(raw_order.createdAt) if raw_order.createdAt else None,
-            updated_at=str(raw_order.updatedAt) if raw_order.updatedAt else None,
-        )
-
-        # Both should produce similar core results
-        assert result_raw.exchange_order_id == result_data.exchange_order_id
-        assert result_raw.symbol == result_data.symbol
-        assert result_raw.side == result_data.side
-        assert result_raw.order_type == result_data.order_type
-        assert result_raw.status == result_data.status
-        assert result_raw.quantity_requested == result_data.quantity_requested
-        assert result_raw.price == result_data.price
-        assert result_raw.time_in_force == result_data.time_in_force
-        assert result_raw.exchange == result_data.exchange
-
-    def test_error_handling_consistency(
-        self,
-        trading_data_mapper: BackpackTradingDataMapper,
-        mocker: MockerFixture,
-    ) -> None:
-        """Test that error handling is consistent across different transformation methods."""
-        # Mock to cause an exception in both methods
-        mock_parse = mocker.patch(
-            "cyberdelta.apis.backpack.mappers.bp_trading_data_mapper.parse_decimal_value"
-        )
-        mock_parse.side_effect = ValueError("Consistent error")
-
-        # Both methods should raise TransformationError
-        raw_order = create_raw_order()
-        with pytest.raises(TransformationError):
-            trading_data_mapper.transform_raw_order_to_internal(raw_order)
-
-        with pytest.raises(TransformationError):
-            trading_data_mapper.transform_order_data_to_internal(
-                order_id="123",
-                symbol="SOL_USDC",
-                side="Buy",
-                order_type="LIMIT",
-                status="NEW",
-                quantity="1.0",
-            )
-
-    def test_all_mapping_logic_works_together(
+    def test_transform_order_data_with_optional_fields(
         self, trading_data_mapper: BackpackTradingDataMapper
     ) -> None:
-        """Test that all mapping logic works together properly in a transformation."""
-        raw_order = create_raw_order(
-            side="Sell",  # Should map to SELL
-            order_type="MARKET",  # Should map to MARKET
-            status="PARTIALLY_FILLED",  # Should map to PARTIALLY_FILLED
-            time_in_force="FOK",  # Should map to FOK
-            quantity="2.5",
-            executed_quantity="1.0",
-            avg_fill_price="3000.00",  # Add average fill price since quantity_filled > 0
-        )
+        """Test transformation with all optional fields provided."""
+        created_at = datetime.now(UTC).isoformat()
+        updated_at = datetime.now(UTC).isoformat()
 
-        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
-
-        # Verify that all mapping methods contributed correctly
-        assert result.side == OrderSide.SELL  # side mapping
-        assert result.order_type == OrderType.MARKET  # type mapping
-        assert result.status == OrderStatus.PARTIALLY_FILLED  # status mapping
-        assert result.time_in_force == TimeInForce.FOK  # TIF mapping
-
-        # Verify the result is a complete, valid Order
-        assert result.exchange == ExchangeName.BACKPACK.value
-        assert result.symbol == "SOL_USDC"
-        assert result.quantity_requested > Decimal("0")
-        assert result.quantity_filled == Decimal("1.0")
-        assert result.average_fill_price == Decimal(
-            "3000.00"
-        )  # Add assertion for average fill price
-        assert result.created_at is not None
-
-
-# --- Edge Case and Robustness Tests ---
-
-
-class TestEdgeCasesAndRobustness:
-    """Tests for edge cases and robustness of the trading data mapper."""
-
-    def test_minimal_order_data(self, trading_data_mapper: BackpackTradingDataMapper) -> None:
-        """Test transformation with minimal required order data."""
-        minimal_order = create_raw_order(
+        result = trading_data_mapper.transform_order_data_to_internal(
+            order_id="999",
+            symbol="DOGE_USDC",
             side="Buy",
             order_type="LIMIT",
-            price="50000.0",
-            quantity="1",
-            executed_quantity="0",
-            order_id="1",
-            client_id=None,
-            symbol="BTC_USDC",
+            status="NEW",
+            quantity="1000.0",
+            price="0.10",
+            client_order_id="custom_client_id",
+            time_in_force="FOK",
+            created_at=created_at,
+            updated_at=updated_at,
         )
 
-        result = trading_data_mapper.transform_raw_order_to_internal(minimal_order)
-
-        assert result.exchange_order_id == "1"
-        assert result.symbol == "BTC_USDC"
+        assert result.exchange_order_id == "999"
+        assert result.symbol == "DOGE_USDC"
         assert result.side == OrderSide.BUY
         assert result.order_type == OrderType.LIMIT
-        assert result.status == OrderStatus.OPEN
-        assert result.client_order_id is not None and len(result.client_order_id) > 0
-
-    def test_boundary_values(self, trading_data_mapper: BackpackTradingDataMapper) -> None:
-        """Test transformation with boundary values."""
-        boundary_order = create_raw_order(
-            side="Sell",
-            order_type="STOP",  # Valid value from BP_ORDER_TYPES
-            price="999999.999999",  # High precision price
-            quantity="0.000001",  # Very small size
-            executed_quantity="0.000001",  # All executed
-            avg_fill_price="999999.999999",  # Add average fill price since quantity_filled > 0
-            order_id="999999999",  # Large order ID
-            client_id="x" * 64,  # Max length client order ID
-            symbol="A" * 32,  # Long symbol
-            time_in_force="FOK",
-        )
-        # Add trigger price for STOP order to satisfy business logic validation
-        boundary_order = boundary_order.model_copy(update={"triggerPrice": "999999.999999"})
-
-        result = trading_data_mapper.transform_raw_order_to_internal(boundary_order)
-
-        assert result.exchange_order_id == "999999999"
-        assert result.client_order_id == "x" * 64
-        assert result.symbol == "A" * 32
-        assert result.side == OrderSide.SELL
-        assert result.quantity_requested == Decimal("0.000001")
-        assert result.quantity_filled == Decimal("0.000001")
-        assert result.average_fill_price == Decimal(
-            "999999.999999"
-        )  # Add assertion for average fill price
-        assert result.stop_price == Decimal("999999.999999")  # Add assertion for stop price
+        assert result.quantity_requested == Decimal("1000.0")
+        assert result.price == Decimal("0.10")
+        assert result.client_order_id == "custom_client_id"
         assert result.time_in_force == TimeInForce.FOK
-
-    @pytest.mark.parametrize(
-        "status_input,expected_output",
-        [
-            ("NEW", OrderStatus.OPEN),
-            ("FILLED", OrderStatus.FILLED),
-            ("CANCELLED", OrderStatus.CANCELED),
-            ("CANCELLED", OrderStatus.CANCELED),
-            ("REJECTED", OrderStatus.REJECTED),
-            ("PARTIALLY_FILLED", OrderStatus.PARTIALLY_FILLED),
-            ("NEW", OrderStatus.OPEN),
-        ],
-    )
-    def test_status_edge_cases(
-        self,
-        trading_data_mapper: BackpackTradingDataMapper,
-        status_input: str,
-        expected_output: OrderStatus,
-    ) -> None:
-        """Test various status edge cases."""
-        raw_order = create_raw_order(status=status_input)
-        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
-        assert result.status == expected_output
-
-    def test_case_insensitive_mappings(
-        self, trading_data_mapper: BackpackTradingDataMapper
-    ) -> None:
-        """Test that all enum mappings are case insensitive."""
-        # Test case insensitive mapping through the order data transformation method
-        # which doesn't go through raw model validation
-        result = trading_data_mapper.transform_order_data_to_internal(
-            order_id="123",
-            symbol="SOL_USDC",
-            side="buy",  # lowercase - should map to BUY
-            order_type="market",  # Changed from "limit" to "market" to avoid price requirement
-            status="filled",  # lowercase - should map to FILLED
-            quantity="1.0",
-            time_in_force="ioc",  # lowercase - should map to IOC
-        )
-
-        # Verify that all mapping methods contributed correctly
-        assert result.side == OrderSide.BUY  # side mapping
-        assert result.order_type == OrderType.MARKET  # type mapping (changed from LIMIT to MARKET)
-        assert result.status == OrderStatus.FILLED  # status mapping
-        assert result.time_in_force == TimeInForce.IOC  # TIF mapping
-
-    def test_stop_order_type_mapping(self, trading_data_mapper: BackpackTradingDataMapper) -> None:
-        """Test STOP order type mapping with required stop_price."""
-        raw_order = create_raw_order(order_type="STOP", price="3000.50")
-        raw_order = raw_order.model_copy(update={"triggerPrice": "2900.00"})
-
-        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
-        assert result.order_type == OrderType.STOP_MARKET
-        assert result.stop_price == Decimal("2900.00")
+        assert result.quantity_filled == Decimal("0")
+        assert result.average_fill_price is None
+        assert result.reduce_only is False
+        assert result.post_only is False
