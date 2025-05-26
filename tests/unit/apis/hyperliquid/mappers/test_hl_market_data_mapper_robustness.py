@@ -245,7 +245,7 @@ class TestBoundaryValueConditions:
             px="0.0",
             sz="1.0",
             time=int(datetime.now(UTC).timestamp() * 1000),
-            hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12",
+            hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         )
 
         trade = market_data_mapper.transform_raw_public_trade_to_internal(zero_price_trade)
@@ -457,7 +457,7 @@ class TestErrorRecoveryScenarios:
                 px="1000.0",
                 sz="1.0",
                 time=int(datetime.now(UTC).timestamp() * 1000),
-                hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12",
+                hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
             ),
             # Invalid trade (zero price)
             HyperliquidRawPublicTrade(
@@ -466,7 +466,7 @@ class TestErrorRecoveryScenarios:
                 px="0.0",  # Will be filtered out
                 sz="1.0",
                 time=int(datetime.now(UTC).timestamp() * 1000),
-                hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef13",
+                hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcde1",
             ),
             # Another valid trade
             HyperliquidRawPublicTrade(
@@ -475,7 +475,7 @@ class TestErrorRecoveryScenarios:
                 px="2000.0",
                 sz="2.0",
                 time=int(datetime.now(UTC).timestamp() * 1000),
-                hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef14",
+                hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcde2",
             ),
         ]
 
@@ -543,7 +543,7 @@ class TestErrorRecoveryScenarios:
             px="1000.0",
             sz="1.0",
             time=int(datetime.now(UTC).timestamp() * 1000),
-            hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12",
+            hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         )
 
         # Should return None for unknown side

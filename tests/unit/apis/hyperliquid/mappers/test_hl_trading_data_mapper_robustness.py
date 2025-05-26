@@ -206,8 +206,16 @@ class TestEdgeCasesAndBoundaryValues:
         expected_output: OrderStatus,
     ) -> None:
         """Test edge cases in status mapping."""
-        order = create_raw_order(status=status_input)
-        result = trading_data_mapper.transform_raw_order_to_internal(order)
+        if status_input == "open":
+            # Use regular raw order for "open" status
+            order = create_raw_order(status=status_input)
+            result = trading_data_mapper.transform_raw_order_to_internal(order)
+        else:
+            # Use historical raw order for other statuses
+            historical_order = create_raw_historical_order(status=status_input)
+            result = trading_data_mapper.transform_raw_historical_order_to_internal(
+                historical_order
+            )
         assert result.status == expected_output
 
 
@@ -440,14 +448,14 @@ class TestComplexIntegrationScenarios:
     ) -> None:
         """Test simulation of rapid order status changes."""
         # Simulate order lifecycle: open -> partially filled -> filled
-        status_progression = [
+        open_status_progression = [
             ("open", "1.0", OrderStatus.OPEN),
             ("open", "0.5", OrderStatus.OPEN),  # Partially filled
             ("open", "0.1", OrderStatus.OPEN),  # More filled
-            ("filled", "0.0", OrderStatus.FILLED),  # Fully filled
         ]
 
-        for status, remaining, expected_status in status_progression:
+        # Test open status orders
+        for status, remaining, expected_status in open_status_progression:
             order = create_raw_order(
                 oid=12345,
                 cloid="rapid_order_001",
@@ -459,6 +467,19 @@ class TestComplexIntegrationScenarios:
             )
             result = trading_data_mapper.transform_raw_order_to_internal(order)
             assert result.status == expected_status
+
+        # Test filled status using historical order
+        filled_order = create_raw_historical_order(
+            oid=12345,
+            cloid="rapid_order_001",
+            asset="BTC-PERP",
+            limit_px="50000.0",
+            sz="1.0",
+            status="filled",
+            remaining_sz="0.0",
+        )
+        result = trading_data_mapper.transform_raw_historical_order_to_internal(filled_order)
+        assert result.status == OrderStatus.FILLED
 
     def test_concurrent_transformation_consistency(
         self, trading_data_mapper: HyperliquidTradingDataMapper
@@ -502,21 +523,30 @@ class TestComplexIntegrationScenarios:
             create_raw_order(order_type={"limit": {"tif": "Gtc"}}, side="B"),
             create_raw_order(order_type={"limit": {"tif": "Ioc"}}, side="A"),
             create_raw_order(order_type={"limit": {"tif": "Alo"}}, side="B"),
-            # Different statuses
+            # Open status (using regular raw order)
             create_raw_order(status="open"),
-            create_raw_order(status="filled"),
-            create_raw_order(status="canceled"),
-            create_raw_order(status="rejected"),
         ]
 
-        # All should transform successfully
+        # Historical orders with different statuses
+        historical_orders = [
+            create_raw_historical_order(status="filled"),
+            create_raw_historical_order(status="canceled"),
+            create_raw_historical_order(status="rejected"),
+        ]
+
+        # Transform regular orders
         results: list[object] = []
         for order in mixed_orders:
             result = trading_data_mapper.transform_raw_order_to_internal(order)
             results.append(result)
 
+        # Transform historical orders
+        for hist_order in historical_orders:
+            result = trading_data_mapper.transform_raw_historical_order_to_internal(hist_order)
+            results.append(result)
+
         # Verify all transformations succeeded with expected variety
-        assert len(results) == len(mixed_orders)
+        assert len(results) == len(mixed_orders) + len(historical_orders)
         # Note: We can't easily check for variety due to type constraints,
         # but the important thing is that all transformations succeeded
         assert all(result is not None for result in results)

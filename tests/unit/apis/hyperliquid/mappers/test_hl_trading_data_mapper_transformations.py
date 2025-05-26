@@ -187,7 +187,7 @@ class TestTransformRawOrderToInternal:
         self, trading_data_mapper: HyperliquidTradingDataMapper
     ) -> None:
         """Test successful transformation of a sell market order."""
-        raw_order = create_raw_order(
+        raw_order = create_raw_historical_order(
             side="A",
             status="filled",
             order_type={"market": {}},
@@ -199,11 +199,15 @@ class TestTransformRawOrderToInternal:
             asset="BTC-PERP",
         )
 
-        result: Order = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+        try:
+            result = trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
+        except TransformationError:
+            pytest.fail("Transformation should not fail for valid input")
 
-        # DEFENSIVE CHECK: Mypy incorrectly reports following assertions as unreachable.
-        # This appears to be a mypy analysis issue with complex transformation method control flow.
-        # Mypy=[unreachable] Ruff=[]
+        # DEFENSIVE CHECK: Mypy incorrectly reports following assertions as unreachable
+        # due to complex transformation method control flow analysis. Mypy=[unreachable] Ruff=[]
+        # DEFENSIVE CHECK: Ensure transformation succeeded. Mypy=[unreachable] Ruff=[]
+        assert result is not None, "Transformation should not return None"
         assert result.exchange_order_id == "54321"
         assert result.client_order_id is None
         assert result.symbol == "BTC-PERP"

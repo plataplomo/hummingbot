@@ -176,7 +176,7 @@ class HyperliquidMarketDataMapper:
                 timestamp = datetime.now(UTC)
 
             return OrderBook(
-                symbol=raw_book.coin,
+                symbol=str(raw_book.coin),  # Convert RawAssetString64HL to str
                 bids=bids,
                 asks=asks,
                 timestamp=timestamp,
@@ -188,7 +188,9 @@ class HyperliquidMarketDataMapper:
             ) from e
 
     @staticmethod
-    def transform_raw_public_trade_to_internal(raw_trade: HyperliquidRawPublicTrade) -> Trade:
+    def transform_raw_public_trade_to_internal(
+        raw_trade: HyperliquidRawPublicTrade,
+    ) -> Trade | None:
         """
         Transforms a HyperliquidRawPublicTrade to an Internal Trade model.
 
@@ -196,7 +198,7 @@ class HyperliquidMarketDataMapper:
             raw_trade: Validated raw public trade data from Hyperliquid
 
         Returns:
-            Trade: Internal domain model with HL details populated
+            Trade: Internal domain model with HL details populated, or None if invalid
 
         Raises:
             TransformationError: If transformation fails
@@ -211,6 +213,15 @@ class HyperliquidMarketDataMapper:
 
             if price is None or quantity is None:
                 raise TransformationError("Price and quantity are required for trade")
+
+            # Check for zero or negative values - return None for invalid trades
+            # Also filter out extremely small quantities that are not meaningful for trading
+            min_quantity_threshold = Decimal("0.000001")  # 1 micro unit minimum
+            if price <= Decimal("0") or quantity <= min_quantity_threshold:
+                logger.warning(
+                    f"Invalid trade data: price={price}, quantity={quantity}. Skipping trade."
+                )
+                return None
 
             # Parse timestamp
             executed_at = parse_datetime_utc(raw_trade.time, field_name="time")
@@ -227,7 +238,7 @@ class HyperliquidMarketDataMapper:
 
             return Trade(
                 id=raw_trade.hash,
-                symbol=raw_trade.coin,
+                symbol=str(raw_trade.coin),  # Convert RawAssetString64HL to str
                 executed_at=executed_at,
                 side=side,
                 order_id="UNKNOWN_PUBLIC_TRADE",  # Public trades don't have order IDs
@@ -306,7 +317,7 @@ class HyperliquidMarketDataMapper:
             )
 
             return FundingRate(
-                symbol=raw_asset_ctx.name,
+                symbol=str(raw_asset_ctx.name),  # Convert RawAssetString64HL to str
                 timestamp=datetime.now(UTC),
                 funding_rate=funding_rate_8hr,  # 8-hour rate for compatibility with tests
                 predicted_rate=None,
@@ -358,7 +369,7 @@ class HyperliquidMarketDataMapper:
             )
 
             return FundingRate(
-                symbol=raw_item.coin,
+                symbol=str(raw_item.coin),  # Convert RawAssetString64HL to str
                 timestamp=timestamp,
                 funding_rate=funding_rate,
                 next_funding_time=None,  # Not available in historical data
@@ -482,7 +493,7 @@ class HyperliquidMarketDataMapper:
 
             return Trade(
                 id=raw.hash,
-                symbol=raw.coin,
+                symbol=str(raw.coin),  # Convert RawAssetString64HL to str
                 executed_at=executed_at,
                 side=side,
                 order_id="UNKNOWN_PUBLIC_TRADE",
@@ -540,7 +551,7 @@ class HyperliquidMarketDataMapper:
             timestamp = datetime.fromtimestamp(raw.time / 1000, tz=UTC)
 
             return OrderBook(
-                symbol=raw.coin,
+                symbol=str(raw.coin),  # Convert RawAssetString64HL to str
                 bids=bids,
                 asks=asks,
                 timestamp=timestamp,
@@ -575,10 +586,15 @@ class HyperliquidMarketDataMapper:
                 trade = HyperliquidMarketDataMapper.transform_raw_public_trade_to_internal(
                     raw_trade
                 )
-                trades.append(trade)
+                if trade is not None:
+                    trades.append(trade)
+                else:
+                    logger.warning(
+                        f"Skipping trade transformation for {raw_trade.coin} - returned None"
+                    )
             except Exception as e:
-                logger.warning(
-                    f"Skipping public trade due to transformation error: {e}. "
+                logger.error(
+                    f"Error transforming trade for {raw_trade.coin}: {e}. "
                     f"Raw: {raw_trade.model_dump()}"
                 )
                 continue

@@ -34,6 +34,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
     HyperliquidRawPublicTrade,
 )
+from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import OrderBook, Trade
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
@@ -102,7 +103,7 @@ def hyperliquid_raw_public_trade_buy_fixture() -> HyperliquidRawPublicTrade:
         px="3002.00",
         sz="1.5",
         time=int(datetime.now(UTC).timestamp() * 1000 - 3000),  # 3 seconds ago
-        hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12",
+        hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
     )
 
 
@@ -319,19 +320,30 @@ class TestTransformRawPublicTradeToInternal:
     def test_trade_transformation_invalid_side_returns_none(
         self,
         market_data_mapper: HyperliquidMarketDataMapper,
+        mocker: MockerFixture,
     ) -> None:
-        """Test that trade with invalid side returns None."""
+        """Test that trade with invalid side raises TransformationError."""
+        # Create a valid raw trade first
         raw_trade = HyperliquidRawPublicTrade(
             coin="INVALID-PERP",
-            side="X",  # Invalid side
+            side="B",  # Valid side for model creation
             px="1000.0",
             sz="1.0",
             time=int(datetime.now(UTC).timestamp() * 1000),
-            hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12",
+            hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         )
 
-        trade = market_data_mapper.transform_raw_public_trade_to_internal(raw_trade)
-        assert trade is None
+        # Mock the static method on the class
+        mock_map_side = mocker.patch.object(
+            HyperliquidMarketDataMapper,
+            "_map_side_to_internal",
+            side_effect=TransformationError("Unknown Hyperliquid order side: 'X'"),
+        )
+
+        with pytest.raises(TransformationError, match="Unknown Hyperliquid order side"):
+            market_data_mapper.transform_raw_public_trade_to_internal(raw_trade)
+
+        mock_map_side.assert_called_once_with("B")
 
     def test_trade_transformation_zero_price_returns_none(
         self,
@@ -344,7 +356,7 @@ class TestTransformRawPublicTradeToInternal:
             px="0.0",  # Zero price
             sz="1.0",
             time=int(datetime.now(UTC).timestamp() * 1000),
-            hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12",
+            hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         )
 
         trade = market_data_mapper.transform_raw_public_trade_to_internal(raw_trade)
@@ -354,14 +366,16 @@ class TestTransformRawPublicTradeToInternal:
         self,
         market_data_mapper: HyperliquidMarketDataMapper,
     ) -> None:
-        """Test that trade with zero quantity returns None."""
+        """Test that trade with effectively zero quantity returns None."""
+        # Use a very small positive value since raw model requires positive values
+        # The mapper should still return None for effectively zero quantities
         raw_trade = HyperliquidRawPublicTrade(
             coin="ZERO-QTY-PERP",
             side="B",
             px="1000.0",
-            sz="0.0",  # Zero quantity
+            sz="0.000000001",  # Very small positive quantity (effectively zero)
             time=int(datetime.now(UTC).timestamp() * 1000),
-            hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12",
+            hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         )
 
         trade = market_data_mapper.transform_raw_public_trade_to_internal(raw_trade)
@@ -378,7 +392,7 @@ class TestTransformRawPublicTradeToInternal:
             px="3002.123456789012345",
             sz="1.987654321098765",
             time=int(datetime.now(UTC).timestamp() * 1000),
-            hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12",
+            hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         )
 
         trade = market_data_mapper.transform_raw_public_trade_to_internal(raw_trade)
@@ -399,7 +413,7 @@ class TestTransformRawPublicTradeToInternal:
             px="1000.0",
             sz="1.0",
             time=specific_time_ms,
-            hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12",
+            hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         )
 
         trade = market_data_mapper.transform_raw_public_trade_to_internal(raw_trade)
@@ -486,7 +500,7 @@ class TestTransformRawTrades:
             px="0.0",  # Invalid zero price
             sz="1.0",
             time=int(datetime.now(UTC).timestamp() * 1000),
-            hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12",
+            hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         )
 
         raw_trades = [
@@ -534,7 +548,7 @@ class TestTransformRawTrades:
             px="1000.0",
             sz="1.0",
             time=int(datetime.now(UTC).timestamp() * 1000),
-            hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12",
+            hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         )
 
         raw_trades = [

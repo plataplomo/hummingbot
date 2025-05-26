@@ -202,8 +202,16 @@ class TestOrderStatusMapping:
         expected_status: OrderStatus,
     ) -> None:
         """Test order status mapping via raw order transformation."""
-        raw_order = create_raw_order(status=hl_status)
-        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+        if hl_status == "open":
+            # Use regular raw order for "open" status
+            raw_order = create_raw_order(status=hl_status)
+            result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+        else:
+            # Use historical raw order for other statuses
+            historical_raw_order = create_raw_historical_order(status=hl_status)
+            result = trading_data_mapper.transform_raw_historical_order_to_internal(
+                historical_raw_order
+            )
         assert result.status == expected_status
 
     def test_historical_order_status_mapping(
