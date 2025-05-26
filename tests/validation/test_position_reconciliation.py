@@ -645,13 +645,15 @@ class TestPositionReconciliationSystem:
             # If auto-correct logic depends on specific discrepancy details, mock them here.
             mock_discrepancies = []
             if exchange == "hyperliquid":  # Simulate a discrepancy for hyperliquid
-                mock_discrepancies.append({
-                    "symbol": "BTC",
-                    "exchange_value": "1.1",  # API has 1.1
-                    "local_value": "1.0",  # Local has 1.0
-                    "discrepancy": "0.1",
-                    "action_taken": "logged",  # or "corrected" if auto_correct was to run
-                })
+                mock_discrepancies.append(
+                    {
+                        "symbol": "BTC",
+                        "exchange_value": "1.1",  # API has 1.1
+                        "local_value": "1.0",  # Local has 1.0
+                        "discrepancy": "0.1",
+                        "action_taken": "logged",  # or "corrected" if auto_correct was to run
+                    }
+                )
 
             return {
                 "success": True,
@@ -840,26 +842,28 @@ class TestPositionReconciliationSystem:
         )
 
         # Populate history with HistoricalDiscrepancyRecord instances
-        reconciliation_system.discrepancy_history.extend([
-            HistoricalDiscrepancyRecord(
-                detail=detail1,
-                exchange_id="hyperliquid",
-                recorded_at=recent_time_utc,
-                is_corrected=False,
-            ),
-            HistoricalDiscrepancyRecord(
-                detail=detail2,
-                exchange_id="hyperliquid",
-                recorded_at=recent_time_utc,
-                is_corrected=True,
-            ),
-            HistoricalDiscrepancyRecord(
-                detail=detail3,
-                exchange_id="backpack",
-                recorded_at=recent_time_utc,
-                is_corrected=False,
-            ),
-        ])
+        reconciliation_system.discrepancy_history.extend(
+            [
+                HistoricalDiscrepancyRecord(
+                    detail=detail1,
+                    exchange_id="hyperliquid",
+                    recorded_at=recent_time_utc,
+                    is_corrected=False,
+                ),
+                HistoricalDiscrepancyRecord(
+                    detail=detail2,
+                    exchange_id="hyperliquid",
+                    recorded_at=recent_time_utc,
+                    is_corrected=True,
+                ),
+                HistoricalDiscrepancyRecord(
+                    detail=detail3,
+                    exchange_id="backpack",
+                    recorded_at=recent_time_utc,
+                    is_corrected=False,
+                ),
+            ]
+        )
 
         # Set some recent results (latest_results still uses dicts with DiscrepancyDetail list)
         # Create DiscrepancyDetail for latest_results

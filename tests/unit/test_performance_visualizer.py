@@ -67,21 +67,25 @@ class TestPerformanceVisualizer:
         )
 
         # Generate sample trade data
-        self.trade_data = pd.DataFrame({
-            "strategy": np.random.choice(["Strategy1", "Strategy2", "Strategy3"], 100),
-            "entry_time": np.random.choice(dates, 100),
-            "exit_time": np.random.choice(dates, 100),
-            "duration": np.random.randint(1, 1000, 100),
-            "pnl": np.random.normal(50, 200, 100),
-        })
+        self.trade_data = pd.DataFrame(
+            {
+                "strategy": np.random.choice(["Strategy1", "Strategy2", "Strategy3"], 100),
+                "entry_time": np.random.choice(dates, 100),
+                "exit_time": np.random.choice(dates, 100),
+                "duration": np.random.randint(1, 1000, 100),
+                "pnl": np.random.normal(50, 200, 100),
+            }
+        )
 
         # Generate sample funding rate data
         assets = ["BTC", "ETH", "SOL", "ADA", "DOT"]
-        funding_data: pd.DataFrame = pd.DataFrame({
-            "asset": np.repeat(assets, len(dates)),
-            "date": np.tile(dates, len(assets)),
-            "funding_rate": np.random.normal(0, 0.01, len(dates) * len(assets)),
-        })
+        funding_data: pd.DataFrame = pd.DataFrame(
+            {
+                "asset": np.repeat(assets, len(dates)),
+                "date": np.tile(dates, len(assets)),
+                "funding_rate": np.random.normal(0, 0.01, len(dates) * len(assets)),
+            }
+        )
         funding_data.set_index("date", inplace=True)
         self.funding_data = funding_data.pivot(columns="asset", values="funding_rate")
 

@@ -191,13 +191,15 @@ class StrategyManager:
             for signal in signal_list:
                 # Type validated by Pydantic on Strategy return hint, isinstance check removed.
                 # Basic Sanity Check:
-                if not all([
-                    getattr(signal, "symbol", None) is not None,
-                    getattr(signal, "signal_type", None) is not None,
-                    getattr(signal, "side", None) is not None,
-                    getattr(signal, "price", None) is not None,
-                    getattr(signal, "quantity", None) is not None,
-                ]):
+                if not all(
+                    [
+                        getattr(signal, "symbol", None) is not None,
+                        getattr(signal, "signal_type", None) is not None,
+                        getattr(signal, "side", None) is not None,
+                        getattr(signal, "price", None) is not None,
+                        getattr(signal, "quantity", None) is not None,
+                    ]
+                ):
                     # Attempt to get a structured representation if possible
                     if hasattr(signal, "model_dump") and callable(signal.model_dump):
                         try:

@@ -213,14 +213,16 @@ class FundingRateValidator:
                 method = latest_prediction["method"]
                 confidence = latest_prediction["confidence"]
 
-                merged_data.append({
-                    "timestamp": payment_time,
-                    "predicted_rate": predicted_rate,
-                    "actual_rate": actual_rate,
-                    "method": method,
-                    "confidence": confidence,
-                    "error": predicted_rate - actual_rate,
-                })
+                merged_data.append(
+                    {
+                        "timestamp": payment_time,
+                        "predicted_rate": predicted_rate,
+                        "actual_rate": actual_rate,
+                        "method": method,
+                        "confidence": confidence,
+                        "error": predicted_rate - actual_rate,
+                    }
+                )
 
         # If we couldn't match any predictions with payments
         if not merged_data:
