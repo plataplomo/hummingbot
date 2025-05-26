@@ -27,6 +27,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from cyberdelta.apis.backpack.bp_api_components_factory import BackpackAPIComponentsFactory
 from cyberdelta.apis.backpack.bp_auth import BackpackHmacAuthenticator
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
 from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
@@ -115,33 +116,19 @@ class BackpackAPI(ExchangeAPI):
             trading_service: Optional trading service instance for dependency injection
             market_data_service: Optional market data service instance for dependency injection
         """
-        self._api_key = secrets.get("BACKPACK_API_KEY")
-        self._api_secret = secrets.get("BACKPACK_API_SECRET")
+        # Create the factory to handle component instantiation
+        factory = BackpackAPIComponentsFactory(api_config, secrets)
 
-        # Use injected authenticator or create one
-        if authenticator is not None:
-            self._bp_authenticator: BackpackHmacAuthenticator | None = authenticator
-        else:
-            if self._api_key and self._api_secret:
-                self._bp_authenticator = BackpackHmacAuthenticator(
-                    api_key=self._api_key, api_secret=self._api_secret
-                )
-            else:
-                logger.warning(
-                    "Backpack API key/secret not provided. Signed operations will fail. "
-                    "Authenticator not initialized."
-                )
-                self._bp_authenticator = None
-
-        # Use injected dependencies or create them
-        self._backpack_error_mapper = error_mapper or BackpackErrorMapper()
-        self._bp_response_handler = response_handler or BackpackResponseHandler()
-        self._bp_request_builder = request_builder or BackpackRequestBuilder(api_config)
+        # Use injected components or create them via factory
+        self._bp_authenticator = authenticator or factory.create_authenticator()
+        self._backpack_error_mapper = error_mapper or factory.create_error_mapper()
+        self._bp_request_builder = request_builder or factory.create_request_builder()
+        self._bp_response_handler = response_handler or factory.create_response_handler()
 
         # Create instances of the new domain-specific mappers
-        self._bp_account_data_mapper = account_data_mapper or BackpackAccountDataMapper()
-        self._bp_market_data_mapper = market_data_mapper or BackpackMarketDataMapper()
-        self._bp_trading_data_mapper = trading_data_mapper or BackpackTradingDataMapper()
+        self._bp_account_data_mapper = account_data_mapper or factory.create_account_data_mapper()
+        self._bp_market_data_mapper = market_data_mapper or factory.create_market_data_mapper()
+        self._bp_trading_data_mapper = trading_data_mapper or factory.create_trading_data_mapper()
 
         super().__init__(
             exchange_name="backpack",
@@ -154,43 +141,43 @@ class BackpackAPI(ExchangeAPI):
         # Use self._request directly, services will handle the tuple response
         service_requester = self._request
 
-        # Use injected services or create them
+        # Use injected services or create them via factory
         if market_data_service is not None:
             self.market_data_service = market_data_service
         else:
-            self.market_data_service = BackpackMarketDataService(
+            self.market_data_service = factory.create_market_data_service(
                 http_client_requester=service_requester,
+                rate_limiter_service=self._rate_limiter_service,
+                market_data_mapper=self._bp_market_data_mapper,
                 request_builder=self._bp_request_builder,
                 response_handler=self._bp_response_handler,
                 exchange_name=self.exchange_name,
-                rate_limiter_service=self._rate_limiter_service,
-                mapper=self._bp_market_data_mapper,
             )
 
         if account_service is not None:
             self.account_service = account_service
         else:
-            self.account_service = BackpackAccountService(
+            self.account_service = factory.create_account_service(
                 http_client_requester=service_requester,
+                rate_limiter_service=self._rate_limiter_service,
+                authenticator=self._bp_authenticator,
+                account_data_mapper=self._bp_account_data_mapper,
                 request_builder=self._bp_request_builder,
                 response_handler=self._bp_response_handler,
-                authenticator=self._bp_authenticator,
                 exchange_name=self.exchange_name,
-                rate_limiter_service=self._rate_limiter_service,
-                mapper=self._bp_account_data_mapper,
             )
 
         if trading_service is not None:
             self.trading_service = trading_service
         else:
-            self.trading_service = BackpackTradingService(
+            self.trading_service = factory.create_trading_service(
                 http_client_requester=service_requester,
+                rate_limiter_service=self._rate_limiter_service,
+                authenticator=self._bp_authenticator,
+                trading_data_mapper=self._bp_trading_data_mapper,
                 request_builder=self._bp_request_builder,
                 response_handler=self._bp_response_handler,
-                authenticator=self._bp_authenticator,
                 exchange_name=self.exchange_name,
-                rate_limiter_service=self._rate_limiter_service,
-                mapper=self._bp_trading_data_mapper,
             )
 
         self.default_headers: dict[str, str] = {

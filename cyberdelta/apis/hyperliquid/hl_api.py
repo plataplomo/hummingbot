@@ -23,6 +23,7 @@ from cyberdelta.apis.connectivity.http_client import (
     ParsedJsonResponse,
 )
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
+from cyberdelta.apis.hyperliquid.hl_api_components_factory import HyperliquidAPIComponentsFactory
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
@@ -241,57 +242,35 @@ class HyperliquidAPI(ExchangeAPI):
         """
         self.rest_endpoint = api_config.get("rest_endpoint", self.BASE_URL)
         self.ws_endpoint = api_config.get("ws_endpoint", self.WS_URL)
-
         self._wallet_address = secrets.get("wallet_address")
-        private_key = secrets.get("private_key")
 
-        # Use injected authenticator or create one
-        if authenticator is not None:
-            self._hl_authenticator: HyperliquidEip712Authenticator | None = authenticator
-        else:
-            self._hl_authenticator = None
-            if private_key and self._wallet_address:
-                try:
-                    self._hl_authenticator = HyperliquidEip712Authenticator(
-                        wallet_private_key=private_key,
-                        chain_id=self.CHAIN_ID,
-                    )
-                except ValueError as e:
-                    logger.error(
-                        f"Failed to init HL authenticator: {e}. Signed endpoints will fail."
-                    )
-            elif not self._wallet_address:
-                logger.error(
-                    "HLAPI: Wallet address required, not provided. Most functionality fails."
-                )
-            else:
-                logger.warning(
-                    "HLAPI: Private key not provided. Signed endpoints fail or use public data."
-                )
+        # Create the factory to handle component instantiation
+        factory = HyperliquidAPIComponentsFactory(api_config, secrets, self.CHAIN_ID)
 
-        # Use injected dependencies or create them
-        self._hyperliquid_error_mapper = error_mapper or HyperliquidErrorMapper()
-        self._hl_request_builder = request_builder or HyperliquidRequestBuilder()
-        self._hl_response_handler = response_handler or HyperliquidResponseHandler()
+        # Use injected components or create them via factory
+        self._hl_authenticator = authenticator or factory.create_authenticator()
+        self._hyperliquid_error_mapper = error_mapper or factory.create_error_mapper()
+        self._hl_request_builder = request_builder or factory.create_request_builder()
+        self._hl_response_handler = response_handler or factory.create_response_handler()
 
-        # Use injected mappers or create them
-        self._hl_account_data_mapper = account_data_mapper or HyperliquidAccountDataMapper()
-        self._hl_trading_data_mapper = trading_data_mapper or HyperliquidTradingDataMapper()
-        self._hl_market_data_mapper = market_data_mapper or HyperliquidMarketDataMapper()
+        # Use injected mappers or create them via factory
+        self._hl_account_data_mapper = account_data_mapper or factory.create_account_data_mapper()
+        self._hl_trading_data_mapper = trading_data_mapper or factory.create_trading_data_mapper()
+        self._hl_market_data_mapper = market_data_mapper or factory.create_market_data_mapper()
 
         self._asset_to_index_cache: dict[str, int] = {}
 
         self.exchange_name = "hyperliquid"  # Define exchange_name before use
 
-        # Use injected market data service or create one
+        # Use injected market data service or create one via factory
         if market_data_service is not None:
             self.market_data_service = market_data_service
         else:
-            self.market_data_service = HyperliquidMarketDataService(
+            self.market_data_service = factory.create_market_data_service(
                 http_client_requester=self._market_data_requester_adapter,
+                market_data_mapper=self._hl_market_data_mapper,
                 request_builder=self._hl_request_builder,
                 response_handler=self._hl_response_handler,
-                mapper=self._hl_market_data_mapper,
                 exchange_name=self.exchange_name,
                 info_url=self.INFO_URL,
             )
@@ -345,37 +324,37 @@ class HyperliquidAPI(ExchangeAPI):
                 config=info_client_config_obj,
             )
 
-        # Use injected account service or create one
+        # Use injected account service or create one via factory
         if account_service is not None:
             self.account_service = account_service
         else:
-            self.account_service = HyperliquidAccountService(
+            self.account_service = factory.create_account_service(
                 http_client_requester=self._market_data_requester_adapter,
+                authenticator=self._hl_authenticator,
+                account_data_mapper=self._hl_account_data_mapper,
+                trading_data_mapper=self._hl_trading_data_mapper,
                 request_builder=self._hl_request_builder,
                 response_handler=self._hl_response_handler,
-                authenticator=self._hl_authenticator,
                 exchange_name=self.exchange_name,
                 info_url=self.INFO_URL,
                 wallet_address=self._wallet_address,
-                account_mapper=self._hl_account_data_mapper,
-                trading_mapper=self._hl_trading_data_mapper,
             )
 
-        # Use injected trading service or create one
+        # Use injected trading service or create one via factory
         if trading_service is not None:
             self.trading_service = trading_service
         else:
-            self.trading_service = HyperliquidTradingService(
+            self.trading_service = factory.create_trading_service(
                 exchange_http_client_requester=self._request,
                 info_http_client_requester=self._info_request_wrapper,
+                authenticator=self._hl_authenticator,
+                trading_data_mapper=self._hl_trading_data_mapper,
+                error_mapper=self._hyperliquid_error_mapper,
                 request_builder=self._hl_request_builder,
                 response_handler=self._hl_response_handler,
-                authenticator=self._hl_authenticator,
                 exchange_name=self.exchange_name,
                 wallet_address=self._wallet_address,
                 get_asset_index_callable=self._get_asset_index,
-                trading_mapper=self._hl_trading_data_mapper,
-                error_mapper=self._hyperliquid_error_mapper,
             )
 
         self.default_headers: dict[str, str] = {
@@ -908,9 +887,10 @@ class HyperliquidAPI(ExchangeAPI):
                             )
                             try:
                                 # Transform raw validated model to internal domain model
-                                internal_trade = self._hl_account_data_mapper.transform_ws_fill_event_to_internal(
-                                    validated_fill
+                                transform_method = (
+                                    self._hl_account_data_mapper.transform_ws_fill_event_to_internal
                                 )
+                                internal_trade = transform_method(validated_fill)
                                 await app_handler(internal_trade, message)  # type: ignore[arg-type]
                             except TransformationError as e_transform:
                                 logger.error(
@@ -927,9 +907,8 @@ class HyperliquidAPI(ExchangeAPI):
                             validated_order_details = _handle_order_event(order_update_wrapper.data)
                             try:
                                 # Transform raw validated model to internal domain model
-                                internal_order = self._hl_trading_data_mapper.transform_ws_order_update_to_internal_order(
-                                    validated_order_details
-                                )
+                                order_transform_method = self._hl_trading_data_mapper.transform_ws_order_update_to_internal_order
+                                internal_order = order_transform_method(validated_order_details)
                                 await app_handler(internal_order, message)  # type: ignore[arg-type]
                             except TransformationError as e_transform:
                                 logger.error(
@@ -942,7 +921,8 @@ class HyperliquidAPI(ExchangeAPI):
                             validated_position_update = _handle_pos_update(event_item_dict)
                             try:
                                 # Transform raw validated model to internal domain model
-                                internal_position = self._hl_account_data_mapper.transform_ws_position_update_to_internal_position(
+                                position_transform_method = self._hl_account_data_mapper.transform_ws_position_update_to_internal_position
+                                internal_position = position_transform_method(
                                     validated_position_update
                                 )
                                 await app_handler(internal_position, message)  # type: ignore[arg-type]
