@@ -32,6 +32,7 @@ from cyberdelta.apis.backpack.bp_auth import BackpackHmacAuthenticator
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
 from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
+from cyberdelta.apis.backpack.bp_ws_message_router import BackpackWsMessageRouter
 from cyberdelta.apis.backpack.bp_ws_raw_message_handler import BackpackWsRawMessageHandler
 from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAccountDataMapper
 from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarketDataMapper
@@ -41,7 +42,7 @@ from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMar
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
 from cyberdelta.apis.base.exchange_api import ExchangeAPI, MessageHandler
-from cyberdelta.apis.models.api_error import APIError, TransformationError
+from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
     DerivativePosition,
@@ -138,6 +139,15 @@ class BackpackAPI(ExchangeAPI):
             error_mapper=self._backpack_error_mapper,
         )
 
+        # Initialize WebSocket message router
+        self._bp_ws_router = BackpackWsMessageRouter(
+            market_data_mapper=self._bp_market_data_mapper,
+            account_data_mapper=self._bp_account_data_mapper,
+            trading_data_mapper=self._bp_trading_data_mapper,
+            raw_ws_handler=BackpackWsRawMessageHandler(),
+            exchange_name=self.exchange_name,
+        )
+
         # Use self._request directly, services will handle the tuple response
         service_requester = self._request
 
@@ -188,13 +198,8 @@ class BackpackAPI(ExchangeAPI):
     # --- WebSocket Implementation --- #
 
     def _construct_subscription_payload(self, topic: str) -> dict[str, Any] | None:
-        """Constructs the subscription payload for a given topic for Backpack."""
-        # Based on existing BackpackAPI.subscribe method
-        return {
-            "op": "subscribe",
-            "channel": topic,
-            "args": {},  # Backpack doesn't seem to use args for common subscriptions
-        }
+        """Delegate subscription payload construction to the WebSocket router."""
+        return self._bp_ws_router.construct_subscription_payload(topic)
 
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
         """Handle raw WebSocket message from WebSocketManager, then route it.
@@ -206,136 +211,8 @@ class BackpackAPI(ExchangeAPI):
         await self._route_ws_message(message)
 
     async def _route_ws_message(self, message: dict[str, Any]) -> None:
-        """
-        Route incoming WebSocket messages to the appropriate handler based on topic.
-        Backpack messages typically have a 'stream' or 'topic' field in the outer message
-        or the data payload itself indicates the type.
-        Example Backpack WS message structure: {"topic": "depth.SOL_USDC", "data": {...}}
-
-        This method now first validates the raw payload using BackpackWsRawMessageHandler,
-        then transforms it using the appropriate DataMapper, and finally passes the Internal
-        Domain Model to the registered application handler.
-        """
-        topic_str: str | None = message.get("topic")
-        data_payload: dict[str, Any] | None = message.get("data")
-        event_type_str: str | None = None
-
-        if not topic_str:
-            raw_event_type = message.get("type")
-            if isinstance(raw_event_type, str) and raw_event_type in [
-                "fills",
-                "orders",
-                "positionUpdate",
-            ]:
-                event_type_str = raw_event_type
-                topic_str = event_type_str
-            else:
-                logger.debug(
-                    f"[{self.exchange_name}] Unroutable message - no clear string topic "
-                    f"and not a known event type: {message}"
-                )
-                return
-
-        if data_payload is None:
-            logger.debug(
-                f"[{self.exchange_name}] Received message with topic/type '{topic_str}' "
-                f"but no data_payload: {message}"
-            )
-            return
-
-        # topic_str is now guaranteed to be a string.
-        app_handler = self._ws_handlers.get(
-            str(topic_str)
-        )  # Ensure topic_str is treated as str for key
-
-        base_topic = str(topic_str)  # Use str() to satisfy linters if topic_str could be None path
-        if base_topic.startswith("depth."):
-            base_topic = "depth"
-        elif base_topic.startswith("ticker."):
-            base_topic = "ticker"
-
-        if not app_handler:
-            logger.debug(
-                f"[{self.exchange_name}] No application handler registered for topic: "
-                f"{topic_str} (or base topic: {base_topic})"
-            )
-            return
-
-        try:
-            validated_payload: Any = None
-            internal_model: Any = None
-
-            if base_topic == "depth":
-                validated_payload = BackpackWsRawMessageHandler.handle_depth_payload(data_payload)
-                # Extract symbol from topic (e.g., "depth.SOL_USDC" -> "SOL_USDC")
-                symbol_from_topic = topic_str.split(".", 1)[1] if "." in topic_str else "UNKNOWN"
-                internal_model = self._bp_market_data_mapper.transform_ws_depth_event_to_internal(
-                    symbol_from_topic, validated_payload
-                )
-            elif base_topic == "ticker":
-                validated_payload = BackpackWsRawMessageHandler.handle_ticker_payload(data_payload)
-                internal_model = self._bp_market_data_mapper.transform_ws_ticker_event_to_internal(
-                    validated_payload
-                )
-            elif base_topic == "fills":
-                validated_payload = BackpackWsRawMessageHandler.handle_trade_event_payload(
-                    data_payload
-                )
-                # For fills topic, this could be either public trades or private fills
-                # Based on the context, assume this is private account fills
-                internal_model = (
-                    self._bp_account_data_mapper.transform_ws_fill_event_to_internal_trade(
-                        validated_payload
-                    )
-                )
-            elif base_topic == "orders":
-                validated_payload = BackpackWsRawMessageHandler.handle_order_update_payload(
-                    data_payload
-                )
-                internal_model = (
-                    self._bp_trading_data_mapper.transform_ws_order_update_to_internal_order(
-                        validated_payload
-                    )
-                )
-            elif base_topic == "positionUpdate":
-                validated_payload = BackpackWsRawMessageHandler.handle_position_update_payload(
-                    data_payload
-                )
-                internal_model = (
-                    self._bp_account_data_mapper.transform_ws_position_update_to_internal_position(
-                        validated_payload
-                    )
-                )
-            else:
-                logger.warning(
-                    f"[{self.exchange_name}] No specific raw WS validator for topic "
-                    f"'{topic_str}' (base: '{base_topic}'). "
-                    f"Application handler will receive raw payload."
-                )
-                await app_handler(data_payload, message)
-                return
-
-            # Pass the Internal Domain Model to the application handler
-            await app_handler(internal_model, message)
-
-        except APIError as e:
-            logger.error(
-                f"[{self.exchange_name}] APIError validating WS payload for topic "
-                f"{topic_str} (base: {base_topic}): {e.message}",
-                exc_info=True,
-            )
-        except TransformationError as e_transform:
-            logger.error(
-                f"[{self.exchange_name}] TransformationError transforming WS payload for topic "
-                f"{topic_str} (base: {base_topic}): {e_transform}",
-                exc_info=True,
-            )
-        except Exception as e_app:
-            logger.error(
-                f"[{self.exchange_name}] Error in application handler for topic {topic_str} "
-                f"(base: {base_topic}): {e_app}",
-                exc_info=True,
-            )
+        """Delegate WebSocket message routing to the WebSocket router."""
+        await self._bp_ws_router.route_message(message, self._ws_handlers)
 
     # --- Authentication --- #
 

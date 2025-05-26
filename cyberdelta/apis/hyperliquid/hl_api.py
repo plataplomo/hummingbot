@@ -31,6 +31,7 @@ from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
     RawJsonResponse,
 )
+from cyberdelta.apis.hyperliquid.hl_ws_message_router import HyperliquidWsMessageRouter
 from cyberdelta.apis.hyperliquid.hl_ws_raw_message_handler import HyperliquidWsRawMessageHandler
 
 # Create instances of the new domain-specific mappers
@@ -49,7 +50,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
-from cyberdelta.apis.models.api_error import APIError, TransformationError
+from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
     DerivativePosition,
@@ -374,6 +375,15 @@ class HyperliquidAPI(ExchangeAPI):
         self._ws_subscriptions: dict[str, MessageHandler] = {}
         self._is_connected = False
 
+        # Initialize WebSocket message router
+        self._hl_ws_router = HyperliquidWsMessageRouter(
+            market_data_mapper=self._hl_market_data_mapper,
+            account_data_mapper=self._hl_account_data_mapper,
+            trading_data_mapper=self._hl_trading_data_mapper,
+            raw_ws_handler=HyperliquidWsRawMessageHandler(),
+            exchange_name=self.exchange_name,
+        )
+
     async def _authenticate(
         self,
         method: str,
@@ -678,40 +688,8 @@ class HyperliquidAPI(ExchangeAPI):
         pass
 
     def _construct_subscription_payload(self, topic: str) -> dict[str, Any] | None:
-        """Constructs the subscription payload for a given topic for Hyperliquid.
-        Hyperliquid uses a format like:
-        {"method": "subscribe", "subscription": payload}
-        Payload depends on the subscription type.
-        """
-        parts = topic.split(":")
-        sub_type = parts[0]
-
-        subscription_data: dict[str, Any] = {}
-
-        if sub_type == "l2Book" and len(parts) > 1:
-            coin = parts[1]
-            subscription_data = {"type": "l2Book", "coin": coin}
-        elif sub_type == "trades" and len(parts) > 1:
-            coin = parts[1]
-            subscription_data = {"type": "trades", "coin": coin}
-        elif sub_type == "userEvents":
-            if not self._wallet_address:
-                logger.error(
-                    f"[{self.exchange_name}] Cannot subscribe to userEvents without wallet address."
-                )
-                return None
-            subscription_data = {"type": "userEvents", "user": self._wallet_address}
-        elif sub_type == "candle" and len(parts) > 2:
-            coin = parts[1]
-            interval = parts[2]
-            subscription_data = {"type": "candle", "coin": coin, "interval": interval}
-        else:
-            logger.warning(
-                f"[{self.exchange_name}] Unknown or invalid topic format for subscription: {topic}"
-            )
-            return None
-
-        return {"method": "subscribe", "subscription": subscription_data}
+        """Delegate subscription payload construction to the WebSocket router."""
+        return self._hl_ws_router.construct_subscription_payload(topic, self._wallet_address)
 
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
         """
@@ -723,284 +701,8 @@ class HyperliquidAPI(ExchangeAPI):
         await self._route_ws_message(message)
 
     async def _route_ws_message(self, message: dict[str, Any]) -> None:
-        """
-        Route incoming WebSocket messages from Hyperliquid.
-        Validates raw payloads using HyperliquidWsRawMessageHandler before processing.
-        """
-        channel: str | None = message.get("channel")
-        raw_data_any: Any = message.get("data")  # Keep as Any initially
-
-        if not channel:
-            logger.debug(f"[{self.exchange_name}] Unroutable WS message (no channel): {message}")
-            return
-
-        if channel in ["pong", "subscriptionResponse"]:
-            logger.debug(f"[{self.exchange_name}] Control message on '{channel}': {message}")
-            return
-
-        topic_key_for_handler = channel
-        if channel == "l2Book":
-            if isinstance(raw_data_any, dict):
-                raw_data_dict = cast(dict[str, Any], raw_data_any)
-                coin_from_data_any: Any = raw_data_dict.get("coin")
-                if isinstance(coin_from_data_any, str):
-                    topic_key_for_handler = f"{channel}:{coin_from_data_any}"
-            else:
-                logger.warning(
-                    f"[{self.exchange_name}] Expected dict for 'l2Book' data to derive topic key, "
-                    f"received other type. Msg: {message}"
-                )
-        elif channel == "trades":
-            coin_for_topic_str: str | None = None
-            if isinstance(raw_data_any, list):
-                checked_list_for_topic_derivation: list[Any] = raw_data_any
-                if checked_list_for_topic_derivation:
-                    first_item_for_topic_any: Any = checked_list_for_topic_derivation[0]
-                    if isinstance(first_item_for_topic_any, dict):
-                        first_item_dict = cast(dict[str, Any], first_item_for_topic_any)
-                        coin_from_item_any: Any = first_item_dict.get("coin")
-                        if isinstance(coin_from_item_any, str):
-                            coin_for_topic_str = coin_from_item_any
-
-            if coin_for_topic_str:
-                topic_key_for_handler = f"{channel}:{coin_for_topic_str}"
-        elif channel == "userEvents":
-            topic_key_for_handler = "userEvents"
-
-        app_handler = self._ws_handlers.get(topic_key_for_handler)
-        if not app_handler:
-            generic_app_handler = self._ws_handlers.get(channel)
-            if generic_app_handler:
-                app_handler = generic_app_handler
-            else:
-                log_parts = [f"[{self.exchange_name}] No WS handler for '{topic_key_for_handler}'"]
-                if topic_key_for_handler != channel:
-                    log_parts.append(f" (or base '{channel}')")
-                log_parts.append(f". Msg: {message}")
-                logger.debug("".join(log_parts))
-                return
-
-        if raw_data_any is None:
-            logger.warning(f"[{self.exchange_name}] WS '{channel}' has no data. Msg: {message}")
-            return
-
-        try:
-            payload_for_handler: dict[str, Any] | None = None
-
-            if channel == "l2Book":
-                if not isinstance(raw_data_any, dict):
-                    raise APIError(
-                        "l2Book data not dict",
-                        code=APIErrorCode.INVALID_RESPONSE.value,
-                    )
-                validated_book_model = HyperliquidWsRawMessageHandler.handle_l2book_payload(
-                    cast(dict[str, Any], raw_data_any)
-                )
-
-                try:
-                    # Transform raw validated model to internal domain model
-                    internal_orderbook = (
-                        self._hl_market_data_mapper.transform_ws_book_update_to_internal(
-                            validated_book_model
-                        )
-                    )
-                    await app_handler(internal_orderbook, message)  # type: ignore[arg-type]
-                except TransformationError as e_transform:
-                    logger.error(
-                        f"[{self.exchange_name}] Failed to transform l2Book data: {e_transform}"
-                    )
-                return
-
-            elif channel == "trades":
-                if not isinstance(raw_data_any, list):
-                    raise APIError(
-                        "trades data not list",
-                        code=APIErrorCode.INVALID_RESPONSE.value,
-                    )
-
-                # Convert list items to dict format for validation
-                trade_payloads: list[dict[str, Any]] = []
-                # Explicitly type the list after check, elements are still Any
-                checked_list_of_trades: list[Any] = raw_data_any
-                for item in checked_list_of_trades:
-                    if not isinstance(item, dict):
-                        logger.warning(
-                            f"[{self.exchange_name}] Trades list item not dict: {item}. Skipping."
-                        )
-                        continue
-                    trade_payloads.append(cast(dict[str, Any], item))
-
-                if trade_payloads:
-                    validated_trade_models = (
-                        HyperliquidWsRawMessageHandler.handle_public_trades_payload(trade_payloads)
-                    )
-                    for validated_trade_model in validated_trade_models:
-                        try:
-                            # Transform raw validated model to internal domain model
-                            internal_trade = (
-                                self._hl_market_data_mapper.transform_ws_trade_event_to_internal(
-                                    validated_trade_model
-                                )
-                            )
-                            await app_handler(internal_trade, message)  # type: ignore[arg-type]
-                        except TransformationError as e_transform:
-                            logger.error(
-                                f"[{self.exchange_name}] Failed to transform trade "
-                                f"data: {e_transform}"
-                            )
-                return
-
-            elif channel == "userEvents":
-                if not isinstance(raw_data_any, list):
-                    raise APIError(
-                        "userEvents data not list",
-                        code=APIErrorCode.INVALID_RESPONSE.value,
-                    )
-                # Explicitly type the list after check, elements are still Any
-                checked_list_of_any_events: list[Any] = raw_data_any
-                for event_loop_var_any in checked_list_of_any_events:
-                    if not isinstance(event_loop_var_any, dict):
-                        logger.warning(
-                            f"[{self.exchange_name}] userEvents item not dict: "
-                            f"{event_loop_var_any}, skipping."
-                        )
-                        continue
-                    # Cast here for Pyright
-                    event_item_dict = cast(dict[str, Any], event_loop_var_any)
-                    event_type_any = event_item_dict.get("type")
-
-                    if not isinstance(event_type_any, str):
-                        logger.warning(
-                            f"[{self.exchange_name}] userEvent item has no 'type' string: "
-                            f"{event_item_dict}, skipping."
-                        )
-                        continue
-
-                    event_type_str: str = event_type_any
-
-                    try:
-                        if event_type_str == "fill":
-                            validated_fill = (
-                                HyperliquidWsRawMessageHandler.handle_user_fill_event_payload(
-                                    event_item_dict
-                                )
-                            )
-                            try:
-                                # Transform raw validated model to internal domain model
-                                transform_method = (
-                                    self._hl_account_data_mapper.transform_ws_fill_event_to_internal
-                                )
-                                internal_trade = transform_method(validated_fill)
-                                await app_handler(internal_trade, message)  # type: ignore[arg-type]
-                            except TransformationError as e_transform:
-                                logger.error(
-                                    f"[{self.exchange_name}] Failed to transform fill "
-                                    f"event: {e_transform}"
-                                )
-
-                        elif event_type_str == "order":
-                            _handle_order_wrapper = HyperliquidWsRawMessageHandler.handle_user_order_update_wrapper_payload
-                            order_update_wrapper = _handle_order_wrapper(event_item_dict)
-                            _handle_order_event = (
-                                HyperliquidWsRawMessageHandler.handle_user_order_event_payload
-                            )
-                            validated_order_details = _handle_order_event(order_update_wrapper.data)
-                            try:
-                                # Transform raw validated model to internal domain model
-                                order_transform_method = self._hl_trading_data_mapper.transform_ws_order_update_to_internal_order
-                                internal_order = order_transform_method(validated_order_details)
-                                await app_handler(internal_order, message)  # type: ignore[arg-type]
-                            except TransformationError as e_transform:
-                                logger.error(
-                                    f"[{self.exchange_name}] Failed to transform order "
-                                    f"event: {e_transform}"
-                                )
-
-                        elif event_type_str == "positionUpdate":
-                            _handle_pos_update = HyperliquidWsRawMessageHandler.handle_user_position_update_event_payload
-                            validated_position_update = _handle_pos_update(event_item_dict)
-                            try:
-                                # Transform raw validated model to internal domain model
-                                position_transform_method = self._hl_account_data_mapper.transform_ws_position_update_to_internal_position
-                                internal_position = position_transform_method(
-                                    validated_position_update
-                                )
-                                await app_handler(internal_position, message)  # type: ignore[arg-type]
-                            except TransformationError as e_transform:
-                                logger.error(
-                                    f"[{self.exchange_name}] Failed to transform position "
-                                    f"event: {e_transform}"
-                                )
-
-                        else:
-                            logger.debug(
-                                f"[{self.exchange_name}] Unhandled userEvent type: "
-                                f"{event_type_str}. Passing raw item: {event_item_dict}"
-                            )
-                            await app_handler(event_item_dict, message)
-
-                    except (APIError, ValidationError) as e_user_event_item:
-                        logger.error(
-                            f"[{self.exchange_name}] Error processing userEvent item "
-                            f"(type: {event_type_str}): {e_user_event_item}. "
-                            f"Item: {event_item_dict}. Skipping item."
-                        )
-                        continue
-                return  # All user events handled, exit
-
-            elif channel == "allMids":
-                if not isinstance(raw_data_any, dict):
-                    logger.warning(
-                        f"[{self.exchange_name}] 'allMids' channel data is not a dict or is None. "
-                        f"Data: {raw_data_any!r}. Skipping."
-                    )
-                    raise APIError(
-                        "allMids data not dict or is None",
-                        code=APIErrorCode.INVALID_RESPONSE.value,
-                    )
-
-                raw_data_dict_all_mids = cast(dict[str, Any], raw_data_any)
-
-                validated_all_mids = HyperliquidWsRawMessageHandler.handle_all_mids_payload(
-                    raw_data_dict_all_mids
-                )
-                payload_for_handler = validated_all_mids.model_dump(mode="json")
-
-            elif channel == "pong" or channel == "subscriptionResponse":
-                logger.debug(f"[{self.exchange_name}] Control message on '{channel}': {message}")
-                payload_for_handler = (
-                    cast(dict[str, Any], raw_data_any) if isinstance(raw_data_any, dict) else {}
-                )
-            else:
-                logger.debug(
-                    f"[{self.exchange_name}] Unhandled channel '{channel}' by specific "
-                    f"validation, passing raw data if dict. Msg: {message}"
-                )
-                payload_for_handler = (
-                    cast(dict[str, Any], raw_data_any) if isinstance(raw_data_any, dict) else {}
-                )
-
-            # Final handler call for channels that set payload_for_handler and don't return early
-            if payload_for_handler is not None:
-                await app_handler(payload_for_handler, message)
-            # If payload_for_handler is None here, it means a path was taken that didn't set it
-            # and didn't explicitly return (e.g. trades/userEvents handle their own calls to
-            # app_handler) or an empty list for trades was encountered and returned early.
-
-        except APIError as e:
-            logger.error(
-                f"[{self.exchange_name}] APIError in WS routing for {channel}: {e.message}",
-                exc_info=True,
-            )
-        except ValidationError as e_val:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected Pydantic ValidationErr for {channel}: {e_val}",
-                exc_info=True,
-            )
-        except Exception as e_app:
-            logger.error(
-                f"[{self.exchange_name}] Error in app_handler for {channel}: {e_app}", exc_info=True
-            )
+        """Delegate WebSocket message routing to the WebSocket router."""
+        await self._hl_ws_router.route_message(message, self._ws_handlers)
 
     async def connect_websocket(self) -> None:
         """Establish the WebSocket connection using the base class logic."""
