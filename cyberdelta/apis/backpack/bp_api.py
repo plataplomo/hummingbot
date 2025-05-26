@@ -260,19 +260,7 @@ class BackpackAPI(ExchangeAPI):
 
     async def get_ticker(self, symbol: str) -> Ticker:
         """Retrieves the latest ticker information for a specific symbol."""
-        try:
-            return await self.market_data_service.get_ticker(symbol=symbol)
-        except APIError:
-            # Re-raise APIError as-is
-            raise
-        except Exception as e:
-            # Wrap unexpected exceptions in APIError
-            logger.error(f"[{self.exchange_name}] Unexpected error in get_ticker: {e}")
-            raise APIError(
-                message=f"Failed to get ticker for symbol {symbol}: {str(e)}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
+        return await self.market_data_service.get_ticker(symbol=symbol)
 
     async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
         """Retrieves the order book for a specific symbol."""
@@ -308,18 +296,14 @@ class BackpackAPI(ExchangeAPI):
         """
         return await self.market_data_service.get_market_data(
             symbol=symbol,
-            timeframe=timeframe,  # Service uses 'timeframe'
-            start_time_ms=start_time_ms,  # Service uses 'start_time_ms'
-            end_time_ms=end_time_ms,  # Service uses 'end_time_ms'
+            timeframe=timeframe,
+            start_time_ms=start_time_ms,
+            end_time_ms=end_time_ms,
             limit=limit,
         )
 
     async def get_balances(self) -> dict[str, SpotBalance]:
         """Get account balances. Delegates to BackpackAccountService."""
-        # The service method get_balances returns list[SpotBalance]
-        # This needs to be changed to dict[str, SpotBalance] to match ExchangeAPI
-        # The actual change will be in the account_service and its mapper usage.
-        # For now, the direct delegation might cause a type error until service is fixed.
         return await self.account_service.get_balances()
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
@@ -347,34 +331,21 @@ class BackpackAPI(ExchangeAPI):
                 f"[{self.exchange_name}] 'reduce_only' parameter is not supported for place_order "
                 f"and will be ignored."
             )
-        try:
-            return await self.trading_service.place_order(
-                symbol=symbol,
-                side=side,
-                order_type=order_type,
-                quantity=quantity,
-                time_in_force=time_in_force,
-                price=price,
-                stop_price=stop_price,
-                client_order_id=client_order_id,
-                post_only=post_only,
-            )
-        except APIError:
-            # Re-raise APIError as-is
-            raise
-        except Exception as e:
-            # Wrap unexpected exceptions in APIError
-            logger.error(f"[{self.exchange_name}] Unexpected error in place_order: {e}")
-            raise APIError(
-                message=f"Failed to place order: {str(e)}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
+        return await self.trading_service.place_order(
+            symbol=symbol,
+            side=side,
+            order_type=order_type,
+            quantity=quantity,
+            time_in_force=time_in_force,
+            price=price,
+            stop_price=stop_price,
+            client_order_id=client_order_id,
+            post_only=post_only,
+        )
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
         """Cancel an existing order. Delegates to BackpackTradingService."""
         if not symbol:
-            # This check remains in API client as service method requires it.
             raise ValueError("Symbol is required to cancel an order on Backpack.")
         return await self.trading_service.cancel_order(order_id=order_id, symbol=symbol)
 
@@ -386,7 +357,6 @@ class BackpackAPI(ExchangeAPI):
         """Retrieves current funding rates for specified symbols.
         Delegates to BackpackMarketDataService.
         """
-        # The service now handles the logic if symbols list is None/empty or iterates.
         return await self.market_data_service.get_funding_rates(symbols=symbols)
 
     async def get_account_summary(self) -> MarginAccountSummary:
@@ -434,44 +404,31 @@ class BackpackAPI(ExchangeAPI):
             tag=tag,
             client_withdrawal_id=client_withdrawal_id,
             two_factor_token=two_factor_token,
-            # **kwargs are not explicitly passed if service doesn't accept them.
-            # Check service signature. For now, not passing **kwargs.
         )
 
     async def subscribe_to_order_book(self, symbol: str) -> None:
         """Subscribe to order book updates for a symbol."""
         topic = f"depth.{symbol}"
-        # This method should likely just prepare the topic and potentially
-        # trigger the subscription via a shared mechanism if needed,
-        # but handler registration happens via self.subscribe called elsewhere.
-        # For now, log intent. Actual subscription initiated by caller via self.subscribe.
         logger.debug(f"[{self.exchange_name}] Preparing subscription for topic: {topic}")
-        # await self.subscribe(topic, handler) # Incorrect: Handler not passed here
 
     async def subscribe_to_ticker(self, symbol: str) -> None:
         """Subscribe to ticker updates for a symbol."""
         topic = f"ticker.{symbol}"
         logger.debug(f"[{self.exchange_name}] Preparing subscription for topic: {topic}")
-        # await self.subscribe(topic, handler) # Incorrect: Handler not passed here
 
     async def subscribe_to_trades(self, symbol: str) -> None:
         """Subscribe to public trade updates for a symbol."""
         topic = f"trades.{symbol}"
         logger.debug(f"[{self.exchange_name}] Preparing subscription for topic: {topic}")
-        # await self.subscribe(topic, handler) # Incorrect: Handler not passed here
 
     async def subscribe_to_account_updates(self) -> None:
         """Subscribe to private account updates (balances, positions, orders)."""
-        # This method signals intent or triggers setup. Actual subscriptions
-        # with handlers are done via self.subscribe elsewhere.
         fill_topic = "fills"
         order_topic = "orders"
         logger.debug(
             f"[{self.exchange_name}] Preparing subscription for account topics: "
             f"{fill_topic}, {order_topic}"
         )
-        # await self.subscribe(fill_topic, handler) # Incorrect
-        # await self.subscribe(order_topic, handler) # Incorrect
 
     async def get_order_history(
         self,
@@ -509,12 +466,7 @@ class BackpackAPI(ExchangeAPI):
     ) -> Order | None:
         """Fetch a single order by its ID. Delegates to BackpackTradingService."""
         if not symbol:
-            _error_msg = "Symbol is required for get_order on Backpack."
-            logger.error(f"[{self.exchange_name}] {_error_msg}")
-            # Service method get_order also requires symbol, so this check is fine here or
-            # let service raise.
-            # For consistency with prompt, raising here if strictly needed by service.
-            raise ValueError(_error_msg)
+            raise ValueError("Symbol is required for get_order on Backpack.")
         return await self.trading_service.get_order(
             order_id=order_id, symbol=symbol, client_order_id=client_order_id
         )
@@ -525,9 +477,7 @@ class BackpackAPI(ExchangeAPI):
         """Fetch the status of a specific order. Delegates to BackpackTradingService's
         get_order_status."""
         if not symbol:
-            _error_msg = "Symbol is required for get_order_status on Backpack."
-            logger.error(f"[{self.exchange_name}] {_error_msg}")
-            raise ValueError(_error_msg)
+            raise ValueError("Symbol is required for get_order_status on Backpack.")
         return await self.trading_service.get_order_status(
             order_id=order_id, symbol=symbol, client_order_id=client_order_id
         )
@@ -565,11 +515,10 @@ class BackpackAPI(ExchangeAPI):
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
         """Register a handler for a WebSocket topic and send subscription via WebSocketManager."""
-        # Ensure ExchangeAPI.subscribe is not abstract or implement fully here
         logger.info(
             "[%s] Subscribe called for topic: %s. Delegating to base.",
             self.exchange_name,
-            topic,  # COM812 fixed by adding comma here
+            topic,
         )
         await super().subscribe(topic, handler)
 
@@ -577,9 +526,9 @@ class BackpackAPI(ExchangeAPI):
         """Handle actions upon WebSocket connection, typically resubscribing to topics."""
         logger.info(
             "[%s] WebSocket connected. Triggering resubscription via base.",
-            self.exchange_name,  # COM812 fixed by adding comma here
+            self.exchange_name,
         )
-        await super()._on_ws_connected()  # Assuming base class handles resubscription logic
+        await super()._on_ws_connected()
 
     async def _resubscribe(self) -> None:
         """Resubscribe to topics upon WebSocket (re)connection."""

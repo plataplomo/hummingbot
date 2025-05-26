@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
 from collections.abc import Mapping
 from datetime import datetime
 from decimal import Decimal
@@ -72,7 +71,6 @@ from cyberdelta.core.models.market.order import (
 )
 from cyberdelta.core.models.operations import Transfer, Withdrawal
 from cyberdelta.utils.logging_config import get_logger
-from cyberdelta.utils.parsing import timeframe_to_ms
 
 logger = get_logger(__name__)
 
@@ -753,29 +751,24 @@ class HyperliquidAPI(ExchangeAPI):
         symbol: str,
         timeframe: str,
         limit: int = 100,
+        start_time_ms: int | None = None,
+        end_time_ms: int | None = None,
     ) -> list[Candle]:
-        """Retrieves historical kline/candlestick data for a symbol and timeframe.
-        Hyperliquid's candle endpoint requires startTime and endTime.
-        This method needs to calculate these based on limit and timeframe if not provided directly.
-        The service method get_market_data(symbol, interval, start_time_ms, end_time_ms)
-        For now, this delegation assumes the caller will provide appropriate start/end times or
-        that the service method can derive them if only limit is given.
-        This is a simplification for delegation; original complex logic for start/end time
-        calculation from limit+timeframe should be in the service or this method before delegation.
+        """Retrieves historical kline/candlestick data for a symbol and timeframe."""
+        # Calculate time range if not provided
+        if start_time_ms is None or end_time_ms is None:
+            # Import timeframe_to_ms here to avoid circular import
+            import time
 
-        For this refactor, we assume the service method handles the start/end time logic if needed.
-        We need to define how start_time_ms and end_time_ms are derived here.
-        Hyperliquid's /info for candles requires start and end times.
-        Let's make a placeholder for now, as the service expects start/end ms.
-        This will require more logic to be equivalent to original.
-        """
-        interval_ms = timeframe_to_ms(timeframe)
-        if interval_ms == 0:
-            raise ValueError(f"Invalid or unsupported timeframe: {timeframe}")
+            from cyberdelta.utils.parsing import timeframe_to_ms
 
-        current_time_ms = int(time.time() * 1000)
-        end_time_ms = current_time_ms
-        start_time_ms = end_time_ms - (limit * interval_ms)
+            interval_ms = timeframe_to_ms(timeframe)
+            if interval_ms == 0:
+                raise ValueError(f"Invalid or unsupported timeframe: {timeframe}")
+
+            current_time_ms = int(time.time() * 1000)
+            end_time_ms = end_time_ms or current_time_ms
+            start_time_ms = start_time_ms or (end_time_ms - (limit * interval_ms))
 
         return await self.market_data_service.get_market_data(
             symbol=symbol,
@@ -805,37 +798,24 @@ class HyperliquidAPI(ExchangeAPI):
                 "Hyperliquid requires a price (as limit_px for slippage) even for MARKET orders."
             )
 
-        final_price = price
-        if final_price is None:
+        if price is None:
             raise APIError(
                 "Price cannot be None for Hyperliquid place_order service call.",
                 APIErrorCode.INVALID_REQUEST.value,
             )
 
-        try:
-            return await self.trading_service.place_order(
-                symbol=symbol,
-                side=side,
-                order_type=order_type,
-                quantity=quantity,
-                price=final_price,
-                time_in_force=time_in_force,
-                stop_price=stop_price,
-                client_order_id=client_order_id,
-                reduce_only=reduce_only,
-                post_only=post_only,
-            )
-        except APIError:
-            # Re-raise APIError as-is
-            raise
-        except Exception as e:
-            # Wrap unexpected exceptions in APIError
-            logger.error(f"[{self.exchange_name}] Unexpected error in place_order: {e}")
-            raise APIError(
-                message=f"Failed to place order for symbol {symbol}: {str(e)}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
+        return await self.trading_service.place_order(
+            symbol=symbol,
+            side=side,
+            order_type=order_type,
+            quantity=quantity,
+            price=price,
+            time_in_force=time_in_force,
+            stop_price=stop_price,
+            client_order_id=client_order_id,
+            reduce_only=reduce_only,
+            post_only=post_only,
+        )
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
         """Cancels a specific order by its ID."""
@@ -849,19 +829,7 @@ class HyperliquidAPI(ExchangeAPI):
             )
             return False
 
-        try:
-            return await self.trading_service.cancel_order(symbol=symbol, order_id=order_id_int)
-        except APIError:
-            # Re-raise APIError as-is
-            raise
-        except Exception as e:
-            # Wrap unexpected exceptions in APIError
-            logger.error(f"[{self.exchange_name}] Unexpected error in cancel_order: {e}")
-            raise APIError(
-                message=f"Failed to cancel order {order_id} for symbol {symbol}: {str(e)}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
+        return await self.trading_service.cancel_order(symbol=symbol, order_id=order_id_int)
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
         """Cancels all open orders, optionally filtered by symbol."""
@@ -869,12 +837,7 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def get_account_summary(self) -> MarginAccountSummary | None:
         """Fetches and combines account balance and positions for Hyperliquid."""
-        logger.info(f"[{self.exchange_name}] Fetching account summary.")
         if not self._wallet_address:
-            logger.error(
-                f"[{self.exchange_name}] Wallet address not available, cannot fetch "
-                f"user state/account summary."
-            )
             raise APIError(
                 message=(
                     f"HLAPI: Wallet address required for get_account_summary. "
@@ -887,23 +850,19 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order | None:
-        """
-        Retrieves the status of a specific order by its ID.
-        For Hyperliquid, symbol is needed for the service layer.
-        Returns None if not found (to match ExchangeAPI signature).
-        """
+        """Retrieves the status of a specific order by its ID."""
         if symbol is None:
             raise ValueError("Symbol is required for get_order_status on Hyperliquid.")
         try:
             order_id_int = int(order_id)
         except ValueError:
-            _error_msg_invalid_oid = f"Invalid order_id format for get_order_status: {order_id}"
-            logger.error(f"[{self.exchange_name}] {_error_msg_invalid_oid}")
-            # Return None instead of raising APIError to match base signature
+            logger.error(
+                f"[{self.exchange_name}] Invalid order_id format for get_order_status: {order_id}"
+            )
             return None
 
         order = await self.trading_service.get_order(symbol=symbol, order_id=order_id_int)
-        return order  # This already returns Order | None from the service
+        return order
 
     async def get_order(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
@@ -937,19 +896,6 @@ class HyperliquidAPI(ExchangeAPI):
                 "Wallet address required for get_order_history.",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
-        if limit is not None:
-            logger.warning(
-                f"[{self.exchange_name}] 'limit' parameter for get_order_history is not "
-                f"directly supported by Hyperliquid's order history mechanism. "
-                f"It will be ignored. Use start_time and end_time for filtering."
-            )
-        if order_id or client_order_id:
-            logger.warning(
-                f"[{self.exchange_name}] Parameters 'order_id', 'client_order_id' "
-                f"for get_order_history are not directly used by the "
-                f"Hyperliquid service call which primarily relies on symbol, start_time, "
-                f"and end_time. These will be ignored."
-            )
 
         return await self.account_service.get_order_history(
             symbol=symbol, start_time=start_time, end_time=end_time
@@ -966,13 +912,6 @@ class HyperliquidAPI(ExchangeAPI):
                 "Wallet address required for get_trade_history.",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
-        if limit != 100:
-            logger.warning(
-                f"[{self.exchange_name}] 'limit' parameter for get_trade_history is not "
-                f"directly supported by Hyperliquid's user fills mechanism in the same way "
-                f"as other exchanges. Filtering is primarily by symbol. The limit parameter "
-                f"will be ignored."
-            )
         return await self.account_service.get_trade_history(symbol=symbol)
 
     async def get_historical_funding_rates(
@@ -981,43 +920,7 @@ class HyperliquidAPI(ExchangeAPI):
         start_time: datetime,
         end_time: datetime | None = None,
     ) -> list[FundingRate]:
-        """Request historical funding rates for a specific symbol and time range.
-
-        Args:
-            symbol: The trading symbol (e.g., "ETH"). Hyperliquid uses base asset names.
-            start_time: The start time for the data range (inclusive, UTC-aware recommended).
-            end_time: The end time for the data range (inclusive, UTC-aware recommended).
-                      If None, the API typically defaults to the current time.
-
-        Returns:
-            A list of FundingRate objects.
-
-        Raises:
-            ValueError: If start_time or end_time (if provided) are not timezone-aware.
-
-        Note:
-            Hyperliquid's API limits results to 500 items per request. For larger ranges,
-            pagination (adjusting start_time based on the last item of the previous batch)
-            is required and currently not implemented in this client directly.
-        """
-        # Ensure datetime objects are timezone-aware to avoid ambiguity
-        # The .timestamp() method behaves differently for naive vs. aware datetimes.
-        if start_time.tzinfo is None:
-            # Allowing this to proceed but logs a warning, assuming UTC if naive.
-            # Best practice is for caller to provide tz-aware datetimes.
-            logger.warning(
-                f"[{self.exchange_name}] start_time for get_historical_funding_rates is naive. "
-                f"Assuming UTC."
-            )
-            # start_time = start_time.replace(tzinfo=UTC) # Or raise ValueError
-
-        if end_time is not None and end_time.tzinfo is None:
-            logger.warning(
-                f"[{self.exchange_name}] end_time for get_historical_funding_rates is naive. "
-                f"Assuming UTC."
-            )
-            # end_time = end_time.replace(tzinfo=UTC) # Or raise ValueError
-
+        """Request historical funding rates for a specific symbol and time range."""
         start_time_ms = int(start_time.timestamp() * 1000)
         end_time_ms: int | None = None
         if end_time is not None:
@@ -1025,7 +928,6 @@ class HyperliquidAPI(ExchangeAPI):
             if end_time_ms < start_time_ms:
                 raise ValueError("end_time cannot be before start_time.")
 
-        # Delegate to the market data service
         return await self.market_data_service.get_historical_funding_rates(
             symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
         )

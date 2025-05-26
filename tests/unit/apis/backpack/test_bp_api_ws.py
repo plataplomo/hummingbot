@@ -1,29 +1,19 @@
 """
-Tests for BackpackAPI WebSocket Message Handling
------------------------------------------------
+Tests for BackpackAPI WebSocket Integration
+------------------------------------------
 
-This module tests the WebSocket message handling functionality in BackpackAPI,
-specifically focusing on the integration between raw message validation,
-data transformation using the new consolidated DataMappers, and application
-handler invocation.
+This module tests the WebSocket integration in BackpackAPI,
+specifically focusing on delegation to the router and WebSocket lifecycle management.
+The detailed routing logic is tested in test_bp_ws_message_router.py.
 """
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from cyberdelta.apis.backpack.models.bp_raw_market import (
-    BackpackRawDepthUpdateEvent,
-    BackpackRawTickerEvent,
-)
-from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrderUpdate
-from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionUpdate
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTradeEvent
-from cyberdelta.apis.models.api_error import APIError, TransformationError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.core.models import DerivativePosition, Order, OrderBook, Ticker, Trade
+from cyberdelta.apis.backpack.bp_ws_message_router import BackpackWsMessageRouter
 
 
 @pytest.fixture
@@ -46,312 +36,447 @@ def mock_secrets() -> dict[str, str | None]:
 
 
 @pytest.fixture
-def bp_api(mock_api_config: dict[str, Any], mock_secrets: dict[str, str | None]) -> BackpackAPI:
-    """Create BackpackAPI instance with mocked dependencies."""
+def mock_bp_ws_router() -> Mock:
+    """Mock the BackpackWsMessageRouter."""
+    router = Mock(spec=BackpackWsMessageRouter)
+    router.construct_subscription_payload = Mock(
+        return_value={"op": "subscribe", "channel": "test"}
+    )
+    router.route_message = AsyncMock()
+    return router
+
+
+@pytest.fixture
+def bp_api_with_mocked_router(
+    mock_api_config: dict[str, Any], mock_secrets: dict[str, str | None], mock_bp_ws_router: Mock
+) -> BackpackAPI:
+    """Create BackpackAPI instance with mocked router and other dependencies."""
     with patch("cyberdelta.apis.backpack.bp_api.BackpackHmacAuthenticator"):
         with patch("cyberdelta.apis.backpack.bp_api.BackpackErrorMapper"):
             with patch("cyberdelta.apis.backpack.bp_api.BackpackResponseHandler"):
                 with patch("cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder"):
                     api = BackpackAPI(api_config=mock_api_config, secrets=mock_secrets)
+                    # Use object.__setattr__ to bypass protection for testing
+                    object.__setattr__(api, "_bp_ws_router", mock_bp_ws_router)
                     return api
 
 
-class TestBackpackAPIWebSocketMessageRouting:
-    """Test WebSocket message routing with new DataMapper integration."""
+class TestBackpackAPIWebSocketDelegation:
+    """Test WebSocket delegation to router."""
 
     @pytest.mark.asyncio
-    async def test_route_ws_message_depth_update_success(self, bp_api: BackpackAPI) -> None:
-        """Test successful routing of depth update message through new mapper."""
-        # Mock the raw message handler
-        mock_raw_depth = MagicMock(spec=BackpackRawDepthUpdateEvent)
-
-        # Mock the market data mapper
-        mock_internal_orderbook = MagicMock(spec=OrderBook)
-
-        # Mock application handler
-        app_handler = AsyncMock()
-        bp_api._ws_handlers["depth.SOL_USDC"] = app_handler
-
-        # Test message
-        message = {
-            "topic": "depth.SOL_USDC",
-            "data": {"bids": [["100.0", "10.0"]], "asks": [["101.0", "5.0"]]},
-        }
-
-        with patch(
-            "cyberdelta.apis.backpack.bp_api.BackpackWsRawMessageHandler.handle_depth_payload",
-            return_value=mock_raw_depth,
-        ):
-            with patch.object(
-                bp_api._bp_market_data_mapper,
-                "transform_ws_depth_event_to_internal",
-                return_value=mock_internal_orderbook,
-            ):
-                await bp_api._route_ws_message(message)
-
-        # Verify the application handler was called with the transformed data
-        app_handler.assert_called_once_with(mock_internal_orderbook, message)
-
-    @pytest.mark.asyncio
-    async def test_route_ws_message_ticker_update_success(self, bp_api: BackpackAPI) -> None:
-        """Test successful routing of ticker update message through new mapper."""
-        # Mock the raw message handler
-        mock_raw_ticker = MagicMock(spec=BackpackRawTickerEvent)
-
-        # Mock the market data mapper
-        mock_internal_ticker = MagicMock(spec=Ticker)
-
-        # Mock application handler
-        app_handler = AsyncMock()
-        bp_api._ws_handlers["ticker.SOL_USDC"] = app_handler
-
-        # Test message
-        message = {"topic": "ticker.SOL_USDC", "data": {"symbol": "SOL_USDC", "price": "100.50"}}
-
-        with patch(
-            "cyberdelta.apis.backpack.bp_api.BackpackWsRawMessageHandler.handle_ticker_payload",
-            return_value=mock_raw_ticker,
-        ):
-            with patch.object(
-                bp_api._bp_market_data_mapper,
-                "transform_ws_ticker_event_to_internal",
-                return_value=mock_internal_ticker,
-            ):
-                await bp_api._route_ws_message(message)
-
-        # Verify the transformation chain was called correctly
-        app_handler.assert_called_once_with(mock_internal_ticker, message)
-
-    @pytest.mark.asyncio
-    async def test_route_ws_message_fills_update_success(self, bp_api: BackpackAPI) -> None:
-        """Test successful routing of fills update message through new mapper."""
-        # Mock the raw message handler
-        mock_raw_trade = MagicMock(spec=BackpackRawTradeEvent)
-
-        # Mock the account data mapper
-        mock_internal_trade = MagicMock(spec=Trade)
-
-        # Mock application handler
-        app_handler = AsyncMock()
-        bp_api._ws_handlers["fills"] = app_handler
-
-        # Test message
-        message = {
-            "type": "fills",
-            "data": {"symbol": "SOL_USDC", "price": "100.50", "quantity": "10.0"},
-        }
-
-        with patch(
-            "cyberdelta.apis.backpack.bp_api.BackpackWsRawMessageHandler.handle_trade_event_payload",
-            return_value=mock_raw_trade,
-        ):
-            with patch.object(
-                bp_api._bp_account_data_mapper,
-                "transform_ws_fill_event_to_internal_trade",
-                return_value=mock_internal_trade,
-            ):
-                await bp_api._route_ws_message(message)
-
-        # Verify the transformation chain was called correctly
-        app_handler.assert_called_once_with(mock_internal_trade, message)
-
-    @pytest.mark.asyncio
-    async def test_route_ws_message_order_update_success(self, bp_api: BackpackAPI) -> None:
-        """Test successful routing of order update message through new mapper."""
-        # Mock the raw message handler
-        mock_raw_order_update = MagicMock(spec=BackpackRawOrderUpdate)
-
-        # Mock the trading data mapper
-        mock_internal_order = MagicMock(spec=Order)
-
-        # Mock application handler
-        app_handler = AsyncMock()
-        bp_api._ws_handlers["orders"] = app_handler
-
-        # Test message
-        message = {"type": "orders", "data": {"symbol": "SOL_USDC", "side": "Buy", "status": "NEW"}}
-
-        with patch(
-            "cyberdelta.apis.backpack.bp_api.BackpackWsRawMessageHandler.handle_order_update_payload",
-            return_value=mock_raw_order_update,
-        ):
-            with patch.object(
-                bp_api._bp_trading_data_mapper,
-                "transform_ws_order_update_to_internal_order",
-                return_value=mock_internal_order,
-            ):
-                await bp_api._route_ws_message(message)
-
-        # Verify the transformation chain was called correctly
-        app_handler.assert_called_once_with(mock_internal_order, message)
-
-    @pytest.mark.asyncio
-    async def test_route_ws_message_position_update_success(self, bp_api: BackpackAPI) -> None:
-        """Test successful routing of position update message through new mapper."""
-        # Mock the raw message handler
-        mock_raw_position_update = MagicMock(spec=BackpackRawPositionUpdate)
-
-        # Mock the account data mapper
-        mock_internal_position = MagicMock(spec=DerivativePosition)
-
-        # Mock application handler
-        app_handler = AsyncMock()
-        bp_api._ws_handlers["positionUpdate"] = app_handler
-
-        # Test message
-        message = {"type": "positionUpdate", "data": {"symbol": "SOL_USDC", "quantity": "10.0"}}
-
-        with patch(
-            "cyberdelta.apis.backpack.bp_api.BackpackWsRawMessageHandler.handle_position_update_payload",
-            return_value=mock_raw_position_update,
-        ):
-            with patch.object(
-                bp_api._bp_account_data_mapper,
-                "transform_ws_position_update_to_internal_position",
-                return_value=mock_internal_position,
-            ):
-                await bp_api._route_ws_message(message)
-
-        # Verify the transformation chain was called correctly
-        app_handler.assert_called_once_with(mock_internal_position, message)
-
-    @pytest.mark.asyncio
-    async def test_route_ws_message_api_error_handling(self, bp_api: BackpackAPI) -> None:
-        """Test handling of APIError during raw message validation."""
-        # Mock application handler
-        app_handler = AsyncMock()
-        bp_api._ws_handlers["depth.SOL_USDC"] = app_handler
-
-        # Test message
-        message = {"topic": "depth.SOL_USDC", "data": {"invalid": "data"}}
-
-        # Mock APIError from raw message handler
-        with patch(
-            "cyberdelta.apis.backpack.bp_api.BackpackWsRawMessageHandler.handle_depth_payload",
-            side_effect=APIError("Invalid payload", APIErrorCode.INVALID_RESPONSE.value),
-        ):
-            with patch("cyberdelta.apis.backpack.bp_api.logger") as mock_logger:
-                await bp_api._route_ws_message(message)
-
-        # Verify error was logged and handler was not called
-        mock_logger.error.assert_called_once()
-        app_handler.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_route_ws_message_transformation_error_handling(
-        self, bp_api: BackpackAPI
+    async def test_handle_websocket_message_delegates_to_router(
+        self, bp_api_with_mocked_router: BackpackAPI, mock_bp_ws_router: Mock
     ) -> None:
-        """Test handling of TransformationError during data mapping."""
-        # Mock the raw message handler
-        mock_raw_depth = MagicMock(spec=BackpackRawDepthUpdateEvent)
+        """Test that WebSocket message handling delegates to router."""
+        message: dict[str, Any] = {"topic": "depth.SOL_USDC", "data": {"bids": [], "asks": []}}
 
-        # Mock application handler
-        app_handler = AsyncMock()
-        bp_api._ws_handlers["depth.SOL_USDC"] = app_handler
+        # Use object.__getattribute__ to access protected method for testing
+        handle_method = object.__getattribute__(
+            bp_api_with_mocked_router, "_handle_websocket_message"
+        )
+        await handle_method(message)
 
-        # Test message
-        message = {
-            "topic": "depth.SOL_USDC",
-            "data": {"bids": [["100.0", "10.0"]], "asks": [["101.0", "5.0"]]},
+        # Verify delegation to router
+        ws_handlers = object.__getattribute__(bp_api_with_mocked_router, "_ws_handlers")
+        mock_bp_ws_router.route_message.assert_called_once_with(message, ws_handlers)
+
+    @pytest.mark.asyncio
+    async def test_route_ws_message_delegates_to_router(
+        self, bp_api_with_mocked_router: BackpackAPI, mock_bp_ws_router: Mock
+    ) -> None:
+        """Test that _route_ws_message delegates to router."""
+        message: dict[str, Any] = {"topic": "ticker.BTC_USDC", "data": {"price": "50000"}}
+
+        # Use object.__getattribute__ to access protected method for testing
+        route_method = object.__getattribute__(bp_api_with_mocked_router, "_route_ws_message")
+        await route_method(message)
+
+        # Verify delegation to router
+        ws_handlers = object.__getattribute__(bp_api_with_mocked_router, "_ws_handlers")
+        mock_bp_ws_router.route_message.assert_called_once_with(message, ws_handlers)
+
+    def test_construct_subscription_payload_delegates_to_router(
+        self, bp_api_with_mocked_router: BackpackAPI, mock_bp_ws_router: Mock
+    ) -> None:
+        """Test that subscription payload construction delegates to router."""
+        topic = "depth.SOL_USDC"
+
+        # Use object.__getattribute__ to access protected method for testing
+        construct_method = object.__getattribute__(
+            bp_api_with_mocked_router, "_construct_subscription_payload"
+        )
+        result = construct_method(topic)
+
+        # Verify delegation to router
+        mock_bp_ws_router.construct_subscription_payload.assert_called_once_with(topic)
+        assert result == {"op": "subscribe", "channel": "test"}
+
+    @pytest.mark.asyncio
+    async def test_router_delegation_preserves_ws_handlers(
+        self, bp_api_with_mocked_router: BackpackAPI, mock_bp_ws_router: Mock
+    ) -> None:
+        """Test that router receives the correct ws_handlers dictionary."""
+        # Register some handlers using the public subscribe method
+        handler1 = AsyncMock()
+        handler2 = AsyncMock()
+        await bp_api_with_mocked_router.subscribe("depth.SOL_USDC", handler1)
+        await bp_api_with_mocked_router.subscribe("ticker.BTC_USDC", handler2)
+
+        message: dict[str, Any] = {"topic": "depth.SOL_USDC", "data": {}}
+        route_method = object.__getattribute__(bp_api_with_mocked_router, "_route_ws_message")
+        await route_method(message)
+
+        # Verify the router received the correct handlers dict
+        mock_bp_ws_router.route_message.assert_called_once()
+        call_args = mock_bp_ws_router.route_message.call_args
+        passed_handlers = call_args[0][1]  # Second argument
+
+        ws_handlers = object.__getattribute__(bp_api_with_mocked_router, "_ws_handlers")
+        assert passed_handlers is ws_handlers
+        assert "depth.SOL_USDC" in passed_handlers
+        assert "ticker.BTC_USDC" in passed_handlers
+
+
+class TestBackpackAPIWebSocketLifecycle:
+    """Test WebSocket connection lifecycle management."""
+
+    @pytest.fixture
+    def bp_api(
+        self, mock_api_config: dict[str, Any], mock_secrets: dict[str, str | None]
+    ) -> BackpackAPI:
+        """Create BackpackAPI instance with mocked dependencies for lifecycle tests."""
+        with patch("cyberdelta.apis.backpack.bp_api.BackpackHmacAuthenticator"):
+            with patch("cyberdelta.apis.backpack.bp_api.BackpackErrorMapper"):
+                with patch("cyberdelta.apis.backpack.bp_api.BackpackResponseHandler"):
+                    with patch("cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder"):
+                        return BackpackAPI(api_config=mock_api_config, secrets=mock_secrets)
+
+    @pytest.mark.asyncio
+    async def test_subscribe_adds_handler_to_handlers_dict(self, bp_api: BackpackAPI) -> None:
+        """Test that subscribing adds handlers to the handlers dictionary."""
+        handler = AsyncMock()
+        topic = "depth.SOL_USDC"
+
+        await bp_api.subscribe(topic, handler)
+
+        # Use object.__getattribute__ to access protected attribute for verification
+        ws_handlers = object.__getattribute__(bp_api, "_ws_handlers")
+        assert topic in ws_handlers
+        assert ws_handlers[topic] is handler
+
+    @pytest.mark.asyncio
+    async def test_multiple_subscriptions(self, bp_api: BackpackAPI) -> None:
+        """Test that multiple subscriptions work correctly."""
+        handler1 = AsyncMock()
+        handler2 = AsyncMock()
+        topic1 = "depth.SOL_USDC"
+        topic2 = "ticker.BTC_USDC"
+
+        await bp_api.subscribe(topic1, handler1)
+        await bp_api.subscribe(topic2, handler2)
+
+        # Verify both handlers are registered
+        ws_handlers = object.__getattribute__(bp_api, "_ws_handlers")
+        assert topic1 in ws_handlers
+        assert topic2 in ws_handlers
+        assert ws_handlers[topic1] is handler1
+        assert ws_handlers[topic2] is handler2
+
+    @pytest.mark.asyncio
+    async def test_handler_replacement(self, bp_api: BackpackAPI) -> None:
+        """Test that subscribing to the same topic replaces the handler."""
+        handler1 = AsyncMock()
+        handler2 = AsyncMock()
+        topic = "depth.SOL_USDC"
+
+        # Subscribe with first handler
+        await bp_api.subscribe(topic, handler1)
+        ws_handlers = object.__getattribute__(bp_api, "_ws_handlers")
+        assert ws_handlers[topic] is handler1
+
+        # Subscribe with second handler to same topic
+        await bp_api.subscribe(topic, handler2)
+        assert ws_handlers[topic] is handler2  # Should be replaced
+
+
+class TestBackpackAPIWebSocketIntegration:
+    """Integration tests with actual router (not mocked)."""
+
+    @pytest.fixture
+    def bp_api(
+        self, mock_api_config: dict[str, Any], mock_secrets: dict[str, str | None]
+    ) -> BackpackAPI:
+        """Create BackpackAPI instance with real router for integration tests."""
+        with patch("cyberdelta.apis.backpack.bp_api.BackpackHmacAuthenticator"):
+            with patch("cyberdelta.apis.backpack.bp_api.BackpackErrorMapper"):
+                with patch("cyberdelta.apis.backpack.bp_api.BackpackResponseHandler"):
+                    with patch("cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder"):
+                        return BackpackAPI(api_config=mock_api_config, secrets=mock_secrets)
+
+    def test_router_initialization(self, bp_api: BackpackAPI) -> None:
+        """Test that the router is properly initialized."""
+        # Use object.__getattribute__ to access protected attribute for testing
+        router = object.__getattribute__(bp_api, "_bp_ws_router")
+        assert router is not None
+        assert isinstance(router, BackpackWsMessageRouter)
+
+    def test_subscription_payload_construction_integration(self, bp_api: BackpackAPI) -> None:
+        """Test subscription payload construction through the actual router."""
+        topic = "depth.SOL_USDC"
+
+        # Use object.__getattribute__ to access protected method for testing
+        construct_method = object.__getattribute__(bp_api, "_construct_subscription_payload")
+        result = construct_method(topic)
+
+        expected: dict[str, Any] = {
+            "op": "subscribe",
+            "channel": topic,
+            "args": {},
+        }
+        assert result == expected
+
+    @pytest.mark.asyncio
+    async def test_message_routing_integration_unknown_topic(self, bp_api: BackpackAPI) -> None:
+        """Test message routing integration with unknown topic (should not crash)."""
+        # Register a handler for an unknown topic
+        handler = AsyncMock()
+        await bp_api.subscribe("unknown_topic", handler)
+
+        message: dict[str, Any] = {
+            "topic": "unknown_topic",
+            "data": {"some": "data"},
         }
 
-        with patch(
-            "cyberdelta.apis.backpack.bp_api.BackpackWsRawMessageHandler.handle_depth_payload",
-            return_value=mock_raw_depth,
-        ):
-            with patch.object(
-                bp_api._bp_market_data_mapper,
-                "transform_ws_depth_event_to_internal",
-                side_effect=TransformationError("Failed to transform depth data"),
-            ):
-                with patch("cyberdelta.apis.backpack.bp_api.logger") as mock_logger:
-                    await bp_api._route_ws_message(message)
+        # Should not raise exception and should call handler with raw data
+        route_method = object.__getattribute__(bp_api, "_route_ws_message")
+        await route_method(message)
 
-        # Verify error was logged and handler was not called
-        mock_logger.error.assert_called_once()
-        app_handler.assert_not_called()
+        # Handler should be called with raw data for unknown topics
+        handler.assert_called_once_with({"some": "data"}, message)
+
+
+class TestBackpackAPIWebSocketEdgeCases:
+    """Test edge cases and failure scenarios for WebSocket functionality."""
+
+    @pytest.fixture
+    def bp_api_edge_case(
+        self, mock_api_config: dict[str, Any], mock_secrets: dict[str, str | None]
+    ) -> BackpackAPI:
+        """Create BackpackAPI instance for edge case testing."""
+        with patch("cyberdelta.apis.backpack.bp_api.BackpackHmacAuthenticator"):
+            with patch("cyberdelta.apis.backpack.bp_api.BackpackErrorMapper"):
+                with patch("cyberdelta.apis.backpack.bp_api.BackpackResponseHandler"):
+                    with patch("cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder"):
+                        return BackpackAPI(api_config=mock_api_config, secrets=mock_secrets)
+
+    def test_subscription_payload_empty_topic(self, bp_api_edge_case: BackpackAPI) -> None:
+        """Test subscription payload construction with empty topic."""
+        construct_method = object.__getattribute__(
+            bp_api_edge_case, "_construct_subscription_payload"
+        )
+        result = construct_method("")
+
+        expected: dict[str, Any] = {
+            "op": "subscribe",
+            "channel": "",
+            "args": {},
+        }
+        assert result == expected
+
+    def test_subscription_payload_special_characters(self, bp_api_edge_case: BackpackAPI) -> None:
+        """Test subscription payload construction with special characters in topic."""
+        special_topic = "depth.BTC_USDC@!#$%^&*()"
+        construct_method = object.__getattribute__(
+            bp_api_edge_case, "_construct_subscription_payload"
+        )
+        result = construct_method(special_topic)
+
+        expected: dict[str, Any] = {
+            "op": "subscribe",
+            "channel": special_topic,
+            "args": {},
+        }
+        assert result == expected
+
+    def test_subscription_payload_very_long_topic(self, bp_api_edge_case: BackpackAPI) -> None:
+        """Test subscription payload construction with very long topic."""
+        long_topic = "depth." + "A" * 1000 + "_USDC"
+        construct_method = object.__getattribute__(
+            bp_api_edge_case, "_construct_subscription_payload"
+        )
+        result = construct_method(long_topic)
+
+        expected: dict[str, Any] = {
+            "op": "subscribe",
+            "channel": long_topic,
+            "args": {},
+        }
+        assert result == expected
 
     @pytest.mark.asyncio
-    async def test_route_ws_message_no_handler_registered(self, bp_api: BackpackAPI) -> None:
-        """Test handling when no application handler is registered for topic."""
-        # Test message
-        message = {"topic": "unknown.topic", "data": {"some": "data"}}
-
-        with patch("cyberdelta.apis.backpack.bp_api.logger") as mock_logger:
-            await bp_api._route_ws_message(message)
-
-        # Verify debug message was logged
-        mock_logger.debug.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_route_ws_message_missing_topic_and_data(self, bp_api: BackpackAPI) -> None:
-        """Test handling of malformed messages missing topic and data."""
-        # Test message without topic or type
-        message = {"some": "data"}
-
-        with patch("cyberdelta.apis.backpack.bp_api.logger") as mock_logger:
-            await bp_api._route_ws_message(message)
-
-        # Verify debug message was logged
-        mock_logger.debug.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_route_ws_message_missing_data_payload(self, bp_api: BackpackAPI) -> None:
-        """Test handling of messages with topic but no data payload."""
-        # Test message without data
-        message = {"topic": "depth.SOL_USDC"}
-
-        with patch("cyberdelta.apis.backpack.bp_api.logger") as mock_logger:
-            await bp_api._route_ws_message(message)
-
-        # Verify debug message was logged
-        mock_logger.debug.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_route_ws_message_application_handler_exception(
-        self, bp_api: BackpackAPI
+    async def test_subscribe_with_none_handler_behavior(
+        self, bp_api_edge_case: BackpackAPI
     ) -> None:
-        """Test handling of exceptions in application handler."""
-        # Mock the raw message handler
-        mock_raw_ticker = MagicMock(spec=BackpackRawTickerEvent)
+        """Test subscribing with None handler behavior."""
+        # Subscribe with None handler - this might be allowed in the API
+        await bp_api_edge_case.subscribe("depth.SOL_USDC", None)  # type: ignore[arg-type]
 
-        # Mock the market data mapper
-        mock_internal_ticker = MagicMock(spec=Ticker)
-
-        # Mock application handler that raises exception
-        app_handler = AsyncMock(side_effect=Exception("Handler error"))
-        bp_api._ws_handlers["ticker.SOL_USDC"] = app_handler
-
-        # Test message
-        message = {"topic": "ticker.SOL_USDC", "data": {"symbol": "SOL_USDC", "price": "100.50"}}
-
-        with patch(
-            "cyberdelta.apis.backpack.bp_api.BackpackWsRawMessageHandler.handle_ticker_payload",
-            return_value=mock_raw_ticker,
-        ):
-            with patch.object(
-                bp_api._bp_market_data_mapper,
-                "transform_ws_ticker_event_to_internal",
-                return_value=mock_internal_ticker,
-            ):
-                with patch("cyberdelta.apis.backpack.bp_api.logger") as mock_logger:
-                    await bp_api._route_ws_message(message)
-
-        # Verify error was logged
-        mock_logger.error.assert_called()
-        # Verify handler was called despite the error
-        app_handler.assert_called_once_with(mock_internal_ticker, message)
-
-
-class TestBackpackAPIWebSocketHandleMessage:
-    """Test the _handle_websocket_message method."""
+        ws_handlers = object.__getattribute__(bp_api_edge_case, "_ws_handlers")
+        # Check that None handler was stored (API might allow this)
+        assert "depth.SOL_USDC" in ws_handlers
+        assert ws_handlers["depth.SOL_USDC"] is None
 
     @pytest.mark.asyncio
-    async def test_handle_websocket_message_delegates_to_route(self, bp_api: BackpackAPI) -> None:
-        """Test that _handle_websocket_message delegates to _route_ws_message."""
-        message: dict[str, Any] = {"topic": "test", "data": {}}
+    async def test_subscribe_empty_topic(self, bp_api_edge_case: BackpackAPI) -> None:
+        """Test subscribing to empty topic."""
+        handler = AsyncMock()
+        await bp_api_edge_case.subscribe("", handler)
 
-        with patch.object(bp_api, "_route_ws_message", new_callable=AsyncMock) as mock_route:
-            await bp_api._handle_websocket_message(message)
+        ws_handlers = object.__getattribute__(bp_api_edge_case, "_ws_handlers")
+        assert "" in ws_handlers
+        assert ws_handlers[""] is handler
 
-        mock_route.assert_called_once_with(message)
+    @pytest.mark.asyncio
+    async def test_message_routing_malformed_message_missing_topic(
+        self, bp_api_edge_case: BackpackAPI
+    ) -> None:
+        """Test message routing with malformed message missing topic field."""
+        malformed_message: dict[str, Any] = {
+            "data": {"some": "data"},
+            # Missing 'topic' field
+        }
+
+        # Should not raise exception (router should handle gracefully)
+        route_method = object.__getattribute__(bp_api_edge_case, "_route_ws_message")
+        await route_method(malformed_message)
+
+    @pytest.mark.asyncio
+    async def test_message_routing_malformed_message_missing_data(
+        self, bp_api_edge_case: BackpackAPI
+    ) -> None:
+        """Test message routing with malformed message missing data field."""
+        malformed_message: dict[str, Any] = {
+            "topic": "depth.SOL_USDC",
+            # Missing 'data' field
+        }
+
+        # Should not raise exception (router should handle gracefully)
+        route_method = object.__getattribute__(bp_api_edge_case, "_route_ws_message")
+        await route_method(malformed_message)
+
+    @pytest.mark.asyncio
+    async def test_message_routing_none_data(self, bp_api_edge_case: BackpackAPI) -> None:
+        """Test message routing with None data."""
+        message_with_none: dict[str, Any] = {
+            "topic": "depth.SOL_USDC",
+            "data": None,
+        }
+
+        # Should not raise exception
+        route_method = object.__getattribute__(bp_api_edge_case, "_route_ws_message")
+        await route_method(message_with_none)
+
+    @pytest.mark.asyncio
+    async def test_message_routing_empty_message(self, bp_api_edge_case: BackpackAPI) -> None:
+        """Test message routing with completely empty message."""
+        empty_message: dict[str, Any] = {}
+
+        # Should not raise exception
+        route_method = object.__getattribute__(bp_api_edge_case, "_route_ws_message")
+        await route_method(empty_message)
+
+    @pytest.mark.asyncio
+    async def test_message_routing_invalid_data_types(self, bp_api_edge_case: BackpackAPI) -> None:
+        """Test message routing with invalid data types."""
+        invalid_message: dict[str, Any] = {
+            "topic": 123,  # Should be string
+            "data": "not_a_dict",  # Should be dict
+        }
+
+        # Should not raise exception (router should handle gracefully)
+        route_method = object.__getattribute__(bp_api_edge_case, "_route_ws_message")
+        await route_method(invalid_message)
+
+    @pytest.mark.asyncio
+    async def test_rapid_subscribe_unsubscribe(self, bp_api_edge_case: BackpackAPI) -> None:
+        """Test rapid subscription and re-subscription to same topic."""
+        topic = "depth.SOL_USDC"
+        handlers = [AsyncMock() for _ in range(10)]
+
+        # Rapidly subscribe different handlers to same topic
+        for handler in handlers:
+            await bp_api_edge_case.subscribe(topic, handler)
+
+        # Only the last handler should be registered
+        ws_handlers = object.__getattribute__(bp_api_edge_case, "_ws_handlers")
+        assert ws_handlers[topic] is handlers[-1]
+
+    @pytest.mark.asyncio
+    async def test_handler_exception_during_call(self, bp_api_edge_case: BackpackAPI) -> None:
+        """Test that handler exceptions don't crash the system."""
+        failing_handler = AsyncMock(side_effect=Exception("Handler failed"))
+        topic = "depth.SOL_USDC"
+
+        await bp_api_edge_case.subscribe(topic, failing_handler)
+
+        # Create a properly formatted message that passes validation
+        message: dict[str, Any] = {
+            "topic": topic,
+            "data": {
+                "bids": [],
+                "asks": [],
+                "lastUpdateId": "12345",  # Required field for Backpack depth messages (string)
+            },
+        }
+
+        # Should not raise exception (WebSocket manager handles handler exceptions)
+        route_method = object.__getattribute__(bp_api_edge_case, "_route_ws_message")
+        await route_method(message)
+
+        # Handler should have been called despite failing
+        failing_handler.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_multiple_topics_single_handler(self, bp_api_edge_case: BackpackAPI) -> None:
+        """Test using the same handler for multiple topics."""
+        handler = AsyncMock()
+        topics = ["depth.SOL_USDC", "depth.BTC_USDC", "ticker.ETH_USDC"]
+
+        for topic in topics:
+            await bp_api_edge_case.subscribe(topic, handler)
+
+        ws_handlers = object.__getattribute__(bp_api_edge_case, "_ws_handlers")
+        for topic in topics:
+            assert ws_handlers[topic] is handler
+
+    def test_unicode_topic_handling(self, bp_api_edge_case: BackpackAPI) -> None:
+        """Test handling of Unicode characters in topics."""
+        unicode_topic = "depth.测试_USDC"
+        construct_method = object.__getattribute__(
+            bp_api_edge_case, "_construct_subscription_payload"
+        )
+        result = construct_method(unicode_topic)
+
+        expected: dict[str, Any] = {
+            "op": "subscribe",
+            "channel": unicode_topic,
+            "args": {},
+        }
+        assert result == expected
+
+    @pytest.mark.asyncio
+    async def test_deeply_nested_message_data(self, bp_api_edge_case: BackpackAPI) -> None:
+        """Test handling of deeply nested message data structures."""
+        complex_message: dict[str, Any] = {
+            "topic": "depth.SOL_USDC",
+            "data": {
+                "level1": {
+                    "level2": {"level3": {"level4": {"level5": ["deep", "data", {"nested": True}]}}}
+                }
+            },
+        }
+
+        # Should handle complex nested structures without issues
+        route_method = object.__getattribute__(bp_api_edge_case, "_route_ws_message")
+        await route_method(complex_message)

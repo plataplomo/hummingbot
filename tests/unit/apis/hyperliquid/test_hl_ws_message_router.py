@@ -1,0 +1,523 @@
+"""
+Unit tests for HyperliquidWsMessageRouter.
+
+Tests the WebSocket message routing logic in isolation with mocked dependencies.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+from unittest.mock import AsyncMock, Mock
+
+import pytest
+from pydantic import ValidationError
+
+from cyberdelta.apis.base.exchange_api import MessageHandler
+from cyberdelta.apis.hyperliquid.hl_ws_message_router import HyperliquidWsMessageRouter
+from cyberdelta.apis.hyperliquid.hl_ws_raw_message_handler import HyperliquidWsRawMessageHandler
+from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
+from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
+from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
+from cyberdelta.apis.models.api_error import APIError, TransformationError
+
+
+class TestHyperliquidWsMessageRouter:
+    """Test suite for HyperliquidWsMessageRouter."""
+
+    @pytest.fixture
+    def mock_market_data_mapper(self) -> Mock:
+        """Create a mock market data mapper."""
+        mapper = Mock(spec=HyperliquidMarketDataMapper)
+        mapper.transform_ws_book_update_to_internal = Mock(return_value=Mock())
+        mapper.transform_ws_trade_event_to_internal = Mock(return_value=Mock())
+        return mapper
+
+    @pytest.fixture
+    def mock_account_data_mapper(self) -> Mock:
+        """Create a mock account data mapper."""
+        mapper = Mock(spec=HyperliquidAccountDataMapper)
+        mapper.transform_ws_fill_event_to_internal = Mock(return_value=Mock())
+        mapper.transform_ws_position_update_to_internal_position = Mock(return_value=Mock())
+        return mapper
+
+    @pytest.fixture
+    def mock_trading_data_mapper(self) -> Mock:
+        """Create a mock trading data mapper."""
+        mapper = Mock(spec=HyperliquidTradingDataMapper)
+        mapper.transform_ws_order_update_to_internal_order = Mock(return_value=Mock())
+        return mapper
+
+    @pytest.fixture
+    def mock_raw_ws_handler(self) -> Mock:
+        """Create a mock raw WebSocket message handler."""
+        handler = Mock(spec=HyperliquidWsRawMessageHandler)
+        handler.handle_l2book_payload = Mock(return_value=Mock())
+        handler.handle_public_trades_payload = Mock(return_value=[Mock()])
+        handler.handle_user_fill_event_payload = Mock(return_value=Mock())
+        handler.handle_user_order_update_wrapper_payload = Mock(return_value=Mock(data=Mock()))
+        handler.handle_user_order_event_payload = Mock(return_value=Mock())
+        handler.handle_user_position_update_event_payload = Mock(return_value=Mock())
+        handler.handle_all_mids_payload = Mock(return_value=Mock(model_dump=Mock(return_value={})))
+        return handler
+
+    @pytest.fixture
+    def router(
+        self,
+        mock_market_data_mapper: Mock,
+        mock_account_data_mapper: Mock,
+        mock_trading_data_mapper: Mock,
+        mock_raw_ws_handler: Mock,
+    ) -> HyperliquidWsMessageRouter:
+        """Create a HyperliquidWsMessageRouter instance with mocked dependencies."""
+        return HyperliquidWsMessageRouter(
+            market_data_mapper=mock_market_data_mapper,
+            account_data_mapper=mock_account_data_mapper,
+            trading_data_mapper=mock_trading_data_mapper,
+            raw_ws_handler=mock_raw_ws_handler,
+            exchange_name="Hyperliquid",
+        )
+
+    @pytest.fixture
+    def mock_app_handler(self) -> AsyncMock:
+        """Create a mock application handler."""
+        return AsyncMock(spec=MessageHandler)
+
+    def test_init(self, router: HyperliquidWsMessageRouter) -> None:
+        """Test router initialization."""
+        assert router is not None
+        assert hasattr(router, "logger")
+
+    def test_construct_subscription_payload_l2book(
+        self, router: HyperliquidWsMessageRouter
+    ) -> None:
+        """Test subscription payload construction for l2Book."""
+        result = router.construct_subscription_payload("l2Book:SOL", None)
+
+        expected = {
+            "method": "subscribe",
+            "subscription": {"type": "l2Book", "coin": "SOL"},
+        }
+        assert result == expected
+
+    def test_construct_subscription_payload_trades(
+        self, router: HyperliquidWsMessageRouter
+    ) -> None:
+        """Test subscription payload construction for trades."""
+        result = router.construct_subscription_payload("trades:BTC", None)
+
+        expected = {
+            "method": "subscribe",
+            "subscription": {"type": "trades", "coin": "BTC"},
+        }
+        assert result == expected
+
+    def test_construct_subscription_payload_user_events(
+        self, router: HyperliquidWsMessageRouter
+    ) -> None:
+        """Test subscription payload construction for userEvents."""
+        wallet_address = "0x1234567890abcdef"
+        result = router.construct_subscription_payload("userEvents", wallet_address)
+
+        expected = {
+            "method": "subscribe",
+            "subscription": {"type": "userEvents", "user": wallet_address},
+        }
+        assert result == expected
+
+    def test_construct_subscription_payload_user_events_no_wallet(
+        self, router: HyperliquidWsMessageRouter
+    ) -> None:
+        """Test subscription payload construction for userEvents without wallet address."""
+        result = router.construct_subscription_payload("userEvents", None)
+        assert result is None
+
+    def test_construct_subscription_payload_candle(
+        self, router: HyperliquidWsMessageRouter
+    ) -> None:
+        """Test subscription payload construction for candle."""
+        result = router.construct_subscription_payload("candle:ETH:1m", None)
+
+        expected = {
+            "method": "subscribe",
+            "subscription": {"type": "candle", "coin": "ETH", "interval": "1m"},
+        }
+        assert result == expected
+
+    def test_construct_subscription_payload_invalid_topic(
+        self, router: HyperliquidWsMessageRouter
+    ) -> None:
+        """Test subscription payload construction for invalid topic."""
+        result = router.construct_subscription_payload("invalid_topic", None)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_route_message_l2book(
+        self,
+        router: HyperliquidWsMessageRouter,
+        mock_raw_ws_handler: Mock,
+        mock_market_data_mapper: Mock,
+        mock_app_handler: AsyncMock,
+    ) -> None:
+        """Test routing l2Book messages."""
+        message: dict[str, Any] = {
+            "channel": "l2Book",
+            "data": {"coin": "SOL", "levels": []},
+        }
+        ws_handlers: dict[str, MessageHandler] = {"l2Book:SOL": mock_app_handler}
+
+        await router.route_message(message, ws_handlers)
+
+        mock_raw_ws_handler.handle_l2book_payload.assert_called_once_with(
+            {"coin": "SOL", "levels": []}
+        )
+        mock_market_data_mapper.transform_ws_book_update_to_internal.assert_called_once()
+        mock_app_handler.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_route_message_trades(
+        self,
+        router: HyperliquidWsMessageRouter,
+        mock_raw_ws_handler: Mock,
+        mock_market_data_mapper: Mock,
+        mock_app_handler: AsyncMock,
+    ) -> None:
+        """Test routing trades messages."""
+        message: dict[str, Any] = {
+            "channel": "trades",
+            "data": [{"coin": "BTC", "px": "50000", "sz": "1.0"}],
+        }
+        ws_handlers: dict[str, MessageHandler] = {"trades:BTC": mock_app_handler}
+
+        await router.route_message(message, ws_handlers)
+
+        mock_raw_ws_handler.handle_public_trades_payload.assert_called_once_with(
+            [{"coin": "BTC", "px": "50000", "sz": "1.0"}]
+        )
+        mock_market_data_mapper.transform_ws_trade_event_to_internal.assert_called_once()
+        mock_app_handler.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_route_message_user_events_fill(
+        self,
+        router: HyperliquidWsMessageRouter,
+        mock_raw_ws_handler: Mock,
+        mock_account_data_mapper: Mock,
+        mock_app_handler: AsyncMock,
+    ) -> None:
+        """Test routing userEvents fill messages."""
+        message: dict[str, Any] = {
+            "channel": "userEvents",
+            "data": [{"type": "fill", "fillData": {"coin": "SOL", "px": "100"}}],
+        }
+        ws_handlers: dict[str, MessageHandler] = {"userEvents": mock_app_handler}
+
+        await router.route_message(message, ws_handlers)
+
+        mock_raw_ws_handler.handle_user_fill_event_payload.assert_called_once()
+        mock_account_data_mapper.transform_ws_fill_event_to_internal.assert_called_once()
+        mock_app_handler.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_route_message_user_events_order(
+        self,
+        router: HyperliquidWsMessageRouter,
+        mock_raw_ws_handler: Mock,
+        mock_trading_data_mapper: Mock,
+        mock_app_handler: AsyncMock,
+    ) -> None:
+        """Test routing userEvents order messages."""
+        message: dict[str, Any] = {
+            "channel": "userEvents",
+            "data": [{"type": "order", "orderData": {"oid": "123", "status": "filled"}}],
+        }
+        ws_handlers: dict[str, MessageHandler] = {"userEvents": mock_app_handler}
+
+        await router.route_message(message, ws_handlers)
+
+        mock_raw_ws_handler.handle_user_order_update_wrapper_payload.assert_called_once()
+        mock_raw_ws_handler.handle_user_order_event_payload.assert_called_once()
+        mock_trading_data_mapper.transform_ws_order_update_to_internal_order.assert_called_once()
+        mock_app_handler.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_route_message_user_events_position_update(
+        self,
+        router: HyperliquidWsMessageRouter,
+        mock_raw_ws_handler: Mock,
+        mock_account_data_mapper: Mock,
+        mock_app_handler: AsyncMock,
+    ) -> None:
+        """Test routing userEvents positionUpdate messages."""
+        message: dict[str, Any] = {
+            "channel": "userEvents",
+            "data": [{"type": "positionUpdate", "positionData": {"coin": "SOL", "szi": "10"}}],
+        }
+        ws_handlers: dict[str, MessageHandler] = {"userEvents": mock_app_handler}
+
+        await router.route_message(message, ws_handlers)
+
+        mock_raw_ws_handler.handle_user_position_update_event_payload.assert_called_once()
+        mock_account_data_mapper.transform_ws_position_update_to_internal_position.assert_called_once()
+        mock_app_handler.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_route_message_all_mids(
+        self,
+        router: HyperliquidWsMessageRouter,
+        mock_raw_ws_handler: Mock,
+        mock_app_handler: AsyncMock,
+    ) -> None:
+        """Test routing allMids messages."""
+        message: dict[str, Any] = {
+            "channel": "allMids",
+            "data": {"mids": {"SOL": "100.5", "BTC": "50000"}},
+        }
+        ws_handlers: dict[str, MessageHandler] = {"allMids": mock_app_handler}
+
+        await router.route_message(message, ws_handlers)
+
+        mock_raw_ws_handler.handle_all_mids_payload.assert_called_once_with(
+            {"mids": {"SOL": "100.5", "BTC": "50000"}}
+        )
+        mock_app_handler.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_route_message_control_messages(
+        self,
+        router: HyperliquidWsMessageRouter,
+        mock_app_handler: AsyncMock,
+    ) -> None:
+        """Test routing control messages (pong, subscriptionResponse)."""
+        for channel in ["pong", "subscriptionResponse"]:
+            message: dict[str, Any] = {"channel": channel, "data": {"status": "ok"}}
+            ws_handlers: dict[str, MessageHandler] = {channel: mock_app_handler}
+
+            await router.route_message(message, ws_handlers)
+
+        # Should be called twice (once for each control message)
+        assert mock_app_handler.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_route_message_no_channel(
+        self,
+        router: HyperliquidWsMessageRouter,
+        mock_app_handler: AsyncMock,
+    ) -> None:
+        """Test routing message with no channel - should return early."""
+        message: dict[str, Any] = {"data": {"some": "data"}}
+        ws_handlers: dict[str, MessageHandler] = {"l2Book": mock_app_handler}
+
+        await router.route_message(message, ws_handlers)
+
+        mock_app_handler.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_route_message_no_data(
+        self,
+        router: HyperliquidWsMessageRouter,
+        mock_app_handler: AsyncMock,
+    ) -> None:
+        """Test routing message with no data - should return early."""
+        message: dict[str, Any] = {"channel": "l2Book"}
+        ws_handlers: dict[str, MessageHandler] = {"l2Book": mock_app_handler}
+
+        await router.route_message(message, ws_handlers)
+
+        mock_app_handler.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_route_message_no_handler_registered(
+        self,
+        router: HyperliquidWsMessageRouter,
+        mock_app_handler: AsyncMock,
+    ) -> None:
+        """Test routing message with no registered handler - should return early."""
+        message: dict[str, Any] = {
+            "channel": "unknown_channel",
+            "data": {"some": "data"},
+        }
+        ws_handlers: dict[str, MessageHandler] = {"l2Book": mock_app_handler}
+
+        await router.route_message(message, ws_handlers)
+
+        mock_app_handler.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_route_message_api_error_in_raw_handler(
+        self,
+        router: HyperliquidWsMessageRouter,
+        mock_raw_ws_handler: Mock,
+        mock_app_handler: AsyncMock,
+    ) -> None:
+        """Test handling APIError from raw message handler."""
+        mock_raw_ws_handler.handle_l2book_payload.side_effect = APIError(
+            "Invalid l2Book data", code="INVALID_DATA"
+        )
+
+        message: dict[str, Any] = {
+            "channel": "l2Book",
+            "data": {"invalid": "data"},
+        }
+        ws_handlers: dict[str, MessageHandler] = {"l2Book": mock_app_handler}
+
+        await router.route_message(message, ws_handlers)
+
+        # Handler should not be called due to error
+        mock_app_handler.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_route_message_transformation_error_in_mapper(
+        self,
+        router: HyperliquidWsMessageRouter,
+        mock_market_data_mapper: Mock,
+        mock_app_handler: AsyncMock,
+    ) -> None:
+        """Test handling TransformationError from mapper."""
+        mock_market_data_mapper.transform_ws_book_update_to_internal.side_effect = (
+            TransformationError("Failed to transform book data")
+        )
+
+        message: dict[str, Any] = {
+            "channel": "l2Book",
+            "data": {"coin": "SOL", "levels": []},
+        }
+        ws_handlers: dict[str, MessageHandler] = {"l2Book": mock_app_handler}
+
+        await router.route_message(message, ws_handlers)
+
+        # Handler should not be called due to transformation error
+        mock_app_handler.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_route_message_validation_error_in_user_events(
+        self,
+        router: HyperliquidWsMessageRouter,
+        mock_raw_ws_handler: Mock,
+        mock_app_handler: AsyncMock,
+    ) -> None:
+        """Test handling ValidationError in userEvents processing."""
+        mock_raw_ws_handler.handle_user_fill_event_payload.side_effect = ValidationError(
+            "Invalid fill data"
+        )
+
+        message: dict[str, Any] = {
+            "channel": "userEvents",
+            "data": [{"type": "fill", "invalid": "data"}],
+        }
+        ws_handlers: dict[str, MessageHandler] = {"userEvents": mock_app_handler}
+
+        # Should not raise exception, just log and continue
+        await router.route_message(message, ws_handlers)
+
+        # Handler should not be called for the invalid item
+        mock_app_handler.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_route_message_exception_in_app_handler(
+        self,
+        router: HyperliquidWsMessageRouter,
+        mock_app_handler: AsyncMock,
+    ) -> None:
+        """Test handling exception in application handler."""
+        mock_app_handler.side_effect = Exception("Handler failed")
+
+        message: dict[str, Any] = {
+            "channel": "l2Book",
+            "data": {"coin": "SOL", "levels": []},
+        }
+        ws_handlers: dict[str, MessageHandler] = {"l2Book": mock_app_handler}
+
+        # Should not raise exception, just log it
+        await router.route_message(message, ws_handlers)
+
+        mock_app_handler.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_route_message_topic_key_derivation(
+        self,
+        router: HyperliquidWsMessageRouter,
+        mock_app_handler: AsyncMock,
+    ) -> None:
+        """Test correct topic key derivation for handler lookup."""
+        # Test l2Book topic key derivation
+        message: dict[str, Any] = {
+            "channel": "l2Book",
+            "data": {"coin": "SOL", "levels": []},
+        }
+        ws_handlers: dict[str, MessageHandler] = {"l2Book:SOL": mock_app_handler}
+
+        await router.route_message(message, ws_handlers)
+
+        mock_app_handler.assert_called_once()
+        mock_app_handler.reset_mock()
+
+        # Test trades topic key derivation
+        message = {
+            "channel": "trades",
+            "data": [{"coin": "BTC", "px": "50000"}],
+        }
+        ws_handlers = {"trades:BTC": mock_app_handler}
+
+        await router.route_message(message, ws_handlers)
+
+        mock_app_handler.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_route_message_fallback_to_base_handler(
+        self,
+        router: HyperliquidWsMessageRouter,
+        mock_app_handler: AsyncMock,
+    ) -> None:
+        """Test fallback to base channel handler when specific topic handler not found."""
+        message: dict[str, Any] = {
+            "channel": "l2Book",
+            "data": {"coin": "SOL", "levels": []},
+        }
+        # Only register base channel handler
+        ws_handlers: dict[str, MessageHandler] = {"l2Book": mock_app_handler}
+
+        await router.route_message(message, ws_handlers)
+
+        mock_app_handler.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_route_message_invalid_data_types(
+        self,
+        router: HyperliquidWsMessageRouter,
+        mock_app_handler: AsyncMock,
+    ) -> None:
+        """Test handling of invalid data types in messages."""
+        # Test l2Book with non-dict data
+        message: dict[str, Any] = {
+            "channel": "l2Book",
+            "data": "invalid_data_type",
+        }
+        ws_handlers: dict[str, MessageHandler] = {"l2Book": mock_app_handler}
+
+        await router.route_message(message, ws_handlers)
+
+        mock_app_handler.assert_not_called()
+        mock_app_handler.reset_mock()
+
+        # Test trades with non-list data
+        message = {
+            "channel": "trades",
+            "data": {"not": "a_list"},
+        }
+        ws_handlers = {"trades": mock_app_handler}
+
+        await router.route_message(message, ws_handlers)
+
+        mock_app_handler.assert_not_called()
+        mock_app_handler.reset_mock()
+
+        # Test userEvents with non-list data
+        message = {
+            "channel": "userEvents",
+            "data": "not_a_list",
+        }
+        ws_handlers = {"userEvents": mock_app_handler}
+
+        await router.route_message(message, ws_handlers)
+
+        mock_app_handler.assert_not_called()
