@@ -7,7 +7,7 @@ Tests the WebSocket message routing logic in isolation with mocked dependencies.
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from pydantic import ValidationError
@@ -288,14 +288,22 @@ class TestHyperliquidWsMessageRouter:
         mock_app_handler: AsyncMock,
     ) -> None:
         """Test routing control messages (pong, subscriptionResponse)."""
-        for channel in ["pong", "subscriptionResponse"]:
-            message: dict[str, Any] = {"channel": channel, "data": {"status": "ok"}}
-            ws_handlers: dict[str, MessageHandler] = {channel: mock_app_handler}
+        with patch.object(router, "logger") as mock_logger:
+            for channel in ["pong", "subscriptionResponse"]:
+                message: dict[str, Any] = {"channel": channel, "data": {"status": "ok"}}
+                ws_handlers: dict[str, MessageHandler] = {channel: mock_app_handler}
 
-            await router.route_message(message, ws_handlers)
+                await router.route_message(message, ws_handlers)
 
-        # Should be called twice (once for each control message)
-        assert mock_app_handler.call_count == 2
+            # Should be called twice (once for each control message)
+            assert mock_logger.debug.call_count == 2
+            mock_logger.debug.assert_any_call(
+                "[Hyperliquid] Control message on 'pong': {'channel': 'pong', 'data': {'status': 'ok'}}"
+            )
+            mock_logger.debug.assert_any_call(
+                "[Hyperliquid] Control message on 'subscriptionResponse': {'channel': 'subscriptionResponse', 'data': {'status': 'ok'}}"
+            )
+        mock_app_handler.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_route_message_no_channel(
@@ -396,9 +404,20 @@ class TestHyperliquidWsMessageRouter:
         mock_app_handler: AsyncMock,
     ) -> None:
         """Test handling ValidationError in userEvents processing."""
-        mock_raw_ws_handler.handle_user_fill_event_payload.side_effect = ValidationError(
-            "Invalid fill data"
+        # Construct a valid ValidationError instance for Pydantic v2
+        validation_error = ValidationError.from_exception_data(
+            title="HyperliquidRawUserFillEvent",
+            line_errors=[
+                {
+                    "type": "value_error",  # A standard Pydantic error type string
+                    "loc": ("fillData",),  # Location of the error
+                    "input": {"invalid": "data"},  # The input data causing the error
+                    # No 'msg' here, Pydantic generates it. Add 'ctx' if needed for the error type.
+                    "ctx": {"error": "Simulated value error"},  # Added context for value_error
+                }
+            ],
         )
+        mock_raw_ws_handler.handle_user_fill_event_payload.side_effect = validation_error
 
         message: dict[str, Any] = {
             "channel": "userEvents",

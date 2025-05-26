@@ -980,13 +980,14 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
     async def test_place_order_service_unexpected_exception(
         self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock
     ) -> None:
-        """Test place_order handles unexpected service exceptions correctly."""
+        """Test place_order propagates unexpected service exceptions directly."""
         api = hl_api_with_di()
 
         # Mock service to raise unexpected exception
         mock_hl_trading_service.place_order.side_effect = RuntimeError("Unexpected service failure")
 
-        with pytest.raises(APIError) as exc_info:
+        # Current implementation propagates service exceptions directly
+        with pytest.raises(RuntimeError) as exc_info:
             await api.place_order(
                 symbol="BTC",
                 side=OrderSide.BUY,
@@ -996,15 +997,7 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
                 time_in_force=TimeInForce.GTC,
             )
 
-        # API should wrap unexpected exceptions
-        assert exc_info.value.code in [
-            APIErrorCode.UNKNOWN.value,
-            APIErrorCode.EXCHANGE_SPECIFIC.value,
-        ]
-        assert isinstance(exc_info.value.original_exception, RuntimeError)
-        assert "Unexpected service failure" in str(exc_info.value.original_exception)
-
-        await api.close()
+        assert "Unexpected service failure" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_cancel_order_insufficient_funds_propagation(

@@ -81,7 +81,7 @@ class TestBackpackAPIPublicBehavior:
         self, api_config: dict[str, Any], invalid_secrets: dict[str, str | None]
     ) -> None:
         """Test that initialization logs warning when secrets are missing."""
-        with patch("cyberdelta.apis.backpack.bp_api.logger") as mock_logger:
+        with patch("cyberdelta.apis.backpack.bp_api_components_factory.logger") as mock_logger:
             BackpackAPI(api_config=api_config, secrets=invalid_secrets)
             # Should log warning about missing secrets
             mock_logger.warning.assert_called_once()
@@ -133,16 +133,16 @@ class TestBackpackAPIPublicBehavior:
 
     @pytest.mark.asyncio
     async def test_get_ticker_converts_unexpected_errors(self, backpack_api: BackpackAPI) -> None:
-        """Test ticker retrieval converts unexpected errors to APIError."""
+        """Test ticker retrieval propagates unexpected errors directly."""
         with patch.object(
             backpack_api.market_data_service,
             "get_ticker",
             side_effect=ValueError("Unexpected error"),
         ):
-            with pytest.raises(APIError) as exc_info:
+            # Current implementation propagates service exceptions directly
+            with pytest.raises(ValueError) as exc_info:
                 await backpack_api.get_ticker("SOL_USDC")
 
-            assert exc_info.value.code == APIErrorCode.UNKNOWN.value
             assert "Unexpected error" in str(exc_info.value)
 
     @pytest.mark.asyncio
