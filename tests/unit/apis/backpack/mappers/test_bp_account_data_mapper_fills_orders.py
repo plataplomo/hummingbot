@@ -419,6 +419,7 @@ class TestOrderTransformation:
             quantity="10.123456789012345",
             price="100.987654321098765",
             executed_quantity="5.555666777888999",
+            avg_fill_price="100.987654321098765",  # Required when executed_quantity > 0
             created_at=test_timestamp,
         )
 
@@ -427,6 +428,7 @@ class TestOrderTransformation:
         assert result.quantity_requested == Decimal("10.123456789012345")
         assert result.price == Decimal("100.987654321098765")
         assert result.quantity_filled == Decimal("5.555666777888999")
+        assert result.average_fill_price == Decimal("100.987654321098765")
 
 
 class TestTradeTransformation:

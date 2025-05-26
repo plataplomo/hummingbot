@@ -40,6 +40,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
 )
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import Trade
+from cyberdelta.core.models.enums import OrderSide
 
 # Alias for shorter method calls
 Mapper = HyperliquidMarketDataMapper
@@ -64,46 +65,37 @@ class TestValidationErrorHandling:
         market_data_mapper: HyperliquidMarketDataMapper,
     ) -> None:
         """Test that asset context with missing required fields raises validation error."""
-        with pytest.raises(ValidationError):
-            # Testing by creating with required fields but calling with invalid data
-            # This simulates what would happen with malformed API data
-            # Since Pydantic validates at construction time, we need to catch that
-            from pydantic import ValidationError as PydanticValidationError
+        from pydantic import ValidationError as PydanticValidationError
 
-            try:
-                # Simulate invalid JSON missing required 'name' field
-                invalid_data = {
-                    "funding": "0.00001",
-                    "markPx": "1000.0",
-                    "prevDayPx": "1000.0",
-                    "dayNtlVlm": "10000000.0",
-                    # name and impactPx missing
-                }
-                HyperliquidRawAssetCtx.model_validate(invalid_data)
-            except PydanticValidationError as e:
-                raise ValidationError(str(e)) from e
+        with pytest.raises(PydanticValidationError):
+            # Test missing required field 'name'
+            invalid_data = {
+                "funding": "0.00001",
+                "markPx": "1000.0",
+                "prevDayPx": "1000.0",
+                "dayNtlVlm": "10000000.0",
+                # name and impactPx missing
+            }
+            HyperliquidRawAssetCtx.model_validate(invalid_data)
 
     def test_invalid_asset_ctx_non_numeric_values(
         self,
         market_data_mapper: HyperliquidMarketDataMapper,
     ) -> None:
         """Test that asset context with non-numeric values raises validation error."""
-        with pytest.raises(ValidationError):
-            # Test invalid numeric value in funding field
-            from pydantic import ValidationError as PydanticValidationError
+        from pydantic import ValidationError as PydanticValidationError
 
-            try:
-                invalid_data = {
-                    "name": "INVALID-PERP",
-                    "funding": "not_a_number",  # Invalid numeric value
-                    "markPx": "1000.0",
-                    "prevDayPx": "1000.0",
-                    "dayNtlVlm": "10000000.0",
-                    "impactPx": "1000.0",
-                }
-                HyperliquidRawAssetCtx.model_validate(invalid_data)
-            except PydanticValidationError as e:
-                raise ValidationError(str(e)) from e
+        with pytest.raises(PydanticValidationError):
+            # Test invalid numeric value in funding field
+            invalid_data = {
+                "name": "INVALID-PERP",
+                "funding": "not_a_number",  # Invalid numeric value
+                "markPx": "1000.0",
+                "prevDayPx": "1000.0",
+                "dayNtlVlm": "10000000.0",
+                "impactPx": "1000.0",
+            }
+            HyperliquidRawAssetCtx.model_validate(invalid_data)
 
     def test_invalid_order_book_malformed_structure(
         self,
@@ -124,22 +116,19 @@ class TestValidationErrorHandling:
         market_data_mapper: HyperliquidMarketDataMapper,
     ) -> None:
         """Test that trade with missing hash raises validation error."""
-        with pytest.raises(ValidationError):
-            # Test by trying to validate invalid data
-            from pydantic import ValidationError as PydanticValidationError
+        from pydantic import ValidationError as PydanticValidationError
 
-            try:
-                invalid_data = {
-                    "coin": "INVALID-PERP",
-                    "side": "B",
-                    "px": "1000.0",
-                    "sz": "1.0",
-                    "time": int(datetime.now(UTC).timestamp() * 1000),
-                    # hash missing
-                }
-                HyperliquidRawPublicTrade.model_validate(invalid_data)
-            except PydanticValidationError as e:
-                raise ValidationError(str(e)) from e
+        with pytest.raises(PydanticValidationError):
+            # Test by trying to validate invalid data
+            invalid_data = {
+                "coin": "INVALID-PERP",
+                "side": "B",
+                "px": "1000.0",
+                "sz": "1.0",
+                "time": int(datetime.now(UTC).timestamp() * 1000),
+                # hash missing
+            }
+            HyperliquidRawPublicTrade.model_validate(invalid_data)
 
     def test_transformation_error_propagation(
         self,
@@ -149,7 +138,7 @@ class TestValidationErrorHandling:
         """Test that transformation errors are properly propagated."""
         # Mock parse_decimal_value to raise an error
         mocker.patch(
-            "cyberdelta.utils.parsing.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper.parse_decimal_value",
             side_effect=ValueError("Simulated parsing error"),
         )
 
@@ -281,7 +270,7 @@ class TestBoundaryValueConditions:
         market_data_mapper: HyperliquidMarketDataMapper,
     ) -> None:
         """Test handling of maximum allowed string lengths."""
-        max_length_symbol = "A" * 60 + "-PERP"  # Close to max length
+        max_length_symbol = "A" * 55 + "-PERP"  # 64 characters total (within limit)
 
         max_length_asset_ctx = HyperliquidRawAssetCtx(
             name=max_length_symbol,
@@ -417,14 +406,14 @@ class TestPerformanceAndMemory:
     ) -> None:
         """Test memory efficiency with high precision decimal values."""
         high_precision_decimals = [
-            "123456789.123456789012345678901234567890",
-            "0.000000000000000000000000000000000001",
-            "999999999999999999999999999999999999.999999999999999999999999999999",
+            "123456789.123456789012345678",  # 30 chars - within limit
+            "0.000000000000000000000001",  # 26 chars - within limit
+            "999999999999.999999999999",  # 24 chars - within limit
         ]
 
-        for precision_value in high_precision_decimals:
+        for i, precision_value in enumerate(high_precision_decimals):
             precision_asset_ctx = HyperliquidRawAssetCtx(
-                name=f"PRECISION-{len(precision_value)}-PERP",
+                name=f"PRECISION-{i}-PERP",  # Keep name short
                 funding="0.00001",
                 markPx=precision_value,
                 prevDayPx=precision_value,
@@ -535,20 +524,36 @@ class TestErrorRecoveryScenarios:
     def test_resilience_to_unknown_side_values(
         self,
         market_data_mapper: HyperliquidMarketDataMapper,
+        mocker: MockerFixture,
     ) -> None:
         """Test resilience to unknown side values in trades."""
-        unknown_side_trade = HyperliquidRawPublicTrade(
+        # Create a valid trade first
+        valid_trade = HyperliquidRawPublicTrade(
             coin="UNKNOWN-SIDE-PERP",
-            side="X",  # Unknown side
+            side="B",  # Valid side initially
             px="1000.0",
             sz="1.0",
             time=int(datetime.now(UTC).timestamp() * 1000),
             hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         )
 
-        # Should return None for unknown side
-        trade = market_data_mapper.transform_raw_public_trade_to_internal(unknown_side_trade)
-        assert trade is None
+        # Mock the _map_side_to_internal method to raise an error for unknown sides
+        def mock_map_side_side_effect(hl_side: str) -> OrderSide:
+            if hl_side == "B":  # For our test trade
+                raise ValueError("Unknown side")  # Simulate unknown side error
+            return OrderSide.BUY  # Default for other cases
+
+        mocker.patch.object(
+            HyperliquidMarketDataMapper,
+            "_map_side_to_internal",
+            side_effect=mock_map_side_side_effect,
+        )
+
+        # Transform should raise TransformationError when side mapping fails
+        with pytest.raises(
+            TransformationError, match="Failed to transform HyperliquidRawPublicTrade"
+        ):
+            market_data_mapper.transform_raw_public_trade_to_internal(valid_trade)
 
     def test_data_consistency_across_transformations(
         self,

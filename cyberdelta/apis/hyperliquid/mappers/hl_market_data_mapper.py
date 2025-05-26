@@ -600,6 +600,8 @@ class HyperliquidMarketDataMapper:
                 continue
 
         # Apply limit if specified
-        if limit is not None and limit > 0:
+        if limit is not None:
+            if limit <= 0:
+                return []
             return trades[:limit]
         return trades

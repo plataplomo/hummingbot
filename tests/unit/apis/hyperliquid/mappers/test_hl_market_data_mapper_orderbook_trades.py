@@ -527,20 +527,6 @@ class TestTransformRawTrades:
         caplog: LogCaptureFixture,
     ) -> None:
         """Test transformation with error during single trade transformation."""
-        # Mock the transform method to raise an error for the second trade
-        original_transform = market_data_mapper.transform_raw_public_trade_to_internal
-
-        def mock_transform_side_effect(raw_trade_arg: HyperliquidRawPublicTrade) -> Trade | None:
-            if raw_trade_arg.coin == "ERROR-PERP":
-                raise ValueError("Simulated transformation error")
-            return original_transform(raw_trade_arg)
-
-        mocker.patch.object(
-            market_data_mapper,
-            "transform_raw_public_trade_to_internal",
-            side_effect=mock_transform_side_effect,
-        )
-
         # Create a trade that will trigger the error
         error_trade = HyperliquidRawPublicTrade(
             coin="ERROR-PERP",
@@ -551,6 +537,21 @@ class TestTransformRawTrades:
             hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         )
 
+        # Store the original method
+        original_transform = HyperliquidMarketDataMapper.transform_raw_public_trade_to_internal
+
+        def mock_transform_side_effect(raw_trade: HyperliquidRawPublicTrade) -> Trade | None:
+            if raw_trade.coin == "ERROR-PERP":
+                raise ValueError("Simulated transformation error")
+            return original_transform(raw_trade)
+
+        # Patch the static method at the class level
+        mocker.patch.object(
+            HyperliquidMarketDataMapper,
+            "transform_raw_public_trade_to_internal",
+            side_effect=mock_transform_side_effect,
+        )
+
         raw_trades = [
             hyperliquid_raw_public_trade_buy_fixture,  # Valid
             error_trade,  # Will cause error
@@ -559,9 +560,10 @@ class TestTransformRawTrades:
         with caplog.at_level(logging.ERROR):
             result = market_data_mapper.transform_raw_trades(raw_trades)
 
-        # Should only return the valid trade
+        # Should only return the valid trade (error trade should be skipped)
         assert len(result) == 1
         assert isinstance(result[0], Trade)
+        assert result[0].symbol == "ETH-PERP"  # The valid trade
 
         # Check that error was logged
         assert any("Error transforming trade" in record.message for record in caplog.records)

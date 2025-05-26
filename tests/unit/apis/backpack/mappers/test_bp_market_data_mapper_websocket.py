@@ -495,18 +495,16 @@ class TestWebSocketTradeEventTransformation:
     def test_transform_ws_trade_event_with_zero_values(
         self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int
     ) -> None:
-        """Test WebSocket trade event transformation with zero price/quantity."""
+        """Test WebSocket trade event transformation with zero price/quantity raises error."""
         raw_trade = create_raw_trade_event(
             p="0.0",
             q="0.0",
             event_time=test_timestamp_ms,
         )
 
-        result = mapper.transform_ws_trade_event_to_internal(raw_trade)
-
-        # The mapper should handle zero values appropriately
-        assert result.price == Decimal("0.0")
-        assert result.quantity == Decimal("0.0")
+        # The mapper should raise TransformationError for zero values since Trade model validates price > 0 and quantity > 0
+        with pytest.raises(TransformationError, match="Failed to transform BackpackRawTradeEvent"):
+            mapper.transform_ws_trade_event_to_internal(raw_trade)
 
     def test_transform_ws_trade_event_with_very_long_id(
         self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int

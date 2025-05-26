@@ -315,9 +315,8 @@ class TestErrorHandlingAndRecovery:
 
     def test_timestamp_parsing_fallback(self, mapper: BackpackMarketDataMapper) -> None:
         """Test timestamp parsing fallback to current time."""
-        raw_ticker = create_raw_ticker(
-            time="invalid_timestamp_format",
-        )
+        # Create a valid raw ticker first
+        raw_ticker = create_raw_ticker()
 
         with patch(
             "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_datetime_utc"
