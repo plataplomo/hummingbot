@@ -258,21 +258,23 @@ class BackpackAPI(ExchangeAPI):
 
     # --- Core API Implementation --- #
 
+    # --- Market Data Methods --- #
+
     async def get_ticker(self, symbol: str) -> Ticker:
-        """Retrieves the latest ticker information for a specific symbol."""
-        return await self.market_data_service.get_ticker(symbol=symbol)
+        """Get ticker information for a specific symbol."""
+        return await self.market_data_service.get_ticker(symbol)
 
     async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
-        """Retrieves the order book for a specific symbol."""
-        return await self.market_data_service.get_order_book(symbol=symbol, limit=depth)
+        """Get order book for a specific symbol."""
+        return await self.market_data_service.get_order_book(symbol, depth)
 
     async def get_recent_trades(self, symbol: str, limit: int | None = 50) -> list[Trade]:
-        """Retrieves recent public trades for a specific symbol."""
-        return await self.market_data_service.get_recent_trades(symbol=symbol, limit=limit)
+        """Get recent trades for a specific symbol."""
+        return await self.market_data_service.get_recent_trades(symbol, limit)
 
     async def get_funding_rate(self, symbol: str) -> FundingRate:
-        """Retrieves the current funding rate for a specific symbol."""
-        return await self.market_data_service.get_funding_rate(symbol=symbol)
+        """Get current funding rate for a specific symbol."""
+        return await self.market_data_service.get_funding_rate(symbol)
 
     async def get_market_data(
         self,
@@ -282,35 +284,49 @@ class BackpackAPI(ExchangeAPI):
         start_time_ms: int | None = None,
         end_time_ms: int | None = None,
     ) -> list[Candle]:
-        """Retrieves historical kline/candlestick data for a symbol and timeframe.
+        """
+        Get historical market data (candlesticks) for a specific symbol.
 
         Args:
-            symbol: The trading symbol (e.g., 'SOL_USDC').
-            timeframe: The kline interval (e.g., '1m', '1h', '1d').
-            limit: The maximum number of klines to retrieve (default: 100).
-            start_time_ms: Optional start time in milliseconds (Unix epoch).
-            end_time_ms: Optional end time in milliseconds (Unix epoch).
+            symbol: Trading pair symbol (e.g., 'BTC-USD')
+            timeframe: Timeframe for candlesticks (e.g., '1m', '5m', '1h', '1d')
+            limit: Maximum number of candlesticks to return (default: 100)
+            start_time_ms: Start time in milliseconds (optional)
+            end_time_ms: End time in milliseconds (optional)
 
         Returns:
-            A list of Candle objects.
+            List of Candle objects representing historical market data
+
+        Raises:
+            APIError: If the request fails or data is invalid
         """
         return await self.market_data_service.get_market_data(
             symbol=symbol,
             timeframe=timeframe,
+            limit=limit,
             start_time_ms=start_time_ms,
             end_time_ms=end_time_ms,
-            limit=limit,
         )
 
+    # --- Account Methods --- #
+
     async def get_balances(self) -> dict[str, SpotBalance]:
-        """Get account balances. Delegates to BackpackAccountService."""
+        """Get account balances."""
         return await self.account_service.get_balances()
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
-        """Fetches current open positions, optionally filtered by symbol.
-        Delegates to BackpackAccountService.
         """
-        return await self.account_service.get_positions(symbol=symbol)
+        Get derivative positions.
+
+        Args:
+            symbol: Optional symbol to filter positions
+
+        Returns:
+            List of derivative positions
+        """
+        return await self.account_service.get_positions(symbol)
+
+    # --- Trading Methods --- #
 
     async def place_order(
         self,
@@ -325,7 +341,7 @@ class BackpackAPI(ExchangeAPI):
         reduce_only: bool = False,
         post_only: bool = False,
     ) -> Order:
-        """Place an order on Backpack Exchange. Delegates to BackpackTradingService."""
+        """Place a new order."""
         return await self.trading_service.place_order(
             symbol=symbol,
             side=side,
@@ -336,24 +352,31 @@ class BackpackAPI(ExchangeAPI):
             stop_price=stop_price,
             client_order_id=client_order_id,
             post_only=post_only,
+            reduce_only=reduce_only,
         )
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
-        """Cancel an existing order. Delegates to BackpackTradingService."""
-        return await self.trading_service.cancel_order(order_id=order_id, symbol=symbol)
+        """Cancel an existing order."""
+        return await self.trading_service.cancel_order(order_id, symbol)
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
-        """Get open orders. Delegates to BackpackTradingService."""
-        return await self.trading_service.get_open_orders(symbol=symbol)
+        """Get all open orders."""
+        return await self.trading_service.get_open_orders(symbol)
 
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
-        """Retrieves current funding rates for specified symbols.
-        Delegates to BackpackMarketDataService.
         """
-        return await self.market_data_service.get_funding_rates(symbols=symbols)
+        Get funding rates for specified symbols or all symbols.
+
+        Args:
+            symbols: List of symbols to get funding rates for. If None, gets all.
+
+        Returns:
+            List of funding rates
+        """
+        return await self.market_data_service.get_funding_rates(symbols)
 
     async def get_account_summary(self) -> MarginAccountSummary:
-        """Get account summary. Delegates to BackpackAccountService."""
+        """Get account summary information."""
         return await self.account_service.get_account_info()
 
     async def transfer(
@@ -364,8 +387,18 @@ class BackpackAPI(ExchangeAPI):
         to_account_type: str,
         client_transfer_id: str | None = None,
     ) -> Transfer:
-        """Initiates an asset transfer between accounts.
-        Delegates to BackpackAccountService.
+        """
+        Transfer funds between account types.
+
+        Args:
+            asset: Asset to transfer
+            amount: Amount to transfer
+            from_account_type: Source account type
+            to_account_type: Destination account type
+            client_transfer_id: Optional client-specified transfer ID
+
+        Returns:
+            Transfer result
         """
         return await self.account_service.transfer(
             asset=asset,
@@ -386,8 +419,21 @@ class BackpackAPI(ExchangeAPI):
         two_factor_token: str | None = None,
         **kwargs: dict[str, Any],
     ) -> Withdrawal:
-        """Initiates a withdrawal of assets from the exchange.
-        Delegates to BackpackAccountService.
+        """
+        Withdraw funds to an external address.
+
+        Args:
+            asset: Asset to withdraw
+            amount: Amount to withdraw
+            address: Destination address
+            network: Network to use for withdrawal
+            tag: Optional destination tag
+            client_withdrawal_id: Optional client-specified withdrawal ID
+            two_factor_token: Optional 2FA token
+            **kwargs: Additional withdrawal parameters
+
+        Returns:
+            Withdrawal result
         """
         return await self.account_service.withdraw(
             asset=asset,
@@ -397,6 +443,7 @@ class BackpackAPI(ExchangeAPI):
             tag=tag,
             client_withdrawal_id=client_withdrawal_id,
             two_factor_token=two_factor_token,
+            **kwargs,
         )
 
     async def subscribe_to_order_book(self, symbol: str) -> None:
@@ -432,9 +479,7 @@ class BackpackAPI(ExchangeAPI):
         order_id: str | None = None,
         client_order_id: str | None = None,
     ) -> list[Order]:
-        """Fetches historical orders from Backpack.
-        Delegates to BackpackAccountService.
-        """
+        """Get historical orders."""
         return await self.account_service.get_order_history(
             symbol=symbol,
             start_time=start_time,
@@ -445,9 +490,7 @@ class BackpackAPI(ExchangeAPI):
         )
 
     async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
-        """Fetches recent trade history for a symbol or all symbols.
-        Delegates to BackpackAccountService.
-        """
+        """Get recent trade history."""
         return await self.account_service.get_trade_history(symbol=symbol, limit=limit)
 
     async def connect_websocket(self) -> None:
@@ -457,7 +500,7 @@ class BackpackAPI(ExchangeAPI):
     async def get_order(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order | None:
-        """Fetch a single order by its ID. Delegates to BackpackTradingService."""
+        """Fetch a single order by its ID."""
         return await self.trading_service.get_order(
             order_id=order_id, symbol=symbol, client_order_id=client_order_id
         )
@@ -465,8 +508,7 @@ class BackpackAPI(ExchangeAPI):
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order:
-        """Fetch the status of a specific order. Delegates to BackpackTradingService's
-        get_order_status."""
+        """Fetch the status of a specific order."""
         return await self.trading_service.get_order_status(
             order_id=order_id, symbol=symbol, client_order_id=client_order_id
         )
@@ -497,9 +539,7 @@ class BackpackAPI(ExchangeAPI):
         )
 
     async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
-        """Fetch all open orders for a given symbol or all symbols.
-        Delegates to BackpackTradingService's get_all_open_orders method.
-        """
+        """Fetch all open orders."""
         return await self.trading_service.get_all_open_orders(symbol=symbol)
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
@@ -534,18 +574,7 @@ class BackpackAPI(ExchangeAPI):
         end_time: datetime | None = None,
         limit: int | None = None,
     ) -> list[FundingRate]:
-        """Request historical funding rates for a specific symbol and time range.
-        Delegates to BackpackMarketDataService.
-
-        Args:
-            symbol: The trading symbol (e.g., 'SOL-PERP').
-            start_time: Optional start time for the data range (UTC-aware).
-            end_time: Optional end time for the data range (UTC-aware).
-            limit: Optional limit on the number of funding rates to return.
-
-        Returns:
-            A list of FundingRate objects.
-        """
+        """Get historical funding rates for a specific symbol."""
         start_time_sec: int | None = None
         if start_time:
             if start_time.tzinfo is None:
@@ -563,8 +592,6 @@ class BackpackAPI(ExchangeAPI):
                     f"Assuming UTC."
                 )
             end_time_sec = int(end_time.timestamp())
-            if start_time_sec is not None and end_time_sec < start_time_sec:
-                raise ValueError("end_time cannot be before start_time.")
 
         return await self.market_data_service.get_historical_funding_rates(
             symbol=symbol,
@@ -574,11 +601,9 @@ class BackpackAPI(ExchangeAPI):
         )
 
     async def close(self) -> None:
-        """Closes the API client connections."""
+        """Close the API client and clean up resources."""
         await super().close()
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
-        """Cancels all open orders, optionally filtered by symbol.
-        Delegates to BackpackTradingService.
-        """
+        """Cancel all open orders."""
         return await self.trading_service.cancel_all_orders(symbol=symbol)

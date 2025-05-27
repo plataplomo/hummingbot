@@ -304,32 +304,12 @@ class HyperliquidTradingService:
             raise APIError(_error_msg_unexpected, APIErrorCode.UNKNOWN.value) from e
 
     async def get_order(self, symbol: str | None, order_id: str | int) -> Order | None:
-        """
-        Retrieves a specific order by its exchange ID and maps it to an internal Order model.
-        Returns None if the order is not found.
-        """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_order"
 
-        if symbol is None:
-            raise ValueError(f"[{current_method}] 'symbol' parameter is required.")
-        if not symbol:
-            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
-
-        # Convert order_id to int if it's a string
-        if isinstance(order_id, str):
-            try:
-                order_id_int = int(order_id)
-            except ValueError as e:
-                raise ValueError(
-                    f"[{current_method}] 'order_id' must be a valid integer: {order_id}"
-                ) from e
-        else:
-            order_id_int = order_id
-
-        if order_id_int <= 0:
-            raise ValueError(f"[{current_method}] 'order_id' must be positive.")
+        if not order_id:
+            raise ValueError(f"[{current_method}] 'order_id' must be a non-empty value.")
 
         # Initialize context for error handling
         status_code: int = 0
@@ -337,47 +317,69 @@ class HyperliquidTradingService:
 
         try:
             # Core operational logic
-            raw_historical_order = await self._get_order_status_raw(order_id=order_id_int)
-            if raw_historical_order is None:
+            # Convert order_id to int if it's a string
+            try:
+                order_id_int = int(order_id)
+            except (ValueError, TypeError):
+                raise ValueError(
+                    f"[{current_method}] 'order_id' must be convertible to integer."
+                ) from None
+
+            raw_order_obj = await self._get_order_status_raw(order_id_int)
+
+            if raw_order_obj is None:
+                logger.debug(
+                    f"[{self._exchange_name}] Order {order_id} "
+                    f"({'for ' + symbol if symbol else ''}) not found."
+                )
                 return None
 
-            trigger_info = getattr(raw_historical_order, "trigger", None)
+            # Validate order has required fields for mapping
+            if not hasattr(raw_order_obj, "asset") or not raw_order_obj.asset:
+                logger.warning(
+                    f"[{self._exchange_name}] Order {order_id} missing asset/symbol information. "
+                    f"Raw: {raw_order_obj.model_dump_json()}"
+                )
 
-            return self._trading_mapper.transform_raw_historical_order_to_internal(
-                raw_historical_order=raw_historical_order, trigger=trigger_info
+            # Map to internal domain model
+            internal_order = self._trading_mapper.transform_raw_historical_order_to_internal(
+                raw_order_obj
             )
+            return internal_order
+
         except APIError:
-            raise  # Re-raise APIErrors
+            # Re-raise APIErrors from _get_order_status_raw, ResponseHandler, etc.
+            raise
         except TransformationError as e_transform:
             logger.error(
-                f"[{self._exchange_name}] [{current_method}] TransformationError: {e_transform}. "
-                f"Status: {status_code}, Raw: {raw_response_content}",
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for order {order_id}: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
                 original_exception=e_transform,
-                http_status=status_code,
+                http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
             logger.error(
-                f"[{self._exchange_name}] [{current_method}] ValidationError: {e_val}. "
-                f"Status: {status_code}, Raw: {raw_response_content}",
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for order {order_id}: {e_val}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
                 original_exception=e_val,
-                http_status=status_code,
+                http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
             logger.error(
-                f"[{self._exchange_name}] [{current_method}] Service logic error: "
-                f"{e_service_logic}. Status: {status_code}, Raw: {raw_response_content}",
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for order {order_id}: {e_service_logic}",
                 exc_info=True,
             )
             raise APIError(
@@ -387,15 +389,15 @@ class HyperliquidTradingService:
             ) from e_service_logic
         except Exception as e_unexpected:
             logger.error(
-                f"[{self._exchange_name}] [{current_method}] Unexpected error: {e_unexpected}. "
-                f"Status: {status_code}, Raw: {raw_response_content}",
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"for order {order_id}: {e_unexpected}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected service failure.",
                 original_exception=e_unexpected,
-                http_status=status_code,
+                http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_unexpected
 

@@ -203,7 +203,19 @@ class HyperliquidMarketDataService:
             APIError: If the underlying API request to fetch all contexts fails.
                       (Note: original hl_api.get_ticker raised SYMBOL_NOT_FOUND specifically)
         """
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_ticker"
+
+        if not symbol:
+            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
+
+        # Initialize context for error handling
+        status_code: int = 0
+        raw_response_content: str | None = None
+
         try:
+            # Core operational logic
             all_contexts_response = await self.get_all_asset_contexts_raw()
             if all_contexts_response and all_contexts_response.asset_ctxs:
                 for asset_ctx in all_contexts_response.asset_ctxs:
@@ -217,20 +229,59 @@ class HyperliquidMarketDataService:
             )
             return None  # Consistent with method signature if not found
 
-        except APIError:  # Propagate APIErrors from get_all_asset_contexts
+        except APIError:
+            # Re-raise APIErrors from get_all_asset_contexts_raw, ResponseHandler, etc.
             raise
-        except Exception as e_unhandled:
+        except TransformationError as e_transform:
             logger.error(
-                f"[{self._exchange_name}] Unexpected error in get_ticker "
-                f"for {symbol}: {e_unhandled}",
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for {symbol}: {e_transform}",
                 exc_info=True,
             )
-            # To maintain consistency with original behavior of raising APIError for failures
             raise APIError(
-                message=f"Unexpected error fetching ticker for {symbol}: {e_unhandled}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for {symbol}: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for {symbol}: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
-                original_exception=e_unhandled,
-            ) from e_unhandled
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+            ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"for {symbol}: {e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unexpected
 
     async def get_order_book(self, symbol: str) -> OrderBook | None:
         """
@@ -246,40 +297,55 @@ class HyperliquidMarketDataService:
         Raises:
             APIError: If the API request fails or the response is invalid.
         """
-        endpoint_path = "/info"
-        # Assuming HyperliquidRequestBuilder has or will have this method:
-        try:
-            request_payload_model = self._request_builder.build_l2_book_request_payload(
-                symbol=symbol
-            )
-        except Exception as e:
-            # Wrap request builder exceptions in APIError
-            logger.error(f"[{self._exchange_name}] Request builder failed for l2Book: {e}")
-            raise APIError(
-                message=f"Failed to build l2Book request for symbol {symbol}: {str(e)}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_order_book"
 
-        request_payload_data: dict[str, Any] = request_payload_model.model_dump(
-            by_alias=True, exclude_none=True
-        )
+        if not symbol:
+            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
 
-        raw_response_content: ParsedJsonResponse | None = None
+        # Initialize context for error handling
         status_code: int = 0
-        headers: Mapping[str, str] = {}
+        raw_response_content: str | None = None
+
         try:
-            raw_response_content, status_code, headers = await self._http_client_requester(
+            # Core operational logic
+            endpoint_path = "/info"
+            # Assuming HyperliquidRequestBuilder has or will have this method:
+            try:
+                request_payload_model = self._request_builder.build_l2_book_request_payload(
+                    symbol=symbol
+                )
+            except Exception as e:
+                # Wrap request builder exceptions in APIError
+                logger.error(f"[{self._exchange_name}] Request builder failed for l2Book: {e}")
+                raise APIError(
+                    message=f"Failed to build l2Book request for symbol {symbol}: {str(e)}",
+                    code=APIErrorCode.UNKNOWN.value,
+                    original_exception=e,
+                ) from e
+
+            request_payload_data: dict[str, Any] = request_payload_model.model_dump(
+                by_alias=True, exclude_none=True
+            )
+
+            raw_response_content_parsed: ParsedJsonResponse | None = None
+            headers: Mapping[str, str] = {}
+            raw_response_content_parsed, status_code, headers = await self._http_client_requester(
                 method="POST",
                 endpoint=endpoint_path,
                 data=request_payload_data,
             )
+
+            if raw_response_content_parsed is not None:
+                raw_response_content = str(raw_response_content_parsed)
+
             logger.debug(
                 f"[{self._exchange_name}] Raw l2 orderbook response for {symbol}: "
-                f"{raw_response_content!r}, Status: {status_code}, Headers: {headers}"
+                f"{raw_response_content_parsed!r}, Status: {status_code}, Headers: {headers}"
             )
 
-            if raw_response_content is None:
+            if raw_response_content_parsed is None:
                 _error_msg = (
                     f"No content received from HTTP client for l2Book for {symbol}. "
                     f"Status: {status_code}"
@@ -292,7 +358,7 @@ class HyperliquidMarketDataService:
                 )
 
             validated_raw_book = self._response_handler.handle_info_l2_book_response(
-                raw_response_content,
+                raw_response_content_parsed,
                 symbol=symbol,
                 status_code=status_code,
                 headers=headers,
@@ -300,32 +366,58 @@ class HyperliquidMarketDataService:
             return self._mapper.transform_raw_order_book_to_internal(validated_raw_book)
 
         except APIError:
+            # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise
-        except ValidationError as e_val:
+        except TransformationError as e_transform:
             logger.error(
-                f"[{self._exchange_name}] Order book response validation failed "
-                f"for {symbol}: {e_val}. Raw: {raw_response_content!r}"
-            )
-            raise APIError(
-                message=f"Failed to validate order book response for {symbol}: {e_val}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                original_exception=e_val,
-                http_status=status_code,
-                exchange_message=str(raw_response_content),
-            ) from e_val
-        except Exception as e_unhandled:
-            logger.error(
-                f"[{self._exchange_name}] Unhandled error fetching order book "
-                f"for {symbol}: {e_unhandled}",
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for {symbol}: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
-                message=f"Unexpected error processing order book for {symbol}: {e_unhandled}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for {symbol}: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for {symbol}: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
-                original_exception=e_unhandled,
-                http_status=status_code,
-                exchange_message=str(raw_response_content),
-            ) from e_unhandled
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+            ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"for {symbol}: {e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unexpected
 
     async def get_recent_trades(
         self,
@@ -346,30 +438,45 @@ class HyperliquidMarketDataService:
         Raises:
             APIError: If the API request fails or the response is invalid.
         """
-        endpoint_path = "/info"
-        # Assuming HyperliquidRequestBuilder has or will have this method:
-        request_payload_model = self._request_builder.build_recent_trades_request_payload(
-            symbol=symbol
-        )
-        request_payload_data: dict[str, Any] = request_payload_model.model_dump(
-            by_alias=True, exclude_none=True
-        )
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_recent_trades"
 
-        raw_response_content: ParsedJsonResponse | None = None
+        if not symbol:
+            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
+
+        # Initialize context for error handling
         status_code: int = 0
-        headers: Mapping[str, str] = {}
+        raw_response_content: str | None = None
+
         try:
-            raw_response_content, status_code, headers = await self._http_client_requester(
+            # Core operational logic
+            endpoint_path = "/info"
+            # Assuming HyperliquidRequestBuilder has or will have this method:
+            request_payload_model = self._request_builder.build_recent_trades_request_payload(
+                symbol=symbol
+            )
+            request_payload_data: dict[str, Any] = request_payload_model.model_dump(
+                by_alias=True, exclude_none=True
+            )
+
+            raw_response_content_parsed: ParsedJsonResponse | None = None
+            headers: Mapping[str, str] = {}
+            raw_response_content_parsed, status_code, headers = await self._http_client_requester(
                 method="POST",
                 endpoint=endpoint_path,
                 data=request_payload_data,
             )
+
+            if raw_response_content_parsed is not None:
+                raw_response_content = str(raw_response_content_parsed)
+
             logger.debug(
                 f"[{self._exchange_name}] Raw recent_trades response for {symbol}: "
-                f"{raw_response_content!r}, Status: {status_code}, Headers: {headers}"
+                f"{raw_response_content_parsed!r}, Status: {status_code}, Headers: {headers}"
             )
 
-            if raw_response_content is None:
+            if raw_response_content_parsed is None:
                 _error_msg = (
                     f"No content received from HTTP client for recentTrades for {symbol}. "
                     f"Status: {status_code}"
@@ -382,7 +489,7 @@ class HyperliquidMarketDataService:
                 )
 
             validated_raw_trades = self._response_handler.handle_info_recent_trades_response(
-                raw_response_content,
+                raw_response_content_parsed,
                 symbol=symbol,
                 status_code=status_code,
                 headers=headers,
@@ -408,32 +515,58 @@ class HyperliquidMarketDataService:
             return internal_trades
 
         except APIError:
+            # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise
-        except ValidationError as e_val:
+        except TransformationError as e_transform:
             logger.error(
-                f"[{self._exchange_name}] Recent trades response validation failed "
-                f"for {symbol}: {e_val}. Raw: {raw_response_content!r}"
-            )
-            raise APIError(
-                message=f"Failed to validate recent trades response for {symbol}: {e_val}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                original_exception=e_val,
-                http_status=status_code,
-                exchange_message=str(raw_response_content),
-            ) from e_val
-        except Exception as e_unhandled:
-            logger.error(
-                f"[{self._exchange_name}] Unhandled error fetching recent trades "
-                f"for {symbol}: {e_unhandled}",
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for {symbol}: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
-                message=f"Unexpected error processing recent trades for {symbol}: {e_unhandled}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for {symbol}: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for {symbol}: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
-                original_exception=e_unhandled,
-                http_status=status_code,
-                exchange_message=str(raw_response_content),
-            ) from e_unhandled
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+            ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"for {symbol}: {e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unexpected
 
     async def get_funding_rate(self, symbol: str) -> FundingRate | None:
         """
@@ -451,7 +584,19 @@ class HyperliquidMarketDataService:
         Raises:
             APIError: If the underlying API request to fetch all contexts fails.
         """
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_funding_rate"
+
+        if not symbol:
+            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
+
+        # Initialize context for error handling
+        status_code: int = 0
+        raw_response_content: str | None = None
+
         try:
+            # Core operational logic
             all_contexts_response = await self.get_all_asset_contexts_raw()
             if all_contexts_response and all_contexts_response.asset_ctxs:
                 for asset_ctx in all_contexts_response.asset_ctxs:
@@ -463,19 +608,60 @@ class HyperliquidMarketDataService:
                 f"for symbol '{symbol}'."
             )
             return None
-        except APIError:  # Propagate APIErrors from get_all_asset_contexts
+
+        except APIError:
+            # Re-raise APIErrors from get_all_asset_contexts_raw, ResponseHandler, etc.
             raise
-        except Exception as e_unhandled:
+        except TransformationError as e_transform:
             logger.error(
-                f"[{self._exchange_name}] Unexpected error in get_funding_rate "
-                f"for {symbol}: {e_unhandled}",
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for {symbol}: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
-                message=f"Unexpected error fetching funding rate for {symbol}: {e_unhandled}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for {symbol}: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for {symbol}: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
-                original_exception=e_unhandled,
-            ) from e_unhandled
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+            ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"for {symbol}: {e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unexpected
 
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
         """
@@ -490,8 +676,24 @@ class HyperliquidMarketDataService:
         Raises:
             APIError: If the underlying API request to fetch all contexts fails.
         """
-        rates: list[FundingRate] = []
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_funding_rates"
+
+        if symbols is not None:
+            for symbol in symbols:
+                if not symbol:
+                    raise ValueError(
+                        f"[{current_method}] All symbols in list must be non-empty strings."
+                    )
+
+        # Initialize context for error handling
+        status_code: int = 0
+        raw_response_content: str | None = None
+
         try:
+            # Core operational logic
+            rates: list[FundingRate] = []
             all_contexts_response = await self.get_all_asset_contexts_raw()
             if not all_contexts_response or not all_contexts_response.asset_ctxs:
                 logger.warning(
@@ -531,18 +733,60 @@ class HyperliquidMarketDataService:
                         f"fetched asset contexts."
                     )
             return rates
-        except APIError:  # Propagate APIErrors from get_all_asset_contexts_raw
+
+        except APIError:
+            # Re-raise APIErrors from get_all_asset_contexts_raw, ResponseHandler, etc.
             raise
-        except Exception as e_unhandled:
+        except TransformationError as e_transform:
             logger.error(
-                f"[{self._exchange_name}] Unexpected error in get_funding_rates: {e_unhandled}",
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
-                message=f"Unexpected error fetching funding rates: {e_unhandled}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error: "
+                f"{e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
-                original_exception=e_unhandled,
-            ) from e_unhandled
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+            ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure: "
+                f"{e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unexpected
 
     async def get_historical_funding_rates(
         self,
@@ -718,54 +962,138 @@ class HyperliquidMarketDataService:
         Raises:
             APIError: If the API request fails or the response is invalid.
         """
-        logger.debug(
-            f"[{self._exchange_name}] Getting market data (candles) for {symbol}, "
-            f"interval {interval}, start {start_time_ms}, end {end_time_ms}"
-        )
-        endpoint_path = "/info"
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_market_data"
+
+        if not symbol:
+            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
+        if not interval:
+            raise ValueError(f"[{current_method}] 'interval' must be a non-empty string.")
+        if start_time_ms <= 0:
+            raise ValueError(f"[{current_method}] 'start_time_ms' must be positive.")
+        if end_time_ms <= 0:
+            raise ValueError(f"[{current_method}] 'end_time_ms' must be positive.")
+        if end_time_ms < start_time_ms:
+            raise ValueError(f"[{current_method}] 'end_time_ms' cannot be before 'start_time_ms'.")
+
+        # Initialize context for error handling
+        status_code: int = 0
+        raw_response_content: str | None = None
+
         try:
-            payload = self._request_builder.build_candle_snapshot_payload(
-                symbol=symbol,
-                timeframe=interval,
-                start_time_ms=start_time_ms,
-                end_time_ms=end_time_ms,
+            # Core operational logic
+            logger.debug(
+                f"[{self._exchange_name}] Getting market data (candles) for {symbol}, "
+                f"interval {interval}, start {start_time_ms}, end {end_time_ms}"
             )
-        except Exception as e:
-            # Wrap request builder exceptions in APIError
-            logger.error(f"[{self._exchange_name}] Request builder failed for candle snapshot: {e}")
-            raise APIError(
-                message=f"Failed to build candle snapshot request for symbol {symbol}: {str(e)}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
+            endpoint_path = "/info"
+            try:
+                payload = self._request_builder.build_candle_snapshot_payload(
+                    symbol=symbol,
+                    timeframe=interval,
+                    start_time_ms=start_time_ms,
+                    end_time_ms=end_time_ms,
+                )
+            except Exception as e:
+                # Wrap request builder exceptions in APIError
+                logger.error(
+                    f"[{self._exchange_name}] Request builder failed for candle snapshot: {e}"
+                )
+                raise APIError(
+                    message=(
+                        f"Failed to build candle snapshot request for symbol {symbol}: {str(e)}"
+                    ),
+                    code=APIErrorCode.UNKNOWN.value,
+                    original_exception=e,
+                ) from e
 
-        raw_response_content, status_code, headers = await self._http_client_requester(
-            method="POST",
-            endpoint=endpoint_path,
-            data=payload.model_dump(
-                by_alias=True, exclude_none=True
-            ),  # Payload itself is a dict[str, Any]
-        )
+            raw_response_content_parsed, status_code, headers = await self._http_client_requester(
+                method="POST",
+                endpoint=endpoint_path,
+                data=payload.model_dump(
+                    by_alias=True, exclude_none=True
+                ),  # Payload itself is a dict[str, Any]
+            )
 
-        if raw_response_content is None:
+            if raw_response_content_parsed is not None:
+                raw_response_content = str(raw_response_content_parsed)
+
+            if raw_response_content_parsed is None:
+                logger.error(
+                    f"[{self._exchange_name}] No content received for candles {symbol}, "
+                    f"status: {status_code}."
+                )
+                # Consider raising APIError or returning empty list based on desired strictness
+                raise APIError(
+                    message=f"No data received for market data (candles) for {symbol}, "
+                    f"status: {status_code}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code,
+                )
+
+            # Assuming raw_response_content is list[dict[str, Any]] for candles
+            # The handler expects RawJsonResponse which can be list.
+
+            # The handler expects raw JSON, not already Pydantic validated models typically
+            # For candles, it might be list of lists or list of dicts
+            raw_candles = self._response_handler.handle_info_candle_snapshot_response(
+                raw_response_content_parsed, symbol, interval, status_code, headers
+            )
+            return self._mapper.transform_raw_candle_snapshot_to_candles(
+                raw_candles, symbol, interval
+            )
+
+        except APIError:
+            # Re-raise APIErrors from _requester, ResponseHandler, etc.
+            raise
+        except TransformationError as e_transform:
             logger.error(
-                f"[{self._exchange_name}] No content received for candles {symbol}, "
-                f"status: {status_code}."
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for {symbol}: {e_transform}",
+                exc_info=True,
             )
-            # Consider raising APIError or returning empty list based on desired strictness
             raise APIError(
-                message=f"No data received for market data (candles) for {symbol}, "
-                f"status: {status_code}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for {symbol}: {e_val}",
+                exc_info=True,
             )
-
-        # Assuming raw_response_content is list[dict[str, Any]] for candles
-        # The handler expects RawJsonResponse which can be list.
-
-        # The handler expects raw JSON, not already Pydantic validated models typically
-        # For candles, it might be list of lists or list of dicts
-        raw_candles = self._response_handler.handle_info_candle_snapshot_response(
-            raw_response_content, symbol, interval, status_code, headers
-        )
-        return self._mapper.transform_raw_candle_snapshot_to_candles(raw_candles, symbol, interval)
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for {symbol}: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+            ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"for {symbol}: {e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unexpected

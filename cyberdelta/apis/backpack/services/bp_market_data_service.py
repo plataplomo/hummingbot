@@ -10,6 +10,7 @@ and returns validated Raw Pydantic Models.
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Awaitable, Callable, Mapping
 from typing import TYPE_CHECKING
 
@@ -45,7 +46,7 @@ from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse  # Impor
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 
 # Base API error models
-from cyberdelta.apis.models.api_error import APIError
+from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models.market import (
     FundingRate,
@@ -112,43 +113,48 @@ class BackpackMarketDataService:
 
     async def get_ticker(self, symbol: str) -> Ticker:
         """Retrieves the latest ticker information for a specific symbol."""
-        params = self._request_builder.build_get_ticker_params(symbol=symbol)
-        endpoint_path = "/api/v1/ticker"  # Define endpoint path in service
-        logger.debug(
-            f"[{self._exchange_name}] Requesting ticker for {symbol} from {endpoint_path} "
-            f"with params: {params}"
-        )
-        raw_data: ParsedJsonResponse | None = None  # For logging in except blocks
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_ticker"
+
+        if not symbol:
+            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
+
+        # Initialize context for error handling
+        raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
-        headers: Mapping[str, str] = {}
+        raw_response_content: str | None = None
+
         try:
-            # _http_client_requester now returns a tuple
+            # Core operational logic
+            params = self._request_builder.build_get_ticker_params(symbol=symbol)
+            endpoint_path = "/api/v1/ticker"
+            logger.debug(
+                f"[{self._exchange_name}] Requesting ticker for {symbol} from {endpoint_path} "
+                f"with params: {params}"
+            )
+
             response_tuple = await self._http_client_requester(
                 method="GET",
-                endpoint=endpoint_path,  # Corrected from endpoint_path
+                endpoint=endpoint_path,
                 params=params,
                 is_signed=False,
                 endpoint_group="public",
                 request_weight=1,
-                is_public_info_endpoint=True,
             )
             raw_data, status_code, headers = response_tuple
+
+            if raw_data is not None:
+                raw_response_content = str(raw_data)
+
             logger.debug(
                 f"[{self._exchange_name}] Raw ticker response for {symbol}: {raw_data!r} "
                 f"(Status: {status_code}, Headers: {headers})"
             )
-            if raw_data is None:  # Check for None before handler
-                # This indicates an issue not caught by _request's error handling
-                # (e.g. 204 no content but expected content)
-                raise APIError(
-                    f"No data for ticker {symbol}, status: {status_code}",
-                    APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
 
-            if not isinstance(raw_data, dict):
+            if raw_data is None or not isinstance(raw_data, dict):
                 raise APIError(
-                    f"Ticker data for {symbol} is not a dict: {type(raw_data)}",
+                    f"Ticker for {symbol} returned invalid data (status: {status_code})",
                     APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
@@ -163,35 +169,61 @@ class BackpackMarketDataService:
                 f"[{self._exchange_name}] Mapped internal ticker for {symbol}: {internal_ticker}"
             )
             return internal_ticker
+
         except APIError:
+            # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise
-        except (ValidationError, ValueError) as e_val:
+        except TransformationError as e_transform:
             logger.error(
-                f"Validation/map error for ticker {symbol}: {e_val}. "
-                f"Raw: {raw_data!r}, Status: {status_code}"
-            )
-            raise APIError(
-                message=f"Processing ticker data failed: {e_val}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                original_exception=e_val,
-                http_status=status_code,
-                exchange_message=str(raw_data),
-            ) from e_val
-        except Exception as e_unhandled:
-            raw_info_for_log = (
-                f"Raw: {raw_data!r}" if raw_data is not None else "Raw data unavailable"
-            )
-            logger.error(
-                f"Unhandled error for ticker {symbol}: {e_unhandled}. "
-                f"{raw_info_for_log}, Status: {status_code}",
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for {symbol}: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
-                message=f"Unexpected error for ticker: {e_unhandled}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for {symbol}: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for {symbol}: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_service_logic
+        except Exception as e_unhandled:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected error "
+                f"for {symbol}: {e_unhandled}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected error occurred.",
                 original_exception=e_unhandled,
-                http_status=status_code,
-                exchange_message=str(raw_data),
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
             ) from e_unhandled
 
     async def get_all_tickers(self) -> dict[str, Ticker]:
@@ -270,16 +302,29 @@ class BackpackMarketDataService:
 
     async def get_order_book(self, symbol: str, limit: int | None = 20) -> OrderBook:
         """Retrieves the order book for a specific symbol."""
-        params = self._request_builder.build_get_order_book_params(symbol=symbol, limit=limit)
-        endpoint_path = "/api/v1/depth"  # Define endpoint path in service
-        logger.debug(
-            f"[{self._exchange_name}] Requesting order book for {symbol} (limit: {limit}) "
-            f"from {endpoint_path} with params: {params}"
-        )
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_order_book"
+
+        if not symbol:
+            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
+        if limit is not None and limit <= 0:
+            raise ValueError(f"[{current_method}] 'limit' must be positive when provided.")
+
+        # Initialize context for error handling
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
-        headers: Mapping[str, str] = {}
+        raw_response_content: str | None = None
+
         try:
+            # Core operational logic
+            params = self._request_builder.build_get_order_book_params(symbol=symbol, limit=limit)
+            endpoint_path = "/api/v1/depth"
+            logger.debug(
+                f"[{self._exchange_name}] Requesting order book for {symbol} (limit: {limit}) "
+                f"from {endpoint_path} with params: {params}"
+            )
+
             response_tuple = await self._http_client_requester(
                 method="GET",
                 endpoint=endpoint_path,
@@ -287,22 +332,20 @@ class BackpackMarketDataService:
                 is_signed=False,
                 endpoint_group="public",
                 request_weight=1,
-                is_public_info_endpoint=True,
             )
             raw_data, status_code, headers = response_tuple
+
+            if raw_data is not None:
+                raw_response_content = str(raw_data)
+
             logger.debug(
                 f"[{self._exchange_name}] Raw order_book for {symbol}: {raw_data!r} "
                 f"(Status: {status_code}, Headers: {headers})"
             )
-            if raw_data is None:
+
+            if raw_data is None or not isinstance(raw_data, dict):
                 raise APIError(
-                    f"No data for order_book {symbol}, status: {status_code}",
-                    APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-            if not isinstance(raw_data, dict):
-                raise APIError(
-                    f"Order_book data for {symbol} is not a dict: {type(raw_data)}",
+                    f"Order book for {symbol} returned invalid data (status: {status_code})",
                     APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
@@ -319,49 +362,90 @@ class BackpackMarketDataService:
                 f"[{self._exchange_name}] Mapped order_book for {symbol}: {internal_order_book}"
             )
             return internal_order_book
+
         except APIError:
+            # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise
-        except (ValidationError, ValueError) as e_val:
+        except TransformationError as e_transform:
             logger.error(
-                f"Validation/map error for order_book {symbol}: {e_val}. "
-                f"Raw: {raw_data!r}, Status: {status_code}"
-            )
-            raise APIError(
-                message=f"Processing order_book failed: {e_val}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                original_exception=e_val,
-                http_status=status_code,
-                exchange_message=str(raw_data),
-            ) from e_val
-        except Exception as e_unhandled:
-            raw_info_for_log = (
-                f"Raw: {raw_data!r}" if raw_data is not None else "Raw data unavailable"
-            )
-            logger.error(
-                f"Unhandled error for order_book {symbol}: {e_unhandled}. "
-                f"{raw_info_for_log}, Status: {status_code}",
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for {symbol}: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
-                message=f"Unexpected error for order_book: {e_unhandled}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for {symbol}: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for {symbol}: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_service_logic
+        except Exception as e_unhandled:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected error "
+                f"for {symbol}: {e_unhandled}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected error occurred.",
                 original_exception=e_unhandled,
-                http_status=status_code,
-                exchange_message=str(raw_data),
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
             ) from e_unhandled
 
     async def get_recent_trades(self, symbol: str, limit: int | None = 100) -> list[Trade]:
         """Retrieves recent trades for a specific symbol."""
-        params = self._request_builder.build_get_recent_trades_params(symbol=symbol, limit=limit)
-        endpoint_path = "/api/v1/trades"  # Define endpoint path in service
-        logger.debug(
-            f"[{self._exchange_name}] Requesting recent trades for {symbol} (limit: {limit}) "
-            f"from {endpoint_path} with params: {params}"
-        )
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_recent_trades"
+
+        if not symbol:
+            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
+        if limit is not None and limit <= 0:
+            raise ValueError(f"[{current_method}] 'limit' must be positive when provided.")
+
+        # Initialize context for error handling
         raw_data_list: ParsedJsonResponse | None = None
         status_code: int = 0
-        headers: Mapping[str, str] = {}
+        raw_response_content: str | None = None
+
         try:
+            # Core operational logic
+            params = self._request_builder.build_get_recent_trades_params(
+                symbol=symbol, limit=limit
+            )
+            endpoint_path = "/api/v1/trades"
+            logger.debug(
+                f"[{self._exchange_name}] Requesting recent trades for {symbol} (limit: {limit}) "
+                f"from {endpoint_path} with params: {params}"
+            )
+
             response_tuple = await self._http_client_requester(
                 method="GET",
                 endpoint=endpoint_path,
@@ -369,22 +453,20 @@ class BackpackMarketDataService:
                 is_signed=False,
                 endpoint_group="public",
                 request_weight=1,
-                is_public_info_endpoint=True,
             )
             raw_data_list, status_code, headers = response_tuple
+
+            if raw_data_list is not None:
+                raw_response_content = str(raw_data_list)
+
             logger.debug(
                 f"[{self._exchange_name}] Raw recent_trades for {symbol}: {raw_data_list!r} "
                 f"(Status: {status_code}, Headers: {headers})"
             )
-            if raw_data_list is None:
+
+            if raw_data_list is None or not isinstance(raw_data_list, list):
                 raise APIError(
-                    f"No data for recent_trades {symbol}, status: {status_code}",
-                    APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-            if not isinstance(raw_data_list, list):
-                raise APIError(
-                    f"Recent_trades data for {symbol} is not a list: {type(raw_data_list)}",
+                    f"Recent trades for {symbol} returned invalid data (status: {status_code})",
                     APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
@@ -410,35 +492,61 @@ class BackpackMarketDataService:
                 f"[{self._exchange_name}] Mapped recent_trades for {symbol}: {internal_trades}"
             )
             return internal_trades
+
         except APIError:
+            # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise
-        except (ValidationError, ValueError) as e_val:
+        except TransformationError as e_transform:
             logger.error(
-                f"Validation/map error for recent_trades {symbol}: {e_val}. "
-                f"Raw: {raw_data_list!r}, Status: {status_code}"
-            )
-            raise APIError(
-                message=f"Processing recent_trades failed: {e_val}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                original_exception=e_val,
-                http_status=status_code,
-                exchange_message=str(raw_data_list),
-            ) from e_val
-        except Exception as e_unhandled:
-            raw_info_for_log = (
-                f"Raw: {raw_data_list!r}" if raw_data_list is not None else "Raw data unavailable"
-            )
-            logger.error(
-                f"Unhandled error for recent_trades {symbol}: {e_unhandled}. "
-                f"{raw_info_for_log}, Status: {status_code}",
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for {symbol}: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
-                message=f"Unexpected error for recent_trades: {e_unhandled}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for {symbol}: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for {symbol}: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_service_logic
+        except Exception as e_unhandled:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected error "
+                f"for {symbol}: {e_unhandled}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected error occurred.",
                 original_exception=e_unhandled,
-                http_status=status_code,
-                exchange_message=str(raw_data_list),
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
             ) from e_unhandled
 
     async def get_funding_rate(self, symbol: str) -> FundingRate:
@@ -460,7 +568,6 @@ class BackpackMarketDataService:
                 is_signed=False,
                 endpoint_group="public",
                 request_weight=1,
-                is_public_info_endpoint=True,
             )
             raw_data, status_code, headers = response_tuple
             logger.debug(
@@ -597,7 +704,6 @@ class BackpackMarketDataService:
                 is_signed=False,
                 endpoint_group="public",
                 request_weight=1,
-                is_public_info_endpoint=True,
             )
             raw_data, status_code, headers = response_tuple  # Assign after successful request
 
@@ -722,7 +828,6 @@ class BackpackMarketDataService:
                 is_signed=False,
                 endpoint_group="public",
                 request_weight=1,
-                is_public_info_endpoint=True,
             )
             raw_data_list, status_code, headers = response_tuple
             logger.debug(

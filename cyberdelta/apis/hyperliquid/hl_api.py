@@ -334,30 +334,28 @@ class HyperliquidAPI(ExchangeAPI):
         return await self.account_service.get_balances()
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
-        """Get current positions."""
-        return await self.account_service.get_positions(symbol=symbol)
+        """Get derivative positions."""
+        return await self.account_service.get_positions(symbol)
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
-        """Retrieves all open orders for the current user, optionally filtered by symbol."""
-        return await self.trading_service.get_open_orders(symbol=symbol)
+        """Get all open orders."""
+        return await self.trading_service.get_open_orders(symbol)
 
     async def get_ticker(self, symbol: str) -> Ticker | None:
-        """Retrieves the latest ticker information for a specific symbol."""
+        """Get ticker information for a specific symbol."""
         return await self.market_data_service.get_ticker(symbol)
 
     async def get_order_book(self, symbol: str, depth: int | None = None) -> OrderBook | None:
-        """Retrieves the order book for a specific symbol."""
+        """Get order book for a specific symbol."""
         return await self.market_data_service.get_order_book(symbol)
 
     async def get_recent_trades(self, symbol: str, limit: int | None = 50) -> list[Trade]:
-        """Retrieves recent public trades for a specific symbol."""
+        """Get recent trades for a specific symbol."""
         return await self.market_data_service.get_recent_trades(symbol)
 
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
-        """Retrieves current funding rates for specified symbols, or all if None.
-        Delegates to HyperliquidMarketDataService.
-        """
-        return await self.market_data_service.get_funding_rates(symbols=symbols)
+        """Get funding rates for specified symbols or all symbols."""
+        return await self.market_data_service.get_funding_rates(symbols)
 
     async def get_market_data(
         self,
@@ -367,7 +365,19 @@ class HyperliquidAPI(ExchangeAPI):
         start_time_ms: int | None = None,
         end_time_ms: int | None = None,
     ) -> list[Candle]:
-        """Retrieves historical kline/candlestick data for a symbol and timeframe."""
+        """
+        Get historical market data (candlesticks) for a specific symbol.
+
+        Args:
+            symbol: Trading pair symbol
+            timeframe: Timeframe for candlesticks
+            limit: Maximum number of candlesticks to return
+            start_time_ms: Start time in milliseconds
+            end_time_ms: End time in milliseconds
+
+        Returns:
+            List of Candle objects representing historical market data
+        """
         # Calculate time range if not provided
         if start_time_ms is None or end_time_ms is None:
             # Import timeframe_to_ms here to avoid circular import
@@ -403,7 +413,7 @@ class HyperliquidAPI(ExchangeAPI):
         reduce_only: bool = False,
         post_only: bool = False,
     ) -> Order:
-        """Places an order on the exchange."""
+        """Place a new order."""
         # Handle optional price - use Decimal("0") for market orders
         order_price = price if price is not None else Decimal("0")
 
@@ -421,27 +431,27 @@ class HyperliquidAPI(ExchangeAPI):
         )
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
-        """Cancels a specific order by its ID."""
+        """Cancel an existing order."""
         return await self.trading_service.cancel_order(symbol=symbol, order_id=order_id)
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
-        """Cancels all open orders, optionally filtered by symbol."""
-        return await self.trading_service.cancel_all_orders(symbol=symbol)
+        """Cancel all open orders."""
+        return await self.trading_service.cancel_all_orders(symbol)
 
     async def get_account_summary(self) -> MarginAccountSummary | None:
-        """Fetches and combines account balance and positions for Hyperliquid."""
+        """Get account summary information."""
         return await self.account_service.get_account_summary()
 
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order | None:
-        """Retrieves the status of a specific order by its ID."""
+        """Fetch the status of a specific order."""
         return await self.trading_service.get_order(symbol=symbol, order_id=order_id)
 
     async def get_order(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order | None:
-        """Retrieves a specific order by its ID, returning None if not found."""
+        """Fetch a single order by its ID."""
         return await self.trading_service.get_order(symbol=symbol, order_id=order_id)
 
     async def get_order_history(
@@ -453,9 +463,11 @@ class HyperliquidAPI(ExchangeAPI):
         order_id: str | None = None,
         client_order_id: str | None = None,
     ) -> list[Order]:
-        """Retrieves historical orders."""
+        """Get historical orders."""
         return await self.account_service.get_order_history(
-            symbol=symbol, start_time=start_time, end_time=end_time
+            symbol=symbol,
+            start_time=start_time,
+            end_time=end_time,
         )
 
     async def get_trade_history(
@@ -463,7 +475,7 @@ class HyperliquidAPI(ExchangeAPI):
         symbol: str | None = None,
         limit: int = 100,
     ) -> list[Trade]:
-        """Retrieves historical trades (fills)."""
+        """Get recent trade history."""
         return await self.account_service.get_trade_history(symbol=symbol)
 
     async def get_historical_funding_rates(
@@ -472,7 +484,7 @@ class HyperliquidAPI(ExchangeAPI):
         start_time: datetime,
         end_time: datetime | None = None,
     ) -> list[FundingRate]:
-        """Request historical funding rates for a specific symbol and time range."""
+        """Get historical funding rates for a specific symbol."""
         return await self.market_data_service.get_historical_funding_rates(
             symbol=symbol, start_time=start_time, end_time=end_time
         )

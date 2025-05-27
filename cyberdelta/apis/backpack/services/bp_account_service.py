@@ -10,6 +10,7 @@ and returns Internal Domain Models.
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Awaitable, Callable, Mapping
 from datetime import datetime
 from decimal import Decimal
@@ -29,7 +30,7 @@ from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdra
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
-from cyberdelta.apis.models.api_error import APIError
+from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
     DerivativePosition,
@@ -117,7 +118,6 @@ class BackpackAccountService:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                is_public_info_endpoint=False,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw balances dict response: {raw_data!r} "
@@ -180,7 +180,6 @@ class BackpackAccountService:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                is_public_info_endpoint=False,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw positions response for '{symbol or 'all'}: "
@@ -250,7 +249,6 @@ class BackpackAccountService:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                is_public_info_endpoint=False,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw account summary response: {raw_data!r} "
@@ -296,8 +294,19 @@ class BackpackAccountService:
 
     async def get_balances(self) -> dict[str, SpotBalance]:
         """Retrieves all spot balances from the account."""
-        logger.info(f"[{self._exchange_name}] Getting account balances.")
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_balances"
+
+        # No input parameters to validate for this method
+
+        # Initialize context for error handling
+        status_code: int = 0
+        raw_response_content: str | None = None
+
         try:
+            # Core operational logic
+            logger.info(f"[{self._exchange_name}] Getting account balances.")
             raw_balances_payload = await self._get_raw_balances_dict()
             internal_balances: dict[str, SpotBalance] = {}
             # raw_balances_payload is dict[str, BackpackRawBalance],
@@ -323,20 +332,60 @@ class BackpackAccountService:
                 f"spot balances."
             )
             return internal_balances
-        except APIError as e_api:
-            logger.error(f"[{self._exchange_name}] API error getting balances: {e_api}")
+
+        except APIError:
+            # Re-raise APIErrors from _get_raw_balances_dict, ResponseHandler, etc.
             raise
-        except Exception as e_unhandled:
+        except TransformationError as e_transform:
             logger.error(
-                f"[{self._exchange_name}] Unexpected error mapping balances: {e_unhandled}",
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data: {e_transform}",
                 exc_info=True,
             )
-            # Wrap in APIError as per service contract for unexpected errors
             raise APIError(
-                message=f"Unexpected error processing balances: {e_unhandled}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error: "
+                f"{e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
-                original_exception=e_unhandled,
-            ) from e_unhandled
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+            ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure: "
+                f"{e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unexpected
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         """Retrieves open derivative positions, optionally filtered by symbol."""
@@ -454,7 +503,6 @@ class BackpackAccountService:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                is_public_info_endpoint=False,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw transfer response: {raw_data!r} "
@@ -568,7 +616,6 @@ class BackpackAccountService:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                is_public_info_endpoint=False,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw withdrawal response: {raw_data!r} "
@@ -667,7 +714,6 @@ class BackpackAccountService:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                is_public_info_endpoint=False,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw order history response: {raw_data!r} "
@@ -764,7 +810,6 @@ class BackpackAccountService:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                is_public_info_endpoint=False,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw trade history response: {raw_data!r} "
