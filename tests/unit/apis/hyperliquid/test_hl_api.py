@@ -370,7 +370,7 @@ class TestHyperliquidAPIAssetIndexingIntegration:
         result = await api.cancel_order(order_id="12345", symbol="BTC")
 
         # Verify the trading service was called correctly
-        mock_hl_trading_service.cancel_order.assert_called_once_with(symbol="BTC", order_id=12345)
+        mock_hl_trading_service.cancel_order.assert_called_once_with(symbol="BTC", order_id="12345")
 
         # Verify the result
         assert result is True
@@ -429,7 +429,7 @@ class TestHyperliquidAPIAssetIndexingIntegration:
         result = await api.get_order(order_id="12345", symbol="ETH")
 
         # Verify the trading service was called correctly
-        mock_hl_trading_service.get_order.assert_called_once_with(symbol="ETH", order_id=12345)
+        mock_hl_trading_service.get_order.assert_called_once_with(symbol="ETH", order_id="12345")
 
         # Verify the result
         assert result == expected_order
@@ -593,7 +593,7 @@ class TestHyperliquidAPIAccountOperations:
         result = await api.get_positions()
 
         # Verify service was called and result returned
-        mock_hl_account_service.get_positions.assert_called_once_with(symbol=None)
+        mock_hl_account_service.get_positions.assert_called_once_with(None)
         assert result == expected_positions
 
         await api.close()
@@ -610,10 +610,10 @@ class TestHyperliquidAPIAccountOperations:
         mock_hl_account_service.get_positions.return_value = expected_positions
 
         # Test delegation with symbol
-        result = await api.get_positions(symbol="ETH")
+        result = await api.get_positions("ETH")
 
         # Verify service was called with correct parameters
-        mock_hl_account_service.get_positions.assert_called_once_with(symbol="ETH")
+        mock_hl_account_service.get_positions.assert_called_once_with("ETH")
         assert result == expected_positions
 
         await api.close()
@@ -729,7 +729,7 @@ class TestHyperliquidAPITradingOperations:
         result = await api.cancel_order(order_id="12345", symbol="BTC")
 
         # Verify service was called with correct parameters
-        mock_hl_trading_service.cancel_order.assert_called_once_with(symbol="BTC", order_id=12345)
+        mock_hl_trading_service.cancel_order.assert_called_once_with(symbol="BTC", order_id="12345")
         assert result is True
 
         await api.close()
@@ -762,7 +762,7 @@ class TestHyperliquidAPITradingOperations:
         result = await api.get_order(order_id="12345", symbol="BTC")
 
         # Verify service was called with correct parameters
-        mock_hl_trading_service.get_order.assert_called_once_with(symbol="BTC", order_id=12345)
+        mock_hl_trading_service.get_order.assert_called_once_with(symbol="BTC", order_id="12345")
         assert result == expected_order
 
         await api.close()
@@ -782,7 +782,7 @@ class TestHyperliquidAPITradingOperations:
         result = await api.get_open_orders(symbol="BTC")
 
         # Verify service was called with correct parameters
-        mock_hl_trading_service.get_open_orders.assert_called_once_with(symbol="BTC")
+        mock_hl_trading_service.get_open_orders.assert_called_once_with("BTC")
         assert result == expected_orders
 
         await api.close()
@@ -842,7 +842,7 @@ class TestHyperliquidAPIMarketDataOperations:
         result = await api.get_funding_rates(symbols=["BTC"])
 
         # Verify service was called with correct parameters
-        mock_hl_market_data_service.get_funding_rates.assert_called_once_with(symbols=["BTC"])
+        mock_hl_market_data_service.get_funding_rates.assert_called_once_with(["BTC"])
         assert result == expected_funding_rates
 
         await api.close()
@@ -1090,7 +1090,7 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
 
         assert exc_info.value.code == APIErrorCode.RATE_LIMITED.value
         assert exc_info.value.http_status == 429
-        mock_hl_account_service.get_positions.assert_called_once_with(symbol="BTC")
+        mock_hl_account_service.get_positions.assert_called_once_with("BTC")
 
         await api.close()
 
@@ -1207,7 +1207,7 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
             await api.cancel_order("12345", symbol="BTC")
 
         assert exc_info.value.code == APIErrorCode.INSUFFICIENT_FUNDS.value
-        mock_hl_trading_service.cancel_order.assert_called_once_with(symbol="BTC", order_id=12345)
+        mock_hl_trading_service.cancel_order.assert_called_once_with(symbol="BTC", order_id="12345")
 
         await api.close()
 
@@ -1225,7 +1225,7 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
         result = await api.get_order("99999", symbol="BTC")
 
         assert result is None
-        mock_hl_trading_service.get_order.assert_called_once_with(symbol="BTC", order_id=99999)
+        mock_hl_trading_service.get_order.assert_called_once_with(symbol="BTC", order_id="99999")
 
         await api.close()
 
@@ -1250,7 +1250,7 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
 
         assert exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
         assert exc_info.value.exchange_message == "Maintenance mode active"
-        mock_hl_trading_service.get_open_orders.assert_called_once_with(symbol=None)
+        mock_hl_trading_service.get_open_orders.assert_called_once_with(None)
 
         await api.close()
 
@@ -1290,7 +1290,7 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
         result = await api.get_positions(symbol="")
 
         assert result == []
-        mock_hl_account_service.get_positions.assert_called_once_with(symbol="")
+        mock_hl_account_service.get_positions.assert_called_once_with("")
 
         await api.close()
 

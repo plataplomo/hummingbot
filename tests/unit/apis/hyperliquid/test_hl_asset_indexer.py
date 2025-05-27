@@ -143,7 +143,6 @@ class TestHyperliquidAssetIndexResolver:
             method="POST",
             endpoint="/info",
             data={"type": "metaAndAssetCtxs"},
-            is_public_info_endpoint=True,
         )
 
         # Assert response handler was called
@@ -419,5 +418,5 @@ class TestHyperliquidAssetIndexResolver:
             mock_request_builder.build_info_request_payload.return_value.model_dump.return_value
         )
         mock_requester.assert_called_once_with(
-            method="POST", endpoint="/info", data=expected_payload, is_public_info_endpoint=True
+            method="POST", endpoint="/info", data=expected_payload
         )

@@ -158,7 +158,7 @@ class TestBackpackAPIPublicBehavior:
 
             assert result == mock_order_book
             assert result.symbol == "SOL_USDC"
-            mock_get_order_book.assert_called_once_with(symbol="SOL_USDC", limit=50)
+            mock_get_order_book.assert_called_once_with("SOL_USDC", 50)
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_success(self, backpack_api: BackpackAPI) -> None:
@@ -302,7 +302,7 @@ class TestBackpackAPIPublicBehavior:
             result = await backpack_api.cancel_order("order123", "SOL_USDC")
 
             assert result is True
-            mock_cancel.assert_called_once_with(order_id="order123", symbol="SOL_USDC")
+            mock_cancel.assert_called_once_with("order123", "SOL_USDC")
 
     @pytest.mark.asyncio
     async def test_cancel_order_requires_symbol(self, backpack_api: BackpackAPI) -> None:
@@ -310,7 +310,7 @@ class TestBackpackAPIPublicBehavior:
         with pytest.raises(ValueError) as exc_info:
             await backpack_api.cancel_order("order123")
 
-        assert "Symbol is required" in str(exc_info.value)
+        assert "'symbol' must be a non-empty string" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_open_orders_success(self, backpack_api: BackpackAPI) -> None:
@@ -453,7 +453,7 @@ class TestBackpackAPIPublicBehavior:
         with pytest.raises(ValueError) as exc_info:
             await backpack_api.get_order("order123")
 
-        assert "Symbol is required" in str(exc_info.value)
+        assert "'symbol' must be a non-empty string" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_order_status_success(self, backpack_api: BackpackAPI) -> None:
@@ -478,7 +478,7 @@ class TestBackpackAPIPublicBehavior:
         with pytest.raises(ValueError) as exc_info:
             await backpack_api.get_order_status("order123")
 
-        assert "Symbol is required" in str(exc_info.value)
+        assert "'symbol' must be a non-empty string" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_all_open_orders_success(self, backpack_api: BackpackAPI) -> None:

@@ -114,7 +114,6 @@ class TestBackpackAccountServicePositions:
             is_signed=True,
             endpoint_group="private",
             request_weight=1,
-            is_public_info_endpoint=False,
         )
         mock_response_handler.handle_get_positions_response.assert_called_with(
             mock_raw_positions_data_item_dict, None
@@ -159,7 +158,6 @@ class TestBackpackAccountServicePositions:
             is_signed=True,
             endpoint_group="private",
             request_weight=1,
-            is_public_info_endpoint=False,
         )
         mock_response_handler.handle_get_positions_response.assert_called_with(
             mock_raw_positions_data_item_dict, symbol_arg

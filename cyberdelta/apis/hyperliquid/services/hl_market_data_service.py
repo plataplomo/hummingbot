@@ -133,6 +133,9 @@ class HyperliquidMarketDataService:
                 method="POST",
                 endpoint=endpoint_path,
                 data=request_payload_data_dict,
+                is_signed=False,
+                endpoint_group="public",
+                request_weight=1,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw all_asset_contexts response: "
@@ -335,6 +338,9 @@ class HyperliquidMarketDataService:
                 method="POST",
                 endpoint=endpoint_path,
                 data=request_payload_data,
+                is_signed=False,
+                endpoint_group="public",
+                request_weight=1,
             )
 
             if raw_response_content_parsed is not None:
@@ -466,6 +472,9 @@ class HyperliquidMarketDataService:
                 method="POST",
                 endpoint=endpoint_path,
                 data=request_payload_data,
+                is_signed=False,
+                endpoint_group="public",
+                request_weight=1,
             )
 
             if raw_response_content_parsed is not None:
@@ -840,6 +849,9 @@ class HyperliquidMarketDataService:
                 method="POST",
                 endpoint=endpoint_path,
                 data=payload,
+                is_signed=False,
+                endpoint_group="public",
+                request_weight=1,
             )
 
             if raw_response_content is None:
@@ -1014,6 +1026,9 @@ class HyperliquidMarketDataService:
                 data=payload.model_dump(
                     by_alias=True, exclude_none=True
                 ),  # Payload itself is a dict[str, Any]
+                is_signed=False,
+                endpoint_group="public",
+                request_weight=1,
             )
 
             if raw_response_content_parsed is not None:

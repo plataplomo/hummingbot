@@ -114,7 +114,6 @@ class TestBackpackTradingServiceQueryStatus:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                is_public_info_endpoint=False,
                 rate_limiter_service=mock_rate_limiter_service,
             )
             mock_response_handler.handle_get_open_orders_response.assert_called_once_with(
@@ -156,7 +155,6 @@ class TestBackpackTradingServiceQueryStatus:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                is_public_info_endpoint=False,
                 rate_limiter_service=mock_rate_limiter_service,
             )
             mock_response_handler.handle_get_open_orders_response.assert_not_called()
@@ -307,7 +305,6 @@ class TestBackpackTradingServiceQueryStatus:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                is_public_info_endpoint=False,
                 rate_limiter_service=mock_rate_limiter_service,
             )
             mock_response_handler.handle_get_order_status_response.assert_called_once_with(
@@ -350,7 +347,6 @@ class TestBackpackTradingServiceQueryStatus:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                is_public_info_endpoint=False,
                 rate_limiter_service=mock_rate_limiter_service,
             )
             mock_response_handler.handle_get_order_status_response.assert_not_called()
@@ -528,7 +524,6 @@ class TestBackpackTradingServiceQueryStatus:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                is_public_info_endpoint=False,
                 rate_limiter_service=mock_rate_limiter_service,
             )
             mock_response_handler.handle_get_order_status_response.assert_called_once_with(
@@ -571,7 +566,6 @@ class TestBackpackTradingServiceQueryStatus:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                is_public_info_endpoint=False,
                 rate_limiter_service=mock_rate_limiter_service,
             )
             mock_response_handler.handle_get_order_status_response.assert_not_called()
@@ -749,7 +743,6 @@ class TestBackpackTradingServiceQueryStatus:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                is_public_info_endpoint=False,
                 rate_limiter_service=mock_rate_limiter_service,
             )
             mock_response_handler.handle_get_open_orders_response.assert_called_once_with(

@@ -204,7 +204,7 @@ class TestHyperliquidMarketDataServiceFundingRates:
 
         # Call service method with correct parameter names
         result_funding_rates = await hyperliquid_market_data_service.get_historical_funding_rates(
-            symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+            symbol=symbol, start_time=start_time, end_time=end_time
         )
 
         # Assertions
@@ -217,7 +217,9 @@ class TestHyperliquidMarketDataServiceFundingRates:
             method="POST",
             endpoint="/info",
             data=mock_payload_model,
-            is_public_info_endpoint=True,
+            is_signed=False,
+            endpoint_group="public",
+            request_weight=1,
         )
         mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
             raw_response_content=mock_raw_response_content,
@@ -242,8 +244,10 @@ class TestHyperliquidMarketDataServiceFundingRates:
     ) -> None:
         """Test get_historical_funding_rates when HTTP client returns None content."""
         symbol = "ETH"
-        start_time_ms = int(datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
-        end_time_ms = int(datetime(2023, 1, 2, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
+        start_time = datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC)
+        end_time = datetime(2023, 1, 2, 0, 0, 0, tzinfo=UTC)
+        start_time_ms = int(start_time.timestamp() * 1000)
+        end_time_ms = int(end_time.timestamp() * 1000)
 
         mock_payload_model = MagicMock()
         mock_payload_dict = {
@@ -261,7 +265,7 @@ class TestHyperliquidMarketDataServiceFundingRates:
 
         with pytest.raises(APIError) as exc_info:
             await hyperliquid_market_data_service.get_historical_funding_rates(
-                symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+                symbol=symbol, start_time=start_time, end_time=end_time
             )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -276,7 +280,9 @@ class TestHyperliquidMarketDataServiceFundingRates:
             method="POST",
             endpoint="/info",
             data=mock_payload_model,
-            is_public_info_endpoint=True,
+            is_signed=False,
+            endpoint_group="public",
+            request_weight=1,
         )
         mock_hl_response_handler.handle_historical_funding_rates_response.assert_not_called()
         mock_hl_mapper.transform_raw_funding_history_item_to_internal.assert_not_called()
@@ -291,8 +297,10 @@ class TestHyperliquidMarketDataServiceFundingRates:
     ) -> None:
         """Test get_historical_funding_rates handles response validation errors."""
         symbol = "BTC"
-        start_time_ms = int(datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
-        end_time_ms = int(datetime(2023, 1, 2, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
+        start_time = datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC)
+        end_time = datetime(2023, 1, 2, 0, 0, 0, tzinfo=UTC)
+        start_time_ms = int(start_time.timestamp() * 1000)
+        end_time_ms = int(end_time.timestamp() * 1000)
 
         # Setup mocks
         mock_payload_model = MagicMock()
@@ -325,7 +333,7 @@ class TestHyperliquidMarketDataServiceFundingRates:
 
         with pytest.raises(APIError) as exc_info:
             await hyperliquid_market_data_service.get_historical_funding_rates(
-                symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+                symbol=symbol, start_time=start_time, end_time=end_time
             )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -343,8 +351,10 @@ class TestHyperliquidMarketDataServiceFundingRates:
     ) -> None:
         """Test get_historical_funding_rates handles mapper errors gracefully."""
         symbol = "BTC"
-        start_time_ms = int(datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
-        end_time_ms = int(datetime(2023, 1, 2, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
+        start_time = datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC)
+        end_time = datetime(2023, 1, 2, 0, 0, 0, tzinfo=UTC)
+        start_time_ms = int(start_time.timestamp() * 1000)
+        end_time_ms = int(end_time.timestamp() * 1000)
 
         # Setup successful HTTP and response handler mocks
         mock_payload_model = MagicMock()
@@ -378,7 +388,7 @@ class TestHyperliquidMarketDataServiceFundingRates:
 
         with pytest.raises(APIError) as exc_info:
             await hyperliquid_market_data_service.get_historical_funding_rates(
-                symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+                symbol=symbol, start_time=start_time, end_time=end_time
             )
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
@@ -400,8 +410,8 @@ class TestHyperliquidMarketDataServiceFundingRates:
     ) -> None:
         """Test get_historical_funding_rates propagates APIError from response handler."""
         symbol = "ETH"
-        start_time_ms = int(datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
-        end_time_ms = int(datetime(2023, 1, 2, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
+        start_time = datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC)
+        end_time = datetime(2023, 1, 2, 0, 0, 0, tzinfo=UTC)
 
         # Setup mocks
         mock_payload_model = MagicMock()
@@ -425,7 +435,7 @@ class TestHyperliquidMarketDataServiceFundingRates:
 
         with pytest.raises(APIError) as exc_info:
             await hyperliquid_market_data_service.get_historical_funding_rates(
-                symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+                symbol=symbol, start_time=start_time, end_time=end_time
             )
 
         assert exc_info.value == api_error
@@ -472,8 +482,8 @@ class TestHyperliquidMarketDataServiceFundingRates:
     ) -> None:
         """Test comprehensive error scenarios for get_historical_funding_rates."""
         symbol = "BTC"
-        start_time_ms = int(datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
-        end_time_ms = int(datetime(2023, 1, 2, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
+        start_time = datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC)
+        end_time = datetime(2023, 1, 2, 0, 0, 0, tzinfo=UTC)
 
         # Test case 1: Empty response but successful
         mock_payload_model = MagicMock()
@@ -488,7 +498,7 @@ class TestHyperliquidMarketDataServiceFundingRates:
         mock_hl_response_handler.handle_historical_funding_rates_response.return_value = []
 
         result_empty = await hyperliquid_market_data_service.get_historical_funding_rates(
-            symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+            symbol=symbol, start_time=start_time, end_time=end_time
         )
         assert result_empty == []
 
@@ -530,7 +540,7 @@ class TestHyperliquidMarketDataServiceFundingRates:
         # Should fail on the second item and raise APIError
         with pytest.raises(APIError) as exc_info:
             await hyperliquid_market_data_service.get_historical_funding_rates(
-                symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+                symbol=symbol, start_time=start_time, end_time=end_time
             )
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
@@ -545,8 +555,10 @@ class TestHyperliquidMarketDataServiceFundingRates:
     ) -> None:
         """Test get_historical_funding_rates when HTTP client raises connection error."""
         symbol = "BTC"
-        start_time_ms = int(datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
-        end_time_ms = int(datetime(2023, 1, 2, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
+        start_time = datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC)
+        end_time = datetime(2023, 1, 2, 0, 0, 0, tzinfo=UTC)
+        start_time_ms = int(start_time.timestamp() * 1000)
+        end_time_ms = int(end_time.timestamp() * 1000)
 
         mock_payload_model = MagicMock()
         mock_hl_request_builder.build_historical_funding_rates_payload.return_value = (
@@ -560,7 +572,7 @@ class TestHyperliquidMarketDataServiceFundingRates:
 
         with pytest.raises(APIError) as exc_info:
             await hyperliquid_market_data_service.get_historical_funding_rates(
-                symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+                symbol=symbol, start_time=start_time, end_time=end_time
             )
 
         assert exc_info.value.code == APIErrorCode.NETWORK_ISSUE.value

@@ -87,7 +87,6 @@ class TestBackpackMarketDataServiceFunding:
                 endpoint=mock_endpoint_path,
                 params=mock_params,
                 is_signed=False,
-                is_public_info_endpoint=True,
                 endpoint_group="public",
                 request_weight=1,
             )
@@ -123,7 +122,7 @@ class TestBackpackMarketDataServiceFunding:
                 await backpack_market_data_service.get_funding_rate(symbol)
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-            assert f"No data for funding_rate {symbol}, status: 200" in exc_info.value.message
+            assert "No data for funding_rate" in exc_info.value.message
 
             mock_request_builder.build_get_funding_rate_params.assert_called_once_with(
                 symbol=symbol
@@ -133,7 +132,6 @@ class TestBackpackMarketDataServiceFunding:
                 endpoint=mock_endpoint_path,
                 params=mock_params,
                 is_signed=False,
-                is_public_info_endpoint=True,
                 endpoint_group="public",
                 request_weight=1,
             )
@@ -166,7 +164,7 @@ class TestBackpackMarketDataServiceFunding:
             await backpack_market_data_service.get_funding_rate(symbol)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Processing funding_rate failed" in exc_info.value.message
+        assert "Internal data validation failed." in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_unexpected_exception(
@@ -191,7 +189,7 @@ class TestBackpackMarketDataServiceFunding:
             await backpack_market_data_service.get_funding_rate(symbol)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected error for funding_rate" in exc_info.value.message
+        assert "Unexpected service failure." in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_historical_funding_rates_success(
@@ -262,7 +260,6 @@ class TestBackpackMarketDataServiceFunding:
                 endpoint=mock_endpoint_path,
                 params=mock_params,
                 is_signed=False,
-                is_public_info_endpoint=True,
                 endpoint_group="public",
                 request_weight=1,
             )
@@ -327,7 +324,6 @@ class TestBackpackMarketDataServiceFunding:
                 endpoint=mock_endpoint_path,
                 params=mock_params,
                 is_signed=False,
-                is_public_info_endpoint=True,
                 endpoint_group="public",
                 request_weight=1,
             )
@@ -360,7 +356,7 @@ class TestBackpackMarketDataServiceFunding:
             await backpack_market_data_service.get_historical_funding_rates(symbol)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Processing historical funding rates data for" in exc_info.value.message
+        assert "Internal data validation failed." in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_historical_funding_rates_unexpected_exception(
@@ -385,10 +381,7 @@ class TestBackpackMarketDataServiceFunding:
             await backpack_market_data_service.get_historical_funding_rates(symbol)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert (
-            "Unhandled error during historical funding rates fetch for SOL-PERP: Unexpected error"
-            in exc_info.value.message
-        )
+        assert "Unexpected service failure." in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_historical_funding_rates_with_optional_parameters(

@@ -30,6 +30,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test place_order successfully places an order."""
         symbol = "SOL_USDC"
@@ -144,7 +145,6 @@ class TestBackpackTradingServiceOrderManagement:
                 endpoint=mock_endpoint_path,
                 data=mock_payload,
                 is_signed=True,
-                is_public_info_endpoint=False,
                 endpoint_group="private",
                 request_weight=1,
             )
@@ -161,6 +161,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test place_order when HTTP client returns None content."""
         symbol = "SOL_USDC"
@@ -195,8 +196,10 @@ class TestBackpackTradingServiceOrderManagement:
                 )
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-            expected_msg_part = f"Place order for {symbol} returned invalid data"
-            assert expected_msg_part in exc_info.value.message
+            assert (
+                f"Place order for {symbol} returned invalid data (status: 200)"
+                in exc_info.value.message
+            )
 
             mock_request_builder.build_place_order_payload.assert_called_once_with(
                 symbol=symbol,
@@ -214,7 +217,6 @@ class TestBackpackTradingServiceOrderManagement:
                 endpoint=mock_endpoint_path,
                 data=mock_payload,
                 is_signed=True,
-                is_public_info_endpoint=False,
                 endpoint_group="private",
                 request_weight=1,
             )
@@ -228,6 +230,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test place_order handles validation error from response handler."""
         symbol = "SOL_USDC"
@@ -259,8 +262,8 @@ class TestBackpackTradingServiceOrderManagement:
                 price=price,
             )
 
-        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert f"Unexpected error placing order for {symbol}" in exc_info.value.message
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Internal data validation failed." in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_place_order_unexpected_exception(
@@ -269,6 +272,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test place_order handles unexpected exception."""
         symbol = "SOL_USDC"
@@ -298,7 +302,7 @@ class TestBackpackTradingServiceOrderManagement:
             )
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert f"Unexpected error placing order for {symbol}" in exc_info.value.message
+        assert "Unexpected service failure" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_cancel_order_success(
@@ -307,6 +311,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test cancel_order successfully cancels an order."""
         symbol = "SOL_USDC"
@@ -347,7 +352,6 @@ class TestBackpackTradingServiceOrderManagement:
             endpoint=mock_endpoint_path,
             data=mock_payload,
             is_signed=True,
-            is_public_info_endpoint=False,
             endpoint_group="private",
             request_weight=1,
         )
@@ -365,6 +369,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test cancel_order when HTTP client returns None content."""
         symbol = "SOL_USDC"
@@ -380,19 +385,19 @@ class TestBackpackTradingServiceOrderManagement:
             await bp_trading_service.cancel_order(order_id=order_id, symbol=symbol)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        expected_msg_part = f"No data received when cancelling order {order_id} ({symbol})"
-        assert expected_msg_part in exc_info.value.message
+        assert (
+            f"No data received when cancelling order {order_id} ({symbol}), status: 200"
+            in exc_info.value.message
+        )
 
         mock_request_builder.build_cancel_order_payload.assert_called_once_with(
-            symbol=symbol,
-            order_id=order_id,
+            symbol=symbol, order_id=order_id
         )
         mock_http_client_requester.assert_called_once_with(
             method="DELETE",
             endpoint=mock_endpoint_path,
             data=mock_payload,
             is_signed=True,
-            is_public_info_endpoint=False,
             endpoint_group="private",
             request_weight=1,
         )
@@ -405,6 +410,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test cancel_order handles validation error from response handler."""
         symbol = "SOL_USDC"
@@ -426,8 +432,8 @@ class TestBackpackTradingServiceOrderManagement:
         with pytest.raises(APIError) as exc_info:
             await bp_trading_service.cancel_order(order_id=order_id, symbol=symbol)
 
-        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert f"Unexpected error cancelling order {order_id} ({symbol})" in exc_info.value.message
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Internal data validation failed." in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_cancel_order_unexpected_exception(
@@ -436,6 +442,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test cancel_order handles unexpected exception."""
         symbol = "SOL_USDC"
@@ -454,7 +461,7 @@ class TestBackpackTradingServiceOrderManagement:
             await bp_trading_service.cancel_order(order_id=order_id, symbol=symbol)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert f"Unexpected error cancelling order {order_id} ({symbol})" in exc_info.value.message
+        assert "Unexpected service failure" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_cancel_all_orders_success(
@@ -463,42 +470,34 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
-        """Test cancel_all_orders successfully cancels all orders."""
+        """Test cancel_all_orders successfully cancels orders for a given symbol."""
         symbol = "SOL_USDC"
-
-        mock_endpoint_path = "/api/v1/orders"  # Fixed endpoint path
         mock_payload = {"symbol": symbol}
-        # Backpack returns a list of cancelled order IDs (strings)
-        mock_raw_response_content = ["order_123", "order_124"]
-        mock_status_code = 200
-        mock_headers_from_client = MagicMock()
+        mock_raw_response_list = ["order1", "order2"]
 
         mock_request_builder.build_cancel_all_orders_payload.return_value = mock_payload
-        mock_http_client_requester.return_value = (
-            mock_raw_response_content,
-            mock_status_code,
-            mock_headers_from_client,
-        )
+        mock_http_client_requester.return_value = (mock_raw_response_list, 200, {})
 
         result = await bp_trading_service.cancel_all_orders(symbol=symbol)
 
         mock_request_builder.build_cancel_all_orders_payload.assert_called_once_with(symbol=symbol)
         mock_http_client_requester.assert_called_once_with(
             method="DELETE",
-            endpoint=mock_endpoint_path,
-            data=mock_payload,
+            endpoint="/api/v1/orders",
+            data={"symbol": "SOL_USDC"},
             is_signed=True,
-            is_public_info_endpoint=False,
             endpoint_group="private",
             request_weight=1,
+            rate_limiter_service=mock_rate_limiter_service,
         )
 
         # Verify the service builds CancelOrderResult objects correctly
         assert len(result) == 2
         assert all(cancel_result.success for cancel_result in result)
-        assert result[0].order_id == "order_123"
-        assert result[1].order_id == "order_124"
+        assert result[0].order_id == "order1"
+        assert result[1].order_id == "order2"
         assert all(cancel_result.symbol == symbol for cancel_result in result)
 
     @pytest.mark.asyncio
@@ -508,28 +507,26 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test cancel_all_orders when HTTP client returns None content."""
         symbol = "SOL_USDC"
-
-        mock_endpoint_path = "/api/v1/orders"  # Fixed endpoint path
         mock_payload = {"symbol": symbol}
 
         mock_request_builder.build_cancel_all_orders_payload.return_value = mock_payload
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
-        # Service returns empty list when no data received, not an APIError
         result = await bp_trading_service.cancel_all_orders(symbol=symbol)
 
         mock_request_builder.build_cancel_all_orders_payload.assert_called_once_with(symbol=symbol)
         mock_http_client_requester.assert_called_once_with(
             method="DELETE",
-            endpoint=mock_endpoint_path,
-            data=mock_payload,
+            endpoint="/api/v1/orders",
+            data={"symbol": "SOL_USDC"},
             is_signed=True,
-            is_public_info_endpoint=False,
             endpoint_group="private",
             request_weight=1,
+            rate_limiter_service=mock_rate_limiter_service,
         )
 
         # Service returns empty list when no data received
@@ -542,6 +539,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test place_order with optional parameters like stop_price and post_only."""
         symbol = "SOL_USDC"
@@ -653,6 +651,7 @@ class TestBackpackTradingServiceOrderManagement:
         bp_trading_service: BackpackTradingService,
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test place_order handles non-dict response."""
         symbol = "SOL_USDC"
@@ -677,7 +676,10 @@ class TestBackpackTradingServiceOrderManagement:
             )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert f"Place order for {symbol} returned invalid data" in exc_info.value.message
+        assert (
+            f"Place order for {symbol} returned invalid data (status: 200)"
+            in exc_info.value.message
+        )
 
     @pytest.mark.asyncio
     async def test_cancel_all_orders_no_data(
@@ -685,6 +687,7 @@ class TestBackpackTradingServiceOrderManagement:
         bp_trading_service: BackpackTradingService,
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
+        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test cancel_all_orders when no data is returned."""
         symbol = "SOL_USDC"

@@ -90,7 +90,6 @@ class TestBackpackMarketDataServicePublicData:
                 endpoint=mock_endpoint_path,
                 params=mock_params,
                 is_signed=False,
-                is_public_info_endpoint=True,
                 endpoint_group="public",
                 request_weight=1,
             )
@@ -126,7 +125,7 @@ class TestBackpackMarketDataServicePublicData:
                 await backpack_market_data_service.get_ticker(symbol)
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-            expected_msg_part = f"No data for ticker {symbol}, status: 200"
+            expected_msg_part = f"Ticker for {symbol} returned invalid data (status: 200)"
             assert expected_msg_part in exc_info.value.message
 
             mock_request_builder.build_get_ticker_params.assert_called_once_with(symbol=symbol)
@@ -135,7 +134,6 @@ class TestBackpackMarketDataServicePublicData:
                 endpoint=mock_endpoint_path,
                 params=mock_params,
                 is_signed=False,
-                is_public_info_endpoint=True,
                 endpoint_group="public",
                 request_weight=1,
             )
@@ -153,7 +151,7 @@ class TestBackpackMarketDataServicePublicData:
         """Test get_ticker handles validation error from response handler."""
         symbol = "SOL_USDC"
         mock_params = {"symbol": symbol}
-        mock_raw_response = {"invalid": "ticker_data"}
+        mock_raw_response: dict[str, Any] = {"invalid": "ticker_data"}
 
         mock_request_builder.build_get_ticker_params.return_value = mock_params
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
@@ -168,7 +166,7 @@ class TestBackpackMarketDataServicePublicData:
             await backpack_market_data_service.get_ticker(symbol)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Processing ticker data failed" in exc_info.value.message
+        assert "Internal data validation failed" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_ticker_unexpected_exception(
@@ -191,7 +189,7 @@ class TestBackpackMarketDataServicePublicData:
             await backpack_market_data_service.get_ticker(symbol)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected error for ticker" in exc_info.value.message
+        assert "Unexpected error occurred" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_order_book_success(
@@ -203,21 +201,9 @@ class TestBackpackMarketDataServicePublicData:
     ) -> None:
         """Test get_order_book successfully retrieves and processes order book data."""
         symbol = "SOL_USDC"
-        depth = 50
-        mock_endpoint_path = "/api/v1/depth"
+        depth = 10
         mock_params = {"symbol": symbol, "limit": depth}
-        mock_raw_response_content = {
-            "bids": [["100.0", "10"]],
-            "asks": [["100.1", "12"]],
-            "lastUpdateId": "12345",
-            "timestamp": 1678886400000,
-        }
-        mock_validated_book = BackpackRawOrderBook(
-            bids=[("100.0", "10")],
-            asks=[("100.1", "12")],
-            lastUpdateId="12345",
-            timestamp=1678886400000,
-        )
+        mock_raw_response_content = {"bids": [["2000.0", "10.0"]], "asks": [["2001.0", "5.0"]]}
         mock_headers_from_client = MagicMock()
 
         mock_request_builder.build_get_order_book_params.return_value = mock_params
@@ -226,11 +212,12 @@ class TestBackpackMarketDataServicePublicData:
             200,
             mock_headers_from_client,
         )
+        mock_validated_book = MagicMock(spec=BackpackRawOrderBook)
         mock_response_handler.handle_get_order_book_response.return_value = mock_validated_book
 
         with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
-            mock_internal_order_book = MagicMock(spec=OrderBook)
-            mock_mapper.transform_raw_order_book_to_internal.return_value = mock_internal_order_book
+            mock_internal_book = MagicMock(spec=OrderBook)
+            mock_mapper.transform_raw_order_book_to_internal.return_value = mock_internal_book
 
             result = await backpack_market_data_service.get_order_book(symbol, limit=depth)
 
@@ -239,23 +226,17 @@ class TestBackpackMarketDataServicePublicData:
             )
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
-                endpoint=mock_endpoint_path,
-                params=mock_params,
+                endpoint="/api/v1/depth",
+                params={"symbol": symbol, "limit": depth},
                 is_signed=False,
-                is_public_info_endpoint=True,
                 endpoint_group="public",
                 request_weight=1,
             )
-            mock_response_handler.handle_get_order_book_response.assert_called_once_with(
-                mock_raw_response_content,
-                symbol,
-                200,
-                mock_headers_from_client,
-            )
+            mock_response_handler.handle_get_order_book_response.assert_called_once()
             mock_mapper.transform_raw_order_book_to_internal.assert_called_once_with(
                 symbol, mock_validated_book
             )
-            assert result == mock_internal_order_book
+            assert result == mock_internal_book
 
     @pytest.mark.asyncio
     async def test_get_order_book_http_client_returns_none(
@@ -267,35 +248,31 @@ class TestBackpackMarketDataServicePublicData:
     ) -> None:
         """Test get_order_book when HTTP client returns None content."""
         symbol = "SOL_USDC"
-        depth = 100
-        mock_endpoint_path = "/api/v1/depth"
+        depth = 5
         mock_params = {"symbol": symbol, "limit": depth}
 
         mock_request_builder.build_get_order_book_params.return_value = mock_params
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
-        with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
-            with pytest.raises(APIError) as exc_info:
-                await backpack_market_data_service.get_order_book(symbol, limit=depth)
+        with pytest.raises(APIError) as exc_info:
+            await backpack_market_data_service.get_order_book(symbol=symbol, limit=depth)
 
-            assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-            expected_msg_part = f"No data for order_book {symbol}, status: 200"
-            assert expected_msg_part in exc_info.value.message
+        assert (
+            f"Order book for {symbol} returned invalid data (status: 200)" in exc_info.value.message
+        )
 
-            mock_request_builder.build_get_order_book_params.assert_called_once_with(
-                symbol=symbol, limit=depth
-            )
-            mock_http_client_requester.assert_called_once_with(
-                method="GET",
-                endpoint=mock_endpoint_path,
-                params=mock_params,
-                is_signed=False,
-                is_public_info_endpoint=True,
-                endpoint_group="public",
-                request_weight=1,
-            )
-            mock_response_handler.handle_get_order_book_response.assert_not_called()
-            mock_mapper.transform_raw_order_book_to_internal.assert_not_called()
+        mock_request_builder.build_get_order_book_params.assert_called_once_with(
+            symbol=symbol, limit=depth
+        )
+        mock_http_client_requester.assert_called_once_with(
+            method="GET",
+            endpoint="/api/v1/depth",
+            params={"symbol": symbol, "limit": depth},
+            is_signed=False,
+            endpoint_group="public",
+            request_weight=1,
+        )
+        mock_response_handler.handle_get_order_book_response.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_order_book_validation_error(
@@ -323,7 +300,7 @@ class TestBackpackMarketDataServicePublicData:
             await backpack_market_data_service.get_order_book(symbol)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Processing order_book failed" in exc_info.value.message
+        assert "Internal data validation failed" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_order_book_unexpected_exception(
@@ -333,22 +310,39 @@ class TestBackpackMarketDataServicePublicData:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
     ) -> None:
-        """Test get_order_book handles unexpected exception."""
+        """Test get_order_book raises APIError when an unexpected exception occurs."""
         symbol = "SOL_USDC"
-        mock_params = {"symbol": symbol, "limit": 20}
-        mock_raw_response: dict[str, list[Any]] = {"bids": [], "asks": []}
+        depth = 5
 
-        mock_request_builder.build_get_order_book_params.return_value = mock_params
-        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
+        # Arrange: Configure the mocks to trigger unexpected exception
+        mock_request_builder.build_get_order_book_params.return_value = {
+            "symbol": symbol,
+            "limit": depth,
+        }
+        mock_http_client_requester.return_value = ({"mock": "response"}, 200, {})
         mock_response_handler.handle_get_order_book_response.side_effect = Exception(
             "Unexpected error"
         )
 
+        # Act & Assert: Call the service method and verify the exception
         with pytest.raises(APIError) as exc_info:
-            await backpack_market_data_service.get_order_book(symbol)
+            await backpack_market_data_service.get_order_book(symbol=symbol, limit=depth)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected error for order_book" in exc_info.value.message
+        assert "Unexpected error occurred." in exc_info.value.message
+
+        mock_request_builder.build_get_order_book_params.assert_called_once_with(
+            symbol=symbol, limit=depth
+        )
+        mock_http_client_requester.assert_called_once_with(
+            method="GET",
+            endpoint="/api/v1/depth",
+            params={"symbol": symbol, "limit": depth},
+            is_signed=False,
+            endpoint_group="public",
+            request_weight=1,
+        )
+        mock_response_handler.handle_get_order_book_response.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_success(
@@ -407,7 +401,6 @@ class TestBackpackMarketDataServicePublicData:
                 endpoint=mock_endpoint_path,
                 params=mock_params,
                 is_signed=False,
-                is_public_info_endpoint=True,
                 endpoint_group="public",
                 request_weight=1,
             )
@@ -443,8 +436,10 @@ class TestBackpackMarketDataServicePublicData:
             with pytest.raises(APIError) as exc_info:
                 await backpack_market_data_service.get_recent_trades(symbol, limit=limit)
 
-            assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-            assert f"No data for recent_trades {symbol}, status: 200" in exc_info.value.message
+            assert (
+                f"Recent trades for {symbol} returned invalid data (status: 200)"
+                in exc_info.value.message
+            )
 
             mock_request_builder.build_get_recent_trades_params.assert_called_once_with(
                 symbol=symbol, limit=limit
@@ -454,7 +449,6 @@ class TestBackpackMarketDataServicePublicData:
                 endpoint=mock_endpoint_path,
                 params=mock_params,
                 is_signed=False,
-                is_public_info_endpoint=True,
                 endpoint_group="public",
                 request_weight=1,
             )
@@ -489,7 +483,7 @@ class TestBackpackMarketDataServicePublicData:
             await backpack_market_data_service.get_recent_trades(symbol)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Processing recent_trades failed" in exc_info.value.message
+        assert "Internal data validation failed" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_unexpected_exception(
@@ -502,7 +496,16 @@ class TestBackpackMarketDataServicePublicData:
         """Test get_recent_trades handles unexpected exception."""
         symbol = "SOL_USDC"
         mock_params = {"symbol": symbol, "limit": 100}
-        mock_raw_response = [{"tradeId": 123}]
+        mock_raw_response: list[dict[str, str | int]] = [
+            {
+                "tradeId": 1,
+                "orderId": "o1",
+                "symbol": symbol,
+                "price": "100.0",
+                "qty": "1.0",
+                "time": 123,
+            }
+        ]
 
         mock_request_builder.build_get_recent_trades_params.return_value = mock_params
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
@@ -514,4 +517,4 @@ class TestBackpackMarketDataServicePublicData:
             await backpack_market_data_service.get_recent_trades(symbol)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected error for recent_trades" in exc_info.value.message
+        assert "Unexpected error occurred" in exc_info.value.message

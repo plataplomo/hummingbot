@@ -35,7 +35,8 @@ class TestBackpackMarketDataServiceKlinesMisc:
         symbol = "SOL_USDC"
         timeframe = "1m"
         limit = 2
-        mock_endpoint_path = "/api/v1/klines"
+
+        # Mock data
         mock_params = {"symbol": symbol, "interval": timeframe, "limit": limit}
         mock_raw_kline_data = [
             [
@@ -100,10 +101,9 @@ class TestBackpackMarketDataServiceKlinesMisc:
             )
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
-                endpoint=mock_endpoint_path,
+                endpoint="/api/v1/klines",
                 params=mock_params,
                 is_signed=False,
-                is_public_info_endpoint=True,
                 endpoint_group="public",
                 request_weight=1,
             )
@@ -131,7 +131,8 @@ class TestBackpackMarketDataServiceKlinesMisc:
         symbol = "SOL_USDC"
         timeframe = "1h"
         limit = 100
-        mock_endpoint_path = "/api/v1/klines"
+
+        # Mock data
         mock_params = {"symbol": symbol, "interval": timeframe, "limit": limit}
 
         mock_request_builder.build_get_market_data_params.return_value = mock_params
@@ -156,10 +157,9 @@ class TestBackpackMarketDataServiceKlinesMisc:
             )
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
-                endpoint=mock_endpoint_path,
+                endpoint="/api/v1/klines",
                 params=mock_params,
                 is_signed=False,
-                is_public_info_endpoint=True,
                 endpoint_group="public",
                 request_weight=1,
             )
@@ -193,7 +193,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
             await backpack_market_data_service.get_market_data(symbol, timeframe)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Processing klines failed" in exc_info.value.message
+        assert "Internal data validation failed." in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_market_data_unexpected_exception(
@@ -219,7 +219,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
             await backpack_market_data_service.get_market_data(symbol, timeframe)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected error for klines" in exc_info.value.message
+        assert "Unexpected service failure." in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_market_data_with_time_parameters(

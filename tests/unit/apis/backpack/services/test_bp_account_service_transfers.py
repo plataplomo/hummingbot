@@ -93,7 +93,6 @@ class TestBackpackAccountServiceTransfers:
             is_signed=True,
             endpoint_group="private",
             request_weight=1,
-            is_public_info_endpoint=False,
         )
 
         mock_response_handler.handle_transfer_response.assert_called_once_with(
@@ -154,14 +153,16 @@ class TestBackpackAccountServiceTransfers:
         assert call_kwargs.get("endpoint") == "/api/v1/capital/transfer"
         assert call_kwargs.get("data") == expected_payload_to_requester
         assert call_kwargs.get("is_signed") is True
-        expected_kwarg_keys = {"method", "endpoint", "data", "is_signed"}
-        if "rate_limiter_service" in call_kwargs:
-            expected_kwarg_keys.add("rate_limiter_service")
-        if "endpoint_group" in call_kwargs:  # private endpoints
-            expected_kwarg_keys.add("endpoint_group")
-            expected_kwarg_keys.add("request_weight")
-        if "is_public_info_endpoint" in call_kwargs:
-            expected_kwarg_keys.add("is_public_info_endpoint")
+        expected_kwarg_keys = {
+            "method",
+            "endpoint",
+            "data",
+            "is_signed",
+            "endpoint_group",
+            "request_weight",
+        }
+        # Check if the actual call matches expected kwargs
+        call_kwargs = mock_http_client_requester.call_args.kwargs
         assert set(call_kwargs.keys()) == expected_kwarg_keys
 
     @pytest.mark.asyncio
@@ -215,14 +216,16 @@ class TestBackpackAccountServiceTransfers:
         assert call_kwargs.get("endpoint") == "/api/v1/capital/transfer"
         assert call_kwargs.get("data") == expected_payload_to_requester
         assert call_kwargs.get("is_signed") is True
-        expected_kwarg_keys = {"method", "endpoint", "data", "is_signed"}
-        if "rate_limiter_service" in call_kwargs:
-            expected_kwarg_keys.add("rate_limiter_service")
-        if "endpoint_group" in call_kwargs:  # private endpoints
-            expected_kwarg_keys.add("endpoint_group")
-            expected_kwarg_keys.add("request_weight")
-        if "is_public_info_endpoint" in call_kwargs:
-            expected_kwarg_keys.add("is_public_info_endpoint")
+        expected_kwarg_keys = {
+            "method",
+            "endpoint",
+            "data",
+            "is_signed",
+            "endpoint_group",
+            "request_weight",
+        }
+        # Check if the actual call matches expected kwargs
+        call_kwargs = mock_http_client_requester.call_args.kwargs
         assert set(call_kwargs.keys()) == expected_kwarg_keys
 
     @pytest.mark.asyncio
@@ -271,7 +274,6 @@ class TestBackpackAccountServiceTransfers:
             is_signed=True,
             endpoint_group="private",
             request_weight=1,
-            is_public_info_endpoint=False,
         )
 
     @pytest.mark.asyncio

@@ -66,8 +66,8 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             method="POST",
             endpoint="/info",
             data={"foo": "bar"},
-            is_public_info_endpoint=True,
-            is_signed=False,
+            endpoint_group="public",
+            request_weight=1,
         )
         mock_response_handler.handle_query_order_history_response.assert_called_once_with(
             raw_response_content=[{"order": 1}],
@@ -254,8 +254,8 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             method="POST",
             endpoint="/info",
             data=mock_payload_dict,
-            is_public_info_endpoint=True,
-            is_signed=False,
+            endpoint_group="public",
+            request_weight=1,
         )
         mock_response_handler.handle_query_order_history_response.assert_not_called()
         mock_hl_order_mapper.transform_raw_historical_order_to_internal.assert_not_called()
@@ -438,8 +438,8 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             method="POST",
             endpoint="/info",
             data=mock_payload_dict,
-            is_public_info_endpoint=True,
-            is_signed=False,
+            endpoint_group="public",
+            request_weight=1,
         )
         mock_response_handler.handle_info_user_fills_response.assert_not_called()
         # Note: We expect the account mapper to not be called since HTTP client returned None
@@ -483,8 +483,8 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             method="POST",
             endpoint="/info",
             data=mock_open_orders_payload_dict,
-            is_public_info_endpoint=True,
-            is_signed=False,
+            endpoint_group="public",
+            request_weight=1,
         )
         mock_response_handler.handle_query_open_orders_response.assert_not_called()
 

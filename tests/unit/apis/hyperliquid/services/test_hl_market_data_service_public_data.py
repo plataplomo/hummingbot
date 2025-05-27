@@ -76,7 +76,8 @@ class TestHyperliquidMarketDataServicePublicData:
             method="POST",
             endpoint="/info",
             data=expected_data_dict,
-            is_public_info_endpoint=True,
+            endpoint_group="public",
+            request_weight=1,
         )
         mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.assert_called_once_with(
             mock_raw_response_content, status_code=200, headers=mock_headers
@@ -113,7 +114,8 @@ class TestHyperliquidMarketDataServicePublicData:
             method="POST",
             endpoint="/info",
             data=expected_data_dict,
-            is_public_info_endpoint=True,
+            endpoint_group="public",
+            request_weight=1,
         )
         mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.assert_not_called()
 
@@ -303,7 +305,8 @@ class TestHyperliquidMarketDataServicePublicData:
             method="POST",
             endpoint="/info",
             data=expected_data_dict,  # This comes from the model_dump of the L2BookRequestPayload
-            is_public_info_endpoint=True,
+            endpoint_group="public",
+            request_weight=1,
         )
         mock_hl_response_handler.handle_info_l2_book_response.assert_called_once_with(
             mock_raw_response_content, symbol=symbol_to_find, status_code=200, headers=mock_headers
@@ -343,7 +346,8 @@ class TestHyperliquidMarketDataServicePublicData:
             method="POST",
             endpoint="/info",
             data=mock_request_payload_dict,
-            is_public_info_endpoint=True,
+            endpoint_group="public",
+            request_weight=1,
         )
         mock_hl_response_handler.handle_info_l2_book_response.assert_not_called()
         mock_hl_mapper.transform_raw_order_book_to_internal.assert_not_called()
@@ -452,7 +456,8 @@ class TestHyperliquidMarketDataServicePublicData:
             method="POST",
             endpoint="/info",
             data=mock_request_payload_dict,
-            is_public_info_endpoint=True,
+            endpoint_group="public",
+            request_weight=1,
         )
         mock_hl_response_handler.handle_info_recent_trades_response.assert_called_once_with(
             mock_raw_response_content, symbol=symbol_to_find, status_code=200, headers=mock_headers
@@ -495,7 +500,8 @@ class TestHyperliquidMarketDataServicePublicData:
             method="POST",
             endpoint="/info",
             data=mock_request_payload_dict,
-            is_public_info_endpoint=True,
+            endpoint_group="public",
+            request_weight=1,
         )
         mock_hl_response_handler.handle_info_recent_trades_response.assert_not_called()
         mock_hl_mapper.transform_raw_public_trade_to_internal.assert_not_called()

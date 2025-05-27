@@ -128,8 +128,8 @@ class TestHyperliquidAccountServiceBalancesPositions:
             method="POST",
             endpoint="/info",
             data=mock_user_state_payload_dict,
-            is_public_info_endpoint=True,
-            is_signed=False,
+            endpoint_group="public",
+            request_weight=1,
         )
         mock_response_handler.handle_info_user_state_response.assert_called_once_with(
             raw_response_content=mock_raw_user_state_response_list[0],
@@ -220,8 +220,8 @@ class TestHyperliquidAccountServiceBalancesPositions:
             method="POST",
             endpoint="/info",
             data=mock_user_state_payload_dict,
-            is_public_info_endpoint=True,
-            is_signed=False,
+            endpoint_group="public",
+            request_weight=1,
         )
         mock_response_handler.handle_info_user_state_response.assert_not_called()
         mock_hl_account_mapper.transform_raw_clearinghouse_state_to_spot_balances.assert_not_called()
