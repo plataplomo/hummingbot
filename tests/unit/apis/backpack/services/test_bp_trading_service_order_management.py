@@ -23,6 +23,219 @@ pytest_plugins = ["tests.unit.apis.backpack.services.conftest_trading"]
 class TestBackpackTradingServiceOrderManagement:
     """Tests for the BackpackTradingService order management functionality."""
 
+    # =============================================================================
+    # INPUT VALIDATION TESTS (NEW - ITERATION 2)
+    # =============================================================================
+
+    @pytest.mark.asyncio
+    async def test_place_order_empty_symbol_validation(
+        self,
+        bp_trading_service: BackpackTradingService,
+    ) -> None:
+        """Test place_order raises ValueError for empty symbol."""
+        with pytest.raises(ValueError) as exc_info:
+            await bp_trading_service.place_order(
+                symbol="",  # Empty symbol should be rejected
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("10.0"),
+                time_in_force=TimeInForce.GTC,
+                price=Decimal("100.0"),
+            )
+
+        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_place_order_invalid_quantity_validation(
+        self,
+        bp_trading_service: BackpackTradingService,
+    ) -> None:
+        """Test place_order raises ValueError for invalid quantity values."""
+        # Test zero quantity
+        with pytest.raises(ValueError) as exc_info:
+            await bp_trading_service.place_order(
+                symbol="SOL_USDC",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("0.0"),  # Invalid: zero quantity
+                time_in_force=TimeInForce.GTC,
+                price=Decimal("100.0"),
+            )
+        assert "'quantity' must be a positive finite Decimal" in str(exc_info.value)
+
+        # Test negative quantity
+        with pytest.raises(ValueError) as exc_info:
+            await bp_trading_service.place_order(
+                symbol="SOL_USDC",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("-5.0"),  # Invalid: negative quantity
+                time_in_force=TimeInForce.GTC,
+                price=Decimal("100.0"),
+            )
+        assert "'quantity' must be a positive finite Decimal" in str(exc_info.value)
+
+        # Test infinite quantity
+        with pytest.raises(ValueError) as exc_info:
+            await bp_trading_service.place_order(
+                symbol="SOL_USDC",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("inf"),  # Invalid: infinite quantity
+                time_in_force=TimeInForce.GTC,
+                price=Decimal("100.0"),
+            )
+        assert "'quantity' must be a positive finite Decimal" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_place_order_invalid_price_validation(
+        self,
+        bp_trading_service: BackpackTradingService,
+    ) -> None:
+        """Test place_order raises ValueError for invalid price values when provided."""
+        # Test zero price
+        with pytest.raises(ValueError) as exc_info:
+            await bp_trading_service.place_order(
+                symbol="SOL_USDC",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("10.0"),
+                time_in_force=TimeInForce.GTC,
+                price=Decimal("0.0"),  # Invalid: zero price
+            )
+        assert "'price' must be a positive finite Decimal when provided" in str(exc_info.value)
+
+        # Test negative price
+        with pytest.raises(ValueError) as exc_info:
+            await bp_trading_service.place_order(
+                symbol="SOL_USDC",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("10.0"),
+                time_in_force=TimeInForce.GTC,
+                price=Decimal("-50.0"),  # Invalid: negative price
+            )
+        assert "'price' must be a positive finite Decimal when provided" in str(exc_info.value)
+
+        # Test infinite price
+        with pytest.raises(ValueError) as exc_info:
+            await bp_trading_service.place_order(
+                symbol="SOL_USDC",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("10.0"),
+                time_in_force=TimeInForce.GTC,
+                price=Decimal("inf"),  # Invalid: infinite price
+            )
+        assert "'price' must be a positive finite Decimal when provided" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_place_order_invalid_stop_price_validation(
+        self,
+        bp_trading_service: BackpackTradingService,
+    ) -> None:
+        """Test place_order raises ValueError for invalid stop_price values when provided."""
+        # Test negative stop_price
+        with pytest.raises(ValueError) as exc_info:
+            await bp_trading_service.place_order(
+                symbol="SOL_USDC",
+                side=OrderSide.BUY,
+                order_type=OrderType.STOP_LIMIT,
+                quantity=Decimal("10.0"),
+                time_in_force=TimeInForce.GTC,
+                price=Decimal("100.0"),
+                stop_price=Decimal("-10.0"),  # Invalid: negative stop_price
+            )
+        assert "'stop_price' must be a positive finite Decimal when provided" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_cancel_order_empty_order_id_validation(
+        self,
+        bp_trading_service: BackpackTradingService,
+    ) -> None:
+        """Test cancel_order raises ValueError for empty order_id."""
+        with pytest.raises(ValueError) as exc_info:
+            await bp_trading_service.cancel_order(
+                order_id="",  # Empty order_id should be rejected
+                symbol="SOL_USDC",
+            )
+
+        assert "'order_id' must be a non-empty string" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_cancel_order_empty_symbol_validation(
+        self,
+        bp_trading_service: BackpackTradingService,
+    ) -> None:
+        """Test cancel_order raises ValueError for empty symbol."""
+        with pytest.raises(ValueError) as exc_info:
+            await bp_trading_service.cancel_order(
+                order_id="12345",
+                symbol="",  # Empty symbol should be rejected
+            )
+
+        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_order_empty_order_id_validation(
+        self,
+        bp_trading_service: BackpackTradingService,
+    ) -> None:
+        """Test get_order raises ValueError for empty order_id."""
+        with pytest.raises(ValueError) as exc_info:
+            await bp_trading_service.get_order(
+                order_id="",  # Empty order_id should be rejected
+                symbol="SOL_USDC",
+            )
+
+        assert "'order_id' must be a non-empty string" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_order_none_symbol_validation(
+        self,
+        bp_trading_service: BackpackTradingService,
+    ) -> None:
+        """Test get_order raises ValueError for None symbol."""
+        with pytest.raises(ValueError) as exc_info:
+            await bp_trading_service.get_order(
+                order_id="12345",
+                symbol=None,  # None symbol should be rejected
+            )
+
+        assert "'symbol' parameter is required" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_order_empty_symbol_validation(
+        self,
+        bp_trading_service: BackpackTradingService,
+    ) -> None:
+        """Test get_order raises ValueError for empty symbol."""
+        with pytest.raises(ValueError) as exc_info:
+            await bp_trading_service.get_order(
+                order_id="12345",
+                symbol="",  # Empty symbol should be rejected
+            )
+
+        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_order_status_none_symbol_validation(
+        self,
+        bp_trading_service: BackpackTradingService,
+    ) -> None:
+        """Test get_order_status raises ValueError for None symbol."""
+        with pytest.raises(ValueError) as exc_info:
+            await bp_trading_service.get_order_status(
+                order_id="12345",
+                symbol=None,  # None symbol should be rejected
+            )
+
+        assert "'symbol' parameter is required" in str(exc_info.value)
+
+    # =============================================================================
+    # EXISTING FUNCTIONALITY TESTS
+    # =============================================================================
+
     @pytest.mark.asyncio
     async def test_place_order_success(
         self,

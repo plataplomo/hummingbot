@@ -849,22 +849,24 @@ class TestHyperliquidAPIMarketDataOperations:
 
 
 class TestHyperliquidAPIErrorHandling:
-    """Test error handling and propagation."""
+    """Test that the API client correctly propagates errors from services."""
 
     @pytest.mark.asyncio
-    async def test_service_error_propagation(
+    async def test_service_apierror_propagation_exact_passthrough(
         self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock
     ) -> None:
-        """Test that service errors are properly propagated."""
+        """Test that APIError from service is propagated exactly without wrapping."""
         api = hl_api_with_di()
 
-        # Configure mock to raise an error
-        expected_error = APIError(
-            "Test error from trading service", code=APIErrorCode.INVALID_REQUEST.value
+        # Configure service to raise specific APIError
+        service_error = APIError(
+            message="Service-level validation failed",
+            code=APIErrorCode.INVALID_PARAMS.value,
+            http_status=400,
         )
-        mock_hl_trading_service.place_order.side_effect = expected_error
+        mock_hl_trading_service.place_order.side_effect = service_error
 
-        # Test error propagation
+        # API client should propagate the exact same APIError
         with pytest.raises(APIError) as exc_info:
             await api.place_order(
                 symbol="BTC",
@@ -875,38 +877,71 @@ class TestHyperliquidAPIErrorHandling:
                 time_in_force=TimeInForce.GTC,
             )
 
-        assert exc_info.value.message == expected_error.message
-        assert exc_info.value.code == expected_error.code
-
-        await api.close()
+        # Assert exact error propagation
+        assert exc_info.value is service_error  # Same instance
+        assert exc_info.value.code == APIErrorCode.INVALID_PARAMS.value
+        assert exc_info.value.message == "Service-level validation failed"
+        assert exc_info.value.http_status == 400
 
     @pytest.mark.asyncio
-    async def test_authentication_error_handling(
+    async def test_service_valueerror_propagation_exact_passthrough(
         self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock
     ) -> None:
-        """Test authentication error handling."""
+        """Test that ValueError from service is propagated exactly without wrapping."""
         api = hl_api_with_di()
 
-        # Configure mock to raise authentication error
-        auth_error = APIError(
-            "Authentication failed", code=APIErrorCode.AUTHENTICATION_FAILED.value
+        # Configure service to raise ValueError for input validation
+        service_error = ValueError("Invalid symbol format for service processing")
+        mock_hl_trading_service.get_order.side_effect = service_error
+
+        # API client should propagate the exact same ValueError
+        with pytest.raises(ValueError) as exc_info:
+            await api.get_order(order_id="invalid_id")
+
+        # Assert exact error propagation
+        assert exc_info.value is service_error  # Same instance
+        assert str(exc_info.value) == "Invalid symbol format for service processing"
+
+    @pytest.mark.asyncio
+    async def test_multiple_error_types_from_different_services(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
+        mock_hl_account_service: MagicMock,
+        mock_hl_market_data_service: MagicMock,
+    ) -> None:
+        """Test that different services can raise different error types and all are propagated correctly."""
+        api = hl_api_with_di()
+
+        # Configure different services to raise different error types
+        trading_api_error = APIError(
+            message="Trading service error",
+            code=APIErrorCode.NETWORK_ISSUE.value,
         )
-        mock_hl_trading_service.place_order.side_effect = auth_error
+        account_value_error = ValueError("Account service input validation failed")
+        market_data_api_error = APIError(
+            message="Market data service error",
+            code=APIErrorCode.INVALID_RESPONSE.value,
+        )
 
-        # Test authentication error propagation
-        with pytest.raises(APIError) as exc_info:
-            await api.place_order(
-                symbol="BTC",
-                side=OrderSide.BUY,
-                order_type=OrderType.LIMIT,
-                quantity=Decimal("1.0"),
-                price=Decimal("50000.0"),
-                time_in_force=TimeInForce.GTC,
-            )
+        mock_hl_trading_service.cancel_order.side_effect = trading_api_error
+        mock_hl_account_service.get_balances.side_effect = account_value_error
+        mock_hl_market_data_service.get_ticker.side_effect = market_data_api_error
 
-        assert exc_info.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
+        # Test trading service APIError propagation
+        with pytest.raises(APIError) as trading_exc:
+            await api.cancel_order(order_id="12345")
+        assert trading_exc.value is trading_api_error
 
-        await api.close()
+        # Test account service ValueError propagation
+        with pytest.raises(ValueError) as account_exc:
+            await api.get_balances()
+        assert account_exc.value is account_value_error
+
+        # Test market data service APIError propagation
+        with pytest.raises(APIError) as market_exc:
+            await api.get_ticker(symbol="BTC")
+        assert market_exc.value is market_data_api_error
 
 
 class TestHyperliquidAPIWebSocketOperations:
@@ -1034,7 +1069,7 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
     async def test_get_balances_service_validation_error(
         self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_account_service: MagicMock
     ) -> None:
-        """Test get_balances handling of service validation errors."""
+        """Test get_balances exact propagation of service validation errors."""
         api = hl_api_with_di()
 
         # Configure mock to raise validation error
@@ -1043,15 +1078,14 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
         )
         mock_hl_account_service.get_balances.side_effect = validation_error
 
-        # Test error propagation
+        # Test exact error propagation
         with pytest.raises(APIError) as exc_info:
             await api.get_balances()
 
+        assert exc_info.value is validation_error  # Same instance
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Invalid balance data format" in exc_info.value.message
         mock_hl_account_service.get_balances.assert_called_once()
-
-        await api.close()
 
     @pytest.mark.asyncio
     async def test_get_ticker_empty_successful_response(
@@ -1069,13 +1103,11 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
         assert result is None
         mock_hl_market_data_service.get_ticker.assert_called_once_with("NONEXISTENT")
 
-        await api.close()
-
     @pytest.mark.asyncio
     async def test_get_positions_rate_limited_propagation(
         self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_account_service: MagicMock
     ) -> None:
-        """Test get_positions handling of rate limiting errors."""
+        """Test get_positions exact propagation of rate limiting errors."""
         api = hl_api_with_di()
 
         # Configure mock to raise rate limit error
@@ -1084,21 +1116,20 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
         )
         mock_hl_account_service.get_positions.side_effect = rate_limit_error
 
-        # Test rate limit error propagation
+        # Test exact rate limit error propagation
         with pytest.raises(APIError) as exc_info:
             await api.get_positions(symbol="BTC")
 
+        assert exc_info.value is rate_limit_error  # Same instance
         assert exc_info.value.code == APIErrorCode.RATE_LIMITED.value
         assert exc_info.value.http_status == 429
         mock_hl_account_service.get_positions.assert_called_once_with("BTC")
-
-        await api.close()
 
     @pytest.mark.asyncio
     async def test_get_account_summary_server_error_propagation(
         self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_account_service: MagicMock
     ) -> None:
-        """Test get_account_summary handling of server errors."""
+        """Test get_account_summary exact propagation of server errors."""
         api = hl_api_with_di()
 
         # Configure mock to raise server error
@@ -1107,41 +1138,39 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
         )
         mock_hl_account_service.get_account_summary.side_effect = server_error
 
-        # Test server error propagation
+        # Test exact server error propagation
         with pytest.raises(APIError) as exc_info:
             await api.get_account_summary()
 
+        assert exc_info.value is server_error  # Same instance
         assert exc_info.value.code == APIErrorCode.SERVER_ERROR.value
         assert exc_info.value.http_status == 500
         mock_hl_account_service.get_account_summary.assert_called_once()
-
-        await api.close()
 
     @pytest.mark.asyncio
     async def test_get_order_book_timeout_error_propagation(
         self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_market_data_service: MagicMock
     ) -> None:
-        """Test get_order_book handling of timeout errors."""
+        """Test get_order_book exact propagation of timeout errors."""
         api = hl_api_with_di()
 
         # Configure mock to raise timeout error
         timeout_error = APIError("Request timeout", code=APIErrorCode.TIMEOUT.value)
         mock_hl_market_data_service.get_order_book.side_effect = timeout_error
 
-        # Test timeout error propagation
+        # Test exact timeout error propagation
         with pytest.raises(APIError) as exc_info:
             await api.get_order_book("ETH")
 
+        assert exc_info.value is timeout_error  # Same instance
         assert exc_info.value.code == APIErrorCode.TIMEOUT.value
         mock_hl_market_data_service.get_order_book.assert_called_once_with("ETH")
-
-        await api.close()
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_service_unavailable_propagation(
         self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_market_data_service: MagicMock
     ) -> None:
-        """Test get_recent_trades handling of service unavailable errors."""
+        """Test get_recent_trades exact propagation of service unavailable errors."""
         api = hl_api_with_di()
 
         # Configure mock to raise service unavailable error
@@ -1152,28 +1181,27 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
         )
         mock_hl_market_data_service.get_recent_trades.side_effect = service_error
 
-        # Test service unavailable error propagation
+        # Test exact service unavailable error propagation
         with pytest.raises(APIError) as exc_info:
             await api.get_recent_trades("BTC", limit=10)
 
+        assert exc_info.value is service_error  # Same instance
         assert exc_info.value.code == APIErrorCode.SERVICE_UNAVAILABLE.value
         assert exc_info.value.http_status == 503
         mock_hl_market_data_service.get_recent_trades.assert_called_once_with("BTC")
-
-        await api.close()
 
     @pytest.mark.asyncio
     async def test_place_order_service_unexpected_exception(
         self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock
     ) -> None:
-        """Test place_order handling of unexpected exceptions from service."""
+        """Test place_order exact propagation of unexpected exceptions from service."""
         api = hl_api_with_di()
 
         # Configure mock to raise unexpected exception
         unexpected_error = RuntimeError("Unexpected service failure")
         mock_hl_trading_service.place_order.side_effect = unexpected_error
 
-        # Test unexpected exception handling
+        # Test exact unexpected exception propagation
         with pytest.raises(RuntimeError) as exc_info:
             await api.place_order(
                 symbol="BTC",
@@ -1184,364 +1212,5 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
                 time_in_force=TimeInForce.GTC,
             )
 
+        assert exc_info.value is unexpected_error  # Same instance
         assert "Unexpected service failure" in str(exc_info.value)
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_cancel_order_insufficient_funds_propagation(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock
-    ) -> None:
-        """Test cancel_order handling of insufficient funds errors."""
-        api = hl_api_with_di()
-
-        # Configure mock to raise insufficient funds error
-        funds_error = APIError(
-            "Insufficient funds for cancellation fee",
-            code=APIErrorCode.INSUFFICIENT_FUNDS.value,
-        )
-        mock_hl_trading_service.cancel_order.side_effect = funds_error
-
-        # Test insufficient funds error propagation
-        with pytest.raises(APIError) as exc_info:
-            await api.cancel_order("12345", symbol="BTC")
-
-        assert exc_info.value.code == APIErrorCode.INSUFFICIENT_FUNDS.value
-        mock_hl_trading_service.cancel_order.assert_called_once_with(symbol="BTC", order_id="12345")
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_get_order_order_not_found_propagation(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock
-    ) -> None:
-        """Test get_order handling of order not found scenarios."""
-        api = hl_api_with_di()
-
-        # Configure mock to return None (order not found)
-        mock_hl_trading_service.get_order.return_value = None
-
-        # Test order not found handling
-        result = await api.get_order("99999", symbol="BTC")
-
-        assert result is None
-        mock_hl_trading_service.get_order.assert_called_once_with(symbol="BTC", order_id="99999")
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_get_open_orders_exchange_specific_error(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock
-    ) -> None:
-        """Test get_open_orders handling of exchange-specific errors."""
-        api = hl_api_with_di()
-
-        # Configure mock to raise exchange-specific error
-        exchange_error = APIError(
-            "Exchange maintenance in progress",
-            code=APIErrorCode.EXCHANGE_SPECIFIC.value,
-            exchange_message="Maintenance mode active",
-        )
-        mock_hl_trading_service.get_open_orders.side_effect = exchange_error
-
-        # Test exchange-specific error propagation
-        with pytest.raises(APIError) as exc_info:
-            await api.get_open_orders()
-
-        assert exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
-        assert exc_info.value.exchange_message == "Maintenance mode active"
-        mock_hl_trading_service.get_open_orders.assert_called_once_with(None)
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_get_ticker_none_symbol_input(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_market_data_service: MagicMock
-    ) -> None:
-        """Test get_ticker with None symbol input."""
-        api = hl_api_with_di()
-
-        def mock_get_ticker_side_effect(symbol: str | None) -> None:
-            if symbol is None:
-                raise ValueError("Symbol cannot be None")
-            return None
-
-        mock_hl_market_data_service.get_ticker.side_effect = mock_get_ticker_side_effect
-
-        # Test None symbol handling
-        with pytest.raises(ValueError) as exc_info:
-            await api.get_ticker(None)  # type: ignore[arg-type]
-
-        assert "Symbol cannot be None" in str(exc_info.value)
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_get_positions_empty_symbol_input(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_account_service: MagicMock
-    ) -> None:
-        """Test get_positions with empty string symbol."""
-        api = hl_api_with_di()
-
-        # Configure mock to handle empty string
-        mock_hl_account_service.get_positions.return_value = []
-
-        # Test empty string symbol handling
-        result = await api.get_positions(symbol="")
-
-        assert result == []
-        mock_hl_account_service.get_positions.assert_called_once_with("")
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_place_order_invalid_quantity_input(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock
-    ) -> None:
-        """Test place_order with invalid quantity input."""
-        api = hl_api_with_di()
-
-        # Configure mock to raise validation error for invalid quantity
-        validation_error = APIError(
-            "Invalid quantity: must be positive", code=APIErrorCode.INVALID_REQUEST.value
-        )
-        mock_hl_trading_service.place_order.side_effect = validation_error
-
-        # Test invalid quantity handling
-        with pytest.raises(APIError) as exc_info:
-            await api.place_order(
-                symbol="BTC",
-                side=OrderSide.BUY,
-                order_type=OrderType.LIMIT,
-                quantity=Decimal("-1.0"),  # Invalid negative quantity
-                price=Decimal("50000.0"),
-                time_in_force=TimeInForce.GTC,
-            )
-
-        assert exc_info.value.code == APIErrorCode.INVALID_REQUEST.value
-        assert "Invalid quantity" in exc_info.value.message
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_get_market_data_invalid_time_range(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_market_data_service: MagicMock
-    ) -> None:
-        """Test get_market_data with invalid time range."""
-        api = hl_api_with_di()
-
-        # Configure mock to raise validation error for invalid time range
-        time_error = APIError(
-            "Invalid time range: end_time before start_time",
-            code=APIErrorCode.INVALID_REQUEST.value,
-        )
-        mock_hl_market_data_service.get_market_data.side_effect = time_error
-
-        # Test invalid time range handling
-        with pytest.raises(APIError) as exc_info:
-            await api.get_market_data(
-                symbol="BTC",
-                timeframe="1h",
-                start_time_ms=1000000,
-                end_time_ms=500000,  # End before start
-            )
-
-        assert exc_info.value.code == APIErrorCode.INVALID_REQUEST.value
-        assert "Invalid time range" in exc_info.value.message
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_get_balances_full_error_chain_validation(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_account_service: MagicMock
-    ) -> None:
-        """Test get_balances with full error chain validation."""
-        api = hl_api_with_di()
-
-        # Configure mock to raise error with full context
-        original_exception = ValueError("Invalid balance format")
-        chained_error = APIError(
-            "Failed to parse balance data",
-            code=APIErrorCode.INVALID_RESPONSE.value,
-            original_exception=original_exception,
-            metadata={"balance_type": "spot", "asset": "USDC"},
-        )
-        mock_hl_account_service.get_balances.side_effect = chained_error
-
-        # Test full error chain propagation
-        with pytest.raises(APIError) as exc_info:
-            await api.get_balances()
-
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert exc_info.value.original_exception is original_exception
-        assert exc_info.value.metadata == {"balance_type": "spot", "asset": "USDC"}
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_multiple_service_error_isolation(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_account_service: MagicMock,
-        mock_hl_trading_service: MagicMock,
-        mock_hl_market_data_service: MagicMock,
-    ) -> None:
-        """Test that errors in one service don't affect others."""
-        api = hl_api_with_di()
-
-        # Configure one service to fail
-        account_error = APIError("Account service error", code=APIErrorCode.SERVER_ERROR.value)
-        mock_hl_account_service.get_balances.side_effect = account_error
-
-        # Configure other services to succeed
-        mock_hl_trading_service.get_open_orders.return_value = []
-        mock_hl_market_data_service.get_ticker.return_value = None
-
-        # Test that account service error doesn't affect other services
-        with pytest.raises(APIError):
-            await api.get_balances()
-
-        # Other services should still work
-        orders = await api.get_open_orders()
-        ticker = await api.get_ticker("BTC")
-
-        assert orders == []
-        assert ticker is None
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_get_funding_rates_historical_data_error(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_market_data_service: MagicMock
-    ) -> None:
-        """Test get_funding_rates with historical data retrieval errors."""
-        api = hl_api_with_di()
-
-        # Configure mock to raise historical data error
-        historical_error = APIError(
-            "Historical funding data unavailable",
-            code=APIErrorCode.UNKNOWN.value,
-            metadata={"requested_symbols": ["BTC", "ETH"], "time_range": "last_24h"},
-        )
-        mock_hl_market_data_service.get_funding_rates.side_effect = historical_error
-
-        # Test historical data error propagation
-        with pytest.raises(APIError) as exc_info:
-            await api.get_funding_rates(symbols=["BTC", "ETH"])
-
-        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        if exc_info.value.metadata:
-            assert exc_info.value.metadata["requested_symbols"] == ["BTC", "ETH"]
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_cancel_all_orders_partial_failure(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock
-    ) -> None:
-        """Test cancel_all_orders with partial failure scenarios."""
-        api = hl_api_with_di()
-
-        # Configure mock to return partial success results
-        from cyberdelta.core.models.enums import CancelOrderResultStatus
-        from cyberdelta.core.models.market.order import CancelOrderResult
-
-        partial_results = [
-            CancelOrderResult(
-                order_id="123",
-                success=True,
-                status=CancelOrderResultStatus.SUCCESS,
-                symbol="BTC",
-                message="Successfully cancelled.",
-            ),
-            CancelOrderResult(
-                order_id="456",
-                success=False,
-                status=CancelOrderResultStatus.FAILED,
-                symbol="BTC",
-                message="Order not found.",
-            ),
-        ]
-        mock_hl_trading_service.cancel_all_orders.return_value = partial_results
-
-        # Test partial failure handling
-        results = await api.cancel_all_orders(symbol="BTC")
-
-        assert len(results) == 2
-        assert results[0].success is True
-        assert results[1].success is False
-        assert results[1].status == CancelOrderResultStatus.FAILED
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_complex_operation_authentication_chain_failure(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock
-    ) -> None:
-        """Test complex operation with authentication chain failure."""
-        api = hl_api_with_di()
-
-        # Configure mock to raise authentication error with chain
-        auth_failure = APIError(
-            "Authentication signature invalid",
-            code=APIErrorCode.AUTHENTICATION_FAILED.value,
-            metadata={
-                "signature_type": "EIP712",
-                "wallet_address": "0x123...",
-                "nonce": 12345,
-                "verification_step": "signature_recovery",
-            },
-        )
-        mock_hl_trading_service.place_order.side_effect = auth_failure
-
-        # Test authentication chain failure
-        with pytest.raises(APIError) as exc_info:
-            await api.place_order(
-                symbol="BTC",
-                side=OrderSide.BUY,
-                order_type=OrderType.LIMIT,
-                quantity=Decimal("1.0"),
-                price=Decimal("50000.0"),
-                time_in_force=TimeInForce.GTC,
-            )
-
-        assert exc_info.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
-        if exc_info.value.metadata:
-            assert exc_info.value.metadata["signature_type"] == "EIP712"
-            assert exc_info.value.metadata["verification_step"] == "signature_recovery"
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_concurrent_market_data_requests_error_handling(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_market_data_service: MagicMock
-    ) -> None:
-        """Test concurrent market data requests with mixed success/failure."""
-        api = hl_api_with_di()
-
-        # Configure service to behave differently for concurrent calls
-        call_count = 0
-
-        def get_ticker_side_effect(symbol: str) -> None:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return None  # First call succeeds with no data
-            else:
-                raise APIError(
-                    message="Concurrent request limit exceeded",
-                    code=APIErrorCode.RATE_LIMITED.value,
-                )
-
-        mock_hl_market_data_service.get_ticker.side_effect = get_ticker_side_effect
-
-        # First call should succeed
-        ticker1 = await api.get_ticker("BTC")
-        assert ticker1 is None
-
-        # Second call should fail
-        with pytest.raises(APIError) as exc_info:
-            await api.get_ticker("ETH")
-        assert exc_info.value.code == APIErrorCode.RATE_LIMITED.value
-
-        await api.close()

@@ -587,47 +587,43 @@ class TestBackpackAPIMarketDataOperations:
 
 
 class TestBackpackAPIErrorHandling:
-    """Test error handling and propagation."""
+    """Test that the API client correctly propagates errors from services."""
 
     @pytest.mark.asyncio
-    async def test_service_error_propagation(
+    async def test_service_apierror_propagation_exact_passthrough(
         self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock
     ) -> None:
-        """Test that service errors are properly propagated."""
+        """Test that APIError from service is propagated exactly without wrapping."""
         api = bp_api_with_di()
 
-        # Configure mock service to raise an error
+        # Configure service to raise specific APIError
         service_error = APIError(
             "Symbol not found",
             code=APIErrorCode.SYMBOL_NOT_FOUND.value,
         )
         mock_bp_trading_service.get_order.side_effect = service_error
 
-        # Test error propagation
+        # API client should propagate the exact same APIError
         with pytest.raises(APIError) as exc_info:
             await api.get_order("missing_order", symbol="SOL")
 
-        # Verify the error is the same as from the service
-        assert exc_info.value == service_error
-
-        await api.close()
+        # Assert exact error propagation
+        assert exc_info.value is service_error  # Same instance
+        assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
 
     @pytest.mark.asyncio
-    async def test_authentication_error_handling(
+    async def test_service_valueerror_propagation_exact_passthrough(
         self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock
     ) -> None:
-        """Test authentication error handling."""
+        """Test that ValueError from service is propagated exactly without wrapping."""
         api = bp_api_with_di()
 
-        # Configure mock service to raise authentication error
-        auth_error = APIError(
-            "Invalid API credentials",
-            code=APIErrorCode.AUTHENTICATION_FAILED.value,
-        )
-        mock_bp_trading_service.place_order.side_effect = auth_error
+        # Configure service to raise ValueError for input validation
+        service_error = ValueError("Invalid API credentials format")
+        mock_bp_trading_service.place_order.side_effect = service_error
 
-        # Test error propagation
-        with pytest.raises(APIError) as exc_info:
+        # API client should propagate the exact same ValueError
+        with pytest.raises(ValueError) as exc_info:
             await api.place_order(
                 symbol="SOL",
                 side=OrderSide.BUY,
@@ -637,10 +633,50 @@ class TestBackpackAPIErrorHandling:
                 time_in_force=TimeInForce.GTC,
             )
 
-        # Verify the error code
-        assert exc_info.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
+        # Assert exact error propagation
+        assert exc_info.value is service_error  # Same instance
+        assert str(exc_info.value) == "Invalid API credentials format"
 
-        await api.close()
+    @pytest.mark.asyncio
+    async def test_multiple_error_types_from_different_services(
+        self,
+        bp_api_with_di: Callable[..., BackpackAPI],
+        mock_bp_trading_service: MagicMock,
+        mock_bp_account_service: MagicMock,
+        mock_bp_market_data_service: MagicMock,
+    ) -> None:
+        """Test that different services can raise different error types and all are propagated correctly."""
+        api = bp_api_with_di()
+
+        # Configure different services to raise different error types
+        trading_api_error = APIError(
+            message="Trading service authentication failed",
+            code=APIErrorCode.AUTHENTICATION_FAILED.value,
+        )
+        account_value_error = ValueError("Account service input validation failed")
+        market_data_api_error = APIError(
+            message="Market data service rate limited",
+            code=APIErrorCode.RATE_LIMITED.value,
+        )
+
+        mock_bp_trading_service.cancel_order.side_effect = trading_api_error
+        mock_bp_account_service.get_balances.side_effect = account_value_error
+        mock_bp_market_data_service.get_ticker.side_effect = market_data_api_error
+
+        # Test trading service APIError propagation
+        with pytest.raises(APIError) as trading_exc:
+            await api.cancel_order(order_id="12345", symbol="SOL")
+        assert trading_exc.value is trading_api_error
+
+        # Test account service ValueError propagation
+        with pytest.raises(ValueError) as account_exc:
+            await api.get_balances()
+        assert account_exc.value is account_value_error
+
+        # Test market data service APIError propagation
+        with pytest.raises(APIError) as market_exc:
+            await api.get_ticker(symbol="SOL")
+        assert market_exc.value is market_data_api_error
 
 
 class TestBackpackAPIComprehensiveErrorHandling:
@@ -654,477 +690,135 @@ class TestBackpackAPIComprehensiveErrorHandling:
     async def test_get_balances_service_validation_error(
         self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock
     ) -> None:
-        """Test get_balances handles service ValidationError gracefully."""
+        """Test get_balances exact propagation of service validation errors."""
         api = bp_api_with_di()
 
-        # Mock service to raise APIError wrapping ValidationError
+        # Configure service to raise specific APIError
         from pydantic import ValidationError
 
-        mock_bp_account_service.get_balances.side_effect = APIError(
+        validation_error = APIError(
             message="Invalid balance response structure",
             code=APIErrorCode.INVALID_RESPONSE.value,
             original_exception=ValidationError.from_exception_data(
                 title="BalanceModel", line_errors=[]
             ),
         )
+        mock_bp_account_service.get_balances.side_effect = validation_error
 
+        # Test exact error propagation
         with pytest.raises(APIError) as exc_info:
             await api.get_balances()
 
+        assert exc_info.value is validation_error  # Same instance
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Invalid balance response structure" in exc_info.value.message
         mock_bp_account_service.get_balances.assert_called_once()
-
-        await api.close()
 
     @pytest.mark.asyncio
     async def test_get_ticker_empty_successful_response(
         self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_market_data_service: MagicMock
     ) -> None:
-        """Test get_ticker handles empty but successful response correctly."""
+        """Test get_ticker handling of empty but successful response correctly."""
         api = bp_api_with_di()
 
-        # Mock service to return None (no ticker found)
+        # Configure service to return None (no ticker found)
         mock_bp_market_data_service.get_ticker.return_value = None
 
         result = await api.get_ticker("UNKNOWN_SYMBOL")
 
         assert result is None
-        # DEFENSIVE CHECK: Mock assertion after successful test. Mypy=[unreachable]
-        mock_bp_market_data_service.get_ticker.assert_called_once_with("UNKNOWN_SYMBOL")  # type: ignore[unreachable]
-
-        # DEFENSIVE CHECK: Resource cleanup after test. Mypy=[unreachable]
-        await api.close()
+        mock_bp_market_data_service.get_ticker.assert_called_once_with("UNKNOWN_SYMBOL")
 
     @pytest.mark.asyncio
     async def test_get_positions_rate_limited_propagation(
         self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock
     ) -> None:
-        """Test get_positions propagates RATE_LIMITED error correctly."""
+        """Test get_positions exact propagation of RATE_LIMITED error."""
         api = bp_api_with_di()
 
-        mock_bp_account_service.get_positions.side_effect = APIError(
+        rate_limit_error = APIError(
             message="Rate limit exceeded",
             code=APIErrorCode.RATE_LIMITED.value,
             http_status=429,
             exchange_message="rate_limit_exceeded",
         )
+        mock_bp_account_service.get_positions.side_effect = rate_limit_error
 
+        # Test exact error propagation
         with pytest.raises(APIError) as exc_info:
             await api.get_positions()
 
+        assert exc_info.value is rate_limit_error  # Same instance
         assert exc_info.value.code == APIErrorCode.RATE_LIMITED.value
         assert exc_info.value.http_status == 429
         assert "Rate limit exceeded" in exc_info.value.message
-
-        await api.close()
 
     @pytest.mark.asyncio
     async def test_get_account_summary_server_error_propagation(
         self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock
     ) -> None:
-        """Test get_account_summary propagates SERVER_ERROR correctly."""
+        """Test get_account_summary exact propagation of SERVER_ERROR."""
         api = bp_api_with_di()
 
-        mock_bp_account_service.get_account_info.side_effect = APIError(
+        server_error = APIError(
             message="Internal server error occurred",
             code=APIErrorCode.SERVER_ERROR.value,
             http_status=500,
             exchange_message="internal_server_error",
         )
+        mock_bp_account_service.get_account_info.side_effect = server_error
 
+        # Test exact error propagation
         with pytest.raises(APIError) as exc_info:
             await api.get_account_summary()
 
+        assert exc_info.value is server_error  # Same instance
         assert exc_info.value.code == APIErrorCode.SERVER_ERROR.value
         assert exc_info.value.http_status == 500
         assert "Internal server error" in exc_info.value.message
-
-        await api.close()
 
     @pytest.mark.asyncio
     async def test_get_order_history_timeout_error_propagation(
         self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock
     ) -> None:
-        """Test get_order_history propagates TIMEOUT error correctly."""
+        """Test get_order_history exact propagation of TIMEOUT error."""
         api = bp_api_with_di()
 
-        mock_bp_account_service.get_order_history.side_effect = APIError(
+        timeout_error = APIError(
             message="Request timeout after 30 seconds",
             code=APIErrorCode.TIMEOUT.value,
         )
+        mock_bp_account_service.get_order_history.side_effect = timeout_error
 
+        # Test exact error propagation
         with pytest.raises(APIError) as exc_info:
             await api.get_order_history()
 
+        assert exc_info.value is timeout_error  # Same instance
         assert exc_info.value.code == APIErrorCode.TIMEOUT.value
         assert "timeout" in exc_info.value.message.lower()
-
-        await api.close()
 
     @pytest.mark.asyncio
     async def test_get_trade_history_service_unavailable_propagation(
         self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock
     ) -> None:
-        """Test get_trade_history propagates SERVICE_UNAVAILABLE error correctly."""
+        """Test get_trade_history exact propagation of SERVICE_UNAVAILABLE error."""
         api = bp_api_with_di()
 
-        mock_bp_account_service.get_trade_history.side_effect = APIError(
+        service_unavailable_error = APIError(
             message="Service temporarily unavailable",
             code=APIErrorCode.SERVICE_UNAVAILABLE.value,
             http_status=503,
         )
+        mock_bp_account_service.get_trade_history.side_effect = service_unavailable_error
 
+        # Test exact error propagation
         with pytest.raises(APIError) as exc_info:
             await api.get_trade_history()
 
+        assert exc_info.value is service_unavailable_error  # Same instance
         assert exc_info.value.code == APIErrorCode.SERVICE_UNAVAILABLE.value
         assert exc_info.value.http_status == 503
-
-        await api.close()
-
-    # =============================================================================
-    # II. TRADING OPERATION ERROR SCENARIOS
-    # =============================================================================
-
-    @pytest.mark.asyncio
-    async def test_place_order_service_unexpected_exception(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock
-    ) -> None:
-        """Test place_order propagates unexpected service exceptions directly."""
-        api = bp_api_with_di()
-
-        # Mock service to raise unexpected exception
-        mock_bp_trading_service.place_order.side_effect = RuntimeError("Unexpected service failure")
-
-        # Current implementation propagates service exceptions directly
-        with pytest.raises(RuntimeError) as exc_info:
-            await api.place_order(
-                symbol="BTC_USDC",
-                side=OrderSide.BUY,
-                order_type=OrderType.LIMIT,
-                quantity=Decimal("0.1"),
-                price=Decimal("50000"),
-                time_in_force=TimeInForce.GTC,
-            )
-
-        # Verify the original exception is propagated
-        assert "Unexpected service failure" in str(exc_info.value)
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_cancel_order_insufficient_balance_propagation(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock
-    ) -> None:
-        """Test cancel_order propagates INSUFFICIENT_FUNDS error correctly."""
-        api = bp_api_with_di()
-
-        mock_bp_trading_service.cancel_order.side_effect = APIError(
-            message="Insufficient balance for cancellation fee",
-            code=APIErrorCode.INSUFFICIENT_FUNDS.value,
-        )
-
-        with pytest.raises(APIError) as exc_info:
-            await api.cancel_order("order_123", symbol="SOL_USDC")
-
-        assert exc_info.value.code == APIErrorCode.INSUFFICIENT_FUNDS.value
-        assert "Insufficient balance" in exc_info.value.message
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_get_order_order_not_found_propagation(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock
-    ) -> None:
-        """Test get_order propagates ORDER_NOT_FOUND error correctly."""
-        api = bp_api_with_di()
-
-        mock_bp_trading_service.get_order.side_effect = APIError(
-            message="Order not found",
-            code=APIErrorCode.ORDER_NOT_FOUND.value,
-            http_status=404,
-        )
-
-        with pytest.raises(APIError) as exc_info:
-            await api.get_order("nonexistent_order", symbol="BTC_USDC")
-
-        assert exc_info.value.code == APIErrorCode.ORDER_NOT_FOUND.value
-        assert exc_info.value.http_status == 404
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_get_open_orders_exchange_specific_error(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock
-    ) -> None:
-        """Test get_open_orders handles exchange-specific errors."""
-        api = bp_api_with_di()
-
-        mock_bp_trading_service.get_open_orders.side_effect = APIError(
-            message="Exchange maintenance mode",
-            code=APIErrorCode.EXCHANGE_SPECIFIC.value,
-            exchange_message="MAINTENANCE_MODE",
-        )
-
-        with pytest.raises(APIError) as exc_info:
-            await api.get_open_orders()
-
-        assert exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
-        assert "Exchange maintenance mode" in exc_info.value.message
-
-        await api.close()
-
-    # =============================================================================
-    # III. INPUT VALIDATION AND BOUNDARY TESTING
-    # =============================================================================
-
-    @pytest.mark.asyncio
-    async def test_get_ticker_none_symbol_input(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_market_data_service: MagicMock
-    ) -> None:
-        """Test get_ticker behavior with None symbol input."""
-        api = bp_api_with_di()
-
-        # Configure mock service to raise TypeError for None input
-        # (simulating real service behavior)
-        def mock_get_ticker_side_effect(symbol: str | None) -> None:
-            if symbol is None:
-                raise TypeError("symbol must be a string, not NoneType")
-            return None  # This won't be reached for None input
-
-        mock_bp_market_data_service.get_ticker.side_effect = mock_get_ticker_side_effect
-
-        # This should be handled by type hints, but test runtime behavior
-        with pytest.raises((APIError, TypeError, ValueError)):
-            await api.get_ticker(None)  # type: ignore[arg-type]
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_get_positions_empty_symbol_input(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock
-    ) -> None:
-        """Test get_positions behavior with empty symbol input."""
-        api = bp_api_with_di()
-
-        # Service might return empty list for empty symbol
-        mock_bp_account_service.get_positions.return_value = []
-
-        result = await api.get_positions(symbol="")
-        assert result == []
-        mock_bp_account_service.get_positions.assert_called_once_with("")
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_place_order_invalid_quantity_input(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock
-    ) -> None:
-        """Test place_order with invalid quantity input."""
-        api = bp_api_with_di()
-
-        # Mock service to validate and reject invalid quantity
-        mock_bp_trading_service.place_order.side_effect = APIError(
-            message="Invalid order quantity",
-            code=APIErrorCode.INVALID_REQUEST.value,
-        )
-
-        with pytest.raises(APIError) as exc_info:
-            await api.place_order(
-                symbol="BTC_USDC",
-                side=OrderSide.BUY,
-                order_type=OrderType.LIMIT,
-                quantity=Decimal("-0.1"),  # Negative quantity
-                price=Decimal("50000"),
-                time_in_force=TimeInForce.GTC,
-            )
-
-        assert exc_info.value.code == APIErrorCode.INVALID_REQUEST.value
-
-        await api.close()
-
-    # =============================================================================
-    # IV. SERVICE INTEGRATION ERROR CHAINING
-    # =============================================================================
-
-    @pytest.mark.asyncio
-    async def test_get_balances_full_error_chain_validation(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock
-    ) -> None:
-        """Test get_balances error handling through complete call chain."""
-        api = bp_api_with_di()
-
-        # Test scenario where account service raises APIError
-        mock_bp_account_service.get_balances.side_effect = APIError(
-            message="Account service request failed",
-            code=APIErrorCode.EXCHANGE_SPECIFIC.value,
-            http_status=503,
-            exchange_message="upstream_service_error",
-        )
-
-        with pytest.raises(APIError) as exc_info:
-            await api.get_balances()
-
-        assert exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
-        assert exc_info.value.http_status == 503
-        assert "Account service request failed" in exc_info.value.message
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_multiple_service_error_isolation(
-        self,
-        bp_api_with_di: Callable[..., BackpackAPI],
-        mock_bp_account_service: MagicMock,
-        mock_bp_trading_service: MagicMock,
-        mock_bp_market_data_service: MagicMock,
-    ) -> None:
-        """Test that errors in one service don't affect others."""
-        api = bp_api_with_di()
-
-        # Configure different errors for different services
-        mock_bp_account_service.get_balances.side_effect = APIError(
-            message="Account service error",
-            code=APIErrorCode.RATE_LIMITED.value,
-        )
-
-        mock_bp_trading_service.get_open_orders.return_value = []  # Success
-        mock_bp_market_data_service.get_ticker.return_value = None  # Success (no data)
-
-        # Account service should fail
-        with pytest.raises(APIError) as exc_info:
-            await api.get_balances()
-        assert exc_info.value.code == APIErrorCode.RATE_LIMITED.value
-
-        # Trading service should still work
-        orders = await api.get_open_orders()
-        assert orders == []
-
-        # Market data service should still work
-        ticker = await api.get_ticker("BTC_USDC")
-        assert ticker is None
-
-        # DEFENSIVE CHECK: Resource cleanup after test. Mypy=[unreachable]
-        await api.close()  # type: ignore[unreachable]
-
-    # =============================================================================
-    # V. COMPLEX MULTI-STEP OPERATION FAILURES
-    # =============================================================================
-
-    @pytest.mark.asyncio
-    async def test_complex_operation_partial_failure_simulation(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock
-    ) -> None:
-        """Test complex operations with partial failures."""
-        api = bp_api_with_di()
-
-        # Simulate a scenario where multiple orders are placed, some succeed, some fail
-        def place_order_side_effect(
-            symbol: str, **_kwargs: str | OrderSide | OrderType | Decimal | TimeInForce
-        ) -> Order:
-            # Check the symbol to determine success/failure
-            if symbol == "ETH_USDC":
-                raise APIError(
-                    message="Insufficient balance",
-                    code=APIErrorCode.INSUFFICIENT_FUNDS.value,
-                )
-            elif symbol == "SOL_USDC":
-                raise APIError(
-                    message="Symbol temporarily suspended",
-                    code=APIErrorCode.SYMBOL_NOT_FOUND.value,
-                )
-            else:
-                # Success case
-                return Order(
-                    exchange="backpack",
-                    symbol=symbol,
-                    side=OrderSide.BUY,
-                    status=OrderStatus.NEW,
-                    order_type=OrderType.LIMIT,
-                    quantity_requested=Decimal("1.0"),
-                    price=Decimal("100.0"),
-                    time_in_force=TimeInForce.GTC,
-                    created_at=datetime.now(UTC),
-                    updated_at=datetime.now(UTC),
-                    triggered_at=None,
-                    strategy_name=None,
-                    signal_id=None,
-                )
-
-        mock_bp_trading_service.place_order.side_effect = place_order_side_effect
-
-        # Test successful order
-        order = await api.place_order(
-            symbol="BTC_USDC",
-            side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
-            quantity=Decimal("1.0"),
-            price=Decimal("50000"),
-            time_in_force=TimeInForce.GTC,
-        )
-        assert order.symbol == "BTC_USDC"
-
-        # Test insufficient balance error
-        with pytest.raises(APIError) as exc_info:
-            await api.place_order(
-                symbol="ETH_USDC",
-                side=OrderSide.BUY,
-                order_type=OrderType.LIMIT,
-                quantity=Decimal("1.0"),
-                price=Decimal("3000"),
-                time_in_force=TimeInForce.GTC,
-            )
-        assert exc_info.value.code == APIErrorCode.INSUFFICIENT_FUNDS.value
-
-        # Test symbol not found error
-        with pytest.raises(APIError) as exc_info:
-            await api.place_order(
-                symbol="SOL_USDC",
-                side=OrderSide.BUY,
-                order_type=OrderType.LIMIT,
-                quantity=Decimal("10"),
-                price=Decimal("100"),
-                time_in_force=TimeInForce.GTC,
-            )
-        assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_concurrent_operation_error_handling(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock
-    ) -> None:
-        """Test error handling in concurrent operations."""
-        api = bp_api_with_di()
-
-        # Configure service to behave differently for concurrent calls
-        call_count = 0
-
-        def get_balances_side_effect() -> dict[str, SpotBalance]:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return {}  # First call succeeds with empty dict
-            else:
-                raise APIError(
-                    message="Concurrent request limit exceeded",
-                    code=APIErrorCode.RATE_LIMITED.value,
-                )
-
-        mock_bp_account_service.get_balances.side_effect = get_balances_side_effect
-
-        # First call should succeed
-        balances1 = await api.get_balances()
-        assert not balances1  # Empty dict check instead of comparing to empty list
-
-        # Second call should fail
-        with pytest.raises(APIError) as exc_info:
-            await api.get_balances()
-        assert exc_info.value.code == APIErrorCode.RATE_LIMITED.value
-
-        # DEFENSIVE CHECK: Cleanup after pytest.raises context. Mypy=[unreachable]
-        await api.close()
 
 
 class TestBackpackAPIWebSocketOperations:

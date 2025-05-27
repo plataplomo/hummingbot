@@ -259,7 +259,9 @@ class TestBackpackAPIPublicBehavior:
         mock_order.symbol = "SOL_USDC"
 
         with patch.object(backpack_api.trading_service, "place_order", return_value=mock_order):
-            with patch("cyberdelta.apis.backpack.bp_api.logger") as mock_logger:
+            with patch(
+                "cyberdelta.apis.backpack.services.bp_trading_service.logger"
+            ) as mock_logger:
                 result = await backpack_api.place_order(
                     symbol="SOL_USDC",
                     side=OrderSide.BUY,

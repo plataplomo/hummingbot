@@ -33,6 +33,290 @@ pytest_plugins = ["tests.unit.apis.hyperliquid.services.conftest_trading"]
 class TestHyperliquidTradingServiceOrders:
     """Tests for the HyperliquidTradingService order operations."""
 
+    # =============================================================================
+    # INPUT VALIDATION TESTS (NEW - ITERATION 2)
+    # =============================================================================
+
+    @pytest.mark.asyncio
+    async def test_place_order_empty_symbol_validation(
+        self,
+        make_hl_trading_service: Callable[..., HyperliquidTradingService],
+    ) -> None:
+        """Test place_order raises ValueError for empty symbol."""
+        hl_trading_service = make_hl_trading_service()
+
+        with pytest.raises(ValueError) as exc_info:
+            await hl_trading_service.place_order(
+                symbol="",  # Empty symbol should be rejected
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("1.0"),
+                price=Decimal("100.0"),
+                time_in_force=TimeInForce.GTC,
+            )
+
+        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_place_order_invalid_quantity_validation(
+        self,
+        make_hl_trading_service: Callable[..., HyperliquidTradingService],
+    ) -> None:
+        """Test place_order raises ValueError for invalid quantity values."""
+        hl_trading_service = make_hl_trading_service()
+
+        # Test zero quantity
+        with pytest.raises(ValueError) as exc_info:
+            await hl_trading_service.place_order(
+                symbol="ETH",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("0.0"),  # Invalid: zero quantity
+                price=Decimal("100.0"),
+                time_in_force=TimeInForce.GTC,
+            )
+        assert "'quantity' must be a positive finite Decimal" in str(exc_info.value)
+
+        # Test negative quantity
+        with pytest.raises(ValueError) as exc_info:
+            await hl_trading_service.place_order(
+                symbol="ETH",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("-5.0"),  # Invalid: negative quantity
+                price=Decimal("100.0"),
+                time_in_force=TimeInForce.GTC,
+            )
+        assert "'quantity' must be a positive finite Decimal" in str(exc_info.value)
+
+        # Test infinite quantity
+        with pytest.raises(ValueError) as exc_info:
+            await hl_trading_service.place_order(
+                symbol="ETH",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("inf"),  # Invalid: infinite quantity
+                price=Decimal("100.0"),
+                time_in_force=TimeInForce.GTC,
+            )
+        assert "'quantity' must be a positive finite Decimal" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_place_order_invalid_price_validation(
+        self,
+        make_hl_trading_service: Callable[..., HyperliquidTradingService],
+    ) -> None:
+        """Test place_order raises ValueError for invalid price values."""
+        hl_trading_service = make_hl_trading_service()
+
+        # Test zero price
+        with pytest.raises(ValueError) as exc_info:
+            await hl_trading_service.place_order(
+                symbol="ETH",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("1.0"),
+                price=Decimal("0.0"),  # Invalid: zero price
+                time_in_force=TimeInForce.GTC,
+            )
+        assert "'price' must be a positive finite Decimal" in str(exc_info.value)
+
+        # Test negative price
+        with pytest.raises(ValueError) as exc_info:
+            await hl_trading_service.place_order(
+                symbol="ETH",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("1.0"),
+                price=Decimal("-50.0"),  # Invalid: negative price
+                time_in_force=TimeInForce.GTC,
+            )
+        assert "'price' must be a positive finite Decimal" in str(exc_info.value)
+
+        # Test infinite price
+        with pytest.raises(ValueError) as exc_info:
+            await hl_trading_service.place_order(
+                symbol="ETH",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("1.0"),
+                price=Decimal("inf"),  # Invalid: infinite price
+                time_in_force=TimeInForce.GTC,
+            )
+        assert "'price' must be a positive finite Decimal" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_place_order_invalid_stop_price_validation(
+        self,
+        make_hl_trading_service: Callable[..., HyperliquidTradingService],
+    ) -> None:
+        """Test place_order raises ValueError for invalid stop_price values when provided."""
+        hl_trading_service = make_hl_trading_service()
+
+        # Test negative stop_price
+        with pytest.raises(ValueError) as exc_info:
+            await hl_trading_service.place_order(
+                symbol="ETH",
+                side=OrderSide.BUY,
+                order_type=OrderType.STOP_LIMIT,
+                quantity=Decimal("1.0"),
+                price=Decimal("100.0"),
+                time_in_force=TimeInForce.GTC,
+                stop_price=Decimal("-10.0"),  # Invalid: negative stop_price
+            )
+        assert "'stop_price' must be a positive finite Decimal when provided" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_order_empty_order_id_validation(
+        self,
+        make_hl_trading_service: Callable[..., HyperliquidTradingService],
+    ) -> None:
+        """Test get_order raises ValueError for empty order_id."""
+        hl_trading_service = make_hl_trading_service()
+
+        with pytest.raises(ValueError) as exc_info:
+            await hl_trading_service.get_order(
+                symbol="ETH",
+                order_id="",  # Empty order_id should be rejected
+            )
+
+        assert "'order_id' must be a non-empty value" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_order_invalid_string_order_id_validation(
+        self,
+        make_hl_trading_service: Callable[..., HyperliquidTradingService],
+    ) -> None:
+        """Test get_order raises APIError for invalid string order_id (ValueError wrapped in APIError)."""
+        hl_trading_service = make_hl_trading_service()
+
+        with pytest.raises(APIError) as exc_info:
+            await hl_trading_service.get_order(
+                symbol="ETH",
+                order_id="not_a_number",  # Invalid string order_id
+            )
+
+        # The service wraps ValueError in APIError due to error handling strategy
+        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+        assert "Service internal logic error" in exc_info.value.message
+        # The original ValueError message should be preserved in the original_exception
+        assert "'order_id' must be a valid integer" in str(exc_info.value.original_exception)
+
+    @pytest.mark.asyncio
+    async def test_get_order_empty_symbol_when_provided_validation(
+        self,
+        make_hl_trading_service: Callable[..., HyperliquidTradingService],
+    ) -> None:
+        """Test get_order raises ValueError for empty symbol when provided."""
+        hl_trading_service = make_hl_trading_service()
+
+        with pytest.raises(ValueError) as exc_info:
+            await hl_trading_service.get_order(
+                symbol="",  # Empty symbol should be rejected when provided
+                order_id=12345,
+            )
+
+        assert "'symbol' must be a non-empty string when provided" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_open_orders_empty_symbol_when_provided_validation(
+        self,
+        make_hl_trading_service: Callable[..., HyperliquidTradingService],
+    ) -> None:
+        """Test get_open_orders raises ValueError for empty symbol when provided."""
+        hl_trading_service = make_hl_trading_service()
+
+        with pytest.raises(ValueError) as exc_info:
+            await hl_trading_service.get_open_orders(
+                symbol=""  # Empty symbol should be rejected when provided
+            )
+
+        assert "'symbol' must be a non-empty string when provided" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_cancel_order_none_symbol_validation(
+        self,
+        make_hl_trading_service: Callable[..., HyperliquidTradingService],
+    ) -> None:
+        """Test cancel_order raises ValueError for None symbol."""
+        hl_trading_service = make_hl_trading_service()
+
+        with pytest.raises(ValueError) as exc_info:
+            await hl_trading_service.cancel_order(
+                symbol=None,  # None symbol should be rejected
+                order_id=12345,
+            )
+
+        assert "'symbol' parameter is required" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_cancel_order_empty_symbol_validation(
+        self,
+        make_hl_trading_service: Callable[..., HyperliquidTradingService],
+    ) -> None:
+        """Test cancel_order raises ValueError for empty symbol."""
+        hl_trading_service = make_hl_trading_service()
+
+        with pytest.raises(ValueError) as exc_info:
+            await hl_trading_service.cancel_order(
+                symbol="",  # Empty symbol should be rejected
+                order_id=12345,
+            )
+
+        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_cancel_order_invalid_string_order_id_validation(
+        self,
+        make_hl_trading_service: Callable[..., HyperliquidTradingService],
+    ) -> None:
+        """Test cancel_order raises ValueError for invalid string order_id."""
+        hl_trading_service = make_hl_trading_service()
+
+        with pytest.raises(ValueError) as exc_info:
+            await hl_trading_service.cancel_order(
+                symbol="ETH",
+                order_id="not_a_number",  # Invalid string order_id
+            )
+
+        assert "'order_id' must be a valid integer" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_cancel_order_zero_order_id_validation(
+        self,
+        make_hl_trading_service: Callable[..., HyperliquidTradingService],
+    ) -> None:
+        """Test cancel_order raises ValueError for zero order_id."""
+        hl_trading_service = make_hl_trading_service()
+
+        with pytest.raises(ValueError) as exc_info:
+            await hl_trading_service.cancel_order(
+                symbol="ETH",
+                order_id=0,  # Zero order_id should be rejected
+            )
+
+        assert "'order_id' must be positive" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_cancel_order_negative_order_id_validation(
+        self,
+        make_hl_trading_service: Callable[..., HyperliquidTradingService],
+    ) -> None:
+        """Test cancel_order raises ValueError for negative order_id."""
+        hl_trading_service = make_hl_trading_service()
+
+        with pytest.raises(ValueError) as exc_info:
+            await hl_trading_service.cancel_order(
+                symbol="ETH",
+                order_id=-12345,  # Negative order_id should be rejected
+            )
+
+        assert "'order_id' must be positive" in str(exc_info.value)
+
+    # =============================================================================
+    # EXISTING FUNCTIONALITY TESTS
+    # =============================================================================
+
     @pytest.mark.asyncio
     async def test_place_order_http_client_returns_none_in_exchange_action(
         self,

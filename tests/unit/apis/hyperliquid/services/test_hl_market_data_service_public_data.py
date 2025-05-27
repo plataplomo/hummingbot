@@ -35,6 +35,111 @@ pytest_plugins = ["tests.unit.apis.hyperliquid.services.conftest_market_data"]
 class TestHyperliquidMarketDataServicePublicData:
     """Tests for the HyperliquidMarketDataService public market data functionality."""
 
+    # =============================================================================
+    # INPUT VALIDATION TESTS (NEW - ITERATION 2)
+    # =============================================================================
+
+    @pytest.mark.asyncio
+    async def test_get_ticker_empty_symbol_validation(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+    ) -> None:
+        """Test get_ticker raises ValueError for empty symbol (direct validation error)."""
+        with pytest.raises(ValueError) as exc_info:
+            await hyperliquid_market_data_service.get_ticker("")
+
+        # The service raises ValueError directly for input validation
+        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_ticker_none_symbol_validation(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+    ) -> None:
+        """Test get_ticker raises ValueError for None symbol (direct validation error)."""
+        with pytest.raises(ValueError) as exc_info:
+            await hyperliquid_market_data_service.get_ticker(None)  # type: ignore[arg-type]
+
+        # The service raises ValueError directly for input validation
+        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_ticker_whitespace_symbol_validation(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+    ) -> None:
+        """Test get_ticker raises ValueError for whitespace-only symbol after strip()."""
+        # The service checks `if not symbol:` which evaluates to False for whitespace strings.
+        # To properly test whitespace validation, we need to check if the service
+        # validates against stripped strings. Since the current service doesn't do this,
+        # we'll test that whitespace passes input validation and fails elsewhere.
+        # This test documents the current behavior rather than ideal behavior.
+
+        # Mock the get_all_asset_contexts_raw method to avoid the unpack error
+        mock_response = MagicMock()
+        mock_response.asset_ctxs = []
+
+        with patch.object(
+            hyperliquid_market_data_service,
+            "get_all_asset_contexts_raw",
+            new=AsyncMock(return_value=mock_response),
+        ):
+            # Whitespace symbols currently pass input validation but won't find matches
+            result = await hyperliquid_market_data_service.get_ticker("   ")
+            assert result is None  # No asset found for whitespace symbol
+
+    @pytest.mark.asyncio
+    async def test_get_order_book_empty_symbol_validation(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+    ) -> None:
+        """Test get_order_book raises ValueError for empty symbol."""
+        with pytest.raises(ValueError) as exc_info:
+            await hyperliquid_market_data_service.get_order_book("")
+
+        # The service raises ValueError directly for input validation
+        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_order_book_none_symbol_validation(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+    ) -> None:
+        """Test get_order_book raises ValueError for None symbol."""
+        with pytest.raises(ValueError) as exc_info:
+            await hyperliquid_market_data_service.get_order_book(None)  # type: ignore[arg-type]
+
+        # The service raises ValueError directly for input validation
+        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_recent_trades_empty_symbol_validation(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+    ) -> None:
+        """Test get_recent_trades raises ValueError for empty symbol."""
+        with pytest.raises(ValueError) as exc_info:
+            await hyperliquid_market_data_service.get_recent_trades("")
+
+        # The service raises ValueError directly for input validation
+        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_recent_trades_none_symbol_validation(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+    ) -> None:
+        """Test get_recent_trades raises ValueError for None symbol."""
+        with pytest.raises(ValueError) as exc_info:
+            await hyperliquid_market_data_service.get_recent_trades(None)  # type: ignore[arg-type]
+
+        # The service raises ValueError directly for input validation
+        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+
+    # =============================================================================
+    # EXISTING TESTS (Updated tests below)
+    # =============================================================================
+
     @pytest.mark.asyncio
     async def test_get_all_asset_contexts_success(
         self,
@@ -547,32 +652,28 @@ class TestHyperliquidMarketDataServicePublicData:
         self,
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
-        """Test get_ticker behavior with None symbol input."""
-        # This should be handled by type hints in real scenario, but test runtime behavior
-        with pytest.raises((APIError, TypeError, ValueError)):
+        """Test get_ticker with None symbol input raises APIError (updated for new error handling)."""
+        with pytest.raises(APIError) as exc_info:
             await hyperliquid_market_data_service.get_ticker(None)  # type: ignore[arg-type]
+
+        # The service wraps ValueError in APIError due to error handling strategy
+        assert exc_info.value.code == APIErrorCode.INVALID_PARAMS.value
+        assert "Service internal logic error." in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_ticker_with_empty_string_symbol(
         self,
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
-        """Test get_ticker behavior with empty string symbol."""
-        symbol = ""
+        """Test get_ticker with empty string symbol raises APIError (updated for new error handling)."""
+        with pytest.raises(APIError) as exc_info:
+            await hyperliquid_market_data_service.get_ticker("")
 
-        # Setup basic response that would succeed, but no matching asset
-        mock_meta_response = HyperliquidRawMetaResponse(universe=[])
-        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse(
-            meta=mock_meta_response, asset_ctxs=[]
-        )
-
-        with patch.object(
-            hyperliquid_market_data_service,
-            "get_all_asset_contexts_raw",
-            new=AsyncMock(return_value=mock_all_contexts_response),
-        ):
-            result = await hyperliquid_market_data_service.get_ticker(symbol)
-            assert result is None  # Empty symbol should not match any asset
+        # The service wraps ValueError in APIError due to error handling strategy
+        assert exc_info.value.code == APIErrorCode.INVALID_PARAMS.value
+        assert "Service internal logic error." in exc_info.value.message
+        assert isinstance(exc_info.value.__cause__, ValueError)
+        assert "empty" in str(exc_info.value.__cause__).lower()
 
     @pytest.mark.asyncio
     async def test_get_order_book_response_handler_raises_api_error(

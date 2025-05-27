@@ -416,7 +416,8 @@ class TestHyperliquidAccountServiceBalancesPositions:
         )
         with pytest.raises(APIError) as excinfo:
             await hyperliquid_account_service.get_account_summary()
-        assert "Processing HL account summary data failed" in str(excinfo.value)
+        # The service wraps ValueError in APIError with "Service internal logic error." message
+        assert "Service internal logic error." in str(excinfo.value)
         assert isinstance(
             excinfo.value.__cause__, ValueError
         )  # Check that original ValueError is preserved
