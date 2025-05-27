@@ -28,7 +28,6 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_open_orders successfully retrieves open orders."""
         symbol = "SOL_USDC"
@@ -114,7 +113,6 @@ class TestBackpackTradingServiceQueryStatus:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                rate_limiter_service=mock_rate_limiter_service,
             )
             mock_response_handler.handle_get_open_orders_response.assert_called_once_with(
                 mock_raw_response_content, symbol
@@ -129,7 +127,6 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_open_orders when HTTP client returns None content."""
         symbol = "SOL_USDC"
@@ -144,8 +141,10 @@ class TestBackpackTradingServiceQueryStatus:
                 await bp_trading_service.get_open_orders(symbol=symbol)
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-            expected_msg_part = f"Get open orders for {symbol} returned invalid data"
-            assert expected_msg_part in exc_info.value.message
+            assert (
+                "Get open orders for SOL_USDC returned invalid data (status: 200)"
+                in exc_info.value.message
+            )
 
             mock_request_builder.build_get_open_orders_params.assert_called_once_with(symbol=symbol)
             mock_http_client_requester.assert_called_once_with(
@@ -155,7 +154,6 @@ class TestBackpackTradingServiceQueryStatus:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                rate_limiter_service=mock_rate_limiter_service,
             )
             mock_response_handler.handle_get_open_orders_response.assert_not_called()
             mock_mapper.transform_raw_order_to_internal.assert_not_called()
@@ -167,7 +165,6 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_open_orders handles validation error from response handler."""
         symbol = "SOL_USDC"
@@ -186,8 +183,8 @@ class TestBackpackTradingServiceQueryStatus:
         with pytest.raises(APIError) as exc_info:
             await bp_trading_service.get_open_orders(symbol=symbol)
 
-        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected error getting open orders" in exc_info.value.message
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Internal data validation failed" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_open_orders_unexpected_exception(
@@ -196,7 +193,6 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_open_orders handles unexpected exception."""
         symbol = "SOL_USDC"
@@ -206,14 +202,14 @@ class TestBackpackTradingServiceQueryStatus:
         mock_request_builder.build_get_open_orders_params.return_value = mock_params
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_open_orders_response.side_effect = Exception(
-            "Unexpected error"
+            "Unexpected service failure"
         )
 
         with pytest.raises(APIError) as exc_info:
             await bp_trading_service.get_open_orders(symbol=symbol)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected error getting open orders" in exc_info.value.message
+        assert "Unexpected service failure" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_order_status_success(
@@ -222,7 +218,6 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_order_status successfully retrieves order status."""
         symbol = "SOL_USDC"
@@ -305,7 +300,6 @@ class TestBackpackTradingServiceQueryStatus:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                rate_limiter_service=mock_rate_limiter_service,
             )
             mock_response_handler.handle_get_order_status_response.assert_called_once_with(
                 mock_raw_response_content, order_id
@@ -320,7 +314,6 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_order_status when HTTP client returns None content."""
         symbol = "SOL_USDC"
@@ -336,8 +329,7 @@ class TestBackpackTradingServiceQueryStatus:
                 await bp_trading_service.get_order_status(symbol=symbol, order_id=order_id)
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-            expected_msg_part = f"Get order {order_id} ({symbol}) returned invalid data"
-            assert expected_msg_part in exc_info.value.message
+            assert "Get order 12345 (SOL_USDC) returned invalid data" in exc_info.value.message
 
             mock_request_builder.build_get_order_params.assert_called_once_with(symbol=symbol)
             mock_http_client_requester.assert_called_once_with(
@@ -347,7 +339,6 @@ class TestBackpackTradingServiceQueryStatus:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                rate_limiter_service=mock_rate_limiter_service,
             )
             mock_response_handler.handle_get_order_status_response.assert_not_called()
             mock_mapper.transform_raw_order_to_internal.assert_not_called()
@@ -359,7 +350,6 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_order_status handles validation error from response handler."""
         symbol = "SOL_USDC"
@@ -379,8 +369,8 @@ class TestBackpackTradingServiceQueryStatus:
         with pytest.raises(APIError) as exc_info:
             await bp_trading_service.get_order_status(symbol=symbol, order_id=order_id)
 
-        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert f"Unexpected error getting order {order_id} ({symbol})" in exc_info.value.message
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Internal data validation failed" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_order_status_unexpected_exception(
@@ -389,7 +379,6 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_order_status handles unexpected exception."""
         symbol = "SOL_USDC"
@@ -400,14 +389,14 @@ class TestBackpackTradingServiceQueryStatus:
         mock_request_builder.build_get_order_params.return_value = mock_params
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_order_status_response.side_effect = Exception(
-            "Unexpected error"
+            "Unexpected service failure"
         )
 
         with pytest.raises(APIError) as exc_info:
             await bp_trading_service.get_order_status(symbol=symbol, order_id=order_id)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert f"Unexpected error getting order {order_id} ({symbol})" in exc_info.value.message
+        assert "Unexpected service failure" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_order_status_not_found(
@@ -415,7 +404,6 @@ class TestBackpackTradingServiceQueryStatus:
         bp_trading_service: BackpackTradingService,
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_order_status when order is not found."""
         symbol = "SOL_USDC"
@@ -438,7 +426,6 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_order successfully retrieves an order."""
         symbol = "SOL_USDC"
@@ -524,7 +511,6 @@ class TestBackpackTradingServiceQueryStatus:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                rate_limiter_service=mock_rate_limiter_service,
             )
             mock_response_handler.handle_get_order_status_response.assert_called_once_with(
                 mock_raw_response_content, order_id
@@ -539,7 +525,6 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_order when HTTP client returns None content."""
         symbol = "SOL_USDC"
@@ -555,8 +540,10 @@ class TestBackpackTradingServiceQueryStatus:
                 await bp_trading_service.get_order(order_id=order_id, symbol=symbol)
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-            expected_msg_part = f"Get order {order_id} ({symbol}) returned invalid data"
-            assert expected_msg_part in exc_info.value.message
+            assert (
+                "Get order 12345 (SOL_USDC) returned invalid data (status: 200)"
+                in exc_info.value.message
+            )
 
             mock_request_builder.build_get_order_params.assert_called_once_with(symbol=symbol)
             mock_http_client_requester.assert_called_once_with(
@@ -566,7 +553,6 @@ class TestBackpackTradingServiceQueryStatus:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                rate_limiter_service=mock_rate_limiter_service,
             )
             mock_response_handler.handle_get_order_status_response.assert_not_called()
             mock_mapper.transform_raw_order_to_internal.assert_not_called()
@@ -578,7 +564,6 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_order handles validation error from response handler."""
         symbol = "SOL_USDC"
@@ -598,8 +583,8 @@ class TestBackpackTradingServiceQueryStatus:
         with pytest.raises(APIError) as exc_info:
             await bp_trading_service.get_order(order_id=order_id, symbol=symbol)
 
-        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected error getting order" in exc_info.value.message
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Internal data validation failed" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_all_open_orders_success(
@@ -608,7 +593,6 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test get_all_open_orders successfully retrieves all open orders."""
         mock_endpoint_path = "/api/v1/orders"
@@ -743,7 +727,6 @@ class TestBackpackTradingServiceQueryStatus:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                rate_limiter_service=mock_rate_limiter_service,
             )
             mock_response_handler.handle_get_open_orders_response.assert_called_once_with(
                 mock_raw_response_content, None

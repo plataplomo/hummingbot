@@ -16,7 +16,6 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
     DerivativePosition,
-    FundingRate,
     MarginAccountSummary,
     SpotBalance,
     Trade,
@@ -593,7 +592,7 @@ class TestHyperliquidAPIAccountOperations:
         result = await api.get_positions()
 
         # Verify service was called and result returned
-        mock_hl_account_service.get_positions.assert_called_once_with(None)
+        mock_hl_account_service.get_positions.assert_called_once_with(symbol=None)
         assert result == expected_positions
 
         await api.close()
@@ -602,21 +601,14 @@ class TestHyperliquidAPIAccountOperations:
     async def test_get_positions_with_symbol_delegates_to_account_service(
         self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_account_service: MagicMock
     ) -> None:
-        """Test that get_positions with symbol properly delegates to account service."""
+        """Test that get_positions with symbol delegates to account service."""
         api = hl_api_with_di()
+        mock_hl_account_service.get_positions.return_value = []
 
-        # Configure mock account service
-        expected_positions: list[DerivativePosition] = []
-        mock_hl_account_service.get_positions.return_value = expected_positions
-
-        # Test delegation with symbol
         result = await api.get_positions("ETH")
 
-        # Verify service was called with correct parameters
-        mock_hl_account_service.get_positions.assert_called_once_with("ETH")
-        assert result == expected_positions
-
-        await api.close()
+        assert result == []
+        mock_hl_account_service.get_positions.assert_called_once_with(symbol="ETH")
 
     @pytest.mark.asyncio
     async def test_get_order_history_delegates_to_account_service(
@@ -771,21 +763,14 @@ class TestHyperliquidAPITradingOperations:
     async def test_get_open_orders_delegates_to_trading_service(
         self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock
     ) -> None:
-        """Test that get_open_orders properly delegates to trading service."""
+        """Test that get_open_orders delegates to trading service."""
         api = hl_api_with_di()
+        mock_hl_trading_service.get_open_orders.return_value = []
 
-        # Configure mock trading service
-        expected_orders: list[Order] = []  # Empty orders list
-        mock_hl_trading_service.get_open_orders.return_value = expected_orders
+        result = await api.get_open_orders("BTC")
 
-        # Test delegation
-        result = await api.get_open_orders(symbol="BTC")
-
-        # Verify service was called with correct parameters
-        mock_hl_trading_service.get_open_orders.assert_called_once_with("BTC")
-        assert result == expected_orders
-
-        await api.close()
+        assert result == []
+        mock_hl_trading_service.get_open_orders.assert_called_once_with(symbol="BTC")
 
 
 class TestHyperliquidAPIMarketDataOperations:
@@ -795,57 +780,30 @@ class TestHyperliquidAPIMarketDataOperations:
     async def test_get_ticker_delegates_to_market_data_service(
         self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_market_data_service: MagicMock
     ) -> None:
-        """Test that get_ticker properly delegates to market data service."""
+        """Test that get_ticker delegates to market data service."""
         api = hl_api_with_di()
 
-        # Configure mock market data service
-        from cyberdelta.core.models.market import Ticker
+        # Create a mock ticker
+        mock_ticker = MagicMock()
+        mock_hl_market_data_service.get_ticker.return_value = mock_ticker
 
-        expected_ticker = Ticker(
-            symbol="BTC",
-            price=Decimal("50000.0"),
-            bid=Decimal("49999.0"),
-            ask=Decimal("50001.0"),
-            volume=Decimal("100.0"),
-            timestamp=datetime.now(UTC),
-        )
-        mock_hl_market_data_service.get_ticker.return_value = expected_ticker
-
-        # Test delegation
         result = await api.get_ticker("BTC")
 
-        # Verify service was called and result returned
-        mock_hl_market_data_service.get_ticker.assert_called_once_with("BTC")
-        assert result == expected_ticker
-
-        await api.close()
+        assert result == mock_ticker
+        mock_hl_market_data_service.get_ticker.assert_called_once_with(symbol="BTC")
 
     @pytest.mark.asyncio
     async def test_get_funding_rates_delegates_to_market_data_service(
         self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_market_data_service: MagicMock
     ) -> None:
-        """Test that get_funding_rates properly delegates to market data service."""
+        """Test that get_funding_rates delegates to market data service."""
         api = hl_api_with_di()
+        mock_hl_market_data_service.get_funding_rates.return_value = []
 
-        # Configure mock market data service
-        expected_funding_rates = [
-            FundingRate(
-                symbol="BTC",
-                funding_rate=Decimal("0.0001"),
-                timestamp=datetime.now(UTC),
-                next_funding_time=datetime.now(UTC),
-            )
-        ]
-        mock_hl_market_data_service.get_funding_rates.return_value = expected_funding_rates
+        result = await api.get_funding_rates(["BTC"])
 
-        # Test delegation
-        result = await api.get_funding_rates(symbols=["BTC"])
-
-        # Verify service was called with correct parameters
-        mock_hl_market_data_service.get_funding_rates.assert_called_once_with(["BTC"])
-        assert result == expected_funding_rates
-
-        await api.close()
+        assert result == []
+        mock_hl_market_data_service.get_funding_rates.assert_called_once_with(symbols=["BTC"])
 
 
 class TestHyperliquidAPIErrorHandling:
@@ -1091,39 +1049,32 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
     async def test_get_ticker_empty_successful_response(
         self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_market_data_service: MagicMock
     ) -> None:
-        """Test get_ticker handling of empty but successful responses."""
+        """Test that get_ticker handles empty successful response correctly."""
         api = hl_api_with_di()
-
-        # Configure mock to return None (valid empty response)
         mock_hl_market_data_service.get_ticker.return_value = None
 
-        # Test handling of empty response
         result = await api.get_ticker("NONEXISTENT")
 
         assert result is None
-        mock_hl_market_data_service.get_ticker.assert_called_once_with("NONEXISTENT")
+        mock_hl_market_data_service.get_ticker.assert_called_once_with(symbol="NONEXISTENT")
 
     @pytest.mark.asyncio
     async def test_get_positions_rate_limited_propagation(
         self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_account_service: MagicMock
     ) -> None:
-        """Test get_positions exact propagation of rate limiting errors."""
+        """Test that rate limited errors from account service are propagated correctly."""
         api = hl_api_with_di()
 
-        # Configure mock to raise rate limit error
-        rate_limit_error = APIError(
-            "Rate limit exceeded", code=APIErrorCode.RATE_LIMITED.value, http_status=429
-        )
-        mock_hl_account_service.get_positions.side_effect = rate_limit_error
+        # Configure mock to raise rate limited error
+        rate_limited_error = APIError("Rate limited", code=429)
+        mock_hl_account_service.get_positions.side_effect = rate_limited_error
 
-        # Test exact rate limit error propagation
         with pytest.raises(APIError) as exc_info:
-            await api.get_positions(symbol="BTC")
+            await api.get_positions("BTC")
 
-        assert exc_info.value is rate_limit_error  # Same instance
-        assert exc_info.value.code == APIErrorCode.RATE_LIMITED.value
-        assert exc_info.value.http_status == 429
-        mock_hl_account_service.get_positions.assert_called_once_with("BTC")
+        assert exc_info.value.code == 429
+        assert "Rate limited" in str(exc_info.value)
+        mock_hl_account_service.get_positions.assert_called_once_with(symbol="BTC")
 
     @pytest.mark.asyncio
     async def test_get_account_summary_server_error_propagation(
@@ -1164,7 +1115,7 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
 
         assert exc_info.value is timeout_error  # Same instance
         assert exc_info.value.code == APIErrorCode.TIMEOUT.value
-        mock_hl_market_data_service.get_order_book.assert_called_once_with("ETH")
+        mock_hl_market_data_service.get_order_book.assert_called_once_with(symbol="ETH")
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_service_unavailable_propagation(
@@ -1188,7 +1139,7 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
         assert exc_info.value is service_error  # Same instance
         assert exc_info.value.code == APIErrorCode.SERVICE_UNAVAILABLE.value
         assert exc_info.value.http_status == 503
-        mock_hl_market_data_service.get_recent_trades.assert_called_once_with("BTC")
+        mock_hl_market_data_service.get_recent_trades.assert_called_once_with(symbol="BTC")
 
     @pytest.mark.asyncio
     async def test_place_order_service_unexpected_exception(

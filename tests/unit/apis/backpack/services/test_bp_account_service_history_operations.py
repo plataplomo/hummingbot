@@ -427,7 +427,7 @@ class TestBackpackAccountServiceHistoryOperations:
             await bp_account_service.withdraw(asset=asset, amount=amount, address=address)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Processing withdrawal data failed" in exc_info.value.message
+        assert "Internal data validation failed" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_withdraw_unexpected_exception(
@@ -453,7 +453,7 @@ class TestBackpackAccountServiceHistoryOperations:
             await bp_account_service.withdraw(asset=asset, amount=amount, address=address)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected error for withdrawal" in exc_info.value.message
+        assert "Unexpected service failure" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_trade_history_success(
@@ -585,7 +585,7 @@ class TestBackpackAccountServiceHistoryOperations:
             await bp_account_service.get_trade_history(symbol=symbol, limit=limit)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Processing trade history data failed" in exc_info.value.message
+        assert "Internal data validation failed" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_trade_history_unexpected_exception(
@@ -611,7 +611,7 @@ class TestBackpackAccountServiceHistoryOperations:
             await bp_account_service.get_trade_history(symbol=symbol)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected error for trade history" in exc_info.value.message
+        assert "Unexpected service failure" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_constructor_with_custom_mapper(

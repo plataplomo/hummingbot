@@ -249,11 +249,17 @@ class TestBackpackMarketDataServiceFunding:
             )
 
             result = await backpack_market_data_service.get_historical_funding_rates(
-                symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms, limit=limit
+                symbol=symbol,
+                start_time=datetime.fromtimestamp(start_time_ms / 1000),
+                end_time=datetime.fromtimestamp(end_time_ms / 1000),
+                limit=limit,
             )
 
             mock_request_builder.build_get_historical_funding_rates_params.assert_called_once_with(
-                symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms, limit=limit
+                symbol=symbol,
+                start_time_ms=1678880000,
+                end_time_ms=1678886400,
+                limit=limit,
             )
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
@@ -306,7 +312,9 @@ class TestBackpackMarketDataServiceFunding:
         with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
             with pytest.raises(APIError) as exc_info:
                 await backpack_market_data_service.get_historical_funding_rates(
-                    symbol=symbol, start_time_ms=start_time_ms, limit=limit
+                    symbol=symbol,
+                    start_time=datetime.fromtimestamp(start_time_ms / 1000),
+                    limit=limit,
                 )
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -315,7 +323,7 @@ class TestBackpackMarketDataServiceFunding:
 
             mock_request_builder.build_get_historical_funding_rates_params.assert_called_once_with(
                 symbol=symbol,
-                start_time_ms=start_time_ms,
+                start_time_ms=1678880000,
                 end_time_ms=None,
                 limit=limit,
             )

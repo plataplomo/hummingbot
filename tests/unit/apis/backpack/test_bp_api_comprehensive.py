@@ -158,7 +158,7 @@ class TestBackpackAPIPublicBehavior:
 
             assert result == mock_order_book
             assert result.symbol == "SOL_USDC"
-            mock_get_order_book.assert_called_once_with("SOL_USDC", 50)
+            mock_get_order_book.assert_called_once_with(symbol="SOL_USDC", limit=50)
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_success(self, backpack_api: BackpackAPI) -> None:
@@ -318,7 +318,7 @@ class TestBackpackAPIPublicBehavior:
             result = await backpack_api.cancel_order("order123", "SOL_USDC")
 
             assert result is True
-            mock_cancel.assert_called_once_with("order123", "SOL_USDC")
+            mock_cancel.assert_called_once_with(order_id="order123", symbol="SOL_USDC")
 
     @pytest.mark.asyncio
     async def test_cancel_order_requires_symbol(self, backpack_api: BackpackAPI) -> None:
@@ -552,16 +552,26 @@ class TestBackpackAPIPublicBehavior:
         self, backpack_api: BackpackAPI
     ) -> None:
         """Test warning for naive datetimes in historical funding rates."""
-        mock_funding_rates = [MagicMock(spec=FundingRate)]
         start_time_naive = datetime.now()  # Naive datetime
         end_time_naive = datetime.now()  # Naive datetime
 
+        # Mock the HTTP request to return valid data
+        mock_raw_data = [
+            {
+                "symbol": "SOL_USDC",
+                "rate": "0.0001",
+                "time": 1640995200000,
+            }
+        ]
+
         with patch.object(
             backpack_api.market_data_service,
-            "get_historical_funding_rates",
-            return_value=mock_funding_rates,
+            "_http_client_requester",
+            return_value=(mock_raw_data, 200, {}),
         ):
-            with patch("cyberdelta.apis.backpack.bp_api.logger") as mock_logger:
+            with patch(
+                "cyberdelta.apis.backpack.services.bp_market_data_service.logger"
+            ) as mock_logger:
                 await backpack_api.get_historical_funding_rates(
                     "SOL_USDC", start_time_naive, end_time_naive, 100
                 )

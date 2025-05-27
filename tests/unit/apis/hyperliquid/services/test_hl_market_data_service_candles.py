@@ -123,7 +123,7 @@ class TestHyperliquidMarketDataServiceCandles:
             )
 
             result_candles = await hyperliquid_market_data_service.get_market_data(
-                symbol, interval, start_time_ms, end_time_ms
+                symbol, interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
             )
 
             mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once_with(
@@ -178,7 +178,7 @@ class TestHyperliquidMarketDataServiceCandles:
 
         with pytest.raises(APIError) as exc_info:
             await hyperliquid_market_data_service.get_market_data(
-                symbol, interval, start_time_ms, end_time_ms
+                symbol, interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
             )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -232,7 +232,7 @@ class TestHyperliquidMarketDataServiceCandles:
 
         with pytest.raises(APIError) as exc_info:
             await hyperliquid_market_data_service.get_market_data(
-                symbol, interval, start_time_ms, end_time_ms
+                symbol, interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
             )
 
         assert exc_info.value.code == APIErrorCode.TIMEOUT.value
@@ -267,7 +267,7 @@ class TestHyperliquidMarketDataServiceCandles:
 
         with pytest.raises(APIError) as exc_info:
             await hyperliquid_market_data_service.get_market_data(
-                symbol, interval, start_time_ms, end_time_ms
+                symbol, interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
             )
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
@@ -299,7 +299,7 @@ class TestHyperliquidMarketDataServiceCandles:
         # Service should validate time range and raise ValueError directly
         with pytest.raises(ValueError) as exc_info:
             await hyperliquid_market_data_service.get_market_data(
-                symbol, interval, start_time_ms, end_time_ms
+                symbol, interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
             )
 
         assert "'end_time_ms' cannot be before 'start_time_ms'" in str(exc_info.value)
@@ -355,7 +355,7 @@ class TestHyperliquidMarketDataServiceCandles:
 
         with pytest.raises(APIError) as exc_info:
             await hyperliquid_market_data_service.get_market_data(
-                symbol, interval, start_time_ms, end_time_ms
+                symbol, interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
             )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -419,7 +419,7 @@ class TestHyperliquidMarketDataServiceCandles:
 
             with pytest.raises(APIError) as exc_info:
                 await hyperliquid_market_data_service.get_market_data(
-                    symbol, interval, start_time_ms, end_time_ms
+                    symbol, interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
                 )
 
             assert exc_info.value.code == APIErrorCode.UNKNOWN.value
@@ -483,7 +483,7 @@ class TestHyperliquidMarketDataServiceCandles:
             mock_mapper_instance.transform_raw_candle_snapshot_to_candles.return_value = []
 
             result = await hyperliquid_market_data_service.get_market_data(
-                symbol, interval, start_time_ms, end_time_ms
+                symbol, interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
             )
 
             assert result == []
@@ -528,7 +528,7 @@ class TestHyperliquidMarketDataServiceCandles:
 
         with pytest.raises(APIError) as exc_info:
             await hyperliquid_market_data_service.get_market_data(
-                symbol, interval, start_time_ms, end_time_ms
+                symbol, interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
             )
 
         assert exc_info.value.code == APIErrorCode.SERVER_ERROR.value
@@ -606,7 +606,7 @@ class TestHyperliquidMarketDataServiceCandles:
                 ]
 
                 result = await hyperliquid_market_data_service.get_market_data(
-                    symbol, interval, start_time_ms, end_time_ms
+                    symbol, interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
                 )
 
                 assert len(result) == 1

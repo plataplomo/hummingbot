@@ -265,7 +265,7 @@ class TestBackpackAPIAccountOperations:
         result = await api.get_positions()
 
         # Verify service was called and result returned (positional argument)
-        mock_bp_account_service.get_positions.assert_called_once_with(None)
+        mock_bp_account_service.get_positions.assert_called_once_with(symbol=None)
         assert result == expected_positions
 
         await api.close()
@@ -285,7 +285,7 @@ class TestBackpackAPIAccountOperations:
         result = await api.get_positions(symbol="SOL")
 
         # Verify service was called with correct parameters (positional argument)
-        mock_bp_account_service.get_positions.assert_called_once_with("SOL")
+        mock_bp_account_service.get_positions.assert_called_once_with(symbol="SOL")
         assert result == expected_positions
 
         await api.close()
@@ -412,10 +412,12 @@ class TestBackpackAPITradingOperations:
         mock_bp_trading_service.cancel_order.return_value = True
 
         # Test delegation
-        result = await api.cancel_order("order_789", symbol="SOL")
+        result = await api.cancel_order(order_id="order_789", symbol="SOL")
 
-        # Verify service was called with correct parameters (positional arguments)
-        mock_bp_trading_service.cancel_order.assert_called_once_with("order_789", "SOL")
+        # Verify service was called and result returned
+        mock_bp_trading_service.cancel_order.assert_called_once_with(
+            order_id="order_789", symbol="SOL"
+        )
         assert result is True
 
         await api.close()
@@ -521,7 +523,7 @@ class TestBackpackAPITradingOperations:
         result = await api.get_open_orders()
 
         # Verify service was called and result returned (positional argument)
-        mock_bp_trading_service.get_open_orders.assert_called_once_with(None)
+        mock_bp_trading_service.get_open_orders.assert_called_once_with(symbol=None)
         assert result == expected_orders
 
         await api.close()
@@ -551,7 +553,7 @@ class TestBackpackAPIMarketDataOperations:
         result = await api.get_ticker("SOL")
 
         # Verify service was called with correct parameters
-        mock_bp_market_data_service.get_ticker.assert_called_once_with("SOL")
+        mock_bp_market_data_service.get_ticker.assert_called_once_with(symbol="SOL")
         assert result == expected_ticker
 
         await api.close()
@@ -580,7 +582,7 @@ class TestBackpackAPIMarketDataOperations:
         result = await api.get_funding_rates(symbols=["SOL"])
 
         # Verify service was called with correct parameters (positional argument)
-        mock_bp_market_data_service.get_funding_rates.assert_called_once_with(["SOL"])
+        mock_bp_market_data_service.get_funding_rates.assert_called_once_with(symbols=["SOL"])
         assert result == expected_rates
 
         await api.close()
@@ -606,7 +608,7 @@ class TestBackpackAPIMarketDataOperations:
 
         assert exc_info.value is symbol_not_found_error  # Same instance
         assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
-        mock_bp_market_data_service.get_ticker.assert_called_once_with("UNKNOWN_SYMBOL")
+        mock_bp_market_data_service.get_ticker.assert_called_once_with(symbol="UNKNOWN_SYMBOL")
 
         await api.close()
 

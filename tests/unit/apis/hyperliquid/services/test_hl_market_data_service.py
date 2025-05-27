@@ -1651,23 +1651,27 @@ class TestHyperliquidMarketDataService:
 
     @pytest.mark.asyncio
     async def test_get_market_data_with_invalid_time_range(
-        self,
-        hyperliquid_market_data_service: HyperliquidMarketDataService,
-        mock_hl_request_builder: MagicMock,
+        self, hyperliquid_market_data_service: HyperliquidMarketDataService
     ) -> None:
-        """Test get_market_data with invalid time range (end < start)."""
+        """Test get_market_data with invalid time range."""
         symbol = "BTC"
         interval = "1h"
-        start_time_ms = 1678890000000  # Later time
-        end_time_ms = 1678886400000  # Earlier time
+        start_time_ms = 1678886400000  # Later time
+        end_time_ms = 1678880000000  # Earlier time
 
-        # Service should validate time range and raise ValueError directly
+        # The service now validates time range before making HTTP requests
+        # and raises ValueError for invalid input parameters
         with pytest.raises(ValueError) as exc_info:
             await hyperliquid_market_data_service.get_market_data(
-                symbol, interval, start_time_ms, end_time_ms
+                symbol=symbol,
+                interval=interval,
+                start_time_ms=start_time_ms,
+                end_time_ms=end_time_ms,
             )
 
-        assert "'end_time_ms' cannot be before 'start_time_ms'" in str(exc_info.value)
+        assert "[get_market_data] 'end_time_ms' cannot be before 'start_time_ms'." in str(
+            exc_info.value
+        )
 
     # VII. COMPREHENSIVE ERROR CHAINING TESTS
 

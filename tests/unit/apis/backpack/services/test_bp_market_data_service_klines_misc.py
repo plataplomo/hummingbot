@@ -292,13 +292,12 @@ class TestBackpackMarketDataServiceKlinesMisc:
     async def test_get_all_tickers_not_implemented(
         self, backpack_market_data_service: BackpackMarketDataService
     ) -> None:
-        """Test that get_all_tickers raises NotImplementedError."""
-        with pytest.raises(NotImplementedError) as exc_info:
+        """Test that get_all_tickers raises APIError for not implemented functionality."""
+        with pytest.raises(APIError) as exc_info:
             await backpack_market_data_service.get_all_tickers()
 
-        assert "get_all_tickers is not implemented for BackpackMarketDataService" in str(
-            exc_info.value
-        )
+        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+        assert "Unexpected service failure" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_constructor_with_custom_mapper(

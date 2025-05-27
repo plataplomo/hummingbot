@@ -256,8 +256,8 @@ class TestBackpackAccountServiceTransfers:
                 to_account_type=to_account,
             )
 
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert f"Processing transfer data failed: {unexpected_error}" in exc_info.value.message
+        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+        assert "Service internal logic error" in exc_info.value.message
         assert exc_info.value.original_exception is unexpected_error
 
         mock_request_builder.build_internal_transfer_payload.assert_called_once_with(
