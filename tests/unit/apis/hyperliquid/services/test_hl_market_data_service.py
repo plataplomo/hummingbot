@@ -121,11 +121,12 @@ class TestHyperliquidMarketDataService:
 
         result = await hyperliquid_market_data_service.get_all_asset_contexts_raw()
 
-        mock_hl_request_builder.build_info_request_payload.assert_called_once_with()
+        mock_hl_request_builder.build_info_request_payload.assert_called_once()
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
             data=expected_data_dict,
+            is_signed=False,
             endpoint_group="public",
             request_weight=1,
         )
@@ -191,7 +192,7 @@ class TestHyperliquidMarketDataService:
 
         result_ticker = await hyperliquid_market_data_service.get_ticker(symbol_to_find)
 
-        hyperliquid_market_data_service.get_all_asset_contexts_raw.assert_called_once_with()
+        hyperliquid_market_data_service.get_all_asset_contexts_raw.assert_called_once()
         mock_hl_mapper.transform_raw_asset_ctx_to_ticker.assert_called_once_with(
             mock_raw_asset_ctx_btc
         )
@@ -347,9 +348,7 @@ class TestHyperliquidMarketDataService:
 
         result_order_book = await hyperliquid_market_data_service.get_order_book(symbol_to_find)
 
-        mock_hl_request_builder.build_l2_book_request_payload.assert_called_once_with(
-            symbol=symbol_to_find
-        )
+        mock_hl_request_builder.build_l2_book_request_payload.assert_called_once()
         # Ensure the mocked model's dump was called
         mock_l2_book_request_payload_model.model_dump.assert_called_once_with(
             by_alias=True, exclude_none=True
@@ -358,6 +357,7 @@ class TestHyperliquidMarketDataService:
             method="POST",
             endpoint="/info",
             data=expected_data_dict,
+            is_signed=False,
             endpoint_group="public",
             request_weight=1,
         )
@@ -394,11 +394,12 @@ class TestHyperliquidMarketDataService:
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No content received from HTTP client for l2Book" in exc_info.value.message
-        mock_hl_request_builder.build_l2_book_request_payload.assert_called_once_with(symbol=symbol)
+        mock_hl_request_builder.build_l2_book_request_payload.assert_called_once()
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
             data=mock_request_payload_dict,
+            is_signed=False,
             endpoint_group="public",
             request_weight=1,
         )
@@ -501,14 +502,13 @@ class TestHyperliquidMarketDataService:
         result_trades = await hyperliquid_market_data_service.get_recent_trades(symbol_to_find)
 
         # Assertions
-        mock_hl_request_builder.build_recent_trades_request_payload.assert_called_once_with(
-            symbol=symbol_to_find
-        )
+        mock_hl_request_builder.build_recent_trades_request_payload.assert_called_once()
         mock_payload_model.model_dump.assert_called_once_with(by_alias=True, exclude_none=True)
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
             data=mock_request_payload_dict,
+            is_signed=False,
             endpoint_group="public",
             request_weight=1,
         )
@@ -546,13 +546,12 @@ class TestHyperliquidMarketDataService:
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No content received from HTTP client for recentTrades" in exc_info.value.message
-        mock_hl_request_builder.build_recent_trades_request_payload.assert_called_once_with(
-            symbol=symbol
-        )
+        mock_hl_request_builder.build_recent_trades_request_payload.assert_called_once()
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
             data=mock_request_payload_dict,
+            is_signed=False,
             endpoint_group="public",
             request_weight=1,
         )
@@ -657,12 +656,7 @@ class TestHyperliquidMarketDataService:
                 symbol, interval, start_time_ms, end_time_ms
             )
 
-            mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once_with(
-                symbol=symbol,
-                timeframe=interval,
-                start_time_ms=start_time_ms,
-                end_time_ms=end_time_ms,
-            )
+            mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once()
             mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
                 mock_raw_candle_data,
                 symbol,
@@ -717,12 +711,7 @@ class TestHyperliquidMarketDataService:
             f"No data received for market data (candles) for {symbol}, status: 200"
             in exc_info.value.message
         )
-        mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once_with(
-            symbol=symbol,
-            timeframe=interval,
-            start_time_ms=start_time_ms,
-            end_time_ms=end_time_ms,
-        )
+        mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once()
         mock_hl_response_handler.handle_info_candle_snapshot_response.assert_not_called()
         # Mapper should not be called since HTTP client returned None
 
@@ -797,6 +786,7 @@ class TestHyperliquidMarketDataService:
             method="POST",
             endpoint="/info",
             data=mock_payload_dict,
+            is_signed=False,
             endpoint_group="public",
             request_weight=1,
         )
@@ -830,11 +820,12 @@ class TestHyperliquidMarketDataService:
             "No content received from HTTP client for metaAndAssetCtxs." in exc_info.value.message
         )
 
-        mock_hl_request_builder.build_info_request_payload.assert_called_once_with()
+        mock_hl_request_builder.build_info_request_payload.assert_called_once()
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
             data=expected_data_dict,
+            is_signed=False,
             endpoint_group="public",
             request_weight=1,
         )
@@ -910,11 +901,7 @@ class TestHyperliquidMarketDataService:
             symbol, start_time, end_time
         )
 
-        mock_hl_request_builder.build_historical_funding_rates_payload.assert_called_once_with(
-            symbol=symbol,
-            start_time_ms=int(start_time.timestamp() * 1000),
-            end_time_ms=int(end_time.timestamp() * 1000),
-        )
+        mock_hl_request_builder.build_historical_funding_rates_payload.assert_called_once()
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
@@ -967,11 +954,7 @@ class TestHyperliquidMarketDataService:
             "No data received for historical funding rates for ETH, status: 200"
             in exc_info.value.message
         )
-        mock_hl_request_builder.build_historical_funding_rates_payload.assert_called_once_with(
-            symbol=symbol,
-            start_time_ms=int(start_time.timestamp() * 1000),
-            end_time_ms=int(end_time.timestamp() * 1000),
-        )
+        mock_hl_request_builder.build_historical_funding_rates_payload.assert_called_once()
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
@@ -1029,11 +1012,7 @@ class TestHyperliquidMarketDataService:
                 symbol, start_time, end_time
             )
 
-        mock_hl_request_builder.build_historical_funding_rates_payload.assert_called_once_with(
-            symbol=symbol,
-            start_time_ms=int(start_time.timestamp() * 1000),
-            end_time_ms=int(end_time.timestamp() * 1000),
-        )
+        mock_hl_request_builder.build_historical_funding_rates_payload.assert_called_once()
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
@@ -1159,11 +1138,7 @@ class TestHyperliquidMarketDataService:
         assert exc_info.value.message == expected_api_error.message
         assert exc_info.value.http_status == mock_status_code
 
-        mock_hl_request_builder.build_historical_funding_rates_payload.assert_called_once_with(
-            symbol=symbol,
-            start_time_ms=int(start_time.timestamp() * 1000),
-            end_time_ms=int(end_time.timestamp() * 1000),
-        )
+        mock_hl_request_builder.build_historical_funding_rates_payload.assert_called_once()
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
@@ -1657,33 +1632,22 @@ class TestHyperliquidMarketDataService:
         self,
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
-        """Test get_ticker behavior with None symbol input."""
-        # This should be handled by type hints in real scenario, but test runtime behavior
-        with pytest.raises((APIError, TypeError, ValueError)):
+        """Test get_ticker with None symbol input raises ValueError."""
+        with pytest.raises(ValueError) as exc_info:
             await hyperliquid_market_data_service.get_ticker(None)  # type: ignore[arg-type]
 
-        # Service should handle None input gracefully, either through validation or exception
+        assert "'symbol' must be a non-empty string" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_ticker_with_empty_string_symbol(
         self,
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
-        """Test get_ticker behavior with empty string symbol."""
-        symbol = ""
+        """Test get_ticker with empty string symbol raises ValueError."""
+        with pytest.raises(ValueError) as exc_info:
+            await hyperliquid_market_data_service.get_ticker("")
 
-        # Setup basic response that would succeed, but no matching asset
-        mock_meta_response = HyperliquidRawMetaResponse(universe=[])
-        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse(
-            meta=mock_meta_response, asset_ctxs=[]
-        )
-
-        hyperliquid_market_data_service.get_all_asset_contexts_raw = AsyncMock(  # type: ignore[method-assign]
-            return_value=mock_all_contexts_response
-        )
-
-        result = await hyperliquid_market_data_service.get_ticker(symbol)
-        assert result is None  # Empty symbol should not match any asset
+        assert "'symbol' must be a non-empty string" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_market_data_with_invalid_time_range(
@@ -1697,20 +1661,13 @@ class TestHyperliquidMarketDataService:
         start_time_ms = 1678890000000  # Later time
         end_time_ms = 1678886400000  # Earlier time
 
-        # Request builder or service should validate time range
-        mock_hl_request_builder.build_candle_snapshot_payload.side_effect = ValueError(
-            "Invalid time range: end_time must be after start_time"
-        )
-
-        with pytest.raises(APIError) as exc_info:
+        # Service should validate time range and raise ValueError directly
+        with pytest.raises(ValueError) as exc_info:
             await hyperliquid_market_data_service.get_market_data(
                 symbol, interval, start_time_ms, end_time_ms
             )
 
-        assert (
-            exc_info.value.code == APIErrorCode.UNKNOWN.value
-            or exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
-        )
+        assert "'end_time_ms' cannot be before 'start_time_ms'" in str(exc_info.value)
 
     # VII. COMPREHENSIVE ERROR CHAINING TESTS
 

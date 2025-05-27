@@ -296,21 +296,15 @@ class TestHyperliquidMarketDataServiceCandles:
         start_time_ms = 1672534800000  # Later time
         end_time_ms = 1672531200000  # Earlier time
 
-        # Mock request builder to raise an appropriate error for invalid time range
-        mock_hl_request_builder.build_candle_snapshot_payload.side_effect = ValueError(
-            "Invalid time range: end_time_ms must be greater than start_time_ms"
-        )
-
-        with pytest.raises(APIError) as exc_info:
+        # Service should validate time range and raise ValueError directly
+        with pytest.raises(ValueError) as exc_info:
             await hyperliquid_market_data_service.get_market_data(
                 symbol, interval, start_time_ms, end_time_ms
             )
 
-        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert (
-            f"Failed to build candle snapshot request for symbol {symbol}" in exc_info.value.message
-        )
-        assert isinstance(exc_info.value.__cause__, ValueError)
+        assert "'end_time_ms' cannot be before 'start_time_ms'" in str(exc_info.value)
+        # Request builder should not be called due to early validation
+        mock_hl_request_builder.build_candle_snapshot_payload.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_market_data_response_handler_validation_error(
@@ -423,12 +417,15 @@ class TestHyperliquidMarketDataServiceCandles:
                 "Mapper processing failed for candle data"
             )
 
-            with pytest.raises(ValueError) as exc_info:
+            with pytest.raises(APIError) as exc_info:
                 await hyperliquid_market_data_service.get_market_data(
                     symbol, interval, start_time_ms, end_time_ms
                 )
 
-            assert "Mapper processing failed for candle data" in str(exc_info.value)
+            assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+            assert "Service internal logic error." in exc_info.value.message
+            assert isinstance(exc_info.value.__cause__, ValueError)
+            assert "Mapper processing failed for candle data" in str(exc_info.value.__cause__)
             mock_mapper_instance.transform_raw_candle_snapshot_to_candles.assert_called_once_with(
                 mock_validated_candle_snapshot, symbol, interval
             )

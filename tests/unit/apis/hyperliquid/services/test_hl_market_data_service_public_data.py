@@ -181,6 +181,7 @@ class TestHyperliquidMarketDataServicePublicData:
             method="POST",
             endpoint="/info",
             data=expected_data_dict,
+            is_signed=False,
             endpoint_group="public",
             request_weight=1,
         )
@@ -219,6 +220,7 @@ class TestHyperliquidMarketDataServicePublicData:
             method="POST",
             endpoint="/info",
             data=expected_data_dict,
+            is_signed=False,
             endpoint_group="public",
             request_weight=1,
         )
@@ -410,6 +412,7 @@ class TestHyperliquidMarketDataServicePublicData:
             method="POST",
             endpoint="/info",
             data=expected_data_dict,  # This comes from the model_dump of the L2BookRequestPayload
+            is_signed=False,
             endpoint_group="public",
             request_weight=1,
         )
@@ -451,6 +454,7 @@ class TestHyperliquidMarketDataServicePublicData:
             method="POST",
             endpoint="/info",
             data=mock_request_payload_dict,
+            is_signed=False,
             endpoint_group="public",
             request_weight=1,
         )
@@ -561,6 +565,7 @@ class TestHyperliquidMarketDataServicePublicData:
             method="POST",
             endpoint="/info",
             data=mock_request_payload_dict,
+            is_signed=False,
             endpoint_group="public",
             request_weight=1,
         )
@@ -605,6 +610,7 @@ class TestHyperliquidMarketDataServicePublicData:
             method="POST",
             endpoint="/info",
             data=mock_request_payload_dict,
+            is_signed=False,
             endpoint_group="public",
             request_weight=1,
         )
@@ -652,28 +658,22 @@ class TestHyperliquidMarketDataServicePublicData:
         self,
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
-        """Test get_ticker with None symbol input raises APIError (updated for new error handling)."""
-        with pytest.raises(APIError) as exc_info:
+        """Test get_ticker with None symbol input raises ValueError."""
+        with pytest.raises(ValueError) as exc_info:
             await hyperliquid_market_data_service.get_ticker(None)  # type: ignore[arg-type]
 
-        # The service wraps ValueError in APIError due to error handling strategy
-        assert exc_info.value.code == APIErrorCode.INVALID_PARAMS.value
-        assert "Service internal logic error." in exc_info.value.message
+        assert "'symbol' must be a non-empty string" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_ticker_with_empty_string_symbol(
         self,
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
-        """Test get_ticker with empty string symbol raises APIError (updated for new error handling)."""
-        with pytest.raises(APIError) as exc_info:
+        """Test get_ticker with empty string symbol raises ValueError."""
+        with pytest.raises(ValueError) as exc_info:
             await hyperliquid_market_data_service.get_ticker("")
 
-        # The service wraps ValueError in APIError due to error handling strategy
-        assert exc_info.value.code == APIErrorCode.INVALID_PARAMS.value
-        assert "Service internal logic error." in exc_info.value.message
-        assert isinstance(exc_info.value.__cause__, ValueError)
-        assert "empty" in str(exc_info.value.__cause__).lower()
+        assert "'symbol' must be a non-empty string" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_order_book_response_handler_raises_api_error(

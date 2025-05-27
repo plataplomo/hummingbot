@@ -590,10 +590,8 @@ class TestHyperliquidTradingServiceOrders:
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
-            data=mock_payload_model.model_dump(by_alias=True),
+            data={"type": "orderStatus", "user": "0xSuccessWallet", "oid": 123456},
             is_signed=True,
-            endpoint_group="public",
-            request_weight=1,
         )
         mock_hl_response_handler.handle_info_order_status_response.assert_called_once_with(
             mock_response_content, user_address=wallet_address, order_id=order_id
@@ -732,8 +730,6 @@ class TestHyperliquidTradingServiceOrders:
             endpoint="/info",
             data={"type": "openOrders", "user": wallet_address},
             is_signed=True,
-            endpoint_group="public",
-            request_weight=1,
         )
         mock_hl_response_handler.handle_info_open_orders_response.assert_called_once_with(
             mock_response_content, user_address=wallet_address

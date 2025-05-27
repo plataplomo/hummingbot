@@ -627,6 +627,6 @@ class TestHyperliquidMarketDataServiceFundingRates:
                 await hyperliquid_market_data_service.get_funding_rate(symbol)
 
             assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-            assert "Unexpected error fetching funding rate" in exc_info.value.message
+            assert "Unexpected service failure." in exc_info.value.message
             assert isinstance(exc_info.value.__cause__, RuntimeError)
             assert str(exc_info.value.__cause__) == "Unexpected mapper error"
