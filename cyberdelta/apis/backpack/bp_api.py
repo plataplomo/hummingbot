@@ -202,19 +202,17 @@ class BackpackAPI(ExchangeAPI):
         return self._bp_ws_router.construct_subscription_payload(topic)
 
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
-        """Handle raw WebSocket message from WebSocketManager, then route it.
-        This is called by the WebSocketManager.
         """
-        # For Backpack, current logic seems to be direct routing.
-        # Add any pre-processing if needed before routing.
-        # For example, parsing a common outer envelope if Backpack had one.
+        Handle raw WebSocket message from WebSocketManager, then route it.
+        This method is called by the WebSocketManager.
+        """
+        # Following the pattern from HyperliquidAPI, directly route to _route_ws_message.
+        # Add any pre-processing here if Backpack requires it for common message envelopes.
         await self._route_ws_message(message)
 
     async def _route_ws_message(self, message: dict[str, Any]) -> None:
         """Delegate WebSocket message routing to the WebSocket router."""
         await self._bp_ws_router.route_message(message, self._ws_handlers)
-
-    # --- Authentication --- #
 
     async def _authenticate(
         self,
@@ -223,40 +221,45 @@ class BackpackAPI(ExchangeAPI):
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """
-        Authenticate and sign an API request for Backpack using BackpackHmacAuthenticator.
-
-        Returns:
-            Dictionary with signed headers, params, and data as expected by base _request.
-        """
+        """Uses the BackpackHmacAuthenticator to prepare request components."""
         if not self._bp_authenticator:
             logger.error(
-                f"[{self.exchange_name}] Backpack authenticator not initialized. "
-                f"Cannot make signed request."
+                f"[{self.exchange_name}] Attempt to call signed endpoint ({method} {path}) "
+                "without configured BP authenticator."
             )
             raise APIError(
-                "Backpack authenticator not initialized. Cannot make signed request.",
+                "BP authenticator not initialized (e.g., missing/invalid API key/secret).",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
         current_headers = self.default_headers.copy()
-        # Add other necessary headers like X-BP-Timestamp, X-BP-Window
-        # These are typically added by the authenticator, but let's ensure the call is right.
 
-        auth_components: AuthenticatedRequestComponents = (
-            await self._bp_authenticator.prepare_request(
-                method=method, path=path, params=params, data=data, headers=current_headers
+        try:
+            auth_components: AuthenticatedRequestComponents = (
+                await self._bp_authenticator.prepare_request(
+                    method, path, params, data, current_headers
+                )
             )
-        )
+        except APIError:
+            # Re-raise APIErrors from authenticator directly
+            raise
+        except Exception as e:
+            # Wrap other exceptions as authentication failures
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error during authentication preparation "
+                f"for {method} {path}: {e}"
+            )
+            raise APIError(
+                f"Authentication preparation failed: {e}",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+                original_exception=e,
+            ) from e
 
-        # _authenticate should return a dict matching the structure expected by _request
         return {
             "headers": auth_components["headers"],
             "params": auth_components["params"],
             "data": auth_components["data"],
         }
-
-    # --- Core API Implementation --- #
 
     # --- Market Data Methods --- #
 
@@ -284,22 +287,7 @@ class BackpackAPI(ExchangeAPI):
         start_time_ms: int | None = None,
         end_time_ms: int | None = None,
     ) -> list[Candle]:
-        """
-        Get historical market data (candlesticks) for a specific symbol.
-
-        Args:
-            symbol: Trading pair symbol (e.g., 'BTC-USD')
-            timeframe: Timeframe for candlesticks (e.g., '1m', '5m', '1h', '1d')
-            limit: Maximum number of candlesticks to return (default: 100)
-            start_time_ms: Start time in milliseconds (optional)
-            end_time_ms: End time in milliseconds (optional)
-
-        Returns:
-            List of Candle objects representing historical market data
-
-        Raises:
-            APIError: If the request fails or data is invalid
-        """
+        """Get historical market data (candlesticks) for a specific symbol."""
         return await self.market_data_service.get_market_data(
             symbol=symbol,
             timeframe=timeframe,
@@ -315,15 +303,7 @@ class BackpackAPI(ExchangeAPI):
         return await self.account_service.get_balances()
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
-        """
-        Get derivative positions.
-
-        Args:
-            symbol: Optional symbol to filter positions
-
-        Returns:
-            List of derivative positions
-        """
+        """Get derivative positions."""
         return await self.account_service.get_positions(symbol)
 
     # --- Trading Methods --- #
@@ -364,15 +344,7 @@ class BackpackAPI(ExchangeAPI):
         return await self.trading_service.get_open_orders(symbol)
 
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
-        """
-        Get funding rates for specified symbols or all symbols.
-
-        Args:
-            symbols: List of symbols to get funding rates for. If None, gets all.
-
-        Returns:
-            List of funding rates
-        """
+        """Get funding rates for specified symbols or all symbols."""
         return await self.market_data_service.get_funding_rates(symbols)
 
     async def get_account_summary(self) -> MarginAccountSummary:
@@ -387,19 +359,7 @@ class BackpackAPI(ExchangeAPI):
         to_account_type: str,
         client_transfer_id: str | None = None,
     ) -> Transfer:
-        """
-        Transfer funds between account types.
-
-        Args:
-            asset: Asset to transfer
-            amount: Amount to transfer
-            from_account_type: Source account type
-            to_account_type: Destination account type
-            client_transfer_id: Optional client-specified transfer ID
-
-        Returns:
-            Transfer result
-        """
+        """Transfer funds between account types."""
         return await self.account_service.transfer(
             asset=asset,
             amount=amount,
@@ -419,22 +379,7 @@ class BackpackAPI(ExchangeAPI):
         two_factor_token: str | None = None,
         **kwargs: dict[str, Any],
     ) -> Withdrawal:
-        """
-        Withdraw funds to an external address.
-
-        Args:
-            asset: Asset to withdraw
-            amount: Amount to withdraw
-            address: Destination address
-            network: Network to use for withdrawal
-            tag: Optional destination tag
-            client_withdrawal_id: Optional client-specified withdrawal ID
-            two_factor_token: Optional 2FA token
-            **kwargs: Additional withdrawal parameters
-
-        Returns:
-            Withdrawal result
-        """
+        """Withdraw funds to an external address."""
         return await self.account_service.withdraw(
             asset=asset,
             amount=amount,

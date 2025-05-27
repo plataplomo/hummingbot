@@ -220,7 +220,8 @@ class HyperliquidWsRawMessageHandler:
         payload: dict[str, Any],
     ) -> HyperliquidRawWsPositionUpdateEvent:
         """
-        Validate a raw WebSocket user position update event payload from Hyperliquid's userEvents stream.
+        Validate a raw WebSocket user position update event payload from Hyperliquid's
+        userEvents stream.
 
         This method checks if the payload, detailing a change in a user's position,
         conforms to the `HyperliquidRawWsPositionUpdateEvent` Pydantic model.

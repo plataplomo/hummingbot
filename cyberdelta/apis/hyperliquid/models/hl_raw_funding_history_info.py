@@ -20,7 +20,8 @@ class HyperliquidRawFundingHistoryItem(BaseModel):
     """
     Represents a single item in the historical funding rates response array
     from Hyperliquid's `/info` endpoint (type: "fundingHistory").
-    Example: {"coin": "ETH", "fundingRate": "-0.00022196", "premium": "-0.00052196", "time": 1683849600076}
+    Example: {"coin": "ETH", "fundingRate": "-0.00022196", "premium": "-0.00052196",
+              "time": 1683849600076}
     """
 
     model_config = ConfigDict(
@@ -31,7 +32,8 @@ class HyperliquidRawFundingHistoryItem(BaseModel):
 
     coin: RawHlCoinName
     funding_rate: RawHlParsableFiniteDecimalString = Field(alias="fundingRate")
-    premium: RawHlParsableFiniteDecimalString  # Optional, as some exchanges might not have it for funding
+    # Optional, as some exchanges might not have it for funding
+    premium: RawHlParsableFiniteDecimalString
     time: RawHlTimestampMsInt
 
 

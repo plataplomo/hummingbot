@@ -389,10 +389,25 @@ class BackpackAccountService:
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         """Retrieves open derivative positions, optionally filtered by symbol."""
-        logger.info(
-            f"[{self._exchange_name}] Getting derivative positions for symbol '{symbol or 'all'}'."
-        )
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_positions"
+
+        if symbol is not None and not symbol:
+            raise ValueError(
+                f"[{current_method}] 'symbol' must be a non-empty string when provided."
+            )
+
+        # Initialize context for error handling
+        status_code: int = 0
+        raw_response_content: str | None = None
+
         try:
+            # Core operational logic
+            logger.info(
+                f"[{self._exchange_name}] Getting derivative positions for symbol "
+                f"'{symbol or 'all'}'."
+            )
             raw_positions_list = await self._get_raw_positions_list(symbol)
             internal_positions: list[DerivativePosition] = []
             for raw_position_model in raw_positions_list:
@@ -417,19 +432,71 @@ class BackpackAccountService:
                 f"derivative positions."
             )
             return internal_positions
-        except APIError as e_api:
-            logger.error(f"[{self._exchange_name}] API error getting positions: {e_api}")
+
+        except APIError:
+            # Re-raise APIErrors from _get_raw_positions_list, ResponseHandler, etc.
             raise
-        except Exception as e_unhandled:
+        except TransformationError as e_transform:
             logger.error(
-                f"[{self._exchange_name}] Unexpected error mapping positions: {e_unhandled}",
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for {symbol or 'all'}: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
-                message=f"Unexpected error processing positions: {e_unhandled}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for {symbol or 'all'}: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            # Check if this is from our own input parameter validation
+            # Input parameter validation errors should propagate as ValueError
+            # Service logic errors should be wrapped as APIError
+            error_msg = str(e_service_logic)
+            if current_method in error_msg and "symbol" in error_msg:
+                # This is likely from our input parameter validation - re-raise as is
+                raise
+            else:
+                # This is from service internal logic - wrap as APIError
+                logger.error(
+                    f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                    f"for {symbol or 'all'}: {e_service_logic}",
+                    exc_info=True,
+                )
+                raise APIError(
+                    code=APIErrorCode.UNKNOWN.value,
+                    message="Service internal logic error.",
+                    original_exception=e_service_logic,
+                    http_status=status_code if status_code != 0 else None,
+                    exchange_message=raw_response_content,
+                ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"for {symbol or 'all'}: {e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
-                original_exception=e_unhandled,
-            ) from e_unhandled
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unexpected
 
     async def get_account_info(self) -> MarginAccountSummary:
         """Retrieves general account information or summary."""

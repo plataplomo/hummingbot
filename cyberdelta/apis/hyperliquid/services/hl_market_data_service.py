@@ -953,7 +953,12 @@ class HyperliquidMarketDataService:
             ) from e_unexpected
 
     async def get_market_data(
-        self, symbol: str, interval: str, start_time_ms: int, end_time_ms: int
+        self,
+        symbol: str,
+        interval: str,
+        limit: int = 100,
+        start_time_ms: int | None = None,
+        end_time_ms: int | None = None,
     ) -> list[Candle]:
         """
         Retrieves historical kline/candlestick data for a symbol and timeframe.
@@ -965,14 +970,16 @@ class HyperliquidMarketDataService:
         Args:
             symbol: The trading symbol (e.g., "ETH").
             interval: The kline interval (e.g., "1m", "1h", "1d"). Refer to Hyperliquid API docs.
-            start_time_ms: Start timestamp in milliseconds.
-            end_time_ms: End timestamp in milliseconds.
+            limit: Number of candles to retrieve (default: 100).
+            start_time_ms: Start timestamp in milliseconds (optional).
+            end_time_ms: End timestamp in milliseconds (optional).
 
         Returns:
             A list of Candle objects containing lists of candle data points.
 
         Raises:
             APIError: If the API request fails or the response is invalid.
+            ValueError: If input parameters are invalid.
         """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
@@ -982,6 +989,24 @@ class HyperliquidMarketDataService:
             raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
         if not interval:
             raise ValueError(f"[{current_method}] 'interval' must be a non-empty string.")
+        if limit <= 0:
+            raise ValueError(f"[{current_method}] 'limit' must be positive.")
+
+        # Calculate time range if not provided
+        if start_time_ms is None or end_time_ms is None:
+            # Import timeframe_to_ms here to avoid circular import
+            import time
+
+            from cyberdelta.utils.parsing import timeframe_to_ms
+
+            interval_ms = timeframe_to_ms(interval)
+            if interval_ms == 0:
+                raise ValueError(f"[{current_method}] Invalid or unsupported timeframe: {interval}")
+
+            current_time_ms = int(time.time() * 1000)
+            end_time_ms = end_time_ms or current_time_ms
+            start_time_ms = start_time_ms or (end_time_ms - (limit * interval_ms))
+
         if start_time_ms <= 0:
             raise ValueError(f"[{current_method}] 'start_time_ms' must be positive.")
         if end_time_ms <= 0:

@@ -365,37 +365,11 @@ class HyperliquidAPI(ExchangeAPI):
         start_time_ms: int | None = None,
         end_time_ms: int | None = None,
     ) -> list[Candle]:
-        """
-        Get historical market data (candlesticks) for a specific symbol.
-
-        Args:
-            symbol: Trading pair symbol
-            timeframe: Timeframe for candlesticks
-            limit: Maximum number of candlesticks to return
-            start_time_ms: Start time in milliseconds
-            end_time_ms: End time in milliseconds
-
-        Returns:
-            List of Candle objects representing historical market data
-        """
-        # Calculate time range if not provided
-        if start_time_ms is None or end_time_ms is None:
-            # Import timeframe_to_ms here to avoid circular import
-            import time
-
-            from cyberdelta.utils.parsing import timeframe_to_ms
-
-            interval_ms = timeframe_to_ms(timeframe)
-            if interval_ms == 0:
-                raise ValueError(f"Invalid or unsupported timeframe: {timeframe}")
-
-            current_time_ms = int(time.time() * 1000)
-            end_time_ms = end_time_ms or current_time_ms
-            start_time_ms = start_time_ms or (end_time_ms - (limit * interval_ms))
-
+        """Get historical market data (candlesticks) for a specific symbol."""
         return await self.market_data_service.get_market_data(
             symbol=symbol,
             interval=timeframe,
+            limit=limit,
             start_time_ms=start_time_ms,
             end_time_ms=end_time_ms,
         )
@@ -432,10 +406,10 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
         """Cancel an existing order."""
-        return await self.trading_service.cancel_order(symbol=symbol, order_id=order_id)
+        return await self.trading_service.cancel_order(symbol, order_id)
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
-        """Cancel all open orders."""
+        """Cancel all orders for a given symbol, or all if symbol is None."""
         return await self.trading_service.cancel_all_orders(symbol)
 
     async def get_account_summary(self) -> MarginAccountSummary | None:
@@ -446,13 +420,13 @@ class HyperliquidAPI(ExchangeAPI):
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order | None:
         """Fetch the status of a specific order."""
-        return await self.trading_service.get_order(symbol=symbol, order_id=order_id)
+        return await self.trading_service.get_order(symbol, order_id)
 
     async def get_order(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order | None:
         """Fetch a single order by its ID."""
-        return await self.trading_service.get_order(symbol=symbol, order_id=order_id)
+        return await self.trading_service.get_order(symbol, order_id)
 
     async def get_order_history(
         self,
@@ -491,23 +465,18 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def transfer(
         self,
-        asset: str,
+        asset: str,  # For HL, this is usually implied by the L1 token
         amount: Decimal,
         from_account_type: str,  # e.g., "spot", "margin" - less relevant for HL L1<->L2
         to_account_type: str,  # e.g., "spot", "margin"
         client_transfer_id: str | None = None,
     ) -> Transfer:  # cyberdelta.core.models.operations.Transfer
-        """(Not Applicable) Initiates an asset transfer between accounts.
-        Hyperliquid is a DEX; transfers are typically L1 wallet deposits/withdrawals,
-        not internal account-to-account transfers like on a CEX.
-        """
-        logger.error(
-            f"[{self.exchange_name}] The 'transfer' operation as defined for CEXs "
-            f"(e.g., spot to margin) is not directly applicable to Hyperliquid (DEX). "
-            f"L1 deposits/withdrawals are handled differently."
-        )
-        raise NotImplementedError(
-            f"The 'transfer' operation is not applicable to {self.exchange_name}."
+        """Transfer funds between account types."""
+        return await self.account_service.transfer(
+            asset=asset,
+            amount=amount,
+            from_account=from_account_type,
+            to_account=to_account_type,
         )
 
     async def withdraw(
@@ -521,16 +490,11 @@ class HyperliquidAPI(ExchangeAPI):
         two_factor_token: str | None = None,
         **kwargs: dict[str, Any],  # Changed from Any
     ) -> Withdrawal:  # cyberdelta.core.models.operations.Withdrawal
-        """(Not Applicable) Initiates a withdrawal of assets from the exchange.
-        Hyperliquid is a DEX; withdrawals are L1 transactions signed by the user's wallet,
-        not initiated via an API call in this manner.
-        """
-        logger.error(
-            f"[{self.exchange_name}] The 'withdraw' operation via API is not applicable "
-            f"to Hyperliquid (DEX). L1 withdrawals are user-signed transactions."
-        )
-        raise NotImplementedError(
-            f"The 'withdraw' operation is not applicable to {self.exchange_name}."
+        """Withdraw funds to an external address."""
+        return await self.account_service.withdraw(
+            asset=asset,
+            amount=amount,
+            destination_address=address,
         )
 
     async def subscribe_to_order_book(self, symbol: str) -> None:

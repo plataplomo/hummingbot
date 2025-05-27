@@ -721,21 +721,6 @@ RawHlParsableFiniteDecimalString = Annotated[
 # Raw integer type representing a millisecond timestamp
 RawHlTimestampMsInt = Annotated[int, AfterValidator(_validate_timestamp_ms)]
 
-# Placeholder for a non-empty string with a max length, if needed elsewhere.
-# from pydantic.functional_validators import AfterValidator
-# def validate_non_empty_max_len(value: str, max_len: int) -> str:
-#     if not isinstance(value, str):
-#         raise TypeError("Input must be a string.")
-#     if not value:
-#         raise ValueError("String cannot be empty.")
-#     if len(value) > max_len:
-#         raise ValueError(f"String exceeds maximum length of {max_len}.")
-#     return value
-# RawHlNonEmptyStringMax64 = Annotated[str, AfterValidator(lambda v: validate_non_empty_max_len(v, 64))]
-
-# Example of a generic positive integer if needed
-# RawHlPositiveInteger = Annotated[int, AfterValidator(lambda v: v if v > 0 else exec("raise ValueError('Integer must be positive')"))]
-
 
 class RawHlCoinName(str):
     """Represents a coin name from Hyperliquid, typically a non-empty uppercase string."""
@@ -754,13 +739,3 @@ class RawHlCoinName(str):
     ) -> core_schema.CoreSchema:
         # Use with_info_plain_validator_function as recommended by linter
         return core_schema.with_info_plain_validator_function(cls._validate)
-
-
-# Utility for parsing strings to Decimal within Pydantic models if needed
-# This is more for internal model transformation or if a RawField itself changes type.
-# For simple string validation, AfterValidator on 'str' is fine.
-# def to_decimal(v: str) -> Decimal:
-#     parsed = parse_decimal_value(v, allow_none=False)
-#     if parsed is None: # Should be caught by parse_decimal_value's internal error
-#         raise ValueError(f"Could not parse '{v}' to Decimal")
-#     return parsed
