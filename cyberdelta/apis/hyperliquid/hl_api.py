@@ -4,10 +4,10 @@ import asyncio
 from collections.abc import Mapping
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any
 
 import aiohttp
-from pydantic import HttpUrl, ValidationError
+from pydantic import HttpUrl
 
 from cyberdelta.apis.base.authenticator_interface import (
     AuthenticatedRequestComponents,
@@ -18,12 +18,12 @@ from cyberdelta.apis.connectivity.http_client import (
     HttpClient,
 )
 from cyberdelta.apis.hyperliquid.hl_api_components_factory import HyperliquidAPIComponentsFactory
+from cyberdelta.apis.hyperliquid.hl_asset_indexer import HyperliquidAssetIndexResolver
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
-    RawJsonResponse,
 )
 from cyberdelta.apis.hyperliquid.hl_ws_message_router import HyperliquidWsMessageRouter
 from cyberdelta.apis.hyperliquid.hl_ws_raw_message_handler import HyperliquidWsRawMessageHandler
@@ -37,9 +37,6 @@ from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import (
 )
 from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import (
     HyperliquidTradingDataMapper,
-)
-from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
-    HyperliquidRawMetaAndAssetCtxsResponse,
 )
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
@@ -137,8 +134,6 @@ class HyperliquidAPI(ExchangeAPI):
         self._hl_trading_data_mapper = trading_data_mapper or factory.create_trading_data_mapper()
         self._hl_market_data_mapper = market_data_mapper or factory.create_market_data_mapper()
 
-        self._asset_to_index_cache: dict[str, int] = {}
-
         self.exchange_name = "hyperliquid"
 
         super().__init__(
@@ -170,6 +165,14 @@ class HyperliquidAPI(ExchangeAPI):
                 retry_delay_seconds=http_client_raw_config.get("retry_delay_seconds", 5.0),
             )
             self._http_client = HttpClient(self.exchange_name, http_client_config)
+
+        # Initialize asset index resolver
+        self._asset_indexer = HyperliquidAssetIndexResolver(
+            requester=self._request,
+            response_handler=self._hl_response_handler,
+            request_builder=self._hl_request_builder,
+            exchange_name_for_log=self.exchange_name,
+        )
 
         # Use injected market data service or create one via factory
         if market_data_service is not None:
@@ -289,86 +292,7 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def _get_asset_index(self, symbol: str) -> int:
         """Fetch or retrieve from cache the asset_index for a given symbol."""
-        if symbol in self._asset_to_index_cache:
-            return self._asset_to_index_cache[symbol]
-
-        logger.debug(
-            f"[{self.exchange_name}] Asset index for {symbol} not cached, fetching meta..."
-        )
-        request_payload_model = HyperliquidRequestBuilder.build_info_request_payload()
-        request_payload_data_dict = request_payload_model.model_dump(
-            by_alias=True, exclude_none=True
-        )
-
-        try:
-            response_content_raw, _, _ = await self._request(
-                method="POST",
-                endpoint="/info",
-                data=request_payload_data_dict,
-                is_public_info_endpoint=True,
-            )
-        except APIError as e_api:
-            logger.error(
-                f"[{self.exchange_name}] API Error fetching asset index for {symbol}: {e_api}"
-            )
-            raise APIError(
-                f"Failed to fetch asset index for symbol '{symbol}': {e_api.message}",
-                code=e_api.code,
-                original_exception=e_api,
-                http_status=e_api.http_status,
-            ) from e_api
-
-        try:
-            if response_content_raw is None:
-                logger.error(
-                    f"[{self.exchange_name}] Received None response from _request "
-                    f"for metaAndAssetCtxs."
-                )
-                raise APIError(
-                    "No data received for market metadata.",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
-
-            validated_response: HyperliquidRawMetaAndAssetCtxsResponse = (
-                HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response(
-                    cast(RawJsonResponse, response_content_raw)
-                )
-            )
-            for index, asset_def in enumerate(validated_response.meta.universe):
-                self._asset_to_index_cache[asset_def.name] = index
-
-            if symbol in self._asset_to_index_cache:
-                return self._asset_to_index_cache[symbol]
-            else:
-                logger.error(
-                    f"[{self.exchange_name}] Asset index for {symbol} not found after fetch."
-                )
-                raise APIError(
-                    f"Asset index for symbol '{symbol}' not found.",
-                    code=APIErrorCode.SYMBOL_NOT_FOUND.value,
-                )
-        except ValidationError as e:
-            logger.error(
-                f"[{self.exchange_name}] Failed to validate metaAndAssetCtxs: {e}. "
-                f"Raw: {response_content_raw!r}"
-            )
-            raise APIError(
-                "Failed to parse market metadata for asset index mapping.",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
-        except APIError:
-            raise
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error fetching asset index for {symbol}: {e}",
-                exc_info=True,
-            )
-            raise APIError(
-                f"Unexpected error fetching asset index for {symbol}: {e}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
+        return await self._asset_indexer.get_asset_index(symbol)
 
     def _update_rate_limit_from_headers(
         self, headers: Mapping[str, str], method: str, path: str

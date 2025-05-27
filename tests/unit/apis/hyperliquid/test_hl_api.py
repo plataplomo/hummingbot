@@ -254,6 +254,270 @@ class TestHyperliquidAPIInitialization:
         api = hl_api_with_di(config=custom_config)
         assert api is not None
 
+    def test_api_has_required_services(self, hl_api_with_di: Callable[..., HyperliquidAPI]) -> None:
+        """Test that API instance has all required services initialized."""
+        api = hl_api_with_di()
+
+        # Verify the API instance has all required services
+        assert api is not None
+        assert api.exchange_name == "hyperliquid"
+        assert hasattr(api, "trading_service")
+        assert hasattr(api, "account_service")
+        assert hasattr(api, "market_data_service")
+
+
+class TestHyperliquidAPIAssetIndexingIntegration:
+    """Test asset indexing integration through public API methods that depend on it."""
+
+    @pytest.mark.asyncio
+    async def test_place_order_with_asset_indexing_success(
+        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock
+    ) -> None:
+        """Test that place_order works correctly when asset indexing succeeds."""
+        api = hl_api_with_di()
+
+        # Mock the trading service to return a successful order
+        expected_order = Order(
+            exchange_order_id="12345",
+            symbol="BTC",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity_requested=Decimal("1.0"),
+            price=Decimal("50000.0"),
+            exchange="hyperliquid",
+            time_in_force=TimeInForce.GTC,
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
+        )
+
+        # Configure the trading service mock to succeed
+        mock_hl_trading_service.place_order.return_value = expected_order
+
+        # Call place_order - this should internally use asset indexing
+        result = await api.place_order(
+            symbol="BTC",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=Decimal("1.0"),
+            price=Decimal("50000.0"),
+            time_in_force=TimeInForce.GTC,
+        )
+
+        # Verify the trading service was called correctly
+        mock_hl_trading_service.place_order.assert_called_once_with(
+            symbol="BTC",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=Decimal("1.0"),
+            price=Decimal("50000.0"),
+            time_in_force=TimeInForce.GTC,
+            stop_price=None,
+            client_order_id=None,
+            reduce_only=False,
+            post_only=False,
+        )
+
+        # Verify the result
+        assert result == expected_order
+
+        await api.close()
+
+    @pytest.mark.asyncio
+    async def test_place_order_with_asset_indexing_failure(
+        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock
+    ) -> None:
+        """Test that place_order properly handles asset indexing failures."""
+        api = hl_api_with_di()
+
+        # Configure trading service to raise an asset indexing error
+        # This simulates what happens when the trading service can't resolve the asset index
+        asset_indexing_error = APIError(
+            "Asset index not found for symbol 'UNKNOWN_SYMBOL'",
+            code=APIErrorCode.SYMBOL_NOT_FOUND.value,
+        )
+        mock_hl_trading_service.place_order.side_effect = asset_indexing_error
+
+        # Call place_order with an unknown symbol and expect the error to be propagated
+        with pytest.raises(APIError) as exc_info:
+            await api.place_order(
+                symbol="UNKNOWN_SYMBOL",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("1.0"),
+                price=Decimal("50000.0"),
+                time_in_force=TimeInForce.GTC,
+            )
+
+        # Verify the error is the expected asset indexing error
+        assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
+        assert "Asset index not found" in str(exc_info.value)
+
+        await api.close()
+
+    @pytest.mark.asyncio
+    async def test_cancel_order_with_asset_indexing_success(
+        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock
+    ) -> None:
+        """Test that cancel_order works correctly when asset indexing succeeds."""
+        api = hl_api_with_di()
+
+        # Configure trading service to return successful cancellation
+        mock_hl_trading_service.cancel_order.return_value = True
+
+        # Call cancel_order - this should internally use asset indexing
+        result = await api.cancel_order(order_id="12345", symbol="BTC")
+
+        # Verify the trading service was called correctly
+        mock_hl_trading_service.cancel_order.assert_called_once_with(symbol="BTC", order_id=12345)
+
+        # Verify the result
+        assert result is True
+
+        await api.close()
+
+    @pytest.mark.asyncio
+    async def test_cancel_order_with_asset_indexing_failure(
+        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock
+    ) -> None:
+        """Test that cancel_order properly handles asset indexing failures."""
+        api = hl_api_with_di()
+
+        # Configure trading service to raise an asset indexing error
+        asset_indexing_error = APIError(
+            "Asset index not found for symbol 'INVALID_SYMBOL'",
+            code=APIErrorCode.SYMBOL_NOT_FOUND.value,
+        )
+        mock_hl_trading_service.cancel_order.side_effect = asset_indexing_error
+
+        # Call cancel_order with an invalid symbol and expect the error to be propagated
+        with pytest.raises(APIError) as exc_info:
+            await api.cancel_order(order_id="12345", symbol="INVALID_SYMBOL")
+
+        # Verify the error is the expected asset indexing error
+        assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
+        assert "Asset index not found" in str(exc_info.value)
+
+        await api.close()
+
+    @pytest.mark.asyncio
+    async def test_get_order_with_asset_indexing_success(
+        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock
+    ) -> None:
+        """Test that get_order works correctly when asset indexing succeeds."""
+        api = hl_api_with_di()
+
+        # Configure trading service to return an order
+        expected_order = Order(
+            exchange_order_id="12345",
+            symbol="ETH",
+            side=OrderSide.SELL,
+            order_type=OrderType.LIMIT,
+            quantity_requested=Decimal("2.0"),
+            price=Decimal("3000.0"),
+            exchange="hyperliquid",
+            time_in_force=TimeInForce.GTC,
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
+        )
+        mock_hl_trading_service.get_order.return_value = expected_order
+
+        # Call get_order - this should internally use asset indexing
+        result = await api.get_order(order_id="12345", symbol="ETH")
+
+        # Verify the trading service was called correctly
+        mock_hl_trading_service.get_order.assert_called_once_with(symbol="ETH", order_id=12345)
+
+        # Verify the result
+        assert result == expected_order
+
+        await api.close()
+
+    @pytest.mark.asyncio
+    async def test_get_order_with_asset_indexing_failure(
+        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock
+    ) -> None:
+        """Test that get_order properly handles asset indexing failures."""
+        api = hl_api_with_di()
+
+        # Configure trading service to raise an asset indexing error
+        asset_indexing_error = APIError(
+            "Asset index not found for symbol 'NONEXISTENT'",
+            code=APIErrorCode.SYMBOL_NOT_FOUND.value,
+        )
+        mock_hl_trading_service.get_order.side_effect = asset_indexing_error
+
+        # Call get_order with a nonexistent symbol and expect the error to be propagated
+        with pytest.raises(APIError) as exc_info:
+            await api.get_order(order_id="12345", symbol="NONEXISTENT")
+
+        # Verify the error is the expected asset indexing error
+        assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
+        assert "Asset index not found" in str(exc_info.value)
+
+        await api.close()
+
+    @pytest.mark.asyncio
+    async def test_multiple_operations_asset_indexing_consistency(
+        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock
+    ) -> None:
+        """Test that multiple operations using the same symbol work consistently."""
+        api = hl_api_with_di()
+
+        # Configure trading service responses
+        expected_order = Order(
+            exchange_order_id="12345",
+            symbol="BTC",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity_requested=Decimal("1.0"),
+            price=Decimal("50000.0"),
+            exchange="hyperliquid",
+            time_in_force=TimeInForce.GTC,
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
+        )
+
+        mock_hl_trading_service.place_order.return_value = expected_order
+        mock_hl_trading_service.get_order.return_value = expected_order
+        mock_hl_trading_service.cancel_order.return_value = True
+
+        # Perform multiple operations with the same symbol
+        # Each should use asset indexing internally
+
+        # Place order
+        place_result = await api.place_order(
+            symbol="BTC",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=Decimal("1.0"),
+            price=Decimal("50000.0"),
+            time_in_force=TimeInForce.GTC,
+        )
+
+        # Get order
+        get_result = await api.get_order(order_id="12345", symbol="BTC")
+
+        # Cancel order
+        cancel_result = await api.cancel_order(order_id="12345", symbol="BTC")
+
+        # Verify all operations succeeded
+        assert place_result == expected_order
+        assert get_result == expected_order
+        assert cancel_result is True
+
+        # Verify all trading service methods were called
+        mock_hl_trading_service.place_order.assert_called_once()
+        mock_hl_trading_service.get_order.assert_called_once()
+        mock_hl_trading_service.cancel_order.assert_called_once()
+
+        await api.close()
+
 
 class TestHyperliquidAPIAccountOperations:
     """Test account-related operations with service delegation."""
