@@ -585,6 +585,31 @@ class TestBackpackAPIMarketDataOperations:
 
         await api.close()
 
+    @pytest.mark.asyncio
+    async def test_get_ticker_empty_successful_response(
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_market_data_service: MagicMock
+    ) -> None:
+        """Test get_ticker handling of symbol not found error correctly."""
+        api = bp_api_with_di()
+
+        # Configure service to raise APIError for symbol not found
+        symbol_not_found_error = APIError(
+            message="Symbol not found",
+            code=APIErrorCode.SYMBOL_NOT_FOUND.value,
+            http_status=404,
+        )
+        mock_bp_market_data_service.get_ticker.side_effect = symbol_not_found_error
+
+        # Test exact error propagation
+        with pytest.raises(APIError) as exc_info:
+            await api.get_ticker("UNKNOWN_SYMBOL")
+
+        assert exc_info.value is symbol_not_found_error  # Same instance
+        assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
+        mock_bp_market_data_service.get_ticker.assert_called_once_with("UNKNOWN_SYMBOL")
+
+        await api.close()
+
 
 class TestBackpackAPIErrorHandling:
     """Test that the API client correctly propagates errors from services."""
@@ -645,7 +670,10 @@ class TestBackpackAPIErrorHandling:
         mock_bp_account_service: MagicMock,
         mock_bp_market_data_service: MagicMock,
     ) -> None:
-        """Test that different services can raise different error types and all are propagated correctly."""
+        """
+        Test that different services can raise different error types and all are
+        propagated correctly.
+        """
         api = bp_api_with_di()
 
         # Configure different services to raise different error types
@@ -713,21 +741,6 @@ class TestBackpackAPIComprehensiveErrorHandling:
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Invalid balance response structure" in exc_info.value.message
         mock_bp_account_service.get_balances.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_get_ticker_empty_successful_response(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_market_data_service: MagicMock
-    ) -> None:
-        """Test get_ticker handling of empty but successful response correctly."""
-        api = bp_api_with_di()
-
-        # Configure service to return None (no ticker found)
-        mock_bp_market_data_service.get_ticker.return_value = None
-
-        result = await api.get_ticker("UNKNOWN_SYMBOL")
-
-        assert result is None
-        mock_bp_market_data_service.get_ticker.assert_called_once_with("UNKNOWN_SYMBOL")
 
     @pytest.mark.asyncio
     async def test_get_positions_rate_limited_propagation(

@@ -467,7 +467,7 @@ class TestBackpackAPIPublicBehavior:
     async def test_get_order_requires_symbol(self, backpack_api: BackpackAPI) -> None:
         """Test get_order requires symbol parameter."""
         with pytest.raises(ValueError) as exc_info:
-            await backpack_api.get_order("order123", None)  # type: ignore[arg-type]
+            await backpack_api.get_order("order123", None)
 
         assert "'symbol' parameter is required" in str(exc_info.value)
 
@@ -492,7 +492,7 @@ class TestBackpackAPIPublicBehavior:
     async def test_get_order_status_requires_symbol(self, backpack_api: BackpackAPI) -> None:
         """Test get_order_status requires symbol parameter."""
         with pytest.raises(ValueError) as exc_info:
-            await backpack_api.get_order_status("order123", None)  # type: ignore[arg-type]
+            await backpack_api.get_order_status("order123", None)
 
         assert "'symbol' parameter is required" in str(exc_info.value)
 

@@ -211,7 +211,9 @@ class HyperliquidWsMessageRouter:
                             validated_book_model
                         )
                     )
-                    await app_handler(internal_orderbook, message)  # type: ignore[arg-type]
+                    # Convert internal model to dict for handler compatibility
+                    orderbook_dict = internal_orderbook.model_dump(mode="json")
+                    await app_handler(orderbook_dict, message)
                 except TransformationError as e_transform:
                     self.logger.error(
                         f"[{self._exchange_name}] Failed to transform l2Book data: {e_transform}"
@@ -249,7 +251,9 @@ class HyperliquidWsMessageRouter:
                                     validated_trade_model
                                 )
                             )
-                            await app_handler(internal_trade, message)  # type: ignore[arg-type]
+                            # Convert internal model to dict for handler compatibility
+                            trade_dict = internal_trade.model_dump(mode="json")
+                            await app_handler(trade_dict, message)
                         except TransformationError as e_transform:
                             self.logger.error(
                                 f"[{self._exchange_name}] Failed to transform trade "
@@ -296,7 +300,9 @@ class HyperliquidWsMessageRouter:
                                     self._account_data_mapper.transform_ws_fill_event_to_internal
                                 )
                                 internal_trade = transform_method(validated_fill)
-                                await app_handler(internal_trade, message)  # type: ignore[arg-type]
+                                # Convert internal model to dict for handler compatibility
+                                trade_dict = internal_trade.model_dump(mode="json")
+                                await app_handler(trade_dict, message)
                             except TransformationError as e_transform:
                                 self.logger.error(
                                     f"[{self._exchange_name}] Failed to transform fill "
@@ -316,7 +322,9 @@ class HyperliquidWsMessageRouter:
                                 # Transform raw validated model to internal domain model
                                 order_transform_method = self._trading_data_mapper.transform_ws_order_update_to_internal_order
                                 internal_order = order_transform_method(validated_order_details)
-                                await app_handler(internal_order, message)  # type: ignore[arg-type]
+                                # Convert internal model to dict for handler compatibility
+                                order_dict = internal_order.model_dump(mode="json")
+                                await app_handler(order_dict, message)
                             except TransformationError as e_transform:
                                 self.logger.error(
                                     f"[{self._exchange_name}] Failed to transform order "
@@ -334,7 +342,9 @@ class HyperliquidWsMessageRouter:
                                 internal_position = position_transform_method(
                                     validated_position_update
                                 )
-                                await app_handler(internal_position, message)  # type: ignore[arg-type]
+                                # Convert internal model to dict for handler compatibility
+                                position_dict = internal_position.model_dump(mode="json")
+                                await app_handler(position_dict, message)
                             except TransformationError as e_transform:
                                 self.logger.error(
                                     f"[{self._exchange_name}] Failed to transform position "
