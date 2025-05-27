@@ -388,15 +388,12 @@ class HyperliquidAPI(ExchangeAPI):
         post_only: bool = False,
     ) -> Order:
         """Place a new order."""
-        # Handle optional price - use Decimal("0") for market orders
-        order_price = price if price is not None else Decimal("0")
-
         return await self.trading_service.place_order(
             symbol=symbol,
             side=side,
             order_type=order_type,
             quantity=quantity,
-            price=order_price,
+            price=price,
             time_in_force=time_in_force,
             stop_price=stop_price,
             client_order_id=client_order_id,

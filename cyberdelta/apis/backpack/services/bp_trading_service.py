@@ -605,6 +605,7 @@ class BackpackTradingService:
     async def get_order_status(
         self, order_id: str, symbol: str | None, client_order_id: str | None = None
     ) -> Order:  # As per prompt, this implies it raises if not found.
+        """Get the status of a specific order."""
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_order_status"
@@ -612,26 +613,109 @@ class BackpackTradingService:
         if symbol is None:
             raise ValueError(f"[{current_method}] 'symbol' parameter is required.")
 
-        order = await self.get_order(
-            order_id=order_id, symbol=symbol, client_order_id=client_order_id
-        )
-        if order is None:
-            identifier = client_order_id if not order_id and client_order_id else order_id
-            raise APIError(
-                f"Order {identifier} for symbol {symbol} not found on {self._exchange_name}.",
-                code=APIErrorCode.ORDER_NOT_FOUND.value,
+        # Initialize context for error handling
+        status_code: int = 0
+        raw_response_content: str | None = None
+
+        try:
+            # Core operational logic
+            order = await self.get_order(
+                order_id=order_id, symbol=symbol, client_order_id=client_order_id
             )
-        return order
+            if order is None:
+                identifier = client_order_id if not order_id and client_order_id else order_id
+                raise APIError(
+                    f"Order {identifier} for symbol {symbol} not found on {self._exchange_name}.",
+                    code=APIErrorCode.ORDER_NOT_FOUND.value,
+                )
+            return order
+
+        except APIError:
+            # Re-raise APIErrors from get_order method or self-raised
+            raise
+        except TransformationError as e_transform:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for order status: {e_transform}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for order status: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            # Check if this is from our own input parameter validation
+            # Input parameter validation errors should propagate as ValueError
+            # Service logic errors should be wrapped as APIError
+            error_msg = str(e_service_logic)
+            if current_method in error_msg and "symbol" in error_msg:
+                # This is likely from our input parameter validation - re-raise as is
+                raise
+            else:
+                # This is from service internal logic - wrap as APIError
+                logger.error(
+                    f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                    f"for order status: {e_service_logic}",
+                    exc_info=True,
+                )
+                raise APIError(
+                    code=APIErrorCode.UNKNOWN.value,
+                    message="Service internal logic error.",
+                    original_exception=e_service_logic,
+                    http_status=status_code if status_code != 0 else None,
+                    exchange_message=raw_response_content,
+                ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"for order status: {e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unexpected
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
-        endpoint = "/api/v1/orders"
-        # Backpack's Cancel All Orders: DELETE /api/v1/orders with symbol query parameter
-        payload = self._request_builder.build_cancel_all_orders_payload(symbol=symbol)
+        """Cancel all orders, optionally filtered by symbol."""
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "cancel_all_orders"
 
+        # No specific input validation needed for this method
+
+        # Initialize context for error handling
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
-        results: list[CancelOrderResult] = []
+        raw_response_content: str | None = None
+
         try:
+            # Core operational logic
+            endpoint = "/api/v1/orders"
+            # Backpack's Cancel All Orders: DELETE /api/v1/orders with symbol query parameter
+            payload = self._request_builder.build_cancel_all_orders_payload(symbol=symbol)
+
+            results: list[CancelOrderResult] = []
+
             raw_data, status_code, _ = await self._http_client_requester(
                 method="DELETE",
                 endpoint=endpoint,
@@ -641,6 +725,10 @@ class BackpackTradingService:
                 request_weight=1,
                 rate_limiter_service=self._rate_limiter_service,
             )
+
+            if raw_data is not None:
+                raw_response_content = str(raw_data)
+
             # Backpack's response for cancel all is a list of strings
             # (order IDs that were cancelled)
             if raw_data is None or not isinstance(raw_data, list):
@@ -703,48 +791,143 @@ class BackpackTradingService:
             )
             return results
 
-        except APIError as e:  # Catch APIErrors raised from _http_client_requester or earlier
+        except APIError:
+            # Re-raise APIErrors from _requester, ResponseHandler, etc.
+            raise
+        except TransformationError as e_transform:
             logger.error(
-                f"[{self._exchange_name}] APIError cancelling all orders for "
-                f"{symbol or 'all'}: {e.message}",
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for cancel all orders: {e_transform}",
                 exc_info=True,
             )
-            # Construct a generic failure result for the batch
-            results.append(
-                CancelOrderResult(
-                    order_id=None,
-                    client_order_id=None,
-                    symbol=symbol,
-                    success=False,
-                    message=f"APIError: {e.message}",
-                    status=CancelOrderResultStatus.FAILED,
-                    raw_response={"message": e.exchange_message} if e.exchange_message else None,
-                )
-            )
-            return results  # Return list with the failure entry
-        except Exception as e:
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except ValidationError as e_val:
             logger.error(
-                f"[{self._exchange_name}] Unexpected error cancelling all orders for "
-                f"{symbol or 'all'}: {e}",
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for cancel all orders: {e_val}",
                 exc_info=True,
             )
-            raw_error_data_str = str(raw_data) if raw_data is not None else None
-            results.append(
-                CancelOrderResult(
-                    order_id=None,
-                    client_order_id=None,
-                    symbol=symbol,
-                    success=False,
-                    message=f"Unexpected error: {str(e)}",
-                    status=CancelOrderResultStatus.FAILED,
-                    raw_response={"message": raw_error_data_str} if raw_error_data_str else None,
-                )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for cancel all orders: {e_service_logic}",
+                exc_info=True,
             )
-            return results  # Return list with the failure entry
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"for cancel all orders: {e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unexpected
 
     async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
         """
         Fetch all open orders, optionally filtering by symbol.
         This is an alias for get_open_orders as per Backpack API structure.
         """
-        return await self.get_open_orders(symbol=symbol)
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_all_open_orders"
+
+        if symbol is not None and not symbol:
+            raise ValueError(
+                f"[{current_method}] 'symbol' must be a non-empty string when provided."
+            )
+
+        # Initialize context for error handling
+        status_code: int = 0
+        raw_response_content: str | None = None
+
+        try:
+            # Core operational logic - delegate to get_open_orders
+            return await self.get_open_orders(symbol=symbol)
+
+        except APIError:
+            # Re-raise APIErrors from get_open_orders method
+            raise
+        except TransformationError as e_transform:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data: {e_transform}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            # Check if this is from our own input parameter validation
+            error_msg = str(e_service_logic)
+            if current_method in error_msg and "symbol" in error_msg:
+                # This is likely from our input parameter validation - re-raise as is
+                raise
+            else:
+                # This is from service internal logic - wrap as APIError
+                logger.error(
+                    f"[{self._exchange_name}] {current_method}: Service internal logic error: "
+                    f"{e_service_logic}",
+                    exc_info=True,
+                )
+                raise APIError(
+                    code=APIErrorCode.UNKNOWN.value,
+                    message="Service internal logic error.",
+                    original_exception=e_service_logic,
+                    http_status=status_code if status_code != 0 else None,
+                    exchange_message=raw_response_content,
+                ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure: "
+                f"{e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unexpected

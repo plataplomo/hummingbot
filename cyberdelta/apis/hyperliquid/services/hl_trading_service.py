@@ -402,7 +402,7 @@ class HyperliquidTradingService:
         side: OrderSide,
         order_type: OrderType,
         quantity: Decimal,
-        price: Decimal,
+        price: Decimal | None,
         time_in_force: TimeInForce,
         stop_price: Decimal | None = None,
         client_order_id: str | None = None,
@@ -420,8 +420,12 @@ class HyperliquidTradingService:
             raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
         if not quantity.is_finite() or quantity <= 0:
             raise ValueError(f"[{current_method}] 'quantity' must be a positive finite Decimal.")
-        if not price.is_finite() or price <= 0:
-            raise ValueError(f"[{current_method}] 'price' must be a positive finite Decimal.")
+
+        # Handle optional price - use Decimal("0") for market orders
+        order_price = price if price is not None else Decimal("0")
+
+        if not order_price.is_finite() or order_price < 0:
+            raise ValueError(f"[{current_method}] 'price' must be a non-negative finite Decimal.")
         if stop_price is not None and (not stop_price.is_finite() or stop_price <= 0):
             raise ValueError(
                 f"[{current_method}] 'stop_price' must be a positive finite Decimal when provided."
@@ -446,7 +450,7 @@ class HyperliquidTradingService:
                 order_type=order_type,
                 quantity=quantity,
                 time_in_force=time_in_force,
-                price=price,
+                price=order_price,
                 stop_price=stop_price,
                 client_order_id=client_order_id,
                 reduce_only=reduce_only,
@@ -797,120 +801,191 @@ class HyperliquidTradingService:
         Cancels all open orders, optionally filtered by symbol.
         Returns a list of CancelOrderResult for each attempted cancellation.
         """
-        _error_msg_wallet_addr = "Wallet address is required to cancel all orders."
-        if not self._wallet_address:
-            raise APIError(_error_msg_wallet_addr, APIErrorCode.AUTHENTICATION_FAILED.value)
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "cancel_all_orders"
 
-        open_orders_internal = await self.get_open_orders(symbol=symbol)
-        if not open_orders_internal:
-            logger.info(
-                f"[{self._exchange_name}] No open orders found matching symbol "
-                f"'{symbol if symbol else 'any'}' to cancel."
+        # No specific input validation needed for this method
+
+        # Initialize context for error handling
+        status_code: int = 0
+        raw_response_content: str | None = None
+
+        try:
+            # Core operational logic
+            _error_msg_wallet_addr = "Wallet address is required to cancel all orders."
+            if not self._wallet_address:
+                raise APIError(_error_msg_wallet_addr, APIErrorCode.AUTHENTICATION_FAILED.value)
+
+            open_orders_internal = await self.get_open_orders(symbol=symbol)
+            if not open_orders_internal:
+                logger.info(
+                    f"[{self._exchange_name}] No open orders found matching symbol "
+                    f"'{symbol if symbol else 'any'}' to cancel."
+                )
+                return []
+
+            results: list[CancelOrderResult] = []
+            active_cancels_count = 0
+
+            for order_to_cancel in open_orders_internal:
+                if order_to_cancel.exchange_order_id is None:
+                    logger.warning(
+                        f"[{self._exchange_name}] Skipping cancellation for order without "
+                        f"exchange_order_id: ClientOID {order_to_cancel.client_order_id}, "
+                        f"Symbol {order_to_cancel.symbol}"
+                    )
+                    results.append(
+                        CancelOrderResult(
+                            symbol=order_to_cancel.symbol,
+                            order_id=None,
+                            client_order_id=order_to_cancel.client_order_id,
+                            success=False,
+                            message="Order has no exchange_order_id, cannot be canceled by ID.",
+                            status=CancelOrderResultStatus.FAILED,
+                        )
+                    )
+                    continue
+
+                order_id_to_cancel_str = order_to_cancel.exchange_order_id
+                order_symbol_for_cancel = order_to_cancel.symbol
+
+                try:
+                    order_id_int = int(order_id_to_cancel_str)
+                    active_cancels_count += 1
+                    logger.debug(
+                        f"Attempting to cancel order {order_id_int} for symbol "
+                        f"{order_symbol_for_cancel}"
+                    )
+
+                    success_flag = await self.cancel_order(
+                        symbol=order_symbol_for_cancel, order_id=order_id_int
+                    )
+
+                    results.append(
+                        CancelOrderResult(
+                            symbol=order_symbol_for_cancel,
+                            order_id=str(order_id_int),
+                            client_order_id=order_to_cancel.client_order_id,
+                            success=success_flag,
+                            message="Successfully canceled."
+                            if success_flag
+                            else "Failed to cancel via API.",
+                            status=CancelOrderResultStatus.SUCCESS
+                            if success_flag
+                            else CancelOrderResultStatus.FAILED,
+                        )
+                    )
+                except ValueError:
+                    logger.error(
+                        f"[{self._exchange_name}] Invalid order_id format '{order_id_to_cancel_str}' "
+                        f"for cancellation."
+                    )
+                    results.append(
+                        CancelOrderResult(
+                            symbol=order_symbol_for_cancel,
+                            order_id=order_id_to_cancel_str,
+                            client_order_id=order_to_cancel.client_order_id,
+                            success=False,
+                            message=f"Invalid order_id format: {order_id_to_cancel_str}.",
+                            status=CancelOrderResultStatus.FAILED,
+                        )
+                    )
+                except APIError as e_api:
+                    logger.error(
+                        f"[{self._exchange_name}] APIError cancelling order {order_id_to_cancel_str} "
+                        f"for {order_symbol_for_cancel}: {e_api.message}"
+                    )
+                    results.append(
+                        CancelOrderResult(
+                            symbol=order_symbol_for_cancel,
+                            order_id=order_id_to_cancel_str,
+                            client_order_id=order_to_cancel.client_order_id,
+                            success=False,
+                            message=e_api.message,
+                            status=CancelOrderResultStatus.FAILED,
+                            raw_response={
+                                "error_code": e_api.code,
+                                "http_status": e_api.http_status,
+                            },
+                        )
+                    )
+                except Exception as e_generic:
+                    logger.exception(
+                        f"[{self._exchange_name}] Unexpected error cancelling order "
+                        f"{order_id_to_cancel_str} for {order_symbol_for_cancel}: {e_generic}"
+                    )
+                    results.append(
+                        CancelOrderResult(
+                            symbol=order_symbol_for_cancel,
+                            order_id=order_id_to_cancel_str,
+                            client_order_id=order_to_cancel.client_order_id,
+                            success=False,
+                            message=str(e_generic),
+                            status=CancelOrderResultStatus.UNKNOWN,
+                        )
+                    )
+
+            if active_cancels_count == 0 and len(open_orders_internal) > 0:
+                logger.info(
+                    f"[{self._exchange_name}] Found {len(open_orders_internal)} orders but none had "
+                    f"valid exchange_order_id for cancellation attempt."
+                )
+
+            return results
+
+        except APIError:
+            # Re-raise APIErrors from get_open_orders, cancel_order, etc.
+            raise
+        except TransformationError as e_transform:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for cancel all orders: {e_transform}",
+                exc_info=True,
             )
-            return []
-
-        results: list[CancelOrderResult] = []
-        active_cancels_count = 0
-
-        for order_to_cancel in open_orders_internal:
-            if order_to_cancel.exchange_order_id is None:
-                logger.warning(
-                    f"[{self._exchange_name}] Skipping cancellation for order without "
-                    f"exchange_order_id: ClientOID {order_to_cancel.client_order_id}, "
-                    f"Symbol {order_to_cancel.symbol}"
-                )
-                results.append(
-                    CancelOrderResult(
-                        symbol=order_to_cancel.symbol,
-                        order_id=None,
-                        client_order_id=order_to_cancel.client_order_id,
-                        success=False,
-                        message="Order has no exchange_order_id, cannot be canceled by ID.",
-                        status=CancelOrderResultStatus.FAILED,
-                    )
-                )
-                continue
-
-            order_id_to_cancel_str = order_to_cancel.exchange_order_id
-            order_symbol_for_cancel = order_to_cancel.symbol
-
-            try:
-                order_id_int = int(order_id_to_cancel_str)
-                active_cancels_count += 1
-                logger.debug(
-                    f"Attempting to cancel order {order_id_int} for symbol "
-                    f"{order_symbol_for_cancel}"
-                )
-
-                success_flag = await self.cancel_order(
-                    symbol=order_symbol_for_cancel, order_id=order_id_int
-                )
-
-                results.append(
-                    CancelOrderResult(
-                        symbol=order_symbol_for_cancel,
-                        order_id=str(order_id_int),
-                        client_order_id=order_to_cancel.client_order_id,
-                        success=success_flag,
-                        message="Successfully canceled."
-                        if success_flag
-                        else "Failed to cancel via API.",
-                        status=CancelOrderResultStatus.SUCCESS
-                        if success_flag
-                        else CancelOrderResultStatus.FAILED,
-                    )
-                )
-            except ValueError:
-                logger.error(
-                    f"[{self._exchange_name}] Invalid order_id format '{order_id_to_cancel_str}' "
-                    f"for cancellation."
-                )
-                results.append(
-                    CancelOrderResult(
-                        symbol=order_symbol_for_cancel,
-                        order_id=order_id_to_cancel_str,
-                        client_order_id=order_to_cancel.client_order_id,
-                        success=False,
-                        message=f"Invalid order_id format: {order_id_to_cancel_str}.",
-                        status=CancelOrderResultStatus.FAILED,
-                    )
-                )
-            except APIError as e_api:
-                logger.error(
-                    f"[{self._exchange_name}] APIError cancelling order {order_id_to_cancel_str} "
-                    f"for {order_symbol_for_cancel}: {e_api.message}"
-                )
-                results.append(
-                    CancelOrderResult(
-                        symbol=order_symbol_for_cancel,
-                        order_id=order_id_to_cancel_str,
-                        client_order_id=order_to_cancel.client_order_id,
-                        success=False,
-                        message=e_api.message,
-                        status=CancelOrderResultStatus.FAILED,
-                        raw_response={"error_code": e_api.code, "http_status": e_api.http_status},
-                    )
-                )
-            except Exception as e_generic:
-                logger.exception(
-                    f"[{self._exchange_name}] Unexpected error cancelling order "
-                    f"{order_id_to_cancel_str} for {order_symbol_for_cancel}: {e_generic}"
-                )
-                results.append(
-                    CancelOrderResult(
-                        symbol=order_symbol_for_cancel,
-                        order_id=order_id_to_cancel_str,
-                        client_order_id=order_to_cancel.client_order_id,
-                        success=False,
-                        message=str(e_generic),
-                        status=CancelOrderResultStatus.UNKNOWN,
-                    )
-                )
-
-        if active_cancels_count == 0 and len(open_orders_internal) > 0:
-            logger.info(
-                f"[{self._exchange_name}] Found {len(open_orders_internal)} orders but none had "
-                f"valid exchange_order_id for cancellation attempt."
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for cancel all orders: {e_val}",
+                exc_info=True,
             )
-
-        return results
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for cancel all orders: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"for cancel all orders: {e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unexpected

@@ -116,18 +116,29 @@ class HyperliquidMarketDataService:
         Raises:
             APIError: If the API request fails or the response is invalid.
         """
-        endpoint_path = "/info"
-        # HyperliquidRequestBuilder.build_info_request_payload() now returns a Pydantic model.
-        request_payload_model = self._request_builder.build_info_request_payload()
-        request_payload_data_dict = request_payload_model.model_dump(
-            by_alias=True,
-            exclude_none=True,  # Use by_alias if model uses aliases
-        )
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_all_asset_contexts_raw"
 
+        # No input parameters to validate for this method
+
+        # Initialize context for error handling
         raw_response_content: ParsedJsonResponse | None = None
         status_code: int = 0
-        headers: Mapping[str, str] = {}
+        raw_response_content_str: str | None = None
+
         try:
+            # Core operational logic
+            endpoint_path = "/info"
+            # HyperliquidRequestBuilder.build_info_request_payload() now returns a Pydantic model.
+            request_payload_model = self._request_builder.build_info_request_payload()
+            request_payload_data_dict = request_payload_model.model_dump(
+                by_alias=True,
+                exclude_none=True,  # Use by_alias if model uses aliases
+            )
+
+            headers: Mapping[str, str] = {}
+
             # Use the single HTTP client requester for /info endpoint
             raw_response_content, status_code, headers = await self._http_client_requester(
                 method="POST",
@@ -137,6 +148,10 @@ class HyperliquidMarketDataService:
                 endpoint_group="public",
                 request_weight=1,
             )
+
+            if raw_response_content is not None:
+                raw_response_content_str = str(raw_response_content)
+
             logger.debug(
                 f"[{self._exchange_name}] Raw all_asset_contexts response: "
                 f"{raw_response_content!r}, Status: {status_code}, Headers: {headers}"
@@ -164,31 +179,60 @@ class HyperliquidMarketDataService:
             return validated_response
 
         except APIError:
+            # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise
-        except ValidationError as e_val:
+        except TransformationError as e_transform:
             logger.error(
-                f"[{self._exchange_name}] Asset contexts response validation failed: {e_val}. "
-                f"Raw: {raw_response_content!r}"
-            )
-            raise APIError(
-                message=f"Failed to validate asset contexts response: {e_val}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                original_exception=e_val,
-                http_status=status_code,
-                exchange_message=str(raw_response_content),
-            ) from e_val
-        except Exception as e_unhandled:
-            logger.error(
-                f"[{self._exchange_name}] Unhandled error fetching asset contexts: {e_unhandled}",
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
-                message=f"Unexpected error processing asset contexts: {e_unhandled}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content_str,
+            ) from e_transform
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content_str,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error: "
+                f"{e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
-                original_exception=e_unhandled,
-                http_status=status_code,
-                exchange_message=str(raw_response_content),
-            ) from e_unhandled
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content_str,
+            ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure: "
+                f"{e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content_str,
+            ) from e_unexpected
 
     async def get_ticker(self, symbol: str) -> Ticker | None:
         """

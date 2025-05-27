@@ -520,28 +520,10 @@ class BackpackAPI(ExchangeAPI):
         limit: int | None = None,
     ) -> list[FundingRate]:
         """Get historical funding rates for a specific symbol."""
-        start_time_sec: int | None = None
-        if start_time:
-            if start_time.tzinfo is None:
-                logger.warning(
-                    f"[{self.exchange_name}] start_time for get_historical_funding_rates is naive. "
-                    f"Assuming UTC."
-                )
-            start_time_sec = int(start_time.timestamp())
-
-        end_time_sec: int | None = None
-        if end_time:
-            if end_time.tzinfo is None:
-                logger.warning(
-                    f"[{self.exchange_name}] end_time for get_historical_funding_rates is naive. "
-                    f"Assuming UTC."
-                )
-            end_time_sec = int(end_time.timestamp())
-
         return await self.market_data_service.get_historical_funding_rates(
             symbol=symbol,
-            start_time_ms=start_time_sec,
-            end_time_ms=end_time_sec,
+            start_time=start_time,
+            end_time=end_time,
             limit=limit,
         )
 

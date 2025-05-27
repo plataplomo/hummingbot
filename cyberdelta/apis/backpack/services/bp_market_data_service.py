@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
@@ -228,77 +229,84 @@ class BackpackMarketDataService:
 
     async def get_all_tickers(self) -> dict[str, Ticker]:
         """Retrieves tickers for all available markets."""
-        # TODO: Backpack API does not seem to have a single endpoint for all tickers.
-        # This might require fetching all symbols first, then getting ticker for each.
-        # Or, the OpenAPI spec might list all tickers directly under /markets.
-        # For now, this is not implemented as the builder/handler methods are missing.
-        logger.warning(
-            f"[{self._exchange_name}] get_all_tickers is not implemented yet for Backpack."
-        )
-        raise NotImplementedError(
-            "get_all_tickers is not implemented for BackpackMarketDataService"
-        )
-        # endpoint_path, params = self._request_builder.build_get_all_tickers_params()
-        # logger.debug(f"[{self._exchange_name}] Requesting all tickers from {endpoint_path}")
-        # raw_data_list: RawJsonResponse | None = None
-        # status_code: int = 0
-        # try:
-        #     raw_data_list, status_code, _ = await self._http_client_requester(
-        #         method="GET", endpoint=endpoint_path, params=params, is_public_info_endpoint=True
-        #     )
-        #     logger.debug(
-        #         f"[{self._exchange_name}] Raw all_tickers response: {raw_data_list!r} "
-        #         f"(Status: {status_code})"
-        #     )
-        #     if raw_data_list is None and not (200 <= status_code < 300):
-        #         raise APIError(
-        #             f"No data for all_tickers, status: {status_code}",
-        #             APIErrorCode.INVALID_RESPONSE.value,
-        #             http_status=status_code
-        #         )
-        #     if not isinstance(raw_data_list, list):
-        #         raise APIError(
-        #             f"All tickers data not list: {type(raw_data_list)}",
-        #             APIErrorCode.INVALID_RESPONSE.value,
-        #             http_status=status_code
-        #         )
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_all_tickers"
 
-        #     raw_ticker_models: list[BackpackRawTicker] = (
-        #         self._response_handler.handle_get_all_tickers_response(
-        #         raw_data_list
-        #         )
-        #     )
-        #     internal_tickers_dict: dict[str, Ticker] = {}
-        #     for raw_model in raw_ticker_models:
-        #         ticker = self._mapper.transform_raw_ticker_to_internal(raw_model)
-        #         internal_tickers_dict[ticker.symbol] = ticker
-        #     logger.debug(
-        #         f"[{self._exchange_name}] Mapped internal tickers_dict: {internal_tickers_dict}"
-        #     )
-        #     return internal_tickers_dict
-        # except APIError:
-        #     raise
-        # except (ValidationError, ValueError) as e_val:
-        #     logger.error(
-        #         f"Validation/map error for all_tickers: {e_val}. "
-        #         f"Raw: {raw_data_list!r}, Status: {status_code}"
-        #     )
-        #     raise APIError(
-        #         message=f"Processing all_tickers failed: {e_val}",
-        #         code=APIErrorCode.INVALID_RESPONSE.value,
-        #         original_exception=e_val,
-        #         http_status=status_code,
-        #         exchange_message=str(raw_data_list)
-        #     ) from e_val
-        # except Exception as e_unhandled:
-        #     logger.error(f"Unhandled error for all_tickers: {e_unhandled}", exc_info=True)
-        #     raise APIError(
-        #         message=f"Unexpected error for all_tickers: {e_unhandled}",
-        #         code=APIErrorCode.UNKNOWN.value,
-        #         original_exception=e_unhandled,
-        #         http_status=status_code,
-        #         exchange_message=str(raw_data_list)
-        #     ) from e_unhandled
+        # No input parameters to validate for this method
+
+        # Initialize context for error handling
+        status_code: int = 0
+        raw_response_content: str | None = None
+
+        try:
+            # Core operational logic
+            # TODO: Backpack API does not seem to have a single endpoint for all tickers.
+            # This might require fetching all symbols first, then getting ticker for each.
+            # Or, the OpenAPI spec might list all tickers directly under /markets.
+            # For now, this is not implemented as the builder/handler methods are missing.
+            logger.warning(
+                f"[{self._exchange_name}] get_all_tickers is not implemented yet for Backpack."
+            )
+            raise NotImplementedError(
+                "get_all_tickers is not implemented for BackpackMarketDataService"
+            )
+
+        except APIError:
+            # Re-raise APIErrors from any future implementation
+            raise
+        except TransformationError as e_transform:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for get_all_tickers: {e_transform}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for get_all_tickers: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for get_all_tickers: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"for get_all_tickers: {e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unexpected
 
     async def get_order_book(self, symbol: str, limit: int | None = 20) -> OrderBook:
         """Retrieves the order book for a specific symbol."""
@@ -777,12 +785,18 @@ class BackpackMarketDataService:
     async def get_historical_funding_rates(
         self,
         symbol: str,
-        start_time_ms: int | None = None,
-        end_time_ms: int | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
         limit: int | None = None,
     ) -> list[FundingRate]:
         """
         Retrieves historical funding rates for a symbol within a given time range.
+
+        Args:
+            symbol: The trading symbol
+            start_time: Start time as datetime object (timezone-aware preferred)
+            end_time: End time as datetime object (timezone-aware preferred)
+            limit: Maximum number of results to return
         """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
@@ -792,12 +806,31 @@ class BackpackMarketDataService:
 
         if not symbol:
             raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
-        if start_time_ms is not None and start_time_ms <= 0:
-            raise ValueError(f"[{current_method}] 'start_time_ms' must be positive when provided.")
-        if end_time_ms is not None and end_time_ms <= 0:
-            raise ValueError(f"[{current_method}] 'end_time_ms' must be positive when provided.")
         if limit is not None and limit <= 0:
             raise ValueError(f"[{current_method}] 'limit' must be positive when provided.")
+
+        # Convert datetime objects to timestamps with timezone validation
+        start_time_ms: int | None = None
+        if start_time is not None:
+            if start_time.tzinfo is None:
+                logger.warning(
+                    f"[{self._exchange_name}] start_time for get_historical_funding_rates "
+                    f"is naive. Assuming UTC."
+                )
+            start_time_ms = int(start_time.timestamp())
+            if start_time_ms <= 0:
+                raise ValueError(f"[{current_method}] 'start_time' must be positive when provided.")
+
+        end_time_ms: int | None = None
+        if end_time is not None:
+            if end_time.tzinfo is None:
+                logger.warning(
+                    f"[{self._exchange_name}] end_time for get_historical_funding_rates "
+                    f"is naive. Assuming UTC."
+                )
+            end_time_ms = int(end_time.timestamp())
+            if end_time_ms <= 0:
+                raise ValueError(f"[{current_method}] 'end_time' must be positive when provided.")
 
         # Initialize context for error handling
         raw_data: ParsedJsonResponse | None = None

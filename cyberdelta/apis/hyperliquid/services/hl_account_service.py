@@ -843,11 +843,82 @@ class HyperliquidAccountService:
         if not to_account:
             raise ValueError(f"[{current_method}] 'to_account' must be a non-empty string.")
 
-        logger.warning(
-            f"[{self._exchange_name}] transfer functionality may be limited or "
-            f"different for Hyperliquid."
-        )
-        raise NotImplementedError("transfer not yet implemented in HyperliquidAccountService")
+        # Initialize context for error handling
+        status_code: int = 0
+        raw_response_content: str | None = None
+
+        try:
+            # Core operational logic
+            logger.warning(
+                f"[{self._exchange_name}] transfer functionality may be limited or "
+                f"different for Hyperliquid."
+            )
+            raise NotImplementedError("transfer not yet implemented in HyperliquidAccountService")
+
+        except APIError:
+            # Re-raise APIErrors from any future implementation
+            raise
+        except TransformationError as e_transform:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for transfer: {e_transform}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for transfer: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            # Check if this is from our own input parameter validation
+            error_msg = str(e_service_logic)
+            if current_method in error_msg and any(
+                param in error_msg for param in ["asset", "amount", "from_account", "to_account"]
+            ):
+                # This is likely from our input parameter validation - re-raise as is
+                raise
+            else:
+                # This is from service internal logic - wrap as APIError
+                logger.error(
+                    f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                    f"for transfer: {e_service_logic}",
+                    exc_info=True,
+                )
+                raise APIError(
+                    code=APIErrorCode.UNKNOWN.value,
+                    message="Service internal logic error.",
+                    original_exception=e_service_logic,
+                    http_status=status_code if status_code != 0 else None,
+                    exchange_message=raw_response_content,
+                ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"for transfer: {e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unexpected
 
     async def withdraw(
         self,
@@ -871,11 +942,82 @@ class HyperliquidAccountService:
                 f"[{current_method}] 'destination_address' must be a non-empty string."
             )
 
-        logger.warning(
-            f"[{self._exchange_name}] withdraw functionality is complex for Hyperliquid "
-            f"(L1 interaction)."
-        )
-        raise NotImplementedError("withdraw not yet implemented in HyperliquidAccountService")
+        # Initialize context for error handling
+        status_code: int = 0
+        raw_response_content: str | None = None
+
+        try:
+            # Core operational logic
+            logger.warning(
+                f"[{self._exchange_name}] withdraw functionality is complex for Hyperliquid "
+                f"(L1 interaction)."
+            )
+            raise NotImplementedError("withdraw not yet implemented in HyperliquidAccountService")
+
+        except APIError:
+            # Re-raise APIErrors from any future implementation
+            raise
+        except TransformationError as e_transform:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for withdraw: {e_transform}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for withdraw: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            # Check if this is from our own input parameter validation
+            error_msg = str(e_service_logic)
+            if current_method in error_msg and any(
+                param in error_msg for param in ["asset", "amount", "destination_address"]
+            ):
+                # This is likely from our input parameter validation - re-raise as is
+                raise
+            else:
+                # This is from service internal logic - wrap as APIError
+                logger.error(
+                    f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                    f"for withdraw: {e_service_logic}",
+                    exc_info=True,
+                )
+                raise APIError(
+                    code=APIErrorCode.UNKNOWN.value,
+                    message="Service internal logic error.",
+                    original_exception=e_service_logic,
+                    http_status=status_code if status_code != 0 else None,
+                    exchange_message=raw_response_content,
+                ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"for withdraw: {e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unexpected
 
     async def get_open_orders(self) -> list[Order]:
         """Retrieves all open orders for the account."""
