@@ -14,7 +14,7 @@ import inspect
 from collections.abc import Awaitable, Callable, Mapping
 from decimal import Decimal
 
-import pydantic
+from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
@@ -176,7 +176,7 @@ class BackpackTradingService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_transform
-        except pydantic.ValidationError as e_val:
+        except ValidationError as e_val:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
                 f"failed for {symbol}: {e_val}",
@@ -221,10 +221,8 @@ class BackpackTradingService:
 
         if not order_id:
             raise ValueError(f"[{current_method}] 'order_id' must be a non-empty string.")
-        if symbol is None or not symbol:
-            raise ValueError(
-                f"[{current_method}] 'symbol' is required and must be a non-empty string."
-            )
+        if not symbol:
+            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
 
         # Initialize context for error handling
         raw_data: ParsedJsonResponse | None = None
@@ -285,7 +283,7 @@ class BackpackTradingService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_transform
-        except pydantic.ValidationError as e_val:
+        except ValidationError as e_val:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
                 f"failed for order {order_id} ({symbol}): {e_val}",

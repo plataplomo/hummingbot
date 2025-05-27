@@ -673,12 +673,14 @@ class BackpackMarketDataService:
             current_status_code_str = str(status_code) if status_code != 0 else "N/A"
             logger.error(
                 f"[{self._exchange_name}] Unhandled error fetching historical funding rates "
-                f"for {symbol}: {e_unhandled}. {raw_info_for_log}, Status: {current_status_code_str}",
+                f"for {symbol}: {e_unhandled}. {raw_info_for_log}, "
+                f"Status: {current_status_code_str}",
                 exc_info=True,
             )
             raise APIError(
                 message=(
-                    f"Unhandled error during historical funding rates fetch for {symbol}: {e_unhandled}"
+                    f"Unhandled error during historical funding rates fetch for {symbol}: "
+                    f"{e_unhandled}"
                 ),
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e_unhandled,

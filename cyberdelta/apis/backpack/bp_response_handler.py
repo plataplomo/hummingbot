@@ -585,7 +585,8 @@ class BackpackResponseHandler:
         if not isinstance(raw_response_content, dict):
             raise APIError(
                 message=(
-                    f"Unexpected {context} format: expected dict, got {type(raw_response_content).__name__}"
+                    f"Unexpected {context} format: expected dict, got "
+                    f"{type(raw_response_content).__name__}"
                 ),
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )

@@ -14,7 +14,6 @@ from collections.abc import Awaitable, Callable, Mapping
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-import pydantic
 from pydantic import ValidationError
 
 # Project-specific imports for connectivity and base types
@@ -655,7 +654,7 @@ class HyperliquidMarketDataService:
                 if raw_response_content is not None
                 else None,
             ) from e_transform
-        except pydantic.ValidationError as e_val:
+        except ValidationError as e_val:
             logger.error(
                 f"[{self._exchange_name}] [{current_method}] ValidationError: {e_val}. "
                 f"Status: {status_code}, Raw: {raw_response_content}",

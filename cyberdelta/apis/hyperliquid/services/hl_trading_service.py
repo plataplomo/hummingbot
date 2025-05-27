@@ -13,7 +13,7 @@ from collections.abc import Callable, Coroutine, Mapping
 from decimal import Decimal
 from typing import Any, cast
 
-import pydantic
+from pydantic import ValidationError
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
@@ -361,7 +361,7 @@ class HyperliquidTradingService:
                 http_status=status_code,
                 exchange_message=raw_response_content,
             ) from e_transform
-        except pydantic.ValidationError as e_val:
+        except ValidationError as e_val:
             logger.error(
                 f"[{self._exchange_name}] [{current_method}] ValidationError: {e_val}. "
                 f"Status: {status_code}, Raw: {raw_response_content}",
@@ -531,7 +531,7 @@ class HyperliquidTradingService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_transform
-        except pydantic.ValidationError as e_val:
+        except ValidationError as e_val:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
                 f"failed for {symbol}: {e_val}",
@@ -631,7 +631,7 @@ class HyperliquidTradingService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_transform
-        except pydantic.ValidationError as e_val:
+        except ValidationError as e_val:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
                 f"failed: {e_val}",
@@ -757,7 +757,7 @@ class HyperliquidTradingService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_transform
-        except pydantic.ValidationError as e_val:
+        except ValidationError as e_val:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
                 f"failed for order {order_id_int}: {e_val}",
