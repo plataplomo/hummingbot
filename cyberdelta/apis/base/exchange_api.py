@@ -229,6 +229,7 @@ class ExchangeAPI(ABC):
         endpoint_group: str | None = None,
         request_weight: int = 1,
         is_public_info_endpoint: bool = False,
+        serialize_none_as_null: bool = False,
     ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
         """
         Execute an API request, delegating to HttpClient and handling exchange-specific
@@ -244,6 +245,8 @@ class ExchangeAPI(ABC):
             endpoint_group: Optional logical group for the endpoint, used for rate limiting.
             request_weight: Optional request weight for rate limiting.
             is_public_info_endpoint: Flag for specific endpoints (e.g. Hyperliquid INFO).
+            serialize_none_as_null: If True, serialize Pydantic models with None values
+                                  as null instead of excluding them.
 
         Returns:
             A tuple containing:
@@ -287,6 +290,7 @@ class ExchangeAPI(ABC):
                 authenticator=effective_authenticator,
                 rate_limiter_service=self._rate_limiter_service,
                 is_signed=is_signed,
+                serialize_none_as_null=serialize_none_as_null,
             )
             self._update_rate_limit_from_headers(response_headers_dict, method, endpoint)
             return response_content, status_code, response_headers_dict

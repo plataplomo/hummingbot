@@ -215,9 +215,9 @@ class TestHyperliquidMarketDataServiceFundingRates:
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
-            endpoint_path="/info",
+            endpoint="/info",
             data=mock_payload_model,
-            is_info_endpoint=True,
+            is_public_info_endpoint=True,
         )
         mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
             raw_response_content=mock_raw_response_content,
@@ -274,9 +274,9 @@ class TestHyperliquidMarketDataServiceFundingRates:
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
-            endpoint_path="/info",
+            endpoint="/info",
             data=mock_payload_model,
-            is_info_endpoint=True,
+            is_public_info_endpoint=True,
         )
         mock_hl_response_handler.handle_historical_funding_rates_response.assert_not_called()
         mock_hl_mapper.transform_raw_funding_history_item_to_internal.assert_not_called()

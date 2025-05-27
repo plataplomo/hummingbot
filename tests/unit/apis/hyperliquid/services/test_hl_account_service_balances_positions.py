@@ -126,9 +126,9 @@ class TestHyperliquidAccountServiceBalancesPositions:
         mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
         mock_http_client_requester.assert_called_once_with(
             method="POST",
-            endpoint_path="http://test-mock-url",
+            endpoint="/info",
             data=mock_user_state_payload_dict,
-            is_info_endpoint=True,
+            is_public_info_endpoint=True,
             is_signed=False,
         )
         mock_response_handler.handle_info_user_state_response.assert_called_once_with(
@@ -158,7 +158,6 @@ class TestHyperliquidAccountServiceBalancesPositions:
             response_handler=mock_response_handler,
             authenticator=mock_authenticator,
             exchange_name="hyperliquid_test_no_wallet",
-            info_url="https://info.hyperliquid.xyz",
             wallet_address=None,  # Key change here
             account_mapper=mock_hl_account_mapper,
             trading_mapper=mock_hl_trading_mapper,
@@ -219,9 +218,9 @@ class TestHyperliquidAccountServiceBalancesPositions:
         mock_request_builder.build_user_state_payload.assert_called_once_with(wallet_address)
         mock_http_client_requester.assert_called_once_with(
             method="POST",
-            endpoint_path="http://test-mock-url",
+            endpoint="/info",
             data=mock_user_state_payload_dict,
-            is_info_endpoint=True,
+            is_public_info_endpoint=True,
             is_signed=False,
         )
         mock_response_handler.handle_info_user_state_response.assert_not_called()

@@ -79,7 +79,6 @@ def hyperliquid_market_data_service(
         response_handler=mock_hl_response_handler,
         mapper=mock_hl_mapper,
         exchange_name="hyperliquid_test",
-        info_url="https://fakeapi.hyperliquid.com/info",
     )
 
 
@@ -125,9 +124,9 @@ class TestHyperliquidMarketDataService:
         mock_hl_request_builder.build_info_request_payload.assert_called_once_with()
         mock_http_client_requester.assert_called_once_with(
             method="POST",
-            endpoint_path="/info",
+            endpoint="/info",
             data=expected_data_dict,
-            is_info_endpoint=True,
+            is_public_info_endpoint=True,
         )
         mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.assert_called_once_with(
             mock_raw_response_content, status_code=200, headers=mock_headers
@@ -355,9 +354,9 @@ class TestHyperliquidMarketDataService:
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
-            endpoint_path="/info",
-            data=expected_data_dict,  # This comes from the model_dump of the L2BookRequestPayload
-            is_info_endpoint=True,
+            endpoint="/info",
+            data=expected_data_dict,
+            is_public_info_endpoint=True,
         )
         mock_hl_response_handler.handle_info_l2_book_response.assert_called_once_with(
             mock_raw_response_content, symbol=symbol_to_find, status_code=200, headers=mock_headers
@@ -395,9 +394,9 @@ class TestHyperliquidMarketDataService:
         mock_hl_request_builder.build_l2_book_request_payload.assert_called_once_with(symbol=symbol)
         mock_http_client_requester.assert_called_once_with(
             method="POST",
-            endpoint_path="/info",
+            endpoint="/info",
             data=mock_request_payload_dict,
-            is_info_endpoint=True,
+            is_public_info_endpoint=True,
         )
         mock_hl_response_handler.handle_info_l2_book_response.assert_not_called()
         mock_hl_mapper.transform_raw_order_book_to_internal.assert_not_called()
@@ -504,9 +503,9 @@ class TestHyperliquidMarketDataService:
         mock_payload_model.model_dump.assert_called_once_with(by_alias=True, exclude_none=True)
         mock_http_client_requester.assert_called_once_with(
             method="POST",
-            endpoint_path="/info",
+            endpoint="/info",
             data=mock_request_payload_dict,
-            is_info_endpoint=True,
+            is_public_info_endpoint=True,
         )
         mock_hl_response_handler.handle_info_recent_trades_response.assert_called_once_with(
             mock_raw_response_content, symbol=symbol_to_find, status_code=200, headers=mock_headers
@@ -547,9 +546,9 @@ class TestHyperliquidMarketDataService:
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
-            endpoint_path="/info",
+            endpoint="/info",
             data=mock_request_payload_dict,
-            is_info_endpoint=True,
+            is_public_info_endpoint=True,
         )
         mock_hl_response_handler.handle_info_recent_trades_response.assert_not_called()
         mock_hl_mapper.transform_raw_public_trade_to_internal.assert_not_called()
@@ -790,9 +789,9 @@ class TestHyperliquidMarketDataService:
         mock_hl_request_builder.build_info_request_payload.assert_called_once()
         mock_http_client_requester.assert_called_once_with(
             method="POST",
-            endpoint_path="/info",
+            endpoint="/info",
             data=mock_payload_dict,
-            is_info_endpoint=True,
+            is_public_info_endpoint=True,
         )
         mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.assert_called_once_with(
             mock_raw_response_content, status_code=mock_status_code, headers=mock_headers
@@ -827,9 +826,9 @@ class TestHyperliquidMarketDataService:
         mock_hl_request_builder.build_info_request_payload.assert_called_once_with()
         mock_http_client_requester.assert_called_once_with(
             method="POST",
-            endpoint_path="/info",
+            endpoint="/info",
             data=expected_data_dict,
-            is_info_endpoint=True,
+            is_public_info_endpoint=True,
         )
         mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.assert_not_called()
 
@@ -908,9 +907,9 @@ class TestHyperliquidMarketDataService:
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
-            endpoint_path="/info",
+            endpoint="/info",
             data=mock_request_payload,
-            is_info_endpoint=True,
+            is_public_info_endpoint=True,
         )
         mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
             raw_response_content=mock_raw_response_data, status_code=200, headers=mock_headers
@@ -960,7 +959,7 @@ class TestHyperliquidMarketDataService:
             symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
         )
         mock_http_client_requester.assert_called_once_with(
-            method="POST", endpoint_path="/info", data=mock_request_payload, is_info_endpoint=True
+            method="POST", endpoint="/info", data=mock_request_payload, is_public_info_endpoint=True
         )
         mock_hl_response_handler.handle_historical_funding_rates_response.assert_not_called()
         # Since the mapper method is static, direct check on mock_hl_mapper instance method
@@ -1016,9 +1015,9 @@ class TestHyperliquidMarketDataService:
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
-            endpoint_path="/info",
+            endpoint="/info",
             data=mock_request_payload,
-            is_info_endpoint=True,
+            is_public_info_endpoint=True,
         )
         mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
             raw_response_content=mock_raw_response_data, status_code=200, headers=mock_headers
@@ -1142,9 +1141,9 @@ class TestHyperliquidMarketDataService:
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
-            endpoint_path="/info",
+            endpoint="/info",
             data=mock_request_payload,
-            is_info_endpoint=True,
+            is_public_info_endpoint=True,
         )
         mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
             raw_response_content=mock_raw_response_data,

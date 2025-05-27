@@ -314,9 +314,7 @@ class HyperliquidWsMessageRouter:
                             validated_order_details = _handle_order_event(order_update_wrapper.data)
                             try:
                                 # Transform raw validated model to internal domain model
-                                order_transform_method = (
-                                    self._trading_data_mapper.transform_ws_order_update_to_internal_order
-                                )
+                                order_transform_method = self._trading_data_mapper.transform_ws_order_update_to_internal_order
                                 internal_order = order_transform_method(validated_order_details)
                                 await app_handler(internal_order, message)  # type: ignore[arg-type]
                             except TransformationError as e_transform:
@@ -332,9 +330,7 @@ class HyperliquidWsMessageRouter:
                             validated_position_update = _handle_pos_update(event_item_dict)
                             try:
                                 # Transform raw validated model to internal domain model
-                                position_transform_method = (
-                                    self._account_data_mapper.transform_ws_position_update_to_internal_position
-                                )
+                                position_transform_method = self._account_data_mapper.transform_ws_position_update_to_internal_position
                                 internal_position = position_transform_method(
                                     validated_position_update
                                 )

@@ -82,7 +82,6 @@ def hyperliquid_account_service(
         response_handler=mock_response_handler,
         authenticator=mock_authenticator,
         exchange_name="hyperliquid_test_account",
-        info_url="http://test-mock-url",  # Mocked URL to prevent actual network calls
         wallet_address="0xTestWalletAddress",
         account_mapper=mock_hl_account_mapper,
         trading_mapper=mock_hl_trading_mapper,

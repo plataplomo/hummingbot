@@ -64,9 +64,9 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
-            endpoint_path="/info",
+            endpoint="/info",
             data={"foo": "bar"},
-            is_info_endpoint=True,
+            is_public_info_endpoint=True,
             is_signed=False,
         )
         mock_response_handler.handle_query_order_history_response.assert_called_once_with(
@@ -168,8 +168,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             request_builder=mock_request_builder,
             response_handler=mock_response_handler,
             authenticator=mock_authenticator,
-            exchange_name="hyperliquid_test_no_wallet_order_hist",
-            info_url="https://info.hyperliquid.xyz",
+            exchange_name="hyperliquid_test_no_wallet",
             wallet_address=None,  # Key change here
             account_mapper=mock_hl_account_mapper,
             trading_mapper=mock_hl_trading_mapper,
@@ -253,9 +252,9 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
-            endpoint_path="/info",
+            endpoint="/info",
             data=mock_payload_dict,
-            is_info_endpoint=True,
+            is_public_info_endpoint=True,
             is_signed=False,
         )
         mock_response_handler.handle_query_order_history_response.assert_not_called()
@@ -378,7 +377,6 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             response_handler=mock_response_handler,
             authenticator=mock_authenticator,
             exchange_name="hyperliquid_test_no_wallet_trade_hist",
-            info_url="https://info.hyperliquid.xyz",
             wallet_address=None,  # Key: Instantiate with None
             account_mapper=mock_hl_account_mapper,
             trading_mapper=mock_hl_trading_mapper,
@@ -438,9 +436,9 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
-            endpoint_path="/info",
+            endpoint="/info",
             data=mock_payload_dict,
-            is_info_endpoint=True,
+            is_public_info_endpoint=True,
             is_signed=False,
         )
         mock_response_handler.handle_info_user_fills_response.assert_not_called()
@@ -483,9 +481,9 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
-            endpoint_path="/info",
+            endpoint="/info",
             data=mock_open_orders_payload_dict,
-            is_info_endpoint=True,
+            is_public_info_endpoint=True,
             is_signed=False,
         )
         mock_response_handler.handle_query_open_orders_response.assert_not_called()

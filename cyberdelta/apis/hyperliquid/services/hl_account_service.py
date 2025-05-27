@@ -88,7 +88,6 @@ class HyperliquidAccountService:
     _trading_mapper: HyperliquidTradingDataMapper  # For trading data mappings
     _authenticator: IAuthenticator | None
     _exchange_name: str
-    _info_url: str  # Specific to Hyperliquid for some requests
     _wallet_address: str | None
 
     def __init__(
@@ -98,7 +97,6 @@ class HyperliquidAccountService:
         response_handler: HyperliquidResponseHandler,
         authenticator: IAuthenticator | None,
         exchange_name: str,
-        info_url: str,
         wallet_address: str | None,
         # Add mapper dependencies
         account_mapper: HyperliquidAccountDataMapper,
@@ -109,7 +107,6 @@ class HyperliquidAccountService:
         self._response_handler = response_handler
         self._authenticator = authenticator
         self._exchange_name = exchange_name
-        self._info_url = info_url
         self._wallet_address = wallet_address
         # Assign injected mappers
         self._account_mapper = account_mapper
@@ -126,7 +123,7 @@ class HyperliquidAccountService:
                 code=APIErrorCode.INVALID_REQUEST.value,
             )
 
-        endpoint_path = self._info_url
+        endpoint_path = "/info"
         payload_model = self._request_builder.build_user_state_payload(self._wallet_address)
         payload_dict = payload_model.model_dump()
 
@@ -139,9 +136,9 @@ class HyperliquidAccountService:
         try:
             raw_data, status_code, _ = await self._http_client_requester(
                 method="POST",
-                endpoint_path=endpoint_path,
+                endpoint=endpoint_path,
                 data=payload_dict,
-                is_info_endpoint=True,
+                is_public_info_endpoint=True,
                 is_signed=False,
             )
             logger.debug(
@@ -341,9 +338,9 @@ class HyperliquidAccountService:
         try:
             raw_data, status_code, _ = await self._http_client_requester(
                 method="POST",
-                endpoint_path=endpoint_path,
+                endpoint=endpoint_path,
                 data=payload_dict,
-                is_info_endpoint=True,
+                is_public_info_endpoint=True,
                 is_signed=False,  # queryOrderHistory via /info is typically not signed
             )
             logger.debug(
@@ -471,9 +468,9 @@ class HyperliquidAccountService:
         try:
             raw_response_list, status_code, _ = await self._http_client_requester(
                 method="POST",
-                endpoint_path=endpoint_path,
+                endpoint=endpoint_path,
                 data=payload_dict,
-                is_info_endpoint=True,
+                is_public_info_endpoint=True,
                 is_signed=False,
             )
             logger.debug(
@@ -523,10 +520,9 @@ class HyperliquidAccountService:
                         mapped_trade = self._account_mapper.transform_raw_user_fill_to_internal(
                             raw_fill_obj
                         )
-                        # Check if mapped_trade is not None before accessing attributes or appending
-                        if mapped_trade is not None:
-                            if symbol is None or mapped_trade.symbol == symbol:
-                                internal_trades.append(mapped_trade)
+                        # Apply symbol filtering if specified
+                        if symbol is None or mapped_trade.symbol == symbol:
+                            internal_trades.append(mapped_trade)
                     except (ValidationError, ValueError) as e_map:
                         logger.warning(
                             f"[{self._exchange_name}] Error mapping raw user fill: {e_map}. "
@@ -628,9 +624,9 @@ class HyperliquidAccountService:
         try:
             raw_data, status_code, _ = await self._http_client_requester(
                 method="POST",
-                endpoint_path=endpoint_path,
+                endpoint=endpoint_path,
                 data=payload_dict,
-                is_info_endpoint=True,  # Common for /info endpoint
+                is_public_info_endpoint=True,  # Common for /info endpoint
                 is_signed=False,  # Open orders typically don't require signing beyond wallet auth
             )
             logger.debug(

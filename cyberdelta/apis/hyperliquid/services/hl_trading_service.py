@@ -75,8 +75,7 @@ class HyperliquidTradingService:
 
     def __init__(
         self,
-        exchange_http_client_requester: HttpClientRequesterSig,
-        info_http_client_requester: Callable[..., Coroutine[Any, Any, RawJsonResponse | None]],
+        http_client_requester: HttpClientRequesterSig,
         request_builder: HyperliquidRequestBuilder,
         response_handler: HyperliquidResponseHandler,
         authenticator: IAuthenticator | None,
@@ -86,8 +85,7 @@ class HyperliquidTradingService:
         trading_mapper: HyperliquidTradingDataMapper,
         error_mapper: HyperliquidErrorMapper,
     ) -> None:
-        self._exchange_http_client_requester = exchange_http_client_requester
-        self._info_http_client_requester = info_http_client_requester
+        self._http_client_requester = http_client_requester
         self._request_builder = request_builder
         self._response_handler = response_handler
         self._authenticator = authenticator
@@ -123,14 +121,13 @@ class HyperliquidTradingService:
         request_payload_model = place_order_payload
 
         try:
-            raw_response_tuple = await self._exchange_http_client_requester(
+            raw_content, http_status, _ = await self._http_client_requester(
                 method="POST",
                 endpoint=self._action_endpoint,
-                data=request_payload_model.model_dump(by_alias=True, exclude_none=True),
+                data=request_payload_model.model_dump(by_alias=True, exclude_none=False),
                 is_signed=True,
+                serialize_none_as_null=True,
             )
-            raw_content = raw_response_tuple[0]
-            http_status = raw_response_tuple[1]  # Capture the HTTP status code
             if raw_content is None:
                 _error_msg_no_content = (
                     f"Exchange action ({request_payload_model.type}) returned no content."
@@ -175,14 +172,13 @@ class HyperliquidTradingService:
         )
 
         try:
-            raw_response_tuple = await self._exchange_http_client_requester(
+            raw_content, http_status, _ = await self._http_client_requester(
                 method="POST",
                 endpoint=self._action_endpoint,
-                data=request_payload_model.model_dump(by_alias=True, exclude_none=True),
+                data=request_payload_model.model_dump(by_alias=True, exclude_none=False),
                 is_signed=True,
+                serialize_none_as_null=True,
             )
-            raw_content = raw_response_tuple[0]
-            http_status = raw_response_tuple[1]  # Capture the HTTP status code
             if raw_content is None:
                 _error_msg_no_content = (
                     f"Exchange action ({request_payload_model.type}) returned no content."
@@ -190,7 +186,7 @@ class HyperliquidTradingService:
                 raise APIError(_error_msg_no_content, APIErrorCode.INVALID_RESPONSE.value)
 
             exchange_response = self._response_handler.handle_exchange_response(
-                raw_content,
+                cast(RawJsonResponse, raw_content),
                 action_type=request_payload_model.type,
             )
             return exchange_response, http_status
@@ -216,13 +212,12 @@ class HyperliquidTradingService:
         )
 
         try:
-            raw_response_content = await self._info_http_client_requester(
+            raw_response_content, _, _ = await self._http_client_requester(
                 method="POST",
-                endpoint_path=self._info_endpoint,
+                endpoint=self._info_endpoint,
                 data=request_payload_model.model_dump(by_alias=True),
-                authenticator=self._authenticator,
-                rate_limiter_service=None,
                 is_signed=True,
+                is_public_info_endpoint=True,
             )
             if raw_response_content is None:
                 _error_msg_no_content = "Fetching open orders returned no content."
@@ -264,13 +259,12 @@ class HyperliquidTradingService:
             )
         )
         try:
-            raw_response_content = await self._info_http_client_requester(
+            raw_response_content, _, _ = await self._http_client_requester(
                 method="POST",
-                endpoint_path=self._info_endpoint,
+                endpoint=self._info_endpoint,
                 data=request_payload_model.model_dump(by_alias=True),
-                authenticator=self._authenticator,
-                rate_limiter_service=None,
                 is_signed=True,
+                is_public_info_endpoint=True,
             )
             if raw_response_content is None:
                 logger.error(

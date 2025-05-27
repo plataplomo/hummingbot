@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from collections.abc import Mapping
 from datetime import datetime
 from decimal import Decimal
@@ -12,16 +11,12 @@ from pydantic import HttpUrl, ValidationError
 
 from cyberdelta.apis.base.authenticator_interface import (
     AuthenticatedRequestComponents,
-    IAuthenticator,
 )
 from cyberdelta.apis.base.exchange_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.connectivity.connectivity_models import HttpClientConfig
 from cyberdelta.apis.connectivity.http_client import (
     HttpClient,
-    HttpRequestFailedError,
-    ParsedJsonResponse,
 )
-from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.hyperliquid.hl_api_components_factory import HyperliquidAPIComponentsFactory
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
@@ -79,125 +74,12 @@ class HyperliquidAPI(ExchangeAPI):
     """API Client for Hyperliquid DEX."""
 
     BASE_URL = "https://api.hyperliquid.xyz"
-    INFO_URL = "https://info.hyperliquid.xyz"
     WS_URL = "wss://api.hyperliquid.xyz/ws"
     CHAIN_ID = 1337
 
     account_service: HyperliquidAccountService
-    trading_service: HyperliquidTradingService  # Declare trading_service attribute
-    market_data_service: HyperliquidMarketDataService  # Added market_data_service attribute
-
-    # Adapter method to match MarketDataHttpClientRequesterSig
-    async def _market_data_requester_adapter(
-        self,
-        method: str,
-        endpoint_path: str,
-        data: dict[str, Any] | None,
-        is_info_endpoint: bool | None,
-        params: dict[str, Any] | None = None,
-        headers: dict[str, Any] | None = None,
-        is_signed: bool = False,
-    ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
-        """Adapter that routes requests to the appropriate HTTP client based on endpoint type."""
-        request_data: dict[str, Any] | None = data
-
-        # Route to the correct HTTP client based on is_info_endpoint flag
-        if is_info_endpoint:
-            # Use the INFO_URL HTTP client for /info endpoints
-            try:
-                (
-                    content_raw,
-                    status_code_raw,
-                    processed_headers_raw,
-                    _,  # raw_headers_raw not needed
-                ) = await self._info_http_client.request(
-                    method=method,
-                    endpoint_path=endpoint_path,
-                    rate_limiter_service=self._rate_limiter_service,
-                    authenticator=self._hl_authenticator if is_signed else None,
-                    params=params,
-                    data=request_data,
-                    headers=headers,
-                    is_signed=is_signed,
-                    request_timeout=None,
-                )
-                # Return the raw content and processed headers to match the expected signature
-                # Cast processed_headers_raw to Mapping[str, str] to match the return type
-                return content_raw, status_code_raw, cast(Mapping[str, str], processed_headers_raw)
-            except HttpRequestFailedError as e_http:
-                # Process HTTP errors through the error mapper for consistency
-                mapped_error = self._hyperliquid_error_mapper.map_exchange_error(
-                    status_code=e_http.http_status or 500,  # Provide fallback for None
-                    error_body=e_http.exchange_message,
-                    error_data=None,  # HttpRequestFailedError doesn't have structured error_data
-                    request_path=endpoint_path,
-                    original_exception=e_http,
-                )
-                logger.error(
-                    f"[{self.exchange_name}] API Error from info endpoint {endpoint_path}: {e_http}"
-                )
-                raise mapped_error from e_http
-        else:
-            # Use the standard BASE_URL HTTP client for /exchange endpoints
-            actual_content, status, actual_headers = await self._request(
-                method=method,
-                endpoint=endpoint_path,
-                params=params,
-                data=request_data,
-                headers=headers,
-                is_signed=is_signed,
-                is_public_info_endpoint=False,
-            )
-            return actual_content, status, actual_headers
-
-    async def _info_request_wrapper(
-        self,
-        method: str,
-        endpoint_path: str,
-        data: dict[str, Any],
-        authenticator: IAuthenticator | None,
-        rate_limiter_service: RateLimiterService,
-        is_signed: bool,
-        params: dict[str, Any] | None = None,
-        headers: dict[str, Any] | None = None,
-        request_timeout: float | None = None,
-    ) -> RawJsonResponse | None:
-        if not hasattr(self, "_info_http_client"):
-            logger.error(
-                f"[{self.exchange_name}] _info_http_client not initialized when wrapper called."
-            )
-            return None
-
-        (
-            content_raw,
-            status_code_raw,
-            processed_headers_raw,
-            raw_headers_raw,
-        ) = await self._info_http_client.request(
-            method=method,
-            endpoint_path=endpoint_path,
-            rate_limiter_service=rate_limiter_service,
-            authenticator=authenticator,
-            params=params,
-            data=data,
-            headers=headers,
-            is_signed=is_signed,
-            request_timeout=request_timeout,
-        )
-
-        logger.debug(
-            f"[_info_request_wrapper] Status: {status_code_raw}, "
-            f"Processed Headers: {processed_headers_raw}, Raw Headers: {raw_headers_raw}"
-        )
-
-        if content_raw is None or isinstance(content_raw, dict | list):
-            return cast(RawJsonResponse | None, content_raw)
-        else:
-            logger.error(
-                f"[{self.exchange_name}] _info_request_wrapper received unexpected string "
-                f"content from HttpClient: {str(content_raw)[:100]}..."
-            )
-            return None
+    trading_service: HyperliquidTradingService
+    market_data_service: HyperliquidMarketDataService
 
     def __init__(
         self,
@@ -212,9 +94,8 @@ class HyperliquidAPI(ExchangeAPI):
         account_data_mapper: HyperliquidAccountDataMapper | None = None,
         market_data_mapper: HyperliquidMarketDataMapper | None = None,
         trading_data_mapper: HyperliquidTradingDataMapper | None = None,
-        # HTTP clients
+        # HTTP client
         http_client: HttpClient | None = None,
-        info_http_client: HttpClient | None = None,
         # Services
         account_service: HyperliquidAccountService | None = None,
         trading_service: HyperliquidTradingService | None = None,
@@ -234,7 +115,6 @@ class HyperliquidAPI(ExchangeAPI):
             market_data_mapper: Optional market data mapper instance for dependency injection
             trading_data_mapper: Optional trading data mapper instance for dependency injection
             http_client: Optional HTTP client instance for dependency injection
-            info_http_client: Optional info HTTP client instance for dependency injection
             account_service: Optional account service instance for dependency injection
             trading_service: Optional trading service instance for dependency injection
             market_data_service: Optional market data service instance for dependency injection
@@ -259,20 +139,7 @@ class HyperliquidAPI(ExchangeAPI):
 
         self._asset_to_index_cache: dict[str, int] = {}
 
-        self.exchange_name = "hyperliquid"  # Define exchange_name before use
-
-        # Use injected market data service or create one via factory
-        if market_data_service is not None:
-            self.market_data_service = market_data_service
-        else:
-            self.market_data_service = factory.create_market_data_service(
-                http_client_requester=self._market_data_requester_adapter,
-                market_data_mapper=self._hl_market_data_mapper,
-                request_builder=self._hl_request_builder,
-                response_handler=self._hl_response_handler,
-                exchange_name=self.exchange_name,
-                info_url=self.INFO_URL,
-            )
+        self.exchange_name = "hyperliquid"
 
         super().__init__(
             exchange_name="hyperliquid",
@@ -291,7 +158,7 @@ class HyperliquidAPI(ExchangeAPI):
             error_mapper=self._hyperliquid_error_mapper,
         )
 
-        # Use injected HTTP clients or create them
+        # Use injected HTTP client or create one
         if http_client is not None:
             self._http_client = http_client
         else:
@@ -304,23 +171,16 @@ class HyperliquidAPI(ExchangeAPI):
             )
             self._http_client = HttpClient(self.exchange_name, http_client_config)
 
-        if info_http_client is not None:
-            self._info_http_client = info_http_client
+        # Use injected market data service or create one via factory
+        if market_data_service is not None:
+            self.market_data_service = market_data_service
         else:
-            info_http_client_raw_config_for_info_client = api_config.get("http_client", {})
-            info_client_config_obj = HttpClientConfig(
-                rest_endpoint=HttpUrl(self.INFO_URL),
-                default_request_timeout=info_http_client_raw_config_for_info_client.get(
-                    "default_request_timeout", 10.0
-                ),
-                max_retries=info_http_client_raw_config_for_info_client.get("max_retries", 3),
-                retry_delay_seconds=info_http_client_raw_config_for_info_client.get(
-                    "retry_delay_seconds", 5.0
-                ),
-            )
-            self._info_http_client = HttpClient(
-                exchange_name=f"{self.exchange_name}_info",
-                config=info_client_config_obj,
+            self.market_data_service = factory.create_market_data_service(
+                http_client_requester=self._request,
+                market_data_mapper=self._hl_market_data_mapper,
+                request_builder=self._hl_request_builder,
+                response_handler=self._hl_response_handler,
+                exchange_name=self.exchange_name,
             )
 
         # Use injected account service or create one via factory
@@ -328,14 +188,13 @@ class HyperliquidAPI(ExchangeAPI):
             self.account_service = account_service
         else:
             self.account_service = factory.create_account_service(
-                http_client_requester=self._market_data_requester_adapter,
+                http_client_requester=self._request,
                 authenticator=self._hl_authenticator,
                 account_data_mapper=self._hl_account_data_mapper,
                 trading_data_mapper=self._hl_trading_data_mapper,
                 request_builder=self._hl_request_builder,
                 response_handler=self._hl_response_handler,
                 exchange_name=self.exchange_name,
-                info_url=self.INFO_URL,
                 wallet_address=self._wallet_address,
             )
 
@@ -344,8 +203,7 @@ class HyperliquidAPI(ExchangeAPI):
             self.trading_service = trading_service
         else:
             self.trading_service = factory.create_trading_service(
-                exchange_http_client_requester=self._request,
-                info_http_client_requester=self._info_request_wrapper,
+                http_client_requester=self._request,
                 authenticator=self._hl_authenticator,
                 trading_data_mapper=self._hl_trading_data_mapper,
                 error_mapper=self._hyperliquid_error_mapper,
@@ -429,123 +287,6 @@ class HyperliquidAPI(ExchangeAPI):
             "data": auth_components["data"],
         }
 
-    async def _request(
-        self,
-        method: str,
-        endpoint: str,
-        params: dict[str, Any] | None = None,
-        data: dict[str, Any] | None = None,
-        headers: dict[str, Any] | None = None,
-        is_signed: bool = False,
-        endpoint_group: str | None = None,
-        request_weight: int = 1,
-        is_public_info_endpoint: bool = False,
-    ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
-        """
-        Override _request to enable serialize_none_as_null for Hyperliquid /exchange endpoints.
-        Hyperliquid expects explicit null values for optional fields rather than omitting them.
-        """
-        from urllib.parse import urljoin
-
-        request_url = urljoin(self.rest_endpoint, endpoint.lstrip("/"))
-        effective_authenticator = self._authenticator if is_signed else None
-
-        response_content: ParsedJsonResponse | str | None = None
-        status_code: int = 0  # Default, will be overwritten
-        response_headers_dict: Mapping[str, str] = {}
-
-        try:
-            # Determine which limiter to use
-            limiter_key_for_get_limiter = endpoint_group if endpoint_group else endpoint
-            limiter = self._rate_limiter_service.get_limiter(method, limiter_key_for_get_limiter)
-
-            # Acquire tokens according to request_weight
-            for _ in range(request_weight):
-                await limiter.acquire()
-
-            # Enable serialize_none_as_null for /exchange endpoints (order placement, etc.)
-            serialize_nulls = endpoint.strip("/") == "exchange"
-
-            # HttpClient.request now returns: (content, status_code, processed_headers, raw_headers)
-            (
-                response_content,
-                status_code,
-                _processed_headers,
-                response_headers_dict,
-            ) = await self._http_client.request(
-                method=method,
-                endpoint_path=request_url,
-                params=params,
-                data=data,
-                headers=headers,
-                authenticator=effective_authenticator,
-                rate_limiter_service=self._rate_limiter_service,
-                is_signed=is_signed,
-                serialize_none_as_null=serialize_nulls,
-            )
-            self._update_rate_limit_from_headers(response_headers_dict, method, endpoint)
-            return response_content, status_code, response_headers_dict
-
-        except HttpRequestFailedError as e_http_failed:
-            logger.warning(
-                f"[{self.exchange_name}] HTTP request failed for {method} "
-                f"{request_url}: Status={e_http_failed.http_status}, "
-                f"Body='{e_http_failed.exchange_message}'"
-            )
-            # Error is already HttpRequestFailedError (subclass of APIError)
-            # We need to map its *contents* using the exchange-specific mapper
-            parsed_error_data: dict[str, Any] | None = None
-            if e_http_failed.exchange_message:
-                try:
-                    parsed_error_data = json.loads(e_http_failed.exchange_message)
-                    if not isinstance(parsed_error_data, dict):
-                        parsed_error_data = None  # Only use if it's a dict
-                except json.JSONDecodeError:
-                    pass  # Keep as None
-
-            # Delegate to the new error_mapper instance
-            mapped_error = self.error_mapper.map_exchange_error(
-                status_code=e_http_failed.http_status or 500,  # Ensure status_code is int
-                error_body=e_http_failed.exchange_message or "",
-                error_data=parsed_error_data,
-                request_path=request_url,
-                original_exception=e_http_failed,
-            )
-            raise mapped_error from e_http_failed
-
-        except (TimeoutError, aiohttp.ClientError) as e_client:
-            # These are already raised by HttpClient after its retries
-            logger.error(
-                f"[{self.exchange_name}] Unrecoverable client error for {method} "
-                f"{request_url}: {e_client}"
-            )
-            # Map to a generic APIError
-            mapped_error = self.error_mapper.map_exchange_error(
-                status_code=503,  # Service Unavailable or similar for network issues
-                error_body=str(e_client),
-                error_data=None,
-                request_path=request_url,
-                original_exception=e_client,
-            )
-            raise mapped_error from e_client
-
-        except APIError:  # Re-raise APIErrors (e.g. from authenticator)
-            raise
-        except Exception as e_unhandled:
-            logger.exception(
-                f"[{self.exchange_name}] Unhandled exception during request {method} "
-                f"{request_url}: {e_unhandled}"
-            )
-            # Map to a generic unknown APIError
-            mapped_error = self.error_mapper.map_exchange_error(
-                status_code=500,  # Internal Server Error equivalent
-                error_body=str(e_unhandled),
-                error_data=None,
-                request_path=request_url,
-                original_exception=e_unhandled,
-            )
-            raise mapped_error from e_unhandled
-
     async def _get_asset_index(self, symbol: str) -> int:
         """Fetch or retrieve from cache the asset_index for a given symbol."""
         if symbol in self._asset_to_index_cache:
@@ -560,69 +301,27 @@ class HyperliquidAPI(ExchangeAPI):
         )
 
         try:
-            response_content_raw, _, _, _ = await self._info_http_client.request(
+            response_content_raw, _, _ = await self._request(
                 method="POST",
-                endpoint_path="/info",
+                endpoint="/info",
                 data=request_payload_data_dict,
-                rate_limiter_service=self._rate_limiter_service,
+                is_public_info_endpoint=True,
             )
-        except HttpRequestFailedError as e_http:
-            # Process HTTP errors through the error mapper for consistency
-            mapped_error = self._hyperliquid_error_mapper.map_exchange_error(
-                status_code=e_http.http_status or 500,  # Provide fallback for None
-                error_body=e_http.exchange_message,
-                error_data=None,  # HttpRequestFailedError doesn't have structured error_data
-                request_path="/info",
-                original_exception=e_http,
-            )
-            logger.error(
-                f"[{self.exchange_name}] API Error fetching asset index for {symbol}: {e_http}"
-            )
-
-            raise APIError(
-                f"Failed to fetch asset index for symbol '{symbol}': {mapped_error.message}",
-                code=mapped_error.code,
-                original_exception=mapped_error,
-                http_status=mapped_error.http_status,
-            ) from e_http
         except APIError as e_api:
-            # For other APIErrors (non-HTTP), also route through error mapper for consistency
-            # This ensures all errors from asset index fetch are consistently mapped
-            if isinstance(e_api, HttpRequestFailedError):
-                # HttpRequestFailedError should have been caught above, but handle just in case
-                mapped_error = self._hyperliquid_error_mapper.map_exchange_error(
-                    status_code=e_api.http_status or 500,
-                    error_body=e_api.exchange_message,
-                    error_data=None,
-                    request_path="/info",
-                    original_exception=e_api,
-                )
-            else:
-                # For generic APIErrors, map as a generic 500 error to ensure consistent
-                # transformation
-                mapped_error = self._hyperliquid_error_mapper.map_exchange_error(
-                    status_code=e_api.http_status or 500,
-                    error_body=e_api.message,
-                    error_data=None,
-                    request_path="/info",
-                    original_exception=e_api,
-                )
-
             logger.error(
                 f"[{self.exchange_name}] API Error fetching asset index for {symbol}: {e_api}"
             )
-
             raise APIError(
-                f"Failed to fetch asset index for symbol '{symbol}': {mapped_error.message}",
-                code=mapped_error.code,
-                original_exception=e_api,  # Preserve the original exception
-                http_status=mapped_error.http_status,
+                f"Failed to fetch asset index for symbol '{symbol}': {e_api.message}",
+                code=e_api.code,
+                original_exception=e_api,
+                http_status=e_api.http_status,
             ) from e_api
 
         try:
             if response_content_raw is None:
                 logger.error(
-                    f"[{self.exchange_name}] Received None response from _info_http_client.request "
+                    f"[{self.exchange_name}] Received None response from _request "
                     f"for metaAndAssetCtxs."
                 )
                 raise APIError(

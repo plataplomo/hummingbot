@@ -349,7 +349,8 @@ class HttpClient:
 
                 json_string = json.dumps(json_payload)
                 logger.info(
-                    f"[{self.exchange_name}] JSON payload to be sent to {endpoint_path}: {json_string}"
+                    f"[{self.exchange_name}] JSON payload to be sent to {endpoint_path}: "
+                    f"{json_string}"
                 )
             else:
                 # DEFENSIVE CHECK: request_data must be dict[str, Any] based on type annotation

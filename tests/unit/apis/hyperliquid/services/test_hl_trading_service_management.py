@@ -25,7 +25,7 @@ class TestHyperliquidTradingServiceManagement:
     async def test_cancel_all_orders_get_open_orders_returns_none(
         self,
         make_hl_trading_service: Callable[..., HyperliquidTradingService],
-        mock_info_http_client_requester: AsyncMock,
+        mock_http_client_requester: AsyncMock,
         mock_hl_request_builder: MagicMock,
         mock_authenticator: MagicMock,
     ) -> None:
@@ -40,7 +40,7 @@ class TestHyperliquidTradingServiceManagement:
         }
         mock_hl_request_builder.build_open_orders_payload.return_value = mock_request_payload_model
 
-        mock_info_http_client_requester.return_value = None
+        mock_http_client_requester.return_value = (None, 200, {})
 
         with pytest.raises(APIError) as exc_info:
             await hl_trading_service.cancel_all_orders(symbol="ETH")
@@ -54,8 +54,7 @@ class TestHyperliquidTradingServiceManagement:
     async def test_cancel_all_orders_success_with_symbol_filter(
         self,
         make_hl_trading_service: Callable[..., HyperliquidTradingService],
-        mock_info_http_client_requester: AsyncMock,
-        mock_exchange_http_client_requester: AsyncMock,
+        mock_http_client_requester: AsyncMock,
         mock_hl_request_builder: MagicMock,
         mock_hl_response_handler: MagicMock,
         mock_authenticator: MagicMock,
@@ -138,6 +137,9 @@ class TestHyperliquidTradingServiceManagement:
             mock_raw_open_orders_data
         )
         mock_hl_response_handler.handle_info_open_orders_response.return_value = mock_raw_response
+
+        # Mock HTTP client to return successful response
+        mock_http_client_requester.return_value = (mock_raw_open_orders_data, 200, {})
 
         # Mock asset indices
         mock_get_asset_index_callable.side_effect = [1, 2]  # BTC=1, ETH=2
@@ -228,8 +230,7 @@ class TestHyperliquidTradingServiceManagement:
     async def test_cancel_all_orders_success_no_symbol_filter(
         self,
         make_hl_trading_service: Callable[..., HyperliquidTradingService],
-        mock_info_http_client_requester: AsyncMock,
-        mock_exchange_http_client_requester: AsyncMock,
+        mock_http_client_requester: AsyncMock,
         mock_hl_request_builder: MagicMock,
         mock_hl_response_handler: MagicMock,
         mock_authenticator: MagicMock,
@@ -294,6 +295,9 @@ class TestHyperliquidTradingServiceManagement:
             mock_raw_open_orders_data
         )
         mock_hl_response_handler.handle_info_open_orders_response.return_value = mock_raw_response
+
+        # Mock HTTP client to return successful response
+        mock_http_client_requester.return_value = (mock_raw_open_orders_data, 200, {})
 
         # Mock asset indices
         mock_get_asset_index_callable.side_effect = [1, 2]  # BTC=1, ETH=2
@@ -366,7 +370,7 @@ class TestHyperliquidTradingServiceManagement:
     async def test_cancel_all_orders_no_open_orders(
         self,
         make_hl_trading_service: Callable[..., HyperliquidTradingService],
-        mock_info_http_client_requester: AsyncMock,
+        mock_http_client_requester: AsyncMock,
         mock_hl_request_builder: MagicMock,
         mock_hl_response_handler: MagicMock,
         mock_authenticator: MagicMock,
@@ -394,6 +398,9 @@ class TestHyperliquidTradingServiceManagement:
         mock_hl_response_handler.handle_info_open_orders_response.return_value = (
             mock_empty_raw_response
         )
+
+        # Mock HTTP client to return successful response with empty data
+        mock_http_client_requester.return_value = ([], 200, {})
 
         # Execute cancel_all_orders
         result = await hl_trading_service.cancel_all_orders()

@@ -72,7 +72,6 @@ class HyperliquidMarketDataService:
     _request_builder: HyperliquidRequestBuilder
     _response_handler: HyperliquidResponseHandler
     _exchange_name: str
-    _info_url: str
     _mapper: HyperliquidMarketDataMapper
 
     def __init__(
@@ -82,7 +81,6 @@ class HyperliquidMarketDataService:
         response_handler: HyperliquidResponseHandler,
         mapper: HyperliquidMarketDataMapper,
         exchange_name: str,
-        info_url: str,
     ) -> None:
         """
         Initialize the HyperliquidMarketDataService.
@@ -95,14 +93,12 @@ class HyperliquidMarketDataService:
                 API responses.
             mapper: An instance of HyperliquidMarketDataMapper for mapping raw data to internal models.
             exchange_name: The name of the exchange.
-            info_url: The base URL for the exchange's API.
         """
         self._http_client_requester = http_client_requester
         self._request_builder = request_builder
         self._response_handler = response_handler
         self._mapper = mapper
         self._exchange_name = exchange_name
-        self._info_url = info_url
 
     async def get_all_asset_contexts_raw(self) -> HyperliquidRawMetaAndAssetCtxsResponse:
         """
@@ -129,12 +125,12 @@ class HyperliquidMarketDataService:
         status_code: int = 0
         headers: Mapping[str, str] = {}
         try:
-            # The HttpClient is assumed to be configured with INFO_URL as its base.
+            # Use the single HTTP client requester for /info endpoint
             raw_response_content, status_code, headers = await self._http_client_requester(
                 method="POST",
-                endpoint_path=endpoint_path,
-                data=request_payload_data_dict,  # Pass the dumped dictionary
-                is_info_endpoint=True,
+                endpoint=endpoint_path,
+                data=request_payload_data_dict,
+                is_public_info_endpoint=True,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw all_asset_contexts response: "
@@ -273,9 +269,9 @@ class HyperliquidMarketDataService:
         try:
             raw_response_content, status_code, headers = await self._http_client_requester(
                 method="POST",
-                endpoint_path=endpoint_path,
+                endpoint=endpoint_path,
                 data=request_payload_data,
-                is_info_endpoint=True,
+                is_public_info_endpoint=True,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw l2 orderbook response for {symbol}: "
@@ -364,9 +360,9 @@ class HyperliquidMarketDataService:
         try:
             raw_response_content, status_code, headers = await self._http_client_requester(
                 method="POST",
-                endpoint_path=endpoint_path,
+                endpoint=endpoint_path,
                 data=request_payload_data,
-                is_info_endpoint=True,
+                is_public_info_endpoint=True,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw recent_trades response for {symbol}: "
@@ -560,15 +556,16 @@ class HyperliquidMarketDataService:
             f"from {start_time_ms} to {end_time_ms if end_time_ms is not None else 'now'}."
         )
 
+        endpoint_path = "/info"
         payload = self._request_builder.build_historical_funding_rates_payload(
             symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
         )
 
         raw_response_content, status_code, headers = await self._http_client_requester(
             method="POST",
-            endpoint_path="/info",
+            endpoint=endpoint_path,
             data=payload,
-            is_info_endpoint=True,
+            is_public_info_endpoint=True,
         )
 
         if raw_response_content is None:
@@ -637,6 +634,7 @@ class HyperliquidMarketDataService:
             f"[{self._exchange_name}] Getting market data (candles) for {symbol}, "
             f"interval {interval}, start {start_time_ms}, end {end_time_ms}"
         )
+        endpoint_path = "/info"
         try:
             payload = self._request_builder.build_candle_snapshot_payload(
                 symbol=symbol,
@@ -655,11 +653,11 @@ class HyperliquidMarketDataService:
 
         raw_response_content, status_code, headers = await self._http_client_requester(
             method="POST",
-            endpoint_path="/info",  # Candle data is from /info
+            endpoint=endpoint_path,
             data=payload.model_dump(
                 by_alias=True, exclude_none=True
             ),  # Payload itself is a dict[str, Any]
-            is_info_endpoint=True,  # Crucial for routing to the correct HttpClient
+            is_public_info_endpoint=True,  # Crucial for routing to the correct HttpClient
         )
 
         if raw_response_content is None:

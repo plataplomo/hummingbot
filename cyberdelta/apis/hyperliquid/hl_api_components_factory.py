@@ -8,17 +8,14 @@ request builders, response handlers, domain data mappers, and service classes.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Coroutine, Mapping
+from collections.abc import Callable, Coroutine, Mapping
 from typing import TYPE_CHECKING, Any
 
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
-from cyberdelta.apis.hyperliquid.hl_response_handler import (
-    HyperliquidResponseHandler,
-    RawJsonResponse,
-)
+from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
 from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
 from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
 from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
@@ -37,14 +34,6 @@ logger = get_logger(__name__)
 HttpClientRequesterSig = Callable[
     ..., Coroutine[Any, Any, tuple[ParsedJsonResponse | None, int, Mapping[str, str]]]
 ]
-
-# Type alias for the market data HTTP client requester (for Hyperliquid's special adapter)
-MarketDataHttpClientRequesterSig = Callable[
-    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]]
-]
-
-# Type alias for the info HTTP client request wrapper
-InfoHttpClientRequesterSig = Callable[..., Coroutine[Any, Any, RawJsonResponse | None]]
 
 # Type alias for the get_asset_index callable
 GetAssetIndexCallableSig = Callable[[str], Coroutine[Any, Any, int]]
@@ -157,23 +146,21 @@ class HyperliquidAPIComponentsFactory:
 
     def create_market_data_service(
         self,
-        http_client_requester: MarketDataHttpClientRequesterSig,
+        http_client_requester: HttpClientRequesterSig,
         market_data_mapper: HyperliquidMarketDataMapper,
         request_builder: HyperliquidRequestBuilder,
         response_handler: HyperliquidResponseHandler,
         exchange_name: str,
-        info_url: str,
     ) -> HyperliquidMarketDataService:
         """
         Create a HyperliquidMarketDataService instance.
 
         Args:
-            http_client_requester: HTTP client request function (market data adapter)
+            http_client_requester: HTTP client request function
             market_data_mapper: Market data mapper instance
             request_builder: Request builder instance
             response_handler: Response handler instance
             exchange_name: Name of the exchange
-            info_url: URL for info endpoints
 
         Returns:
             Configured market data service instance
@@ -184,33 +171,30 @@ class HyperliquidAPIComponentsFactory:
             response_handler=response_handler,
             mapper=market_data_mapper,
             exchange_name=exchange_name,
-            info_url=info_url,
         )
 
     def create_account_service(
         self,
-        http_client_requester: MarketDataHttpClientRequesterSig,
+        http_client_requester: HttpClientRequesterSig,
         authenticator: HyperliquidEip712Authenticator | None,
         account_data_mapper: HyperliquidAccountDataMapper,
         trading_data_mapper: HyperliquidTradingDataMapper,
         request_builder: HyperliquidRequestBuilder,
         response_handler: HyperliquidResponseHandler,
         exchange_name: str,
-        info_url: str,
         wallet_address: str | None,
     ) -> HyperliquidAccountService:
         """
         Create a HyperliquidAccountService instance.
 
         Args:
-            http_client_requester: HTTP client request function (market data adapter)
+            http_client_requester: HTTP client request function
             authenticator: Authenticator instance
             account_data_mapper: Account data mapper instance
             trading_data_mapper: Trading data mapper instance
             request_builder: Request builder instance
             response_handler: Response handler instance
             exchange_name: Name of the exchange
-            info_url: URL for info endpoints
             wallet_address: Wallet address for account operations
 
         Returns:
@@ -222,7 +206,6 @@ class HyperliquidAPIComponentsFactory:
             response_handler=response_handler,
             authenticator=authenticator,
             exchange_name=exchange_name,
-            info_url=info_url,
             wallet_address=wallet_address,
             account_mapper=account_data_mapper,
             trading_mapper=trading_data_mapper,
@@ -230,8 +213,7 @@ class HyperliquidAPIComponentsFactory:
 
     def create_trading_service(
         self,
-        exchange_http_client_requester: HttpClientRequesterSig,
-        info_http_client_requester: InfoHttpClientRequesterSig,
+        http_client_requester: HttpClientRequesterSig,
         authenticator: HyperliquidEip712Authenticator | None,
         trading_data_mapper: HyperliquidTradingDataMapper,
         error_mapper: HyperliquidErrorMapper,
@@ -245,8 +227,7 @@ class HyperliquidAPIComponentsFactory:
         Create a HyperliquidTradingService instance.
 
         Args:
-            exchange_http_client_requester: Exchange HTTP client request function
-            info_http_client_requester: Info HTTP client request function
+            http_client_requester: HTTP client request function
             authenticator: Authenticator instance
             trading_data_mapper: Trading data mapper instance
             error_mapper: Error mapper instance
@@ -260,8 +241,7 @@ class HyperliquidAPIComponentsFactory:
             Configured trading service instance
         """
         return HyperliquidTradingService(
-            exchange_http_client_requester=exchange_http_client_requester,
-            info_http_client_requester=info_http_client_requester,
+            http_client_requester=http_client_requester,
             request_builder=request_builder,
             response_handler=response_handler,
             authenticator=authenticator,

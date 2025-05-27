@@ -16,14 +16,8 @@ from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidT
 
 
 @pytest.fixture
-def mock_exchange_http_client_requester() -> AsyncMock:
-    """Mock for the exchange HTTP client requester used for trading operations."""
-    return AsyncMock()
-
-
-@pytest.fixture
-def mock_info_http_client_requester() -> AsyncMock:
-    """Mock for the info HTTP client requester used for info operations."""
+def mock_http_client_requester() -> AsyncMock:
+    """Mock for the HTTP client requester used for all operations."""
     return AsyncMock()
 
 
@@ -65,8 +59,7 @@ def mock_hl_error_mapper() -> MagicMock:
 
 @pytest.fixture
 def make_hl_trading_service(
-    mock_exchange_http_client_requester: AsyncMock,
-    mock_info_http_client_requester: AsyncMock,
+    mock_http_client_requester: AsyncMock,
     mock_hl_request_builder: MagicMock,
     mock_hl_response_handler: MagicMock,
     mock_authenticator: MagicMock,
@@ -84,8 +77,7 @@ def make_hl_trading_service(
 
     def _factory(wallet_address: str = "0xTestWalletAddrTrading") -> HyperliquidTradingService:
         return HyperliquidTradingService(
-            exchange_http_client_requester=mock_exchange_http_client_requester,
-            info_http_client_requester=mock_info_http_client_requester,
+            http_client_requester=mock_http_client_requester,
             request_builder=mock_hl_request_builder,
             response_handler=mock_hl_response_handler,
             authenticator=mock_authenticator,

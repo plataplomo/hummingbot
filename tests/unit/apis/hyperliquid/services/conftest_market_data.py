@@ -45,5 +45,4 @@ def hyperliquid_market_data_service(
         response_handler=mock_hl_response_handler,
         mapper=mock_hl_mapper,
         exchange_name="hyperliquid_test",
-        info_url="https://fakeapi.hyperliquid.com/info",
     )
