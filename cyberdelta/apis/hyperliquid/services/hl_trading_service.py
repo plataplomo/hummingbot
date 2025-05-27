@@ -304,10 +304,15 @@ class HyperliquidTradingService:
             raise APIError(_error_msg_unexpected, APIErrorCode.UNKNOWN.value) from e
 
     async def get_order(self, symbol: str | None, order_id: str | int) -> Order | None:
+        """Retrieves a specific order by ID for a given symbol."""
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_order"
 
+        if symbol is not None and not symbol:
+            raise ValueError(
+                f"[{current_method}] 'symbol' must be a non-empty string when provided."
+            )
         if not order_id:
             raise ValueError(f"[{current_method}] 'order_id' must be a non-empty value.")
 
@@ -317,33 +322,23 @@ class HyperliquidTradingService:
 
         try:
             # Core operational logic
-            # Convert order_id to int if it's a string
-            try:
-                order_id_int = int(order_id)
-            except (ValueError, TypeError):
-                raise ValueError(
-                    f"[{current_method}] 'order_id' must be convertible to integer."
-                ) from None
+            if isinstance(order_id, str):
+                try:
+                    order_id_int = int(order_id)
+                except ValueError as e:
+                    raise ValueError(
+                        f"[{current_method}] 'order_id' must be a valid integer, got '{order_id}'"
+                    ) from e
+            else:
+                order_id_int = order_id
 
-            raw_order_obj = await self._get_order_status_raw(order_id_int)
-
-            if raw_order_obj is None:
-                logger.debug(
-                    f"[{self._exchange_name}] Order {order_id} "
-                    f"({'for ' + symbol if symbol else ''}) not found."
-                )
+            raw_historical_order = await self._get_order_status_raw(order_id_int)
+            if raw_historical_order is None:
                 return None
 
-            # Validate order has required fields for mapping
-            if not hasattr(raw_order_obj, "asset") or not raw_order_obj.asset:
-                logger.warning(
-                    f"[{self._exchange_name}] Order {order_id} missing asset/symbol information. "
-                    f"Raw: {raw_order_obj.model_dump_json()}"
-                )
-
-            # Map to internal domain model
+            # Use trading mapper to convert to internal order
             internal_order = self._trading_mapper.transform_raw_historical_order_to_internal(
-                raw_order_obj
+                raw_historical_order=raw_historical_order, trigger=None
             )
             return internal_order
 

@@ -126,7 +126,6 @@ class TestBackpackAccountServiceHistoryOperations:
             is_signed=True,
             endpoint_group="private",
             request_weight=1,
-            is_public_info_endpoint=False,
         )
         mock_response_handler.handle_get_order_history_response.assert_called_once_with(
             mock_raw_response_list, symbol
@@ -359,7 +358,6 @@ class TestBackpackAccountServiceHistoryOperations:
             is_signed=True,
             endpoint_group="private",
             request_weight=1,
-            is_public_info_endpoint=False,
         )
         mock_response_handler.handle_withdraw_response.assert_called_once_with(mock_raw_response)
         mock_mapper.transform_raw_withdrawal_response_to_internal.assert_called_once_with(
@@ -517,7 +515,6 @@ class TestBackpackAccountServiceHistoryOperations:
             is_signed=True,
             endpoint_group="private",
             request_weight=1,
-            is_public_info_endpoint=False,
         )
         mock_response_handler.handle_get_trade_history_response.assert_called_once_with(
             mock_raw_response, symbol

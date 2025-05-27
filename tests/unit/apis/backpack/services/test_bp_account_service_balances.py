@@ -71,7 +71,6 @@ class TestBackpackAccountServiceBalances:
             is_signed=True,
             endpoint_group="private",
             request_weight=1,
-            is_public_info_endpoint=False,
         )
         mock_response_handler.handle_get_balances_response.assert_called_once_with(
             mock_raw_response_data_dict
@@ -189,7 +188,6 @@ class TestBackpackAccountServiceBalances:
             is_signed=True,
             endpoint_group="private",
             request_weight=1,
-            is_public_info_endpoint=False,
         )
         mock_response_handler.handle_get_balances_response.assert_called_once_with(
             mock_raw_response_dict
