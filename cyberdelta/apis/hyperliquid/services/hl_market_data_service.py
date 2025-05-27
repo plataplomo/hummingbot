@@ -9,9 +9,12 @@ Raw Pydantic Models.
 """
 
 # Typing and Pydantic
+import inspect
 from collections.abc import Awaitable, Callable, Mapping
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+import pydantic
 from pydantic import ValidationError
 
 # Project-specific imports for connectivity and base types
@@ -37,7 +40,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
 
 # from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import HyperliquidRawL2Book
 # from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import HyperliquidRawPublicTrade
-from cyberdelta.apis.models.api_error import APIError
+from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
 # Internal Domain Models
@@ -91,7 +94,8 @@ class HyperliquidMarketDataService:
                 API requests.
             response_handler: An instance of HyperliquidResponseHandler for validating
                 API responses.
-            mapper: An instance of HyperliquidMarketDataMapper for mapping raw data to internal models.
+            mapper: An instance of HyperliquidMarketDataMapper for mapping raw data to
+                internal models.
             exchange_name: The name of the exchange.
         """
         self._http_client_requester = http_client_requester
@@ -130,7 +134,6 @@ class HyperliquidMarketDataService:
                 method="POST",
                 endpoint=endpoint_path,
                 data=request_payload_data_dict,
-                is_public_info_endpoint=True,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw all_asset_contexts response: "
@@ -271,7 +274,6 @@ class HyperliquidMarketDataService:
                 method="POST",
                 endpoint=endpoint_path,
                 data=request_payload_data,
-                is_public_info_endpoint=True,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw l2 orderbook response for {symbol}: "
@@ -362,7 +364,6 @@ class HyperliquidMarketDataService:
                 method="POST",
                 endpoint=endpoint_path,
                 data=request_payload_data,
-                is_public_info_endpoint=True,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw recent_trades response for {symbol}: "
@@ -547,66 +548,154 @@ class HyperliquidMarketDataService:
     async def get_historical_funding_rates(
         self,
         symbol: str,
-        start_time_ms: int,
-        end_time_ms: int | None = None,
+        start_time: datetime,
+        end_time: datetime | None = None,
     ) -> list[FundingRate]:
         """Retrieves historical funding rates for a specific symbol and time range."""
-        logger.debug(
-            f"[{self._exchange_name}] Getting historical funding rates for {symbol} "
-            f"from {start_time_ms} to {end_time_ms if end_time_ms is not None else 'now'}."
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = (
+            frame.f_code.co_name if frame is not None else "get_historical_funding_rates"
         )
 
-        endpoint_path = "/info"
-        payload = self._request_builder.build_historical_funding_rates_payload(
-            symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
-        )
+        if not symbol:
+            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
 
-        raw_response_content, status_code, headers = await self._http_client_requester(
-            method="POST",
-            endpoint=endpoint_path,
-            data=payload,
-            is_public_info_endpoint=True,
-        )
+        # Convert datetime to milliseconds
+        start_time_ms = int(start_time.timestamp() * 1000)
+        end_time_ms: int | None = None
+        if end_time is not None:
+            end_time_ms = int(end_time.timestamp() * 1000)
 
-        if raw_response_content is None:
-            logger.warning(
-                f"[{self._exchange_name}] No content for historical funding rates for {symbol}. "
-                f"Status: {status_code}."
-            )
-            raise APIError(
-                message=f"No data received for historical funding rates for {symbol}, "
-                f"status: {status_code}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
-
-        raw_funding_history_items: list[HyperliquidRawFundingHistoryItem] = (
-            self._response_handler.handle_historical_funding_rates_response(
-                raw_response_content=raw_response_content,
-                status_code=status_code,
-                headers=headers,
-            )
-        )
-
-        internal_funding_rates: list[FundingRate] = []
-        for raw_item in raw_funding_history_items:
-            try:
-                internal_rate = self._mapper.transform_raw_funding_history_item_to_internal(
-                    raw_item
+        # Validate time parameters
+        if start_time_ms <= 0:
+            raise ValueError(f"[{current_method}] 'start_time_ms' must be positive.")
+        if end_time_ms is not None:
+            if end_time_ms <= 0:
+                raise ValueError(f"[{current_method}] 'end_time_ms' must be positive.")
+            if end_time_ms < start_time_ms:
+                raise ValueError(
+                    f"[{current_method}] 'end_time_ms' cannot be before 'start_time_ms'."
                 )
-                internal_funding_rates.append(internal_rate)
-            except (ValidationError, ValueError) as e:
-                logger.error(
-                    f"[{self._exchange_name}] Error mapping historical funding rate item: {e}. "
-                    f"Raw: {raw_item!r}"
+
+        # Initialize context for error handling
+        status_code: int = 0
+        raw_response_content: ParsedJsonResponse | None = None
+
+        try:
+            logger.debug(
+                f"[{self._exchange_name}] Getting historical funding rates for {symbol} "
+                f"from {start_time_ms} to {end_time_ms if end_time_ms is not None else 'now'}."
+            )
+
+            endpoint_path = "/info"
+            payload = self._request_builder.build_historical_funding_rates_payload(
+                symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+            )
+
+            raw_response_content, status_code, headers = await self._http_client_requester(
+                method="POST",
+                endpoint=endpoint_path,
+                data=payload,
+            )
+
+            if raw_response_content is None:
+                logger.warning(
+                    f"[{self._exchange_name}] No content for historical funding rates "
+                    f"for {symbol}. Status: {status_code}."
                 )
                 raise APIError(
-                    message=f"Processing historical funding rate data failed: {e}",
-                    code=APIErrorCode.UNKNOWN.value,
-                    original_exception=e,
-                ) from e
+                    message=f"No data received for historical funding rates for {symbol}, "
+                    f"status: {status_code}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code,
+                )
 
-        return internal_funding_rates
+            raw_funding_history_items: list[HyperliquidRawFundingHistoryItem] = (
+                self._response_handler.handle_historical_funding_rates_response(
+                    raw_response_content=raw_response_content,
+                    status_code=status_code,
+                    headers=headers,
+                )
+            )
+
+            internal_funding_rates: list[FundingRate] = []
+            for raw_item in raw_funding_history_items:
+                try:
+                    internal_rate = self._mapper.transform_raw_funding_history_item_to_internal(
+                        raw_item
+                    )
+                    internal_funding_rates.append(internal_rate)
+                except (ValidationError, ValueError) as e:
+                    logger.error(
+                        f"[{self._exchange_name}] Error mapping historical funding rate item: {e}. "
+                        f"Raw: {raw_item!r}"
+                    )
+                    raise APIError(
+                        message=f"Processing historical funding rate data failed: {e}",
+                        code=APIErrorCode.UNKNOWN.value,
+                        original_exception=e,
+                    ) from e
+
+            return internal_funding_rates
+        except APIError:
+            raise  # Re-raise APIErrors
+        except TransformationError as e_transform:
+            logger.error(
+                f"[{self._exchange_name}] [{current_method}] TransformationError: {e_transform}. "
+                f"Status: {status_code}, Raw: {raw_response_content}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code,
+                exchange_message=str(raw_response_content)
+                if raw_response_content is not None
+                else None,
+            ) from e_transform
+        except pydantic.ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] [{current_method}] ValidationError: {e_val}. "
+                f"Status: {status_code}, Raw: {raw_response_content}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code,
+                exchange_message=str(raw_response_content)
+                if raw_response_content is not None
+                else None,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] [{current_method}] Service logic error: "
+                f"{e_service_logic}. Status: {status_code}, Raw: {raw_response_content}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+            ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] [{current_method}] Unexpected error: {e_unexpected}. "
+                f"Status: {status_code}, Raw: {raw_response_content}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code,
+                exchange_message=str(raw_response_content)
+                if raw_response_content is not None
+                else None,
+            ) from e_unexpected
 
     async def get_market_data(
         self, symbol: str, interval: str, start_time_ms: int, end_time_ms: int
@@ -657,7 +746,6 @@ class HyperliquidMarketDataService:
             data=payload.model_dump(
                 by_alias=True, exclude_none=True
             ),  # Payload itself is a dict[str, Any]
-            is_public_info_endpoint=True,  # Crucial for routing to the correct HttpClient
         )
 
         if raw_response_content is None:

@@ -8,9 +8,12 @@ and HyperliquidResponseHandler to interact with the API.
 This version of the service returns Internal Domain Models by using the HyperliquidOrderMapper.
 """
 
+import inspect
 from collections.abc import Callable, Coroutine, Mapping
 from decimal import Decimal
 from typing import Any, cast
+
+import pydantic
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
@@ -46,7 +49,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
     HyperliquidRawOrderStatusRequestPayload,
 )
-from cyberdelta.apis.models.api_error import APIError
+from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
@@ -217,7 +220,6 @@ class HyperliquidTradingService:
                 endpoint=self._info_endpoint,
                 data=request_payload_model.model_dump(by_alias=True),
                 is_signed=True,
-                is_public_info_endpoint=True,
             )
             if raw_response_content is None:
                 _error_msg_no_content = "Fetching open orders returned no content."
@@ -264,7 +266,6 @@ class HyperliquidTradingService:
                 endpoint=self._info_endpoint,
                 data=request_payload_model.model_dump(by_alias=True),
                 is_signed=True,
-                is_public_info_endpoint=True,
             )
             if raw_response_content is None:
                 logger.error(
@@ -302,20 +303,101 @@ class HyperliquidTradingService:
             _error_msg_unexpected = f"Unexpected error fetching order status raw: {e}"
             raise APIError(_error_msg_unexpected, APIErrorCode.UNKNOWN.value) from e
 
-    async def get_order(self, symbol: str, order_id: int) -> Order | None:
+    async def get_order(self, symbol: str | None, order_id: str | int) -> Order | None:
         """
         Retrieves a specific order by its exchange ID and maps it to an internal Order model.
         Returns None if the order is not found.
         """
-        raw_historical_order = await self._get_order_status_raw(order_id=order_id)
-        if raw_historical_order is None:
-            return None
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_order"
 
-        trigger_info = getattr(raw_historical_order, "trigger", None)
+        if symbol is None:
+            raise ValueError(f"[{current_method}] 'symbol' parameter is required.")
+        if not symbol:
+            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
 
-        return self._trading_mapper.transform_raw_historical_order_to_internal(
-            raw_historical_order=raw_historical_order, trigger=trigger_info
-        )
+        # Convert order_id to int if it's a string
+        if isinstance(order_id, str):
+            try:
+                order_id_int = int(order_id)
+            except ValueError as e:
+                raise ValueError(
+                    f"[{current_method}] 'order_id' must be a valid integer: {order_id}"
+                ) from e
+        else:
+            order_id_int = order_id
+
+        if order_id_int <= 0:
+            raise ValueError(f"[{current_method}] 'order_id' must be positive.")
+
+        # Initialize context for error handling
+        status_code: int = 0
+        raw_response_content: str | None = None
+
+        try:
+            # Core operational logic
+            raw_historical_order = await self._get_order_status_raw(order_id=order_id_int)
+            if raw_historical_order is None:
+                return None
+
+            trigger_info = getattr(raw_historical_order, "trigger", None)
+
+            return self._trading_mapper.transform_raw_historical_order_to_internal(
+                raw_historical_order=raw_historical_order, trigger=trigger_info
+            )
+        except APIError:
+            raise  # Re-raise APIErrors
+        except TransformationError as e_transform:
+            logger.error(
+                f"[{self._exchange_name}] [{current_method}] TransformationError: {e_transform}. "
+                f"Status: {status_code}, Raw: {raw_response_content}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except pydantic.ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] [{current_method}] ValidationError: {e_val}. "
+                f"Status: {status_code}, Raw: {raw_response_content}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] [{current_method}] Service logic error: "
+                f"{e_service_logic}. Status: {status_code}, Raw: {raw_response_content}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+            ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] [{current_method}] Unexpected error: {e_unexpected}. "
+                f"Status: {status_code}, Raw: {raw_response_content}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code,
+                exchange_message=raw_response_content,
+            ) from e_unexpected
 
     async def place_order(
         self,
@@ -333,136 +415,385 @@ class HyperliquidTradingService:
         """
         Places an order and maps the raw response to an internal Order model.
         """
-        asset_index = await self._get_asset_index_callable(symbol)
-        if asset_index is None:
-            _error_msg_asset_idx = f"Asset index for {symbol} not found."
-            raise APIError(_error_msg_asset_idx, APIErrorCode.INVALID_SYMBOL.value)
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "place_order"
 
-        # Use the request builder to create the proper payload format
-        place_order_payload = self._request_builder.build_place_order_payload(
-            asset_index=asset_index,
-            side=side,
-            order_type=order_type,
-            quantity=quantity,
-            time_in_force=time_in_force,
-            price=price,
-            stop_price=stop_price,
-            client_order_id=client_order_id,
-            reduce_only=reduce_only,
-            post_only=post_only,
-        )
+        if not symbol:
+            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
+        if not quantity.is_finite() or quantity <= 0:
+            raise ValueError(f"[{current_method}] 'quantity' must be a positive finite Decimal.")
+        if not price.is_finite() or price <= 0:
+            raise ValueError(f"[{current_method}] 'price' must be a positive finite Decimal.")
+        if stop_price is not None and (not stop_price.is_finite() or stop_price <= 0):
+            raise ValueError(
+                f"[{current_method}] 'stop_price' must be a positive finite Decimal when provided."
+            )
 
-        raw_exchange_response, http_status = await self._place_order_raw(place_order_payload)
+        # Initialize context for error handling
+        status_code: int = 0
+        raw_response_content: str | None = None
 
-        if raw_exchange_response.data and raw_exchange_response.data.statuses:
-            first_status = raw_exchange_response.data.statuses[0]
-            if isinstance(first_status, HyperliquidRawExchangeStatusObject):
-                if first_status.resting:
-                    new_oid = first_status.resting.oid
-                    logger.info(f"Order placed with OID: {new_oid}. Re-fetching for full details.")
-                    internal_order = await self.get_order(symbol=symbol, order_id=new_oid)
-                    if internal_order:
-                        return internal_order
-                    else:
-                        raise APIError(
-                            f"Order placed (OID {new_oid}) but failed to re-fetch details.",
-                            APIErrorCode.UNKNOWN.value,
+        try:
+            # Core operational logic
+            asset_index = await self._get_asset_index_callable(symbol)
+            if asset_index is None:
+                raise APIError(
+                    f"Asset index for {symbol} not found.", APIErrorCode.INVALID_SYMBOL.value
+                )
+
+            # Use the request builder to create the proper payload format
+            place_order_payload = self._request_builder.build_place_order_payload(
+                asset_index=asset_index,
+                side=side,
+                order_type=order_type,
+                quantity=quantity,
+                time_in_force=time_in_force,
+                price=price,
+                stop_price=stop_price,
+                client_order_id=client_order_id,
+                reduce_only=reduce_only,
+                post_only=post_only,
+            )
+
+            raw_exchange_response, http_status = await self._place_order_raw(place_order_payload)
+            status_code = http_status
+
+            if raw_exchange_response.data and raw_exchange_response.data.statuses:
+                first_status = raw_exchange_response.data.statuses[0]
+                if isinstance(first_status, HyperliquidRawExchangeStatusObject):
+                    if first_status.resting:
+                        new_oid = first_status.resting.oid
+                        logger.info(
+                            f"Order placed with OID: {new_oid}. Re-fetching for full details."
                         )
-
-                elif first_status.filled:
-                    filled_oid = first_status.filled.oid
-                    logger.info(
-                        f"Order OID {filled_oid} filled immediately. Re-fetching for full details."
-                    )
-                    internal_order = await self.get_order(symbol=symbol, order_id=filled_oid)
-                    if internal_order:
-                        internal_order.status = OrderStatus.FILLED
-                        internal_order.quantity_filled = (
-                            parse_decimal_value(
-                                first_status.filled.total_sz, allow_none=False, field_name="totalSz"
+                        internal_order = await self.get_order(symbol=symbol, order_id=new_oid)
+                        if internal_order:
+                            return internal_order
+                        else:
+                            raise APIError(
+                                f"Order placed (OID {new_oid}) but failed to re-fetch details.",
+                                APIErrorCode.UNKNOWN.value,
                             )
-                            or quantity
-                        )
-                        internal_order.average_fill_price = parse_decimal_value(
-                            first_status.filled.avg_px, allow_none=False, field_name="avgPx"
-                        )
-                        return internal_order
-                    else:
-                        raise APIError(
-                            f"Order filled (OID {filled_oid}) but failed to re-fetch details.",
-                            APIErrorCode.UNKNOWN.value,
-                        )
-                elif first_status.error:
-                    # Use the error mapper to get the specific error code for this message
-                    mapped_error = self._error_mapper.map_string_error(
-                        first_status.error, http_status=http_status
-                    )
-                    raise mapped_error
-            elif "error" in first_status.lower():
-                raise APIError(f"Failed to place order: {first_status}", APIErrorCode.UNKNOWN.value)
 
-        raise APIError("Failed to place order or parse response.", APIErrorCode.UNKNOWN.value)
+                    elif first_status.filled:
+                        filled_oid = first_status.filled.oid
+                        logger.info(
+                            f"Order OID {filled_oid} filled immediately. "
+                            f"Re-fetching for full details."
+                        )
+                        internal_order = await self.get_order(symbol=symbol, order_id=filled_oid)
+                        if internal_order:
+                            internal_order.status = OrderStatus.FILLED
+                            internal_order.quantity_filled = (
+                                parse_decimal_value(
+                                    first_status.filled.total_sz,
+                                    allow_none=False,
+                                    field_name="totalSz",
+                                )
+                                or quantity
+                            )
+                            internal_order.average_fill_price = parse_decimal_value(
+                                first_status.filled.avg_px, allow_none=False, field_name="avgPx"
+                            )
+                            return internal_order
+                        else:
+                            raise APIError(
+                                f"Order filled (OID {filled_oid}) but failed to re-fetch details.",
+                                APIErrorCode.UNKNOWN.value,
+                            )
+                    elif first_status.error:
+                        # Use the error mapper to get the specific error code for this message
+                        mapped_error = self._error_mapper.map_string_error(
+                            first_status.error, http_status=http_status
+                        )
+                        raise mapped_error
+                elif "error" in first_status.lower():
+                    raise APIError(
+                        f"Failed to place order: {first_status}", APIErrorCode.UNKNOWN.value
+                    )
+
+            raise APIError("Failed to place order or parse response.", APIErrorCode.UNKNOWN.value)
+
+        except APIError:
+            # Re-raise APIErrors from _requester, ResponseHandler, etc.
+            raise
+        except TransformationError as e_transform:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for {symbol}: {e_transform}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except pydantic.ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for {symbol}: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for {symbol}: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+            ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"for {symbol}: {e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unexpected
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         """
         Retrieves all open orders, optionally filtered by symbol, and maps them
         to a list of internal Order models.
         """
-        raw_open_orders = await self._get_open_orders_raw()
-        internal_orders: list[Order] = []
-        for raw_open_order_item_wrapper in raw_open_orders:
-            raw_order_details = raw_open_order_item_wrapper.order
-            raw_trigger_details = raw_open_order_item_wrapper.trigger
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_open_orders"
 
-            if symbol is None or raw_order_details.asset.upper() == symbol.upper():
-                try:
-                    mapped_order = self._trading_mapper.transform_raw_order_to_internal(
-                        raw_order=raw_order_details, trigger=raw_trigger_details
-                    )
-                    internal_orders.append(mapped_order)
-                except Exception as e:
-                    logger.error(
-                        f"[{self._exchange_name}] Error mapping raw open order to internal: {e}. "
-                        f"Raw order: {raw_order_details.model_dump_json()}"
-                    )
-        return internal_orders
-
-    async def cancel_order(self, symbol: str, order_id: int) -> bool:
-        """
-        Cancels a specific order and returns True if successful, False otherwise.
-        """
-        asset_index = await self._get_asset_index_callable(symbol)
-        if asset_index is None:
-            _error_msg_asset_idx = f"Asset index for {symbol} not found for cancellation."
-            raise APIError(_error_msg_asset_idx, APIErrorCode.INVALID_SYMBOL.value)
-
-        cancel_action = HyperliquidRawCancelOrderAction(asset=asset_index, oid=order_id)
-        raw_exchange_response, _http_status = await self._cancel_order_raw(cancel_action)
-
-        if raw_exchange_response.data and raw_exchange_response.data.statuses:
-            first_status = raw_exchange_response.data.statuses[0]
-            if isinstance(first_status, str) and first_status.lower() == "success":
-                return True
-            if isinstance(first_status, HyperliquidRawExchangeStatusObject):
-                if first_status.success:
-                    return True
-                if first_status.error:
-                    logger.error(
-                        f"[{self._exchange_name}] Failed to cancel order {order_id} for {symbol}: "
-                        f"{first_status.error}"
-                    )
-                    return False
-            logger.warning(
-                f"[{self._exchange_name}] Ambiguous cancel response "
-                f"for order {order_id} ({symbol}): {first_status}"
+        if symbol is not None and not symbol:
+            raise ValueError(
+                f"[{current_method}] 'symbol' must be a non-empty string when provided."
             )
-            return False
 
-        logger.error(
-            f"[{self._exchange_name}] Failed to cancel order {order_id} for {symbol} "
-            f"or parse response."
-        )
-        return False
+        # Initialize context for error handling
+        status_code: int = 0
+        raw_response_content: str | None = None
+
+        try:
+            # Core operational logic
+            raw_open_orders = await self._get_open_orders_raw()
+            internal_orders: list[Order] = []
+
+            for raw_open_order_item_wrapper in raw_open_orders:
+                raw_order_details = raw_open_order_item_wrapper.order
+                raw_trigger_details = raw_open_order_item_wrapper.trigger
+
+                if symbol is None or raw_order_details.asset.upper() == symbol.upper():
+                    try:
+                        mapped_order = self._trading_mapper.transform_raw_order_to_internal(
+                            raw_order=raw_order_details, trigger=raw_trigger_details
+                        )
+                        internal_orders.append(mapped_order)
+                    except Exception as e:
+                        logger.error(
+                            f"[{self._exchange_name}] Error mapping raw open order to "
+                            f"internal: {e}. Raw order: {raw_order_details.model_dump_json()}"
+                        )
+                        # Continue processing other orders
+
+            logger.info(
+                f"[{self._exchange_name}] Retrieved {len(internal_orders)} open orders "
+                f"(symbol filter: {symbol})"
+            )
+            return internal_orders
+
+        except APIError:
+            # Re-raise APIErrors from _requester, ResponseHandler, etc.
+            raise
+        except TransformationError as e_transform:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data: {e_transform}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except pydantic.ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error: "
+                f"{e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+            ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure: "
+                f"{e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unexpected
+
+    async def cancel_order(self, symbol: str | None, order_id: str | int) -> bool:
+        """
+        Cancels a specific order and returns True if successful.
+        """
+        # Service Input Parameter Validation
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "cancel_order"
+
+        if symbol is None:
+            raise ValueError(f"[{current_method}] 'symbol' parameter is required.")
+        if not symbol:
+            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
+
+        # Convert order_id to int if it's a string
+        if isinstance(order_id, str):
+            try:
+                order_id_int = int(order_id)
+            except ValueError as e:
+                raise ValueError(
+                    f"[{current_method}] 'order_id' must be a valid integer: {order_id}"
+                ) from e
+        else:
+            order_id_int = order_id
+
+        if order_id_int <= 0:
+            raise ValueError(f"[{current_method}] 'order_id' must be positive.")
+
+        # Initialize context for error handling
+        status_code: int = 0
+        raw_response_content: str | None = None
+
+        try:
+            # Core operational logic - need asset index for cancellation
+            asset_index = await self._get_asset_index_callable(symbol)
+            if asset_index is None:
+                raise APIError(
+                    f"Asset index for {symbol} not found for cancellation.",
+                    APIErrorCode.INVALID_SYMBOL.value,
+                )
+
+            cancel_action = HyperliquidRawCancelOrderAction(asset=asset_index, oid=order_id_int)
+            raw_exchange_response, http_status = await self._cancel_order_raw(cancel_action)
+            status_code = http_status
+
+            if raw_exchange_response.data and raw_exchange_response.data.statuses:
+                first_status = raw_exchange_response.data.statuses[0]
+                if isinstance(first_status, HyperliquidRawExchangeStatusObject):
+                    if first_status.error:
+                        # Use the error mapper to get the specific error code for this message
+                        mapped_error = self._error_mapper.map_string_error(
+                            first_status.error, http_status=http_status
+                        )
+                        raise mapped_error
+                    else:
+                        logger.info(
+                            f"[{self._exchange_name}] Successfully cancelled order "
+                            f"OID {order_id_int}"
+                        )
+                        return True
+                elif "error" in first_status.lower():
+                    raise APIError(
+                        f"Failed to cancel order: {first_status}", APIErrorCode.UNKNOWN.value
+                    )
+                else:
+                    logger.info(
+                        f"[{self._exchange_name}] Successfully cancelled order OID {order_id_int}"
+                    )
+                    return True
+
+            # If we reach here, something unexpected happened
+            raise APIError("Failed to cancel order or parse response.", APIErrorCode.UNKNOWN.value)
+
+        except APIError:
+            # Re-raise APIErrors from _requester, ResponseHandler, etc.
+            raise
+        except TransformationError as e_transform:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for order {order_id_int}: {e_transform}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except pydantic.ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for order {order_id_int}: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for order {order_id_int}: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+            ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"for order {order_id_int}: {e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unexpected
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
         """

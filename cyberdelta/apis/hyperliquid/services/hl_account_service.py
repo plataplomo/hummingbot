@@ -138,8 +138,7 @@ class HyperliquidAccountService:
                 method="POST",
                 endpoint=endpoint_path,
                 data=payload_dict,
-                is_public_info_endpoint=True,
-                is_signed=False,
+                is_signed=True,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw user state response for clearinghouse_state: "
@@ -340,8 +339,7 @@ class HyperliquidAccountService:
                 method="POST",
                 endpoint=endpoint_path,
                 data=payload_dict,
-                is_public_info_endpoint=True,
-                is_signed=False,  # queryOrderHistory via /info is typically not signed
+                is_signed=True,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw order history response: {raw_data!r} "
@@ -470,8 +468,7 @@ class HyperliquidAccountService:
                 method="POST",
                 endpoint=endpoint_path,
                 data=payload_dict,
-                is_public_info_endpoint=True,
-                is_signed=False,
+                is_signed=True,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw user fills response: {raw_response_list!r} "
@@ -626,8 +623,7 @@ class HyperliquidAccountService:
                 method="POST",
                 endpoint=endpoint_path,
                 data=payload_dict,
-                is_public_info_endpoint=True,  # Common for /info endpoint
-                is_signed=False,  # Open orders typically don't require signing beyond wallet auth
+                is_signed=True,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw open orders response: {raw_data!r} (Status: {status_code})"

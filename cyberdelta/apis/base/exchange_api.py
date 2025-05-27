@@ -228,7 +228,6 @@ class ExchangeAPI(ABC):
         is_signed: bool = False,
         endpoint_group: str | None = None,
         request_weight: int = 1,
-        is_public_info_endpoint: bool = False,
         serialize_none_as_null: bool = False,
     ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
         """
@@ -244,7 +243,6 @@ class ExchangeAPI(ABC):
             is_signed: Whether the request requires authentication.
             endpoint_group: Optional logical group for the endpoint, used for rate limiting.
             request_weight: Optional request weight for rate limiting.
-            is_public_info_endpoint: Flag for specific endpoints (e.g. Hyperliquid INFO).
             serialize_none_as_null: If True, serialize Pydantic models with None values
                                   as null instead of excluding them.
 

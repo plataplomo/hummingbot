@@ -109,11 +109,10 @@ class HyperliquidAssetIndexResolver:
 
         # Make API call
         try:
-            response_content_raw, status_code, _ = await self._requester(
+            raw_response_content, status_code, _ = await self._requester(
                 method="POST",
                 endpoint="/info",
                 data=request_payload_data_dict,
-                is_public_info_endpoint=True,
             )
         except APIError as e_api:
             self.logger.error(
@@ -139,7 +138,7 @@ class HyperliquidAssetIndexResolver:
             ) from e_req
 
         # Handle empty response
-        if response_content_raw is None:
+        if raw_response_content is None:
             self.logger.error(
                 f"[{self._exchange_name_for_log}] Received None response from requester "
                 f"for metaAndAssetCtxs."
@@ -154,13 +153,13 @@ class HyperliquidAssetIndexResolver:
         try:
             validated_response: HyperliquidRawMetaAndAssetCtxsResponse = (
                 self._response_handler.handle_info_meta_and_asset_ctxs_response(
-                    cast(RawJsonResponse, response_content_raw)
+                    cast(RawJsonResponse, raw_response_content)
                 )
             )
         except ValidationError as e_val:
             self.logger.error(
                 f"[{self._exchange_name_for_log}] Failed to validate metaAndAssetCtxs: {e_val}. "
-                f"Raw: {response_content_raw!r}"
+                f"Raw: {raw_response_content!r}"
             )
             raise APIError(
                 "Failed to parse market metadata for asset index mapping.",

@@ -326,11 +326,6 @@ class BackpackAPI(ExchangeAPI):
         post_only: bool = False,
     ) -> Order:
         """Place an order on Backpack Exchange. Delegates to BackpackTradingService."""
-        if reduce_only:
-            logger.warning(
-                f"[{self.exchange_name}] 'reduce_only' parameter is not supported for place_order "
-                f"and will be ignored."
-            )
         return await self.trading_service.place_order(
             symbol=symbol,
             side=side,
@@ -345,8 +340,6 @@ class BackpackAPI(ExchangeAPI):
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
         """Cancel an existing order. Delegates to BackpackTradingService."""
-        if not symbol:
-            raise ValueError("Symbol is required to cancel an order on Backpack.")
         return await self.trading_service.cancel_order(order_id=order_id, symbol=symbol)
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
@@ -465,8 +458,6 @@ class BackpackAPI(ExchangeAPI):
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order | None:
         """Fetch a single order by its ID. Delegates to BackpackTradingService."""
-        if not symbol:
-            raise ValueError("Symbol is required for get_order on Backpack.")
         return await self.trading_service.get_order(
             order_id=order_id, symbol=symbol, client_order_id=client_order_id
         )
@@ -476,8 +467,6 @@ class BackpackAPI(ExchangeAPI):
     ) -> Order:
         """Fetch the status of a specific order. Delegates to BackpackTradingService's
         get_order_status."""
-        if not symbol:
-            raise ValueError("Symbol is required for get_order_status on Backpack.")
         return await self.trading_service.get_order_status(
             order_id=order_id, symbol=symbol, client_order_id=client_order_id
         )

@@ -331,20 +331,10 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def get_balances(self) -> dict[str, SpotBalance]:
         """Get account balances."""
-        if not self._wallet_address:
-            raise APIError(
-                "Wallet address required for get_balances.",
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
-            )
         return await self.account_service.get_balances()
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         """Get current positions."""
-        if not self._wallet_address:
-            raise APIError(
-                "Wallet address required for get_positions.",
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
-            )
         return await self.account_service.get_positions(symbol=symbol)
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
@@ -414,25 +404,15 @@ class HyperliquidAPI(ExchangeAPI):
         post_only: bool = False,
     ) -> Order:
         """Places an order on the exchange."""
-        if price is None and order_type != OrderType.MARKET:
-            raise ValueError("Price must be specified for non-market order types.")
-        if price is None and order_type == OrderType.MARKET:
-            raise ValueError(
-                "Hyperliquid requires a price (as limit_px for slippage) even for MARKET orders."
-            )
-
-        if price is None:
-            raise APIError(
-                "Price cannot be None for Hyperliquid place_order service call.",
-                APIErrorCode.INVALID_REQUEST.value,
-            )
+        # Handle optional price - use Decimal("0") for market orders
+        order_price = price if price is not None else Decimal("0")
 
         return await self.trading_service.place_order(
             symbol=symbol,
             side=side,
             order_type=order_type,
             quantity=quantity,
-            price=price,
+            price=order_price,
             time_in_force=time_in_force,
             stop_price=stop_price,
             client_order_id=client_order_id,
@@ -442,17 +422,7 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
         """Cancels a specific order by its ID."""
-        if symbol is None:
-            raise ValueError("Symbol is required to cancel an order on Hyperliquid.")
-        try:
-            order_id_int = int(order_id)
-        except ValueError:
-            logger.error(
-                f"[{self.exchange_name}] Invalid order_id format for cancellation: {order_id}"
-            )
-            return False
-
-        return await self.trading_service.cancel_order(symbol=symbol, order_id=order_id_int)
+        return await self.trading_service.cancel_order(symbol=symbol, order_id=order_id)
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
         """Cancels all open orders, optionally filtered by symbol."""
@@ -460,49 +430,19 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def get_account_summary(self) -> MarginAccountSummary | None:
         """Fetches and combines account balance and positions for Hyperliquid."""
-        if not self._wallet_address:
-            raise APIError(
-                message=(
-                    f"HLAPI: Wallet address required for get_account_summary. "
-                    f"Exchange: {self.exchange_name}"
-                ),
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
-            )
         return await self.account_service.get_account_summary()
 
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order | None:
         """Retrieves the status of a specific order by its ID."""
-        if symbol is None:
-            raise ValueError("Symbol is required for get_order_status on Hyperliquid.")
-        try:
-            order_id_int = int(order_id)
-        except ValueError:
-            logger.error(
-                f"[{self.exchange_name}] Invalid order_id format for get_order_status: {order_id}"
-            )
-            return None
-
-        order = await self.trading_service.get_order(symbol=symbol, order_id=order_id_int)
-        return order
+        return await self.trading_service.get_order(symbol=symbol, order_id=order_id)
 
     async def get_order(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order | None:
         """Retrieves a specific order by its ID, returning None if not found."""
-        if symbol is None:
-            raise ValueError("Symbol is required for get_order on Hyperliquid.")
-        try:
-            order_id_int = int(order_id)
-        except ValueError:
-            logger.warning(
-                f"[{self.exchange_name}] Invalid order_id format for get_order: {order_id}. "
-                f"Returning None."
-            )
-            return None
-
-        return await self.trading_service.get_order(symbol=symbol, order_id=order_id_int)
+        return await self.trading_service.get_order(symbol=symbol, order_id=order_id)
 
     async def get_order_history(
         self,
@@ -514,12 +454,6 @@ class HyperliquidAPI(ExchangeAPI):
         client_order_id: str | None = None,
     ) -> list[Order]:
         """Retrieves historical orders."""
-        if not self._wallet_address:
-            raise APIError(
-                "Wallet address required for get_order_history.",
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
-            )
-
         return await self.account_service.get_order_history(
             symbol=symbol, start_time=start_time, end_time=end_time
         )
@@ -530,11 +464,6 @@ class HyperliquidAPI(ExchangeAPI):
         limit: int = 100,
     ) -> list[Trade]:
         """Retrieves historical trades (fills)."""
-        if not self._wallet_address:
-            raise APIError(
-                "Wallet address required for get_trade_history.",
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
-            )
         return await self.account_service.get_trade_history(symbol=symbol)
 
     async def get_historical_funding_rates(
@@ -544,15 +473,8 @@ class HyperliquidAPI(ExchangeAPI):
         end_time: datetime | None = None,
     ) -> list[FundingRate]:
         """Request historical funding rates for a specific symbol and time range."""
-        start_time_ms = int(start_time.timestamp() * 1000)
-        end_time_ms: int | None = None
-        if end_time is not None:
-            end_time_ms = int(end_time.timestamp() * 1000)
-            if end_time_ms < start_time_ms:
-                raise ValueError("end_time cannot be before start_time.")
-
         return await self.market_data_service.get_historical_funding_rates(
-            symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+            symbol=symbol, start_time=start_time, end_time=end_time
         )
 
     async def transfer(

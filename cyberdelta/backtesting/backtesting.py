@@ -656,17 +656,17 @@ class StrategyAdapter(BacktestStrategy):
                             symbol=str(symbol),
                             interval="1m",  # TODO: Use actual interval if available
                             open_time=timestamp,
-                            open=Decimal(str(data.get("open", "NaN"))),  # type: ignore[union-attr]
-                            high=Decimal(str(data.get("high", "NaN"))),  # type: ignore[union-attr]
-                            low=Decimal(str(data.get("low", "NaN"))),  # type: ignore[union-attr]
-                            close=Decimal(str(data.get("close", "NaN"))),  # type: ignore[union-attr]
-                            volume=Decimal(str(data.get("volume", "NaN"))),  # type: ignore[union-attr]
+                            open=Decimal(str(data.get("open", "NaN"))),
+                            high=Decimal(str(data.get("high", "NaN"))),
+                            low=Decimal(str(data.get("low", "NaN"))),
+                            close=Decimal(str(data.get("close", "NaN"))),
+                            volume=Decimal(str(data.get("volume", "NaN"))),
                         )
                         candle_list.append(candle)
                 except Exception as e:
                     self._logger.error(
                         f"Error converting Series to Candle for symbol {symbol} "
-                        f"at {timestamp}: {e} - Series data: {data.to_dict()}"  # type: ignore[union-attr]
+                        f"at {timestamp}: {e} - Series data: {data.to_dict()}"
                     )
 
         elif isinstance(data, pd.DataFrame):  # No longer redundant after adding Series[Any] hint
