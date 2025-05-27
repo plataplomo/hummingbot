@@ -265,19 +265,19 @@ class BackpackAPI(ExchangeAPI):
 
     async def get_ticker(self, symbol: str) -> Ticker:
         """Get ticker information for a specific symbol."""
-        return await self.market_data_service.get_ticker(symbol)
+        return await self.market_data_service.get_ticker(symbol=symbol)
 
     async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
         """Get order book for a specific symbol."""
-        return await self.market_data_service.get_order_book(symbol, depth)
+        return await self.market_data_service.get_order_book(symbol=symbol, limit=depth)
 
     async def get_recent_trades(self, symbol: str, limit: int | None = 50) -> list[Trade]:
         """Get recent trades for a specific symbol."""
-        return await self.market_data_service.get_recent_trades(symbol, limit)
+        return await self.market_data_service.get_recent_trades(symbol=symbol, limit=limit)
 
     async def get_funding_rate(self, symbol: str) -> FundingRate:
         """Get current funding rate for a specific symbol."""
-        return await self.market_data_service.get_funding_rate(symbol)
+        return await self.market_data_service.get_funding_rate(symbol=symbol)
 
     async def get_market_data(
         self,
@@ -304,7 +304,7 @@ class BackpackAPI(ExchangeAPI):
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         """Get derivative positions."""
-        return await self.account_service.get_positions(symbol)
+        return await self.account_service.get_positions(symbol=symbol)
 
     # --- Trading Methods --- #
 
@@ -337,15 +337,15 @@ class BackpackAPI(ExchangeAPI):
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
         """Cancel an existing order."""
-        return await self.trading_service.cancel_order(order_id, symbol)
+        return await self.trading_service.cancel_order(order_id=order_id, symbol=symbol)
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Get all open orders."""
-        return await self.trading_service.get_open_orders(symbol)
+        return await self.trading_service.get_open_orders(symbol=symbol)
 
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
         """Get funding rates for specified symbols or all symbols."""
-        return await self.market_data_service.get_funding_rates(symbols)
+        return await self.market_data_service.get_funding_rates(symbols=symbols)
 
     async def get_account_summary(self) -> MarginAccountSummary:
         """Get account summary information."""

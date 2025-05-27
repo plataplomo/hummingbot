@@ -335,27 +335,27 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         """Get derivative positions."""
-        return await self.account_service.get_positions(symbol)
+        return await self.account_service.get_positions(symbol=symbol)
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Get all open orders."""
-        return await self.trading_service.get_open_orders(symbol)
+        return await self.trading_service.get_open_orders(symbol=symbol)
 
     async def get_ticker(self, symbol: str) -> Ticker | None:
         """Get ticker information for a specific symbol."""
-        return await self.market_data_service.get_ticker(symbol)
+        return await self.market_data_service.get_ticker(symbol=symbol)
 
     async def get_order_book(self, symbol: str, depth: int | None = None) -> OrderBook | None:
         """Get order book for a specific symbol."""
-        return await self.market_data_service.get_order_book(symbol)
+        return await self.market_data_service.get_order_book(symbol=symbol)
 
     async def get_recent_trades(self, symbol: str, limit: int | None = 50) -> list[Trade]:
         """Get recent trades for a specific symbol."""
-        return await self.market_data_service.get_recent_trades(symbol)
+        return await self.market_data_service.get_recent_trades(symbol=symbol)
 
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
         """Get funding rates for specified symbols or all symbols."""
-        return await self.market_data_service.get_funding_rates(symbols)
+        return await self.market_data_service.get_funding_rates(symbols=symbols)
 
     async def get_market_data(
         self,
@@ -403,11 +403,11 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
         """Cancel an existing order."""
-        return await self.trading_service.cancel_order(symbol, order_id)
+        return await self.trading_service.cancel_order(symbol=symbol, order_id=order_id)
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
         """Cancel all orders for a given symbol, or all if symbol is None."""
-        return await self.trading_service.cancel_all_orders(symbol)
+        return await self.trading_service.cancel_all_orders(symbol=symbol)
 
     async def get_account_summary(self) -> MarginAccountSummary | None:
         """Get account summary information."""
@@ -417,13 +417,13 @@ class HyperliquidAPI(ExchangeAPI):
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order | None:
         """Fetch the status of a specific order."""
-        return await self.trading_service.get_order(symbol, order_id)
+        return await self.trading_service.get_order(symbol=symbol, order_id=order_id)
 
     async def get_order(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order | None:
         """Fetch a single order by its ID."""
-        return await self.trading_service.get_order(symbol, order_id)
+        return await self.trading_service.get_order(symbol=symbol, order_id=order_id)
 
     async def get_order_history(
         self,
