@@ -12,7 +12,6 @@ import structlog
 # Corrected imports for API clients
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
-from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.config import ConfigurationError, get_app_settings
 from cyberdelta.config.logging_config import setup_logging
@@ -25,6 +24,7 @@ from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.core.strategy_manager import StrategyManager
 from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 from cyberdelta.utils.state_manager import StateManager
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem

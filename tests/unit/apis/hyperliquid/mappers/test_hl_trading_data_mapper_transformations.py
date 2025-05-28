@@ -24,7 +24,6 @@ import pytest
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
-from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import HyperliquidRawHistoricalOrder
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
@@ -40,6 +39,7 @@ from cyberdelta.core.models.enums import (
     TimeInForce,
     TriggerType,
 )
+from cyberdelta.enums.exchange_names import ExchangeName
 
 logger = logging.getLogger(__name__)
 

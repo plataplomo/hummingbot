@@ -27,7 +27,6 @@ if TYPE_CHECKING:
 # Project-specific imports
 from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
-from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
@@ -36,6 +35,7 @@ from cyberdelta.core.models.enums import (
     OrderType,
     TimeInForce,
 )
+from cyberdelta.enums.exchange_names import ExchangeName
 
 logger = logging.getLogger(__name__)
 

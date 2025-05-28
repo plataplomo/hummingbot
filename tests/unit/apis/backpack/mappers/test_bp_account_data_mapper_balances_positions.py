@@ -24,10 +24,10 @@ from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
     BackpackRawMmfFunction,
 )
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
-from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import DerivativePosition, MarginAccountSummary, SpotBalance
 from cyberdelta.core.models.enums import OrderSide
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 @pytest.fixture

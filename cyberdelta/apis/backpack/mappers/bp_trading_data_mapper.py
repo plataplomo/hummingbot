@@ -23,7 +23,6 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder, BackpackRawOrderUpdate
-from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
@@ -32,6 +31,7 @@ from cyberdelta.core.models.enums import (
     OrderType,
     TimeInForce,
 )
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 logger = logging.getLogger(__name__)

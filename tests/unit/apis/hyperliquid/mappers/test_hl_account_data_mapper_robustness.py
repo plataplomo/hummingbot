@@ -25,7 +25,6 @@ if TYPE_CHECKING:
     pass
 
 # Project-specific imports
-from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
@@ -38,6 +37,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
 from cyberdelta.core.models import (
     MarginAccountSummary,
 )
+from cyberdelta.enums.exchange_names import ExchangeName
 
 # Alias for shorter method calls
 Mapper = HyperliquidAccountDataMapper

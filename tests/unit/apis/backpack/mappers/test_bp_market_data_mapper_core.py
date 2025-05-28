@@ -27,11 +27,11 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawTicker,
 )
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
-from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import OrderBook, Ticker, Trade
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.models.market.funding_rate import FundingRate
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 @pytest.fixture

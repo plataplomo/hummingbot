@@ -39,13 +39,13 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawTrade,
     BackpackRawTradeEvent,
 )
-from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import OrderBook, Ticker, Trade
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.models.market.funding_rate import BackpackFundingDetails, FundingRate
 from cyberdelta.core.models.market.trade import BackpackTradeDetails
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 logger = logging.getLogger(__name__)

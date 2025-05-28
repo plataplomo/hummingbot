@@ -24,7 +24,6 @@ import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
 from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
     HyperliquidRawFundingHistoryItem,
@@ -44,6 +43,7 @@ from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.models.market.funding_rate import FundingRate, HyperliquidFundingDetails
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 logger = logging.getLogger(__name__)

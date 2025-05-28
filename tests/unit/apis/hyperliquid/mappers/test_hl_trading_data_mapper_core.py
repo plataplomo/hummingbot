@@ -447,7 +447,7 @@ class TestCoreValidationLogic:
         self, trading_data_mapper: HyperliquidTradingDataMapper
     ) -> None:
         """Test that exchange name is consistently assigned."""
-        from cyberdelta.apis.exchange_names import ExchangeName
+        from cyberdelta.enums.exchange_names import ExchangeName
 
         raw_order = create_raw_order()
         historical_order = create_raw_historical_order()

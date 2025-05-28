@@ -24,7 +24,6 @@ if TYPE_CHECKING:
     pass
 
 # Project-specific imports
-from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawAssetPosition,
@@ -39,6 +38,7 @@ from cyberdelta.core.models import (
     MarginAccountSummary,
     SpotBalance,
 )
+from cyberdelta.enums.exchange_names import ExchangeName
 
 # --- Fixtures ---
 

@@ -22,10 +22,10 @@ from pydantic import ValidationError
 from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAccountDataMapper
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionUpdate
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill, BackpackRawTrade
-from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import DerivativePosition, Trade
 from cyberdelta.core.models.enums import OrderSide
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 @pytest.fixture

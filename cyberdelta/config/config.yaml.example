@@ -13,6 +13,7 @@ general:
 # Exchange configuration
 exchanges:
   hyperliquid:
+    exchange_name: "hyperliquid"
     enabled: true
     api_base_url: "https://api.hyperliquid.xyz"
     ws_url: "wss://api.hyperliquid.xyz/ws"
@@ -20,8 +21,15 @@ exchanges:
     symbols:
       BTC: "BTC"
       ETH: "ETH"
+    # Optional HTTP Client Settings (examples - can be omitted to use defaults)
+    request_timeout_seconds: 20
+    ws_ping_interval_seconds: 25
+    # ws_max_reconnect_attempts: 5  # Example of another optional field
+    # Exchange-Specific Parameters (required for Hyperliquid)
+    chain_id: 1337
 
   backpack:
+    exchange_name: "backpack"
     enabled: true
     api_base_url: "https://api.backpack.exchange"
     ws_url: "wss://ws.backpack.exchange"
@@ -29,6 +37,10 @@ exchanges:
     symbols:
       BTC: "BTC_USDC"
       ETH: "ETH_USDC"
+    # Optional HTTP Client Settings (examples - can be omitted to use defaults)
+    request_timeout_seconds: 15.0
+    # chain_id is not required for Backpack, so it can be omitted
+    # Other optional HTTP/WS fields can be omitted to use system defaults
 
 # Strategy configuration
 strategies:

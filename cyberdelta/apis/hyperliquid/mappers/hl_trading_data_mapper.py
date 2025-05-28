@@ -22,7 +22,6 @@ import logging
 from decimal import Decimal
 from typing import Any
 
-from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
     HyperliquidRawHistoricalOrder,
 )
@@ -39,6 +38,7 @@ from cyberdelta.core.models.enums import (
     TimeInForce,
     TriggerType,
 )
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 logger = logging.getLogger(__name__)

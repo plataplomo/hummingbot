@@ -22,6 +22,7 @@ from pydantic import (
     model_validator,
 )
 
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import (
     parse_decimal_value,
     validate_enum_field,
@@ -135,6 +136,62 @@ class ExchangeSpecificConfig(BaseModel):
     ws_url: AnyUrl
     rate_limit_per_minute: int = Field(..., gt=0)
     symbols: dict[str, str]
+    exchange_name: ExchangeName = Field(
+        ..., description="Canonical exchange name, must match a value from ExchangeName enum."
+    )
+
+    # HTTP Client Settings (Optional overrides for HttpClientConfig defaults)
+    request_timeout_seconds: float | None = Field(
+        default=None,
+        gt=0,
+        le=120,
+        description="Default request timeout in seconds for this exchange's HTTP client.",
+    )
+    max_retries: int | None = Field(
+        default=None,
+        ge=0,
+        le=10,
+        description="Maximum number of retries for failed HTTP requests for this exchange.",
+    )
+    retry_delay_seconds: float | None = Field(
+        default=None,
+        gt=0,
+        le=300,
+        description="Base delay in seconds for HTTP retries for this exchange.",
+    )
+
+    # WebSocket Manager Settings (Optional overrides for WebSocketManagerConfig defaults)
+    ws_ping_interval_seconds: float | None = Field(
+        default=None,
+        gt=0,
+        le=60,
+        description="WebSocket ping interval in seconds for this exchange.",
+    )
+    ws_reconnect_delay_seconds: float | None = Field(
+        default=None,
+        gt=0,
+        le=300,
+        description="Base delay for WebSocket reconnections in seconds for this exchange.",
+    )
+    ws_max_reconnect_attempts: int | None = Field(
+        default=None,
+        ge=0,
+        le=20,
+        description="Maximum WebSocket reconnection attempts for this exchange.",
+    )
+    ws_connection_timeout_seconds: float | None = Field(
+        default=None,
+        gt=0,
+        le=120,
+        description="WebSocket connection timeout in seconds for this exchange.",
+    )
+
+    # Exchange-Specific Parameters
+    chain_id: int | None = Field(
+        default=None,
+        gt=0,
+        description="Blockchain Chain ID, required for some exchanges (e.g., Hyperliquid).",
+    )
 
     @field_validator("api_base_url", "ws_url", mode="before")
     @classmethod
@@ -427,4 +484,43 @@ class AppSettings(BaseModel):
                 f"Balance monitoring references unknown exchanges: {sorted(invalid_exchanges)}"
             )
 
+        return self
+
+    @model_validator(mode="after")
+    def validate_exchange_config_keys_match_names(self) -> Self:
+        """Validate that exchange configuration keys match their exchange_name field values."""
+        if self.exchanges:  # Check if exchanges dict is not None and not empty
+            for key, exchange_cfg_instance in self.exchanges.items():
+                # Compare the string key with the string value of the ExchangeName enum member
+                if exchange_cfg_instance.exchange_name.value != key:
+                    raise ValueError(
+                        f"Exchange configuration key-name mismatch for '{key}': "
+                        f"dictionary key is '{key}', but 'exchange_name' field "
+                        f"is '{exchange_cfg_instance.exchange_name.value}'. "
+                        f"These must be identical (e.g., 'hyperliquid' key must have "
+                        f"'hyperliquid' as exchange_name)."
+                    )
+        return self
+
+    @model_validator(mode="after")
+    def validate_hyperliquid_chain_id_settings(self) -> Self:
+        """Validate that chain_id is specified for enabled Hyperliquid exchange."""
+        if self.exchanges:
+            hyperliquid_config = self.exchanges.get("hyperliquid")
+            if hyperliquid_config and hyperliquid_config.enabled:
+                if hyperliquid_config.chain_id is None:
+                    raise ValueError(
+                        "AppSettings: 'chain_id' must be specified in config.yaml for "
+                        "enabled 'hyperliquid' exchange."
+                    )
+                # DEFENSIVE CHECK: Verify chain_id is positive int after Field validation.
+                # Mypy=[redundant-expr] Ruff=[redundant-expr]
+                if (
+                    not isinstance(hyperliquid_config.chain_id, int)
+                    or hyperliquid_config.chain_id <= 0
+                ):
+                    raise ValueError(
+                        "AppSettings: 'chain_id' for 'hyperliquid' exchange must be a "
+                        "positive integer."
+                    )
         return self
