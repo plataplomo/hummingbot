@@ -1,13 +1,32 @@
 import types
 from collections.abc import Callable
+from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
 import pytest
+from pydantic import AnyUrl, HttpUrl
 from web3.auto import w3  # Import w3
 
 from cyberdelta.config import AppSettings
+from cyberdelta.config.config_models import (
+    BalanceMonitoringSettings,
+    CircuitBreakerSettings,
+    ExchangeSpecificConfig,
+    ExecutionCompensationSettings,
+    ExecutionSettings,
+    GeneralSettings,
+    GlobalRiskSettings,
+    MonitoringSettings,
+    PositionReconciliationSettings,
+    RiskSettings,
+    SafetySystemsSettings,
+    StrategiesSettings,
+    StrategyConfigHLPerpBPSpot,
+    StrategyParamsHLPerpBPSpot,
+)
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 # Mock aiohttp ClientSession and Response for API testing
@@ -173,25 +192,6 @@ def mock_config() -> Callable[..., AppSettings]:
     def _create_config(config_data: dict[str, Any] | None = None) -> AppSettings:
         # For now, return a basic AppSettings instance
         # This is a simplified version for unit tests
-        from decimal import Decimal
-
-        from cyberdelta.config.config_models import (
-            BalanceMonitoringSettings,
-            CircuitBreakerSettings,
-            ExchangeSpecificConfig,
-            ExecutionCompensationSettings,
-            ExecutionSettings,
-            GeneralSettings,
-            GlobalRiskSettings,
-            MonitoringSettings,
-            PositionReconciliationSettings,
-            RiskSettings,
-            SafetySystemsSettings,
-            StrategiesSettings,
-            StrategyConfigHLPerpBPSpot,
-            StrategyParamsHLPerpBPSpot,
-        )
-
         return AppSettings(
             general=GeneralSettings(
                 log_level="INFO",
@@ -203,18 +203,26 @@ def mock_config() -> Callable[..., AppSettings]:
             ),
             exchanges={
                 "hyperliquid": ExchangeSpecificConfig(
+                    exchange_name=ExchangeName.HYPERLIQUID,
                     enabled=True,
-                    api_base_url="https://api.hyperliquid.xyz",
-                    ws_url="wss://api.hyperliquid.xyz/ws",
+                    api_base_url=HttpUrl("https://api.hyperliquid.xyz"),
+                    ws_url=AnyUrl("wss://api.hyperliquid.xyz/ws"),
                     rate_limit_per_minute=120,
                     symbols={"BTC": "BTC", "ETH": "ETH"},
+                    chain_id=1337,
+                    request_timeout_seconds=20.0,
+                    ws_ping_interval_seconds=25.0,
                 ),
                 "backpack": ExchangeSpecificConfig(
+                    exchange_name=ExchangeName.BACKPACK,
                     enabled=True,
-                    api_base_url="https://api.backpack.exchange",
-                    ws_url="wss://ws.backpack.exchange",
-                    rate_limit_per_minute=120,
-                    symbols={"BTC": "BTC_USDC", "ETH": "ETH_USDC"},
+                    api_base_url=HttpUrl("https://api.backpack.exchange"),
+                    ws_url=AnyUrl("wss://api.backpack.exchange/ws"),
+                    rate_limit_per_minute=100,
+                    symbols={"BTC": "BTC-USDC", "ETH": "ETH-USDC"},
+                    chain_id=1,
+                    request_timeout_seconds=15.0,
+                    ws_ping_interval_seconds=30.0,
                 ),
             },
             strategies=StrategiesSettings(
@@ -234,8 +242,8 @@ def mock_config() -> Callable[..., AppSettings]:
             risk=RiskSettings(
                 **{
                     "global": GlobalRiskSettings(
-                        max_position_usd=Decimal("1000.0"),
-                        max_total_exposure_usd=Decimal("5000.0"),
+                        max_position_usd=Decimal("200.0"),
+                        max_total_exposure_usd=Decimal("1000.0"),
                     )
                 },
                 use_simple_sizing_path=True,
@@ -298,3 +306,169 @@ def mock_bp_http_client() -> MagicMock:
     mock_client = MagicMock()
     mock_client.close_session = AsyncMock()
     return mock_client
+
+
+@pytest.fixture
+def test_app_settings() -> AppSettings:
+    """
+    Provides a complete AppSettings instance for testing.
+
+    This replaces the old Config class usage in tests with proper Pydantic models.
+    """
+    return AppSettings(
+        general=GeneralSettings(
+            log_level="INFO",
+            safe_mode=True,
+            state_file="data/test_state.json",
+            state_backup_directory="data/test_state_backups",
+            state_save_interval=300,
+            state_backup_count=5,
+        ),
+        exchanges={
+            "hyperliquid": ExchangeSpecificConfig(
+                exchange_name=ExchangeName.HYPERLIQUID,
+                enabled=True,
+                api_base_url=HttpUrl("https://api.hyperliquid.xyz"),
+                ws_url=AnyUrl("wss://api.hyperliquid.xyz/ws"),
+                rate_limit_per_minute=120,
+                symbols={"BTC": "BTC", "ETH": "ETH"},
+                chain_id=1337,
+                request_timeout_seconds=20.0,
+                ws_ping_interval_seconds=25.0,
+            ),
+            "backpack": ExchangeSpecificConfig(
+                exchange_name=ExchangeName.BACKPACK,
+                enabled=True,
+                api_base_url=HttpUrl("https://api.backpack.exchange"),
+                ws_url=AnyUrl("wss://api.backpack.exchange/ws"),
+                rate_limit_per_minute=100,
+                symbols={"BTC": "BTC-USDC", "ETH": "ETH-USDC"},
+                chain_id=1,
+                request_timeout_seconds=15.0,
+                ws_ping_interval_seconds=30.0,
+            ),
+        },
+        strategies=StrategiesSettings(
+            hl_perp_bp_spot=StrategyConfigHLPerpBPSpot(
+                enabled=True,
+                long_exchange="backpack",
+                short_exchange="hyperliquid",
+                symbol_long="BTC",
+                symbol_short="BTC",
+                params=StrategyParamsHLPerpBPSpot(
+                    funding_threshold=Decimal("0.0001"),
+                    max_price_spread_pct=Decimal("0.002"),
+                    min_profit_usd=Decimal("1.0"),
+                ),
+            )
+        ),
+        risk=RiskSettings(
+            **{
+                "global": GlobalRiskSettings(
+                    max_position_usd=Decimal("200.0"),
+                    max_total_exposure_usd=Decimal("1000.0"),
+                )
+            },
+            use_simple_sizing_path=True,
+            simple_sizing_method="fixed_fraction",
+            simple_fixed_fraction=Decimal("0.1"),
+            simple_fixed_usd_size=Decimal("10.0"),
+        ),
+        execution=ExecutionSettings(
+            max_slippage_pct=Decimal("0.001"),
+            max_retries=3,
+            retry_delay_base_sec=Decimal("1.0"),
+            settlement_delay=Decimal("2.0"),
+            compensation=ExecutionCompensationSettings(
+                use_limit_orders=True,
+                limit_price_offset_pct=Decimal("0.05"),
+            ),
+        ),
+        safety_systems=SafetySystemsSettings(
+            circuit_breakers=CircuitBreakerSettings(
+                enabled=True,
+                global_consecutive_failures=5,
+                global_reset_timeout_sec=300,
+                exchange_consecutive_failures=3,
+                exchange_reset_timeout_sec=180,
+            ),
+            position_reconciliation=PositionReconciliationSettings(
+                enabled=True,
+                check_interval_sec=600,
+                max_discrepancy_pct=Decimal("0.01"),
+            ),
+            balance_monitoring=BalanceMonitoringSettings(
+                enabled=True,
+                check_interval_sec=300,
+                min_balance_thresholds_usd={
+                    "hyperliquid": Decimal("100.0"),
+                    "backpack": Decimal("100.0"),
+                },
+            ),
+        ),
+        monitoring=MonitoringSettings(
+            notifications_enabled=True,
+            alert_methods=["log"],
+        ),
+    )
+
+
+@pytest.fixture
+def test_config_dict() -> dict[str, Any]:
+    """
+    Provides a dictionary representation of test configuration for legacy test compatibility.
+
+    This helps transition tests that expect dictionary-style config access.
+    """
+    return {
+        "exchanges": {
+            "hyperliquid": {
+                "enabled": True,
+                "symbols": {"BTC": "BTC", "ETH": "ETH"},
+                "fee_rate": "0.0004",
+                "exchange_name": "hyperliquid",
+                "api_base_url": "https://api.hyperliquid.xyz",
+                "ws_url": "wss://api.hyperliquid.xyz/ws",
+                "rate_limit_per_minute": 120,
+                "chain_id": 1337,
+            },
+            "backpack": {
+                "enabled": True,
+                "symbols": {"BTC": "BTC_USDC", "ETH": "ETH_USDC"},
+                "fee_rate": "0.0006",
+                "exchange_name": "backpack",
+                "api_base_url": "https://api.backpack.exchange",
+                "ws_url": "wss://ws.backpack.exchange",
+                "rate_limit_per_minute": 120,
+            },
+        },
+        "strategy": {
+            "funding_rate": {
+                "min_funding_differential": "0.0002",
+                "min_profit_threshold": "3.0",
+                "funding_sample_period": 3600,
+                "funding_sample_count": 24,
+                "risk_aversion": 1.0,
+                "default_slippage": "0.001",
+                "slippage_sensitivity": "0.5",
+                "liquidity_threshold_usd": "10000",
+                "max_slippage_percent": "0.01",
+            }
+        },
+        "risk": {
+            "global": {
+                "max_position_usd": "200.0",
+                "max_total_exposure_usd": "1000.0",
+            },
+            "use_simple_sizing_path": True,
+            "simple_sizing_method": "fixed_fraction",
+            "simple_fixed_fraction": "0.1",
+            "simple_fixed_usd_size": "10.0",
+        },
+        "execution": {
+            "max_slippage_pct": "0.001",
+            "max_retries": 3,
+            "retry_delay_base_sec": "1.0",
+            "settlement_delay": "2.0",
+        },
+    }

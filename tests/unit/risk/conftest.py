@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from pytest import fixture
 
+from cyberdelta.config import AppSettings
 from cyberdelta.core.models import SpotBalance
 from cyberdelta.core.risk_manager import (
     CircuitBreakerSystemProtocol,
@@ -13,7 +14,6 @@ from cyberdelta.core.risk_manager import (
     PortfolioTrackerProtocol,
     RiskManager,
 )
-from cyberdelta.utils.config import Config
 from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
@@ -66,8 +66,23 @@ def mock_config_dict() -> dict[str, Any]:
 
 
 @fixture
-def mock_config(mock_config_dict: dict[str, Any]) -> Config:
-    return Config(mock_config_dict)
+def mock_config(mock_config_dict: dict[str, Any]) -> MagicMock:
+    """Create a mock AppSettings object for testing."""
+    mock = MagicMock(spec=AppSettings)
+
+    # Mock the get method to return values from the config dict
+    def get_side_effect(key: str, default: Any = None) -> Any:
+        keys = key.split(".")
+        value = mock_config_dict
+        try:
+            for k in keys:
+                value = value[k]
+            return value
+        except (KeyError, TypeError):
+            return default
+
+    mock.get.side_effect = get_side_effect
+    return mock
 
 
 @fixture
@@ -143,14 +158,14 @@ def mock_data_handler() -> MagicMock:
 
 @fixture
 def risk_manager(
-    mock_config: Config,
+    mock_config: MagicMock,
     mock_portfolio_tracker: PortfolioTrackerProtocol,
     mock_circuit_breaker_system: CircuitBreakerSystemProtocol,
     mock_funding_validator: FundingRateValidatorProtocol,
 ) -> RiskManager:
     """Create a RiskManager instance with mocked dependencies."""
     rm = RiskManager(
-        config=mock_config,
+        app_settings=mock_config,
         portfolio_tracker=mock_portfolio_tracker,
         circuit_breaker_system=mock_circuit_breaker_system,
         funding_rate_validator=mock_funding_validator,

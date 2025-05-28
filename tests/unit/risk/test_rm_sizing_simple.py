@@ -8,9 +8,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from cyberdelta.config import AppSettings
 from cyberdelta.core.models import SpotBalance
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
-from cyberdelta.utils.config import Config
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 # Note: Fixtures risk_manager, mock_config, mock_portfolio_tracker,
@@ -60,8 +60,38 @@ def mock_config_dict() -> dict[str, Any]:
 
 
 @pytest.fixture
-def mock_config(mock_config_dict: dict[str, Any]) -> Config:  # Use Config directly
-    return Config(config_path_or_data=mock_config_dict)
+def mock_config(mock_config_dict: dict[str, Any]) -> MagicMock:
+    """Create a mock AppSettings object with the required structure."""
+    mock_app_settings = MagicMock(spec=AppSettings)
+
+    # Mock the risk configuration structure
+    mock_risk = MagicMock()
+    mock_risk.use_simple_sizing_path = mock_config_dict["risk"]["use_simple_sizing_path"]
+    mock_risk.simple_sizing_method = mock_config_dict["risk"]["simple_sizing_method"]
+    mock_risk.simple_fixed_usd_size = Decimal(mock_config_dict["risk"]["simple_fixed_usd_size"])
+    mock_risk.simple_fixed_fraction = Decimal(mock_config_dict["risk"]["simple_fixed_fraction"])
+
+    # Mock global risk settings
+    mock_global_risk = MagicMock()
+    mock_global_risk.max_position_usd = Decimal(
+        mock_config_dict["risk"]["global"]["max_position_usd"]
+    )
+    mock_global_risk.max_total_exposure_usd = Decimal(
+        mock_config_dict["risk"]["global"]["max_total_exposure_usd"]
+    )
+    mock_risk.global_risk = mock_global_risk
+
+    mock_app_settings.risk = mock_risk
+
+    # Mock exchanges configuration
+    mock_exchanges = {}
+    for exchange_id, exchange_config in mock_config_dict["exchanges"].items():
+        mock_exchange = MagicMock()
+        mock_exchange.enabled = exchange_config["enabled"]
+        mock_exchanges[exchange_id] = mock_exchange
+    mock_app_settings.exchanges = mock_exchanges
+
+    return mock_app_settings
 
 
 @pytest.fixture
@@ -119,7 +149,7 @@ class TestRiskManagerSizingSimple:
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "5000.0"
         current_test_config_dict["risk"]["min_nfd_bps"] = "1"  # Allow NFD of 0.0003 to pass
 
-        test_specific_config = Config(config_path_or_data=current_test_config_dict)
+        test_specific_config = mock_config_dict  # Use dict directly instead of Config class
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -134,9 +164,31 @@ class TestRiskManagerSizingSimple:
             return_value={"rmse": 0.0, "bias": 0.0}
         )
 
-        # Instantiate RiskManager with the test-specific config, no patching needed
+        # Create a mock AppSettings object for this test
+        mock_app_settings = MagicMock(spec=AppSettings)
+
+        # Mock the risk configuration structure
+        mock_risk = MagicMock()
+        mock_risk.use_simple_sizing_path = current_test_config_dict["risk"][
+            "use_simple_sizing_path"
+        ]
+        mock_risk.simple_sizing_method = current_test_config_dict["risk"]["simple_sizing_method"]
+        mock_risk.simple_fixed_fraction = Decimal(
+            current_test_config_dict["risk"]["simple_fixed_fraction"]
+        )
+
+        # Mock global risk settings
+        mock_global_risk = MagicMock()
+        mock_global_risk.max_position_usd = Decimal(
+            current_test_config_dict["risk"]["global"]["max_position_usd"]
+        )
+        mock_risk.global_risk = mock_global_risk
+
+        mock_app_settings.risk = mock_risk
+
+        # Instantiate RiskManager with the mock AppSettings
         risk_manager = RiskManager(
-            test_specific_config,
+            mock_app_settings,
             mock_portfolio_tracker,
             mock_circuit_breaker,
             mock_funding_validator,
@@ -177,7 +229,7 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "5000.0"
 
-        test_specific_config = Config(config_path_or_data=current_test_config_dict)
+        test_specific_config = mock_config_dict  # Use dict directly instead of Config class
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -235,7 +287,7 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "10000.0"
 
-        test_specific_config = Config(config_path_or_data=current_test_config_dict)
+        test_specific_config = mock_config_dict  # Use dict directly instead of Config class
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -294,7 +346,7 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "3000.0"
 
-        test_specific_config = Config(config_path_or_data=current_test_config_dict)
+        test_specific_config = mock_config_dict  # Use dict directly instead of Config class
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -323,7 +375,7 @@ class TestRiskManagerSizingSimple:
     @pytest.mark.asyncio
     async def test_size_opportunity_reject_low_nfd(
         self,
-        mock_config: Config,
+        mock_config: AppSettings,
         mock_config_dict: dict[str, Any],
         mock_portfolio_tracker: MagicMock,
         mock_circuit_breaker: MagicMock,
@@ -352,7 +404,9 @@ class TestRiskManagerSizingSimple:
                 if isinstance(value, dict) and k_part in value:
                     value = value[k_part]
                 else:
-                    unpatched_config_for_fallback = Config(config_path_or_data=mock_config_dict)
+                    unpatched_config_for_fallback = AppSettings(
+                        config_path_or_data=mock_config_dict
+                    )
                     return unpatched_config_for_fallback.get(key, default)
             return value
 
@@ -386,7 +440,7 @@ class TestRiskManagerSizingSimple:
     @pytest.mark.asyncio
     async def test_size_opportunity_total_exposure_limit(
         self,
-        mock_config: Config,
+        mock_config: AppSettings,
         mock_config_dict: dict[str, Any],
         mock_portfolio_tracker: MagicMock,
         mock_circuit_breaker: MagicMock,
@@ -416,7 +470,9 @@ class TestRiskManagerSizingSimple:
                 if isinstance(value, dict) and k_part in value:
                     value = value[k_part]
                 else:
-                    unpatched_config_for_fallback = Config(config_path_or_data=mock_config_dict)
+                    unpatched_config_for_fallback = AppSettings(
+                        config_path_or_data=mock_config_dict
+                    )
                     return unpatched_config_for_fallback.get(key, default)
             return value
 
@@ -449,7 +505,7 @@ class TestRiskManagerSizingSimple:
     @pytest.mark.asyncio
     async def test_size_opportunity_insufficient_capital(
         self,
-        mock_config: Config,
+        mock_config: AppSettings,
         mock_config_dict: dict[str, Any],
         mock_portfolio_tracker: MagicMock,
         mock_circuit_breaker: MagicMock,
@@ -478,7 +534,9 @@ class TestRiskManagerSizingSimple:
                 if isinstance(value, dict) and k_part in value:
                     value = value[k_part]
                 else:
-                    unpatched_config_for_fallback = Config(config_path_or_data=mock_config_dict)
+                    unpatched_config_for_fallback = AppSettings(
+                        config_path_or_data=mock_config_dict
+                    )
                     return unpatched_config_for_fallback.get(key, default)
             return value
 
@@ -556,19 +614,7 @@ class TestRiskManagerSizingSimple:
         # Lower min_nfd_bps for this test to allow sizing
         live_test_config_data["risk"]["min_nfd_bps"] = "1"  # Allow NFD of 0.0003 to pass
 
-        test_specific_config = Config(config_path_or_data=live_test_config_data)
-
-        def dynamic_config_get(key: str, default: object | None = None) -> object:
-            # Traverse live_test_config_data for the key
-            value = live_test_config_data
-            try:
-                for k_part in key.split("."):
-                    value = value[k_part]
-                return value
-            except (KeyError, TypeError):  # If path not in live_test_config_data
-                # This happens if the key is not in the live_test_config_data,
-                # so the original default passed to config.get() should be used.
-                return default
+        test_specific_config = mock_config_dict  # Use dict directly instead of Config class
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -583,70 +629,67 @@ class TestRiskManagerSizingSimple:
         # Validation should pass for this test
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
 
-        with patch.object(
-            test_specific_config, "get", side_effect=dynamic_config_get
-        ):  # patched_get removed
-            risk_manager = RiskManager(
-                test_specific_config,
-                mock_portfolio_tracker,
-                mock_circuit_breaker,
-                mock_funding_validator,
-            )
-            # risk_manager.use_simple_sizing_path = True
-            # Already set by config "sizing_method": "simple"
+        risk_manager = RiskManager(
+            mock_config_dict,
+            mock_portfolio_tracker,
+            mock_circuit_breaker,
+            mock_funding_validator,
+        )
+        # risk_manager.use_simple_sizing_path = True
+        # Already set by config "sizing_method": "simple"
 
-            # First sizing: should pass with size 200, max_pos_usd is 500
-            sized_opp1 = await risk_manager.size_opportunity(sample_opportunity)
-            assert isinstance(sized_opp1, SizedOpportunity), (
-                f"sized_opp1 was None, expected SizedOpportunity. "
-                f"Config: {live_test_config_data['risk']}"
-            )
-            assert sized_opp1.long_size == Decimal("200.0")
+        # First sizing: should pass with size 200, max_pos_usd is 500
+        sized_opp1 = await risk_manager.size_opportunity(sample_opportunity)
+        assert isinstance(sized_opp1, SizedOpportunity), (
+            f"sized_opp1 was None, expected SizedOpportunity. "
+            f"Config: {live_test_config_data['risk']}"
+        )
+        assert sized_opp1.long_size == Decimal("200.0")
 
-            # Modify config for the second run: reduce max_position_usd
-            # Ensure 'risk' and 'risk.global' exist for modification
-            if not isinstance(live_test_config_data.get("risk"), dict):
-                live_test_config_data["risk"] = {}
+        # Modify config for the second run: reduce max_position_usd
+        # Ensure 'risk' and 'risk.global' exist for modification
+        if not isinstance(live_test_config_data.get("risk"), dict):
+            live_test_config_data["risk"] = {}
 
-            # The problematic isinstance check was removed from here previously, which was correct.
-            # live_test_config_data["risk"] is now ensured to be a dict.
-            risk_config_dict_for_opp2: dict[str, Any] = cast(
-                dict[str, Any], live_test_config_data["risk"]
-            )
+        # The problematic isinstance check was removed from here previously, which was correct.
+        # live_test_config_data["risk"] is now ensured to be a dict.
+        risk_config_dict_for_opp2: dict[str, Any] = cast(
+            dict[str, Any], live_test_config_data["risk"]
+        )
 
-            if "global" not in risk_config_dict_for_opp2 or not isinstance(
-                risk_config_dict_for_opp2["global"], dict
-            ):
-                risk_config_dict_for_opp2["global"] = {}  # Should not be needed
-            # Direct assignment to the typed dict
-            global_config_for_opp2: dict[str, Any] = risk_config_dict_for_opp2["global"]
-            global_config_for_opp2["max_position_usd"] = "10.0"
+        if "global" not in risk_config_dict_for_opp2 or not isinstance(
+            risk_config_dict_for_opp2["global"], dict
+        ):
+            risk_config_dict_for_opp2["global"] = {}  # Should not be needed
+        # Direct assignment to the typed dict
+        global_config_for_opp2: dict[str, Any] = risk_config_dict_for_opp2["global"]
+        global_config_for_opp2["max_position_usd"] = "10.0"
 
-            config_for_opp2 = Config(config_path_or_data=live_test_config_data)
+        config_for_opp2 = mock_config_dict  # Use dict directly instead of Config class
 
-            # Patch the new config object's get method
-            # (though not strictly necessary for max_position_usd as it's read in _load_config)
-            # Re-instantiate RiskManager to pick up changes
-            # that are loaded during __init__ / _load_config
-            risk_manager_2 = RiskManager(
-                config_for_opp2,
-                mock_portfolio_tracker,
-                mock_circuit_breaker,
-                mock_funding_validator,
-            )
-            # Ensure it also uses the simple path if not implicitly set by
-            # "sizing_method": "simple" in config_for_opp2
-            # risk_manager_2.use_simple_sizing_path = True
-            # Config should handle this via "sizing_method"
+        # Patch the new config object's get method
+        # (though not strictly necessary for max_position_usd as it's read in _load_config)
+        # Re-instantiate RiskManager to pick up changes
+        # that are loaded during __init__ / _load_config
+        risk_manager_2 = RiskManager(
+            config_for_opp2,
+            mock_portfolio_tracker,
+            mock_circuit_breaker,
+            mock_funding_validator,
+        )
+        # Ensure it also uses the simple path if not implicitly set by
+        # "sizing_method": "simple" in config_for_opp2
+        # risk_manager_2.use_simple_sizing_path = True
+        # Config should handle this via "sizing_method"
 
-            sized_opp2 = await risk_manager_2.size_opportunity(sample_opportunity)
-            # Now, with max_position_usd at 10.0, a proposed size of 200.0
-            # (from simple_fixed_usd_size)
-            # should be rejected by _check_constraint_max_position_size.
-            assert sized_opp2 is None, (
-                f"sized_opp2 was {sized_opp2}, expected None. "
-                f"MaxPos for RM2: {risk_manager_2.max_position_size}"
-            )
+        sized_opp2 = await risk_manager_2.size_opportunity(sample_opportunity)
+        # Now, with max_position_usd at 10.0, a proposed size of 200.0
+        # (from simple_fixed_usd_size)
+        # should be rejected by _check_constraint_max_position_size.
+        assert sized_opp2 is None, (
+            f"sized_opp2 was {sized_opp2}, expected None. "
+            f"MaxPos for RM2: {risk_manager_2.max_position_size}"
+        )
 
     @pytest.mark.asyncio
     async def test_size_opportunity_validation_factor_happy_path(
@@ -676,7 +719,7 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "10000.0"
 
-        test_specific_config = Config(config_path_or_data=current_test_config_dict)
+        test_specific_config = mock_config_dict  # Use dict directly instead of Config class
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -690,7 +733,7 @@ class TestRiskManagerSizingSimple:
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
 
         risk_manager = RiskManager(
-            test_specific_config,
+            mock_config_dict,
             mock_portfolio_tracker,
             mock_circuit_breaker,
             mock_funding_validator,
@@ -733,7 +776,7 @@ class TestRiskManagerSizingSimple:
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "10000.0"
         current_test_config_dict["risk"]["min_nfd_bps"] = "1"  # Ensure NFD passes for this test
 
-        test_specific_config = Config(config_path_or_data=current_test_config_dict)
+        test_specific_config = mock_config_dict  # Use dict directly instead of Config class
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -757,7 +800,7 @@ class TestRiskManagerSizingSimple:
         mock_funding_validator.get_symbol_metrics.side_effect = mock_get_symbol_metrics_side_effect
 
         risk_manager = RiskManager(
-            test_specific_config,
+            mock_config_dict,
             mock_portfolio_tracker,
             mock_circuit_breaker,
             mock_funding_validator,

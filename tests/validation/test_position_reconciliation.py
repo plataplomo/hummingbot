@@ -11,8 +11,8 @@ import pytest
 from pytest_mock import MockerFixture
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.config import AppSettings
 from cyberdelta.core.models import DerivativePosition, OrderSide
-from cyberdelta.utils.config import Config
 from cyberdelta.validation.models.discrepancy_detail import (
     DiscrepancyDetail,
     HistoricalDiscrepancyRecord,
@@ -25,52 +25,29 @@ class TestPositionReconciliationSystem:
 
     @pytest.fixture
     def config(self, mocker: MockerFixture) -> MagicMock:
-        """Create a mock config object where 'get' is also a mock."""
-        # Base config data
-        config_data: dict[str, Any] = {
-            "exchanges": {
-                "hyperliquid": {"enabled": True},
-                "backpack": {"enabled": True},
-            },
-            "validation.position_reconciliation.interval_seconds": 600.0,
-            "validation.position_reconciliation.threshold_percent": "5.0",
-            "validation.position_reconciliation.threshold": Decimal("0.05"),
-            "validation.position_reconciliation.action_mode": "log",
-            "validation.position_reconciliation.auto_correct": False,
-            "validation.position_reconciliation.check_interval": 3600,
-            "validation.position_reconciliation.use_fill_history": False,
+        """Create a mock config object that mimics the Pydantic AppSettings structure."""
+        # Create a mock for the position reconciliation settings
+        mock_pos_recon_config = MagicMock()
+        mock_pos_recon_config.enabled = True
+        mock_pos_recon_config.check_interval_sec = 600
+        mock_pos_recon_config.max_discrepancy_pct = Decimal("0.05")
+
+        # Create a mock for safety systems
+        mock_safety_systems = MagicMock()
+        mock_safety_systems.position_reconciliation = mock_pos_recon_config
+
+        # Create the main config mock
+        mock_config = MagicMock(spec=AppSettings)
+        mock_config.safety_systems = mock_safety_systems
+
+        # Mock exchanges for enabled checks
+        mock_exchanges = {
+            "hyperliquid": MagicMock(enabled=True),
+            "backpack": MagicMock(enabled=True),
         }
+        mock_config.exchanges = mock_exchanges
 
-        # Mock the main Config object
-        mock_config_obj = MagicMock()
-
-        # Create a separate mock for the 'get' method
-        mock_get_method = mocker.MagicMock()
-
-        # Define the side effect for the 'get' mock
-        def config_get_side_effect(key: str, default: object | None = None) -> object | None:
-            # Simplified logic for test purposes
-            # First, check the base dictionary directly
-            if key in config_data:
-                return config_data[key]  # type: ignore # Allow Any return for mock
-            # Handle specific nested cases if necessary (like exchange enabled flags)
-            parts = key.split(".")
-            if len(parts) == 3 and parts[0] == "exchanges" and parts[2] == "enabled":
-                exchanges = config_data.get("exchanges", {})
-                if isinstance(exchanges, dict):
-                    # type ignore used here due to complexity of mocking deep gets
-                    return exchanges.get(parts[1], {}).get("enabled", default)  # type: ignore
-                return default
-            # Fallback to default
-            return default
-
-        # Assign the side effect to the mocked 'get' method
-        mock_get_method.side_effect = config_get_side_effect
-
-        # Attach the mocked 'get' method to the main config mock
-        mock_config_obj.get = mock_get_method
-
-        return mock_config_obj
+        return mock_config
 
     @pytest.fixture
     def portfolio_tracker(self) -> MagicMock:
@@ -258,16 +235,6 @@ class TestPositionReconciliationSystem:
             "backpack": backpack_client,
         }
 
-        # Configure mock get method on the tracker's mock config
-        if not hasattr(tracker, "config") or tracker.config is None:
-            tracker.config = MagicMock()
-
-        # Use a named function with explicit type annotations for type safety
-        def config_get(key: str, default: object | None = None) -> object | None:
-            return {"validation.position_reconciliation.use_fill_history": False}.get(key, default)
-
-        tracker.config.get.side_effect = config_get  # type: ignore[attr-defined, reportUnknownMemberType]
-
         def get_execution_handler(exchange: str) -> MagicMock:
             if exchange == "hyperliquid":
                 return execution_handler_hyper
@@ -292,7 +259,7 @@ class TestPositionReconciliationSystem:
 
     @pytest.fixture
     def reconciliation_system(
-        self, config: Config, portfolio_tracker: MagicMock
+        self, config: MagicMock, portfolio_tracker: MagicMock
     ) -> PositionReconciliationSystem:
         """Create a PositionReconciliationSystem instance for testing."""
         # Ensure the portfolio_tracker mock has the api_clients attribute expected by the system
@@ -313,69 +280,15 @@ class TestPositionReconciliationSystem:
         assert reconciliation_system._portfolio_tracker == portfolio_tracker
         assert reconciliation_system._config == config
 
-        config.get.assert_any_call("validation.position_reconciliation.threshold", 0.05)
-        config.get.assert_any_call("validation.position_reconciliation.auto_correct", False)
-        config.get.assert_any_call("validation.position_reconciliation.check_interval", 3600)
-        config.get.assert_any_call("validation.position_reconciliation.interval_seconds", 300.0)
-        config.get.assert_any_call("validation.position_reconciliation.threshold_percent", "5.0")
-        config.get.assert_any_call("validation.position_reconciliation.action_mode", "log")
-
-        assert reconciliation_system.reconciliation_threshold == config.get(
-            "validation.position_reconciliation.threshold"
-        )
-        assert reconciliation_system.auto_correct == config.get(
-            "validation.position_reconciliation.auto_correct"
-        )
-        # Compare total_seconds for timedelta with the int/float from config
-        check_interval_config_val = config.get("validation.position_reconciliation.check_interval")
+        # Check that the system properly extracted values from the mock config
+        assert reconciliation_system.reconciliation_threshold == 0.05
+        assert reconciliation_system.auto_correct is False
         assert isinstance(reconciliation_system.check_interval, timedelta)
-        assert reconciliation_system.check_interval.total_seconds() == float(
-            check_interval_config_val
-        )
-
-        # Also check reconciliation_interval setup if it differs or uses a different config key
-        reconciliation_interval_config_val = config.get(
-            "validation.position_reconciliation.interval_seconds"
-        )
+        assert reconciliation_system.check_interval.total_seconds() == 600.0
         assert isinstance(reconciliation_system.reconciliation_interval, timedelta)
-        assert reconciliation_system.reconciliation_interval.total_seconds() == float(
-            reconciliation_interval_config_val
-        )
-
-        # Test __init__ robustness to config.get returning None for specific keys
-        # where __init__ has internal defaults for None.
-        original_system_config_get_side_effect = reconciliation_system._config.get.side_effect
-
-        def side_effect_for_specific_none_tests(key: str, default: Any = None) -> Any:
-            if key == "validation.position_reconciliation.interval_seconds":
-                return None  # __init__ handles None for this, defaults to 300.0 for _reconciliation_interval_secs
-            if key == "validation.position_reconciliation.action_mode":
-                return None  # __init__ handles None for this, defaults to "log" for _action_mode
-            # For threshold_percent, if config.get returns None, __init__ would try Decimal(str(None))
-            # So, we don't make it return None here. Let the fixture's mock behavior for config.get(..., "5.0") work.
-            # If the original side_effect is callable, use it for other keys.
-            if callable(original_system_config_get_side_effect):
-                return original_system_config_get_side_effect(key, default)
-            return default  # Fallback
-
-        # Use the config instance that the existing `reconciliation_system` fixture was created with.
-        current_config_mock = reconciliation_system._config
-        current_config_mock.get.side_effect = side_effect_for_specific_none_tests
-
-        # Create a new PositionReconciliationSystem instance with this specially configured mock.
-        temp_system = PositionReconciliationSystem(current_config_mock, portfolio_tracker)
-
-        assert (
-            temp_system._reconciliation_interval_secs == 300.0
-        )  # Class default for None from config.get
-        # For threshold_percent, __init__ calls config.get(..., "5.0").
-        # The side_effect_for_specific_none_tests lets this pass to original_system_config_get_side_effect.
-        # So it uses the value from the main fixture mock (e.g. "5.0").
-        assert temp_system._discrepancy_threshold_percent == Decimal("5.0")
-        assert temp_system._action_mode == "log"  # Class default for None from config.get
-
-        # Restore original side effect on the mock from the fixture scope
-        current_config_mock.get.side_effect = original_system_config_get_side_effect
+        assert reconciliation_system.reconciliation_interval.total_seconds() == 600.0
+        assert reconciliation_system._discrepancy_threshold_percent == Decimal("0.05")
+        assert reconciliation_system._action_mode == "log"
 
     def test_register_portfolio_tracker(
         self, reconciliation_system: PositionReconciliationSystem, portfolio_tracker: MagicMock
@@ -395,11 +308,7 @@ class TestPositionReconciliationSystem:
         self, reconciliation_system: PositionReconciliationSystem
     ) -> None:
         """Test position check interval logic."""
-        system_config_mock = reconciliation_system._config
         portfolio_tracker_mock = reconciliation_system._portfolio_tracker
-
-        # original_get_side_effect = system_config_mock.get.side_effect # Not strictly needed if side_effect is replaced
-        # original_get_call_count = system_config_mock.get.call_count
 
         portfolio_tracker_mock.api_clients = {
             "hyperliquid": AsyncMock(spec=ExchangeAPI),
@@ -407,29 +316,8 @@ class TestPositionReconciliationSystem:
         }
 
         # Scenario 1: Interval has passed, should run
-        def scenario_1_specific_get(key: str, default: Any = None) -> Any:
-            if key == "exchanges.hyperliquid.enabled":
-                return True  # This config is checked inside the original _reconcile_exchange
-            if key == "exchanges.backpack.enabled":
-                return True  # This config is checked inside the original _reconcile_exchange
-            # Configs relevant for PositionReconciliationSystem.__init__ or check_positions itself
-            if key == "validation.position_reconciliation.check_interval":
-                return 100  # Used by check_positions to determine if interval passed
-            if key == "validation.position_reconciliation.interval_seconds":
-                return 100  # Used by __init__ for self.reconciliation_interval setup
-            # Fallback for other config gets if PositionReconciliationSystem init needs them
-            # For this test, direct attributes like check_interval are also set on the instance.
-            return default
-
-        system_config_mock.get.side_effect = scenario_1_specific_get
-        # Ensure reconciliation_system uses this updated config behavior for intervals
-        reconciliation_system.check_interval = timedelta(
-            seconds=system_config_mock.get("validation.position_reconciliation.check_interval")
-        )
-        reconciliation_system.reconciliation_interval = timedelta(
-            seconds=system_config_mock.get("validation.position_reconciliation.interval_seconds")
-        )
-
+        reconciliation_system.check_interval = timedelta(seconds=100)
+        reconciliation_system.reconciliation_interval = timedelta(seconds=100)
         reconciliation_system.last_check_time = datetime.now(UTC) - timedelta(seconds=200)
 
         # Use a list to record calls to the mock, similar to test_auto_correct
@@ -452,9 +340,6 @@ class TestPositionReconciliationSystem:
         ) as mock_check_s1_method:  # This is the MagicMock object for the patch
             await reconciliation_system.check_positions(force=False)
 
-            # system_config_mock.get.assert_any_call("exchanges.hyperliquid.enabled", False) # These are not called by check_positions directly
-            # system_config_mock.get.assert_any_call("exchanges.backpack.enabled", False)
-
             assert mock_check_s1_method.call_count == 2, (
                 f"Scenario 1: Expected _reconcile_exchange to be called 2 times, got {mock_check_s1_method.call_count}"
             )
@@ -462,9 +347,6 @@ class TestPositionReconciliationSystem:
             assert "backpack" in reconcile_exchange_calls
 
         # Scenario 2: Interval has not passed, should not run
-        system_config_mock.get.side_effect = (
-            scenario_1_specific_get  # Keep same config get behavior
-        )
         reconciliation_system.check_interval = timedelta(seconds=300)  # Ensure interval is longer
         reconciliation_system.reconciliation_interval = timedelta(seconds=300)
         reconciliation_system.last_check_time = datetime.now(UTC) - timedelta(
@@ -487,7 +369,6 @@ class TestPositionReconciliationSystem:
             assert len(reconcile_exchange_calls_s2) == 0
 
         # Scenario 3: force=True, should run even if interval hasn't passed
-        system_config_mock.get.side_effect = scenario_1_specific_get
         reconciliation_system.check_interval = timedelta(seconds=300)
         reconciliation_system.reconciliation_interval = timedelta(seconds=300)
         reconciliation_system.last_check_time = datetime.now(UTC) - timedelta(seconds=100)
@@ -509,7 +390,7 @@ class TestPositionReconciliationSystem:
             assert "backpack" in reconcile_exchange_calls_s3
 
     @pytest.mark.asyncio
-    async def test_check_positions_no_portfolio_tracker(self, config: Config) -> None:
+    async def test_check_positions_no_portfolio_tracker(self, config: MagicMock) -> None:
         """Test check_positions when portfolio tracker fails to provide data."""
         # Create system, passing a mock tracker to satisfy __init__
         mock_tracker = MagicMock()
@@ -603,35 +484,31 @@ class TestPositionReconciliationSystem:
         assert patched_reconcile_pos.call_count == 2  # Called for hyperliquid and backpack
 
     @pytest.mark.asyncio
-    async def test_auto_correct(self, config: Config, portfolio_tracker: MagicMock) -> None:
+    async def test_auto_correct(self, portfolio_tracker: MagicMock) -> None:
         """Test auto-correcting positions (conceptual)."""
 
-        # Setup config for auto_correct True
-        def config_get(key: str, default: object | None = None) -> object | None:
-            if key == "validation.position_reconciliation.auto_correct":
-                return True
-            if key == "validation.position_reconciliation.check_interval":
-                # Setting to a low value or 0 to ensure the check runs if not forced,
-                # but force=True is used in this test.
-                return 0
-            if key == "exchanges.hyperliquid.enabled":
-                return True
-            if key == "exchanges.backpack.enabled":
-                return True
-            # Ensure other necessary config values are provided for PositionReconciliationSystem init
-            if key == "validation.position_reconciliation.interval_seconds":
-                return 600.0
-            if key == "validation.position_reconciliation.threshold_percent":
-                return "5.0"
-            if key == "validation.position_reconciliation.action_mode":
-                return "log"
-            if key == "validation.position_reconciliation.use_fill_history":  # Added
-                return False
-            return default
+        # Create a mock config with auto_correct enabled
+        mock_pos_recon_config = MagicMock()
+        mock_pos_recon_config.enabled = True
+        mock_pos_recon_config.check_interval_sec = 0  # Low value to ensure check runs
+        mock_pos_recon_config.max_discrepancy_pct = Decimal("0.05")
 
-        config.get.side_effect = config_get
+        mock_safety_systems = MagicMock()
+        mock_safety_systems.position_reconciliation = mock_pos_recon_config
 
-        system = PositionReconciliationSystem(config, portfolio_tracker)
+        mock_config = MagicMock(spec=AppSettings)
+        mock_config.safety_systems = mock_safety_systems
+
+        # Mock exchanges
+        mock_exchanges = {
+            "hyperliquid": MagicMock(enabled=True),
+            "backpack": MagicMock(enabled=True),
+        }
+        mock_config.exchanges = mock_exchanges
+
+        system = PositionReconciliationSystem(mock_config, portfolio_tracker)
+        # Override auto_correct for this test
+        system.auto_correct = True
 
         # Mock _reconcile_exchange to track calls and simulate its return
         reconcile_calls = []

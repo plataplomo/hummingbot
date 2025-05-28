@@ -2,7 +2,6 @@ import asyncio
 import logging  # Import logging
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
-from datetime import datetime as dt_real  # ADDED dt_real import
 from decimal import Decimal
 from typing import Any, cast
 
@@ -17,7 +16,7 @@ from cyberdelta.apis.models.api_error import (  # Import APIError for test_faile
 from cyberdelta.apis.models.api_error_codes import (  # Corrected import
     APIErrorCode,
 )
-from cyberdelta.config.config_manager import ConfigManager  # Added import
+from cyberdelta.config import AppSettings  # Updated import
 from cyberdelta.config.logging_config import get_logger
 
 # from cyberdelta.apis.base import APIErrorCode, ExchangeAPI # Removed unused import
@@ -48,7 +47,8 @@ from cyberdelta.core.risk_manager import (
 )
 from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.symbol_mapper import SymbolMapper
-from cyberdelta.utils.config import Config  # Assuming Config class is used
+
+# from cyberdelta.utils.config import Config  # Removed - using new AppSettings system
 from cyberdelta.validation.funding_data import ArbitrageOpportunity  # Added Import
 
 # Mocks & Config
@@ -327,161 +327,113 @@ def mock_config_dict() -> dict[str, Any]:
 
 
 @pytest.fixture
-def mock_config(mock_config_dict: dict[str, Any], mocker: MockerFixture) -> ConfigManager:
-    """Provides a mock ConfigManager instance for integration tests."""
-    manager = ConfigManager()
+def mock_config(mock_config_dict: dict[str, Any], mocker: MockerFixture) -> AppSettings:
+    """Provides a mock AppSettings instance for integration tests."""
+    # Use the existing mock_config fixture from conftest.py which properly creates AppSettings
+    # Import the fixture function and call it
+    from tests.conftest import mock_config as base_mock_config
 
-    def mock_get_side_effect(key: str, default: Any = None) -> Any:
-        try:
-            keys_list = key.split(".")
-            current_value = mock_config_dict
-            for k_part in keys_list:
-                if isinstance(current_value, dict):
-                    current_value = current_value[k_part]
-                else:
-                    raise KeyError(
-                        f"Key part '{k_part}' implies further nesting, but value is not a dict."
-                    )
-            return current_value
-        except KeyError:
-            if default is not None:
-                return default
-            raise KeyError(
-                f"Full key '{key}' not found in mock_config_dict config and no default provided."
-            ) from None
-        except Exception as e:
-            # Using the module-level logger if `logger` is defined in this file scope
-            # If not, import logging and use logging.error
-            # For now, assuming `logger` is available as per previous context
-            logger.error(f"Unexpected error accessing key '{key}' in mock_config: {e}")
-            if default is not None:
-                return default
-            raise
-
-    mocker.patch.object(manager, "get", side_effect=mock_get_side_effect)
-    return manager
+    return base_mock_config()
 
 
 @pytest.fixture
-def mock_secrets() -> dict[str, dict[str, str]]:
-    """Provides dummy secrets (using placeholders)."""
+def mock_secrets() -> dict[str, dict[str, str | None]]:
+    """Provides mock secrets for integration tests."""
     return {
-        "mock_hl": {"api_key": "hl_key", "api_secret": "hl_secret"},
-        "mock_bp": {"api_key": "bp_key", "api_secret": "bp_secret"},
+        "mock_hl": {"api_key": "test_hl_key", "api_secret": "test_hl_secret"},
+        "mock_bp": {"api_key": "test_bp_key", "api_secret": "test_bp_secret"},
     }
 
 
 @pytest.fixture
-def mock_hl_api(mock_config: Config, mock_secrets: dict[str, dict[str, str]]) -> MockExchangeAPI:
+def mock_hl_api(
+    mock_config: AppSettings, mock_secrets: dict[str, dict[str, str | None]]
+) -> MockExchangeAPI:
     """Instantiate the actual Mock API for Hyperliquid."""
-    # Provide default {} and cast config
-    exchange_config = cast(
-        dict[str, Any], _deep_get(mock_config.config_data, "exchanges.mock_hl", default={}) or {}
-    )
-    # Access secrets directly and cast
-    secrets_raw = mock_secrets.get("mock_hl", {})
-    secrets_typed = cast(dict[str, str | None], secrets_raw)  # Explicit cast
-    api_mock = MockExchangeAPI(
+    # Use empty dict for exchange config since it's a mock
+    exchange_config: dict[str, Any] = {}
+
+    return MockExchangeAPI(
         exchange_name="mock_hl",
         config=exchange_config,
-        secrets=secrets_typed,  # Pass the casted dict
+        secrets=mock_secrets["mock_hl"],
         config_obj=mock_config,
     )
-    return api_mock
 
 
 @pytest.fixture
-def mock_bp_api(mock_config: Config, mock_secrets: dict[str, dict[str, str]]) -> MockExchangeAPI:
+def mock_bp_api(
+    mock_config: AppSettings, mock_secrets: dict[str, dict[str, str | None]]
+) -> MockExchangeAPI:
     """Instantiate the actual Mock API for Backpack."""
-    exchange_config = cast(
-        dict[str, Any], _deep_get(mock_config.config_data, "exchanges.mock_bp", default={}) or {}
-    )
-    # Access secrets directly and cast
-    secrets_raw = mock_secrets.get("mock_bp", {})
-    secrets_typed = cast(dict[str, str | None], secrets_raw)  # Explicit cast
-    api_mock = MockExchangeAPI(
+    # Use empty dict for exchange config since it's a mock
+    exchange_config: dict[str, Any] = {}
+
+    return MockExchangeAPI(
         exchange_name="mock_bp",
         config=exchange_config,
-        secrets=secrets_typed,  # Pass the casted dict
+        secrets=mock_secrets["mock_bp"],
         config_obj=mock_config,
     )
-    return api_mock
 
 
 @pytest.fixture
 def portfolio_tracker(
-    mock_config: Config, mock_hl_api: MockExchangeAPI, mock_bp_api: MockExchangeAPI
+    mock_config: AppSettings, mock_hl_api: MockExchangeAPI, mock_bp_api: MockExchangeAPI
 ) -> PortfolioTracker:
     """Portfolio Tracker instance with APIs registered."""
-    pt = PortfolioTracker(mock_config)
-    # --- REGISTER APIs ---
-    pt.register_api_client("mock_hl", mock_hl_api)
-    pt.register_api_client("mock_bp", mock_bp_api)
-    # -------------------
-    # Use reset() in tests needing clean state
-    return pt
+    tracker = PortfolioTracker(app_settings=mock_config)
+    tracker.register_api_client("mock_hl", mock_hl_api)
+    tracker.register_api_client("mock_bp", mock_bp_api)
+    return tracker
 
 
 @pytest.fixture
 def data_handler(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     symbol_mapper: SymbolMapper,
     mocker: MockerFixture,
 ) -> DataHandler:
-    """Provides a DataHandler instance for integration tests, with a mockable clock."""
-    mock_clock = mocker.MagicMock(spec=dt_real.now)  # Create a mock clock
-
-    # Pass the mock_clock to the DataHandler constructor
-    # Assuming ExchangeAPI instances are correctly passed as a dict
-    api_clients = {
-        mock_hl_api.exchange_name: mock_hl_api,
-        mock_bp_api.exchange_name: mock_bp_api,
-    }
-    dh = DataHandler(
-        config=mock_config,
-        api_clients=api_clients,
-        portfolio_tracker=mocker.MagicMock(
-            spec=PortfolioTracker
-        ),  # Mock PortfolioTracker if not used directly
-        symbol_mapper=symbol_mapper,
-        clock=mock_clock,  # Inject the mock clock
+    """Data Handler instance with mock APIs registered."""
+    api_clients = cast(
+        dict[str, Any],
+        {
+            "mock_hl": mock_hl_api,
+            "mock_bp": mock_bp_api,
+        },
     )
-    # Store the mock_clock on the instance for tests to set its return_value
-    dh.mock_clock = mock_clock  # type: ignore[attr-defined]
+    # Create a mock portfolio tracker for DataHandler
+    mock_portfolio_tracker = mocker.MagicMock()
+
+    dh = DataHandler(
+        app_settings=mock_config,
+        api_clients=api_clients,
+        portfolio_tracker=mock_portfolio_tracker,
+        symbol_mapper=symbol_mapper,
+    )
     return dh
 
 
 @pytest.fixture
-def symbol_mapper(mock_config: Config) -> SymbolMapper:
+def symbol_mapper(mock_config: AppSettings) -> SymbolMapper:
     """Provides a SymbolMapper instance initialized with the mock config."""
-    # Ensure config_data is accessed correctly if mock_config is a MagicMock
-    exchanges_config_raw = mock_config.get("exchanges", {})
-    # Provide a default empty dict if get returns None or not a dict
-    exchanges_config: dict[str, dict[str, Any]]  # ADDED explicit type
-    if not isinstance(exchanges_config_raw, dict):
-        exchanges_config = {}
-    else:
-        # We need to ensure the inner dictionaries are also correctly typed if possible,
-        # or at least signal that their values are Any.
-        # For SymbolMapper, it expects something like dict[str, dict[str, str]] for symbols
-        # This cast assumes the structure is generally correct but values might be Any.
-        exchanges_config = cast(dict[str, dict[str, Any]], exchanges_config_raw)
-
-    return SymbolMapper(exchanges_config)
+    # For AppSettings, provide empty dict for exchanges config since SymbolMapper expects dict
+    config_data_for_mapper: dict[str, Any] = {}
+    return SymbolMapper(config_data_for_mapper)
 
 
 @pytest.fixture
 def signal_generator(
-    mock_config: Config, data_handler: DataHandler, symbol_mapper: SymbolMapper
+    mock_config: AppSettings, data_handler: DataHandler, symbol_mapper: SymbolMapper
 ) -> SignalGenerator:
     """Signal Generator instance."""
     return SignalGenerator(mock_config, data_handler, symbol_mapper)
 
 
 @pytest.fixture
-def risk_manager(mock_config: Config, portfolio_tracker: PortfolioTracker) -> RiskManager:
+def risk_manager(mock_config: AppSettings, portfolio_tracker: PortfolioTracker) -> RiskManager:
     """Risk Manager instance."""
     pt_protocol = cast(PortfolioTrackerProtocol, portfolio_tracker)
     return RiskManager(mock_config, pt_protocol)
@@ -489,7 +441,7 @@ def risk_manager(mock_config: Config, portfolio_tracker: PortfolioTracker) -> Ri
 
 @pytest.fixture
 def execution_handler(
-    mock_config: Config,
+    mock_config: AppSettings,
     portfolio_tracker: PortfolioTracker,
     symbol_mapper: SymbolMapper,
     mock_hl_api: MockExchangeAPI,
@@ -507,7 +459,7 @@ def execution_handler(
 
 @pytest.mark.asyncio
 async def test_happy_path_full_cycle(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     portfolio_tracker: PortfolioTracker,
@@ -792,9 +744,7 @@ async def test_happy_path_full_cycle(
     assert sized_opportunity.short_size > 0
     assert sized_opportunity.long_size == sized_opportunity.short_size  # Should be delta neutral
     # Check against max position size config
-    max_size_usd_str = mock_config.get("risk.global.max_position_usd")  # Get from correct path
-    assert max_size_usd_str is not None, "max_position_usd not found in config"
-    max_size_usd = Decimal(str(max_size_usd_str))
+    max_size_usd = mock_config.risk.global_risk.max_position_usd
 
     assert sized_opportunity.long_size <= max_size_usd, "Long size exceeds max position size"
     assert sized_opportunity.short_size <= max_size_usd, "Short size exceeds max position size"
@@ -876,7 +826,7 @@ async def test_happy_path_full_cycle(
 # --- test_api_error_during_placement needs significant rework ---
 @pytest.mark.asyncio
 async def test_api_error_during_placement(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     data_handler: DataHandler,
@@ -895,7 +845,7 @@ async def test_api_error_during_placement(
 # --- test_insufficient_balance needs rework ---
 @pytest.mark.asyncio
 async def test_insufficient_balance(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     data_handler: DataHandler,
@@ -912,7 +862,7 @@ async def test_insufficient_balance(
 
 @pytest.mark.asyncio
 async def test_partial_fill(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     data_handler: DataHandler,
@@ -930,8 +880,8 @@ async def test_partial_fill(
     # --- Setup Mock Data ---
     now = datetime.now(UTC)
     symbol_key = "BTC"
-    hl_symbol = str(mock_config.get(f"exchanges.mock_hl.symbols.{symbol_key}"))  # Cast
-    bp_symbol = str(mock_config.get(f"exchanges.mock_bp.symbols.{symbol_key}"))  # Cast
+    hl_symbol = "BTC-PERP"  # Use hardcoded symbols for mock tests
+    bp_symbol = "BTC_USDC"  # Use hardcoded symbols for mock tests
     mock_hl_api.reset()
     mock_bp_api.reset()
     # Re-initialize portfolio tracker state for this test
@@ -1322,7 +1272,7 @@ async def test_partial_fill(
 
 @pytest.mark.asyncio
 async def test_execution_failure_compensation(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     data_handler: DataHandler,
@@ -1340,8 +1290,8 @@ async def test_execution_failure_compensation(
     # --- Setup Mock Data ---
     now = datetime.now(UTC)
     symbol_key = "ETH"
-    hl_symbol = str(mock_config.get(f"exchanges.mock_hl.symbols.{symbol_key}"))  # Cast
-    bp_symbol = str(mock_config.get(f"exchanges.mock_bp.symbols.{symbol_key}"))  # Cast
+    hl_symbol = "BTC-PERP"  # Use hardcoded symbols for mock tests
+    bp_symbol = "BTC_USDC"  # Use hardcoded symbols for mock tests
     # short_order_id_hl = ( # REMOVE - Unused variable
     #     "hl_short_for_comp_test"  # Define short_order_id_hl for
     #     # test_execution_failure_compensation
@@ -1758,7 +1708,7 @@ async def test_execution_failure_compensation(
 
 @pytest.mark.asyncio
 async def test_failed_execution(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     portfolio_tracker: PortfolioTracker,
@@ -1776,8 +1726,8 @@ async def test_failed_execution(
     # --- Setup Mock Data ---
     now = datetime.now(UTC)
     symbol_key = "ETH"
-    hl_symbol = str(mock_config.get(f"exchanges.mock_hl.symbols.{symbol_key}"))  # Cast
-    bp_symbol = str(mock_config.get(f"exchanges.mock_bp.symbols.{symbol_key}"))  # Cast
+    hl_symbol = "BTC-PERP"  # Use hardcoded symbols for mock tests
+    bp_symbol = "BTC_USDC"  # Use hardcoded symbols for mock tests
     # short_order_id_hl = ( # REMOVE - Unused variable
     #     "hl_short_for_comp_test"  # Define short_order_id_hl for
     #     # test_execution_failure_compensation

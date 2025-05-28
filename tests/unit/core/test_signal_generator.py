@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from cyberdelta.config.config_models import AppSettings
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models import (
     FundingRate,
@@ -23,7 +24,6 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.symbol_mapper import SymbolMapper
-from cyberdelta.utils.config import Config
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 logger = logging.getLogger(__name__)
@@ -60,9 +60,9 @@ class TestSignalGenerator:
         }
 
     @pytest.fixture
-    def config(self, mock_config_dict: dict[str, Any]) -> MagicMock:
-        """Create a mock config for testing."""
-        mock_config = MagicMock(spec=Config)
+    def config(self, test_app_settings: "AppSettings") -> MagicMock:
+        """Create a mock config for testing using the new AppSettings."""
+        mock_config = MagicMock()
 
         # Define side effect using nested function with type hints
         def config_get_side_effect(key: str, default: object | None = None) -> object | None:
@@ -72,8 +72,32 @@ class TestSignalGenerator:
                 if base == "exchanges" and len(parts) > 2:
                     exchange = parts[1]
                     prop = parts[2]
-                    return mock_config_dict.get(base, {}).get(exchange, {}).get(prop, default)
-            return mock_config_dict.get(key, default)
+                    # Use the test_app_settings exchanges configuration
+                    exchanges = test_app_settings.exchanges
+                    if exchange in exchanges:
+                        exchange_config = exchanges[exchange]
+                        if prop == "enabled":
+                            return exchange_config.enabled
+                        elif prop == "symbols":
+                            return exchange_config.symbols
+                        elif prop == "fee_rate":
+                            return "0.0004" if exchange == "hyperliquid" else "0.0006"
+                    return default
+                elif base == "strategy":
+                    # Return strategy configuration values
+                    strategy_defaults = {
+                        "strategy.funding_rate.min_funding_differential": "0.0002",
+                        "strategy.funding_rate.min_profit_threshold": "3.0",
+                        "strategy.funding_rate.funding_sample_period": 3600,
+                        "strategy.funding_rate.funding_sample_count": 24,
+                        "strategy.funding_rate.risk_aversion": 1.0,
+                        "strategy.funding_rate.default_slippage": "0.001",
+                        "strategy.funding_rate.slippage_sensitivity": "0.5",
+                        "strategy.funding_rate.liquidity_threshold_usd": "10000",
+                        "strategy.funding_rate.max_slippage_percent": "0.01",
+                    }
+                    return strategy_defaults.get(key, default)
+            return default
 
         mock_config.get.side_effect = config_get_side_effect
         return mock_config

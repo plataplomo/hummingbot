@@ -13,13 +13,13 @@ import pytest
 # Import core components and models
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.config import AppSettings  # Updated import
 from cyberdelta.core.execution_handler import ExecutionHandler, ExecutionStatus, TradeExecution
 from cyberdelta.core.models import (
     SpotBalance,
 )
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
-from cyberdelta.utils.config import Config  # Added import
 from cyberdelta.validation import ArbitrageOpportunity
 from cyberdelta.validation.circuit_breaker import (
     APIErrorBreaker,  # Import specific breaker type
@@ -56,7 +56,7 @@ class TestFailureScenarios:
     @pytest.mark.asyncio
     async def test_cb_trips_on_repeated_api_errors(
         self,
-        mock_config: Config,  # Added Config type hint
+        mock_config: AppSettings,  # Added AppSettings type hint
         mock_hl_api: MockExchangeAPI,
         mock_bp_api: MockExchangeAPI,
         real_portfolio_tracker: PortfolioTracker,
@@ -381,7 +381,7 @@ class TestFailureScenarios:
     @pytest.mark.asyncio
     async def test_volatility_breaker_triggers_and_recovers(
         self,
-        mock_config: Config,  # Added Config type hint
+        mock_config: AppSettings,  # Added AppSettings type hint
         mock_hl_api: MockExchangeAPI,
         mock_bp_api: MockExchangeAPI,
         real_portfolio_tracker: PortfolioTracker,
@@ -399,7 +399,7 @@ class TestFailureScenarios:
     @pytest.mark.asyncio
     async def test_drawdown_breaker_triggers_and_recovers(
         self,
-        mock_config: Config,  # Added Config type hint
+        mock_config: AppSettings,  # Added AppSettings type hint
         mock_hl_api: MockExchangeAPI,
         mock_bp_api: MockExchangeAPI,
         real_portfolio_tracker: PortfolioTracker,
@@ -417,7 +417,7 @@ class TestFailureScenarios:
     @pytest.mark.asyncio
     async def test_breaker_recovery_after_timeout(
         self,
-        mock_config: Config,  # Added Config type hint
+        mock_config: AppSettings,  # Added AppSettings type hint
         mock_hl_api: MockExchangeAPI,
         mock_bp_api: MockExchangeAPI,
         real_portfolio_tracker: PortfolioTracker,
@@ -434,7 +434,7 @@ class TestFailureScenarios:
     @pytest.mark.asyncio
     async def test_global_api_error_breaker_trips_and_recovers(
         self,
-        mock_config: Config,  # Added Config type hint
+        mock_config: AppSettings,  # Added AppSettings type hint
         mock_hl_api: MockExchangeAPI,
         mock_bp_api: MockExchangeAPI,
         real_portfolio_tracker: PortfolioTracker,

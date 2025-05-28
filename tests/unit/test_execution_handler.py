@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAPI
+from cyberdelta.config import AppSettings
 from cyberdelta.core.execution_handler import (
     CircuitBreakerSystem,
     ExecutionHandler,
@@ -25,7 +26,6 @@ from cyberdelta.core.models import (
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
 from cyberdelta.core.symbol_mapper import SymbolMapper
-from cyberdelta.utils.config import Config
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
@@ -112,7 +112,7 @@ class TestExecutionHandler:
     @pytest.fixture
     def mock_config(self, mock_config_dict: dict[str, Any]) -> MagicMock:
         """Provides a mock Config object using the dictionary."""
-        cfg = MagicMock(spec=Config)
+        cfg = MagicMock(spec=AppSettings)
 
         def config_get_side_effect(key: str, default: object | None = None) -> Any:
             # Allow Any return type for mock flexibility
@@ -209,7 +209,7 @@ class TestExecutionHandler:
         mock_bp_api: AsyncMock,
     ) -> ExecutionHandler:
         handler = ExecutionHandler(
-            config=mock_config,
+            app_settings=mock_config,
             portfolio_tracker=mock_portfolio_tracker,
             symbol_mapper=mock_symbol_mapper,
             circuit_breaker_system=mock_circuit_breaker_system,
@@ -916,9 +916,7 @@ class TestExecutionHandler:
         short_order_failure = APIError("Insufficient funds", APIErrorCode.INSUFFICIENT_FUNDS.value)
 
         comp_price: Decimal | None = None
-        limit_price_offset_pct_str = mock_config.get(
-            "execution.compensation.limit_price_offset_pct"
-        )
+        limit_price_offset_pct_str = mock_config.get("execution.compensation.limit_price_offset")
         assert hl_ticker.ask is not None
         if limit_price_offset_pct_str is not None:
             limit_price_offset_pct = Decimal(limit_price_offset_pct_str)

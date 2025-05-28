@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from cyberdelta.config import AppSettings
 from cyberdelta.core.models import (
     SignalType,
     Ticker,
@@ -13,7 +14,6 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
-from cyberdelta.utils.config import Config
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
@@ -22,7 +22,7 @@ def setup_dependencies() -> dict[str, MagicMock]:
     """Set up test dependencies"""
     data_handler = MagicMock()
     portfolio_tracker = MagicMock()
-    config = MagicMock(spec=Config)
+    config = MagicMock(spec=AppSettings)
     risk_manager = MagicMock(spec=RiskManager)
 
     return {

@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from cyberdelta.utils.config import Config
+from cyberdelta.config import AppSettings
 from cyberdelta.validation.circuit_breaker import (
     APIErrorBreaker,
     BreakerState,
@@ -488,9 +488,9 @@ ConfigValue = str | int | float | bool | dict[str, Any] | list[Any] | None
 
 
 @pytest.fixture
-def mock_config() -> Config:
+def mock_config() -> AppSettings:
     """Provides a generic mock Config for circuit breaker tests."""
-    cfg = MagicMock(spec=Config)
+    cfg = MagicMock(spec=AppSettings)
 
     # Default side effect (can be overridden in tests)
     def config_side_effect(key: str, default: Any | None = None) -> Any:
@@ -509,9 +509,9 @@ def mock_config() -> Config:
 
 # Define a more specific config fixture for tests needing exchange structure
 @pytest.fixture
-def mock_config_with_exchanges() -> Config:
+def mock_config_with_exchanges() -> AppSettings:
     """Mock Config object with predefined exchange configurations for CB testing."""
-    mock = MagicMock(spec=Config)
+    mock = MagicMock(spec=AppSettings)
 
     full_config_data = {
         "exchanges": {
@@ -595,7 +595,7 @@ def mock_config_with_exchanges() -> Config:
 class TestCircuitBreakerSystem:
     """Test suite for the CircuitBreakerSystem class."""
 
-    def test_init_and_load_config(self, mock_config_with_exchanges: Config) -> None:
+    def test_init_and_load_config(self, mock_config_with_exchanges: AppSettings) -> None:
         """Test initialization and configuration loading."""
         # Use the fixture that provides exchange configs
         system = CircuitBreakerSystem(mock_config_with_exchanges)
@@ -613,22 +613,22 @@ class TestCircuitBreakerSystem:
         # Don't fail the test if they weren't - this is more of an informational check
         # system.get_exchange_breaker("test_exchange", "BTC_volatility")
 
-    def test_register_and_get_breaker(self, mock_config: Config) -> None:
+    def test_register_and_get_breaker(self, mock_config: AppSettings) -> None:
         """Test registering and retrieving a breaker."""
         # Test logic to be implemented when needed
         pass
 
-    def test_get_exchange_breaker(self, mock_config: Config) -> None:
+    def test_get_exchange_breaker(self, mock_config: AppSettings) -> None:
         """Test getting an exchange-specific breaker."""
         # Test logic to be implemented when needed
         pass
 
-    def test_can_execute_no_trips(self, mock_config: Config) -> None:
+    def test_can_execute_no_trips(self, mock_config: AppSettings) -> None:
         """Test can_execute when no breakers are tripped."""
         # Test logic to be implemented when needed
         pass
 
-    def test_can_execute_with_trip(self, mock_config: Config) -> None:
+    def test_can_execute_with_trip(self, mock_config: AppSettings) -> None:
         """Test can_execute when a breaker is tripped."""
         system = CircuitBreakerSystem(mock_config)
         # Use get_exchange_breaker to retrieve the correct breaker
@@ -648,47 +648,47 @@ class TestCircuitBreakerSystem:
             assert "test_exchange" in reason
             assert "Test trip" in reason  # Ensure the original trip reason is included
 
-    def test_record_api_error(self, mock_config: Config) -> None:
+    def test_record_api_error(self, mock_config: AppSettings) -> None:
         """Test recording an API error."""
         # Test logic to be implemented when needed
         pass
 
-    def test_update_price(self, mock_config: Config) -> None:
+    def test_update_price(self, mock_config: AppSettings) -> None:
         """Test updating price for volatility breakers."""
         # Test logic to be implemented when needed
         pass
 
-    def test_update_portfolio_value(self, mock_config: Config) -> None:
+    def test_update_portfolio_value(self, mock_config: AppSettings) -> None:
         """Test updating portfolio value for drawdown breakers."""
         # Test logic to be implemented when needed
         pass
 
-    def test_update_liquidity(self, mock_config: Config) -> None:
+    def test_update_liquidity(self, mock_config: AppSettings) -> None:
         """Test updating liquidity for liquidity breakers."""
         # Test logic to be implemented when needed
         pass
 
-    def test_reset_breaker(self, mock_config: Config) -> None:
+    def test_reset_breaker(self, mock_config: AppSettings) -> None:
         """Test resetting a specific breaker."""
         # Test logic to be implemented when needed
         pass
 
-    def test_reset_nonexistent_breaker(self, mock_config: Config) -> None:
+    def test_reset_nonexistent_breaker(self, mock_config: AppSettings) -> None:
         """Test resetting a non-existent breaker."""
         # Test logic to be implemented when needed
         pass
 
-    def test_reset_exchange_breakers(self, mock_config: Config) -> None:
+    def test_reset_exchange_breakers(self, mock_config: AppSettings) -> None:
         """Test resetting all breakers for an exchange."""
         # Test logic to be implemented when needed
         pass
 
-    def test_get_status(self, mock_config: Config) -> None:
+    def test_get_status(self, mock_config: AppSettings) -> None:
         """Test getting status of all breakers."""
         # Test logic to be implemented when needed
         pass
 
-    def test_get_tripped_breakers(self, mock_config: Config) -> None:
+    def test_get_tripped_breakers(self, mock_config: AppSettings) -> None:
         """Test getting all tripped breakers."""
         # Test logic to be implemented when needed
         pass

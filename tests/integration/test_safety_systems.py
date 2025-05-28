@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from cyberdelta.config import AppSettings  # Updated import
 from cyberdelta.core.data_handler import DataHandler  # Added DataHandler
 from cyberdelta.core.execution_handler import (
     ExecutionHandler,
@@ -23,7 +24,6 @@ from cyberdelta.core.risk_manager import (
     SizedOpportunity,
 )
 from cyberdelta.core.signal_generator import SignalGenerator  # Added SignalGenerator
-from cyberdelta.utils.config import Config  # Added Config
 from cyberdelta.validation import ArbitrageOpportunity
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem  # Added CircuitBreakerSystem
 from cyberdelta.validation.models.discrepancy_detail import (
@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)  # ADD logger instance
 
 @pytest.mark.asyncio
 async def test_circuit_breaker_global_halts_execution(
-    mock_config: Config,  # Added type
+    mock_config: AppSettings,  # Added type
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
@@ -160,7 +160,7 @@ async def test_circuit_breaker_global_halts_execution(
 
 @pytest.mark.asyncio
 async def test_circuit_breaker_exchange_halts_execution(
-    mock_config: Config,  # Added type
+    mock_config: AppSettings,  # Added type
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
@@ -284,7 +284,7 @@ async def test_circuit_breaker_exchange_halts_execution(
 
 @pytest.mark.asyncio
 async def test_funding_rate_validator_accepts_safe_opportunity(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
@@ -346,7 +346,7 @@ async def test_funding_rate_validator_accepts_safe_opportunity(
 
 @pytest.mark.asyncio
 async def test_funding_rate_validator_rejects_oversized_opportunity(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
@@ -408,7 +408,7 @@ async def test_funding_rate_validator_rejects_oversized_opportunity(
 
 @pytest.mark.asyncio
 async def test_position_reconciler_detects_discrepancy(
-    mock_config: Config,  # Added type
+    mock_config: AppSettings,  # Added type
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
@@ -563,7 +563,7 @@ async def test_position_reconciler_detects_discrepancy(
 
 @pytest.mark.asyncio
 async def test_kelly_size_exactly_at_max_position_size(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
@@ -596,7 +596,7 @@ async def test_kelly_size_exactly_at_max_position_size(
 
 @pytest.mark.asyncio
 async def test_kelly_size_just_below_max_position_size(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
@@ -629,7 +629,7 @@ async def test_kelly_size_just_below_max_position_size(
 
 @pytest.mark.asyncio
 async def test_kelly_size_just_above_max_position_size(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
@@ -662,7 +662,7 @@ async def test_kelly_size_just_above_max_position_size(
 
 @pytest.mark.asyncio
 async def test_kelly_size_near_zero(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
@@ -695,7 +695,7 @@ async def test_kelly_size_near_zero(
 
 @pytest.mark.asyncio
 async def test_kelly_negative_expected_return(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
@@ -728,7 +728,7 @@ async def test_kelly_negative_expected_return(
 
 @pytest.mark.asyncio
 async def test_kelly_zero_or_negative_volatility(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
@@ -779,7 +779,7 @@ async def test_kelly_zero_or_negative_volatility(
 
 @pytest.mark.asyncio
 async def test_kelly_insufficient_balance(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
@@ -833,7 +833,7 @@ async def test_kelly_insufficient_balance(
 
 @pytest.mark.asyncio
 async def test_kelly_zero_total_capital(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
@@ -887,7 +887,7 @@ async def test_kelly_zero_total_capital(
 
 @pytest.mark.asyncio
 async def test_kelly_max_position_size_zero(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
@@ -921,7 +921,7 @@ async def test_kelly_max_position_size_zero(
 
 @pytest.mark.asyncio
 async def test_kelly_max_position_size_very_large(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
@@ -955,7 +955,7 @@ async def test_kelly_max_position_size_very_large(
 
 @pytest.mark.asyncio
 async def test_max_drawdown_halts_execution(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,

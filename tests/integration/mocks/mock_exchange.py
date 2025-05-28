@@ -12,6 +12,10 @@ from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
 # Added import for ValidationError
 # Import Fill type
 from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAPI, MessageHandler
+
+# Correct the import to use the new typing module
+# REMOVED INCORRECT IMPORT: from cyberdelta.core.symbol_mapper import Symbol
+from cyberdelta.config import AppSettings
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -29,10 +33,6 @@ from cyberdelta.core.models import (
 from cyberdelta.core.models.enums import CancelOrderResultStatus
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.models.market.order import CancelOrderResult
-
-# Correct the import to use the new typing module
-# REMOVED INCORRECT IMPORT: from cyberdelta.core.symbol_mapper import Symbol
-from cyberdelta.utils.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +90,7 @@ class MockExchangeAPI(ExchangeAPI):
         exchange_name: str,
         config: dict[str, Any],
         secrets: dict[str, str | None],
-        config_obj: Config | None = None,
+        config_obj: AppSettings | None = None,
     ) -> None:
         # Ensure api_base_url is valid for HttpClientConfig, regardless of what's in config dict
         config_copy = config.copy()  # Modify a copy

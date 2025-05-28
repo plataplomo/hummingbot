@@ -1127,8 +1127,9 @@ class TestPortfolioTracker:
         # Expecting 2 positions from sample_positions (one BTC on HL, one ETH on BP)
         assert len(all_positions) == 2
 
-        symbols_found = {pos.symbol for pos in all_positions}
-        exchanges_found = {pos.exchange for pos in all_positions}
+        # get_all_positions returns tuples of (exchange_id, position)
+        symbols_found = {pos.symbol for _exchange_id, pos in all_positions}
+        exchanges_found = {exchange_id for exchange_id, _pos in all_positions}
         assert "BTC" in symbols_found
         assert "ETH" in symbols_found
         assert "hyperliquid" in exchanges_found

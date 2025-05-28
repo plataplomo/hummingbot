@@ -11,10 +11,11 @@ from uuid import UUID
 
 import pytest
 
+from cyberdelta.config.config_models import AppSettings
+
 # import pytest_asyncio # Remove if not needed elsewhere in the file
 from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
 from cyberdelta.core.signal_queue import PrioritySignalQueue
-from cyberdelta.utils.config import Config
 
 # Import BreakerState for mocking states
 from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreakerSystem
@@ -23,33 +24,8 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 @pytest.fixture
 def mock_config() -> MagicMock:
-    """Fixture for a mock configuration object that honors .set() for .get()."""
-    mock = MagicMock(spec=Config)
-
-    # Internal storage for values set by mock.set()
-    mock._custom_settings = {}
-
-    def new_set(key: str, value: Any) -> None:
-        mock._custom_settings[key] = value
-
-    def new_get(key: str, default: Any = None) -> Any:
-        # Prioritize value from _custom_settings if set
-        if key in mock._custom_settings:
-            return mock._custom_settings[key]
-
-        # Fallback to original hardcoded logic if not in _custom_settings
-        if key == "queue_cleanup_interval":
-            return 5.0
-        elif key == "default_signal_expiration_seconds":
-            return 60.0
-        elif key == "max_signal_queue_size":
-            # This was the problematic one, should now be overridden by _custom_settings if set
-            return 100
-        return default
-
-    mock.get = MagicMock(side_effect=new_get)
-    mock.set = MagicMock(side_effect=new_set)  # Use new_set for the side_effect
-
+    """Fixture for a mock AppSettings object."""
+    mock = MagicMock(spec=AppSettings)
     return mock
 
 
@@ -68,7 +44,7 @@ def mock_circuit_breaker() -> MagicMock:
 
 
 @pytest.fixture
-def signal_queue(mock_config: Config, mock_circuit_breaker: MagicMock) -> PrioritySignalQueue:
+def signal_queue(mock_config: AppSettings, mock_circuit_breaker: MagicMock) -> PrioritySignalQueue:
     """Fixture for a PrioritySignalQueue instance with mocks."""
     queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
     return queue
@@ -151,13 +127,17 @@ def create_test_signal(
 # --- Basic Queue Tests ---
 
 
-def test_initialization(mock_config: Config) -> None:
-    """Test queue initialization."""
+def test_initialization(mock_config: AppSettings) -> None:
+    """Test that the signal queue initializes correctly."""
     queue = PrioritySignalQueue(mock_config)
+    assert queue.app_settings == mock_config
+    assert queue.circuit_breaker_system is None
+    assert len(queue.signal_queue) == 0
     assert queue.counter == 0
-    assert queue.default_expiration_seconds == 60
-    assert queue.max_queue_size == 100
-    assert queue.cleanup_interval == 5
+    # Check the actual default values used by PrioritySignalQueue
+    assert queue.default_expiration_seconds == 300.0  # 5 minutes default
+    assert queue.max_queue_size == 100  # Default max queue size
+    assert queue.cleanup_interval == 10.0  # Default cleanup interval
 
 
 @pytest.mark.asyncio
@@ -201,10 +181,11 @@ async def test_add_signal_idempotency(
 @pytest.mark.asyncio
 async def test_add_signal_full_queue(signal_queue: PrioritySignalQueue) -> None:
     """Test adding a signal when the queue is full (triggers trimming)."""
-    # Set max size low for testing using the Config object's set method
-    mock_config = signal_queue.config
-    mock_config.set("max_signal_queue_size", 3)
+    # Create a new queue with a small max size for testing
+    mock_config = MagicMock(spec=AppSettings)
     queue = PrioritySignalQueue(mock_config, signal_queue.circuit_breaker_system)
+    # Set the max_queue_size directly on the queue instance for testing
+    queue.max_queue_size = 3
 
     # Create signals using the helper
     signal1 = create_test_signal(symbol="S1", score=0.1, price=Decimal("10"))
@@ -237,7 +218,7 @@ async def test_add_signal_full_queue(signal_queue: PrioritySignalQueue) -> None:
 
 @pytest.mark.asyncio
 async def test_add_signal_with_circuit_breaker_open(
-    mock_config: Config, mock_circuit_breaker: MagicMock, sample_signal: TradeSignal
+    mock_config: AppSettings, mock_circuit_breaker: MagicMock, sample_signal: TradeSignal
 ) -> None:
     """Test adding a signal is rejected when the relevant circuit breaker is OPEN."""
     # Set the mock can_execute to return False for the target exchange
@@ -480,7 +461,7 @@ async def test_clean_expired_signals_direct_patch(
 
 
 @pytest.mark.asyncio  # Mark test as async
-async def test_trim_queue(mock_config: Config, mock_circuit_breaker: MagicMock) -> None:
+async def test_trim_queue(mock_config: AppSettings, mock_circuit_breaker: MagicMock) -> None:
     """Test trimming the queue when it exceeds the maximum size."""
     # Set max size low for testing using the Config object's set method
     mock_config.set("max_signal_queue_size", 3)
@@ -515,7 +496,7 @@ async def test_trim_queue(mock_config: Config, mock_circuit_breaker: MagicMock) 
 
 @pytest.mark.asyncio  # Mark as async
 async def test_signal_expiration_logic(
-    mock_config: Config, mock_circuit_breaker: MagicMock
+    mock_config: AppSettings, mock_circuit_breaker: MagicMock
 ) -> None:  # Needs to be async to use await
     """Test signal expiration logic with explicit cleanup task management."""
     # Reduce expiration and cleanup times for faster testing
@@ -613,7 +594,7 @@ async def test_signal_expiration_logic(
 
 @pytest.mark.asyncio  # Mark as async
 async def test_clean_expired_signals_with_helper(
-    mock_config: Config, mock_circuit_breaker: MagicMock
+    mock_config: AppSettings, mock_circuit_breaker: MagicMock
 ) -> None:  # Needs to be async
     """Test cleaning expired signals using the helper and patching datetime."""
     # Use real datetime for test setup and defining future points

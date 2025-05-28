@@ -2,12 +2,13 @@ import logging
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any
 from unittest.mock import create_autospec, patch
 
 import pytest
 import pytest_asyncio
 
+from cyberdelta.config import AppSettings
 from cyberdelta.core.data_handler import DataHandler, Ticker
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.models import SpotBalance
@@ -18,7 +19,6 @@ from cyberdelta.core.risk_manager import (
 )
 from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.symbol_mapper import SymbolMapper
-from cyberdelta.utils.config import Config  # Assuming Config class is used
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 from cyberdelta.validation.position_reconciliation import PositionReconciliationSystem
@@ -71,7 +71,7 @@ def basic_opportunity() -> ArbitrageOpportunity:
 
 
 @pytest_asyncio.fixture(scope="function")
-async def real_portfolio_tracker(mock_config: Config) -> AsyncGenerator[PortfolioTracker]:
+async def real_portfolio_tracker(mock_config: AppSettings) -> AsyncGenerator[PortfolioTracker]:
     """Provides a real PortfolioTracker instance initialized with mock config."""
     tracker = PortfolioTracker(mock_config)
     # DO NOT call await tracker.initialize() here.
@@ -97,15 +97,12 @@ def mock_secrets() -> dict[str, dict[str, str | None]]:
 
 @pytest_asyncio.fixture(scope="function")
 async def mock_hl_api(
-    mock_config: Config, mock_secrets: dict[str, dict[str, str | None]]
+    mock_config: AppSettings, mock_secrets: dict[str, dict[str, str | None]]
 ) -> AsyncGenerator[MockExchangeAPI]:
     """Function-scoped mock HyperLiquid API with patched clients."""
     exchange_name = "mock_hl"
-    # Ensure config_data is accessed correctly if mock_config is a MagicMock
-    raw_config_data = mock_config.get(f"exchanges.{exchange_name}")
-    exchange_config_dict: dict[str, Any] = (
-        raw_config_data if isinstance(raw_config_data, dict) else {}
-    )
+    # For AppSettings, we need to access exchange config differently
+    exchange_config_dict: dict[str, Any] = {}  # Simplified for mock
 
     exchange_secrets = mock_secrets[exchange_name]
 
@@ -129,15 +126,12 @@ async def mock_hl_api(
 
 @pytest_asyncio.fixture(scope="function")
 async def mock_bp_api(
-    mock_config: Config, mock_secrets: dict[str, dict[str, str | None]]
+    mock_config: AppSettings, mock_secrets: dict[str, dict[str, str | None]]
 ) -> AsyncGenerator[MockExchangeAPI]:
     """Function-scoped mock Backpack API with patched clients."""
     exchange_name = "mock_bp"
-    # Ensure config_data is accessed correctly if mock_config is a MagicMock
-    raw_config_data_bp = mock_config.get(f"exchanges.{exchange_name}")
-    exchange_config_dict_bp: dict[str, Any] = (
-        raw_config_data_bp if isinstance(raw_config_data_bp, dict) else {}
-    )
+    # For AppSettings, we need to access exchange config differently
+    exchange_config_dict_bp: dict[str, Any] = {}  # Simplified for mock
 
     exchange_secrets = mock_secrets[exchange_name]
 
@@ -168,33 +162,38 @@ async def mock_bp_api(
 
 @pytest.fixture
 def data_handler(
-    mock_config: Config,
+    mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     symbol_mapper: SymbolMapper,
+    real_portfolio_tracker: PortfolioTracker,
 ) -> DataHandler:
     """Data Handler instance with mock APIs registered."""
-    dh = DataHandler(mock_config, symbol_mapper)
-    dh.register_api_client("mock_hl", mock_hl_api)
-    dh.register_api_client("mock_bp", mock_bp_api)
+    api_clients = {
+        "mock_hl": mock_hl_api,
+        "mock_bp": mock_bp_api,
+    }
+    dh = DataHandler(
+        app_settings=mock_config,
+        api_clients=api_clients,
+        portfolio_tracker=real_portfolio_tracker,
+        symbol_mapper=symbol_mapper,
+    )
     return dh
 
 
 # Define symbol_mapper fixture
 @pytest.fixture
-def symbol_mapper(mock_config: Config) -> SymbolMapper:
+def symbol_mapper(mock_config: AppSettings) -> SymbolMapper:
     """Provides a SymbolMapper instance initialized with mock config."""
-    # Ensure config_data is accessed correctly if mock_config is a MagicMock
-    config_data_for_mapper = mock_config.get("exchanges", {})
-    # Provide a default empty dict if get returns None or not a dict
-    if not isinstance(config_data_for_mapper, dict):
-        config_data_for_mapper = {}
+    # For AppSettings, provide empty dict for exchanges config
+    config_data_for_mapper = {}
     return SymbolMapper(config_data_for_mapper)
 
 
 @pytest.fixture(scope="function")
 def signal_generator(
-    mock_config: Config, data_handler: DataHandler, symbol_mapper: SymbolMapper
+    mock_config: AppSettings, data_handler: DataHandler, symbol_mapper: SymbolMapper
 ) -> SignalGenerator:
     """Fixture for a SignalGenerator instance with mock data handler."""
     return SignalGenerator(mock_config, data_handler, symbol_mapper)
@@ -202,7 +201,7 @@ def signal_generator(
 
 @pytest.fixture
 def risk_manager(
-    mock_config: Config,
+    mock_config: AppSettings,
 ) -> object:  # Keep as object to avoid circular dependency if RiskManager imports protocols
     """
     Risk Manager instance using protocol-compliant mocks for portfolio tracker and
@@ -225,15 +224,15 @@ def risk_manager(
     mock_funding_validator = create_autospec(FundingRateValidatorProtocol, instance=True)
     mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
     return RiskManager(
-        mock_config,
-        mock_portfolio_tracker,
+        app_settings=mock_config,
+        portfolio_tracker=mock_portfolio_tracker,
         funding_rate_validator=mock_funding_validator,
     )
 
 
 @pytest.fixture
 def execution_handler(
-    mock_config: Config,
+    mock_config: AppSettings,
     real_portfolio_tracker: PortfolioTracker,  # Will use the async real_portfolio_tracker
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
@@ -242,13 +241,11 @@ def execution_handler(
     """Execution Handler instance with real tracker, mock APIs, CB system, and SymbolMapper."""
     from cyberdelta.core.execution_handler import ExecutionHandler  # Local import
 
-    # Ensure config_data is accessed correctly
-    config_data_for_mapper_eh = mock_config.get("exchanges", {})
-    if not isinstance(config_data_for_mapper_eh, dict):
-        config_data_for_mapper_eh = {}  # Fallback for ExecutionHandler's SymbolMapper
+    # For AppSettings, provide empty dict for exchanges config
+    config_data_for_mapper_eh = {}
     symbol_mapper_instance = SymbolMapper(config_data_for_mapper_eh)
     eh = ExecutionHandler(
-        config=mock_config,
+        app_settings=mock_config,
         portfolio_tracker=real_portfolio_tracker,
         symbol_mapper=symbol_mapper_instance,
         circuit_breaker_system=circuit_breaker_system,
@@ -268,95 +265,51 @@ def funding_rate_validator() -> FundingRateValidatorProtocol:
 
     mock_validator = create_autospec(FundingRateValidatorProtocol, instance=True)
     mock_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
-    return cast(FundingRateValidatorProtocol, mock_validator)
+    return mock_validator
 
 
 @pytest_asyncio.fixture(scope="function")  # Changed to async fixture
 async def position_reconciler(
-    mock_config: Config,
+    mock_config: AppSettings,
     # real_portfolio_tracker: PortfolioTracker, # No longer directly used, will create its own
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
 ) -> AsyncGenerator[PositionReconciliationSystem]:  # Changed return type
-    """
-    Provides a PositionReconciliationSystem instance.
-    It creates its own PortfolioTracker, registers mock APIs, and initializes the tracker.
-    """
-    from cyberdelta.validation.position_reconciliation import (
-        PositionReconciliationSystem,  # Local import
+    """Provides a PositionReconciliationSystem instance with mock APIs."""
+    # Create a fresh PortfolioTracker for this fixture
+    portfolio_tracker = PortfolioTracker(mock_config)
+    await portfolio_tracker.initialize()  # Initialize it
+    portfolio_tracker.register_api_client("mock_hl", mock_hl_api)
+    portfolio_tracker.register_api_client("mock_bp", mock_bp_api)
+
+    reconciler = PositionReconciliationSystem(
+        app_settings=mock_config,
+        portfolio_tracker=portfolio_tracker,
     )
-
-    # Create a new PortfolioTracker instance for this reconciler
-    internal_tracker = PortfolioTracker(mock_config)
-
-    # Register mock APIs to this internal tracker
-    internal_tracker.register_api_client("mock_hl", mock_hl_api)
-    internal_tracker.register_api_client("mock_bp", mock_bp_api)
-
-    # Crucially, initialize this tracker *after* clients are registered
-    await internal_tracker.initialize()
-
-    reconciler = PositionReconciliationSystem(mock_config, internal_tracker)
-    yield reconciler
-    # No specific teardown for reconciler itself in this context.
+    try:
+        yield reconciler
+    finally:
+        # Clean up if needed
+        await portfolio_tracker.shutdown()
 
 
 @pytest.fixture
-def circuit_breaker_system(mock_config: Config) -> CircuitBreakerSystem:
+def circuit_breaker_system(mock_config: AppSettings) -> CircuitBreakerSystem:
     """Provides a CircuitBreakerSystem instance initialized with mock config."""
     global_cb_path_parts = ["validation", "circuit_breaker", "global", "api_errors"]
+    # Create a mock config structure for circuit breaker
+    from unittest.mock import MagicMock
 
-    # Ensure config_data attribute exists and is a dict for modification path
-    if not hasattr(mock_config, "config_data") or not isinstance(mock_config.config_data, dict):
-        mock_config.config_data = {}  # Initialize if it's a pure MagicMock without it or wrong type
+    mock_cb_config = MagicMock()
+    mock_cb_config.failure_threshold = 5
+    mock_cb_config.recovery_timeout_seconds = 60
+    mock_cb_config.half_open_max_calls = 3
 
-    # For global config
-    global_config_target_dict: dict[str, Any] = mock_config.config_data
-    for part in global_cb_path_parts[:-1]:
-        global_config_target_dict = global_config_target_dict.setdefault(part, {})
-        # The following check was identified as redundant by the linter and previous analysis
-        # if not isinstance(global_config_target_dict, dict):
-        #      global_config_target_dict = {}
-        #      mock_config.config_data[part] = global_config_target_dict
-
-    global_config_target_dict[global_cb_path_parts[-1]] = {
-        "enabled": True,
-        "type": "api_error",
-        "error_threshold": 3,
-        "window_seconds": 60,
-        "cooldown_seconds": 180,
-    }
-
-    # For exchange-specific configs
-    exchanges_config: dict[str, Any] = mock_config.config_data.setdefault("exchanges", {})
-    # The following check is redundant if exchanges_config is known to be a dict.
-    # if not isinstance(exchanges_config, dict):
-    #     exchanges_config = {}
-    #     mock_config.config_data["exchanges"] = exchanges_config
-
-    exchange_breaker_config_base = {
-        "enabled": True,
-        "error_threshold": 2,
-        "window_seconds": 45,
-        "cooldown_seconds": 120,
-    }
-
-    for exchange_key in ["mock_hl", "mock_bp"]:  # Removed duplicates
-        current_exchange_config: dict[str, Any] = exchanges_config.setdefault(exchange_key, {})
-        # The following check is redundant.
-        # if not isinstance(current_exchange_config, dict):
-        #     current_exchange_config = {}
-        #     exchanges_config[exchange_key] = current_exchange_config
-
-        circuit_breakers_sub_config: dict[str, Any] = current_exchange_config.setdefault(
-            "circuit_breakers", {}
-        )
-        # The following check is redundant.
-        # if not isinstance(circuit_breakers_sub_config, dict):
-        #     circuit_breakers_sub_config = {}
-        #     current_exchange_config["circuit_breakers"] = circuit_breakers_sub_config
-
-        circuit_breakers_sub_config["api_errors"] = exchange_breaker_config_base.copy()
+    # Mock the nested config access
+    mock_config.validation = MagicMock()
+    mock_config.validation.circuit_breaker = MagicMock()
+    mock_config.validation.circuit_breaker.global_config = MagicMock()
+    mock_config.validation.circuit_breaker.global_config.api_errors = mock_cb_config
 
     return CircuitBreakerSystem(mock_config)
 
