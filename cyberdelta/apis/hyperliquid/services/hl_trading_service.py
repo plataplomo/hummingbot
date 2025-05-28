@@ -878,8 +878,8 @@ class HyperliquidTradingService:
                     )
                 except ValueError:
                     logger.error(
-                        f"[{self._exchange_name}] Invalid order_id format '{order_id_to_cancel_str}' "
-                        f"for cancellation."
+                        f"[{self._exchange_name}] Invalid order_id format "
+                        f"'{order_id_to_cancel_str}' for cancellation."
                     )
                     results.append(
                         CancelOrderResult(

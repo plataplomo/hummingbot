@@ -267,18 +267,22 @@ class DataHandler:
                 subscribe_tasks: list[Any] = []
                 if hasattr(client, "subscribe_to_ticker"):
                     for symbol in symbols:  # Assuming subscribe_to_ticker is per symbol
-                        subscribe_tasks.append(client.subscribe_to_ticker(symbol))
+                        method = client.subscribe_to_ticker
+                        subscribe_tasks.append(method(symbol))
                 if hasattr(client, "subscribe_to_order_book"):
                     for symbol in symbols:
-                        subscribe_tasks.append(client.subscribe_to_order_book(symbol))
+                        method = client.subscribe_to_order_book
+                        subscribe_tasks.append(method(symbol))
                 if hasattr(client, "subscribe_to_funding_rates"):
                     for symbol in symbols:
-                        subscribe_tasks.append(client.subscribe_to_funding_rates(symbol))
+                        method = client.subscribe_to_funding_rates
+                        subscribe_tasks.append(method(symbol))
                 # Add other general subscriptions here
 
                 # Exchange-specific subscriptions
                 if exchange_id == "hyperliquid" and hasattr(client, "subscribe_to_user_events"):
-                    subscribe_tasks.append(client.subscribe_to_user_events())
+                    method = client.subscribe_to_user_events
+                    subscribe_tasks.append(method())
 
                 if subscribe_tasks:
                     # Ensure all items in subscribe_tasks are awaitable
@@ -378,7 +382,8 @@ class DataHandler:
         try:
             # Loop as long as the client is connected and the DataHandler is running
             while client.is_connected and self._running:
-                message = await client.receive_ws_message()
+                receive_method = client.receive_ws_message
+                message = await receive_method()
                 if message:
                     # Process the raw message (parsing delegated)
                     await self._update_and_notify(exchange_id, message)
@@ -419,7 +424,12 @@ class DataHandler:
         try:
             # Delegate parsing to the specific API client
             # Expecting (message_type: str, parsed_data: Any)
-            parsed_result_any: Any = client.parse_ws_message(message)
+            if not hasattr(client, "parse_ws_message"):
+                logger.warning(f"Client for {exchange_id} does not support parse_ws_message.")
+                return
+
+            parse_method = client.parse_ws_message
+            parsed_result_any: Any = parse_method(message)
 
             if not (isinstance(parsed_result_any, tuple) and len(parsed_result_any) == 2):
                 logger.warning(
@@ -801,15 +811,18 @@ class DataHandler:
         for exchange_id, client in self.api_clients.items():
             if hasattr(client, "close_ws"):
                 logger.debug(f"Closing WebSocket connection for {exchange_id}...")
-                close_tasks.append(client.close_ws())
+                close_method = client.close_ws
+                close_tasks.append(close_method())
             elif hasattr(client, "close_websocket"):  # Fallback if close_ws is not present
                 logger.debug(
                     f"Closing WebSocket connection for {exchange_id} via close_websocket..."
                 )
-                close_tasks.append(client.close_websocket())
+                close_method = client.close_websocket
+                close_tasks.append(close_method())
             elif hasattr(client, "close"):  # General close as last resort
                 logger.debug(f"Closing general connection for {exchange_id} via close()...")
-                close_tasks.append(client.close())
+                close_method = client.close
+                close_tasks.append(close_method())
 
         if close_tasks:
             await asyncio.gather(*close_tasks, return_exceptions=True)

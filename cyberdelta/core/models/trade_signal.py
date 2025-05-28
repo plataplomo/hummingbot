@@ -89,14 +89,16 @@ class TradeSignal(BaseModel):
     def validate_exchange(cls, v: str | list[str], info: ValidationInfo) -> str | list[str]:
         """Validate exchange is a non-empty str or a list of non-empty strs."""
         field_name = "exchange"
-        if isinstance(v, str):  # Mypy doesn't see this as redundant for raw input
+        # DEFENSIVE CHECK: Pydantic "before" mode receives raw input, type annotation is target type
+        if isinstance(v, str):
             return validate_str_field(v, field_name=field_name, max_length=64)
-        elif isinstance(v, list):  # Mypy doesn't see this as redundant for raw input
+        elif isinstance(v, list):
             if not v:
                 raise ValueError(f"{field_name} list cannot be empty.")
             validated_list: list[str] = []  # Explicit type hint
             for idx, item in enumerate(v):
-                if not isinstance(item, str):  # Mypy doesn't see this as redundant for raw input
+                # DEFENSIVE CHECK: List items could be any type in raw input
+                if not isinstance(item, str):
                     raise TypeError(f"{field_name} list item {idx} must be a string.")
                 validated_list.append(
                     validate_str_field(item, field_name=f"{field_name}[{idx}]", max_length=64)

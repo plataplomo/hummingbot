@@ -10,7 +10,7 @@ import logging
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, Protocol
 
 from .funding_data import (
     ConfidenceFactors,
@@ -29,6 +29,14 @@ class FundingRateSourceError(Exception):
     pass
 
 
+class FundingRateValidatorProtocol(Protocol):
+    """Protocol for funding rate validator."""
+
+    def calculate_metrics(self, exchange: str, symbol: str) -> dict[str, float | None]:
+        """Calculate accuracy metrics for funding rate predictions."""
+        ...
+
+
 class MultiTierFundingProvider:
     """
     Funding rate provider that integrates data from multiple sources.
@@ -39,7 +47,9 @@ class MultiTierFundingProvider:
     """
 
     def __init__(
-        self, config: dict[str, Any], funding_rate_validator: object | None = None
+        self,
+        config: dict[str, Any],
+        funding_rate_validator: FundingRateValidatorProtocol | None = None,
     ) -> None:
         """
         Initialize the multi-tier funding provider.
@@ -71,12 +81,19 @@ class MultiTierFundingProvider:
             logger.warning("Invalid 'funding_data.weights' format in config, using defaults.")
             weights = {}
 
+        # Cast to proper type for validation methods
+        weights_typed: dict[str, Any] = weights
+
         self.historical_accuracy_weight = self._validate_float_config(
-            weights, "historical", default=0.4
+            weights_typed, "historical", default=0.4
         )
-        self.source_count_weight = self._validate_float_config(weights, "source_count", default=0.2)
-        self.dispersion_weight = self._validate_float_config(weights, "dispersion", default=0.3)
-        self.freshness_weight = self._validate_float_config(weights, "freshness", default=0.1)
+        self.source_count_weight = self._validate_float_config(
+            weights_typed, "source_count", default=0.2
+        )
+        self.dispersion_weight = self._validate_float_config(
+            weights_typed, "dispersion", default=0.3
+        )
+        self.freshness_weight = self._validate_float_config(weights_typed, "freshness", default=0.1)
 
         # Register data sources
         self.primary_sources: dict[str, Callable[..., Any]] = {}
@@ -90,29 +107,24 @@ class MultiTierFundingProvider:
             logger.warning("Invalid 'funding_data.thresholds' format in config, using defaults.")
             thresholds = {}
 
-        # DEFENSIVE CHECK: Ensure thresholds is a dict before passing. Mypy=[arg-type]
-        if isinstance(thresholds, dict):
-            self.min_confidence_score = self._validate_float_config(
-                thresholds, "min_confidence_score", default=0.6
-            )
-            # max_staleness_hours: Needs careful handling if converting to seconds
-            max_staleness_hours = self._validate_float_config(
-                thresholds, "max_staleness_hours", default=1.0
-            )
-            self.max_staleness_seconds = max_staleness_hours * 3600.0
+        # Cast to proper type for validation methods
+        thresholds_typed: dict[str, Any] = thresholds
 
-            self.max_dispersion_std_dev = self._validate_float_config(
-                thresholds, "max_dispersion_std_dev", default=0.0005
-            )
-            self.min_source_count = self._validate_int_config(
-                thresholds, "min_source_count", default=2
-            )
-        else:  # Should not happen due to check above, but handles edge case
-            logger.error("Thresholds configuration is not a dictionary, using defaults.")
-            self.min_confidence_score = 0.6
-            self.max_staleness_seconds = 1.0 * 3600.0
-            self.max_dispersion_std_dev = 0.0005
-            self.min_source_count = 2
+        self.min_confidence_score = self._validate_float_config(
+            thresholds_typed, "min_confidence_score", default=0.6
+        )
+        # max_staleness_hours: Needs careful handling if converting to seconds
+        max_staleness_hours = self._validate_float_config(
+            thresholds_typed, "max_staleness_hours", default=1.0
+        )
+        self.max_staleness_seconds = max_staleness_hours * 3600.0
+
+        self.max_dispersion_std_dev = self._validate_float_config(
+            thresholds_typed, "max_dispersion_std_dev", default=0.0005
+        )
+        self.min_source_count = self._validate_int_config(
+            thresholds_typed, "min_source_count", default=2
+        )
 
         logger.info("Initialized multi-tier funding rate provider")
 
@@ -621,6 +633,11 @@ class MultiTierFundingProvider:
 
         try:
             # Calculate accuracy metrics using the validator
+            # Check if the validator has the calculate_metrics method
+            if not hasattr(self.funding_rate_validator, "calculate_metrics"):
+                logger.warning("Funding rate validator does not have calculate_metrics method")
+                return float(self.default_accuracy_score)
+
             metrics = self.funding_rate_validator.calculate_metrics(exchange, symbol)
 
             # If no metrics are available, return default score

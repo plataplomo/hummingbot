@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
@@ -154,20 +153,22 @@ class Engine:
             strategy = self.strategies[strategy_name]
             if strategy.symbol == data.symbol:
                 try:
-                    result = strategy.process_data(data)
-                    if asyncio.iscoroutine(result):
-                        result = await result
+                    result_or_coro = strategy.process_data(data)
+                    # process_data is always async, so this will always be a coroutine
+                    result = await result_or_coro
+
                     if result is None:
                         continue
-                    # Only process actual TradeSignal objects, not coroutines
+
+                    # Process the result (either single signal or list of signals)
                     if isinstance(result, list):
-                        signals = [s for s in result if not asyncio.iscoroutine(s)]
-                    elif not asyncio.iscoroutine(result):
-                        signals = [result]
+                        signals = result
                     else:
-                        continue
+                        signals = [result]
+
                     if not signals:
                         continue
+
                     for signal in signals:
                         # Defensive: check signal type
                         if not hasattr(signal, "symbol") or not hasattr(signal, "signal_type"):

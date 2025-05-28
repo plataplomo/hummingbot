@@ -1,9 +1,12 @@
 """Core components of the CyberDelta trading engine."""
 
+# Import CircuitBreakerSystem from the correct module
+from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
+
 from .balance_monitor import BalanceMonitor
 from .data_handler import DataHandler
 from .engine import Engine
-from .execution_handler import CircuitBreakerSystem, ExecutionHandler
+from .execution_handler import ExecutionHandler
 from .portfolio_tracker import PortfolioTracker
 from .risk_manager import RiskManager
 from .signal_generator import SignalGenerator

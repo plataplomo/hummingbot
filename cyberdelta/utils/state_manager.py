@@ -266,12 +266,11 @@ class StateManager:
         # Verify checksum
         expected_checksum_raw: object = metadata["checksum"]
         if not isinstance(expected_checksum_raw, str):
-            # Ignore unknown type for logger arg
-            logger.error(f"Expected checksum must be a string, got {type(expected_checksum_raw)}")  # type: ignore [arg-type]
+            logger.error(f"Expected checksum must be a string, got {type(expected_checksum_raw)}")
             return False
 
         # Type narrowed here:
-        expected_checksum: str = expected_checksum_raw  # type: ignore [assignment] # Ignore partially unknown type
+        expected_checksum: str = expected_checksum_raw
         actual_checksum = self._calculate_checksum(state_data["state"])
 
         # Return true if checksums match

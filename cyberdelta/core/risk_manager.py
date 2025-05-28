@@ -1160,8 +1160,8 @@ class RiskManager:
             )
             return None
 
-        # Choose sizing method - default to simple since kelly is not fully configured
-        sizing_method = "simple"
+        # Choose sizing method - configurable, default to simple since kelly is not fully configured
+        sizing_method = getattr(self, "sizing_method", "simple")
 
         sized_opportunity: SizedOpportunity | None = None
         if sizing_method == "kelly":
@@ -1542,7 +1542,7 @@ class RiskManager:
             logger.debug("Proposed size is zero or None, skipping max exposure check.")
             return True
 
-        current_total_exposure = await self.portfolio_tracker.get_total_exposure_usd()
+        current_total_exposure = await self.calculate_total_exposure()
         # current_total_exposure is Decimal and cannot be None based on PortfolioTrackerProtocol.
         # Therefore, the direct check 'if current_total_exposure is None:' is no longer needed.
 

@@ -246,19 +246,11 @@ class PortfolioTracker:
             logger.error(f"No API client found for {exchange_id} in fetch_balances")
             return False
         try:
-            balances_data = await client.get_balances()  # Returns dict[str, SpotBalance] | None
-
-            # DEFENSIVE CHECK: client.get_balances() can return None as per ExchangeAPI interface.
-            if balances_data is None:
-                logger.warning(f"Received None for balances_data from {exchange_id}.")
-                # Allow partial success, don't wipe existing balances if fetch fails temporarily
-                self.last_update_time[exchange_id] = datetime.now(UTC)
-                return True
+            balances_data = await client.get_balances()  # Returns dict[str, SpotBalance]
 
             updated_balances: dict[str, SpotBalance] = {}
 
-            # If balances_data is not None, it must be dict[str, SpotBalance]
-            # No need for isinstance(list) or isinstance(dict) checks if type hint is accurate.
+            # If balances_data is empty dict
             if not balances_data:  # Empty dict received
                 logger.info(f"[{exchange_id}] API returned an empty dictionary of balances.")
             else:
@@ -332,13 +324,7 @@ class PortfolioTracker:
             return balance_info
 
         # Since the type hint is dict[str, Any] | SpotBalance, and SpotBalance is handled above,
-        # balance_info must be a dict here. The isinstance check below is
-        # redundant if type hints are trusted.
-        # if not isinstance(balance_info, dict): # Linter flags as unnecessary
-        #     logger.error(
-        #         f"Invalid balance_info type: {type(balance_info)}. Expected dict or SpotBalance."
-        #     )
-        #     return None
+        # balance_info must be a dict here.
 
         # Construct the data dictionary for SpotBalance, adding the exchange
         balance_data = balance_info.copy()
@@ -396,27 +382,10 @@ class PortfolioTracker:
             logger.error(f"No API client registered for {exchange_id} in fetch_positions")
             return False
         try:
-            positions_data_raw = (
-                await client.get_positions()
-            )  # -> list[DerivativePosition] | dict[str, DerivativePosition]
+            positions_data_raw = await client.get_positions()  # -> list[DerivativePosition]
 
-            processed_positions_list: list[DerivativePosition] = []
-            # DEFENSIVE CHECK: client.get_positions() can return list OR dict as per ExchangeAPI.
-            # This isinstance check is necessary to differentiate.
-            if isinstance(positions_data_raw, list):
-                processed_positions_list = (
-                    positions_data_raw  # Pyright infers list[DerivativePosition]
-                )
-            elif isinstance(positions_data_raw, dict):
-                processed_positions_list = list(
-                    positions_data_raw.values()
-                )  # Pyright infers list[DerivativePosition]
-            else:
-                logger.error(
-                    f"Unexpected data type for positions_data from {exchange_id}: "
-                    f"{type(positions_data_raw)}"
-                )
-                return False
+            # positions_data_raw is guaranteed to be a list by the ExchangeAPI interface
+            processed_positions_list = positions_data_raw
 
             updated_positions: dict[str, DerivativePosition] = {}
             for position_info in processed_positions_list:

@@ -288,9 +288,8 @@ class PositionReconciliationSystem:
                     )
                     continue
                 exchange_value = Decimal(exchange_value_str)  # Corrected size from API as Decimal
-            except InvalidOperation:  # This except block uses exchange_value_str
-                # DEFENSIVE CHECK: exchange_value_str might be flagged by linter as possibly unbound
-                # due to control flow with 'continue' in try-except. Logic is sound.
+            except InvalidOperation:
+                # DEFENSIVE CHECK: exchange_value_str is guaranteed to be defined here
                 logger.warning(
                     f"Could not parse 'exchange_value' from DiscrepancyDetail for {symbol} "
                     f"as Decimal: {exchange_value_str}"
@@ -351,6 +350,8 @@ class PositionReconciliationSystem:
 
                         # Create minimal DerivativePosition with just side and size
                         new_local_pos = DerivativePosition(
+                            exchange=exchange,
+                            symbol=symbol,
                             side=OrderSide.BUY if exchange_value > 0 else OrderSide.SELL,
                             size=exchange_value,
                             entry_price=None,
@@ -1083,8 +1084,8 @@ class PositionReconciliationSystem:
         discrepancy_records: list[HistoricalDiscrepancyRecord] = []
 
         # --- Handle Parsing Errors First ---
-        # Robust check if parsed_api_pos is an ErrorDict
-        if isinstance(parsed_api_pos, dict) and "error" in parsed_api_pos:
+        # Check if parsed_api_pos is an ErrorDict by looking for "error" key
+        if "error" in parsed_api_pos:
             error_dict_api = cast(ErrorDict, parsed_api_pos)
             record = self._record_discrepancy(
                 exchange_id=exchange_id,
@@ -1097,7 +1098,7 @@ class PositionReconciliationSystem:
             discrepancy_records.append(record)
             return discrepancy_records  # Stop further checks for this symbol if API data is bad
 
-        # Similar robust check for parsed_local_pos
+        # Similar check for parsed_local_pos
         if isinstance(parsed_local_pos, dict) and "error" in parsed_local_pos:
             error_dict_local = cast(ErrorDict, parsed_local_pos)
             record = self._record_discrepancy(
@@ -1111,63 +1112,16 @@ class PositionReconciliationSystem:
             discrepancy_records.append(record)
             return discrepancy_records  # Stop further checks if local parsing failed.
 
-        # At this point, parsed_api_pos should be ParsedPosition (a dict, and not an ErrorDict).
-        # If it's NOT a dict, then _parse_api_position has a bug or was bypassed.
-        if not isinstance(parsed_api_pos, dict):
-            self.logger.error(
-                f"PRS._reconcile_symbol: CRITICAL: parsed_api_pos is not a dict for "
-                f"{exchange_id}/{symbol}. "
-                f"Type: {type(parsed_api_pos)}. Value: {parsed_api_pos!r}. This indicates "
-                f"a problem with _parse_api_position."
-            )
-            record = self._record_discrepancy(
-                exchange_id=exchange_id,
-                symbol=symbol,
-                discrepancy_type="reconciliation_error",
-                # Or a new specific type like "internal_parsing_failure"
-                api_val=str(parsed_api_pos),  # Log the problematic value
-                local_val=None,
-                details=(
-                    f"Internal error: API position data was not a dictionary after parsing. "
-                    f"Type: {type(parsed_api_pos)}. Expected ParsedPosition dict."
-                ),
-            )
-            discrepancy_records.append(record)
-            return discrepancy_records
-
-        # Now, parsed_api_pos is confirmed to be a dict, and not an ErrorDict.
-        # So it must be ParsedPosition.
+        # At this point, parsed_api_pos is confirmed to be ParsedPosition
         api_pos_data = cast(ParsedPosition, parsed_api_pos)
 
         # parsed_local_pos is ParsedPosition | None (and not ErrorDict).
-        # It can be None if not tracked, or ParsedPosition if tracked and parsed successfully.
         local_pos_data: ParsedPosition | None
         if parsed_local_pos is None:
             local_pos_data = None
-        elif isinstance(
-            parsed_local_pos, dict
-        ):  # Should always be true if not None and no error previously
-            local_pos_data = cast(ParsedPosition, parsed_local_pos)
         else:
-            # This case should ideally not be reached if prior checks are exhaustive
-            self.logger.error(
-                f"PRS._reconcile_symbol: CRITICAL: parsed_local_pos is unexpected type for "
-                f"{exchange_id}/{symbol}. "
-                f"Type: {type(parsed_local_pos)}. Value: {parsed_local_pos!r}."
-            )
-            record = self._record_discrepancy(
-                exchange_id=exchange_id,
-                symbol=symbol,
-                discrepancy_type="reconciliation_error",
-                api_val=api_pos_data.get("size", "N/A"),  # api_pos_data should be valid here
-                local_val=str(parsed_local_pos),
-                details=(
-                    f"Internal error: Local position data has unexpected type after parsing. "
-                    f"Type: {type(parsed_local_pos)}."
-                ),
-            )
-            discrepancy_records.append(record)
-            return discrepancy_records
+            # parsed_local_pos is a dict and not an ErrorDict (no "error" key)
+            local_pos_data = cast(ParsedPosition, parsed_local_pos)
 
         # --- Core Discrepancy Logic ---
 
