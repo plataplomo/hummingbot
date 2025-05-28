@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, TypedDict, cast
 
 # from cyberdelta.config import Config # Incorrect path
-from cyberdelta.utils.config import Config  # Correct path
+from cyberdelta.config.config_models import AppSettings  # Correct path
 
 
 class HistorySeries(TypedDict):
@@ -58,7 +58,7 @@ class FundingRateValidator:
     Tracks accuracy and provides metrics for improving predictions.
     """
 
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: AppSettings) -> None:
         """
         Initialize the FundingRateValidator.
 

@@ -1,17 +1,17 @@
 from __future__ import annotations  # Enable postponed evaluation
-from cyberdelta.config.config_models import AppSettings
 
 import asyncio
 import heapq
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING
 
+from cyberdelta.config.config_models import AppSettings
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import OrderSide, TradeSignal
 from cyberdelta.core.models.enums import SignalType
-from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreakerSystem
+from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreaker, CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 """
@@ -47,7 +47,7 @@ class PrioritySignalQueue:
             app_settings: AppSettingsuration parameters
             circuit_breaker_system: Optional circuit breaker system for safety checks
         """
-        self.app_settings = config
+        self.app_settings = app_settings
         self.circuit_breaker_system = circuit_breaker_system
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
@@ -68,48 +68,12 @@ class PrioritySignalQueue:
         # Counter for generating unique IDs
         self.counter = 0
 
-        # Define a TypeVar for the helper function
-        # Constrain ConfigValueType to common types that support conversion via type(value)
-        ConfigValueType = TypeVar("ConfigValueType", str, int, float, Decimal, bool)
-
-        # Helper function to safely get and cast config values
-        def get_config_value(
-            key: str,
-            default: ConfigValueType,
-            target_type: type[ConfigValueType],
-        ) -> ConfigValueType:
-            """Helper to get and validate config values."""
-            value = self.app_settings.get(key, default)
-            try:
-                if value is default:
-                    # Value is the default, which is already ConfigValueType
-                    return default
-                elif isinstance(value, target_type):
-                    # Value is not default, but already the correct type
-                    return value
-                else:
-                    # Value is not default and not the correct type, attempt conversion
-                    # It could be Any. We need to handle None before conversion.
-                    if value is None:
-                        self.logger.error(
-                            f"Config value for '{key}' resolved to None unexpectedly "
-                            f"after type checks. Using default: {default}."
-                        )
-                        return default
-                    converted_value = target_type(value)
-                    return converted_value
-            except (ValueError, TypeError) as e:
-                self.logger.error(
-                    f"Invalid config value '{value}' for '{key}'. "
-                    f"Using default: {default}. Error: {e}"
-                )
-                return default
-
-        self.default_expiration_seconds: float = get_config_value(
-            "default_signal_expiration_seconds", 300.0, float
-        )
-        self.max_queue_size: int = get_config_value("max_signal_queue_size", 100, int)
-        self.cleanup_interval: float = get_config_value("queue_cleanup_interval", 10.0, float)
+        # Configuration values from AppSettings
+        # TODO: Add signal queue specific configuration to AppSettings when needed
+        # For now, use reasonable defaults since signal queue config is not in current AppSettings
+        self.default_expiration_seconds: float = 300.0  # 5 minutes default
+        self.max_queue_size: int = 100  # Default max queue size
+        self.cleanup_interval: float = 10.0  # Default cleanup interval
 
         self.last_cleanup = datetime.now(UTC)
 
@@ -952,24 +916,33 @@ class PrioritySignalQueue:
 
         # Check exchange-level circuit breakers
         for exchange_name in set(exchanges_to_check):  # Use set to avoid redundant checks
-            # Assume a generic breaker type like "main" for get_exchange_breaker
-            # Or, if checking for specific types like "api_errors", that should be specified.
-            # For a general check, let's assume a primary exchange breaker type, e.g.,
-            # "main_exchange_operations"
-            exchange_breaker = self.circuit_breaker_system.get_exchange_breaker(
-                exchange_name, "main_exchange_operations"
+            # Check for API error breakers specifically
+            exchange_breaker_item = self.circuit_breaker_system.get_exchange_breaker(
+                exchange_name, "api_errors"
             )
-            if exchange_breaker and exchange_breaker.state == BreakerState.OPEN:
-                self.logger.warning(
-                    f"Exchange circuit breaker for {exchange_name} (type: "
-                    f"main_exchange_operations) is OPEN. "
-                    f"Reason: {exchange_breaker.trip_reason}. Signal {signal.signal_id} "
-                    f"rejected."
-                )
-                return False
+
+            # Handle the case where get_exchange_breaker returns a CircuitBreaker directly
+            if isinstance(exchange_breaker_item, CircuitBreaker):
+                if exchange_breaker_item.state == BreakerState.OPEN:
+                    self.logger.warning(
+                        f"Exchange circuit breaker for {exchange_name} (api_errors) is OPEN. "
+                        f"Reason: {exchange_breaker_item.trip_reason}. Signal {signal.signal_id} "
+                        f"rejected."
+                    )
+                    return False
+            elif isinstance(exchange_breaker_item, dict):
+                # If it's a dict, it contains symbol-specific breakers
+                # For now, check if any symbol-specific breaker is open
+                for symbol_breaker in exchange_breaker_item.values():
+                    if symbol_breaker.state == BreakerState.OPEN:
+                        self.logger.warning(
+                            f"Symbol-specific circuit breaker for {exchange_name} is OPEN. "
+                            f"Reason: {symbol_breaker.trip_reason}. Signal {signal.signal_id} "
+                            f"rejected."
+                        )
+                        return False
 
             # Check exchange-symbol pair specific breaker
-            # Assume a naming convention like "pair_EXCHANGE_SYMBOL_main"
             pair_breaker_name = f"pair_{exchange_name}_{signal.symbol}_main"
             pair_breaker = self.circuit_breaker_system.get_breaker(pair_breaker_name)
             if pair_breaker and pair_breaker.state == BreakerState.OPEN:

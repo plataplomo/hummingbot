@@ -1,5 +1,4 @@
 from __future__ import annotations  # Enable postponed evaluation
-from cyberdelta.config.config_models import AppSettings
 
 import asyncio
 import random
@@ -11,6 +10,7 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, Any
 
 from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAPI
+from cyberdelta.config.config_models import AppSettings
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import (
     Order,
@@ -151,32 +151,18 @@ class ExecutionHandler:
             symbol_mapper: SymbolMapper for translating symbols
             circuit_breaker_system: The main circuit breaker system (optional)
         """
-        self.app_settings = config
+        self.app_settings = app_settings
         self.portfolio_tracker = portfolio_tracker
         self.symbol_mapper = symbol_mapper
         self.circuit_breaker_system = circuit_breaker_system
         self.api_clients: dict[str, ExchangeAPI] = {}
 
-        # Safely parse config values
-        try:
-            self.max_slippage = Decimal(str(config.get("execution.max_slippage", "0.002")))
-            raw_max_retries = config.get("execution.max_retries", 3)
-            self.max_retries = int(str(raw_max_retries)) if raw_max_retries is not None else 3
-            raw_retry_delay = config.get("execution.retry_delay_base_sec", "1.0")
-            self.retry_delay_base = (
-                float(str(raw_retry_delay)) if raw_retry_delay is not None else 1.0
-            )
-            raw_max_history = config.get("execution.max_history", 100)
-            self.max_execution_history = (
-                int(str(raw_max_history)) if raw_max_history is not None else 100
-            )
-        except (InvalidOperation, ValueError, TypeError) as e:
-            logger.error(f"Invalid config value in ExecutionHandler init: {e}. Using defaults.")
-            # Apply defaults explicitly on error
-            self.max_slippage = Decimal("0.002")
-            self.max_retries = 3
-            self.retry_delay_base = 1.0
-            self.max_execution_history = 100
+        # Configuration values from AppSettings
+        self.max_slippage = self.app_settings.execution.max_slippage_pct
+        self.max_retries = self.app_settings.execution.max_retries
+        self.retry_delay_base = float(self.app_settings.execution.retry_delay_base_sec)
+        # TODO: Add execution history configuration to AppSettings when needed
+        self.max_execution_history = 100  # Default history size
 
         self.executions: list[TradeExecution] = []
         self.active_executions: dict[str, TradeExecution] = {}
@@ -442,14 +428,12 @@ class ExecutionHandler:
         # if base_asset_quantity_long is None or base_asset_quantity_short is None:
 
         # Determine default TimeInForce for initial legs
-        tif_config_str = str(self.app_settings.get("execution.default_time_in_force", "IOC")).upper()
+        # TODO: Add execution.default_time_in_force to AppSettings when needed
+        tif_config_str = "IOC"  # Default to IOC
         try:
             default_tif = TimeInForce(tif_config_str)
         except ValueError:
-            logger.warning(
-                f"Invalid TIF '{tif_config_str}' in config for execution.default_time_in_force. "
-                f"Defaulting to IOC."
-            )
+            logger.warning(f"Invalid TimeInForce config '{tif_config_str}', using IOC")
             default_tif = TimeInForce.IOC
 
         # --- Place Long Order ---
@@ -942,15 +926,14 @@ class ExecutionHandler:
         Returns:
             True if compensation order placed successfully (or seemed filled), False otherwise.
         """
-        logger.warning(
-            f"Execution {execution.id}: Attempting compensation: {side.name} {quantity:.8f} "
-            f"{symbol} on {exchange_id}"
+        logger.info(
+            f"_compensate_position: Attempting to compensate {quantity} {symbol} "
+            f"on {exchange_id} with {side.name} order for execution {execution.id}"
         )
-        use_limit_orders_config = self.app_settings.get("execution.compensation.use_limit_orders", True)
-        limit_price_offset_pct_str = self.app_settings.get(
-            "execution.compensation.limit_price_offset_pct",
-            "0.001",  # 0.1%
-        )
+        # Configuration values from AppSettings
+        compensation_config = self.app_settings.execution.compensation
+        use_limit_orders_config = compensation_config.use_limit_orders
+        limit_price_offset_pct = compensation_config.limit_price_offset_pct
 
         # Log the config values being used AFTER they are defined
         logger.info(
@@ -958,18 +941,17 @@ class ExecutionHandler:
             f"(type: {type(use_limit_orders_config)})"
         )
         logger.info(
-            f"_compensate_position: limit_price_offset_pct_str = {limit_price_offset_pct_str} "
-            f"(type: {type(limit_price_offset_pct_str)})"
+            f"_compensate_position: limit_price_offset_pct = {limit_price_offset_pct} "
+            f"(type: {type(limit_price_offset_pct)})"
         )
 
         # reduce_only = True  # Compensation orders should always be reduce_only # Unused variable
         order_type = OrderType.MARKET
         price = None
 
-        if use_limit_orders_config and isinstance(limit_price_offset_pct_str, str):
+        if use_limit_orders_config:
             # This block determines if a LIMIT order should be used for compensation
             try:
-                limit_price_offset_pct = Decimal(limit_price_offset_pct_str)
                 # Get ticker to calculate limit price
                 ticker = await self.api_clients[exchange_id].get_ticker(symbol)
                 if ticker:

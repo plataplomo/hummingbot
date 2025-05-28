@@ -1,13 +1,12 @@
 from __future__ import annotations  # Enable postponed evaluation
-from cyberdelta.config.config_models import AppSettings
 
 from collections import deque
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation, getcontext  # Import Decimal and InvalidOperation
-from typing import Any, cast
 
 import numpy as np
 
+from cyberdelta.config.config_models import AppSettings
 from cyberdelta.config.logging_config import get_logger  # <--- Use get_logger
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models import (  # Import MarketData, OrderBook
@@ -46,34 +45,25 @@ class SignalGenerator:
             symbol_mapper: SymbolMapper for translating symbols.
         """
         logger.debug("SIGNAL_GENERATOR_TEST_LOG: Initializing SignalGenerator instance.")
-        self.app_settings = config
+        self.app_settings = app_settings
         self.data_handler = data_handler
         self.symbol_mapper = symbol_mapper
 
-        # Parameters from config - ensure Decimal where appropriate
-        self.min_funding_differential = Decimal(
-            str(config.get("strategy.funding_rate.min_funding_differential", 0.0001))
-        )
-        self.min_profit_threshold = Decimal(
-            str(config.get("strategy.funding_rate.min_profit_threshold", 5.0))
-        )
-        self.slippage_sensitivity = Decimal(
-            str(config.get("strategy.funding_rate.slippage_sensitivity", 0.5))
-        )
-        self.liquidity_threshold_usd = Decimal(
-            str(config.get("strategy.funding_rate.liquidity_threshold_usd", 10000.0))
-        )
-        self.max_slippage_percent = Decimal(
-            str(config.get("strategy.funding_rate.max_slippage_percent", 0.01))  # 1%
-        )
+        # Configuration values from AppSettings
+        # Use strategy configuration from the hl_perp_bp_spot strategy
+        strategy_config = self.app_settings.strategies.hl_perp_bp_spot
+        self.min_funding_differential = strategy_config.params.funding_threshold
+        self.min_profit_threshold = strategy_config.params.min_profit_usd
+        self.max_slippage_percent = strategy_config.params.max_price_spread_pct
 
-        # Default slippage needs careful handling for type safety
-        default_slippage_raw = config.get("strategy.funding_rate.default_slippage", 0.001)
-        try:
-            self.default_slippage = Decimal(str(default_slippage_raw))
-        except (InvalidOperation, TypeError):
-            logger.warning(f"Invalid default_slippage '{default_slippage_raw}', using 0.001")
-            self.default_slippage = Decimal("0.001")
+        # TODO: Add more comprehensive strategy configuration to AppSettings when needed
+        # For now, use reasonable defaults for parameters not in current config
+        self.slippage_sensitivity = Decimal("0.5")  # Default 0.5
+        self.liquidity_threshold_usd = Decimal("10000.0")  # Default $10,000
+        self.default_slippage = Decimal("0.001")  # Default 0.1%
+        self.funding_sample_period: int = 3600  # Default 1 hour
+        self.funding_sample_count: int = 24  # Default 24 samples
+        self.risk_aversion = 1.0  # Default risk aversion
 
         # Historical funding rates for volatility calculation
         # exchange -> internal_symbol -> deque[(timestamp, rate: Decimal)]
@@ -87,28 +77,6 @@ class SignalGenerator:
         # exchange -> symbol -> list[Decimal]
         self.historical_slippage: dict[str, dict[str, list[Decimal]]] = {}
 
-        # Safely get and cast sample period and count to int
-        def get_config_int(key: str, default: int) -> int:
-            value = config.get(key, default)
-            if value is None:
-                return default  # Handle None explicitly
-            try:
-                # Ensure value is convertible before calling int()
-                return int(str(value))
-            except (ValueError, TypeError):
-                logger.warning(f"Invalid int value '{value}' for '{key}'. Using default: {default}")
-                return default
-
-        self.funding_sample_period: int = get_config_int(
-            "strategy.funding_rate.funding_sample_period", 3600
-        )
-        self.funding_sample_count: int = get_config_int(
-            "strategy.funding_rate.funding_sample_count", 24
-        )
-
-        # Risk aversion parameter (λ) for utility function (float is fine here)
-        self.risk_aversion = config.get("strategy.funding_rate.risk_aversion", 1.0)
-
         # Initialize data structures
         self._initialize_data_structures()
         logger.info("SignalGenerator initialized.")
@@ -116,18 +84,11 @@ class SignalGenerator:
     def _initialize_data_structures(self) -> None:
         """Initialize data structures for historical data using SymbolMapper."""
         all_internal_symbols = self.symbol_mapper.get_all_internal_symbols()
-        # Safely get exchange keys
-        exchanges_conf = self.app_settings.get("exchanges", {})
-        # Cast to dict[str, Any] before getting keys
-        exchanges_dict = (
-            cast(dict[str, Any], exchanges_conf) if isinstance(exchanges_conf, dict) else {}
-        )
-        configured_exchanges: list[str] = list(exchanges_dict.keys())
+        # Use the exchanges from AppSettings structure
+        configured_exchanges: list[str] = list(self.app_settings.exchanges.keys())
 
         enabled_exchanges = [
-            ex_id
-            for ex_id in configured_exchanges
-            if self.app_settings.get(f"exchanges.{ex_id}.enabled", False)
+            ex_id for ex_id in configured_exchanges if self.app_settings.exchanges[ex_id].enabled
         ]
 
         logger.debug(
@@ -190,15 +151,9 @@ class SignalGenerator:
         all_internal_symbols = self.symbol_mapper.get_all_internal_symbols()
 
         # Determine enabled exchanges directly from config
-        exchanges_conf = self.app_settings.get("exchanges", {})
-        exchanges_dict = (
-            cast(dict[str, Any], exchanges_conf) if isinstance(exchanges_conf, dict) else {}
-        )
-        configured_exchanges: list[str] = list(exchanges_dict.keys())
+        configured_exchanges: list[str] = list(self.app_settings.exchanges.keys())
         enabled_exchanges = [
-            ex_id
-            for ex_id in configured_exchanges
-            if self.app_settings.get(f"exchanges.{ex_id}.enabled", False)
+            ex_id for ex_id in configured_exchanges if self.app_settings.exchanges[ex_id].enabled
         ]
 
         # --- Update funding rate history ---
@@ -478,14 +433,8 @@ class SignalGenerator:
                 # avg_slippage = Decimal(str(avg_slippage))
                 return avg_slippage
 
-        # Fallback to configured value for the exchange or default
-        base_slippage = self.app_settings.get(
-            f"exchanges.{exchange}.expected_slippage", self.default_slippage
-        )
-
-        # Ensure base_slippage is a Decimal
-        if not isinstance(base_slippage, Decimal):
-            base_slippage = Decimal(str(base_slippage))
+        # TODO: Add exchange-specific slippage configuration to AppSettings when needed
+        base_slippage = self.default_slippage  # Use default slippage for all exchanges
 
         # Apply slippage sensitivity multiplier (self.slippage_sensitivity is guaranteed Decimal)
         sensitivity = self.slippage_sensitivity

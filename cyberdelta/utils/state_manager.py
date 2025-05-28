@@ -6,7 +6,7 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
-from cyberdelta.utils.config import Config
+from cyberdelta.config.config_models import AppSettings
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class StateManager:
     - Corruption detection and recovery
     """
 
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: AppSettings) -> None:
         """
         Initialize the state manager.
 
@@ -31,23 +31,10 @@ class StateManager:
         """
         self.config = config
 
-        # Load state parameters from config with type validation
-        state_file_val = config.get("general.state_file", "state.json")
-        self.state_file: str = (
-            str(state_file_val) if isinstance(state_file_val, str) else "state.json"
-        )
-
-        backup_dir_val = config.get("general.state_backup_directory", "state_backups")
-        self.backup_dir: str = (
-            str(backup_dir_val) if isinstance(backup_dir_val, str) else "state_backups"
-        )
-
-        backup_count_val = config.get("general.state_backup_count", 5)
-        self.backup_count: int = (
-            int(backup_count_val)
-            if isinstance(backup_count_val, (int, str)) and str(backup_count_val).isdigit()
-            else 5
-        )
+        # Load state parameters from config
+        self.state_file: str = config.general.state_file
+        self.backup_dir: str = config.general.state_backup_directory
+        self.backup_count: int = config.general.state_backup_count
 
         # Ensure backup directory exists
         os.makedirs(self.backup_dir, exist_ok=True)
@@ -306,7 +293,7 @@ class StateManager:
         return str(hash(state_json))
 
 
-def load_state_manager(config: Config) -> StateManager:
+def load_state_manager(config: AppSettings) -> StateManager:
     """
     Create and initialize a state manager.
 

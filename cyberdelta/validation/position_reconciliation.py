@@ -12,9 +12,9 @@ from decimal import Decimal, InvalidOperation, getcontext
 from typing import Any, Literal, cast
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI  # Add ExchangeAPI
+from cyberdelta.config.config_models import AppSettings
 from cyberdelta.core.models import DerivativePosition, OrderSide
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
-from cyberdelta.utils.config import Config
 from cyberdelta.validation.models.discrepancy_detail import (
     DiscrepancyDetail,
     HistoricalDiscrepancyRecord,
@@ -52,27 +52,25 @@ class PositionReconciliationSystem:
     to match the authoritative source.
     """
 
-    def __init__(self, config: Config, portfolio_tracker: PortfolioTracker) -> None:
+    def __init__(self, app_settings: AppSettings, portfolio_tracker: PortfolioTracker) -> None:
         """
         Initialize the position reconciliation system.
 
         Args:
-            config: Application configuration
+            app_settings: Application configuration
             portfolio_tracker: Reference to the portfolio tracker (optional, can be set later)
         """
         self.logger = logger
-        self._config = config
+        self._config = app_settings
         self._portfolio_tracker = portfolio_tracker
         self.latest_results: dict[str, dict[str, Any | list[DiscrepancyDetail]]] = {}
 
-        # Configuration parameters
-        self.reconciliation_threshold = config.get(
-            "validation.position_reconciliation.threshold", 0.05
-        )  # 5% discrepancy threshold
-        self.auto_correct = config.get("validation.position_reconciliation.auto_correct", False)
-        self.check_interval = config.get(
-            "validation.position_reconciliation.check_interval", 3600
-        )  # seconds
+        # Configuration parameters from AppSettings
+        pos_recon_config = app_settings.safety_systems.position_reconciliation
+        self.reconciliation_threshold = float(pos_recon_config.max_discrepancy_pct)
+        # TODO: Add auto_correct configuration to PositionReconciliationSettings when needed
+        self.auto_correct = False  # Default value
+        self.check_interval: timedelta = timedelta(seconds=pos_recon_config.check_interval_sec)
 
         # Track the last reconciliation time
         self.last_check_time: datetime | None = None
@@ -86,63 +84,26 @@ class PositionReconciliationSystem:
         # Internal state
         self._last_reconciliation_run: datetime = datetime.min.replace(tzinfo=UTC)
 
-        # Get interval, ensuring it's a float
-        interval_val = config.get("validation.position_reconciliation.interval_seconds", 300.0)
-        # DEFENSIVE CHECK: Ensure interval_val is numeric before calculation. Mypy=[operator]
-        if isinstance(interval_val, int | float):
-            self._reconciliation_interval_secs: float = float(interval_val)
-        else:
-            logger.warning(
-                f"Invalid reconciliation interval type ('{type(interval_val)}'), "
-                f"defaulting to 300.0 seconds."
-            )
-            self._reconciliation_interval_secs = 300.0  # Default float value
+        # Get interval from configuration
+        self._reconciliation_interval_secs: float = float(pos_recon_config.check_interval_sec)
 
-        # Initialize next_reconciliation_time (Moved from potentially conditional block)
+        # Initialize next_reconciliation_time
         self._next_reconciliation_time: datetime = datetime.now(UTC) + timedelta(
             seconds=self._reconciliation_interval_secs
         )
 
-        # Get threshold
-        threshold_val = config.get("validation.position_reconciliation.threshold_percent", "5.0")
-        self._discrepancy_threshold_percent: Decimal = Decimal(str(threshold_val))
+        # Get threshold from configuration
+        self._discrepancy_threshold_percent: Decimal = pos_recon_config.max_discrepancy_pct
 
-        # Get action mode, ensuring it's a string
-        action_mode_val = config.get("validation.position_reconciliation.action_mode", "log")
-        if isinstance(action_mode_val, str):
-            self._action_mode: str = action_mode_val
-        else:
-            logger.warning(
-                f"Invalid action mode type ('{type(action_mode_val)}'), defaulting to 'log'."
-            )
-            self._action_mode = "log"
+        # TODO: Add action_mode configuration to PositionReconciliationSettings when needed
+        self._action_mode: str = "log"  # Default value
 
-        # Ensure check_interval is timedelta. It's read as int/float from config.
-        check_interval_seconds = config.get(
-            "validation.position_reconciliation.check_interval", 3600
-        )
-        # self.check_interval is used by __init__
-        _check_interval_td: timedelta
-        if isinstance(check_interval_seconds, int | float):
-            _check_interval_td = timedelta(seconds=check_interval_seconds)
-        else:
-            logger.warning(
-                f"Invalid check_interval type ('{type(check_interval_seconds)}'), "
-                f"defaulting to 3600s."
-            )
-            _check_interval_td = timedelta(seconds=3600)  # Default timedelta
+        # Ensure check_interval is timedelta
+        _check_interval_td = timedelta(seconds=pos_recon_config.check_interval_sec)
         self.check_interval = _check_interval_td
 
-        # self.reconciliation_interval is used by check_positions, ensure it is also timedelta
-        # This seems to be the same as check_interval in current logic.
-        # If interval_seconds from config is the intended value for reconciliation_interval:
-        _reconciliation_interval_td: timedelta
-        if isinstance(interval_val, int | float):
-            _reconciliation_interval_td = timedelta(seconds=float(interval_val))
-        else:
-            # Fallback if interval_val was not numeric
-            _reconciliation_interval_td = timedelta(seconds=300.0)
-        self.reconciliation_interval = _reconciliation_interval_td
+        # Set reconciliation_interval as timedelta
+        self.reconciliation_interval = timedelta(seconds=self._reconciliation_interval_secs)
 
     def register_portfolio_tracker(self, portfolio_tracker: PortfolioTracker) -> None:
         """

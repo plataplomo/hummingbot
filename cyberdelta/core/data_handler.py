@@ -5,12 +5,12 @@ from collections.abc import Awaitable, Callable, Coroutine
 from datetime import UTC, timedelta
 from datetime import datetime as dt_real
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
-from cyberdelta.config import ConfigManager
+from cyberdelta.config.config_models import AppSettings
 from cyberdelta.core.models import FundingRate, Order, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
@@ -49,7 +49,7 @@ class DataHandler:
 
     def __init__(
         self,
-        config: ConfigManager,
+        app_settings: AppSettings,
         api_clients: dict[str, ExchangeAPI],
         portfolio_tracker: PortfolioTracker,
         symbol_mapper: SymbolMapper,
@@ -60,14 +60,14 @@ class DataHandler:
         Initialize the DataHandler.
 
         Args:
-            config: Application configuration object.
+            app_settings: Application configuration object.
             api_clients: Dictionary of ExchangeAPI instances.
             portfolio_tracker: PortfolioTracker instance.
             symbol_mapper: SymbolMapper instance.
             loop: Event loop for async operations.
             clock: Callable for getting current datetime.
         """
-        self.config = config
+        self.app_settings = app_settings
         self.api_clients = api_clients
         self.portfolio_tracker = portfolio_tracker
         self.symbol_mapper = symbol_mapper
@@ -107,67 +107,20 @@ class DataHandler:
 
     def _load_staleness_config(self) -> None:
         """Load data staleness thresholds from config."""
-        defaults_raw = self.config.get("data_handler.staleness_defaults", {})
-        defaults: dict[str, Any] = defaults_raw if isinstance(defaults_raw, dict) else {}
-
+        # TODO: Add data_handler.staleness_defaults configuration to AppSettings when needed
+        # For now, use hardcoded defaults
         default_ticker_sec = 60.0
-
-        ticker_val = defaults.get("ticker", 60.0)
-        default_ticker_sec = float(ticker_val) if isinstance(ticker_val, int | float) else 60.0
-
         default_funding_sec = 3600.0
 
-        funding_val = defaults.get("funding_rate", 3600.0)
-        default_funding_sec = float(funding_val) if isinstance(funding_val, int | float) else 3600.0
-
-        exchanges_conf_raw = self.config.get("exchanges", {})
-        if not isinstance(exchanges_conf_raw, dict):
-            logger.warning("'exchanges' config not found or not a dict. Using default staleness.")
-            return
-
-        exchanges_conf: dict[str, Any] = exchanges_conf_raw
+        # Access exchanges configuration directly from AppSettings
+        exchanges_conf = self.app_settings.exchanges
 
         # Correctly iterate and calculate timedelta
-        for exchange_id, exchange_data in exchanges_conf.items():
-            if not isinstance(exchange_data, dict):  # Ensure exchange_data is a dict
-                logger.warning(
-                    f"Invalid config for exchange {exchange_id}. Skipping staleness setup."
-                )
-                continue
-
-            exchange_config_path = f"exchanges.{exchange_id}.data_handler.staleness"
-            exchange_staleness_raw = self.config.get(exchange_config_path, {})
-            exchange_staleness: dict[str, Any] = (
-                exchange_staleness_raw if isinstance(exchange_staleness_raw, dict) else {}
-            )
-
-            # Get ticker threshold
+        for exchange_id, _exchange_data in exchanges_conf.items():
+            # TODO: Add data_handler.staleness configuration to ExchangeSpecificConfig when needed
+            # For now, use default values
             ticker_thresh = default_ticker_sec
-            ticker_override = exchange_staleness.get("ticker")
-            if ticker_override is not None:
-                try:
-                    ticker_thresh = (
-                        float(ticker_override)
-                        if isinstance(ticker_override, int | float | str)
-                        else default_ticker_sec
-                    )
-                except (ValueError, TypeError):
-                    logger.warning(f"Invalid ticker staleness for {exchange_id}: {ticker_override}")
-
-            # Get funding rate threshold
             funding_thresh = default_funding_sec
-            funding_override = exchange_staleness.get("funding_rate")
-            if funding_override is not None:
-                try:
-                    funding_thresh = (
-                        float(funding_override)
-                        if isinstance(funding_override, int | float | str)
-                        else default_funding_sec
-                    )
-                except (ValueError, TypeError):
-                    logger.warning(
-                        f"Invalid funding_rate staleness for {exchange_id}: {funding_override}"
-                    )
 
             # Store thresholds as timedelta
             try:
@@ -190,19 +143,15 @@ class DataHandler:
 
     def _setup_data_structures(self) -> None:
         """Initialize data structures for all configured exchanges and symbols."""
-        exchanges_conf = self.config.get("exchanges", {})
-        # Cast config result to expected dict type
-        exchanges_dict = cast(
-            dict[str, Any], exchanges_conf if isinstance(exchanges_conf, dict) else {}
-        )
+        # Access exchanges configuration directly from AppSettings
+        exchanges_dict = self.app_settings.exchanges
 
-        for exchange_id in exchanges_dict.keys():
-            if not self.config.get(f"exchanges.{exchange_id}.enabled", False):
+        for exchange_id, exchange_config in exchanges_dict.items():
+            if not exchange_config.enabled:
                 continue
 
-            # Cast config result to expected list type
-            symbols_conf = self.config.get(f"exchanges.{exchange_id}.symbols", [])
-            symbols = cast(list[str], symbols_conf if isinstance(symbols_conf, list) else [])
+            # Access symbols directly from exchange configuration
+            symbols = list(exchange_config.symbols.keys())
 
             self.tickers[exchange_id] = {
                 symbol: self._get_default_ticker(symbol) for symbol in symbols
@@ -243,20 +192,15 @@ class DataHandler:
     async def start_connections(self) -> None:
         """Establish WebSocket connections for all enabled exchanges."""
         logger.info("Starting WebSocket connections...")
-        exchanges_conf = self.config.get("exchanges", {})
-        exchanges_dict = cast(
-            dict[str, Any], exchanges_conf if isinstance(exchanges_conf, dict) else {}
-        )
+        # Access exchanges configuration directly from AppSettings
+        exchanges_dict = self.app_settings.exchanges
 
         connect_tasks: list[Awaitable[Any]] = []
-        for exchange_id in exchanges_dict.keys():
-            if self.config.get(f"exchanges.{exchange_id}.enabled", False):
+        for exchange_id, exchange_config in exchanges_dict.items():
+            if exchange_config.enabled:
                 client = self.api_clients.get(exchange_id)
-                # Ensure symbols are fetched for this specific exchange_id
-                symbols_conf = self.config.get(f"exchanges.{exchange_id}.symbols", [])
-                symbols_for_exchange = cast(
-                    list[str], symbols_conf if isinstance(symbols_conf, list) else []
-                )
+                # Access symbols directly from exchange configuration
+                symbols_for_exchange = list(exchange_config.symbols.keys())
 
                 if client and hasattr(
                     client, "connect_websocket"
@@ -907,13 +851,6 @@ class DataHandler:
             )
             return False  # No data yet, so not stale
 
-        if not isinstance(last_update, dt_real):
-            logger.error(
-                f"[{exchange_id}] Timestamp for {data_type} symbol {symbol} "
-                f"is not a datetime object: {type(last_update)}"
-            )
-            return True  # Treat as stale if timestamp is invalid
-
         if last_update.tzinfo is None:
             last_update = last_update.replace(tzinfo=UTC)
             logger.warning(
@@ -941,25 +878,11 @@ class DataHandler:
     async def _maintain_websocket_connection(
         self, exchange_id: str, client: ExchangeAPI, symbols: list[str]
     ) -> None:
-        reconnect_delay_raw = self.config.get(
-            f"exchanges.{exchange_id}.websocket.reconnect_delay", 5
-        )
-        max_reconnect_delay_raw = self.config.get(
-            f"exchanges.{exchange_id}.websocket.max_reconnect_delay", 60
-        )
-        max_attempts_raw = self.config.get(
-            f"exchanges.{exchange_id}.websocket.max_reconnect_attempts", 0
-        )
-
-        reconnect_delay = (
-            float(reconnect_delay_raw) if isinstance(reconnect_delay_raw, int | float) else 5.0
-        )
-        max_reconnect_delay = (
-            float(max_reconnect_delay_raw)
-            if isinstance(max_reconnect_delay_raw, int | float)
-            else 60.0
-        )
-        max_attempts = int(max_attempts_raw) if isinstance(max_attempts_raw, int) else 0
+        # TODO: Add websocket configuration to ExchangeSpecificConfig when needed
+        # For now, use hardcoded defaults
+        reconnect_delay = 5.0
+        max_reconnect_delay = 60.0
+        max_attempts = 0  # 0 means unlimited attempts
 
         attempt = 0
         current_delay = reconnect_delay  # Ensure float for calculations
