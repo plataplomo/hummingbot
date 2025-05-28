@@ -14,18 +14,18 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
+from cyberdelta.config import ConfigurationError, get_app_settings
+from cyberdelta.config.logging_config import setup_logging
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.engine import Engine
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
-from cyberdelta.core.risk_manager import ConfigError, RiskManager
+from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.core.strategy_manager import StrategyManager
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
-from cyberdelta.utils.config import load_config
-from cyberdelta.utils.logging_config import setup_logging
 from cyberdelta.utils.state_manager import StateManager
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 
@@ -119,15 +119,19 @@ async def main() -> None:
     )
     args = parser.parse_args()
 
-    # Load configuration using correct utility
+    # Set config path if provided
+    if args.config:
+        os.environ["CYBERDELTA_CONFIG_PATH"] = args.config
+
+    # Load configuration using new Pydantic system
     try:
-        config = load_config(args.config)  # Only config_path is accepted
+        config = get_app_settings()
         logger.info(
             "Configuration loaded successfully",
             source=args.config or "Default",
         )
         app_state["config"] = config
-    except ConfigError as e:
+    except (ConfigurationError, RuntimeError) as e:
         logger.error("Configuration error", error=str(e), exc_info=True)
         sys.exit(1)
     except Exception as e:
@@ -145,26 +149,13 @@ async def main() -> None:
         app_state["state_manager"] = state_manager
 
         # SymbolMapper is required by PortfolioTracker and ExecutionHandler
-        exchanges_conf_raw = config.get("exchanges", {})
-        # Ensure exchanges_conf is dict[str, Any] for SymbolMapper
-        exchanges_conf: dict[str, Any] = {}
-        if isinstance(exchanges_conf_raw, dict):
-            k_raw: Any  # Declare type for k_raw
-            v_raw: Any  # Declare type for v_raw
-            for k_raw, v_raw in exchanges_conf_raw.items():
-                if isinstance(k_raw, str) and isinstance(
-                    v_raw, dict
-                ):  # Ensure keys are str and values are dicts
-                    exchanges_conf[k_raw] = v_raw
-                else:
-                    logger.warning(
-                        f"SymbolMapper: Skipping invalid exchange config entry: ({k_raw}: {v_raw})"
-                    )
-        else:
-            logger.error("CRITICAL: 'exchanges' configuration is missing or not a dict.")
-            # exchanges_conf remains {}
+        exchanges_conf = config.exchanges
+        # Convert to dict[str, Any] for SymbolMapper
+        exchanges_conf_dict: dict[str, Any] = {}
+        for exchange_name, exchange_config in exchanges_conf.items():
+            exchanges_conf_dict[exchange_name] = exchange_config.model_dump()
 
-        symbol_mapper = SymbolMapper(exchanges_conf)
+        symbol_mapper = SymbolMapper(exchanges_conf_dict)
         app_state["symbol_mapper"] = symbol_mapper
 
         # PortfolioTracker expects Config and SymbolMapper
@@ -242,7 +233,7 @@ async def main() -> None:
                 "BACKPACK_API_SECRET": os.environ.get("BP_API_SECRET"),
             },
         }
-        _exchanges = config.get("exchanges", {})
+        _exchanges = config.exchanges
         if not isinstance(_exchanges, dict):
             logger.error("Config 'exchanges' must be a dictionary.")
             sys.exit(1)
@@ -301,7 +292,7 @@ async def main() -> None:
     strategies: list[Strategy] = []
     try:
         logger.info("Initializing strategies...")
-        _strategies_config = config.get("strategies", [])
+        _strategies_config = config.strategies
         if not isinstance(_strategies_config, list):
             logger.error("Config 'strategies' must be a list.")
             _strategies_config = []

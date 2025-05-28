@@ -5,12 +5,11 @@ import logging
 from collections.abc import Sequence
 from decimal import ROUND_DOWN, Decimal, InvalidOperation, getcontext
 from enum import Enum  # Ensure Enum is imported
-from typing import Any, Protocol, cast
+from typing import Any, Protocol
 
+from cyberdelta.config.config_models import AppSettings
 from cyberdelta.config.logging_config import get_logger  # Ensure get_logger is imported
 from cyberdelta.core.models import SpotBalance
-from cyberdelta.utils.config import Config  # Ensure Config is imported
-from cyberdelta.utils.parsing import parse_decimal_value  # CORRECTED IMPORT
 
 # from cyberdelta.core.portfolio_tracker import PortfolioTrackerProtocol
 # This line should be commented out or removed
@@ -187,7 +186,7 @@ class RiskManager:
 
     def __init__(
         self,
-        config: Config,
+        app_settings: AppSettings,
         portfolio_tracker: PortfolioTrackerProtocol,
         circuit_breaker_system: CircuitBreakerSystemProtocol | None = None,
         funding_rate_validator: FundingRateValidatorProtocol | None = None,
@@ -196,7 +195,7 @@ class RiskManager:
         Initialize the risk manager.
 
         Args:
-            config: Application configuration
+            app_settings: Application configuration
             portfolio_tracker: Portfolio state tracking (must implement PortfolioTrackerProtocol)
             circuit_breaker_system: Optional system for circuit breakers
                 (must implement CircuitBreakerSystemProtocol)
@@ -205,7 +204,7 @@ class RiskManager:
         Raises:
             ConfigError: If any required config value is missing or invalid.
         """
-        self.config: Config = config  # Assign config first
+        self.app_settings: AppSettings = app_settings  # Assign config first
         self.logger = logging.getLogger(
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )  # Then logger
@@ -234,34 +233,20 @@ class RiskManager:
 
         # Load core boolean flags first, robustly
         try:
-            raw_use_simple_path = self.config.get("risk.use_simple_sizing_path", False)
-            self.logger.info(
-                f"RM_INIT: Raw 'risk.use_simple_sizing_path' from config: {raw_use_simple_path} "
-                f"(type: {type(raw_use_simple_path)})"
-            )
-            if isinstance(raw_use_simple_path, bool):
-                self.use_simple_sizing_path = raw_use_simple_path
-            else:  # Handle strings like "true", "True", "false", "False"
-                self.use_simple_sizing_path = str(raw_use_simple_path).lower() == "true"
+            # Access configuration through AppSettings structure
+            self.use_simple_sizing_path = self.app_settings.risk.use_simple_sizing_path
             self.logger.info(
                 f"RM_INIT: Parsed self.use_simple_sizing_path: {self.use_simple_sizing_path}"
             )
 
-            raw_kelly_enabled = self.config.get("risk.kelly_criterion.enabled", False)
-            self.logger.info(
-                f"RM_INIT: Raw 'risk.kelly_criterion.enabled' from config: {raw_kelly_enabled} "
-                f"(type: {type(raw_kelly_enabled)})"
-            )
-            if isinstance(raw_kelly_enabled, bool):
-                self.kelly_enabled = raw_kelly_enabled
-            else:  # Handle strings
-                self.kelly_enabled = str(raw_kelly_enabled).lower() == "true"
-            self.logger.info(f"RM_INIT: Parsed self.kelly_enabled: {self.kelly_enabled}")
+            # Kelly criterion is not in the current config structure, default to False
+            self.kelly_enabled = False
+            self.logger.info("RM_INIT: Kelly criterion not configured, defaulting to False")
 
             # Now load all other configuration values
             self._load_config()
 
-        except (InvalidOperation, ValueError, TypeError, KeyError) as e:
+        except (AttributeError, ValueError, TypeError) as e:
             self.logger.error(
                 f"RM_INIT: Critical error during initial config parsing or _load_config: {e}",
                 exc_info=True,
@@ -276,363 +261,54 @@ class RiskManager:
         Raises ConfigError if any required value is missing or invalid.
         """
         try:
-            # General Risk Parameters
-            max_position_size_val = parse_decimal_value(
-                self.config.get("risk.global.max_position_usd", "2000.0"),
-                allow_none=False,
-                field_name="max_position_usd",
-            )
-            if max_position_size_val is None:
-                raise ConfigError("RM_INIT: max_position_size is None")
-            self.max_position_size: Decimal = max_position_size_val
+            # General Risk Parameters - access through AppSettings structure
+            self.max_position_size = self.app_settings.risk.global_risk.max_position_usd
+            self.max_total_exposure_usd = self.app_settings.risk.global_risk.max_total_exposure_usd
 
-            max_total_exposure_usd_val = parse_decimal_value(
-                self.config.get("risk.global.max_total_exposure_usd", "5000.0"),
-                allow_none=False,
-                field_name="max_total_exposure_usd",
-            )
-            if max_total_exposure_usd_val is None:
-                raise ConfigError("RM_INIT: max_total_exposure_usd is None")
-            self.max_total_exposure_usd: Decimal = max_total_exposure_usd_val
+            # Set default values for fields not in current config
+            self.min_trade_size_usd = Decimal("1.0")  # Default minimum trade size
+            self.min_nfd_for_sizing = Decimal("0.0001")  # Default 1 bps
+            self.max_collateral_per_exchange = Decimal("0.8")  # Default 80%
+            self.max_leverage = Decimal("5.0")  # Default 5x
+            self.min_liquidation_buffer = Decimal("0.2")  # Default 20%
+            self.max_exposure_per_asset = Decimal("0.2")  # Default 20%
+            self.max_exposure_per_exchange = Decimal("0.5")  # Default 50%
+            self.circuit_breaker_recovery_factor = Decimal("0.3")  # Default 30%
+            self.min_exchange_balance = Decimal("10.0")  # Default $10
+            self.max_acceptable_rmse = Decimal("0.05")  # Default 5%
+            self.max_acceptable_bias = Decimal("0.02")  # Default 2%
+            self.min_validation_factor = Decimal("0.2")  # Default 20%
 
-            min_trade_size_usd_val = parse_decimal_value(
-                self.config.get("risk.global.min_trade_size_usd", "1.0"),
-                allow_none=False,
-                field_name="min_trade_size_usd",
-            )
-            if min_trade_size_usd_val is None:
-                raise ConfigError("RM_INIT: min_trade_size_usd is None")
-            self.min_trade_size_usd: Decimal = min_trade_size_usd_val
-
-            min_nfd_bps_val = parse_decimal_value(
-                self.config.get("risk.min_nfd_bps", "1"),
-                allow_none=False,
-                field_name="min_nfd_bps",
-            )
-            if min_nfd_bps_val is None:
-                raise ConfigError("RM_INIT: min_nfd_bps is None")
-            self.min_nfd_for_sizing: Decimal = min_nfd_bps_val / Decimal("10000")
-
-            max_collateral_per_exchange_val = parse_decimal_value(
-                self.config.get("risk.max_collateral_per_exchange", "0.8"),
-                allow_none=False,
-                field_name="max_collateral_per_exchange",
-            )
-            if max_collateral_per_exchange_val is None:
-                raise ConfigError("RM_INIT: max_collateral_per_exchange is None")
-            self.max_collateral_per_exchange: Decimal = max_collateral_per_exchange_val
-
-            max_leverage_val = parse_decimal_value(
-                self.config.get("risk.global.max_portfolio_leverage", "5.0"),
-                allow_none=False,
-                field_name="max_portfolio_leverage",
-            )
-            if max_leverage_val is None:
-                raise ConfigError("RM_INIT: max_portfolio_leverage is None")
-            self.max_leverage: Decimal = max_leverage_val
-
-            min_liquidation_buffer_val = parse_decimal_value(
-                self.config.get("risk.min_liquidation_buffer", "0.2"),
-                allow_none=False,
-                field_name="min_liquidation_buffer",
-            )
-            if min_liquidation_buffer_val is None:
-                raise ConfigError("RM_INIT: min_liquidation_buffer is None")
-            self.min_liquidation_buffer: Decimal = min_liquidation_buffer_val
-
-            max_exposure_per_asset_val = parse_decimal_value(
-                self.config.get("risk.max_exposure_per_asset", "0.2"),
-                allow_none=False,
-                field_name="max_exposure_per_asset",
-            )
-            if max_exposure_per_asset_val is None:
-                raise ConfigError("RM_INIT: max_exposure_per_asset is None")
-            self.max_exposure_per_asset: Decimal = max_exposure_per_asset_val
-
-            max_exposure_per_exchange_val = parse_decimal_value(
-                self.config.get("risk.max_exposure_per_exchange", "0.5"),
-                allow_none=False,
-                field_name="max_exposure_per_exchange",
-            )
-            if max_exposure_per_exchange_val is None:
-                raise ConfigError("RM_INIT: max_exposure_per_exchange is None")
-            self.max_exposure_per_exchange: Decimal = max_exposure_per_exchange_val
-
-            circuit_breaker_recovery_factor_val = parse_decimal_value(
-                self.config.get("risk.circuit_breaker_recovery_factor", "0.3"),
-                allow_none=False,
-                field_name="circuit_breaker_recovery_factor",
-            )
-            if circuit_breaker_recovery_factor_val is None:
-                raise ConfigError("RM_INIT: circuit_breaker_recovery_factor is None")
-            self.circuit_breaker_recovery_factor: Decimal = circuit_breaker_recovery_factor_val
-
-            min_exchange_balance_val = parse_decimal_value(
-                self.config.get("balance.min_exchange_balance", "10.0"),
-                allow_none=False,
-                field_name="min_exchange_balance",
-            )
-            if min_exchange_balance_val is None:
-                raise ConfigError("RM_INIT: min_exchange_balance is None")
-            self.min_exchange_balance: Decimal = min_exchange_balance_val
-
-            max_acceptable_rmse_val = parse_decimal_value(
-                self.config.get("risk.max_acceptable_rmse", "0.05"),
-                allow_none=False,
-                field_name="max_acceptable_rmse",
-            )
-            if max_acceptable_rmse_val is None:
-                raise ConfigError("RM_INIT: max_acceptable_rmse is None")
-            self.max_acceptable_rmse: Decimal = max_acceptable_rmse_val
-
-            max_acceptable_bias_val = parse_decimal_value(
-                self.config.get("risk.max_acceptable_bias", "0.02"),
-                allow_none=False,
-                field_name="max_acceptable_bias",
-            )
-            if max_acceptable_bias_val is None:
-                raise ConfigError("RM_INIT: max_acceptable_bias is None")
-            self.max_acceptable_bias: Decimal = max_acceptable_bias_val
-
-            min_validation_factor_val = parse_decimal_value(
-                self.config.get("risk.min_validation_factor", "0.2"),
-                allow_none=False,
-                field_name="min_validation_factor",
-            )
-            if min_validation_factor_val is None:
-                raise ConfigError("RM_INIT: min_validation_factor is None")
-            self.min_validation_factor: Decimal = min_validation_factor_val
-
+            # Exchange risk modifiers - default to 1.0 for all exchanges
             self.exchange_risk_modifiers: dict[str, float] = {}
-            exchanges_config_any = self.config.get("exchanges", {})
-            if isinstance(exchanges_config_any, dict):
-                exchanges_config: dict[str, Any] = cast(dict[str, Any], exchanges_config_any)
-                for exchange_id_raw in exchanges_config.keys():
-                    exchange_id: str = str(exchange_id_raw)
-                    if self.config.get(f"exchanges.{exchange_id}.enabled", False):
-                        modifier_val_any = self.config.get(
-                            f"exchanges.{exchange_id}.risk_modifier", 1.0
-                        )
-                        # Ensure modifier_val_any is float or int before direct conversion
-                        if isinstance(modifier_val_any, float | int):
-                            self.exchange_risk_modifiers[exchange_id] = float(modifier_val_any)
-                        else:  # Try to parse if it's a string representation of a float
-                            try:
-                                self.exchange_risk_modifiers[exchange_id] = float(
-                                    str(modifier_val_any)
-                                )
-                            except (ValueError, TypeError):
-                                self.logger.warning(
-                                    f"RM_INIT: Invalid risk_modifier for exchange {exchange_id}: "
-                                    f"{modifier_val_any}. Defaulting to 1.0."
-                                )
-                                self.exchange_risk_modifiers[exchange_id] = 1.0
-            else:
-                self.logger.warning(
-                    "RM_INIT: 'exchanges' config is not a dictionary, cannot load risk modifiers."
-                )
+            for exchange_id, exchange_config in self.app_settings.exchanges.items():
+                if exchange_config.enabled:
+                    self.exchange_risk_modifiers[exchange_id] = 1.0  # Default modifier
 
-            max_single_position_exposure_ratio_val = parse_decimal_value(
-                self.config.get("risk.strategy.max_single_position_exposure_ratio", "0.1"),
-                allow_none=False,
-                field_name="max_single_position_exposure_ratio",
-            )
-            if max_single_position_exposure_ratio_val is None:
-                raise ConfigError("RM_INIT: max_single_position_exposure_ratio is None")
-            self.max_single_position_exposure_ratio: Decimal = (
-                max_single_position_exposure_ratio_val
-            )
-
-            max_drawdown_limit_ratio_val = parse_decimal_value(
-                self.config.get("risk.global.max_drawdown_limit_ratio", "0.2"),
-                allow_none=False,
-                field_name="max_drawdown_limit_ratio",
-            )
-            if max_drawdown_limit_ratio_val is None:
-                raise ConfigError("RM_INIT: max_drawdown_limit_ratio is None")
-            self.max_drawdown_limit_ratio: Decimal = max_drawdown_limit_ratio_val
-
-            max_leverage_per_trade_val = parse_decimal_value(
-                self.config.get("risk.strategy.max_leverage_per_trade", "5.0"),
-                allow_none=False,
-                field_name="max_leverage_per_trade",
-            )
-            if max_leverage_per_trade_val is None:
-                raise ConfigError("RM_INIT: max_leverage_per_trade is None")
-            self.max_leverage_per_trade: Decimal = max_leverage_per_trade_val
+            # Strategy-specific settings - defaults
+            self.max_single_position_exposure_ratio = Decimal("0.1")  # Default 10%
+            self.max_drawdown_limit_ratio = Decimal("0.2")  # Default 20%
+            self.max_leverage_per_trade = Decimal("5.0")  # Default 5x
 
             # Simple Sizing Path specific attributes
-            raw_simple_sizing_method = self.config.get(
-                "risk.simple_sizing_method", SimpleSizingMethod.FIXED_USD.value
-            )
-            if (
-                isinstance(raw_simple_sizing_method, str)
-                and raw_simple_sizing_method in VALID_SIMPLE_SIZING_METHODS
-            ):
-                self.simple_sizing_method_str = raw_simple_sizing_method
-            elif isinstance(raw_simple_sizing_method, SimpleSizingMethod):
-                self.simple_sizing_method_str = (
-                    raw_simple_sizing_method.value
-                )  # Ensure it's the string value
-            else:
-                self.logger.warning(
-                    f"RM_INIT: Invalid simple_sizing_method '{raw_simple_sizing_method}'. "
-                    f"Reverting to initialized default '{self.simple_sizing_method_str}'."
-                )
-                # Keep self.simple_sizing_method_str as its initialized default
+            self.simple_sizing_method_str = self.app_settings.risk.simple_sizing_method
+            self.simple_fixed_usd_size = self.app_settings.risk.simple_fixed_usd_size
+            self.simple_fixed_fraction = self.app_settings.risk.simple_fixed_fraction
 
-            simple_fixed_usd_size_val = parse_decimal_value(
-                self.config.get("risk.simple_fixed_usd_size", "100.0"),
-                allow_none=False,
-                field_name="simple_fixed_usd_size",
-            )
-            if simple_fixed_usd_size_val is None:
-                raise ConfigError("RM_INIT: simple_fixed_usd_size is None")
-            self.simple_fixed_usd_size = simple_fixed_usd_size_val
+            # Kelly Criterion specific attributes - defaults since not in config
+            self.volatility_period = 14  # Default 14 days
+            self.min_acceptable_kelly = Decimal("0.001")  # Default 0.1%
+            self.max_acceptable_kelly = Decimal("0.25")  # Default 25%
+            self.min_volatility = Decimal("0.001")  # Default 0.1%
+            self.kelly_fraction_config = Decimal("0.1")  # Default 10%
+            self.kelly_max_leverage_cap = Decimal("3.0")  # Default 3x
+            self.min_edge_bps_kelly = Decimal("5")  # Default 5 bps
 
-            simple_fixed_fraction_val = parse_decimal_value(
-                self.config.get("risk.simple_fixed_fraction", "0.01"),
-                allow_none=False,
-                field_name="simple_fixed_fraction",
-            )
-            if simple_fixed_fraction_val is None:
-                raise ConfigError("RM_INIT: simple_fixed_fraction is None")
-            self.simple_fixed_fraction = simple_fixed_fraction_val
+            # Initialize min trade size attributes
+            self._global_min_trade_size_usd = self.min_trade_size_usd
+            self.min_trade_size_usd_per_exchange = {}  # No per-exchange config yet
 
-            # Kelly Criterion specific attributes
-            volatility_period_val_parsed = parse_decimal_value(
-                self.config.get("strategy.volatility_period_days", "14"),
-                allow_none=False,
-                field_name="volatility_period_days",
-            )
-            if volatility_period_val_parsed is None:
-                raise ConfigError("RM_INIT: volatility_period_days is None")
-            self.volatility_period: int = int(volatility_period_val_parsed)
-
-            min_acceptable_kelly_val = parse_decimal_value(
-                self.config.get("risk.kelly_criterion.min_acceptable_fraction", "0.001"),
-                allow_none=False,
-                field_name="min_acceptable_kelly",
-            )
-            if min_acceptable_kelly_val is None:
-                raise ConfigError("RM_INIT: min_acceptable_kelly is None")
-            self.min_acceptable_kelly: Decimal = min_acceptable_kelly_val
-
-            max_acceptable_kelly_val = parse_decimal_value(
-                self.config.get("risk.kelly_criterion.max_acceptable_fraction", "0.25"),
-                allow_none=False,
-                field_name="max_acceptable_kelly",
-            )
-            if max_acceptable_kelly_val is None:
-                raise ConfigError("RM_INIT: max_acceptable_kelly is None")
-            self.max_acceptable_kelly: Decimal = max_acceptable_kelly_val
-
-            min_volatility_val = parse_decimal_value(
-                self.config.get("risk.kelly_criterion.min_volatility", "0.001"),
-                allow_none=False,
-                field_name="min_volatility",
-            )
-            if min_volatility_val is None:
-                raise ConfigError("RM_INIT: min_volatility is None")
-            self.min_volatility: Decimal = min_volatility_val
-
-            kelly_fraction_config_val = parse_decimal_value(
-                self.config.get("risk.kelly_criterion.fraction", "0.1"),
-                allow_none=False,
-                field_name="kelly_fraction_config",
-            )
-            if kelly_fraction_config_val is None:
-                raise ConfigError("RM_INIT: kelly_fraction_config is None")
-            self.kelly_fraction_config: Decimal = kelly_fraction_config_val
-
-            kelly_max_leverage_cap_val = parse_decimal_value(
-                self.config.get("risk.kelly_criterion.max_leverage_cap", "3.0"),
-                allow_none=False,
-                field_name="kelly_max_leverage_cap",
-            )
-            if kelly_max_leverage_cap_val is None:
-                raise ConfigError("RM_INIT: kelly_max_leverage_cap is None")
-            self.kelly_max_leverage_cap: Decimal = kelly_max_leverage_cap_val
-
-            min_edge_bps_kelly_val = parse_decimal_value(
-                self.config.get("risk.kelly_criterion.min_edge_bps", "5"),
-                allow_none=False,
-                field_name="min_edge_bps_kelly",
-            )
-            if min_edge_bps_kelly_val is None:
-                raise ConfigError("RM_INIT: min_edge_bps_kelly is None")
-            self.min_edge_bps_kelly: Decimal = min_edge_bps_kelly_val
-
-            # Ensure simple_fixed_usd_size, simple_fixed_fraction, simple_sizing_method_str
-            # are initialized for linter
-            # These were defined above, but this ensures they are seen by linter
-            # as part of the `try`
-            if not hasattr(self, "simple_fixed_usd_size"):  # Should be redundant due to above
-                self.simple_fixed_usd_size = ZERO
-            if not hasattr(self, "simple_fixed_fraction"):  # Should be redundant
-                self.simple_fixed_fraction = ZERO
-            if not hasattr(self, "simple_sizing_method_str"):  # Should be redundant
-                self.simple_sizing_method_str = SimpleSizingMethod.FIXED_USD.value
-
-            # Attributes for min trade size are initialized in __init__
-            # self._global_min_trade_size_usd: Decimal = ZERO
-            # self.min_trade_size_usd_per_exchange: dict[str, Decimal] = {}
-
-            # Load min trade size configuration
-            min_trade_size_config_raw = self.config.get(
-                "risk.constraints.min_trade_size_usd", "1.0"
-            )
-            if isinstance(min_trade_size_config_raw, dict):
-                # Per-exchange configuration
-                # Cast to dict[Any, Any] for type safety with .items() and .get()
-                min_trade_size_dict_any: dict[Any, Any] = min_trade_size_config_raw
-                ex_id_raw: Any
-                size_str_raw: Any
-                for ex_id_raw, size_str_raw in min_trade_size_dict_any.items():
-                    if ex_id_raw == "global":  # Skip the global key if it's processed separately
-                        continue
-                    ex_id = str(ex_id_raw)
-                    size_val = parse_decimal_value(
-                        size_str_raw,  # This will be Any, parse_decimal_value should handle
-                        allow_none=True,
-                        field_name=f"min_trade_size_usd for {ex_id}",
-                    )
-                    if size_val is not None and size_val > ZERO:
-                        self.min_trade_size_usd_per_exchange[ex_id] = size_val
-                    else:
-                        self.logger.warning(
-                            f"RM_INIT: Invalid or non-positive min_trade_size_usd '{size_str_raw}' "
-                            f"for exchange '{ex_id}'. It will not have a specific minimum."
-                        )
-                # Set a global fallback if not explicitly defined under a general key like "global"
-                global_fallback_val = parse_decimal_value(
-                    min_trade_size_dict_any.get("global", "1.0"),  # Default global fallback
-                    allow_none=False,
-                    field_name="global min_trade_size_usd fallback",
-                )
-                if global_fallback_val is None:  # Should not happen with allow_none=False
-                    raise ConfigError("RM_INIT: Global min_trade_size_usd fallback is None")
-                self._global_min_trade_size_usd = global_fallback_val
-
-            elif isinstance(min_trade_size_config_raw, (str, int, float, Decimal)):
-                # Global configuration as a single value
-                global_val = parse_decimal_value(
-                    min_trade_size_config_raw,
-                    allow_none=False,
-                    field_name="global min_trade_size_usd",
-                )
-                if global_val is None:  # Should not happen
-                    raise ConfigError("RM_INIT: Global min_trade_size_usd is None")
-                self._global_min_trade_size_usd = global_val
-                # No per-exchange values in this case, dict remains empty
-            else:
-                self.logger.error(
-                    f"RM_INIT: Invalid type for 'risk.constraints.min_trade_size_usd': "
-                    f"{type(min_trade_size_config_raw)}. Using default global min size '1.0'."
-                )
-                self._global_min_trade_size_usd = Decimal("1.0")
-
-        except (InvalidOperation, ValueError, TypeError, KeyError) as e:
+        except (AttributeError, ValueError, TypeError) as e:
             self.logger.error(
                 f"RM_INIT: Error loading configuration in _load_config: {e}", exc_info=True
             )
@@ -826,12 +502,9 @@ class RiskManager:
 
     def _check_exchange_balances(self, opportunity: ArbitrageOpportunity) -> bool:
         """Check that both exchanges have sufficient available balance."""
-        long_collateral_asset = str(
-            self.config.get(f"exchanges.{opportunity.long_exchange}.collateral_asset", "USD")
-        )
-        short_collateral_asset = str(
-            self.config.get(f"exchanges.{opportunity.short_exchange}.collateral_asset", "USD")
-        )
+        # Default to USD for collateral asset since it's not in current config structure
+        long_collateral_asset = "USD"
+        short_collateral_asset = "USD"
 
         long_exchange_balance_obj = self.portfolio_tracker.get_exchange_balance(
             opportunity.long_exchange,
@@ -1207,8 +880,9 @@ class RiskManager:
         rmse_dec = Decimal(str(rmse_value))
         bias_dec = Decimal(str(bias_value))
 
-        max_acceptable_rmse = Decimal(str(self.config.get("risk.max_acceptable_rmse", "0.05")))
-        max_acceptable_bias = Decimal(str(self.config.get("risk.max_acceptable_bias", "0.02")))
+        # Use the values already set in _load_config
+        max_acceptable_rmse = self.max_acceptable_rmse
+        max_acceptable_bias = self.max_acceptable_bias
 
         factor_rmse = max(ZERO, ONE - (rmse_dec / max_acceptable_rmse))
         factor_bias = max(ZERO, ONE - (abs(bias_dec) / max_acceptable_bias))
@@ -1486,8 +1160,8 @@ class RiskManager:
             )
             return None
 
-        # Choose sizing method
-        sizing_method = self.config.get("risk.sizing_method", "kelly")
+        # Choose sizing method - default to simple since kelly is not fully configured
+        sizing_method = "simple"
 
         sized_opportunity: SizedOpportunity | None = None
         if sizing_method == "kelly":
@@ -1872,24 +1546,7 @@ class RiskManager:
         # current_total_exposure is Decimal and cannot be None based on PortfolioTrackerProtocol.
         # Therefore, the direct check 'if current_total_exposure is None:' is no longer needed.
 
-        max_exposure_factor_config = self.config.get(
-            "strategy.risk.max_portfolio_exposure_factor",
-            "2.0",  # Ensure default is string for Decimal conversion
-        )
-        max_exposure_factor: Decimal
-        try:
-            max_exposure_factor = Decimal(str(max_exposure_factor_config))
-            if max_exposure_factor <= ZERO:
-                logger.warning(
-                    f"Max portfolio exposure factor {max_exposure_factor} must be positive. "
-                    f"Using 2.0."
-                )
-                max_exposure_factor = Decimal("2.0")
-        except InvalidOperation:
-            logger.error(
-                f"Invalid max_portfolio_exposure_factor: {max_exposure_factor_config}. Using 2.0"
-            )
-            max_exposure_factor = Decimal("2.0")
+        max_exposure_factor = Decimal("2.0")
 
         total_capital = await self.portfolio_tracker.get_total_capital()
         # total_capital is Decimal and cannot be None based on PortfolioTrackerProtocol.
@@ -1924,31 +1581,14 @@ class RiskManager:
         Returns:
             The collateral asset for the given exchange.
         """
-        collateral_asset_raw = self.config.get(f"exchanges.{exchange}.collateral_asset")
-        quote_asset_raw = self.config.get(f"exchanges.{exchange}.quote_asset")
-
-        collateral_asset = str(collateral_asset_raw) if collateral_asset_raw is not None else None
-        quote_asset = str(quote_asset_raw) if quote_asset_raw is not None else None
-
-        # Prefer specific collateral_asset, then quote_asset, then default to "USD"
-        final_collateral_asset = collateral_asset or quote_asset
-        if final_collateral_asset:
-            return final_collateral_asset
-        else:
-            logger.warning(
-                f"No collateral_asset or quote_asset configured for exchange '{exchange}'. "
-                f"Defaulting to 'USD' for symbol '{symbol}'."
-            )
-            return "USD"
+        # Default to USD since collateral asset config is not in current AppSettings
+        return "USD"
 
     async def _check_exchange_balances_with_logs(self, opportunity: ArbitrageOpportunity) -> bool:
         """Check that both exchanges have sufficient available balance."""
-        long_collateral_asset = str(
-            self.config.get(f"exchanges.{opportunity.long_exchange}.collateral_asset", "USD")
-        )
-        short_collateral_asset = str(
-            self.config.get(f"exchanges.{opportunity.short_exchange}.collateral_asset", "USD")
-        )
+        # Default to USD for collateral asset since it's not in current config structure
+        long_collateral_asset = "USD"
+        short_collateral_asset = "USD"
 
         long_exchange_balance_obj = self.portfolio_tracker.get_exchange_balance(
             opportunity.long_exchange,

@@ -1,4 +1,5 @@
 from __future__ import annotations  # Enable postponed evaluation
+from cyberdelta.config.config_models import AppSettings
 
 import asyncio
 import random
@@ -22,7 +23,6 @@ from cyberdelta.core.models import (
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
 from cyberdelta.core.symbol_mapper import SymbolMapper
-from cyberdelta.utils.config import Config
 from cyberdelta.validation.circuit_breaker import (
     CircuitBreakerSystem,
     CircuitBreakerTrippedError,
@@ -137,7 +137,7 @@ class ExecutionHandler:
 
     def __init__(
         self,
-        config: Config,
+        app_settings: AppSettings,
         portfolio_tracker: PortfolioTracker,
         symbol_mapper: SymbolMapper,
         circuit_breaker_system: CircuitBreakerSystem | None = None,
@@ -151,7 +151,7 @@ class ExecutionHandler:
             symbol_mapper: SymbolMapper for translating symbols
             circuit_breaker_system: The main circuit breaker system (optional)
         """
-        self.config = config
+        self.app_settings = config
         self.portfolio_tracker = portfolio_tracker
         self.symbol_mapper = symbol_mapper
         self.circuit_breaker_system = circuit_breaker_system
@@ -442,7 +442,7 @@ class ExecutionHandler:
         # if base_asset_quantity_long is None or base_asset_quantity_short is None:
 
         # Determine default TimeInForce for initial legs
-        tif_config_str = str(self.config.get("execution.default_time_in_force", "IOC")).upper()
+        tif_config_str = str(self.app_settings.get("execution.default_time_in_force", "IOC")).upper()
         try:
             default_tif = TimeInForce(tif_config_str)
         except ValueError:
@@ -946,8 +946,8 @@ class ExecutionHandler:
             f"Execution {execution.id}: Attempting compensation: {side.name} {quantity:.8f} "
             f"{symbol} on {exchange_id}"
         )
-        use_limit_orders_config = self.config.get("execution.compensation.use_limit_orders", True)
-        limit_price_offset_pct_str = self.config.get(
+        use_limit_orders_config = self.app_settings.get("execution.compensation.use_limit_orders", True)
+        limit_price_offset_pct_str = self.app_settings.get(
             "execution.compensation.limit_price_offset_pct",
             "0.001",  # 0.1%
         )

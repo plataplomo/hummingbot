@@ -3,25 +3,23 @@ import logging.handlers
 import os
 import sys
 from types import TracebackType
-from typing import cast
 
-from cyberdelta.utils.config import Config
+from cyberdelta.config.config_models import AppSettings
 
 # Standard time formatting for all logs
 DEFAULT_LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 DEFAULT_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
-def setup_logging(config: Config) -> None:
+def setup_logging(app_settings: AppSettings) -> None:
     """
     Set up logging based on configuration.
 
     Args:
-        config: Application configuration
+        app_settings: Application configuration settings
     """
-    log_level_str = config.get("general.log_level", "INFO")
-    if not isinstance(log_level_str, str):
-        log_level_str = "INFO"
+    # Get log level from validated AppSettings (already validated as Literal)
+    log_level_str = app_settings.general.log_level
 
     # Map string log level to logging constants
     log_level_map = {
@@ -32,8 +30,8 @@ def setup_logging(config: Config) -> None:
         "CRITICAL": logging.CRITICAL,
     }
 
-    # Convert string to log level, default to INFO
-    log_level = log_level_map.get(log_level_str, logging.INFO)
+    # Convert string to log level (guaranteed to be valid due to Pydantic validation)
+    log_level = log_level_map[log_level_str]
 
     # Configure root logger
     root_logger = logging.getLogger()
@@ -55,12 +53,10 @@ def setup_logging(config: Config) -> None:
     root_logger.addHandler(console_handler)
 
     # Add file handler if log file is configured
-    log_file = config.get("general.log_file")
-    if not isinstance(log_file, str) or not log_file:
-        log_file = None
-    if log_file:
+    log_file_path_str = app_settings.general.log_file  # Optional[NonEmptyConfigString]
+    if log_file_path_str:
         # Create the directory if it doesn't exist
-        log_dir: str = os.path.dirname(log_file)
+        log_dir: str = os.path.dirname(log_file_path_str)
         if log_dir and not os.path.exists(log_dir):
             try:
                 os.makedirs(log_dir)
@@ -68,30 +64,29 @@ def setup_logging(config: Config) -> None:
                 root_logger.warning(f"Failed to create log directory {log_dir}: {e}")
 
         try:
-            file_handler = logging.FileHandler(log_file)
+            file_handler = logging.FileHandler(log_file_path_str)
             file_handler.setLevel(log_level)
             file_handler.setFormatter(formatter)
             root_logger.addHandler(file_handler)
-            root_logger.info(f"Logging to file: {log_file}")
+            root_logger.info(f"Logging to file: {log_file_path_str}")
         except Exception as e:
-            root_logger.warning(f"Failed to create log file {log_file}: {e}")
+            root_logger.warning(f"Failed to create log file {log_file_path_str}: {e}")
 
     # Apply module-specific log levels if specified
-    module_levels = config.get("general.module_log_levels", {})
-    if not isinstance(module_levels, dict):
-        module_levels = {}
-    # Help static analysis: treat as dict[str, str] for the loop
-    module_levels = cast(dict[str, str], module_levels)
-    for module_name_obj, level_str_obj in module_levels.items():
-        module_name: str = str(module_name_obj)
-        level_str: str = str(level_str_obj)
-        try:
-            module_level = log_level_map.get(level_str, logging.INFO)
-            module_logger = logging.getLogger(module_name)
-            module_logger.setLevel(module_level)
-            root_logger.info(f"Set {module_name} log level to {level_str}")
-        except Exception as e:
-            root_logger.warning(f"Failed to set log level for {module_name}: {e}")
+    module_levels_settings = (
+        app_settings.general.module_log_levels
+    )  # Optional[dict[str, Literal[...]]]
+    if module_levels_settings:  # Check if it's not None or empty
+        for module_name_str, level_literal in module_levels_settings.items():
+            # module_name_str is str (validated by Pydantic)
+            # level_literal is already a string from the Literal type
+            try:
+                module_level = log_level_map[level_literal]  # Guaranteed to be valid
+                module_logger = logging.getLogger(module_name_str)
+                module_logger.setLevel(module_level)
+                root_logger.info(f"Set {module_name_str} log level to {level_literal}")
+            except Exception as e:
+                root_logger.warning(f"Failed to set log level for {module_name_str}: {e}")
 
     # Log the configured log level
     root_logger.info(f"Logging initialized with level: {log_level_str}")
@@ -114,7 +109,7 @@ def get_logger(name: str) -> logging.Logger:
 class CapturingMemoryHandler(logging.handlers.MemoryHandler):
     """Memory handler that captures logs to a list."""
 
-    def __init__(self, capacity: int, logs_list: list[str]):
+    def __init__(self, capacity: int, logs_list: list[str]) -> None:
         """Initialize with a capacity and a reference to a logs list."""
         super().__init__(capacity=capacity)
         self.logs_list = logs_list

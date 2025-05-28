@@ -1,4 +1,5 @@
 from __future__ import annotations  # Enable postponed evaluation
+from cyberdelta.config.config_models import AppSettings
 
 import asyncio
 import heapq
@@ -10,7 +11,6 @@ from typing import TYPE_CHECKING, TypeVar
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import OrderSide, TradeSignal
 from cyberdelta.core.models.enums import SignalType
-from cyberdelta.utils.config import Config
 from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
@@ -38,16 +38,16 @@ class PrioritySignalQueue:
     """
 
     def __init__(
-        self, config: Config, circuit_breaker_system: CircuitBreakerSystem | None = None
+        self, app_settings: AppSettings, circuit_breaker_system: CircuitBreakerSystem | None = None
     ) -> None:
         """
         Initialize the priority signal queue.
 
         Args:
-            config: Configuration parameters
+            app_settings: AppSettingsuration parameters
             circuit_breaker_system: Optional circuit breaker system for safety checks
         """
-        self.config = config
+        self.app_settings = config
         self.circuit_breaker_system = circuit_breaker_system
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
@@ -79,7 +79,7 @@ class PrioritySignalQueue:
             target_type: type[ConfigValueType],
         ) -> ConfigValueType:
             """Helper to get and validate config values."""
-            value = self.config.get(key, default)
+            value = self.app_settings.get(key, default)
             try:
                 if value is default:
                     # Value is the default, which is already ConfigValueType

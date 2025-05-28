@@ -11,6 +11,7 @@ from typing import Any, cast
 from pydantic import BaseModel, Field, ValidationError
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.config.config_models import AppSettings
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import (
     DerivativePosition,
@@ -23,7 +24,6 @@ from cyberdelta.core.models import (
     Trade,
 )
 from cyberdelta.core.symbol_mapper import SymbolMapper  # IMPORT IS PRESENT
-from cyberdelta.utils.config import Config
 from cyberdelta.utils.parsing import parse_datetime_utc
 
 logger = get_logger(__name__)
@@ -59,7 +59,7 @@ class PortfolioTracker:
 
     def __init__(
         self,
-        config: Config,
+        app_settings: AppSettings,
         api_clients: dict[str, ExchangeAPI] | None = None,
         exchange_factories: dict[ExchangeType, Callable[..., ExchangeAPI]] | None = None,
         symbol_mapper: SymbolMapper | None = None,  # ADDED PARAMETER
@@ -68,13 +68,13 @@ class PortfolioTracker:
         Initialize the portfolio tracker.
 
         Args:
-            config: Application configuration
+            app_settings: Application configuration
             api_clients: Dictionary of exchange API clients
             exchange_factories: Dictionary of exchange API factory functions
             symbol_mapper: Symbol mapper instance # ADDED DOC
         """
         self.logger = get_logger(__name__ + "." + self.__class__.__name__)
-        self.config: Config = config
+        self.app_settings: AppSettings = app_settings
         self.api_clients: dict[str, ExchangeAPI] = api_clients or {}
         self.exchange_factories = exchange_factories or {}
         self.symbol_mapper: SymbolMapper | None = symbol_mapper  # STORE AS SELF.SYMBOL_MAPPER
@@ -125,41 +125,15 @@ class PortfolioTracker:
 
         self.tickers: dict[str, Ticker] = {}
 
-        pt_config_dict_raw = self.config.get("portfolio_tracker")
-        # Ensure pt_config_dict is dict[str, Any]
-        temp_pt_config_dict: dict[str, Any] = {}
-        if isinstance(pt_config_dict_raw, dict):
-            # Explicitly type the items from the raw dict
-            items_raw: dict[Any, Any] = pt_config_dict_raw
-            k_raw: Any
-            v_any: Any
-            for k_raw, v_any in items_raw.items():  # Add type hints for k, v
-                temp_pt_config_dict[str(k_raw)] = v_any
-        pt_config_dict = temp_pt_config_dict
-
-        # Ensure data_freshness_seconds has a default if not in pt_config_dict
-        # or if its value is not what PortfolioTrackerConfig expects.
-        # PortfolioTrackerConfig will validate its type.
-        if "data_freshness_seconds" not in pt_config_dict:
-            pt_config_dict["data_freshness_seconds"] = DEFAULT_DATA_FRESHNESS_SECONDS
-
-        try:
-            self.pt_config = PortfolioTrackerConfig(**pt_config_dict)
-        except ValidationError as e:
-            logger.error(f"Invalid portfolio_tracker config: {e}. Using defaults.")
-            # Fallback to default config if validation fails
-            self.pt_config = PortfolioTrackerConfig(
-                data_freshness_seconds=DEFAULT_DATA_FRESHNESS_SECONDS
-            )
+        # Use default portfolio tracker config since it's not in AppSettings yet
+        self.pt_config = PortfolioTrackerConfig(
+            data_freshness_seconds=DEFAULT_DATA_FRESHNESS_SECONDS
+        )
 
         self._initialize_from_config()
 
         # Reconciliation interval (5 minutes by default)
-        interval = config.get("portfolio.reconciliation_interval", 300)
-        if isinstance(interval, int | float | str):
-            self.reconciliation_interval = int(interval)
-        else:
-            self.reconciliation_interval = 300  # seconds
+        self.reconciliation_interval = 300  # seconds
 
         # Initialize data structures
         self._initialize_data_structures()
@@ -178,11 +152,8 @@ class PortfolioTracker:
 
     def _initialize_data_structures(self) -> None:
         """Initialize data structures for all configured exchanges."""
-        exchanges_raw = self.config.get("exchanges", {})
-        exchanges: dict[str, Any] = exchanges_raw if isinstance(exchanges_raw, dict) else {}
-        for exchange_id_str in [str(k) for k in exchanges.keys()]:
-            exchange_id = exchange_id_str  # ensure it's a string
-            if not self.config.get(f"exchanges.{exchange_id}.enabled", False):
+        for exchange_id in self.app_settings.exchanges.keys():
+            if not self.app_settings.exchanges[exchange_id].enabled:
                 continue
 
             # Ensure last_update_time and last_reconciliation_time have initial entries
@@ -212,7 +183,7 @@ class PortfolioTracker:
             f"Balance dict: {self.balances}"
         )
         for exchange_id, client in self.api_clients.items():
-            if not self.config.get(f"exchanges.{exchange_id}.enabled", False):
+            if not self.app_settings.exchanges[exchange_id].enabled:
                 continue
             initialization_tasks.append(self._fetch_exchange_account_summary(client, exchange_id))
             initialization_tasks.append(self._fetch_exchange_balances(exchange_id))
@@ -540,7 +511,7 @@ class PortfolioTracker:
         now = datetime.now(UTC)
         update_tasks: list[Awaitable[Any]] = []
         for exchange_id, client in self.api_clients.items():
-            if not self.config.get(f"exchanges.{exchange_id}.enabled", False):
+            if not self.app_settings.exchanges[exchange_id].enabled:
                 continue
             last_reconciliation = self.last_reconciliation_time.get(
                 exchange_id, datetime.min.replace(tzinfo=UTC)
@@ -967,7 +938,7 @@ class PortfolioTracker:
         logger.debug(f"Calculating total exposure across all exchanges in {valuation_asset}...")
         total_exposure = Decimal("0.0")
         for exchange_id in self.api_clients.keys():
-            if self.config.get(f"exchanges.{exchange_id}.enabled", False):
+            if self.app_settings.exchanges[exchange_id].enabled:
                 total_exposure += await self.get_exchange_exposure(exchange_id, valuation_asset)
 
         logger.info(f"Total portfolio exposure calculated: {total_exposure} {valuation_asset}")
@@ -1228,9 +1199,9 @@ class PortfolioTracker:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any], config: Config) -> PortfolioTracker:
+    def from_dict(cls, data: dict[str, Any], app_settings: AppSettings) -> PortfolioTracker:
         """Deserialize the portfolio state from a dictionary."""
-        tracker = cls(config)
+        tracker = cls(app_settings)
 
         balances_data_get = data.get("balances", {})
         if isinstance(balances_data_get, dict):

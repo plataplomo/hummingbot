@@ -48,47 +48,99 @@ def _get_secrets_file_path() -> Path:
     return Path.home() / ".cyberdelta" / "secrets.yaml"
 
 
-# Initialize configuration and secrets managers
-CONFIG_FILE_PATH = _get_config_file_path()
-SECRETS_FILE_PATH = _get_secrets_file_path()
+# Global variables for lazy initialization
+_config_manager: ConfigManager | None = None
+_secrets_manager: SecretsManager | None = None
+_app_settings: AppSettings | None = None
+_secrets_config: SecretsConfig | None = None
 
-try:
-    # Create manager instances (they load automatically and raise ConfigurationError on failure)
-    config_manager = ConfigManager(str(CONFIG_FILE_PATH))
-    secrets_manager = SecretsManager(str(SECRETS_FILE_PATH))
-except ConfigurationError as e:
-    logger.critical(f"CRITICAL: Configuration system initialization failed: {e}")
-    raise RuntimeError(f"Configuration system initialization failed: {e}") from e
 
-# Validate that configuration loaded successfully
-if config_manager.settings is None:
-    logger.critical(
-        f"CRITICAL: AppSettings not loaded by ConfigManager from {config_manager.config_path}. "
-        "Application cannot proceed safely without configuration."
-    )
-    raise RuntimeError("AppSettings failed to load. Check logs for details from ConfigManager.")
+def _initialize_config() -> None:
+    """Initialize configuration managers lazily."""
+    global _config_manager, _secrets_manager, _app_settings, _secrets_config
 
-# Expose validated Pydantic models for type-safe access
-APP_SETTINGS: AppSettings = config_manager.settings
+    if _config_manager is not None:
+        return  # Already initialized
 
-# Validate that secrets loaded successfully
-if secrets_manager.secrets_data is None:
-    logger.critical(
-        "CRITICAL: SecretsConfig failed to load by SecretsManager "
-        "(expected at ~/.cyberdelta/secrets.yaml or via CYBERDELTA_SECRETS_PATH). "
-        "Application cannot proceed without secrets."
-    )
-    raise RuntimeError(
-        f"SecretsConfig failed to load. Check logs. "
-        f"Path used by manager: {secrets_manager.secrets_path}"
-    )
+    # Check if we're in a testing environment
+    if os.environ.get("PYTEST_CURRENT_TEST") or "pytest" in os.environ.get("_", ""):
+        logger.debug("Testing environment detected, skipping automatic config initialization")
+        return
 
-SECRETS_CONFIG: SecretsConfig = secrets_manager.secrets_data
+    CONFIG_FILE_PATH = _get_config_file_path()
+    SECRETS_FILE_PATH = _get_secrets_file_path()
+
+    try:
+        # Create manager instances (they load automatically and raise ConfigurationError on failure)
+        _config_manager = ConfigManager(str(CONFIG_FILE_PATH))
+        _secrets_manager = SecretsManager(str(SECRETS_FILE_PATH))
+    except ConfigurationError as e:
+        logger.critical(f"CRITICAL: Configuration system initialization failed: {e}")
+        raise RuntimeError(f"Configuration system initialization failed: {e}") from e
+
+    # Validate that configuration loaded successfully
+    if _config_manager.settings is None:
+        logger.critical(
+            f"CRITICAL: AppSettings not loaded by ConfigManager from "
+            f"{_config_manager.config_path}. "
+            "Application cannot proceed safely without configuration."
+        )
+        raise RuntimeError("AppSettings failed to load. Check logs for details from ConfigManager.")
+
+    # Validate that secrets loaded successfully
+    if _secrets_manager.secrets_data is None:
+        logger.critical(
+            "CRITICAL: SecretsConfig failed to load by SecretsManager "
+            "(expected at ~/.cyberdelta/secrets.yaml or via CYBERDELTA_SECRETS_PATH). "
+            "Application cannot proceed without secrets."
+        )
+        raise RuntimeError(
+            f"SecretsConfig failed to load. Check logs. "
+            f"Path used by manager: {_secrets_manager.secrets_path}"
+        )
+
+    _app_settings = _config_manager.settings
+    _secrets_config = _secrets_manager.secrets_data
+
+
+def get_app_settings() -> AppSettings:
+    """Get the application settings, initializing if necessary."""
+    _initialize_config()
+    if _app_settings is None:
+        raise RuntimeError("Configuration not initialized. Call _initialize_config() first.")
+    return _app_settings
+
+
+def get_secrets_config() -> SecretsConfig:
+    """Get the secrets configuration, initializing if necessary."""
+    _initialize_config()
+    if _secrets_config is None:
+        raise RuntimeError("Secrets not initialized. Call _initialize_config() first.")
+    return _secrets_config
+
+
+def get_config_manager() -> ConfigManager:
+    """Get the configuration manager, initializing if necessary."""
+    _initialize_config()
+    if _config_manager is None:
+        raise RuntimeError("Configuration not initialized. Call _initialize_config() first.")
+    return _config_manager
+
+
+def get_secrets_manager() -> SecretsManager:
+    """Get the secrets manager, initializing if necessary."""
+    _initialize_config()
+    if _secrets_manager is None:
+        raise RuntimeError("Secrets not initialized. Call _initialize_config() first.")
+    return _secrets_manager
+
 
 # Export the primary interfaces for configuration access
 __all__ = [
-    "APP_SETTINGS",  # Primary way to access application settings
-    "SECRETS_CONFIG",  # Primary way to access secrets
+    "get_app_settings",  # Primary way to access application settings
+    "get_secrets_config",  # Primary way to access secrets
+    "get_config_manager",  # Access to config manager
+    "get_secrets_manager",  # Access to secrets manager
     "AppSettings",  # Export the Pydantic model class
     "SecretsConfig",  # Export the Pydantic model class
     "ConfigManager",  # Export the manager class for advanced use cases

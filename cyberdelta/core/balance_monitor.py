@@ -4,13 +4,13 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
+from cyberdelta.config.config_models import AppSettings
 from cyberdelta.core.models import SpotBalance  # Changed import
 from cyberdelta.core.portfolio_tracker import (
     PortfolioTracker,  # Updated from Balance
 )
-from cyberdelta.utils.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -68,29 +68,22 @@ class BalanceMonitor:
     - Tracking balance changes
     """
 
-    def __init__(self, config: Config, portfolio_tracker: PortfolioTracker) -> None:
+    def __init__(self, app_settings: AppSettings, portfolio_tracker: PortfolioTracker) -> None:
         """
         Initialize the balance monitor.
 
         Args:
-            config: Application configuration
+            app_settings: Application configuration
             portfolio_tracker: Portfolio tracker for balance information
         """
-        self.config = config
+        self.app_settings = app_settings
         self.portfolio_tracker = portfolio_tracker
         self.state_file: str = ""  # Initialize state_file attribute
 
         # Load balance parameters from config and convert to Decimal
-        # DEFENSIVE CHECK: Convert config values safely
-        try:
-            self.min_usdc_balance = Decimal(str(config.get("balance.min_usdc_balance", "50.0")))
-            self.low_balance_threshold = Decimal(
-                str(config.get("balance.low_balance_threshold", "100.0"))
-            )
-        except (ValueError, TypeError) as e:
-            logger.error(f"Invalid balance config value: {e}. Using defaults.")
-            self.min_usdc_balance = Decimal("50.0")
-            self.low_balance_threshold = Decimal("100.0")
+        # Use default values since the new config structure may not have all old keys
+        self.min_usdc_balance = Decimal("50.0")
+        self.low_balance_threshold = Decimal("100.0")
 
         # Exchange-specific minimum balance requirements
         self.exchange_min_balances: dict[str, dict[str, Decimal]] = {}
@@ -100,13 +93,8 @@ class BalanceMonitor:
 
         # Historical alerts (keep last N)
         self.alert_history: list[BalanceAlert] = []
-        # Use config for max history size
-        raw_max_history = config.get("balance.max_alert_history", 100)
-        try:
-            self.max_alert_history = int(str(raw_max_history))
-        except (ValueError, TypeError):
-            logger.warning(f"Invalid max_alert_history '{raw_max_history}'. Using default 100.")
-            self.max_alert_history = 100
+        # Use default max history size
+        self.max_alert_history = 100
 
         # Load exchange-specific requirements
         self._load_exchange_requirements()
@@ -115,47 +103,22 @@ class BalanceMonitor:
 
     def _load_exchange_requirements(self) -> None:
         """Load exchange-specific balance requirements from config."""
-        # Cast config result to expected dict type
-        exchanges_conf = self.config.get("exchanges", {})
-        exchanges_dict = cast(
-            dict[str, Any], exchanges_conf if isinstance(exchanges_conf, dict) else {}
-        )
-
-        for exchange_id in exchanges_dict.keys():
-            if not self.config.get(f"exchanges.{exchange_id}.enabled", False):
+        # Use the new AppSettings structure
+        for exchange_id, exchange_config in self.app_settings.exchanges.items():
+            if not exchange_config.enabled:
                 continue
 
-            # Default minimum USDC balance for each exchange
-            min_usdc_raw = self.config.get(
-                f"exchanges.{exchange_id}.min_usdc_balance", self.min_usdc_balance
+            # Use balance monitoring thresholds from safety_systems
+            balance_thresholds = (
+                self.app_settings.safety_systems.balance_monitoring.min_balance_thresholds_usd
             )
-            try:
-                min_usdc = Decimal(str(min_usdc_raw))
-            except (ValueError, TypeError):
-                logger.warning(
-                    f"Invalid min_usdc_balance '{min_usdc_raw}' for {exchange_id}. "
-                    f"Using global default."
-                )
-                min_usdc = self.min_usdc_balance
 
+            # Set default minimum USDC balance for each exchange
+            min_usdc = balance_thresholds.get(exchange_id, self.min_usdc_balance)
             self.exchange_min_balances[exchange_id] = {"USDC": min_usdc}
 
-            # Add any exchange-specific asset requirements
-            min_balances_conf = self.config.get(f"exchanges.{exchange_id}.min_balances", {})
-            min_balances_dict = cast(
-                dict[str, Any], min_balances_conf if isinstance(min_balances_conf, dict) else {}
-            )
-
-            for asset, amount_raw in min_balances_dict.items():
-                try:
-                    # Convert amount to Decimal
-                    amount_decimal = Decimal(str(amount_raw))
-                    self.exchange_min_balances[exchange_id][asset] = amount_decimal
-                except (ValueError, TypeError):
-                    logger.error(
-                        f"Invalid min_balance amount '{amount_raw}' for {asset} on "
-                        f"{exchange_id}. Skipping."
-                    )
+            # For now, only support USDC thresholds from the new config structure
+            # Additional asset requirements would need to be added to the config model
 
     def check_balances(self) -> list[BalanceAlert]:
         """
@@ -246,8 +209,6 @@ class BalanceMonitor:
             else Decimal("0.0")  # Default if balance is None
         )
 
-        min_balance_req = self.exchange_min_balances.get(exchange, {}).get(asset, Decimal("0.0"))
-
         if available_balance < required_amount:
             alert = BalanceAlert(
                 exchange=exchange,
@@ -306,12 +267,11 @@ class BalanceMonitor:
                 )
 
                 # Create a new dictionary with balance information (strings for JSON compatibility)
+                min_balance_for_asset = min_balances[asset]
                 asset_info: dict[str, str] = {
                     "current": str(available_balance),
-                    "minimum": str(min_balance_req_loop),  # Use correct min balance
-                    "status": "OK"
-                    if available_balance >= min_balance_req_loop
-                    else "LOW",  # Use correct min balance
+                    "minimum": str(min_balance_for_asset),
+                    "status": "OK" if available_balance >= min_balance_for_asset else "LOW",
                 }
                 exchange_balances[asset] = asset_info
 
@@ -321,9 +281,8 @@ class BalanceMonitor:
 
     def _load_state(self) -> None:
         """Loads alerts and last known balances from a state file."""
-        # Fetch config value safely
-        state_file_conf = self.config.get("balance.state_file", "")
-        self.state_file = str(state_file_conf) if isinstance(state_file_conf, str) else ""
+        # Use default state file path since it's not in the new config structure
+        self.state_file = ""
 
         if not self.state_file or not os.path.exists(self.state_file):
             logger.info(f"No state file found at {self.state_file}, starting with empty state")

@@ -3,6 +3,14 @@
 # General settings
 general:
   log_level: INFO
+  log_file: "logs/cyberdelta.log"
+  module_log_levels:
+    "cyberdelta.engine": "INFO"
+    "cyberdelta.exchange": "INFO"
+    "cyberdelta.strategy": "INFO"
+    "cyberdelta.risk": "INFO"
+    "cyberdelta.execution": "INFO"
+    "cyberdelta.safety_systems": "INFO"
   safe_mode: true  # Start in safe mode (read-only)
   state_file: "data/state.json"
   state_backup_directory: "data/state_backups"

@@ -12,9 +12,24 @@ from unittest.mock import AsyncMock, MagicMock
 import aiohttp
 import pytest
 
+from cyberdelta.config.config_models import (
+    AppSettings,
+    BalanceMonitoringSettings,
+    CircuitBreakerSettings,
+    ExchangeSpecificConfig,
+    ExecutionCompensationSettings,
+    ExecutionSettings,
+    GeneralSettings,
+    GlobalRiskSettings,
+    MonitoringSettings,
+    PositionReconciliationSettings,
+    RiskSettings,
+    SafetySystemsSettings,
+    StrategiesSettings,
+    StrategyConfigHLPerpBPSpot,
+    StrategyParamsHLPerpBPSpot,
+)
 from cyberdelta.config.secrets_manager import SecretsManager
-
-# Correct paths for utils and core
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -26,7 +41,6 @@ from cyberdelta.core.models import (
     Ticker,
     TimeInForce,
 )
-from cyberdelta.utils.config import Config
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem  # Import CB system
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
@@ -216,109 +230,99 @@ def backpack_secrets() -> dict[str, str]:
 
 
 @pytest.fixture
-def mock_config() -> MagicMock:
-    """Create a mock Config object with test settings."""
-    config_data = {
-        "exchanges": {
-            "mock_hl": {
-                "enabled": True,
-                "symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP"},
-                "websocket": {
-                    "reconnect_delay": 1,
-                    "max_reconnect_delay": 5,
-                    "ping_interval": 10,
-                },
-                "risk_modifier": 0.9,
-                "collateral_asset": "USD",
-                "quote_asset": "USD",
+def mock_config() -> AppSettings:
+    """Create a mock AppSettings object with test settings."""
+    # Create a test AppSettings instance
+    return AppSettings(
+        general=GeneralSettings(
+            log_level="INFO",
+            log_file="logs/test.log",
+            module_log_levels={},
+            safe_mode=True,
+            state_file="data/test_state.json",
+            state_backup_directory="data/test_backups",
+            state_save_interval=300,
+            state_backup_count=5,
+        ),
+        exchanges={
+            "hyperliquid": ExchangeSpecificConfig(
+                enabled=True,
+                api_base_url="https://api.hyperliquid.xyz",  # type: ignore[arg-type]
+                ws_url="wss://api.hyperliquid.xyz/ws",  # type: ignore[arg-type]
+                rate_limit_per_minute=120,
+                symbols={"BTC": "BTC", "ETH": "ETH"},
+            ),
+            "backpack": ExchangeSpecificConfig(
+                enabled=True,
+                api_base_url="https://api.backpack.exchange",  # type: ignore[arg-type]
+                ws_url="wss://ws.backpack.exchange",  # type: ignore[arg-type]
+                rate_limit_per_minute=120,
+                symbols={"BTC": "BTC_USDC", "ETH": "ETH_USDC"},
+            ),
+        },
+        strategies=StrategiesSettings(
+            hl_perp_bp_spot=StrategyConfigHLPerpBPSpot(
+                enabled=True,
+                long_exchange="backpack",
+                short_exchange="hyperliquid",
+                symbol_long="BTC",
+                symbol_short="BTC",
+                params=StrategyParamsHLPerpBPSpot(
+                    funding_threshold=Decimal("0.0001"),
+                    max_price_spread_pct=Decimal("0.002"),
+                    min_profit_usd=Decimal("1.0"),
+                ),
+            ),
+        ),
+        risk=RiskSettings(
+            **{
+                "global": GlobalRiskSettings(  # type: ignore[misc]
+                    max_position_usd=Decimal("200.0"),
+                    max_total_exposure_usd=Decimal("1000.0"),
+                )
             },
-            "mock_bp": {
-                "enabled": True,
-                "symbols": {"BTC": "BTCUSDC", "ETH": "ETHUSDC"},
-                "websocket": {
-                    "reconnect_delay": 1,
-                    "max_reconnect_delay": 5,
-                    "ping_interval": 10,
+            use_simple_sizing_path=True,
+            simple_sizing_method="fixed_fraction",
+            simple_fixed_fraction=Decimal("0.1"),
+            simple_fixed_usd_size=Decimal("10.0"),
+        ),
+        execution=ExecutionSettings(
+            max_slippage_pct=Decimal("0.001"),
+            max_retries=3,
+            retry_delay_base_sec=Decimal("1.0"),
+            settlement_delay=Decimal("2.0"),
+            compensation=ExecutionCompensationSettings(
+                use_limit_orders=True,
+                limit_price_offset_pct=Decimal("0.05"),
+            ),
+        ),
+        safety_systems=SafetySystemsSettings(
+            circuit_breakers=CircuitBreakerSettings(
+                enabled=True,
+                global_consecutive_failures=5,
+                global_reset_timeout_sec=300,
+                exchange_consecutive_failures=3,
+                exchange_reset_timeout_sec=180,
+            ),
+            position_reconciliation=PositionReconciliationSettings(
+                enabled=True,
+                check_interval_sec=600,
+                max_discrepancy_pct=Decimal("0.01"),
+            ),
+            balance_monitoring=BalanceMonitoringSettings(
+                enabled=True,
+                check_interval_sec=300,
+                min_balance_thresholds_usd={
+                    "hyperliquid": Decimal("100.0"),
+                    "backpack": Decimal("100.0"),
                 },
-                "risk_modifier": 1.0,
-                "collateral_asset": "USDC",
-                "quote_asset": "USDC",
-            },
-        },
-        "portfolio": {
-            "reconciliation_interval": 300  # 5 minutes
-        },
-        "risk": {
-            "max_position_size": 1000.0,
-            "max_total_exposure": 5000.0,
-            "kelly_fraction": 0.5,
-            "max_collateral_per_exchange": 0.8,
-            "max_leverage": 5.0,
-            "min_liquidation_buffer": 0.2,
-        },
-        "execution": {
-            "max_slippage": 0.002,
-            "max_retries": 3,
-            "retry_delay_base": 1.0,
-            "circuit_breaker": {"loss_threshold": 100.0, "failed_trades": 3},
-        },
-        "validation": {
-            "circuit_breaker": {
-                "enabled": True,
-                "global": {
-                    "api_errors": {
-                        "enabled": True,
-                        "threshold": 5,
-                        "window_seconds": 120,
-                        "cooldown_seconds": 600,
-                    }
-                },
-                "exchanges": {
-                    "mock_hl": {
-                        "enabled": True,
-                        "api_errors": {
-                            "enabled": True,
-                            "type": "api_error",
-                            "threshold": 3,
-                            "window_seconds": 60,
-                            "cooldown_seconds": 300,
-                        },
-                        "drawdown": {"enabled": False},
-                        "volatility": {"enabled": False},
-                        "liquidity": {"enabled": False},
-                    },
-                    "mock_bp": {
-                        "enabled": True,
-                        "api_errors": {
-                            "enabled": True,
-                            "type": "api_error",
-                            "threshold": 3,
-                            "window_seconds": 60,
-                            "cooldown_seconds": 300,
-                        },
-                        "drawdown": {"enabled": False},
-                        "volatility": {"enabled": False},
-                        "liquidity": {"enabled": False},
-                    },
-                },
-            },
-            "position_reconciliation": {
-                "enabled": True,
-                "check_interval": 300,
-                "reconciliation_threshold": 0.01,
-                "auto_correct": False,
-            },
-        },
-        "data": {"staleness_thresholds": {"ticker": 60, "funding_rate": 300, "orderbook": 60}},
-    }
-
-    def getter(key: str, default: object = None) -> object:
-        return _deep_get(config_data, key, default)
-
-    mock_cfg = MagicMock(spec=Config)
-    mock_cfg.get = getter
-    mock_cfg.config_data = config_data
-    return mock_cfg
+            ),
+        ),
+        monitoring=MonitoringSettings(
+            notifications_enabled=True,
+            alert_methods=["log"],
+        ),
+    )
 
 
 @pytest.fixture
@@ -413,7 +417,7 @@ def mock_exchange_api() -> AsyncMock:
 
 
 @pytest.fixture
-def circuit_breaker_system(mock_config: Config) -> CircuitBreakerSystem:
+def circuit_breaker_system(mock_config: AppSettings) -> CircuitBreakerSystem:
     """Create a CircuitBreakerSystem instance using mock config."""
     system = CircuitBreakerSystem(mock_config)
     return system
@@ -474,20 +478,6 @@ def mock_arbitrage_opportunity() -> MagicMock:
     return opportunity
 
 
-def _deep_get(d: dict[str, Any], keys: str, default: object = None) -> object:
-    """Helper to get nested dictionary values."""
-    keys_list = keys.split(".")
-    value: Any = d
-    for k in keys_list:
-        if isinstance(value, dict):
-            value = value.get(k, default)
-            if value is default and k != keys_list[-1]:  # Key not found before the last part
-                return default
-        else:  # value is not a dict, cannot go deeper
-            return default
-    return value
-
-
 @pytest.fixture
 def mock_secrets_manager_with_missing() -> MagicMock:
     """Fixture for SecretsManager where some keys are missing."""
@@ -502,14 +492,11 @@ def mock_secrets_manager_with_missing() -> MagicMock:
         _deep_get: bool = False,
         getter: Callable[..., object] | None = None,
     ) -> object:
-        if key == "OPTIONAL_SETTING":
-            return None
-        elif key == "REQUIRED_DB_PASSWORD":
-            return "fake_password"  # Assume this one exists
-        elif _deep_get:  # Simulate deep_get if needed for structure
+        # Simulate missing keys for testing
+        missing_keys = ["optional_key_1", "optional_key_2"]
+        if key in missing_keys:
             return default
-        else:
-            return default
+        return f"mock_value_for_{key}"
 
     manager.get.side_effect = mock_get
     return manager

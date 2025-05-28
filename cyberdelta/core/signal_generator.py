@@ -1,4 +1,5 @@
 from __future__ import annotations  # Enable postponed evaluation
+from cyberdelta.config.config_models import AppSettings
 
 from collections import deque
 from datetime import UTC, datetime
@@ -14,7 +15,6 @@ from cyberdelta.core.models import (  # Import MarketData, OrderBook
     Ticker,
 )
 from cyberdelta.core.symbol_mapper import SymbolMapper
-from cyberdelta.utils.config import Config
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 logger = get_logger(__name__)  # <--- Use configured logger
@@ -35,7 +35,7 @@ class SignalGenerator:
     """
 
     def __init__(
-        self, config: Config, data_handler: DataHandler, symbol_mapper: SymbolMapper
+        self, app_settings: AppSettings, data_handler: DataHandler, symbol_mapper: SymbolMapper
     ) -> None:
         """
         Initialize the signal generator.
@@ -46,7 +46,7 @@ class SignalGenerator:
             symbol_mapper: SymbolMapper for translating symbols.
         """
         logger.debug("SIGNAL_GENERATOR_TEST_LOG: Initializing SignalGenerator instance.")
-        self.config = config
+        self.app_settings = config
         self.data_handler = data_handler
         self.symbol_mapper = symbol_mapper
 
@@ -117,7 +117,7 @@ class SignalGenerator:
         """Initialize data structures for historical data using SymbolMapper."""
         all_internal_symbols = self.symbol_mapper.get_all_internal_symbols()
         # Safely get exchange keys
-        exchanges_conf = self.config.get("exchanges", {})
+        exchanges_conf = self.app_settings.get("exchanges", {})
         # Cast to dict[str, Any] before getting keys
         exchanges_dict = (
             cast(dict[str, Any], exchanges_conf) if isinstance(exchanges_conf, dict) else {}
@@ -127,7 +127,7 @@ class SignalGenerator:
         enabled_exchanges = [
             ex_id
             for ex_id in configured_exchanges
-            if self.config.get(f"exchanges.{ex_id}.enabled", False)
+            if self.app_settings.get(f"exchanges.{ex_id}.enabled", False)
         ]
 
         logger.debug(
@@ -190,7 +190,7 @@ class SignalGenerator:
         all_internal_symbols = self.symbol_mapper.get_all_internal_symbols()
 
         # Determine enabled exchanges directly from config
-        exchanges_conf = self.config.get("exchanges", {})
+        exchanges_conf = self.app_settings.get("exchanges", {})
         exchanges_dict = (
             cast(dict[str, Any], exchanges_conf) if isinstance(exchanges_conf, dict) else {}
         )
@@ -198,7 +198,7 @@ class SignalGenerator:
         enabled_exchanges = [
             ex_id
             for ex_id in configured_exchanges
-            if self.config.get(f"exchanges.{ex_id}.enabled", False)
+            if self.app_settings.get(f"exchanges.{ex_id}.enabled", False)
         ]
 
         # --- Update funding rate history ---
@@ -479,7 +479,7 @@ class SignalGenerator:
                 return avg_slippage
 
         # Fallback to configured value for the exchange or default
-        base_slippage = self.config.get(
+        base_slippage = self.app_settings.get(
             f"exchanges.{exchange}.expected_slippage", self.default_slippage
         )
 

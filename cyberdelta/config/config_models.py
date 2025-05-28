@@ -68,6 +68,10 @@ class GeneralSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     log_level: Literal["INFO", "DEBUG", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+    log_file: NonEmptyConfigString | None = None
+    module_log_levels: (
+        dict[str, Literal["INFO", "DEBUG", "WARNING", "ERROR", "CRITICAL"]] | None
+    ) = None
     safe_mode: bool = True
     state_file: NonEmptyConfigString = "data/state.json"
     state_backup_directory: NonEmptyConfigString = "data/state_backups"
@@ -82,6 +86,43 @@ class GeneralSettings(BaseModel):
             allowed={"INFO", "DEBUG", "WARNING", "ERROR", "CRITICAL"},
             field_name=info.field_name or "log_level",
         )
+
+    @field_validator("module_log_levels", mode="before")
+    @classmethod
+    def _validate_module_log_levels(
+        cls,
+        v: dict[str, str] | list[str] | str | int | float | bool | None,
+        info: ValidationInfo,
+    ) -> dict[str, str] | None:
+        """Validate module_log_levels dictionary structure and values."""
+        if v is None:
+            return None
+
+        if not isinstance(v, dict):
+            raise ValueError(
+                f"{info.field_name or 'module_log_levels'}: Expected dict or None, "
+                f"got {type(v).__name__}"
+            )
+
+        validated_levels: dict[str, str] = {}
+        allowed_levels = {"INFO", "DEBUG", "WARNING", "ERROR", "CRITICAL"}
+
+        for raw_key, raw_value in v.items():
+            # Validate module name
+            validated_key = validate_str_field(
+                raw_key,
+                field_name=f"{info.field_name or 'module_log_levels'}.key",
+                allow_empty=False,
+            )
+            # Validate log level value
+            validated_value = validate_enum_field(
+                raw_value,
+                allowed=allowed_levels,
+                field_name=f"{info.field_name or 'module_log_levels'}.{raw_key}",
+            )
+            validated_levels[validated_key] = validated_value
+
+        return validated_levels
 
 
 class ExchangeSpecificConfig(BaseModel):
