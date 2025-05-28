@@ -42,12 +42,12 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
+# Utilities
+from cyberdelta.config.logging_config import get_logger
+
 # Internal Domain Models
 from cyberdelta.core.models import FundingRate, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market.candle import Candle
-
-# Utilities
-from cyberdelta.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 

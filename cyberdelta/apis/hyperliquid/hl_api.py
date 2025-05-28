@@ -43,6 +43,7 @@ from cyberdelta.apis.hyperliquid.services.hl_market_data_service import Hyperliq
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -62,7 +63,6 @@ from cyberdelta.core.models.market.order import (
     Order,
 )
 from cyberdelta.core.models.operations import Transfer, Withdrawal
-from cyberdelta.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 

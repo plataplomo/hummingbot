@@ -54,6 +54,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawClearinghouseState
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.config.logging_config import get_logger
 
 # Core Domain Models
 from cyberdelta.core.models import (
@@ -64,7 +65,6 @@ from cyberdelta.core.models import (
     Trade,  # For trade history
 )
 from cyberdelta.core.models.operations import Transfer, Withdrawal  # If HL supports these
-from cyberdelta.utils.logging_config import get_logger
 
 if TYPE_CHECKING:
     from cyberdelta.apis.base.authenticator_interface import IAuthenticator

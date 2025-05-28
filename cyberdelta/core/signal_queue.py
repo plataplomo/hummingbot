@@ -7,10 +7,10 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, TypeVar
 
+from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import OrderSide, TradeSignal
 from cyberdelta.core.models.enums import SignalType
 from cyberdelta.utils.config import Config
-from cyberdelta.utils.logging_config import get_logger
 from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 

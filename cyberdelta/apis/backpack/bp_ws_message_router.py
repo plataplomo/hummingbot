@@ -21,7 +21,7 @@ from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarke
 from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
 from cyberdelta.apis.base.exchange_api import MessageHandler
 from cyberdelta.apis.models.api_error import APIError, TransformationError
-from cyberdelta.utils.logging_config import get_logger
+from cyberdelta.config.logging_config import get_logger
 
 
 class BackpackWsMessageRouter:

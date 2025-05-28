@@ -49,7 +49,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_vault_details import (
 )
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.utils.logging_config import get_logger
+from cyberdelta.config.logging_config import get_logger
 
 logger = get_logger(__name__)
 

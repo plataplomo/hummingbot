@@ -37,8 +37,8 @@ strategies:
   hl_perp_bp_spot:
     enabled: true
     # Define symbols using the internal names (mapped above)
-    long_exchange: "backpack" # Where we go long (buy perpetual)
-    short_exchange: "hyperliquid"  # Where we go short (sell spot)
+    long_exchange: "backpack" # Where we go long (buy spot)
+    short_exchange: "hyperliquid"  # Where we go short (sell perpetual)
     symbol_long: "BTC"        # Internal symbol for the long leg
     symbol_short: "BTC"       # Internal symbol for the short leg
     

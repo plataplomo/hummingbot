@@ -7,9 +7,9 @@ from decimal import ROUND_DOWN, Decimal, InvalidOperation, getcontext
 from enum import Enum  # Ensure Enum is imported
 from typing import Any, Protocol, cast
 
+from cyberdelta.config.logging_config import get_logger  # Ensure get_logger is imported
 from cyberdelta.core.models import SpotBalance
 from cyberdelta.utils.config import Config  # Ensure Config is imported
-from cyberdelta.utils.logging_config import get_logger  # Ensure get_logger is imported
 from cyberdelta.utils.parsing import parse_decimal_value  # CORRECTED IMPORT
 
 # from cyberdelta.core.portfolio_tracker import PortfolioTrackerProtocol

@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict
 
 from cyberdelta.apis.models.rate_limiter_config import RateLimiterConfig
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
-from cyberdelta.utils.logging_config import get_logger
+from cyberdelta.config.logging_config import get_logger
 
 logger = get_logger(__name__)
 

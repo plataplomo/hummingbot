@@ -10,7 +10,7 @@ from cyberdelta.apis.base.authenticator_interface import (
 )
 from cyberdelta.apis.models.api_error import APIError  # For raising errors
 from cyberdelta.apis.models.api_error_codes import APIErrorCode  # For error codes
-from cyberdelta.utils.logging_config import get_logger
+from cyberdelta.config.logging_config import get_logger
 
 logger = get_logger(__name__)  # For logging potential issues
 

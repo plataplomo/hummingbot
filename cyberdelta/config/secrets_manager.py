@@ -8,11 +8,19 @@ This module ensures secrets are stored outside the source code repository.
 import logging
 import os
 from pathlib import Path
-from typing import Any
 
 import yaml
+from pydantic import ValidationError
+
+from .secrets_models import SecretsConfig
 
 logger = logging.getLogger(__name__)
+
+
+class ConfigurationError(Exception):
+    """Raised when configuration or secrets loading/validation fails."""
+
+    pass
 
 
 class SecretsManager:
@@ -21,87 +29,99 @@ class SecretsManager:
 
     This class ensures that sensitive information like API keys and credentials
     are loaded from a secure location outside the Git repository, reducing the
-    risk of accidentally committing secrets.
+    risk of accidentally committing secrets. Uses Pydantic validation for
+    type safety and structure validation. The manager raises ConfigurationError
+    on any loading or validation failure.
     """
 
-    def __init__(self) -> None:
-        """Initialize the SecretsManager."""
-        self.secrets: dict[str, Any] = {}
+    def __init__(self, secrets_path: str | None = None) -> None:
+        """
+        Initialize the SecretsManager.
+
+        Args:
+            secrets_path: Optional path to the secrets file.
+                         If not provided, default locations will be checked.
+
+        Raises:
+            ConfigurationError: If secrets loading or validation fails.
+        """
+        self.secrets_data: SecretsConfig | None = None
+        self.secrets_path = Path(secrets_path) if secrets_path else self._get_secrets_path()
         self.secrets_loaded = False
+        # Load secrets on instantiation - will raise ConfigurationError on failure
+        self.load()
 
-    def load_secrets(self) -> bool:
+    def load(self) -> None:
         """
-        Load secrets from the configured location outside the source tree.
+        Load secrets from the configured location and validate against SecretsConfig model.
 
-        Returns:
-            bool: True if secrets were loaded successfully, False otherwise
+        Raises:
+            ConfigurationError: If file is not found, YAML parsing fails,
+                               or Pydantic validation fails.
         """
-        # Get secrets path from environment or use default fallbacks
-        secrets_path = self._get_secrets_path()
-
-        if not secrets_path.exists():
-            logger.warning(f"Secrets file not found at {secrets_path}")
-            return False
+        # Check if secrets file exists
+        if not self.secrets_path.exists():
+            logger.critical(f"Secrets file not found: {self.secrets_path}")
+            raise ConfigurationError(f"Secrets file not found: {self.secrets_path}")
 
         try:
-            with open(secrets_path) as f:
-                self.secrets = yaml.safe_load(f)
+            # Read and parse YAML file
+            with open(self.secrets_path) as f:
+                secrets_data_dict = yaml.safe_load(f)
+
+            # Ensure loaded data is valid
+            if secrets_data_dict is None or not isinstance(secrets_data_dict, dict):
+                logger.critical(f"Invalid or empty content in secrets file: {self.secrets_path}")
+                raise ConfigurationError(
+                    f"Invalid or empty content in secrets file: {self.secrets_path}"
+                )
+
+        except (yaml.YAMLError, OSError) as e:
+            logger.critical(f"Error reading secrets file {self.secrets_path}: {e}", exc_info=True)
+            raise ConfigurationError(f"Error reading secrets file {self.secrets_path}: {e}") from e
+
+        # Validate secrets against Pydantic model
+        try:
+            self.secrets_data = SecretsConfig.model_validate(secrets_data_dict)
             self.secrets_loaded = True
-            logger.info(f"Secrets loaded successfully from {secrets_path}")
-            return True
-        except Exception as e:
-            logger.error(f"Error loading secrets: {e}")
-            return False
+            logger.info(f"SecretsConfig loaded and validated successfully from {self.secrets_path}")
+
+        except ValidationError as e:
+            logger.critical(
+                f"Secrets validation failed for {self.secrets_path}: {e}", exc_info=True
+            )
+            self.secrets_data = None
+            self.secrets_loaded = False
+            raise ConfigurationError(
+                f"Invalid secrets configuration in {self.secrets_path}: {e}"
+            ) from e
 
     def _get_secrets_path(self) -> Path:
         """
-        Get the path to the secrets file from environment variable or default locations.
+        Get the path to the secrets file from environment variable or default location.
 
         Returns:
             Path: The path to the secrets file
         """
         # Try environment variable first
-        env_path = os.environ.get("CYBERDELTA_SECRETS_PATH")
-        if env_path:
-            return Path(env_path)
+        env_path_str = os.environ.get("CYBERDELTA_SECRETS_PATH")
+        if env_path_str:
+            env_path = Path(env_path_str)
+            logger.debug(f"Using secrets path from CYBERDELTA_SECRETS_PATH: {env_path}")
+            return env_path
 
-        # Try default locations in order of preference
-        home_dir = Path.home()
-        default_paths = [
-            home_dir / ".cyberdelta" / "secrets.yaml",
-            Path("/etc/cyberdelta/secrets.yaml"),
-            Path("/opt/cyberdelta/secrets.yaml"),
-        ]
+        # Use default location in user's home directory
+        default_path = Path.home() / ".cyberdelta" / "secrets.yaml"
+        logger.debug(f"CYBERDELTA_SECRETS_PATH not set, using default secrets path: {default_path}")
+        return default_path
 
-        for path in default_paths:
-            if path.exists():
-                return path
-
-        # Return the first default path as fallback
-        return default_paths[0]
-
-    def get(self, key: str, default: object = None) -> object:
+    def reload(self) -> None:
         """
-        Get a secret value by key.
+        Reload secrets from file.
 
-        Args:
-            key: The secret key to retrieve
-            default: Default value to return if key is not found
-
-        Returns:
-            The secret value or default
+        Raises:
+            ConfigurationError: If reload fails.
         """
-        if not self.secrets_loaded:
-            self.load_secrets()
-
-        # Support nested keys with dot notation (e.g., "exchanges.hyperliquid.api_key")
-        keys = key.split(".")
-        value = self.secrets
-
-        for k in keys:
-            if isinstance(value, dict) and k in value:
-                value = value[k]
-            else:
-                return default
-
-        return value
+        self.secrets_data = None
+        self.secrets_loaded = False
+        self.load()

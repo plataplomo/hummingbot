@@ -23,7 +23,7 @@ from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMar
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
-from cyberdelta.utils.logging_config import get_logger
+from cyberdelta.config.logging_config import get_logger
 
 if TYPE_CHECKING:
     pass

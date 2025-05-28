@@ -10,6 +10,7 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, Any
 
 from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAPI
+from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import (
     Order,
     OrderSide,
@@ -22,7 +23,6 @@ from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.utils.config import Config
-from cyberdelta.utils.logging_config import get_logger
 from cyberdelta.validation.circuit_breaker import (
     CircuitBreakerSystem,
     CircuitBreakerTrippedError,

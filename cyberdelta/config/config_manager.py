@@ -6,11 +6,20 @@ Configuration Manager for loading and validating application configuration.
 
 import logging
 import os
-from typing import Any
+from pathlib import Path
 
 import yaml
+from pydantic import ValidationError
+
+from .config_models import AppSettings
 
 logger = logging.getLogger(__name__)
+
+
+class ConfigurationError(Exception):
+    """Raised when configuration loading or validation fails."""
+
+    pass
 
 
 class ConfigManager:
@@ -18,206 +27,109 @@ class ConfigManager:
     Manages loading and validation of configuration.
 
     This class handles loading configuration from file, validates it against
-    expected schema, and provides access to configuration values through a
-    dot notation interface.
+    the AppSettings Pydantic model, and provides access to configuration values
+    through the validated model instance. The manager raises ConfigurationError
+    on any loading or validation failure.
     """
 
-    def __init__(self, config_path: str | None = None):
+    def __init__(self, config_path: str | None = None) -> None:
         """
         Initialize the ConfigManager.
 
         Args:
             config_path: Optional path to the configuration file.
                          If not provided, default locations will be checked.
+
+        Raises:
+            ConfigurationError: If configuration loading or validation fails.
         """
-        self.config: dict[str, Any] = {}
-        self.config_path = config_path or self._get_default_config_path()
+        self.settings: AppSettings | None = None
+        self.config_path = Path(config_path) if config_path else self._get_default_config_path()
         self.loaded = False
+        # Load configuration on instantiation - will raise ConfigurationError on failure
+        self.load()
 
-    def load(self) -> bool:
+    def load(self) -> None:
         """
-        Load configuration from file.
+        Load configuration from file and validate against AppSettings model.
 
-        Returns:
-            bool: True if config was loaded successfully, False otherwise
+        Raises:
+            ConfigurationError: If file is not found, YAML parsing fails,
+                               or Pydantic validation fails.
         """
+        # Check if config file exists
+        if not self.config_path.exists():
+            logger.critical(f"Config file not found: {self.config_path}")
+            raise ConfigurationError(f"Config file not found: {self.config_path}")
+
         try:
+            # Read and parse YAML file
             with open(self.config_path) as f:
-                self.config = yaml.safe_load(f)
+                config_data_dict = yaml.safe_load(f)
 
-            # Validate configuration against schema
-            validation_result = self._validate_config()
-            if not validation_result:
-                return False
+            # Ensure loaded data is valid
+            if config_data_dict is None or not isinstance(config_data_dict, dict):
+                logger.critical(f"Invalid or empty content in config file: {self.config_path}")
+                raise ConfigurationError(
+                    f"Invalid or empty content in config file: {self.config_path}"
+                )
 
+        except (yaml.YAMLError, OSError) as e:
+            logger.critical(f"Error reading config file {self.config_path}: {e}", exc_info=True)
+            raise ConfigurationError(f"Error reading config file {self.config_path}: {e}") from e
+
+        # Validate configuration against Pydantic model
+        try:
+            self.settings = AppSettings.model_validate(config_data_dict)
             self.loaded = True
-            logger.info(f"Configuration loaded successfully from {self.config_path}")
-            return True
-        except Exception as e:
-            logger.error(f"Error loading configuration: {e}")
-            return False
+            logger.info(f"AppSettings loaded and validated successfully from {self.config_path}")
 
-    def _get_default_config_path(self) -> str:
+        except ValidationError as e:
+            logger.critical(
+                f"Application configuration validation failed for {self.config_path}: {e}",
+                exc_info=True,
+            )
+            self.settings = None
+            self.loaded = False
+            raise ConfigurationError(
+                f"Invalid application configuration in {self.config_path}: {e}"
+            ) from e
+
+    def _get_default_config_path(self) -> Path:
         """
         Get default configuration path.
 
         Checks environment variable and standard locations for config file.
 
         Returns:
-            str: Path to the configuration file
+            Path: Path to the configuration file
         """
         # Check environment variable first
         env_path = os.environ.get("CYBERDELTA_CONFIG_PATH")
         if env_path:
-            return env_path
+            return Path(env_path)
 
         # Look in standard locations
+        cwd = Path.cwd()
         default_paths = [
-            os.path.join(os.getcwd(), "config.yaml"),
-            os.path.join(os.getcwd(), "config", "config.yaml"),
-            os.path.join(os.path.dirname(__file__), "config.yaml"),
+            cwd / "config.yaml",
+            cwd / "config" / "config.yaml",
+            Path(__file__).parent / "config.yaml",
         ]
 
         for path in default_paths:
-            if os.path.exists(path):
+            if path.exists():
                 return path
 
         return default_paths[0]  # Return first default as fallback
 
-    def _validate_config(self) -> bool:
-        """
-        Validate configuration against schema.
-
-        For v0.0.1, perform basic validation to ensure all required
-        sections and critical parameters are present.
-
-        Returns:
-            bool: True if validation passed, False otherwise
-        """
-        # Check for required sections
-        required_sections = ["general", "exchanges", "strategies", "risk"]
-        missing_sections = []
-
-        for section in required_sections:
-            if section not in self.config:
-                missing_sections.append(section)
-
-        if missing_sections:
-            logger.error(f"Missing required configuration sections: {', '.join(missing_sections)}")
-            return False
-
-        # Check for minimum exchange configuration
-        exchanges = self.config.get("exchanges", {})
-        if not exchanges.get("hyperliquid", {}).get("enabled", False):
-            logger.error("Hyperliquid exchange must be enabled")
-            return False
-
-        if not exchanges.get("backpack", {}).get("enabled", False):
-            logger.error("Backpack exchange must be enabled")
-            return False
-
-        # Check for conflicting parameters
-        if self._has_conflicting_parameters():
-            logger.warning("Configuration has potentially conflicting parameters")
-            # Don't fail validation for this, but log a warning
-
-        # Check for duplicate risk parameters
-        if self._has_duplicate_risk_parameters():
-            logger.warning("Configuration has duplicate risk parameters in different sections")
-            # Don't fail validation for this, but log a warning
-
-        return True
-
-    def _has_conflicting_parameters(self) -> bool:
-        """
-        Check if configuration has potentially conflicting parameters.
-
-        Returns:
-            bool: True if conflicting parameters detected, False otherwise
-        """
-        # Example: Check if there are multiple log_level settings
-        log_levels = []
-
-        if "general" in self.config and "log_level" in self.config["general"]:
-            log_levels.append(("general.log_level", self.config["general"]["log_level"]))
-
-        if "logging" in self.config and "level" in self.config["logging"]:
-            log_levels.append(("logging.level", self.config["logging"]["level"]))
-
-        return len(log_levels) > 1
-
-    def _has_duplicate_risk_parameters(self) -> bool:
-        """
-        Check if configuration has duplicate risk parameters in different sections.
-
-        Returns:
-            bool: True if duplicate risk parameters detected, False otherwise
-        """
-        # Example: Check if max_position_size is defined in multiple places
-        position_size_params = []
-
-        if "risk" in self.config and "max_position_size" in self.config["risk"]:
-            position_size_params.append(
-                (
-                    "risk.max_position_size",
-                    self.config["risk"]["max_position_size"],
-                )
-            )
-
-        if (
-            "risk" in self.config
-            and "global" in self.config["risk"]
-            and "max_position_usd" in self.config["risk"]["global"]
-        ):
-            position_size_params.append(
-                (
-                    "risk.global.max_position_usd",
-                    self.config["risk"]["global"]["max_position_usd"],
-                )
-            )
-
-        if "trading" in self.config and "max_position_size" in self.config["trading"]:
-            position_size_params.append(
-                (
-                    "trading.max_position_size",
-                    self.config["trading"]["max_position_size"],
-                )
-            )
-
-        return len(position_size_params) > 1
-
-    def get(self, key_path: str, default: object = None) -> object:
-        """
-        Get a configuration value by key path.
-
-        Args:
-            key_path: Dot-separated path to the configuration value
-            default: Default value to return if key is not found
-
-        Returns:
-            The configuration value or default
-        """
-        if not self.loaded:
-            self.load()
-
-        # Handle dot notation for nested keys
-        keys = key_path.split(".")
-        value = self.config
-
-        for key in keys:
-            if isinstance(value, dict) and key in value:
-                value = value[key]
-            else:
-                return default
-
-        return value
-
-    def reload(self) -> bool:
+    def reload(self) -> None:
         """
         Reload configuration from file.
 
-        Returns:
-            bool: True if reload was successful, False otherwise
+        Raises:
+            ConfigurationError: If reload fails.
         """
+        self.settings = None
         self.loaded = False
-        return self.load()
+        self.load()

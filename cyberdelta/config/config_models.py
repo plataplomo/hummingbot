@@ -1,0 +1,389 @@
+"""
+cyberdelta.config.config_models
+------------------------------
+Pydantic models for CyberDeltaEngine configuration validation.
+
+These models define the structure, types, defaults, and validation rules for config.yaml,
+leveraging utility functions from cyberdelta.utils.parsing for robust parsing and validation.
+"""
+
+from decimal import Decimal
+from typing import Annotated, Literal, Self
+
+from pydantic import (
+    AnyUrl,
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
+
+from cyberdelta.utils.parsing import (
+    parse_decimal_value,
+    validate_enum_field,
+    validate_str_field,
+)
+
+
+def _parse_yaml_input_to_required_decimal(
+    v: str | int | float | Decimal, info: ValidationInfo
+) -> Decimal:
+    """Pydantic 'before' validator to parse input to a required, finite Decimal."""
+    field_name = info.field_name if info.field_name else "decimal_field"
+    # allow_none=False because this is for fields that are expected to be Decimal.
+    # Optionality of the field itself is handled by Pydantic's Optional[ConfigDecimal] typing.
+    parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
+    if parsed is None:  # Defensive, should be caught by parse_decimal_value
+        raise ValueError(f"Field '{field_name}': Required Decimal value is missing or invalid.")
+    if not parsed.is_finite():
+        raise ValueError(f"Field '{field_name}': Decimal value must be finite, got '{v}'.")
+    return parsed
+
+
+def _validate_string_for_literal_check(v: str | int | float | bool, info: ValidationInfo) -> str:
+    """Pydantic 'before' validator to ensure v is a string before Literal check."""
+    return validate_str_field(
+        v, field_name=info.field_name or "literal_str_field", allow_empty=False
+    )
+
+
+def _validate_non_empty_string(v: str | int | float | bool, info: ValidationInfo) -> str:
+    """Pydantic 'before' validator for non-empty string fields."""
+    return validate_str_field(v, field_name=info.field_name or "string_field", allow_empty=False)
+
+
+# Annotated types for common validation patterns
+ConfigDecimal = Annotated[Decimal, BeforeValidator(_parse_yaml_input_to_required_decimal)]
+StringForLiteral = Annotated[str, BeforeValidator(_validate_string_for_literal_check)]
+NonEmptyConfigString = Annotated[str, BeforeValidator(_validate_non_empty_string)]
+
+
+class GeneralSettings(BaseModel):
+    """General application settings."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    log_level: Literal["INFO", "DEBUG", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+    safe_mode: bool = True
+    state_file: NonEmptyConfigString = "data/state.json"
+    state_backup_directory: NonEmptyConfigString = "data/state_backups"
+    state_save_interval: int = Field(300, gt=0)  # seconds
+    state_backup_count: int = Field(5, gt=0)  # Number of previous state files to keep
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _validate_log_level(cls, v: str | int | float | bool, info: ValidationInfo) -> str:
+        return validate_enum_field(
+            v,
+            allowed={"INFO", "DEBUG", "WARNING", "ERROR", "CRITICAL"},
+            field_name=info.field_name or "log_level",
+        )
+
+
+class ExchangeSpecificConfig(BaseModel):
+    """Configuration for a specific exchange."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    enabled: bool = True
+    api_base_url: HttpUrl
+    ws_url: AnyUrl
+    rate_limit_per_minute: int = Field(..., gt=0)
+    symbols: dict[str, str]
+
+    @field_validator("api_base_url", "ws_url", mode="before")
+    @classmethod
+    def _validate_url_strings(cls, v: str | int | float | bool, info: ValidationInfo) -> str:
+        # Ensure it's a valid string before Pydantic URL validation
+        return validate_str_field(v, field_name=info.field_name or "url_field", allow_empty=False)
+
+    @field_validator("symbols", mode="before")
+    @classmethod
+    def _validate_symbols_dict(
+        cls, v: dict[str, str] | list[str] | str | int | float | bool, info: ValidationInfo
+    ) -> dict[str, str]:
+        if not isinstance(v, dict):
+            raise ValueError(
+                f"{info.field_name or 'symbols'}: Expected dict, got {type(v).__name__}"
+            )
+
+        validated_symbols: dict[str, str] = {}
+        for raw_key, raw_value in v.items():
+            validated_key = validate_str_field(
+                raw_key, field_name=f"{info.field_name or 'symbols'}.key", allow_empty=False
+            )
+            validated_value = validate_str_field(
+                raw_value, field_name=f"{info.field_name or 'symbols'}.{raw_key}", allow_empty=False
+            )
+            validated_symbols[validated_key] = validated_value
+
+        return validated_symbols
+
+
+class StrategyParamsHLPerpBPSpot(BaseModel):
+    """Parameters for HyperLiquid Perpetual vs Backpack Spot strategy."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    funding_threshold: ConfigDecimal = Field(..., gt=Decimal("0"))
+    max_price_spread_pct: ConfigDecimal = Field(..., gt=Decimal("0"), lt=Decimal("1"))
+    min_profit_usd: ConfigDecimal = Field(..., gt=Decimal("0"))
+
+
+class StrategyConfigHLPerpBPSpot(BaseModel):
+    """Configuration for HyperLiquid Perpetual vs Backpack Spot strategy."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    enabled: bool = True
+    long_exchange: NonEmptyConfigString
+    short_exchange: NonEmptyConfigString
+    symbol_long: NonEmptyConfigString
+    symbol_short: NonEmptyConfigString
+    params: StrategyParamsHLPerpBPSpot
+
+
+class GlobalRiskSettings(BaseModel):
+    """Global risk management settings."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    max_position_usd: ConfigDecimal = Field(..., gt=Decimal("0"))
+    max_total_exposure_usd: ConfigDecimal = Field(..., gt=Decimal("0"))
+
+
+class RiskSettings(BaseModel):
+    """Risk management configuration."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+
+    global_risk: GlobalRiskSettings = Field(..., alias="global")
+    use_simple_sizing_path: bool = True
+    simple_sizing_method: Literal["fixed_usd", "fixed_fraction"] = "fixed_fraction"
+    simple_fixed_fraction: ConfigDecimal = Field(Decimal("0.1"), gt=Decimal("0"), lt=Decimal("1"))
+    simple_fixed_usd_size: ConfigDecimal = Field(Decimal("10.0"), gt=Decimal("0"))
+
+    @field_validator("simple_sizing_method", mode="before")
+    @classmethod
+    def _validate_sizing_method(cls, v: str | int | float | bool, info: ValidationInfo) -> str:
+        return validate_enum_field(
+            v,
+            allowed={"fixed_usd", "fixed_fraction"},
+            field_name=info.field_name or "simple_sizing_method",
+        )
+
+
+class ExecutionCompensationSettings(BaseModel):
+    """Execution compensation settings."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    use_limit_orders: bool = True
+    limit_price_offset_pct: ConfigDecimal = Field(Decimal("0.05"), ge=Decimal("0"))
+
+
+class ExecutionSettings(BaseModel):
+    """Execution configuration."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    max_slippage_pct: ConfigDecimal = Field(..., gt=Decimal("0"), lt=Decimal("1"))
+    max_retries: int = Field(3, gt=0)
+    retry_delay_base_sec: ConfigDecimal = Field(Decimal("1.0"), gt=Decimal("0"))
+    settlement_delay: ConfigDecimal = Field(Decimal("2.0"), ge=Decimal("0"))
+    compensation: ExecutionCompensationSettings
+
+
+class CircuitBreakerSettings(BaseModel):
+    """Circuit breaker configuration."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    enabled: bool = True
+    global_consecutive_failures: int = Field(5, gt=0)
+    global_reset_timeout_sec: int = Field(300, gt=0)
+    exchange_consecutive_failures: int = Field(3, gt=0)
+    exchange_reset_timeout_sec: int = Field(180, gt=0)
+
+
+class PositionReconciliationSettings(BaseModel):
+    """Position reconciliation configuration."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    enabled: bool = True
+    check_interval_sec: int = Field(600, gt=0)
+    max_discrepancy_pct: ConfigDecimal = Field(Decimal("0.01"), ge=Decimal("0"), lt=Decimal("1"))
+
+
+class BalanceMonitoringSettings(BaseModel):
+    """Balance monitoring configuration."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    enabled: bool = True
+    check_interval_sec: int = Field(300, gt=0)
+    min_balance_thresholds_usd: dict[str, ConfigDecimal]
+
+    @field_validator("min_balance_thresholds_usd", mode="before")
+    @classmethod
+    def _validate_balance_thresholds_keys(
+        cls,
+        v: dict[str, str | int | float | Decimal] | list[str] | str | int | float | bool,
+        info: ValidationInfo,
+    ) -> dict[str, str | int | float | Decimal]:
+        """Validate dictionary structure and keys before ConfigDecimal processes values."""
+        if not isinstance(v, dict):
+            raise ValueError(
+                f"{info.field_name or 'min_balance_thresholds_usd'}: "
+                f"Expected dict, got {type(v).__name__}"
+            )
+
+        validated_thresholds: dict[str, str | int | float | Decimal] = {}
+        for raw_key, raw_value in v.items():
+            validated_key = validate_str_field(
+                raw_key,
+                field_name=f"{info.field_name or 'min_balance_thresholds_usd'}.key",
+                allow_empty=False,
+            )
+            validated_thresholds[validated_key] = raw_value
+
+        return validated_thresholds
+
+    @field_validator("min_balance_thresholds_usd", mode="after")
+    @classmethod
+    def _validate_balance_thresholds_values(
+        cls, v: dict[str, Decimal], info: ValidationInfo
+    ) -> dict[str, Decimal]:
+        """Validate that all Decimal values are positive after ConfigDecimal parsing."""
+        for key, value in v.items():
+            if value <= Decimal("0"):
+                raise ValueError(
+                    f"Field '{info.field_name or 'min_balance_thresholds_usd'}.{key}': "
+                    f"Balance threshold must be positive, got {value}."
+                )
+        return v
+
+
+class SafetySystemsSettings(BaseModel):
+    """Safety systems configuration."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    circuit_breakers: CircuitBreakerSettings
+    position_reconciliation: PositionReconciliationSettings
+    balance_monitoring: BalanceMonitoringSettings
+
+
+def _default_alert_methods() -> list[Literal["log", "telegram"]]:
+    """Default factory for alert_methods field."""
+    return ["log"]
+
+
+class MonitoringSettings(BaseModel):
+    """Monitoring and notifications configuration."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    notifications_enabled: bool = True
+    alert_methods: list[Literal["log", "telegram"]] = Field(default_factory=_default_alert_methods)
+
+    @field_validator("alert_methods", mode="before")
+    @classmethod
+    def _validate_alert_methods(
+        cls, v: list[str | int | float | bool] | str | int | float | bool, info: ValidationInfo
+    ) -> list[str]:
+        if not isinstance(v, list):
+            raise ValueError(
+                f"{info.field_name or 'alert_methods'}: Expected list, got {type(v).__name__}"
+            )
+
+        validated_methods: list[str] = []
+        for i, raw_method in enumerate(v):
+            validated_method = validate_enum_field(
+                raw_method,
+                allowed={"log", "telegram"},
+                field_name=f"{info.field_name or 'alert_methods'}[{i}]",
+            )
+            validated_methods.append(validated_method)
+
+        return validated_methods
+
+
+class StrategiesSettings(BaseModel):
+    """Strategies configuration."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    hl_perp_bp_spot: StrategyConfigHLPerpBPSpot
+
+
+class AppSettings(BaseModel):
+    """Root configuration model for CyberDeltaEngine."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    general: GeneralSettings
+    exchanges: dict[str, ExchangeSpecificConfig]
+    strategies: StrategiesSettings
+    risk: RiskSettings
+    execution: ExecutionSettings
+    safety_systems: SafetySystemsSettings
+    monitoring: MonitoringSettings
+
+    @field_validator("exchanges", mode="before")
+    @classmethod
+    def _validate_exchanges_dict(
+        cls,
+        v: dict[str, dict[str, str | int | float | bool]] | list[str] | str | int | float | bool,
+        info: ValidationInfo,
+    ) -> dict[str, dict[str, str | int | float | bool]]:
+        if not isinstance(v, dict):
+            raise ValueError(
+                f"{info.field_name or 'exchanges'}: Expected dict, got {type(v).__name__}"
+            )
+
+        # Validate exchange names are non-empty strings
+        validated_exchanges: dict[str, dict[str, str | int | float | bool]] = {}
+        for raw_key, raw_value in v.items():
+            # Type checker knows raw_key is str after isinstance check above
+            validated_key = validate_str_field(
+                raw_key, field_name=f"{info.field_name or 'exchanges'}.key", allow_empty=False
+            )
+            validated_exchanges[validated_key] = raw_value
+
+        return validated_exchanges
+
+    @model_validator(mode="after")
+    def _validate_cross_references(self) -> Self:
+        """Validate cross-references between configuration sections."""
+
+        # Ensure strategy exchanges exist in exchanges config
+        strategy = self.strategies.hl_perp_bp_spot
+        if strategy.long_exchange not in self.exchanges:
+            raise ValueError(
+                f"Strategy long_exchange '{strategy.long_exchange}' "
+                f"not found in exchanges configuration"
+            )
+        if strategy.short_exchange not in self.exchanges:
+            raise ValueError(
+                f"Strategy short_exchange '{strategy.short_exchange}' "
+                f"not found in exchanges configuration"
+            )
+
+        # Ensure balance monitoring thresholds reference valid exchanges
+        balance_exchanges = set(
+            self.safety_systems.balance_monitoring.min_balance_thresholds_usd.keys()
+        )
+        configured_exchanges = set(self.exchanges.keys())
+        invalid_exchanges = balance_exchanges - configured_exchanges
+        if invalid_exchanges:
+            raise ValueError(
+                f"Balance monitoring references unknown exchanges: {sorted(invalid_exchanges)}"
+            )
+
+        return self

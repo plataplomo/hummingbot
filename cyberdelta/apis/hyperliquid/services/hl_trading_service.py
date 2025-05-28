@@ -51,6 +51,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
 )
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
     CancelOrderResultStatus,
@@ -60,7 +61,6 @@ from cyberdelta.core.models.enums import (
     TimeInForce,
 )
 from cyberdelta.core.models.market.order import CancelOrderResult
-from cyberdelta.utils.logging_config import get_logger
 from cyberdelta.utils.parsing import parse_decimal_value
 
 logger = get_logger(__name__)

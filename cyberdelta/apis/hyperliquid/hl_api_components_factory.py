@@ -22,7 +22,7 @@ from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import Hyperliqu
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
-from cyberdelta.utils.logging_config import get_logger
+from cyberdelta.config.logging_config import get_logger
 
 if TYPE_CHECKING:
     pass

@@ -11,6 +11,7 @@ from typing import Any, cast
 from pydantic import BaseModel, Field, ValidationError
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import (
     DerivativePosition,
     MarginAccountSummary,
@@ -23,7 +24,6 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.symbol_mapper import SymbolMapper  # IMPORT IS PRESENT
 from cyberdelta.utils.config import Config
-from cyberdelta.utils.logging_config import get_logger
 from cyberdelta.utils.parsing import parse_datetime_utc
 
 logger = get_logger(__name__)

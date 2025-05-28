@@ -3,8 +3,8 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
-from cyberdelta.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 

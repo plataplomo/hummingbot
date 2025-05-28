@@ -32,6 +32,7 @@ from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import (
     DerivativePosition,
     MarginAccountSummary,  # Reverted to MarginAccountSummary
@@ -40,7 +41,6 @@ from cyberdelta.core.models import (
     Trade,
 )
 from cyberdelta.core.models.operations import Transfer, Withdrawal
-from cyberdelta.utils.logging_config import get_logger
 
 if TYPE_CHECKING:
     from cyberdelta.apis.base.authenticator_interface import IAuthenticator

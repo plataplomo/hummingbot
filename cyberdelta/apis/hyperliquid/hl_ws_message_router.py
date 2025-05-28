@@ -24,7 +24,7 @@ from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import Hyperliqui
 from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.utils.logging_config import get_logger
+from cyberdelta.config.logging_config import get_logger
 
 
 class HyperliquidWsMessageRouter:

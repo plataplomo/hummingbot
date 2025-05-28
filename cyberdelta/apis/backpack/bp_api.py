@@ -44,6 +44,7 @@ from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestCom
 from cyberdelta.apis.base.exchange_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -59,7 +60,6 @@ from cyberdelta.core.models import (
 from cyberdelta.core.models.market import Candle, OrderBook
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.operations import Transfer, Withdrawal
-from cyberdelta.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 

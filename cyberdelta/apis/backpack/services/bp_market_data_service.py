@@ -49,6 +49,7 @@ from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 # Base API error models
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.market import (
     FundingRate,
     OrderBook,
@@ -58,7 +59,6 @@ from cyberdelta.core.models.market import (
 
 # Internal domain models
 from cyberdelta.core.models.market.candle import Candle
-from cyberdelta.utils.logging_config import get_logger
 
 if TYPE_CHECKING:
     pass
