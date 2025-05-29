@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
+
+from cyberdelta.apis.hyperliquid.models.common_raw_types import RawHlCoinName
 
 # Specific model imports for type hints and construction
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
@@ -19,6 +20,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
     HyperliquidRawCancelOrderAction,
     HyperliquidRawEthWithdrawalActionPayload,
     HyperliquidRawL2UsdTransferActionDetails,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
+    HyperliquidRawFundingHistoryRequestPayload,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsRequestPayload,
@@ -338,25 +342,22 @@ class HyperliquidRequestBuilder:
         symbol: str,
         start_time_ms: int,
         end_time_ms: int | None,
-    ) -> dict[str, Any]:  # Returning dict directly as per other builders for info endpoint
+    ) -> HyperliquidRawFundingHistoryRequestPayload:
         """
-        Builds the payload for fetching historical funding rates for a specific coin.
+        Builds the Pydantic model for fetching historical funding rates for a specific coin.
         Args:
             symbol: The coin symbol (e.g., "ETH").
             start_time_ms: The start time for the query in milliseconds (inclusive).
             end_time_ms: The end time for the query in milliseconds (inclusive).
                          If None, API defaults to current time.
         Returns:
-            A dictionary representing the JSON payload.
+            HyperliquidRawFundingHistoryRequestPayload: The validated request payload model.
         """
-        payload: dict[str, Any] = {
-            "type": "fundingHistory",
-            "coin": symbol,
-            "startTime": start_time_ms,
-        }
-        if end_time_ms is not None:
-            payload["endTime"] = end_time_ms
-        return payload
+        return HyperliquidRawFundingHistoryRequestPayload(
+            coin=RawHlCoinName(symbol),
+            startTime=start_time_ms,
+            endTime=end_time_ms,
+        )
 
     # No changes needed for comments about /info endpoints and build_info_request_payload
     # as those are already handled or determined to not need specific Pydantic models for the
