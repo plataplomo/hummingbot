@@ -893,8 +893,8 @@ class HyperliquidTradingService:
                     )
                 except APIError as e_api:
                     logger.error(
-                        f"[{self._exchange_name}] APIError cancelling order {order_id_to_cancel_str} "
-                        f"for {order_symbol_for_cancel}: {e_api.message}"
+                        f"[{self._exchange_name}] APIError cancelling order "
+                        f"{order_id_to_cancel_str} for {order_symbol_for_cancel}: {e_api.message}"
                     )
                     results.append(
                         CancelOrderResult(
@@ -928,8 +928,8 @@ class HyperliquidTradingService:
 
             if active_cancels_count == 0 and len(open_orders_internal) > 0:
                 logger.info(
-                    f"[{self._exchange_name}] Found {len(open_orders_internal)} orders but none had "
-                    f"valid exchange_order_id for cancellation attempt."
+                    f"[{self._exchange_name}] Found {len(open_orders_internal)} orders but none "
+                    f"had valid exchange_order_id for cancellation attempt."
                 )
 
             return results

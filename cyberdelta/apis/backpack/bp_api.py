@@ -44,7 +44,9 @@ from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestCom
 from cyberdelta.apis.base.exchange_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.secrets_models import ExchangeSecrets as ExchangeSecretsConfig
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -83,8 +85,8 @@ class BackpackAPI(ExchangeAPI):
 
     def __init__(
         self,
-        api_config: dict[str, Any],
-        secrets: dict[str, str | None],
+        exchange_config: ExchangeSpecificConfig,
+        exchange_secrets: ExchangeSecretsConfig,
         # Optional dependency injection parameters for testing
         authenticator: BackpackHmacAuthenticator | None = None,
         error_mapper: BackpackErrorMapper | None = None,
@@ -103,8 +105,8 @@ class BackpackAPI(ExchangeAPI):
         Initialize the BackpackAPI client with configuration and secrets.
 
         Args:
-            api_config: Dictionary of API configuration parameters.
-            secrets: Dictionary of secret values (API key/secret).
+            exchange_config: Exchange-specific configuration model.
+            exchange_secrets: Exchange secrets configuration model.
             authenticator: Optional authenticator instance for dependency injection
             error_mapper: Optional error mapper instance for dependency injection
             response_handler: Optional response handler instance for dependency injection
@@ -118,7 +120,7 @@ class BackpackAPI(ExchangeAPI):
             market_data_service: Optional market data service instance for dependency injection
         """
         # Create the factory to handle component instantiation
-        factory = BackpackAPIComponentsFactory(api_config, secrets)
+        factory = BackpackAPIComponentsFactory(exchange_config, exchange_secrets)
 
         # Use injected components or create them via factory
         self._bp_authenticator = authenticator or factory.create_authenticator()
@@ -131,10 +133,51 @@ class BackpackAPI(ExchangeAPI):
         self._bp_market_data_mapper = market_data_mapper or factory.create_market_data_mapper()
         self._bp_trading_data_mapper = trading_data_mapper or factory.create_trading_data_mapper()
 
+        # Construct config dict for super().__init__
+        rest_endpoint_str = str(exchange_config.api_base_url)
+        ws_endpoint_str = str(exchange_config.ws_url) if exchange_config.ws_url else None
+
+        rate_per_second = exchange_config.rate_limit_per_minute / 60.0
+        bucket_size = max(1, int(rate_per_second * 2))
+
+        config_dict_for_super = {
+            "exchange_name": exchange_config.exchange_name.value,
+            "rest_endpoint": rest_endpoint_str,
+            "ws_endpoint": ws_endpoint_str,
+            "rate_limits": {
+                "default_rate": rate_per_second,
+                "default_bucket_size": bucket_size,
+            },
+            # Include optional HTTP/WS settings if present in exchange_config
+            "request_timeout": exchange_config.request_timeout_seconds,
+            "max_retries": exchange_config.max_retries,
+            "retry_delay_seconds": exchange_config.retry_delay_seconds,
+            "ws_ping_interval": exchange_config.ws_ping_interval_seconds,
+            "ws_reconnect_delay": exchange_config.ws_reconnect_delay_seconds,
+            "ws_max_reconnect_attempts": exchange_config.ws_max_reconnect_attempts,
+            "ws_connection_timeout": exchange_config.ws_connection_timeout_seconds,
+        }
+
+        # Remove None values from config_dict_for_super before passing to super()
+        # But keep rate_limits since it's always required and doesn't contain None
+        config_dict_for_super_cleaned = {
+            k: v for k, v in config_dict_for_super.items() if v is not None or k == "rate_limits"
+        }
+
+        # Construct secrets dict for super().__init__
+        secrets_dict_for_super = {
+            "BACKPACK_API_KEY": exchange_secrets.api_key.get_secret_value()
+            if exchange_secrets.api_key
+            else None,
+            "BACKPACK_API_SECRET": exchange_secrets.api_secret.get_secret_value()
+            if exchange_secrets.api_secret
+            else None,
+        }
+
         super().__init__(
-            exchange_name="backpack",
-            config=api_config,
-            secrets=secrets,
+            exchange_name=exchange_config.exchange_name.value,
+            config=config_dict_for_super_cleaned,
+            secrets=secrets_dict_for_super,
             authenticator=self._bp_authenticator,
             error_mapper=self._backpack_error_mapper,
         )

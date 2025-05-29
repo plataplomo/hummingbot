@@ -51,6 +51,8 @@ from cyberdelta.core.models import (
     Trade,
 )
 from cyberdelta.core.models.enums import (
+    InternalTransferStatus,
+    InternalWithdrawalStatus,
     OrderExpiryReason,
     OrderSide,
     OrderStatus,
@@ -62,8 +64,6 @@ from cyberdelta.core.models.enums import (
 )
 from cyberdelta.core.models.market.trade import BackpackTradeDetails
 from cyberdelta.core.models.operations import (
-    InternalTransferStatus,
-    InternalWithdrawalStatus,
     Transfer,
     Withdrawal,
 )

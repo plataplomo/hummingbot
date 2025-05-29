@@ -3,6 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 
@@ -18,25 +19,16 @@ class BackpackRequestBuilder:
     separating request formatting from API call execution.
     """
 
-    def __init__(self, config: dict[str, Any]) -> None:
+    def __init__(self, exchange_config: ExchangeSpecificConfig) -> None:
         """
         Initializes the BackpackRequestBuilder.
 
         Args:
-            config: A dictionary containing API configuration,
-                    expected to have a 'base_url'.
+            exchange_config: Exchange-specific configuration model.
         """
-        self._api_config = config
-        # Ensure base_url is available or handle its absence appropriately
-        self.base_url = str(self._api_config.get("base_url", ""))  # Ensure string
-        if not self.base_url:
-            logger.error(
-                "base_url not found or empty in API configuration for BackpackRequestBuilder."
-            )
-            # Consider raising ConfigurationError or similar custom exception
-            raise ValueError(
-                "base_url not found or empty in API configuration for BackpackRequestBuilder"
-            )
+        self._exchange_config = exchange_config
+        # Get base URL from the configuration
+        self.base_url = str(self._exchange_config.api_base_url)
 
     def _get_endpoint_url(self, path: str) -> str:
         """Constructs the full URL for an API endpoint path."""

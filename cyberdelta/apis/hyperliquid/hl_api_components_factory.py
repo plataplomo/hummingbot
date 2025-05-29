@@ -22,7 +22,9 @@ from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import Hyperliqu
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
+from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.secrets_models import ExchangeSecrets as ExchangeSecretsConfig
 
 if TYPE_CHECKING:
     pass
@@ -49,21 +51,30 @@ class HyperliquidAPIComponentsFactory:
     """
 
     def __init__(
-        self, api_config: dict[str, Any], secrets: dict[str, str | None], chain_id: int
+        self,
+        exchange_config: ExchangeSpecificConfig,
+        exchange_secrets: ExchangeSecretsConfig,
+        chain_id: int,
     ) -> None:
         """
         Initialize the factory with configuration and secrets.
 
         Args:
-            api_config: Configuration dictionary with API settings
-            secrets: Dictionary containing API credentials
+            exchange_config: Exchange-specific configuration model
+            exchange_secrets: Exchange secrets configuration model
             chain_id: The blockchain chain ID for EIP-712 signing
         """
-        self.api_config = api_config
-        self.secrets = secrets
+        self.exchange_config = exchange_config
+        self.exchange_secrets = exchange_secrets
         self.chain_id = chain_id
-        self._private_key = secrets.get("private_key")
-        self._wallet_address = secrets.get("wallet_address")
+        self._private_key = (
+            exchange_secrets.private_key.get_secret_value()
+            if exchange_secrets.private_key
+            else None
+        )
+        self._passphrase = (
+            exchange_secrets.passphrase.get_secret_value() if exchange_secrets.passphrase else None
+        )
 
     def create_authenticator(self) -> HyperliquidEip712Authenticator | None:
         """
@@ -72,7 +83,7 @@ class HyperliquidAPIComponentsFactory:
         Returns:
             Configured authenticator instance or None if credentials are missing
         """
-        if self._private_key and self._wallet_address:
+        if self._private_key:
             try:
                 return HyperliquidEip712Authenticator(
                     wallet_private_key=self._private_key,
@@ -81,12 +92,15 @@ class HyperliquidAPIComponentsFactory:
             except ValueError as e:
                 logger.error(f"Failed to init HL authenticator: {e}. Signed endpoints will fail.")
                 return None
-        elif not self._wallet_address:
-            logger.error("HLAPI: Wallet address required, not provided. Most functionality fails.")
+        elif self._passphrase:
+            # TODO: Implement passphrase-based authentication if supported
+            logger.error(
+                "Passphrase-based authentication for Hyperliquid not yet fully implemented."
+            )
             return None
         else:
             logger.warning(
-                "HLAPI: Private key not provided. Signed endpoints fail or use public data."
+                "Hyperliquid: Neither private_key nor passphrase provided. Signed ops will fail."
             )
             return None
 

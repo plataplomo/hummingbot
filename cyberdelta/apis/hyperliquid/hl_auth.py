@@ -90,14 +90,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             self.logger.critical(f"HyperliquidEip712Authenticator: {impos_msg}")
             raise RuntimeError(impos_msg)
 
-        # DEFENSIVE CHECK: _account cannot be None after successful initialization.
-        # Mypy=[unreachable] Ruff=[RUF005,ERA001]
-        if self._account is None:
-            # This path should be logically unreachable if above logic is correct.
-            self.logger.error(
-                "HyperliquidEip712Authenticator: Account object is None after initialization logic."
-            )
-            raise ValueError("Account object could not be initialized.")
+        # Account is guaranteed to be non-None after successful initialization above
 
         self._wallet_address: str = self._account.address  # Derive address
         self._chain_id: int = chain_id
@@ -202,17 +195,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             "types": self._agent_typed_data_message_types,
         }
 
-        # DEFENSIVE CHECK: _account cannot be None if __init__ succeeded.
-        # Mypy=[unreachable] Ruff=[RUF005,ERA001]
-        if self._account is None:
-            # This should not be reached if __init__ succeeded
-            self.logger.error(
-                "HyperliquidEip712Authenticator: Account not initialized, cannot sign message."
-            )
-            raise APIError(
-                "Authenticator account not initialized.",
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
-            )
+        # Account is guaranteed to be non-None after successful initialization
 
         try:
             signable_message = encode_typed_data(full_message=structured_data_to_sign)

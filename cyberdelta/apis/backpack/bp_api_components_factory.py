@@ -9,7 +9,7 @@ request builders, response handlers, domain data mappers, and service classes.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from cyberdelta.apis.backpack.bp_auth import BackpackHmacAuthenticator
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
@@ -23,7 +23,9 @@ from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMar
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
+from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.secrets_models import ExchangeSecrets as ExchangeSecretsConfig
 
 if TYPE_CHECKING:
     pass
@@ -46,18 +48,24 @@ class BackpackAPIComponentsFactory:
     API client initialization.
     """
 
-    def __init__(self, api_config: dict[str, Any], secrets: dict[str, str | None]) -> None:
+    def __init__(
+        self, exchange_config: ExchangeSpecificConfig, exchange_secrets: ExchangeSecretsConfig
+    ) -> None:
         """
         Initialize the factory with configuration and secrets.
 
         Args:
-            api_config: Configuration dictionary with API settings
-            secrets: Dictionary containing API credentials
+            exchange_config: Exchange-specific configuration model
+            exchange_secrets: Exchange secrets configuration model
         """
-        self.api_config = api_config
-        self.secrets = secrets
-        self._api_key = secrets.get("BACKPACK_API_KEY")
-        self._api_secret = secrets.get("BACKPACK_API_SECRET")
+        self.exchange_config = exchange_config
+        self.exchange_secrets = exchange_secrets
+        self._api_key = (
+            exchange_secrets.api_key.get_secret_value() if exchange_secrets.api_key else None
+        )
+        self._api_secret = (
+            exchange_secrets.api_secret.get_secret_value() if exchange_secrets.api_secret else None
+        )
 
     def create_authenticator(self) -> BackpackHmacAuthenticator | None:
         """
@@ -91,7 +99,7 @@ class BackpackAPIComponentsFactory:
         Returns:
             Configured request builder instance
         """
-        return BackpackRequestBuilder(self.api_config)
+        return BackpackRequestBuilder(self.exchange_config)
 
     def create_response_handler(self) -> BackpackResponseHandler:
         """

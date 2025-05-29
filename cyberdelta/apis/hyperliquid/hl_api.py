@@ -7,7 +7,6 @@ from decimal import Decimal
 from typing import Any
 
 import aiohttp
-from pydantic import HttpUrl
 
 from cyberdelta.apis.base.authenticator_interface import (
     AuthenticatedRequestComponents,
@@ -43,7 +42,9 @@ from cyberdelta.apis.hyperliquid.services.hl_market_data_service import Hyperliq
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.secrets_models import ExchangeSecrets as ExchangeSecretsConfig
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -80,8 +81,8 @@ class HyperliquidAPI(ExchangeAPI):
 
     def __init__(
         self,
-        api_config: dict[str, Any],
-        secrets: dict[str, str | None],
+        exchange_config: ExchangeSpecificConfig,
+        exchange_secrets: ExchangeSecretsConfig,
         # Optional dependency injection parameters for testing
         authenticator: HyperliquidEip712Authenticator | None = None,
         error_mapper: HyperliquidErrorMapper | None = None,
@@ -102,8 +103,8 @@ class HyperliquidAPI(ExchangeAPI):
         Initialize the HyperliquidAPI client.
 
         Args:
-            api_config: Configuration dictionary with connection parameters
-            secrets: Dictionary containing private_key and wallet_address
+            exchange_config: Exchange-specific configuration model.
+            exchange_secrets: Exchange secrets configuration model.
             authenticator: Optional authenticator instance for dependency injection
             error_mapper: Optional error mapper instance for dependency injection
             request_builder: Optional request builder instance for dependency injection
@@ -116,12 +117,21 @@ class HyperliquidAPI(ExchangeAPI):
             trading_service: Optional trading service instance for dependency injection
             market_data_service: Optional market data service instance for dependency injection
         """
-        self.rest_endpoint = api_config.get("rest_endpoint", self.BASE_URL)
-        self.ws_endpoint = api_config.get("ws_endpoint", self.WS_URL)
-        self._wallet_address = secrets.get("wallet_address")
+        # Extract endpoints from config
+        self.rest_endpoint = str(exchange_config.api_base_url)
+        self.ws_endpoint = str(exchange_config.ws_url) if exchange_config.ws_url else None
+
+        # Check chain_id is present for Hyperliquid
+        if exchange_config.chain_id is None:
+            raise ValueError(
+                "chain_id is required for Hyperliquid but was None in exchange_config. "
+                "Check AppSettings validator."
+            )
 
         # Create the factory to handle component instantiation
-        factory = HyperliquidAPIComponentsFactory(api_config, secrets, self.CHAIN_ID)
+        factory = HyperliquidAPIComponentsFactory(
+            exchange_config, exchange_secrets, exchange_config.chain_id
+        )
 
         # Use injected components or create them via factory
         self._hl_authenticator = authenticator or factory.create_authenticator()
@@ -134,21 +144,56 @@ class HyperliquidAPI(ExchangeAPI):
         self._hl_trading_data_mapper = trading_data_mapper or factory.create_trading_data_mapper()
         self._hl_market_data_mapper = market_data_mapper or factory.create_market_data_mapper()
 
+        # Get wallet address from authenticator if created
+        self._wallet_address = (
+            self._hl_authenticator.wallet_address if self._hl_authenticator else None
+        )
+
         self.exchange_name = "hyperliquid"
 
-        super().__init__(
-            exchange_name="hyperliquid",
-            config={
-                "rest_endpoint": self.rest_endpoint,
-                "ws_endpoint": self.ws_endpoint,
-                "rate_limits": api_config.get("rate_limits", {}),
-                "request_timeout": api_config.get("request_timeout", 30.0),
-                "ws_ping_interval": api_config.get("ws_ping_interval"),
-                "ws_reconnect_delay": api_config.get("ws_reconnect_delay"),
-                "ws_max_reconnect_attempts": api_config.get("ws_max_reconnect_attempts"),
-                "ws_connection_timeout": api_config.get("ws_connection_timeout"),
+        # Construct config dict for super().__init__
+        rate_per_second = exchange_config.rate_limit_per_minute / 60.0
+        bucket_size = max(1, int(rate_per_second * 2))
+
+        config_dict_for_super = {
+            "exchange_name": exchange_config.exchange_name.value,
+            "rest_endpoint": self.rest_endpoint,
+            "ws_endpoint": self.ws_endpoint,
+            "rate_limits": {
+                "default_rate": rate_per_second,
+                "default_bucket_size": bucket_size,
             },
-            secrets=secrets,
+            # Include optional HTTP/WS settings if present
+            "request_timeout": exchange_config.request_timeout_seconds,
+            "max_retries": exchange_config.max_retries,
+            "retry_delay_seconds": exchange_config.retry_delay_seconds,
+            "ws_ping_interval": exchange_config.ws_ping_interval_seconds,
+            "ws_reconnect_delay": exchange_config.ws_reconnect_delay_seconds,
+            "ws_max_reconnect_attempts": exchange_config.ws_max_reconnect_attempts,
+            "ws_connection_timeout": exchange_config.ws_connection_timeout_seconds,
+        }
+
+        # Remove None values from config_dict_for_super before passing to super()
+        # But keep rate_limits since it's always required and doesn't contain None
+        config_dict_for_super_cleaned = {
+            k: v for k, v in config_dict_for_super.items() if v is not None or k == "rate_limits"
+        }
+
+        # Construct secrets dict for super().__init__
+        secrets_dict_for_super = {
+            "private_key": exchange_secrets.private_key.get_secret_value()
+            if exchange_secrets.private_key
+            else None,
+            "passphrase": exchange_secrets.passphrase.get_secret_value()
+            if exchange_secrets.passphrase
+            else None,
+            "wallet_address": self._wallet_address,
+        }
+
+        super().__init__(
+            exchange_name=exchange_config.exchange_name.value,
+            config=config_dict_for_super_cleaned,
+            secrets=secrets_dict_for_super,
             authenticator=self._hl_authenticator,
             error_mapper=self._hyperliquid_error_mapper,
         )
@@ -157,14 +202,25 @@ class HyperliquidAPI(ExchangeAPI):
         if http_client is not None:
             self._http_client = http_client
         else:
-            http_client_raw_config = api_config.get("http_client", {})
-            http_client_config = HttpClientConfig(
-                rest_endpoint=HttpUrl(self.BASE_URL),
-                default_request_timeout=http_client_raw_config.get("default_request_timeout", 10.0),
-                max_retries=http_client_raw_config.get("max_retries", 3),
-                retry_delay_seconds=http_client_raw_config.get("retry_delay_seconds", 5.0),
+            # Build HttpClientConfig from exchange_config
+            http_client_config_data = {
+                "rest_endpoint": exchange_config.api_base_url,
+                "default_request_timeout": exchange_config.request_timeout_seconds,
+                "max_retries": exchange_config.max_retries,
+                "retry_delay_seconds": exchange_config.retry_delay_seconds,
+            }
+            # Filter out None values so Pydantic defaults apply
+            http_client_config_data_cleaned = {
+                k: v for k, v in http_client_config_data.items() if v is not None
+            }
+            # Ensure rest_endpoint is always passed
+            if "rest_endpoint" not in http_client_config_data_cleaned:
+                http_client_config_data_cleaned["rest_endpoint"] = exchange_config.api_base_url
+
+            http_client_config_obj = HttpClientConfig.model_validate(
+                http_client_config_data_cleaned
             )
-            self._http_client = HttpClient(self.exchange_name, http_client_config)
+            self._http_client = HttpClient(self.exchange_name, http_client_config_obj)
 
         # Initialize asset index resolver
         self._asset_indexer = HyperliquidAssetIndexResolver(
