@@ -109,6 +109,52 @@ class BackpackTradingService:
             raise ValueError(
                 f"[{current_method}] 'stop_price' must be a positive finite Decimal when provided."
             )
+
+        # Business Logic Pre-Validation (moved from RequestBuilder)
+        if order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT] and price is None:
+            raise ValueError(f"[{current_method}] Price is required for {order_type.value} orders.")
+
+        if order_type in [OrderType.STOP_MARKET, OrderType.STOP_LIMIT] and stop_price is None:
+            raise ValueError(
+                f"[{current_method}] Stop price is required for {order_type.value} orders."
+            )
+
+        # Validate order type is supported by Backpack
+        supported_order_types = [
+            OrderType.LIMIT,
+            OrderType.MARKET,
+            OrderType.STOP_MARKET,
+            OrderType.STOP_LIMIT,
+        ]
+        if order_type not in supported_order_types:
+            raise ValueError(
+                f"[{current_method}] Unsupported order type for Backpack: {order_type.value}"
+            )
+
+        # Validate time in force for limit orders
+        if order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT]:
+            supported_tif = [TimeInForce.GTC, TimeInForce.IOC, TimeInForce.FOK]
+            if time_in_force not in supported_tif:
+                raise ValueError(
+                    f"[{current_method}] Unsupported time in force for limit orders: "
+                    f"{time_in_force.value}. Supported: {[tif.value for tif in supported_tif]}"
+                )
+
+        # Validate post_only is only for LIMIT orders
+        if post_only and order_type != OrderType.LIMIT:
+            raise ValueError(f"[{current_method}] 'post_only' is only applicable to LIMIT orders.")
+
+        # Validate client_order_id can be converted to int if provided
+        if client_order_id:
+            try:
+                int(client_order_id)
+            except ValueError as e:
+                raise ValueError(
+                    f"[{current_method}] client_order_id must be convertible to integer, "
+                    f"got: {client_order_id}"
+                ) from e
+
+        # Validate reduce_only is not supported (log warning)
         if reduce_only:
             logger.warning(
                 f"[{self._exchange_name}] 'reduce_only' parameter is not supported for "
@@ -236,6 +282,12 @@ class BackpackTradingService:
             raise ValueError(f"[{current_method}] 'order_id' must be a non-empty string.")
         if not symbol:
             raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
+
+        # Business Logic Pre-Validation (moved from RequestBuilder)
+        # For Backpack, either order_id or client_order_id must be provided, but not both
+        # Since this method only accepts order_id, we validate it's provided and non-empty
+        if not order_id.strip():
+            raise ValueError(f"[{current_method}] 'order_id' cannot be empty or whitespace only.")
 
         # Initialize context for error handling
         raw_data: ParsedJsonResponse | None = None
@@ -701,7 +753,12 @@ class BackpackTradingService:
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "cancel_all_orders"
 
-        # No specific input validation needed for this method
+        # Business Logic Pre-Validation (moved from RequestBuilder)
+        if symbol is None:
+            raise ValueError(f"[{current_method}] 'symbol' is required for cancel all orders.")
+
+        if not symbol.strip():
+            raise ValueError(f"[{current_method}] 'symbol' cannot be empty or whitespace only.")
 
         # Initialize context for error handling
         raw_data: ParsedJsonResponse | None = None

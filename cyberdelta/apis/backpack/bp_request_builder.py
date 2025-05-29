@@ -197,17 +197,11 @@ class BackpackRequestBuilder:
         Returns:
             BackpackRawOrderExecuteRequest: The validated request payload model.
 
-        Raises:
-            ValueError: If required parameters for an order type are missing or invalid.
+        Note:
+            Inputs are assumed to be business-validated by the service layer.
+            This method only performs mapping/translation to raw API values.
         """
-        # Business logic validation first
-        if order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT] and price is None:
-            raise ValueError(f"Price is required for {order_type.value} orders.")
-
-        if order_type in [OrderType.STOP_MARKET, OrderType.STOP_LIMIT] and trigger_price is None:
-            raise ValueError(f"Trigger price is required for {order_type.value} orders.")
-
-        # Map internal enums to API strings
+        # Map internal enums to API strings (no business logic validation)
         api_side = "Bid" if side == OrderSide.BUY else "Ask"
 
         api_order_type = {
@@ -217,10 +211,7 @@ class BackpackRequestBuilder:
             OrderType.STOP_LIMIT: "Limit",  # With triggerPrice it becomes a stop limit
         }.get(order_type)
 
-        if api_order_type is None:
-            raise ValueError(f"Unsupported order type for Backpack: {order_type}")
-
-        # Map time in force
+        # Map time in force (only for limit orders, service validates this)
         api_time_in_force = None
         if order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT]:
             api_time_in_force = {
@@ -228,18 +219,11 @@ class BackpackRequestBuilder:
                 TimeInForce.IOC: "IOC",
                 TimeInForce.FOK: "FOK",
             }.get(time_in_force)
-            if api_time_in_force is None:
-                raise ValueError(f"Unsupported time in force: {time_in_force}")
 
-        # Convert client_order_id string to int if provided
+        # Convert client_order_id string to int if provided (service validates convertibility)
         client_id = None
         if client_order_id:
-            try:
-                client_id = int(client_order_id)
-            except ValueError as e:
-                raise ValueError(
-                    f"client_order_id must be convertible to integer, got: {client_order_id}"
-                ) from e
+            client_id = int(client_order_id)
 
         # Map self trade prevention
         api_self_trade_prevention = None
@@ -249,8 +233,6 @@ class BackpackRequestBuilder:
                 "RejectMaker": "RejectMaker",
                 "RejectBoth": "RejectBoth",
             }.get(self_trade_prevention)
-            if api_self_trade_prevention is None:
-                raise ValueError(f"Invalid self trade prevention: {self_trade_prevention}")
 
         # Build the raw request model
         request_data: dict[str, Any] = {
@@ -309,16 +291,10 @@ class BackpackRequestBuilder:
         Returns:
             BackpackRawOrderCancelRequest: The validated request payload model.
 
-        Raises:
-            ValueError: If neither order_id nor client_order_id is provided.
+        Note:
+            Inputs are assumed to be business-validated by the service layer.
+            This method only performs mapping/translation to raw API values.
         """
-        # Business logic validation
-        if not order_id and not client_order_id:
-            raise ValueError("Either orderId or clientId must be provided to cancel an order.")
-
-        if order_id and client_order_id:
-            raise ValueError("Only one of orderId or clientId should be provided, not both.")
-
         request_data: dict[str, Any] = {
             "symbol": BackpackRequestBuilder.format_symbol(symbol),
         }
@@ -327,21 +303,16 @@ class BackpackRequestBuilder:
             request_data["orderId"] = order_id
 
         if client_order_id:
-            # Convert to int for the API
-            try:
-                client_id = int(client_order_id)
-                request_data["clientId"] = client_id
-            except ValueError as e:
-                raise ValueError(
-                    f"client_order_id must be convertible to integer, got: {client_order_id}"
-                ) from e
+            # Convert to int for the API (service validates convertibility)
+            client_id = int(client_order_id)
+            request_data["clientId"] = client_id
 
         # Create and return the Pydantic model
         return BackpackRawOrderCancelRequest(**request_data)
 
     @staticmethod
     def build_cancel_all_orders_payload(
-        symbol: str | None, order_type_filter: str | None = None
+        symbol: str, order_type_filter: str | None = None
     ) -> BackpackRawOrderCancelAllRequest:
         """
         Builds the payload for cancelling all orders for a symbol.
@@ -352,18 +323,16 @@ class BackpackRequestBuilder:
 
         Returns:
             BackpackRawOrderCancelAllRequest: The validated request payload model.
-        """
-        # Validate required symbol parameter
-        if symbol is None:
-            raise ValueError("invalid symbol")
 
+        Note:
+            Inputs are assumed to be business-validated by the service layer.
+            This method only performs mapping/translation to raw API values.
+        """
         request_data: dict[str, Any] = {
             "symbol": BackpackRequestBuilder.format_symbol(symbol),
         }
 
         if order_type_filter:
-            if order_type_filter not in ["RestingLimitOrder", "ConditionalOrder"]:
-                raise ValueError(f"Invalid order type filter: {order_type_filter}")
             request_data["orderType"] = order_type_filter
 
         # Create and return the Pydantic model
@@ -466,12 +435,12 @@ class BackpackRequestBuilder:
 
         Returns:
             BackpackRawAccountWithdrawalRequest: The validated request payload model.
-        """
-        # Business logic validation
-        if amount <= 0:
-            raise ValueError("Amount must be positive")
 
-        # Map network names to blockchain values
+        Note:
+            Inputs are assumed to be business-validated by the service layer.
+            This method only performs mapping/translation to raw API values.
+        """
+        # Map network names to blockchain values (mapping/translation only)
         blockchain_mapping = {
             "Arbitrum": "Arbitrum",
             "Base": "Base",
@@ -489,12 +458,7 @@ class BackpackRequestBuilder:
             "XRP": "XRP",
         }
 
-        blockchain = blockchain_mapping.get(network)
-        if blockchain is None:
-            raise ValueError(
-                f"Unsupported network: {network}. "
-                f"Supported networks: {list(blockchain_mapping.keys())}"
-            )
+        blockchain = blockchain_mapping[network]  # No validation, just mapping
 
         request_data: dict[str, Any] = {
             "address": address,
@@ -619,38 +583,18 @@ class BackpackRequestBuilder:
         Returns:
             BackpackRawGetMarketDataParams: The validated request parameters model.
 
-        Raises:
-            ValueError: If timeframe_str is not a supported interval.
+        Note:
+            Inputs are assumed to be business-validated by the service layer.
+            This method only performs mapping/translation to raw API values.
         """
-        # Business logic validation: timeframe_str will be validated by the Literal type
-        # in the Pydantic model, but we can provide a more user-friendly error here
-        supported_intervals = {
-            "1m",
-            "3m",
-            "5m",
-            "15m",
-            "30m",
-            "1h",
-            "2h",
-            "4h",
-            "6h",
-            "8h",
-            "12h",
-            "1d",
-            "3d",
-            "1w",
-        }
-        if timeframe_str not in supported_intervals:
-            raise ValueError(
-                f"Unsupported interval '{timeframe_str}'. "
-                f"Supported intervals: {sorted(supported_intervals)}"
-            )
+        # Map to raw API format - business logic validation is done by service layer
+        formatted_symbol = BackpackRequestBuilder.format_symbol(symbol)
 
         return BackpackRawGetMarketDataParams(
-            symbol=BackpackRequestBuilder.format_symbol(symbol),
-            interval=timeframe_str,  # This will be validated by Literal in the model
-            startTime=start_time_ms,
-            endTime=end_time_ms,
+            symbol=formatted_symbol,
+            interval=timeframe_str,
+            **{"startTime": start_time_ms} if start_time_ms is not None else {},
+            **{"endTime": end_time_ms} if end_time_ms is not None else {},
             limit=limit,
         )
 
@@ -677,9 +621,9 @@ class BackpackRequestBuilder:
     @staticmethod
     def build_internal_transfer_payload(
         asset_symbol: str,
-        amount_str: str,  # Quantity as string
-        from_account: str,  # e.g., "SPOT", "MARGIN", "FUTURES"
-        to_account: str,  # e.g., "SPOT", "MARGIN", "FUTURES"
+        amount: Decimal,
+        from_account: str,
+        to_account: str,
         client_transfer_id: str | None = None,
     ) -> BackpackRawInternalTransferRequest:
         """
@@ -687,7 +631,7 @@ class BackpackRequestBuilder:
 
         Args:
             asset_symbol: The symbol of the asset to transfer (e.g., "USDC").
-            amount_str: The quantity of the asset to transfer, as a string.
+            amount: The quantity of the asset to transfer, as a Decimal.
             from_account: The source account type.
             to_account: The destination account type.
             client_transfer_id: Optional client-provided ID for the transfer.
@@ -695,23 +639,13 @@ class BackpackRequestBuilder:
         Returns:
             BackpackRawInternalTransferRequest: The validated request payload model.
 
-        Raises:
-            ValueError: If account types are invalid.
+        Note:
+            Inputs are assumed to be business-validated by the service layer.
+            This method only performs mapping/translation to raw API values.
         """
-        # Business logic validation
-        valid_accounts = {"SPOT", "MARGIN", "FUTURES"}
-        if from_account not in valid_accounts:
-            raise ValueError(
-                f"Invalid from_account: {from_account}. Must be one of {valid_accounts}"
-            )
-        if to_account not in valid_accounts:
-            raise ValueError(f"Invalid to_account: {to_account}. Must be one of {valid_accounts}")
-        if from_account == to_account:
-            raise ValueError("from_account and to_account cannot be the same")
-
         request_data: dict[str, Any] = {
             "symbol": BackpackRequestBuilder.format_symbol(asset_symbol),
-            "quantity": amount_str,
+            "quantity": str(amount),
             "fromAccount": from_account,
             "toAccount": to_account,
         }
@@ -733,11 +667,10 @@ class BackpackRequestBuilder:
         Returns:
             BackpackRawGetOrderParams: The validated request parameters model.
 
-        Raises:
-            ValueError: If symbol is empty or None.
+        Note:
+            Inputs are assumed to be business-validated by the service layer.
+            This method only performs mapping/translation to raw API values.
         """
-        if not symbol:
-            raise ValueError("Symbol is required for build_get_order_params.")
         return BackpackRawGetOrderParams(symbol=BackpackRequestBuilder.format_symbol(symbol))
 
     @staticmethod
@@ -771,17 +704,10 @@ class BackpackRequestBuilder:
         Returns:
             BackpackRawBorrowLendExecuteRequest: The validated request payload model.
 
-        Raises:
-            ValueError: If side is invalid or quantity is not positive.
+        Note:
+            Inputs are assumed to be business-validated by the service layer.
+            This method only performs mapping/translation to raw API values.
         """
-        # Business logic validation
-        valid_sides = {"Borrow", "Lend", "Repay", "Redeem"}
-        if side not in valid_sides:
-            raise ValueError(f"Invalid side: {side}. Must be one of {valid_sides}")
-
-        if quantity <= 0:
-            raise ValueError("Quantity must be positive")
-
         request_data: dict[str, Any] = {
             "quantity": str(quantity),
             "side": side,
@@ -846,13 +772,10 @@ class BackpackRequestBuilder:
         Returns:
             BackpackRawRequestForQuoteRequest: The validated request payload model.
 
-        Raises:
-            ValueError: If neither quantity nor quote_quantity is provided.
+        Note:
+            Inputs are assumed to be business-validated by the service layer.
+            This method only performs mapping/translation to raw API values.
         """
-        # Business logic validation
-        if quantity is None and quote_quantity is None:
-            raise ValueError("Either quantity or quote_quantity must be provided")
-
         request_data: dict[str, Any] = {
             "symbol": BackpackRequestBuilder.format_symbol(symbol),
         }
@@ -888,13 +811,10 @@ class BackpackRequestBuilder:
         Returns:
             BackpackRawQuoteSubmitRequest: The validated request payload model.
 
-        Raises:
-            ValueError: If price is not positive.
+        Note:
+            Inputs are assumed to be business-validated by the service layer.
+            This method only performs mapping/translation to raw API values.
         """
-        # Business logic validation
-        if price <= 0:
-            raise ValueError("Price must be positive")
-
         # Map OrderSide to API string
         api_side = "Bid" if side == OrderSide.BUY else "Ask"
 

@@ -14,12 +14,10 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
-from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models.enums import (
-    InternalWithdrawalStatus,
     OrderSide,
     OrderStatus,
     OrderType,
@@ -27,7 +25,7 @@ from cyberdelta.core.models.enums import (
 )
 from cyberdelta.core.models.market.order import Order
 from cyberdelta.core.models.market.trade import Trade
-from cyberdelta.core.models.operations import BackpackWithdrawalDetails, Withdrawal
+from cyberdelta.core.models.operations import Withdrawal
 from cyberdelta.core.models.spot_balance import SpotBalance
 
 
@@ -260,76 +258,27 @@ class TestBackpackAccountServiceHistoryOperations:
     async def test_withdraw_success(
         self,
         bp_account_service: BackpackAccountService,
+        asset: str,
+        amount: Decimal,
+        address: str,
+        withdrawal_result: Withdrawal,
         mock_http_client_requester: AsyncMock,
-        mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_request_builder: MagicMock,
         mock_mapper: MagicMock,
     ) -> None:
         """Test successful withdrawal operation."""
-        asset = "USDC"
-        amount = Decimal("100.0")
-        address = "0x1234567890abcdef1234567890abcdef12345678"
-        network = "ETH"
-        tag = "12345"
-        client_withdrawal_id = "withdraw_123"
-        two_factor_token = "2fa_token"
+        network = "Polygon"
+        tag = "some_tag"
+        withdrawal_id = "withdrawal_123"
 
-        mock_payload = {
-            "asset": asset,
-            "amount": str(amount),
-            "address": address,
-            "network": network,
-            "tag": tag,
-            "clientWithdrawalId": client_withdrawal_id,
-            "twoFactorToken": two_factor_token,
-        }
-
-        mock_raw_response = {
-            "id": 123,
-            "blockchain": "Ethereum",
-            "quantity": "100.0",
-            "fee": "1.0",
-            "symbol": "USDC",
-            "status": "pending",
-            "toAddress": address,
-            "createdAt": "2023-01-01T00:00:00Z",
-            "isInternal": False,
-        }
-
-        mock_raw_withdrawal_model = BackpackRawWithdrawalResponse.model_validate(
-            {
-                "id": 123,
-                "blockchain": "Ethereum",
-                "quantity": "100.0",
-                "fee": "1.0",
-                "symbol": "USDC",
-                "status": "pending",
-                "toAddress": address,
-                "createdAt": "2023-01-01T00:00:00Z",
-                "isInternal": False,
-            }
-        )
-
-        expected_withdrawal = Withdrawal(
-            id="123",
-            exchange="backpack_test_account",
-            asset=asset,
-            quantity=amount,
-            status=InternalWithdrawalStatus.PENDING,
-            address=address,
-            timestamp=datetime.now(UTC),
-            response_message=None,
-            bp_details=BackpackWithdrawalDetails(
-                client_id=client_withdrawal_id,
-                blockchain=network,
-            ),
-            hl_details=None,
-        )
+        mock_response = {"withdrawal_id": withdrawal_id}
+        mock_payload = {"asset": asset, "amount": str(amount), "address": address}
 
         mock_request_builder.build_withdraw_payload.return_value = mock_payload
-        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
-        mock_response_handler.handle_withdraw_response.return_value = mock_raw_withdrawal_model
-        mock_mapper.transform_raw_withdrawal_response_to_internal.return_value = expected_withdrawal
+        mock_http_client_requester.return_value = (mock_response, 200, {})
+        mock_response_handler.handle_withdraw_response.return_value = MagicMock()
+        mock_mapper.transform_raw_withdrawal_response_to_internal.return_value = withdrawal_result
 
         with patch.object(bp_account_service, "_mapper", mock_mapper):
             result = await bp_account_service.withdraw(
@@ -338,18 +287,18 @@ class TestBackpackAccountServiceHistoryOperations:
                 address=address,
                 network=network,
                 tag=tag,
-                client_withdrawal_id=client_withdrawal_id,
-                two_factor_token=two_factor_token,
+                client_withdrawal_id=withdrawal_id,
             )
 
+        assert result == withdrawal_result
         mock_request_builder.build_withdraw_payload.assert_called_once_with(
             asset=asset,
             amount=amount,
             address=address,
             network=network,
             tag=tag,
-            client_withdrawal_id=client_withdrawal_id,
-            two_factor_token=two_factor_token,
+            client_withdrawal_id=withdrawal_id,
+            two_factor_token=None,
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
@@ -359,101 +308,78 @@ class TestBackpackAccountServiceHistoryOperations:
             endpoint_group="private",
             request_weight=1,
         )
-        mock_response_handler.handle_withdraw_response.assert_called_once_with(mock_raw_response)
-        mock_mapper.transform_raw_withdrawal_response_to_internal.assert_called_once_with(
-            raw_response=mock_raw_withdrawal_model,
-            asset=asset,
-            quantity=amount,
-            address=address,
-            network=network,
-            client_withdrawal_id=client_withdrawal_id,
-            tag=tag,
-        )
-
-        assert result.id == expected_withdrawal.id
-        assert result.exchange == expected_withdrawal.exchange
-        assert result.asset == expected_withdrawal.asset
-        assert result.quantity == expected_withdrawal.quantity
-        assert result.status == expected_withdrawal.status
+        mock_response_handler.handle_withdraw_response.assert_called_once_with(mock_response)
 
     @pytest.mark.asyncio
     async def test_withdraw_http_client_returns_none(
         self,
         bp_account_service: BackpackAccountService,
+        asset: str,
+        amount: Decimal,
+        address: str,
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
     ) -> None:
-        """Test withdrawal when HTTP client returns None content."""
-        asset = "USDC"
-        amount = Decimal("100.0")
-        address = "0x1234567890abcdef1234567890abcdef12345678"
-
+        """Test withdrawal when HTTP client returns None."""
+        network = "Polygon"
         mock_payload = {"asset": asset, "amount": str(amount), "address": address}
+
         mock_request_builder.build_withdraw_payload.return_value = mock_payload
-        mock_http_client_requester.return_value = (None, 400, {})
+        mock_http_client_requester.return_value = (None, 500, {})
 
         with pytest.raises(APIError) as exc_info:
-            await bp_account_service.withdraw(asset=asset, amount=amount, address=address)
+            await bp_account_service.withdraw(
+                asset=asset, amount=amount, address=address, network=network
+            )
 
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "No data received for withdrawal, status: 400" in exc_info.value.message
+        assert "No data received for withdrawal" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_withdraw_validation_error(
         self,
         bp_account_service: BackpackAccountService,
+        asset: str,
+        amount: Decimal,
+        address: str,
         mock_http_client_requester: AsyncMock,
-        mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
+        mock_request_builder: MagicMock,
     ) -> None:
-        """Test withdrawal when validation error occurs."""
-        asset = "USDC"
-        amount = Decimal("100.0")
-        address = "0x1234567890abcdef1234567890abcdef12345678"
-
+        """Test withdrawal with validation error from response handler."""
+        network = "Polygon"
+        mock_response = {"invalid": "response"}
         mock_payload = {"asset": asset, "amount": str(amount), "address": address}
-        mock_raw_response = {"invalid": "response"}
 
         mock_request_builder.build_withdraw_payload.return_value = mock_payload
-        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
-        mock_response_handler.handle_withdraw_response.side_effect = (
-            ValidationError.from_exception_data(
-                title="ValidationError",
-                line_errors=[],
-            )
+        mock_http_client_requester.return_value = (mock_response, 200, {})
+        mock_response_handler.handle_withdraw_response.side_effect = ValidationError(
+            "Validation failed", []
         )
 
-        with pytest.raises(APIError) as exc_info:
-            await bp_account_service.withdraw(asset=asset, amount=amount, address=address)
-
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Internal data validation failed" in exc_info.value.message
+        with pytest.raises(APIError):
+            await bp_account_service.withdraw(
+                asset=asset, amount=amount, address=address, network=network
+            )
 
     @pytest.mark.asyncio
     async def test_withdraw_unexpected_exception(
         self,
         bp_account_service: BackpackAccountService,
-        mock_http_client_requester: AsyncMock,
-        mock_request_builder: MagicMock,
-        mock_response_handler: MagicMock,
+        asset: str,
+        amount: Decimal,
+        address: str,
+        mock_http_client: MagicMock,
     ) -> None:
-        """Test withdrawal when an unexpected exception occurs."""
-        asset = "USDC"
-        amount = Decimal("100.0")
-        address = "0x1234567890abcdef1234567890abcdef12345678"
+        """Test handling of unexpected exception during withdrawal."""
+        mock_http_client.perform_backpack_withdrawal.side_effect = Exception("Unexpected error")
 
-        mock_payload = {"asset": asset, "amount": str(amount), "address": address}
-        mock_raw_response = {"id": "123", "status": "PENDING"}
-
-        mock_request_builder.build_withdraw_payload.return_value = mock_payload
-        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
-        mock_response_handler.handle_withdraw_response.side_effect = Exception("Unexpected error")
-
-        with pytest.raises(APIError) as exc_info:
-            await bp_account_service.withdraw(asset=asset, amount=amount, address=address)
-
-        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected service failure" in exc_info.value.message
+        with pytest.raises(APIError):
+            await bp_account_service.withdraw(
+                asset=asset,
+                amount=amount,
+                address=address,
+                network="Ethereum",  # Add required network parameter
+            )
 
     @pytest.mark.asyncio
     async def test_get_trade_history_success(

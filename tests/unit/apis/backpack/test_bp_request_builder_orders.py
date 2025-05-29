@@ -193,45 +193,6 @@ class TestBuildPlaceOrderPayload:
         for key, expected_value in expected_fields.items():
             assert payload_dict[key] == expected_value
 
-    def test_build_place_order_payload_invalid_limit_no_price(
-        self,
-        symbol_spot: str,
-        buy_order_side: OrderSide,
-        limit_order_type: OrderType,
-        gtc_time_in_force: TimeInForce,
-    ) -> None:
-        """Test build_place_order_payload raises ValueError for LIMIT order without price."""
-        with pytest.raises(ValueError, match="Price is required for LIMIT orders"):
-            BackpackRequestBuilder.build_place_order_payload(
-                symbol=symbol_spot,
-                side=buy_order_side,
-                order_type=limit_order_type,
-                quantity=Decimal("1"),
-                time_in_force=gtc_time_in_force,
-                price=None,
-            )
-
-    def test_build_place_order_payload_invalid_stop_market_no_trigger(
-        self,
-        symbol_spot: str,
-        buy_order_side: OrderSide,
-        stop_market_order_type: OrderType,
-        gtc_time_in_force: TimeInForce,
-    ) -> None:
-        """Test build_place_order_payload raises ValueError for STOP_MARKET.
-
-        Tests that ValueError is raised when trigger price is not provided.
-        """
-        with pytest.raises(ValueError, match="Trigger price is required for STOP_MARKET orders"):
-            BackpackRequestBuilder.build_place_order_payload(
-                symbol=symbol_spot,
-                side=buy_order_side,
-                order_type=stop_market_order_type,
-                quantity=Decimal("1"),
-                time_in_force=gtc_time_in_force,
-                trigger_price=None,
-            )
-
     @pytest.mark.parametrize(
         "side, expected_side_str",
         [
@@ -307,11 +268,6 @@ class TestBuildCancelOrderPayload:
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {"symbol": symbol_spot, "clientId": client_order_id}
         assert payload_dict == expected_payload
-
-    def test_build_cancel_order_payload_no_identifiers(self, symbol_spot: str) -> None:
-        """Test build_cancel_order_payload raises ValueError when no identifiers provided."""
-        with pytest.raises(ValueError, match="Either orderId or clientId must be provided"):
-            BackpackRequestBuilder.build_cancel_order_payload(symbol_spot)
 
     def test_build_cancel_order_payload_formats_symbol(self, order_id: str) -> None:
         """Test build_cancel_order_payload formats symbol correctly."""
@@ -530,12 +486,6 @@ class TestBuildCancelAllOrdersPayload:
         assert isinstance(payload, BackpackRawOrderCancelAllRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         assert payload_dict == {"symbol": symbol_spot}
-
-    def test_build_cancel_all_orders_payload_no_symbol(self) -> None:
-        """Test build_cancel_all_orders_payload raises error for None symbol."""
-        # This should raise an error since symbol is required
-        with pytest.raises((ValueError, TypeError)):
-            BackpackRequestBuilder.build_cancel_all_orders_payload(None)
 
     def test_build_cancel_all_orders_payload_formats_symbol(self) -> None:
         """Test build_cancel_all_orders_payload formats symbol correctly."""

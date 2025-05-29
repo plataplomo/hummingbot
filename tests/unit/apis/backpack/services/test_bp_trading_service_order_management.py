@@ -339,7 +339,7 @@ class TestBackpackTradingServiceOrderManagement:
                 quantity=quantity,
                 time_in_force=time_in_force,
                 price=price,
-                client_order_id=client_order_id,
+                client_order_id="123456",  # Use numeric string instead of alphanumeric
             )
 
             mock_request_builder.build_place_order_payload.assert_called_once_with(
@@ -349,7 +349,7 @@ class TestBackpackTradingServiceOrderManagement:
                 quantity=quantity,
                 time_in_force=time_in_force,
                 price=price,
-                client_order_id=client_order_id,
+                client_order_id="123456",
                 post_only=False,
                 trigger_price=None,
             )

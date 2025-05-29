@@ -609,6 +609,35 @@ class BackpackAccountService:
         if not to_account_type:
             raise ValueError(f"[{current_method}] 'to_account_type' must be a non-empty string.")
 
+        # Additional validation for whitespace-only strings
+        if not asset.strip():
+            raise ValueError(f"[{current_method}] 'asset' cannot be empty or whitespace only.")
+        if not from_account_type.strip():
+            raise ValueError(
+                f"[{current_method}] 'from_account_type' cannot be empty or whitespace only."
+            )
+        if not to_account_type.strip():
+            raise ValueError(
+                f"[{current_method}] 'to_account_type' cannot be empty or whitespace only."
+            )
+
+        # Business Logic Pre-Validation (moved from RequestBuilder)
+        valid_accounts = {"SPOT", "MARGIN", "FUTURES"}
+        if from_account_type not in valid_accounts:
+            raise ValueError(
+                f"[{current_method}] Invalid from_account_type: {from_account_type}. "
+                f"Must be one of {valid_accounts}"
+            )
+        if to_account_type not in valid_accounts:
+            raise ValueError(
+                f"[{current_method}] Invalid to_account_type: {to_account_type}. "
+                f"Must be one of {valid_accounts}"
+            )
+        if from_account_type == to_account_type:
+            raise ValueError(
+                f"[{current_method}] from_account_type and to_account_type cannot be the same"
+            )
+
         # Initialize context for error handling
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
@@ -619,7 +648,7 @@ class BackpackAccountService:
             endpoint_path = "/api/v1/capital/transfer"
             payload = self._request_builder.build_internal_transfer_payload(
                 asset_symbol=asset,
-                amount_str=str(amount),  # Builder expects amount as string
+                amount=amount,
                 from_account=from_account_type,
                 to_account=to_account_type,
                 client_transfer_id=client_transfer_id,
@@ -775,6 +804,42 @@ class BackpackAccountService:
             raise ValueError(f"[{current_method}] 'amount' must be a positive finite Decimal.")
         if not address:
             raise ValueError(f"[{current_method}] 'address' must be a non-empty string.")
+
+        # Business Logic Pre-Validation (moved from RequestBuilder)
+        if network is None:
+            raise ValueError(f"[{current_method}] 'network' is required for withdrawal.")
+
+        # Validate asset is not empty after stripping whitespace
+        if not asset.strip():
+            raise ValueError(f"[{current_method}] 'asset' cannot be empty or whitespace only.")
+
+        # Validate address is not empty after stripping whitespace
+        if not address.strip():
+            raise ValueError(f"[{current_method}] 'address' cannot be empty or whitespace only.")
+
+        # Validate network maps to supported blockchain
+        blockchain_mapping = {
+            "Arbitrum": "Arbitrum",
+            "Base": "Base",
+            "Bitcoin": "Bitcoin",
+            "BitcoinCash": "BitcoinCash",
+            "BNBSmartChain": "BNBSmartChain",
+            "Cardano": "Cardano",
+            "Dogecoin": "Dogecoin",
+            "Ethereum": "Ethereum",
+            "Litecoin": "Litecoin",
+            "Polygon": "Polygon",
+            "Solana": "Solana",
+            "Story": "Story",
+            "Sui": "Sui",
+            "XRP": "XRP",
+        }
+
+        if network not in blockchain_mapping:
+            raise ValueError(
+                f"[{current_method}] Unsupported network: {network}. "
+                f"Supported networks: {list(blockchain_mapping.keys())}"
+            )
 
         # Initialize context for error handling
         raw_data: ParsedJsonResponse | None = None

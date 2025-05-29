@@ -80,11 +80,11 @@ class TestBackpackAccountServiceTransfers:
         )
 
         mock_request_builder.build_internal_transfer_payload.assert_called_once_with(
-            asset_symbol=asset,
-            amount_str=str(amount),
-            from_account=from_account,
-            to_account=to_account,
-            client_transfer_id=client_transfer_id,
+            asset_symbol="USDC",
+            amount=Decimal("100.0"),
+            from_account="SPOT",
+            to_account="FUTURES",
+            client_transfer_id="testTransfer123",
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
@@ -121,7 +121,7 @@ class TestBackpackAccountServiceTransfers:
         asset = "USDC"
         amount = Decimal("50")
         from_account = "SPOT"
-        to_account = "DERIVATIVES"
+        to_account = "FUTURES"
         api_error_instance = APIError("Requester failed", code=APIErrorCode.SERVER_ERROR.value)
 
         expected_payload_to_requester = {"some": "payload"}
@@ -141,7 +141,7 @@ class TestBackpackAccountServiceTransfers:
         assert exc_info.value is api_error_instance
         mock_request_builder.build_internal_transfer_payload.assert_called_once_with(
             asset_symbol=asset,
-            amount_str=str(amount),
+            amount=amount,
             from_account=from_account,
             to_account=to_account,
             client_transfer_id=None,
@@ -176,8 +176,8 @@ class TestBackpackAccountServiceTransfers:
         raising APIError."""
         asset = "BTC"
         amount = Decimal("0.1")
-        from_account = "MAIN"
-        to_account = "TRADING"
+        from_account = "SPOT"
+        to_account = "FUTURES"
         status_code_from_requester = 200
 
         expected_payload_to_requester = {"another": "payload"}
@@ -204,7 +204,7 @@ class TestBackpackAccountServiceTransfers:
 
         mock_request_builder.build_internal_transfer_payload.assert_called_once_with(
             asset_symbol=asset,
-            amount_str=str(amount),
+            amount=amount,
             from_account=from_account,
             to_account=to_account,
             client_transfer_id=None,
@@ -240,7 +240,7 @@ class TestBackpackAccountServiceTransfers:
         by wrapping in APIError."""
         asset = "ETH"
         amount = Decimal("1.0")
-        from_account = "SUB_01"
+        from_account = "MARGIN"
         to_account = "SPOT"
         unexpected_error = ValueError("Something went very wrong in requester")
 
@@ -262,7 +262,7 @@ class TestBackpackAccountServiceTransfers:
 
         mock_request_builder.build_internal_transfer_payload.assert_called_once_with(
             asset_symbol=asset,
-            amount_str=str(amount),
+            amount=amount,
             from_account=from_account,
             to_account=to_account,
             client_transfer_id=None,

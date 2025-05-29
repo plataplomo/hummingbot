@@ -146,8 +146,12 @@ class TestBuildWithdrawPayload:
         withdrawal_amount: Decimal,
         withdrawal_address: str,
     ) -> None:
-        """Test build_withdraw_payload raises ValueError when network is None."""
-        with pytest.raises(ValueError, match="Unsupported network: None"):
+        """Test build_withdraw_payload raises KeyError when network is None.
+
+        Note: Business logic validation has been moved to service layer.
+        The request builder only performs mapping/translation.
+        """
+        with pytest.raises(KeyError):
             BackpackRequestBuilder.build_withdraw_payload(
                 asset=usdc_asset,
                 amount=withdrawal_amount,
@@ -198,7 +202,7 @@ class TestBuildInternalTransferPayload:
         """Test build_internal_transfer_payload with minimal required fields."""
         payload = BackpackRequestBuilder.build_internal_transfer_payload(
             asset_symbol=usdc_asset,
-            amount_str="100.50",
+            amount=Decimal("100.50"),
             from_account="SPOT",
             to_account="FUTURES",
         )
@@ -216,7 +220,7 @@ class TestBuildInternalTransferPayload:
         """Test build_internal_transfer_payload with client_transfer_id."""
         payload = BackpackRequestBuilder.build_internal_transfer_payload(
             asset_symbol=sol_asset,
-            amount_str="10",
+            amount=Decimal("10"),
             from_account="MARGIN",
             to_account="SPOT",
             client_transfer_id="myInternalTransfer123",
@@ -236,7 +240,7 @@ class TestBuildInternalTransferPayload:
         """Test build_internal_transfer_payload formats symbol correctly."""
         payload = BackpackRequestBuilder.build_internal_transfer_payload(
             asset_symbol="sol-perp",  # Test with format that needs changing
-            amount_str="5",
+            amount=Decimal("5"),
             from_account="SPOT",
             to_account="FUTURES",
         )
@@ -254,7 +258,7 @@ class TestBuildInternalTransferPayload:
         """Test build_internal_transfer_payload from SPOT to FUTURES."""
         payload = BackpackRequestBuilder.build_internal_transfer_payload(
             asset_symbol=usdc_asset,
-            amount_str="250.75",
+            amount=Decimal("250.75"),
             from_account="SPOT",
             to_account="FUTURES",
         )
@@ -272,7 +276,7 @@ class TestBuildInternalTransferPayload:
         """Test build_internal_transfer_payload from FUTURES to SPOT."""
         payload = BackpackRequestBuilder.build_internal_transfer_payload(
             asset_symbol=eth_asset,
-            amount_str="1.0",
+            amount=Decimal("1.0"),
             from_account="FUTURES",
             to_account="SPOT",
         )
@@ -290,7 +294,7 @@ class TestBuildInternalTransferPayload:
         """Test build_internal_transfer_payload from MARGIN to FUTURES."""
         payload = BackpackRequestBuilder.build_internal_transfer_payload(
             asset_symbol=sol_asset,
-            amount_str="50.25",
+            amount=Decimal("50.25"),
             from_account="MARGIN",
             to_account="FUTURES",
             client_transfer_id="margin_to_futures_001",
@@ -327,7 +331,7 @@ class TestBuildInternalTransferPayload:
         """Test build_internal_transfer_payload with various combinations."""
         payload = BackpackRequestBuilder.build_internal_transfer_payload(
             asset_symbol=asset_symbol,
-            amount_str=amount,
+            amount=Decimal(amount),
             from_account=from_acc,
             to_account=to_acc,
             client_transfer_id=client_id,
@@ -361,7 +365,7 @@ class TestBuildInternalTransferPayload:
         """Test build_internal_transfer_payload with various account combinations."""
         payload = BackpackRequestBuilder.build_internal_transfer_payload(
             asset_symbol=usdc_asset,
-            amount_str="100.0",
+            amount=Decimal("100.0"),
             from_account=from_account,
             to_account=to_account,
         )

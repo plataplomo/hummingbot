@@ -5,6 +5,8 @@ Shared fixtures for BackpackAccountService unit tests.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping
+from datetime import UTC, datetime
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -16,6 +18,8 @@ from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccount
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
+from cyberdelta.core.models.enums import InternalWithdrawalStatus
+from cyberdelta.core.models.operations import Withdrawal
 
 # Type alias for the HTTP client requester callable
 HttpClientRequesterSig = Callable[
@@ -28,6 +32,12 @@ HttpClientRequesterSig = Callable[
 def mock_http_client_requester() -> AsyncMock:
     """Provides a mock HTTP client requester."""
     return AsyncMock()
+
+
+@pytest.fixture
+def mock_http_client() -> MagicMock:
+    """Provides a mock HTTP client for withdrawal tests."""
+    return MagicMock()
 
 
 @pytest.fixture
@@ -78,3 +88,39 @@ def bp_account_service(
         rate_limiter_service=mock_rate_limiter_service,
     )
     return service
+
+
+# Withdrawal test fixtures
+@pytest.fixture
+def asset() -> str:
+    """Standard asset symbol for withdrawal tests."""
+    return "USDC"
+
+
+@pytest.fixture
+def amount() -> Decimal:
+    """Standard amount for withdrawal tests."""
+    return Decimal("100.0")
+
+
+@pytest.fixture
+def address() -> str:
+    """Standard withdrawal address."""
+    return "0x1234567890abcdef1234567890abcdef12345678"
+
+
+@pytest.fixture
+def withdrawal_result() -> Withdrawal:
+    """Standard withdrawal result for tests."""
+    return Withdrawal(
+        id="withdrawal_123",
+        exchange="backpack_test_account",
+        status=InternalWithdrawalStatus.COMPLETED,
+        asset="USDC",
+        quantity=Decimal("100.0"),
+        address="0x1234567890abcdef1234567890abcdef12345678",
+        timestamp=datetime.now(UTC),
+        fee=Decimal("5.0"),
+        tx_hash="0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+        response_message="Withdrawal completed successfully",
+    )

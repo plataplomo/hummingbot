@@ -13,7 +13,7 @@ from __future__ import annotations
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, cast
 
 from pydantic import ValidationError
 
@@ -996,6 +996,29 @@ class BackpackMarketDataService:
         if end_time_ms is not None and end_time_ms <= 0:
             raise ValueError(f"[{current_method}] 'end_time_ms' must be positive when provided.")
 
+        # Business Logic Pre-Validation: validate timeframe is supported by Backpack
+        supported_intervals = {
+            "1m",
+            "3m",
+            "5m",
+            "15m",
+            "30m",
+            "1h",
+            "2h",
+            "4h",
+            "6h",
+            "8h",
+            "12h",
+            "1d",
+            "3d",
+            "1w",
+        }
+        if timeframe not in supported_intervals:
+            raise ValueError(
+                f"[{current_method}] Unsupported interval '{timeframe}'. "
+                f"Supported intervals: {sorted(supported_intervals)}"
+            )
+
         # Initialize context for error handling
         raw_data_list: ParsedJsonResponse | None = None
         status_code: int = 0
@@ -1003,9 +1026,30 @@ class BackpackMarketDataService:
 
         try:
             # Core operational logic
+            # DEFENSIVE CHECK: Service validates timeframe is supported literal value.
+            # Mypy=[arg-type]
+            validated_timeframe = cast(
+                Literal[
+                    "1m",
+                    "3m",
+                    "5m",
+                    "15m",
+                    "30m",
+                    "1h",
+                    "2h",
+                    "4h",
+                    "6h",
+                    "8h",
+                    "12h",
+                    "1d",
+                    "3d",
+                    "1w",
+                ],
+                timeframe,
+            )
             params = self._request_builder.build_get_market_data_params(
                 symbol=symbol,
-                timeframe_str=timeframe,
+                timeframe_str=validated_timeframe,
                 start_time_ms=start_time_ms,
                 end_time_ms=end_time_ms,
                 limit=limit,
