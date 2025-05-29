@@ -8,7 +8,7 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic import AnyUrl, HttpUrl, SecretStr
+from pydantic import SecretStr
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
@@ -32,20 +32,34 @@ from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
+def create_test_exchange_config(
+    api_base_url: str = "https://api.backpack.exchange",
+    ws_url: str = "wss://ws.backpack.exchange",
+    **kwargs: object,
+) -> ExchangeSpecificConfig:
+    """
+    Create ExchangeSpecificConfig for testing by parsing from dict.
+    This works with the validator that expects string inputs.
+    """
+    config_dict = {
+        "exchange_name": ExchangeName.BACKPACK,
+        "api_base_url": api_base_url,
+        "ws_url": ws_url,
+        "rate_limit_per_minute": 120,
+        "symbols": {"SOL_USDC": "SOL_USDC", "BTC_USDC": "BTC_USDC"},
+        "request_timeout_seconds": 30.0,
+        **kwargs,
+    }
+    return ExchangeSpecificConfig.model_validate(config_dict)
+
+
 class TestBackpackAPIPublicBehavior:
     """Test suite for BackpackAPI focusing on public API behavior and outcomes."""
 
     @pytest.fixture
     def exchange_config(self) -> ExchangeSpecificConfig:
         """Mock ExchangeSpecificConfig for testing."""
-        return ExchangeSpecificConfig(
-            exchange_name=ExchangeName.BACKPACK,
-            api_base_url=HttpUrl("https://api.backpack.exchange"),
-            ws_url=AnyUrl("wss://ws.backpack.exchange"),
-            rate_limit_per_minute=120,
-            symbols={"SOL_USDC": "SOL_USDC", "BTC_USDC": "BTC_USDC"},
-            request_timeout_seconds=30.0,
-        )
+        return create_test_exchange_config()
 
     @pytest.fixture
     def valid_secrets(self) -> ExchangeSecrets:

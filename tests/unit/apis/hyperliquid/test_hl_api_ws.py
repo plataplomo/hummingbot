@@ -10,7 +10,7 @@ from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from pydantic import AnyUrl, HttpUrl, SecretStr
+from pydantic import SecretStr
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.hyperliquid.hl_ws_message_router import HyperliquidWsMessageRouter
@@ -19,16 +19,31 @@ from cyberdelta.config.secrets_models import ExchangeSecrets
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
+def create_test_exchange_config(
+    api_base_url: str = "https://api.hyperliquid.xyz",
+    ws_url: str = "wss://api.hyperliquid.xyz/ws",
+    **kwargs: object,
+) -> ExchangeSpecificConfig:
+    """
+    Create ExchangeSpecificConfig for testing by parsing from dict.
+    This works with the validator that expects string inputs.
+    """
+    config_dict = {
+        "exchange_name": ExchangeName.HYPERLIQUID,
+        "api_base_url": api_base_url,
+        "ws_url": ws_url,
+        "rate_limit_per_minute": 300,
+        "symbols": {"ETH": "ETH", "BTC": "BTC"},
+        "chain_id": 1337,
+        **kwargs,
+    }
+    return ExchangeSpecificConfig.model_validate(config_dict)
+
+
 @pytest.fixture
 def mock_exchange_config() -> ExchangeSpecificConfig:
     """Mock ExchangeSpecificConfig."""
-    return ExchangeSpecificConfig(
-        exchange_name=ExchangeName.HYPERLIQUID,
-        api_base_url=HttpUrl("https://api.hyperliquid.xyz"),
-        ws_url=AnyUrl("wss://api.hyperliquid.xyz/ws"),
-        rate_limit_per_minute=300,
-        symbols={"ETH": "ETH", "BTC": "BTC"},
-        chain_id=1337,
+    return create_test_exchange_config(
         request_timeout_seconds=30.0,
     )
 

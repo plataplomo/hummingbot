@@ -10,14 +10,20 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic import AnyUrl, HttpUrl, SecretStr
+from pydantic import SecretStr
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ExchangeSecrets
-from cyberdelta.core.models import DerivativePosition, MarginAccountSummary, SpotBalance, Trade
+from cyberdelta.core.models import (
+    DerivativePosition,
+    MarginAccountSummary,
+    SpotBalance,
+    Ticker,
+    Trade,
+)
 from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
 from cyberdelta.enums.exchange_names import ExchangeName
@@ -25,6 +31,26 @@ from cyberdelta.enums.exchange_names import ExchangeName
 # Constants for testing
 TEST_API_KEY = "test_api_key_123"
 TEST_API_SECRET = "test_api_secret_456"
+
+
+def create_test_exchange_config(
+    api_base_url: str = "https://api.backpack.exchange",
+    ws_url: str = "wss://ws.backpack.exchange",
+    **kwargs: object,
+) -> ExchangeSpecificConfig:
+    """
+    Create ExchangeSpecificConfig for testing by parsing from dict.
+    This works with the validator that expects string inputs.
+    """
+    config_dict = {
+        "exchange_name": ExchangeName.BACKPACK,
+        "api_base_url": api_base_url,
+        "ws_url": ws_url,
+        "rate_limit_per_minute": 120,
+        "symbols": {"SOL_USDC": "SOL_USDC", "BTC_USDC": "BTC_USDC"},
+        **kwargs,
+    }
+    return ExchangeSpecificConfig.model_validate(config_dict)
 
 
 # --- Dependency Injection Test Fixtures for BackpackAPI ---
@@ -151,12 +177,7 @@ def bp_api_with_di(
     ) -> BackpackAPI:
         # Create default Pydantic models if not provided
         if config is None:
-            config = ExchangeSpecificConfig(
-                exchange_name=ExchangeName.BACKPACK,
-                api_base_url=HttpUrl("https://api.backpack.exchange"),
-                ws_url=AnyUrl("wss://ws.backpack.exchange"),
-                rate_limit_per_minute=120,
-                symbols={"SOL_USDC": "SOL_USDC", "BTC_USDC": "BTC_USDC"},
+            config = create_test_exchange_config(
                 request_timeout_seconds=10.0,
                 ws_ping_interval_seconds=30.0,
             )
@@ -198,11 +219,9 @@ class TestBackpackAPIInitialization:
         self, bp_api_with_di: Callable[..., BackpackAPI]
     ) -> None:
         """Test API creation with custom configuration."""
-        custom_config = ExchangeSpecificConfig(
-            exchange_name=ExchangeName.BACKPACK,
-            api_base_url=HttpUrl("https://custom.backpack.api"),
-            ws_url=AnyUrl("wss://custom.backpack.ws"),
-            rate_limit_per_minute=120,
+        custom_config = create_test_exchange_config(
+            api_base_url="https://custom.backpack.api",
+            ws_url="wss://custom.backpack.ws",
             symbols={"SOL_USDC": "SOL_USDC"},
         )
 
@@ -559,7 +578,6 @@ class TestBackpackAPIMarketDataOperations:
         api = bp_api_with_di()
 
         # Configure mock market data service
-        from cyberdelta.core.models import Ticker
 
         expected_ticker = Ticker(
             symbol="SOL",

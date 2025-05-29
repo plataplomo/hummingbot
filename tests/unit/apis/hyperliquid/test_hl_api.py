@@ -10,7 +10,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic import AnyUrl, HttpUrl, SecretStr
+from pydantic import SecretStr
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.api_error import APIError
@@ -26,6 +26,28 @@ from cyberdelta.core.models import (
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
 from cyberdelta.enums.exchange_names import ExchangeName
+
+
+def create_test_exchange_config(
+    api_base_url: str = "https://api.hyperliquid.xyz",
+    ws_url: str = "wss://api.hyperliquid.xyz/ws",
+    **kwargs: object,
+) -> ExchangeSpecificConfig:
+    """
+    Create ExchangeSpecificConfig for testing by parsing from dict.
+    This works with the validator that expects string inputs.
+    """
+    config_dict = {
+        "exchange_name": ExchangeName.HYPERLIQUID,
+        "api_base_url": api_base_url,
+        "ws_url": ws_url,
+        "rate_limit_per_minute": 300,
+        "symbols": {"ETH": "ETH", "BTC": "BTC"},
+        "chain_id": 1337,
+        **kwargs,
+    }
+    return ExchangeSpecificConfig.model_validate(config_dict)
+
 
 # --- Dependency Injection Test Fixtures for HyperliquidAPI ---
 
@@ -198,16 +220,7 @@ def hl_api_with_di(
         """Create HyperliquidAPI with injected dependencies."""
         # Create default Pydantic models if not provided
         if config is None:
-            config = ExchangeSpecificConfig(
-                exchange_name=ExchangeName.HYPERLIQUID,
-                api_base_url=HttpUrl("https://api.hyperliquid.xyz"),
-                ws_url=AnyUrl("wss://api.hyperliquid.xyz/ws"),
-                rate_limit_per_minute=300,
-                symbols={"ETH": "ETH", "BTC": "BTC"},
-                chain_id=1337,
-                request_timeout_seconds=15.0,
-                ws_max_reconnect_attempts=5,
-            )
+            config = create_test_exchange_config()
 
         if secrets is None:
             secrets = ExchangeSecrets(
@@ -262,13 +275,9 @@ class TestHyperliquidAPIInitialization:
         self, hl_api_with_di: Callable[..., HyperliquidAPI]
     ) -> None:
         """Test API creation with custom configuration."""
-        custom_config = ExchangeSpecificConfig(
-            exchange_name=ExchangeName.HYPERLIQUID,
-            api_base_url=HttpUrl("https://custom.hyperliquid.api"),
-            ws_url=AnyUrl("wss://custom.hyperliquid.ws"),
-            rate_limit_per_minute=300,
-            symbols={"ETH": "ETH"},
-            chain_id=1337,
+        custom_config = create_test_exchange_config(
+            api_base_url="https://custom.hyperliquid.api",
+            ws_url="wss://custom.hyperliquid.ws",
         )
 
         api = hl_api_with_di(config=custom_config)
