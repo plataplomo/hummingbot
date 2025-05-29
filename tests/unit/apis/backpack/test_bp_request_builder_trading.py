@@ -5,6 +5,9 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
+from cyberdelta.apis.backpack.models.bp_raw_query_params import (
+    BackpackRawGetTradeHistoryParams,
+)
 
 
 class TestBuildGetTradeHistoryParams:
@@ -21,13 +24,15 @@ class TestBuildGetTradeHistoryParams:
             end_time_ms=None,
             from_id="fillIdStart",
         )
+        assert isinstance(params, BackpackRawGetTradeHistoryParams)
+        params_dict = params.model_dump(by_alias=True, exclude_none=True)
         expected = {
             "symbol": symbol_btc_spot,
             "limit": 25,
             "from": past_timestamp_ms,
             "fromId": "fillIdStart",
         }
-        assert params == expected
+        assert params_dict == expected
 
     def test_build_get_trade_history_params_all_fields(
         self,
@@ -43,6 +48,8 @@ class TestBuildGetTradeHistoryParams:
             end_time_ms=current_timestamp_ms,
             from_id="fillId123",
         )
+        assert isinstance(params, BackpackRawGetTradeHistoryParams)
+        params_dict = params.model_dump(by_alias=True, exclude_none=True)
         expected = {
             "symbol": symbol_spot,
             "limit": 50,
@@ -50,7 +57,7 @@ class TestBuildGetTradeHistoryParams:
             "to": current_timestamp_ms,
             "fromId": "fillId123",
         }
-        assert params == expected
+        assert params_dict == expected
 
     def test_build_get_trade_history_params_minimal(self, symbol_eth_spot: str) -> None:
         """Test build_get_trade_history_params with minimal parameters."""
@@ -61,8 +68,10 @@ class TestBuildGetTradeHistoryParams:
             end_time_ms=None,
             from_id=None,
         )
+        assert isinstance(params, BackpackRawGetTradeHistoryParams)
+        params_dict = params.model_dump(by_alias=True, exclude_none=True)
         expected = {"symbol": symbol_eth_spot}
-        assert params == expected
+        assert params_dict == expected
 
     def test_build_get_trade_history_params_formats_symbol(self) -> None:
         """Test build_get_trade_history_params formats symbol correctly."""
@@ -73,8 +82,10 @@ class TestBuildGetTradeHistoryParams:
             end_time_ms=None,
             from_id=None,
         )
+        assert isinstance(params, BackpackRawGetTradeHistoryParams)
+        params_dict = params.model_dump(by_alias=True, exclude_none=True)
         expected = {"symbol": "BTC_USDT", "limit": 100}
-        assert params == expected
+        assert params_dict == expected
 
     def test_build_get_trade_history_params_only_limit(self, symbol_spot: str) -> None:
         """Test build_get_trade_history_params with only limit."""
@@ -85,8 +96,10 @@ class TestBuildGetTradeHistoryParams:
             end_time_ms=None,
             from_id=None,
         )
+        assert isinstance(params, BackpackRawGetTradeHistoryParams)
+        params_dict = params.model_dump(by_alias=True, exclude_none=True)
         expected = {"symbol": symbol_spot, "limit": 75}
-        assert params == expected
+        assert params_dict == expected
 
     def test_build_get_trade_history_params_only_from_id(self, symbol_spot: str) -> None:
         """Test build_get_trade_history_params with only from_id."""
@@ -97,8 +110,10 @@ class TestBuildGetTradeHistoryParams:
             end_time_ms=None,
             from_id="startFillId",
         )
+        assert isinstance(params, BackpackRawGetTradeHistoryParams)
+        params_dict = params.model_dump(by_alias=True, exclude_none=True)
         expected = {"symbol": symbol_spot, "fromId": "startFillId"}
-        assert params == expected
+        assert params_dict == expected
 
     def test_build_get_trade_history_params_time_range_only(
         self, symbol_spot: str, current_timestamp_ms: int, past_timestamp_ms: int
@@ -111,12 +126,14 @@ class TestBuildGetTradeHistoryParams:
             end_time_ms=current_timestamp_ms,
             from_id=None,
         )
+        assert isinstance(params, BackpackRawGetTradeHistoryParams)
+        params_dict = params.model_dump(by_alias=True, exclude_none=True)
         expected = {
             "symbol": symbol_spot,
             "from": past_timestamp_ms,
             "to": current_timestamp_ms,
         }
-        assert params == expected
+        assert params_dict == expected
 
     @pytest.mark.parametrize(
         "symbol, limit, from_id, expected_base",
@@ -142,7 +159,9 @@ class TestBuildGetTradeHistoryParams:
             end_time_ms=None,
             from_id=from_id,
         )
-        assert params == expected_base
+        assert isinstance(params, BackpackRawGetTradeHistoryParams)
+        params_dict = params.model_dump(by_alias=True, exclude_none=True)
+        assert params_dict == expected_base
 
     @pytest.mark.parametrize(
         "start_time, end_time, expected_time_params",
@@ -168,6 +187,8 @@ class TestBuildGetTradeHistoryParams:
             end_time_ms=end_time,
             from_id=None,
         )
+        assert isinstance(params, BackpackRawGetTradeHistoryParams)
+        params_dict = params.model_dump(by_alias=True, exclude_none=True)
         expected: dict[str, Any] = {"symbol": symbol_spot}
         expected.update(expected_time_params)
-        assert params == expected
+        assert params_dict == expected

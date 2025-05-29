@@ -341,7 +341,7 @@ class BackpackRequestBuilder:
 
     @staticmethod
     def build_cancel_all_orders_payload(
-        symbol: str, order_type_filter: str | None = None
+        symbol: str | None, order_type_filter: str | None = None
     ) -> BackpackRawOrderCancelAllRequest:
         """
         Builds the payload for cancelling all orders for a symbol.
@@ -353,6 +353,10 @@ class BackpackRequestBuilder:
         Returns:
             BackpackRawOrderCancelAllRequest: The validated request payload model.
         """
+        # Validate required symbol parameter
+        if symbol is None:
+            raise ValueError("invalid symbol")
+
         request_data: dict[str, Any] = {
             "symbol": BackpackRequestBuilder.format_symbol(symbol),
         }
@@ -594,7 +598,9 @@ class BackpackRequestBuilder:
     @staticmethod
     def build_get_market_data_params(
         symbol: str,
-        timeframe_str: Literal["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w"],
+        timeframe_str: Literal[
+            "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w"
+        ],
         start_time_ms: int | None,
         end_time_ms: int | None,
         limit: int | None,

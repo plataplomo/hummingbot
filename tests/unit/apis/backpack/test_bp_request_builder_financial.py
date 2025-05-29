@@ -6,6 +6,10 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
+from cyberdelta.apis.backpack.models.bp_raw_api_request_payloads import (
+    BackpackRawAccountWithdrawalRequest,
+    BackpackRawInternalTransferRequest,
+)
 
 
 class TestBuildWithdrawPayload:
@@ -25,13 +29,15 @@ class TestBuildWithdrawPayload:
             address=withdrawal_address,
             network=solana_network,
         )
+        assert isinstance(payload, BackpackRawAccountWithdrawalRequest)
+        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
             "blockchain": solana_network,
-            "coin": usdc_asset,
+            "symbol": usdc_asset,
             "quantity": "100.0",
             "address": withdrawal_address,
         }
-        assert payload == expected_payload
+        assert payload_dict == expected_payload
 
     def test_build_withdraw_payload_full(self, eth_asset: str, ethereum_network: str) -> None:
         """Test build_withdraw_payload with all optional fields."""
@@ -44,16 +50,18 @@ class TestBuildWithdrawPayload:
             client_withdrawal_id="wdId789",
             two_factor_token="123456",
         )
+        assert isinstance(payload, BackpackRawAccountWithdrawalRequest)
+        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
             "blockchain": ethereum_network,
-            "coin": eth_asset,
+            "symbol": eth_asset,
             "quantity": "1.5",
             "address": "0x123",
             "addressTag": "myTag",
             "clientId": "wdId789",
             "twoFactorToken": "123456",
         }
-        assert payload == expected_payload
+        assert payload_dict == expected_payload
 
     def test_build_withdraw_payload_with_tag(
         self,
@@ -70,14 +78,16 @@ class TestBuildWithdrawPayload:
             network=solana_network,
             tag="addressTag123",
         )
+        assert isinstance(payload, BackpackRawAccountWithdrawalRequest)
+        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
             "blockchain": solana_network,
-            "coin": usdc_asset,
+            "symbol": usdc_asset,
             "quantity": "100.0",
             "address": withdrawal_address,
             "addressTag": "addressTag123",
         }
-        assert payload == expected_payload
+        assert payload_dict == expected_payload
 
     def test_build_withdraw_payload_with_client_id(
         self,
@@ -93,14 +103,16 @@ class TestBuildWithdrawPayload:
             network=solana_network,
             client_withdrawal_id="clientWd001",
         )
+        assert isinstance(payload, BackpackRawAccountWithdrawalRequest)
+        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
             "blockchain": solana_network,
-            "coin": sol_asset,
+            "symbol": sol_asset,
             "quantity": "5.0",
             "address": withdrawal_address,
             "clientId": "clientWd001",
         }
-        assert payload == expected_payload
+        assert payload_dict == expected_payload
 
     def test_build_withdraw_payload_with_2fa(
         self,
@@ -117,14 +129,16 @@ class TestBuildWithdrawPayload:
             network=solana_network,
             two_factor_token="654321",
         )
+        assert isinstance(payload, BackpackRawAccountWithdrawalRequest)
+        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
             "blockchain": solana_network,
-            "coin": usdc_asset,
+            "symbol": usdc_asset,
             "quantity": "100.0",
             "address": withdrawal_address,
             "twoFactorToken": "654321",
         }
-        assert payload == expected_payload
+        assert payload_dict == expected_payload
 
     def test_build_withdraw_payload_no_network(
         self,
@@ -133,12 +147,12 @@ class TestBuildWithdrawPayload:
         withdrawal_address: str,
     ) -> None:
         """Test build_withdraw_payload raises ValueError when network is None."""
-        with pytest.raises(ValueError, match="Network is required for withdrawals"):
+        with pytest.raises(ValueError, match="Unsupported network: None"):
             BackpackRequestBuilder.build_withdraw_payload(
                 asset=usdc_asset,
                 amount=withdrawal_amount,
                 address=withdrawal_address,
-                network=None,
+                network=None,  # type: ignore[arg-type]
             )
 
     @pytest.mark.parametrize(
@@ -166,13 +180,15 @@ class TestBuildWithdrawPayload:
             address="test_address",
             network=network,
         )
+        assert isinstance(payload, BackpackRawAccountWithdrawalRequest)
+        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected = {
             "blockchain": expected_network,
-            "coin": expected_asset,
+            "symbol": expected_asset,
             "quantity": expected_amount,
             "address": "test_address",
         }
-        assert payload == expected
+        assert payload_dict == expected
 
 
 class TestBuildInternalTransferPayload:
@@ -186,13 +202,15 @@ class TestBuildInternalTransferPayload:
             from_account="SPOT",
             to_account="FUTURES",
         )
+        assert isinstance(payload, BackpackRawInternalTransferRequest)
+        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
             "symbol": usdc_asset,
             "quantity": "100.50",
             "fromAccount": "SPOT",
             "toAccount": "FUTURES",
         }
-        assert payload == expected_payload
+        assert payload_dict == expected_payload
 
     def test_build_internal_transfer_payload_with_client_id(self, sol_asset: str) -> None:
         """Test build_internal_transfer_payload with client_transfer_id."""
@@ -203,6 +221,8 @@ class TestBuildInternalTransferPayload:
             to_account="SPOT",
             client_transfer_id="myInternalTransfer123",
         )
+        assert isinstance(payload, BackpackRawInternalTransferRequest)
+        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
             "symbol": sol_asset,
             "quantity": "10",
@@ -210,7 +230,7 @@ class TestBuildInternalTransferPayload:
             "toAccount": "SPOT",
             "clientId": "myInternalTransfer123",
         }
-        assert payload == expected_payload
+        assert payload_dict == expected_payload
 
     def test_build_internal_transfer_payload_symbol_formatting(self) -> None:
         """Test build_internal_transfer_payload formats symbol correctly."""
@@ -220,13 +240,15 @@ class TestBuildInternalTransferPayload:
             from_account="SPOT",
             to_account="FUTURES",
         )
+        assert isinstance(payload, BackpackRawInternalTransferRequest)
+        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
             "symbol": "SOL_PERP",  # Expecting formatted symbol
             "quantity": "5",
             "fromAccount": "SPOT",
             "toAccount": "FUTURES",
         }
-        assert payload == expected_payload
+        assert payload_dict == expected_payload
 
     def test_build_internal_transfer_payload_spot_to_futures(self, usdc_asset: str) -> None:
         """Test build_internal_transfer_payload from SPOT to FUTURES."""
@@ -236,13 +258,15 @@ class TestBuildInternalTransferPayload:
             from_account="SPOT",
             to_account="FUTURES",
         )
+        assert isinstance(payload, BackpackRawInternalTransferRequest)
+        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
             "symbol": usdc_asset,
             "quantity": "250.75",
             "fromAccount": "SPOT",
             "toAccount": "FUTURES",
         }
-        assert payload == expected_payload
+        assert payload_dict == expected_payload
 
     def test_build_internal_transfer_payload_futures_to_spot(self, eth_asset: str) -> None:
         """Test build_internal_transfer_payload from FUTURES to SPOT."""
@@ -252,13 +276,15 @@ class TestBuildInternalTransferPayload:
             from_account="FUTURES",
             to_account="SPOT",
         )
+        assert isinstance(payload, BackpackRawInternalTransferRequest)
+        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
             "symbol": eth_asset,
             "quantity": "1.0",
             "fromAccount": "FUTURES",
             "toAccount": "SPOT",
         }
-        assert payload == expected_payload
+        assert payload_dict == expected_payload
 
     def test_build_internal_transfer_payload_margin_to_futures(self, sol_asset: str) -> None:
         """Test build_internal_transfer_payload from MARGIN to FUTURES."""
@@ -269,6 +295,8 @@ class TestBuildInternalTransferPayload:
             to_account="FUTURES",
             client_transfer_id="margin_to_futures_001",
         )
+        assert isinstance(payload, BackpackRawInternalTransferRequest)
+        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
             "symbol": sol_asset,
             "quantity": "50.25",
@@ -276,7 +304,7 @@ class TestBuildInternalTransferPayload:
             "toAccount": "FUTURES",
             "clientId": "margin_to_futures_001",
         }
-        assert payload == expected_payload
+        assert payload_dict == expected_payload
 
     @pytest.mark.parametrize(
         "asset_symbol, amount, from_acc, to_acc, client_id, expected_symbol",
@@ -304,6 +332,8 @@ class TestBuildInternalTransferPayload:
             to_account=to_acc,
             client_transfer_id=client_id,
         )
+        assert isinstance(payload, BackpackRawInternalTransferRequest)
+        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected: dict[str, Any] = {
             "symbol": expected_symbol,
             "quantity": amount,
@@ -312,7 +342,7 @@ class TestBuildInternalTransferPayload:
         }
         if client_id:
             expected["clientId"] = client_id
-        assert payload == expected
+        assert payload_dict == expected
 
     @pytest.mark.parametrize(
         "from_account, to_account",
@@ -335,10 +365,12 @@ class TestBuildInternalTransferPayload:
             from_account=from_account,
             to_account=to_account,
         )
+        assert isinstance(payload, BackpackRawInternalTransferRequest)
+        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected = {
             "symbol": usdc_asset,
             "quantity": "100.0",
             "fromAccount": from_account,
             "toAccount": to_account,
         }
-        assert payload == expected
+        assert payload_dict == expected
