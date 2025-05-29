@@ -485,6 +485,9 @@ type RawBpParsableNonNegativeFiniteDecimalString = Annotated[
 type RawBpNonNegativeInt = Annotated[int, BeforeValidator(_validate_raw_non_negative_int)]
 """Raw int, must be non-negative."""
 
+type RawBpUint32 = Annotated[int, BeforeValidator(_validate_raw_non_negative_int)]
+"""Raw uint32, must be non-negative integer. Using same validator as RawBpNonNegativeInt."""
+
 type RawBpStrictBool = Annotated[bool, BeforeValidator(_validate_raw_strict_bool)]
 """Raw bool, must be True/False."""
 
@@ -889,6 +892,11 @@ type RawBpNonEmptyStringMax254 = Annotated[
     str, BeforeValidator(lambda v, i: _validate_raw_non_empty_string_max_len(v, i, max_length=254))
 ]
 """Raw non-empty string, max_length=254."""
+
+type RawBpNonEmptyStringMax255 = Annotated[
+    str, BeforeValidator(lambda v, i: _validate_raw_non_empty_string_max_len(v, i, max_length=255))
+]
+"""Raw non-empty string, max_length=255."""
 
 BP_ACCOUNT_STATUSES = {"active", "suspended", "pending"}
 """Set of allowed Backpack account statuses."""

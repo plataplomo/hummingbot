@@ -19,34 +19,102 @@ for boundary validation and transformation only.
 """
 
 from .bp_raw_account import BackpackRawAccount, BackpackRawBalance
+from .bp_raw_api_request_payloads import (
+    BackpackRawAccountConvertDustRequest,
+    BackpackRawAccountWithdrawalRequest,
+    BackpackRawBorrowLendExecuteRequest,
+    BackpackRawInternalTransferRequest,
+    BackpackRawOrderCancelAllRequest,
+    BackpackRawOrderCancelRequest,
+    BackpackRawOrderExecuteRequest,
+    BackpackRawQuoteAcceptRequest,
+    BackpackRawQuoteSubmitRequest,
+    BackpackRawRequestForQuoteCancelRequest,
+    BackpackRawRequestForQuoteRefreshRequest,
+    BackpackRawRequestForQuoteRequest,
+    BackpackRawUpdateAccountSettingsRequest,
+)
 from .bp_raw_error import BackpackRawApiError
 from .bp_raw_funding import BackpackRawFundingRate, BackpackRawMarkPrice
 from .bp_raw_margin_functions import BackpackRawImfFunction, BackpackRawMmfFunction
 from .bp_raw_market import BackpackRawMarket, BackpackRawOpenInterest, BackpackRawTicker
 from .bp_raw_order import BackpackRawOrder, BackpackRawOrderBook, BackpackRawOrderUpdate
 from .bp_raw_position import BackpackRawPosition, BackpackRawPositionUpdate
+from .bp_raw_query_params import (
+    BackpackRawGetAccountInfoParams,
+    BackpackRawGetBalancesParams,
+    BackpackRawGetFundingRateParams,
+    BackpackRawGetHistoricalFundingRatesParams,
+    BackpackRawGetHistoricalTradesParams,
+    BackpackRawGetMarketDataParams,
+    BackpackRawGetOpenOrdersParams,
+    BackpackRawGetOrderBookParams,
+    BackpackRawGetOrderHistoryParams,
+    BackpackRawGetOrderParams,
+    BackpackRawGetPositionsParams,
+    BackpackRawGetRecentTradesParams,
+    BackpackRawGetTickerParams,
+    BackpackRawGetTradeHistoryParams,
+)
 from .bp_raw_trade import BackpackRawTrade, BackpackRawTradeEvent
 from .bp_raw_transfer import BackpackRawDeposit, BackpackRawLiquidation, BackpackRawWithdrawal
 
 __all__ = [
+    # Error
     "BackpackRawApiError",
+    # Account
     "BackpackRawAccount",
     "BackpackRawBalance",
+    # Position
     "BackpackRawPosition",
     "BackpackRawPositionUpdate",
+    # Order
     "BackpackRawOrder",
     "BackpackRawOrderBook",
     "BackpackRawOrderUpdate",
+    # Trade
     "BackpackRawTrade",
     "BackpackRawTradeEvent",
+    # Funding/Market
     "BackpackRawFundingRate",
     "BackpackRawMarkPrice",
     "BackpackRawMarket",
     "BackpackRawTicker",
     "BackpackRawOpenInterest",
+    # Transfer
     "BackpackRawWithdrawal",
     "BackpackRawDeposit",
     "BackpackRawLiquidation",
+    # Margin
     "BackpackRawImfFunction",
     "BackpackRawMmfFunction",
+    # Request Payloads
+    "BackpackRawOrderExecuteRequest",
+    "BackpackRawOrderCancelRequest",
+    "BackpackRawOrderCancelAllRequest",
+    "BackpackRawAccountWithdrawalRequest",
+    "BackpackRawUpdateAccountSettingsRequest",
+    "BackpackRawAccountConvertDustRequest",
+    "BackpackRawBorrowLendExecuteRequest",
+    "BackpackRawRequestForQuoteRequest",
+    "BackpackRawQuoteSubmitRequest",
+    "BackpackRawQuoteAcceptRequest",
+    "BackpackRawRequestForQuoteCancelRequest",
+    "BackpackRawRequestForQuoteRefreshRequest",
+    "BackpackRawInternalTransferRequest",
+    # Query Parameters
+    "BackpackRawGetTickerParams",
+    "BackpackRawGetOrderBookParams",
+    "BackpackRawGetRecentTradesParams",
+    "BackpackRawGetBalancesParams",
+    "BackpackRawGetPositionsParams",
+    "BackpackRawGetOpenOrdersParams",
+    "BackpackRawGetFundingRateParams",
+    "BackpackRawGetHistoricalFundingRatesParams",
+    "BackpackRawGetAccountInfoParams",
+    "BackpackRawGetOrderHistoryParams",
+    "BackpackRawGetTradeHistoryParams",
+    "BackpackRawGetMarketDataParams",
+    "BackpackRawGetHistoricalTradesParams",
+    "BackpackRawGetOrderParams",
 ]

@@ -1,117 +1,180 @@
 
-# TASK: Define All Backpack Raw Request Pydantic Models and Update BackpackRequestBuilder
+**We WILL use the EXACT SAME PATTERN for Backpack request payload models as we used for Hyperliquid.** This means:
+
+1.  **Primary use of `Literal` types** in the Pydantic request payload models for fields where the API expects a fixed set of specific strings (e.g., `orderType: Literal["Market", "Limit"]`).
+2.  **Leverage `Annotated` types from `bp_common_raw_types.py`** for other common validation needs (e.g., `RawBpParsableFiniteDecimalString`, `RawBpNonEmptyStringMax64`, `RawBpUint32`, `RawBpStrictBool`). These common types might internally use `validate_str_field`, `parse_decimal_value`, `validate_enum_field` (against a `set` of strings if a field has many possible string values not suitable for `Literal`).
+3.  **Avoid creating new, redundant `BpApi<Name>Enum` classes in `bp_raw_request_*.py` if `Literal` or existing common raw types can achieve the same strict validation based on `openapi_backpack.json`.** New Enums should only be for truly new, complex enum concepts not covered.
+
+# TASK: Define Backpack Raw Request Pydantic Models (Consistent with HL Patterns) & Update Builder
 
 ## 1. Goal
-1.  Systematically identify all request body schemas for Backpack API's POST, PUT, DELETE, and PATCH operations as defined in the provided `openapi_backpack.json`.
-2.  For each identified request schema, define a corresponding Pydantic model in **new files**: `cyberdelta/apis/backpack/models/bp_raw_request_*.py` (group them by payload logic).
-3.  Refactor all relevant methods in `cyberdelta/apis/backpack/bp_request_builder.py` that construct these request bodies. These methods must be updated to:
-    a.  Accept input parameters using CyberDeltaEngine's core enums (from `cyberdelta.core.models.enums`, e.g., `OrderSide`, `OrderType`) and standard Python types (`Decimal`, `str`, `bool`).
-    b.  Implement the logic to map these core enum inputs and other parameters to the raw string/enum values required by the Backpack API (as determined from `openapi_backpack.json`).
-    c.  Instantiate and return the newly defined Pydantic request payload model instance, populated with these raw API values.
+1.  Systematically identify all request body schemas for Backpack API's POST, PUT, DELETE, and PATCH operations as defined in `openapi_backpack.json`.
+2.  For each identified request schema, define a corresponding Pydantic model in a **new files**: `cyberdelta/apis/backpack/models/bp_raw_request_*.py` (group in 2-3 models files based on logic)
+    **Crucially, these models MUST follow the established validation patterns used for Hyperliquid raw request models:**
+    *   Employ `typing.Literal` for fields where `openapi_backpack.json` specifies a fixed set of string values (e.g., `orderType: Literal["Market", "Limit"]`).
+    *   Utilize existing `Annotated` types from `cyberdelta/apis/backpack/models/bp_common_raw_types.py` (e.g., `RawBpParsableFiniteDecimalString`, `RawBpNonEmptyStringMax64`, `RawBpUint32`, `RawBpStrictBool`) for common field validations.
+    *   **Avoid creating new `BpApi<Name>Enum` classes if `Literal` or common raw types suffice.**
+    *   Models must strictly validate only the external contract (syntax, basic types, formats, field presence/optionality as per `openapi_backpack.json`) and **MUST NOT contain business logic validators** (e.g., "price can be negative if it's a valid Decimal").
+3.  Refactor methods in `cyberdelta/apis/backpack/bp_request_builder.py` to:
+    a.  Accept input parameters using CyberDeltaEngine's core enums (from `cyberdelta.core.models.enums`) and standard Python types (`Decimal`, `str`, `bool`).
+    b.  Implement the logic to map these core inputs to the raw string values required by the Backpack API (which will be validated by the `Literal` or common raw types in the Pydantic request models).
+    c.  Instantiate and return the newly defined Pydantic request payload models.
 
 ## 2. Context and "Why"
-This task addresses **Pydantic Point 1 (API Request Payloads/Parameters)** for the Backpack exchange. It's critical for ensuring data sent *to* Backpack is pre-validated against its schema. `BackpackRequestBuilder` will become the explicit translation layer from our internal types to Backpack's raw API request values. This replaces the previous approach of builders returning raw dictionaries.
+This task addresses **Pydantic Point 1 (API Request Payloads/Parameters)** for Backpack, ensuring consistency with Hyperliquid's established raw request model patterns. Raw Pydantic models at this boundary validate the *syntactic correctness* of outgoing data. Business rules for request formation belong in the `RequestBuilder` *before* raw model instantiation.
 
-**You have `openapi_backpack.json` available in the root folder.** This is your primary source of truth for request schemas. Use `grep` or other search tools to find correct schemas. This file is 10k lines long and will fill your context too fast (80k tokens), be careful. 
-    - **Discovery:** Use your analysis capabilities (e.g., searching for `requestBody` under `paths`, or schema definitions under `components.schemas` that are referenced by request bodies like `OrderExecutePayload`, `OrderCancelPayload`) to identify all necessary request payload structures.
-    - **Guidance by Example:** Refer to existing Raw Pydantic models in `cyberdelta/apis/hyperliquid/models/hl_raw_*.py` and `cyberdelta/apis/backpack/models/*` (for response models) to understand the expected style, use of aliases, common raw types, and model configuration.
+**Reference `openapi_backpack.json` for Backpack's expected request schemas.**
+**Emulate validation patterns from `cyberdelta/apis/hyperliquid/models/` (especially request payloads and common types) and use `cyberdelta/apis/backpack/models/bp_common_raw_types.py`.**
 
 ## 3. Project Rules Reminder
-- Adhere strictly to all project rules: `RULE-STATIC-ANALYSIS-V3`, `RULE-RUNTIME-SAFETY-V3`, `RULE-NO-SILENCING-V4`, `RULE-CONFIG-INTEGRITY-V3`, `RULE-ARCH-MODEL-DESIGN-V1`.
-- New Pydantic models for request payloads must be "Raw" models:
-    - Mirror `openapi_backpack.json` schemas for request bodies precisely.
-    - Use `Field(..., alias="jsonKeyName")` if Python attribute names differ from JSON keys found in the spec.
-    - Leverage common raw types from `cyberdelta/apis/backpack/models/bp_common_raw_types.py` (e.g., `RawBpParsableFiniteDecimalString`, `RawBpNonEmptyStringMax64`, `RawBpUint32`) for validating other field types.
-    - All new request payload models must have `model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)`.
-- `BackpackRequestBuilder` Methods:
-    - **Inputs:** Ensure method parameters use `cyberdelta.core.models.enums` (e.g., import `OrderSide as CoreOrderSide`) and standard Python types (`Decimal`, `str`, `bool`).
-    - **Utils:** ensure using utils from `cyberdelta.utils.parsing`
-    - **Logic:** Implement the mapping from these core types to the raw API values/types required by the fields of the new Pydantic request payload models. For example, map `CoreOrderSide.BUY` to the Backpack API's representation (e.g., `"Bid"`). Convert `Decimal` inputs to strings for fields typed as `RawBpParsableFiniteDecimalString`.
-    - **Return Type:** Must be the new Pydantic request payload model instance.
+- Adhere strictly to all project rules.
+- **Raw Request Payload Models:**
+    - Mirror `openapi_backpack.json` schemas (fields, types, optionality, `alias`).
+    - **Validation Strategy:**
+        - **Use `Literal["Val1", "Val2"]` for fields with fixed API string values.**
+        - Use `RawBp...` types from `bp_common_raw_types.py` for other fields.
+        - **NO business logic `@model_validator`s.**
+    - Config: `model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)`.
+- **`BackpackRequestBuilder` Methods:**
+    - Inputs: Use `cyberdelta.core.models.enums` and standard Python types.
+    - Logic: Perform business rule checks (e.g., price required for LIMIT). Map core types to raw API string values. Instantiate Raw Pydantic model.
+    - Return Type: The new Pydantic request payload model instance.
 
-## 4. Detailed Sub-Steps (Iterative: Model Definition -> Builder Update)
+## 4. Detailed Sub-Steps (Iterative: Model Definition & Validation -> Builder Update)
 
-You will create/update the files:
-- `cyberdelta/apis/backpack/models/bp_raw_*.py` (for new models)
-- `cyberdelta/apis/backpack/bp_request_builder.py` (for method updates)
+**Files for new models:** `cyberdelta/apis/backpack/models/bp_raw_request_*.py` (Create if it doesn't exist).
+   - Add `__init__.py` to `cyberdelta/apis/backpack/models/` if missing. Ensure new module is exported in `cyberdelta/apis/backpack/models/__init__.py`.
+**File for builder updates:** `cyberdelta/apis/backpack/bp_request_builder.py`.
 
-For each relevant Backpack API operation that involves a request body:
+**Common Imports for `bp_raw_request_*.py`:**
+```python
+from typing import Literal # For Literal types
+from pydantic import BaseModel, ConfigDict, Field # No model_validator needed for raw models here
 
-**A. Identify the Schema & Define the Pydantic Model:**
-   1.  Locate the operation (e.g., POST `/api/v1/order`) in `openapi_backpack.json`.
-   2.  Find its `requestBody` definition and the `$ref` to its schema in `#/components/schemas/` (e.g., `OrderExecutePayload`).
-   3.  In `bp_raw_api_request_payloads.py`, define a Pydantic model (e.g., `BackpackRawOrderExecuteRequest`) mirroring this schema.
-       -   Determine field names, types, optionality, and aliases from the schema.
-       -   If the schema specifies enum values for a string field, create a corresponding `Enum` or use `Literal`.
-       -   Apply relevant `RawBp...` types from `bp_common_raw_types.py` for validation.
-       -   Remember about our strict rules that RAW models don't do business logic! Only basic validation.
+from cyberdelta.apis.backpack.models.bp_common_raw_types import (
+    RawBpUint32, RawBpOptionalStrictBool, RawBpParsableFiniteDecimalString,
+    RawBpNonEmptyStringMax64, RawBpNonEmptyStringMax32, RawBpNonEmptyStringMax128
+    # Add others like RawBpSideString (if it defines "Bid"/"Ask"), RawBpTimeInForceString (if "GTC"/"IOC"/"FOK")
+    # if these are better than direct Literal. For simple fixed sets, Literal is fine.
+)
+```
 
-**B. Update the Corresponding `BackpackRequestBuilder` Method:**
-   1.  Locate the builder method that constructs the payload for this operation (e.g., `build_place_order_payload`).
-   2.  Change its return type annotation to the Pydantic model defined in step A.1.
-   3.  Ensure its input parameters use core CyberDeltaEngine enums and types (e.g., `side: CoreOrderSide`, `quantity: Decimal`).
-   4.  Implement the mapping logic from these input types to the raw values/types expected by the fields of the Pydantic request model.
-   5.  Collect all mapped arguments into a dictionary. Filter out entries where the value is `None` if the corresponding Pydantic model field is optional and should be omitted if not provided (this allows Pydantic model field defaults to apply if any, or simply omits the field).
-   6.  Instantiate and return the Pydantic request model using these processed arguments: `return BackpackRaw<Action>Request(**final_payload_args)`.
-   7.  Add `import logging; logger = logging.getLogger(__name__)` to the builder if warnings (e.g., for type mappings) are needed.
+---
 
-**Specific Endpoints/Payloads to Address (Minimum List - discover others as needed):**
+### Sub-step 4.A: `OrderExecutePayload` (Placing an Order)
 
-1.  **Place Order:**
-    *   OpenAPI Path & Method: POST `/api/v1/order`
-    *   Schema Name: `OrderExecutePayload`
-    *   Builder Method: `build_place_order_payload`
-    *   Notes: Pay attention to mapping core `OrderType` (which includes stop/take-profit variants) to Backpack's simpler `BpApiRequestOrderType` (`"Market"`, `"Limit"`). Log warnings if input `order_type` implies trigger functionality (like `CoreOrderType.STOP_MARKET`) that isn't directly supported by basic fields in `OrderExecutePayload` schema (SL/TP fields are mentioned in changelog; verify their presence in the *current* payload schema).
+#### 4.A.1. Define `BackpackRawOrderExecuteRequest` Model (in `bp_raw_api_request_payloads.py`)
+   - Schema: `#/components/schemas/OrderExecutePayload`.
+   - **Fields using `Literal` and common raw types:**
+     ```python
+     class BackpackRawOrderExecuteRequest(BaseModel):
+         orderType: Literal["Market", "Limit"] # As per OrderTypeEnum in OpenAPI
+         side: Literal["Bid", "Ask"]           # As per Side enum in OpenAPI
+         symbol: RawBpNonEmptyStringMax64
 
-2.  **Cancel Single Order:**
-    *   OpenAPI Path & Method: DELETE `/api/v1/order`
-    *   Schema Name: `OrderCancelPayload`
-    *   Builder Method: `build_cancel_order_payload`
-    *   Notes: Ensure validator for "one of `orderId` or `clientId`".
+         clientId: RawBpUint32 | None = Field(default=None)
+         postOnly: RawBpOptionalStrictBool | None = Field(default=None)
+         price: RawBpParsableFiniteDecimalString | None = Field(default=None)
+         quantity: RawBpParsableFiniteDecimalString | None = Field(default=None)
+         quoteQuantity: RawBpParsableFiniteDecimalString | None = Field(default=None)
+         reduceOnly: RawBpOptionalStrictBool | None = Field(default=None)
+         selfTradePrevention: Literal["RejectTaker", "RejectMaker", "RejectBoth"] | None = Field(default=None) # As per SelfTradePrevention in OpenAPI
+         timeInForce: Literal["GTC", "IOC", "FOK"] | None = Field(default=None) # As per TimeInForce in OpenAPI
 
-3.  **Cancel All Orders (Per Symbol):**
-    *   OpenAPI Path & Method: DELETE `/api/v1/orders`
-    *   Schema Name: `OrderCancelAllPayload`
-    *   Builder Method: `build_cancel_all_orders_payload`
-    *   Notes: OpenAPI schema indicates `symbol` is required. Refactor builder input `symbol: str | None` to `symbol: str`. Input `order_type_filter: str | None` for the builder should map to the API's `orderType` field (which is `BpApiCancelOrderType | None`).
+         # SL/TP Fields: Add as optional if schema confirms, using Literal for triggerBy if applicable.
+         # e.g., stopLossTriggerPrice: RawBpParsableFiniteDecimalString | None = Field(default=None)
+         # e.g., stopLossTriggerBy: Literal["LastPrice", "MarkPrice", "IndexPrice"] | None = Field(default=None)
 
-4.  **Request Withdrawal:**
-    *   OpenAPI Path & Method: POST `/wapi/v1/capital/withdrawals`
-    *   Schema Name: `AccountWithdrawalPayload`
-    *   Builder Method: `build_withdraw_payload`
-    *   Notes: Define `BpApiBlockchain` and `BpApiAsset` enums with *all* values from the spec. Carefully map input `network` and `asset` strings to these enums. Check handling of `addressTag` (if present in schema).
+         model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
-5.  **Update Account Settings:**
-    *   OpenAPI Path & Method: PATCH `/api/v1/account`
-    *   Schema Name: `UpdateAccountSettingsRequest`
-    *   Builder Method: `build_update_account_settings_payload` (create if it doesn't exist).
+         # NO @model_validator for business logic (e.g., price required for LIMIT).
+         # Builder handles this.
+     ```
 
-6.  **Internal Transfer (Custom, not in OpenAPI directly for POST body):**
-    *   Builder Method: `build_internal_transfer_payload`
-    *   Existing Output: `{"symbol": "USDC", "quantity": "100", "fromAccount": "SPOT", "toAccount": "FUTURES", "clientId": "..."}`
-    *   Action: Define `BackpackRawInternalTransferRequest(BaseModel)` based on this existing structure. Update builder input `amount_str: str` to `amount: Decimal`.
+#### 4.A.2. Update `BackpackRequestBuilder.build_place_order_payload`
+   - Inputs: Use `OrderSide`, `OrderType`, `TimeInForce`, `Decimal`.
+   - **Logic:**
+     - **Perform business logic validation first (e.g., price required for LIMIT CoreOrderType). Raise `ValueError` if invalid.**
+     - Map core enums to specific **strings** for `Literal` fields:
+       - `OrderSide.BUY` -> `"Bid"`; `OrderSide.SELL` -> `"Ask"`
+       - `OrderType.LIMIT` -> `"Limit"`; `OrderType.MARKET` -> `"Market"`
+       - `TimeInForce.GTC` -> `"GTC"`; etc.
+     - Convert `Decimal` to `str`. Convert `client_order_id: str` to `int`.
+   - Return: `BackpackRawOrderExecuteRequest` instance.
 
-7.  **(If used/planned) Borrow/Lend Execute:**
-    *   OpenAPI Path & Method: POST `/api/v1/borrowLend`
-    *   Schema Name: `BorrowLendExecutePayload`
-    *   Builder Method: (Create if needed) `build_borrow_lend_execute_payload`
+---
 
-8.  **(If used/planned) RFQ Quote Submit:**
-    *   OpenAPI Path & Method: POST `/api/v1/rfq/quote`
-    *   Schema Name: `QuotePayload`
-    *   Builder Method: (Create if needed) `build_rfq_quote_payload`
+### Sub-step 4.B: `OrderCancelPayload` (Cancelling a Single Order)
 
-## 5. File Management
-   - Ensure `cyberdelta/apis/backpack/models/__init__.py` exports the new `bp_raw_api_request_payloads.py` module or its contents if you organize models into multiple files.
-   - Add `__init__.py` to `cyberdelta/apis/backpack/models/` if it's missing.
+#### 4.B.1. Define `BackpackRawOrderCancelRequest` Model
+   - Schema: `#/components/schemas/OrderCancelPayload`.
+   - Fields:
+     - `symbol: RawBpNonEmptyStringMax64`
+     - `orderId: RawBpNonEmptyStringMax64 | None = Field(default=None)`
+     - `clientId: RawBpUint32 | None = Field(default=None)`
+   - **NO business logic `@model_validator` here.**
 
-## 6. Testing Requirements
-   - No new unit tests are required from Angel for *defining* these models or *refactoring* the builder methods.
-   - Human Lead will update unit tests that use `BackpackRequestBuilder` methods to expect Pydantic models as return types.
-   - Static analysis (`mypy --strict`, `ruff`) must pass for all modified and new files.
+#### 4.B.2. Update `BackpackRequestBuilder.build_cancel_order_payload`
+   - Inputs: `symbol: str`, `order_id: str | None`, `client_order_id: str | None`.
+   - **Logic:**
+     - **Business logic:** Ensure one of `order_id` or `client_order_id` is provided, not both. Raise `ValueError` if not.
+     - Convert `client_order_id: str` to `int`.
+   - Return: `BackpackRawOrderCancelRequest`.
 
-## 7. Reporting
-   - Confirm successful completion of all model definitions and builder updates for the specified payloads.
+---
+
+### Sub-step 4.C: `OrderCancelAllPayload` (Cancelling All Orders)
+
+#### 4.C.1. Define `BackpackRawOrderCancelAllRequest` Model
+   - Schema: `#/components/schemas/OrderCancelAllPayload`.
+   - Fields:
+     - `symbol: RawBpNonEmptyStringMax64` (Required)
+     - `orderType: Literal["RestingLimitOrder", "ConditionalOrder"] | None = Field(default=None)` (As per `CancelOrderTypeEnum` in OpenAPI)
+
+#### 4.C.2. Update `BackpackRequestBuilder.build_cancel_all_orders_payload`
+   - Inputs: `symbol: str` (mandatory), `order_type_filter: str | None = None`.
+   - Logic: If `order_type_filter` is provided, validate it's one of the allowed Literal strings. If not, log warning and pass `None` (or raise `ValueError` if strict).
+   - Return: `BackpackRawOrderCancelAllRequest`.
+
+---
+
+### Sub-step 4.D: `AccountWithdrawalPayload` (Requesting a Withdrawal)
+
+#### 4.D.1. Define `BackpackRawAccountWithdrawalRequest` Model
+   - Schema: `#/components/schemas/AccountWithdrawalPayload`.
+   - Fields:
+     - `address: RawBpNonEmptyStringMax128`
+     - `blockchain: Literal["Arbitrum", "Base", ..., "Solana", "Ethereum", "XRP"]` (Populate with ALL values from OpenAPI `Blockchain` enum)
+     - `quantity: RawBpParsableFiniteDecimalString`
+     - `symbol: Literal["BTC", "ETH", ..., "USDC"]` (Populate with ALL values from OpenAPI `Asset` enum)
+     - Optional fields like `clientId`, `twoFactorToken` with `RawBp...` types.
+     - `addressTag` if present in this specific schema.
+   - **NO `@model_validator` for quantity positivity here.** Builder handles this.
+
+#### 4.D.2. Update `BackpackRequestBuilder.build_withdraw_payload`
+   - Inputs: `asset: str` (core asset name), `amount: Decimal`, `address: str`, `network: str | None`, `tag: str | None`, etc.
+   - **Logic:**
+     - **Business logic:** Ensure `amount` is positive. Raise `ValueError` if not.
+     - Map input `network` (string) to one of the `Literal` values for `blockchain`. Raise `ValueError` if mapping fails.
+     - Map input `asset` (string) to one of the `Literal` values for `symbol`. Raise `ValueError` if mapping fails.
+     - Convert `amount: Decimal` to string.
+   - Return: `BackpackRawAccountWithdrawalRequest`.
+
+---
+
+### Subsequent Sub-steps (4.E through 4.H and beyond):
+   - **For each remaining payload (`UpdateAccountSettingsRequest`, custom `InternalTransferPayload`, etc.):**
+     1.  **Define the `BackpackRaw<ActionName>Request` Model:**
+         -   Strictly use OpenAPI schema for fields, types, optionality.
+         -   Employ `Literal` for API enum strings.
+         -   Use `RawBp...` common types for other fields.
+         -   **NO business logic `@model_validator`s.**
+     2.  **Update/Create the `BackpackRequestBuilder` method:**
+         -   Inputs: Core enums and Python types.
+         -   **Logic:** Implement business rule pre-validation. Map inputs to raw API string values. Instantiate and return the Pydantic model.
+
+## 5. Reporting
+   - Confirm successful completion of all model definitions and builder updates.
    - List all created/modified files.
    - Specifically list all new Pydantic models defined for request payloads.
    - Output the changed/new files.
