@@ -121,20 +121,22 @@ class TestHyperliquidRawOrderType:
         assert parsed.market is not None
         assert parsed.limit is None
 
-    def test_invalid_order_type_both_limit_and_market(self) -> None:
-        with pytest.raises(
-            ValidationError, match="Exactly one of 'limit' or 'market' must be provided"
-        ):
-            HyperliquidRawOrderType(
-                limit=cast(HyperliquidRawLimitOrderTypeDetails, VALID_LIMIT_ORDER_DATA),
-                market=cast(HyperliquidRawMarketOrderTypeDetails, VALID_MARKET_ORDER_DATA),
-            )
+    def test_order_type_both_limit_and_market_allowed(self) -> None:
+        # Raw models should accept data without business logic validation
+        # The builder/service layer should ensure only one is set
+        order_type = HyperliquidRawOrderType(
+            limit=cast(HyperliquidRawLimitOrderTypeDetails, VALID_LIMIT_ORDER_DATA),
+            market=cast(HyperliquidRawMarketOrderTypeDetails, VALID_MARKET_ORDER_DATA),
+        )
+        assert order_type.limit is not None
+        assert order_type.market is not None
 
-    def test_invalid_order_type_neither_limit_nor_market(self) -> None:
-        with pytest.raises(
-            ValidationError, match="Exactly one of 'limit' or 'market' must be provided"
-        ):
-            HyperliquidRawOrderType(limit=None, market=None)
+    def test_order_type_neither_limit_nor_market_allowed(self) -> None:
+        # Raw models should accept data without business logic validation
+        # The builder/service layer should ensure at least one is set
+        order_type = HyperliquidRawOrderType(limit=None, market=None)
+        assert order_type.limit is None
+        assert order_type.market is None
 
     def test_invalid_tif_string(self) -> None:
         with pytest.raises(

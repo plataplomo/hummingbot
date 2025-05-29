@@ -421,14 +421,52 @@ class HyperliquidTradingService:
         if not quantity.is_finite() or quantity <= 0:
             raise ValueError(f"[{current_method}] 'quantity' must be a positive finite Decimal.")
 
+        # Business Logic Pre-Validation for order types
+        if order_type == OrderType.LIMIT:
+            if price is None:
+                raise ValueError(f"[{current_method}] 'price' is required for LIMIT orders.")
+            if not price.is_finite() or price <= 0:
+                raise ValueError(
+                    f"[{current_method}] 'price' must be a positive finite Decimal "
+                    f"for LIMIT orders."
+                )
+
+        if order_type == OrderType.STOP_LIMIT:
+            if price is None:
+                raise ValueError(f"[{current_method}] 'price' is required for STOP_LIMIT orders.")
+            if not price.is_finite() or price <= 0:
+                raise ValueError(
+                    f"[{current_method}] 'price' must be a positive finite Decimal "
+                    f"for STOP_LIMIT orders."
+                )
+            if stop_price is None:
+                raise ValueError(
+                    f"[{current_method}] 'stop_price' is required for STOP_LIMIT orders."
+                )
+            if not stop_price.is_finite() or stop_price <= 0:
+                raise ValueError(
+                    f"[{current_method}] 'stop_price' must be a positive finite Decimal "
+                    f"for STOP_LIMIT orders."
+                )
+
+        if order_type == OrderType.STOP_MARKET:
+            if stop_price is None:
+                raise ValueError(
+                    f"[{current_method}] 'stop_price' is required for STOP_MARKET orders."
+                )
+            if not stop_price.is_finite() or stop_price <= 0:
+                raise ValueError(
+                    f"[{current_method}] 'stop_price' must be a positive finite Decimal "
+                    f"for STOP_MARKET orders."
+                )
+
         # Handle optional price - use Decimal("0") for market orders
         order_price = price if price is not None else Decimal("0")
 
-        if not order_price.is_finite() or order_price < 0:
-            raise ValueError(f"[{current_method}] 'price' must be a non-negative finite Decimal.")
-        if stop_price is not None and (not stop_price.is_finite() or stop_price <= 0):
+        # General price validation for cases not covered above
+        if price is not None and (not price.is_finite() or price < 0):
             raise ValueError(
-                f"[{current_method}] 'stop_price' must be a positive finite Decimal when provided."
+                f"[{current_method}] 'price' must be a non-negative finite Decimal when provided."
             )
 
         # Initialize context for error handling

@@ -133,12 +133,9 @@ class HyperliquidRequestBuilder:
     ) -> HyperliquidApiL2UsdTransferRequest:
         """
         Builds the Pydantic model for an L2 USD transfer request.
-        """
-        if not destination_address:
-            raise ValueError(
-                "Destination address (to_account) is required for Hyperliquid L2 transfer."
-            )
 
+        Assumes all business validation has been done by the service layer.
+        """
         transfer_payload_model = HyperliquidRawL2UsdTransferPayload(
             destination=destination_address, token="USDC", amount=str(amount)
         )
@@ -154,10 +151,9 @@ class HyperliquidRequestBuilder:
         """
         Builds the Pydantic model for a withdrawal to L1 request.
         Returns a specific model based on whether the asset is ETH or another token.
-        """
-        if not destination_address:
-            raise ValueError("Destination address is required for withdrawal.")
 
+        Assumes all business validation has been done by the service layer.
+        """
         if asset.upper() == "ETH":
             eth_withdrawal_model = HyperliquidRawEthWithdrawalActionPayload(
                 amount=str(amount), destination=destination_address
@@ -218,27 +214,21 @@ class HyperliquidRequestBuilder:
         """
         Builds the Pydantic model for placing orders.
         Returns HyperliquidApiPlaceOrderRequest with full field structure and trigger support.
+
+        Assumes all business validation has been done by the service layer.
         """
         is_buy = side == OrderSide.BUY
         sz_str = str(quantity)
 
-        # Handle stop order validation
-        if order_type in (OrderType.STOP_MARKET, OrderType.STOP_LIMIT):
-            if stop_price is None:
-                raise ValueError(f"stop_price is required for {order_type.value} orders")
-
-        if order_type == OrderType.STOP_LIMIT and price is None:
-            raise ValueError("price (for triggered limit) is required for STOP_LIMIT.")
-
         # Set limit price appropriately for order types
         if order_type in (OrderType.LIMIT, OrderType.STOP_LIMIT):
-            if price is None:
-                raise ValueError("Price is required for LIMIT orders")
-            limit_px_str = str(price)
+            # Service layer ensures price is not None for these order types
+            limit_px_str = str(price) if price is not None else "0"
         elif order_type in (OrderType.MARKET, OrderType.STOP_MARKET):
             limit_px_str = "0"
         else:
-            raise ValueError(f"Order type {order_type.value} is not supported")
+            # This is more of a mapping issue than business logic
+            raise ValueError(f"Order type {order_type.value} is not supported by Hyperliquid")
 
         # Handle post_only mapping to ALO time-in-force
         if post_only and time_in_force != TimeInForce.ALO:
@@ -251,23 +241,24 @@ class HyperliquidRequestBuilder:
             hl_tif_details = HyperliquidRawLimitOrderTypeDetails(
                 tif=HyperliquidRequestBuilder._map_time_in_force_to_hyperliquid(time_in_force)
             )
-            hl_order_type = HyperliquidRawOrderType(limit=hl_tif_details)
+            # Ensure only 'limit' is set, not 'market'
+            hl_order_type = HyperliquidRawOrderType(limit=hl_tif_details, market=None)
         elif order_type == OrderType.MARKET:
             hl_market_details = HyperliquidRawMarketOrderTypeDetails()
-            hl_order_type = HyperliquidRawOrderType(market=hl_market_details)
+            # Ensure only 'market' is set, not 'limit'
+            hl_order_type = HyperliquidRawOrderType(limit=None, market=hl_market_details)
 
         # Handle trigger logic for stop orders
         trigger_details = None
         if order_type in (OrderType.STOP_MARKET, OrderType.STOP_LIMIT):
-            if stop_price is None:
-                raise ValueError(f"stop_price is required for {order_type.value} orders")
-
-            is_market = order_type == OrderType.STOP_MARKET
-            trigger_details = HyperliquidRawTriggerDetails(
-                triggerPx=str(stop_price),
-                isMarket=is_market,
-                tpsl="sl",  # Stop-loss trigger type
-            )
+            # Service layer ensures stop_price is not None for stop orders
+            if stop_price is not None:
+                is_market = order_type == OrderType.STOP_MARKET
+                trigger_details = HyperliquidRawTriggerDetails(
+                    triggerPx=str(stop_price),
+                    isMarket=is_market,
+                    tpsl="sl",  # Stop-loss trigger type
+                )
 
         # Create the order action using full field names
         order_action = HyperliquidRawPlaceOrderAction(
@@ -310,10 +301,10 @@ class HyperliquidRequestBuilder:
     ) -> HyperliquidRawUserStateRequestPayload:
         """
         Builds the Pydantic model for fetching user state information.
+
+        Assumes all business validation has been done by the service layer.
         """
-        if not wallet_address:
-            # The RawLaxEthereumAddressStrHL in the model will handle more specific validation
-            raise ValueError("Wallet address cannot be empty for user_state request.")
+        # The RawLaxEthereumAddressStrHL in the model will handle format validation
         # Explicitly provide 'type' to satisfy Pydantic, even if model has a default Field value.
         return HyperliquidRawUserStateRequestPayload(type="clearinghouseState", user=wallet_address)
 

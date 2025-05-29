@@ -88,8 +88,8 @@ def set_nested_value(
                     f"Path index {key_or_index} requires a list at this level, "
                     f"but found {type(current_level).__name__} at path {path[: i + 1]}"
                 )
-            # After isinstance check, type is narrowed to list[Any]
-            current_list: list[Any] = current_level
+            # After isinstance check, explicitly cast to help pyright understand the type
+            current_list: list[Any] = cast(list[Any], current_level)
 
             if is_final_element:
                 # Final element: set the value (cast for test compatibility)
@@ -226,7 +226,7 @@ def test_order_item_spec_valid_market_no_cloid() -> None:
             {"limit": {"tif": "InvalidTIF"}},
             "value error, tif: invalid value",
         ),
-        ("order_type_details", {"market": None, "limit": None}, "Exactly one of"),  # Both None
+        # Removed test for both None - raw models no longer validate business logic
         ("order_type_details", None, "Field required"),
         ("client_order_id", "", "String cannot be empty"),
         ("client_order_id", "a" * 65, "String value too long"),  # Max 64
@@ -324,12 +324,8 @@ def test_batch_place_order_payload_valid() -> None:
         # ),
         # Test invalid type for reduce_only
         (("orders", 0, "reduce_only"), "not-a-bool", "Must be a boolean"),
-        # Test invalid order type structure (e.g., missing 'limit' or 'market' key)
-        (
-            ("orders", 0, "order_type_details"),
-            {"invalid_key": "value"},
-            "Exactly one of 'limit' or 'market' must be provided",
-        ),
+        # Removed test for invalid order type structure - raw models no longer validate
+        # business logic
         # Test invalid tif value within limit order_type
         (
             ("orders", 0, "order_type_details", "limit", "tif"),

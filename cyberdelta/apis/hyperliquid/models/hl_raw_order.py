@@ -6,14 +6,13 @@ This module defines Pydantic models for constructing parts of the raw
 Hyperliquid Exchange API request, including placing orders and querying information.
 """
 
-from typing import Annotated, Literal, Self
+from typing import Annotated, Literal
 
 from pydantic import (
     BaseModel,
     BeforeValidator,
     ConfigDict,
     Field,
-    model_validator,
 )
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
@@ -61,21 +60,6 @@ class HyperliquidRawOrderType(BaseModel):
     market: HyperliquidRawMarketOrderTypeDetails | None = Field(default=None)
 
     model_config = ConfigDict(extra="forbid", frozen=True)
-
-    @model_validator(mode="before")
-    @classmethod
-    def check_exclusive_order_type(cls, data: dict[str, object]) -> dict[str, object]:
-        # DEFENSIVE: Raw input may not be dict. Pylance=[reportUnnecessaryIsInstance]
-        if not isinstance(data, dict):  # pyright: ignore[reportUnnecessaryIsInstance]
-            raise TypeError("orderType input must be a dictionary")
-
-        has_limit = "limit" in data and data["limit"] is not None
-        has_market = "market" in data and data["market"] is not None
-
-        if not (has_limit ^ has_market):
-            raise ValueError("Exactly one of 'limit' or 'market' must be provided.")
-
-        return data  # DEFENSIVE CHECK: Mypy struggles with precise dict content type. Mypy=[misc]
 
 
 class HyperliquidRawTriggerDetails(BaseModel):
@@ -128,11 +112,3 @@ class HyperliquidRawQueryOrderHistoryRequestPayload(BaseModel):
     end_time: RawTimestampMsInt = Field(..., alias="endTime")
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @model_validator(mode="after")
-    def check_start_end_time(self) -> Self:
-        if self.end_time < self.start_time:
-            raise ValueError(
-                f"endTime ({self.end_time}) cannot be before startTime ({self.start_time})."
-            )
-        return self

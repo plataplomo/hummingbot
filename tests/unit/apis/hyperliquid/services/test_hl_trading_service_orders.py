@@ -121,20 +121,17 @@ class TestHyperliquidTradingServiceOrders:
             {},
         )
 
-        # Test zero price - this should be allowed by current validation
-        # The service allows price=0 for market orders, so this test should pass
-        try:
+        # Test zero price for LIMIT order - should be rejected
+        with pytest.raises(ValueError) as exc_info:
             await hl_trading_service.place_order(
                 symbol="ETH",
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("1.0"),
-                price=Decimal("0.0"),  # Zero price is actually allowed
+                price=Decimal("0.0"),  # Invalid: zero price for LIMIT order
                 time_in_force=TimeInForce.GTC,
             )
-        except APIError:
-            # This is expected since we're not properly mocking the full response
-            pass
+        assert "'price' must be a positive finite Decimal for LIMIT orders" in str(exc_info.value)
 
         # Test negative price
         with pytest.raises(ValueError) as exc_info:
@@ -146,7 +143,7 @@ class TestHyperliquidTradingServiceOrders:
                 price=Decimal("-50.0"),  # Invalid: negative price
                 time_in_force=TimeInForce.GTC,
             )
-        assert "'price' must be a non-negative finite Decimal" in str(exc_info.value)
+        assert "'price' must be a positive finite Decimal for LIMIT orders" in str(exc_info.value)
 
         # Test infinite price
         with pytest.raises(ValueError) as exc_info:
@@ -158,7 +155,7 @@ class TestHyperliquidTradingServiceOrders:
                 price=Decimal("inf"),  # Invalid: infinite price
                 time_in_force=TimeInForce.GTC,
             )
-        assert "'price' must be a non-negative finite Decimal" in str(exc_info.value)
+        assert "'price' must be a positive finite Decimal for LIMIT orders" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_place_order_invalid_stop_price_validation(
@@ -179,7 +176,9 @@ class TestHyperliquidTradingServiceOrders:
                 time_in_force=TimeInForce.GTC,
                 stop_price=Decimal("-10.0"),  # Invalid: negative stop_price
             )
-        assert "'stop_price' must be a positive finite Decimal when provided" in str(exc_info.value)
+        assert "'stop_price' must be a positive finite Decimal for STOP_LIMIT orders" in str(
+            exc_info.value
+        )
 
     @pytest.mark.asyncio
     async def test_get_order_empty_order_id_validation(
@@ -202,7 +201,10 @@ class TestHyperliquidTradingServiceOrders:
         self,
         make_hl_trading_service: Callable[..., HyperliquidTradingService],
     ) -> None:
-        """Test get_order raises APIError for invalid string order_id (ValueError wrapped in APIError)."""
+        """Test get_order raises APIError for invalid string order_id.
+        
+        ValueError is wrapped in APIError due to error handling strategy.
+        """
         hl_trading_service = make_hl_trading_service()
 
         with pytest.raises(APIError) as exc_info:

@@ -123,14 +123,6 @@ class HyperliquidRawCandleRequestDetails(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
-    @model_validator(mode="after")
-    def check_start_end_time(self) -> Self:
-        if self.end_time < self.start_time:
-            raise ValueError(
-                f"endTime ({self.end_time}) cannot be before startTime ({self.start_time})."
-            )
-        return self
-
 
 class HyperliquidRawCandleSnapshotRequestPayload(BaseModel):
     """

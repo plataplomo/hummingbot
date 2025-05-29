@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-import pytest
-
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
     HyperliquidApiCancelOrderRequest,
@@ -163,59 +161,51 @@ class TestHyperliquidRequestBuilderTrading:
         assert action.order_type.limit.tif == "Gtc"
         assert action.reduce_only is False
 
-    def test_build_place_order_invalid_params(self, asset_index: int) -> None:
-        """Test build_place_order_payload with missing required parameters."""
-        # Test missing price for LIMIT order
-        with pytest.raises(ValueError, match="Price is required for LIMIT orders"):
-            HyperliquidRequestBuilder.build_place_order_payload(
-                asset_index=asset_index,
-                side=OrderSide.BUY,
-                order_type=OrderType.LIMIT,
-                quantity=Decimal("1"),
-                time_in_force=TimeInForce.GTC,
-                post_only=False,
-                reduce_only=False,
-            )
+    def test_build_place_order_with_none_values(self, asset_index: int) -> None:
+        """Test build_place_order_payload handles None values gracefully.
+        
+        Request builder should not perform validation - that's done in the service layer.
+        """
+        # Request builder should accept None price for LIMIT order (validation happens in service)
+        payload = HyperliquidRequestBuilder.build_place_order_payload(
+            asset_index=asset_index,
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=Decimal("1"),
+            time_in_force=TimeInForce.GTC,
+            price=None,  # Builder should handle this
+            post_only=False,
+            reduce_only=False,
+        )
+        assert payload.actions[0].limit_px == "0"  # Builder defaults to "0"
 
-        # Test missing stop_price for STOP_MARKET order
-        with pytest.raises(ValueError, match="stop_price is required for STOP_MARKET orders"):
-            HyperliquidRequestBuilder.build_place_order_payload(
-                asset_index=asset_index + 1,
-                side=OrderSide.SELL,
-                order_type=OrderType.STOP_MARKET,
-                quantity=Decimal("0.1"),
-                time_in_force=TimeInForce.GTC,
-                post_only=False,
-                reduce_only=False,
-            )
+        # Request builder should accept None stop_price for STOP_MARKET order
+        payload = HyperliquidRequestBuilder.build_place_order_payload(
+            asset_index=asset_index + 1,
+            side=OrderSide.SELL,
+            order_type=OrderType.STOP_MARKET,
+            quantity=Decimal("0.1"),
+            time_in_force=TimeInForce.GTC,
+            stop_price=None,  # Builder should handle this
+            post_only=False,
+            reduce_only=False,
+        )
+        assert payload.actions[0].trigger is None  # No trigger created without stop_price
 
-        # Test missing stop_price for STOP_LIMIT order
-        with pytest.raises(ValueError, match="stop_price is required for STOP_LIMIT orders"):
-            HyperliquidRequestBuilder.build_place_order_payload(
-                asset_index=asset_index + 2,
-                side=OrderSide.BUY,
-                order_type=OrderType.STOP_LIMIT,
-                quantity=Decimal("2"),
-                time_in_force=TimeInForce.GTC,
-                price=Decimal("2200"),
-                post_only=False,
-                reduce_only=False,
-            )
+        # Request builder should accept None stop_price for STOP_LIMIT order
+        payload = HyperliquidRequestBuilder.build_place_order_payload(
+            asset_index=asset_index + 2,
+            side=OrderSide.BUY,
+            order_type=OrderType.STOP_LIMIT,
+            quantity=Decimal("2"),
+            time_in_force=TimeInForce.GTC,
+            price=Decimal("2200"),
+            stop_price=None,  # Builder should handle this
+            post_only=False,
+            reduce_only=False,
+        )
+        assert payload.actions[0].trigger is None  # No trigger created without stop_price
 
-        # Test missing price for STOP_LIMIT order (but stop_price provided)
-        with pytest.raises(
-            ValueError, match=r"price \(for triggered limit\) is required for STOP_LIMIT\."
-        ):
-            HyperliquidRequestBuilder.build_place_order_payload(
-                asset_index=asset_index + 3,
-                side=OrderSide.BUY,
-                order_type=OrderType.STOP_LIMIT,
-                quantity=Decimal("2"),
-                time_in_force=TimeInForce.GTC,
-                stop_price=Decimal("2150"),
-                post_only=False,
-                reduce_only=False,
-            )
 
     def test_build_cancel_order_payload(self, asset_index: int) -> None:
         """Test build_cancel_order_payload with valid inputs."""

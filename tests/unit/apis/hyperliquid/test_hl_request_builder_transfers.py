@@ -66,10 +66,14 @@ class TestHyperliquidRequestBuilderTransfers:
         assert request_int.action.payload.amount == "1000"
 
     def test_build_l2_usd_transfer_payload_invalid_input(self) -> None:
-        """Test build_l2_usd_transfer_payload with invalid (empty) address."""
-        with pytest.raises(
-            ValueError, match="Destination address .* required for Hyperliquid L2 transfer"
-        ):
+        """Test build_l2_usd_transfer_payload with invalid (empty) address.
+        
+        Request builder should not validate - that's done in the service layer.
+        The Pydantic model will raise ValidationError for empty strings.
+        """
+        from pydantic import ValidationError
+        
+        with pytest.raises(ValidationError, match="String cannot be empty"):
             HyperliquidRequestBuilder.build_l2_usd_transfer_payload(
                 destination_address="", amount=Decimal("100")
             )
@@ -143,8 +147,14 @@ class TestHyperliquidRequestBuilderTransfers:
         assert request_arb.action.amount == "25.75"
 
     def test_build_withdrawal_payload_invalid_input(self) -> None:
-        """Test build_withdrawal_payload with invalid (empty) address."""
-        with pytest.raises(ValueError, match="Destination address is required for withdrawal"):
+        """Test build_withdrawal_payload with invalid (empty) address.
+        
+        Request builder should not validate - that's done in the service layer.
+        The Pydantic model will raise ValidationError for empty strings.
+        """
+        from pydantic import ValidationError
+        
+        with pytest.raises(ValidationError, match="String cannot be empty"):
             HyperliquidRequestBuilder.build_withdrawal_payload(
                 asset="USDC", amount=Decimal("100"), destination_address=""
             )

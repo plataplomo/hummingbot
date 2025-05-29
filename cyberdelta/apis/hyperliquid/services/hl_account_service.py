@@ -494,6 +494,13 @@ class HyperliquidAccountService:
         if not end_time:
             raise ValueError(f"[{current_method}] 'end_time' is required.")
 
+        # Business Logic Pre-Validation
+        if end_time <= start_time:
+            raise ValueError(
+                f"[{current_method}] 'end_time' must be after 'start_time'. "
+                f"Got start_time={start_time}, end_time={end_time}"
+            )
+
         # Initialize context for error handling
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
