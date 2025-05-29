@@ -20,6 +20,14 @@ from .hl_raw_ws_events import (
     HyperliquidRawWsPositionUpdateEvent,
     HyperliquidRawWsTradeEvent,
 )
+from .hl_ws_payloads import (
+    HyperliquidRawWsAllMidsSubscriptionPayload,
+    HyperliquidRawWsCandleSubscriptionPayload,
+    HyperliquidRawWsL2BookSubscriptionPayload,
+    HyperliquidRawWsSubscribeRequest,
+    HyperliquidRawWsTradesSubscriptionPayload,
+    HyperliquidRawWsUserEventsSubscriptionPayload,
+)
 
 __all__ = [
     # Processed Exchange Responses
@@ -45,4 +53,11 @@ __all__ = [
     "HyperliquidRawWsTradeEvent",
     "HyperliquidRawWsOrderUpdate",
     "HyperliquidRawWsPositionUpdateEvent",
+    # WebSocket Payloads
+    "HyperliquidRawWsSubscribeRequest",
+    "HyperliquidRawWsL2BookSubscriptionPayload",
+    "HyperliquidRawWsTradesSubscriptionPayload",
+    "HyperliquidRawWsUserEventsSubscriptionPayload",
+    "HyperliquidRawWsCandleSubscriptionPayload",
+    "HyperliquidRawWsAllMidsSubscriptionPayload",
 ]

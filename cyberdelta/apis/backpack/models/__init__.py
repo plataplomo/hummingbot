@@ -58,6 +58,7 @@ from .bp_raw_query_params import (
 )
 from .bp_raw_trade import BackpackRawTrade, BackpackRawTradeEvent
 from .bp_raw_transfer import BackpackRawDeposit, BackpackRawLiquidation, BackpackRawWithdrawal
+from .bp_ws_payloads import BackpackRawWsSubscriptionRequest
 
 __all__ = [
     # Error
@@ -117,4 +118,6 @@ __all__ = [
     "BackpackRawGetMarketDataParams",
     "BackpackRawGetHistoricalTradesParams",
     "BackpackRawGetOrderParams",
+    # WebSocket Payloads
+    "BackpackRawWsSubscriptionRequest",
 ]
