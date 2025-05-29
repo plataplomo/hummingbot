@@ -1,0 +1,32 @@
+---
+description: 
+globs: ["*.py,*.pyi"]
+alwaysApply: false
+---
+---
+description: Enforces the consistent use of Python's Decimal type for all financial calculations and representations.
+globs: ["*.py", "*.pyi"] # Apply to all Python source and stub files
+alwaysApply: true # This is a fundamental requirement for financial software
+---
+# Mandatory `Decimal` Usage for Financial Values
+
+1.  **Core Requirement:** All variables, function parameters, return values, class attributes, and intermediate calculation results representing **financial quantities** (e.g., prices, quantities/sizes, balances, rates, PnL, costs, fees) **MUST** use Python's `Decimal` type (`from decimal import Decimal`).
+
+2.  **NO `float` for Finance:** **DO NOT** use standard Python `float` objects for any financial representation or calculation where precision is critical. Floating-point inaccuracies are unacceptable and lead to bugs and potential financial discrepancies.
+
+3.  **Consistency:** Maintain `Decimal` usage **throughout the entire calculation chain**. Avoid converting to `float` for intermediate steps and then back to `Decimal`, as this negates the precision benefits.
+
+4.  **Initialization:** Initialize `Decimal` objects **from strings** to avoid intermediate floating-point representation issues, especially when dealing with literals or external data (e.g., `Decimal('0.1')` instead of `Decimal(0.1)`). Use `Decimal('NaN')` or handle `None` explicitly where appropriate, not float `NaN`.
+
+5.  **API Interaction (Serialization/Deserialization):**
+    *   When preparing data for API calls that expect numeric strings (common in JSON APIs), serialize `Decimal` objects to strings with the required precision.
+    *   When receiving numeric data (often as strings) from APIs, parse them directly into `Decimal` objects immediately upon receipt.
+    *   Leverage custom JSON encoders/decoders (like the project's `CyberDeltaJSONEncoder`) where applicable, but always verify the data type after loading/parsing.
+
+6.  **Type Hinting:** All financial quantities **MUST** be explicitly type-hinted as `Decimal`.
+
+7.  **Rationale:** Using `Decimal` guarantees precision required for financial calculations, prevents floating-point inaccuracies common with `float`, ensures consistency, and aligns with best practices for building reliable trading and financial systems. The target exchange APIs often require or return string representations of precise numbers, making `Decimal` the appropriate internal type.
+
+8.  **Enforcement:** Mypy errors related to `float` vs. `Decimal` (`arg-type`, `assignment`, `operator`) involving financial quantities are considered **critical** and must be fixed by adhering to `Decimal` usage.
+
+

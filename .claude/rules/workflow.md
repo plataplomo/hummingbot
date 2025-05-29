@@ -1,0 +1,28 @@
+---
+description: Guidelines for maintaining concise, high-value workflow documentation for significant events and decisions.
+globs: ["workflow/**/*.md"] # Apply primarily to workflow directory markdown files
+alwaysApply: true # Guideline for documenting significant items
+---
+# Focused Workflow & Context Documentation (`workflow/`)
+
+1.  **Mandate:** Maintain a **concise and accessible** record of **significant** development context, architectural decisions, major challenges, and strategic planning using Markdown files (`.md`) within the `workflow/` directory. Use Mermaid diagrams (` ```mermaid ``` `) **judiciously** where they substantially clarify complex architectures, state flows, or decision trees.
+
+2.  **Purpose:** To capture **high-value context** *during* development that is not effectively conveyed through code comments or commit logs alone. This facilitates collaboration, preserves critical project history for onboarding and future reference, and supports informed strategic decision-making. **It is NOT a substitute for code-level documentation.**
+
+3.  **Content - Focus on Significance (Prioritize):** Document items providing lasting understanding and context. Use judgment – avoid documenting routine tasks or minor issues. Focus on:
+    *   **Major Design/Architecture Decisions:** Document the *rationale* (the "why") behind significant architectural choices, core algorithm selections, or major refactorings, especially if non-obvious or involving trade-offs. Briefly mention key rejected alternatives if it clarifies the decision. Link to relevant code/modules.
+    *   **Strategic Planning:** Outline the *approach, potential challenges, and rationale* for tackling **complex features, integrations, or critical bug fixes** *before* extensive implementation begins. Keep this concise.
+    *   **Significant Roadblocks & Resolutions:** Document **major** technical challenges, persistent bugs, critical integration problems, or unexpected system behaviors encountered, along with the investigation process and the **final resolution or workaround**.
+    *   **Core System Overviews:** Provide **essential** high-level architecture diagrams (Mermaid preferred) and brief component descriptions that aid understanding of the overall system structure. Link to code-level docs for specifics.
+    *   **Key Context/Goals:** Briefly state the overarching objectives for major development phases or epics if it helps frame subsequent decisions documented here. Link to issue tracker items if applicable.
+    *   **Summaries of Critical Feedback:** Note feedback (e.g., from critic reviews, user testing) that led to **significant changes** in design or direction.
+    *   **(Rarely) Pivotal AI Insights:** Document an AI interaction *only* if it provided a **non-obvious, critical insight or solution** that significantly altered the technical approach or architecture.
+
+4.  **Guidance:**
+    *   **Be Concise & Targeted:** Focus on the "why" and the "what" for significant items. Avoid excessive detail better suited for commit messages or code comments.
+    *   **Link, Don't Duplicate:** Link heavily to specific code files/functions, docstrings, issue tickets, or other relevant artifacts. Do not copy large amounts of code or detailed implementation steps into workflow docs.
+    *   **Maintain Organization:** Use clear filenames and potentially subdirectories within `workflow/` (e.g., `/decisions`, `/investigations`, `/architecture`) to keep information discoverable.
+    *   **Review Periodically:** Briefly review recent workflow docs to ensure consistency and consolidate related information if needed. Archive outdated planning documents clearly.
+
+5.  **Rationale:** Rigorous code-level documentation combined with *focused* workflow documentation on *significant* items creates a balanced approach. It ensures code is understandable directly, while preserving the critical context and rationale behind major architectural and strategic decisions without creating an unmanageable documentation burden.
+

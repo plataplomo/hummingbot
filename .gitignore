@@ -16,7 +16,12 @@ parts/
 sdist/
 var/
 wheels/
-*.egg-info/
+*.egg-info
+
+# Docker
+.env
+.env.local
+.env.*.local/
 .installed.cfg
 *.egg
 .mypy_cache/

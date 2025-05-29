@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  cyberdelta:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cyberdelta-engine
+    restart: unless-stopped
+    
+    volumes:
+      # Configuration files (read-only)
+      - ./config:/app/config:ro
+      
+      # Secrets directory (read-only) - adjust path as needed
+      - ${HOME}/.cyberdelta:/home/trader/.cyberdelta:ro
+      
+      # Persistent data storage
+      - cyberdelta-data:/app/data
+      
+      # Logs directory
+      - ./logs:/app/logs
+      
+    environment:
+      # Configuration paths
+      - CYBERDELTA_CONFIG_PATH=/app/config/config.yaml
+      - CYBERDELTA_SECRETS_PATH=/home/trader/.cyberdelta/secrets.yaml
+      
+      # Optional: Override credentials from .env file
+      - HL_WALLET_ADDRESS=${HL_WALLET_ADDRESS:-}
+      - HL_PRIVATE_KEY=${HL_PRIVATE_KEY:-}
+      - BP_API_KEY=${BP_API_KEY:-}
+      - BP_API_SECRET=${BP_API_SECRET:-}
+      
+      # Python settings
+      - PYTHONUNBUFFERED=1
+      
+    ports:
+      # Dashboard port
+      - "8050:8050"
+      
+    networks:
+      - cyberdelta-net
+      
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+          
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Development override (create docker-compose.dev.yml)
+# Use: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+volumes:
+  cyberdelta-data:
+    driver: local
+
+networks:
+  cyberdelta-net:
+    driver: bridge
