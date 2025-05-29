@@ -202,7 +202,7 @@ class TestHyperliquidTradingServiceOrders:
         make_hl_trading_service: Callable[..., HyperliquidTradingService],
     ) -> None:
         """Test get_order raises APIError for invalid string order_id.
-        
+
         ValueError is wrapped in APIError due to error handling strategy.
         """
         hl_trading_service = make_hl_trading_service()

@@ -1664,8 +1664,8 @@ async def test_execution_failure_compensation(
     # Verify compensation order was placed and filled (check mocks and logs)
     # Use the mock object returned by mocker.patch.object for assertions
     # bp_place_order_mock = mock_bp_api.place_order # REMOVED Unused variable
-    mock_bp_api.place_order.assert_called()  # type: ignore[attr-defined]
-    calls = mock_bp_api.place_order.call_args_list  # type: ignore[attr-defined]
+    mock_bp_api.place_order.assert_called()
+    calls = mock_bp_api.place_order.call_args_list
     assert len(calls) == 2, "Expected 2 place_order calls on BP (initial + compensation)"
     assert calls[0].kwargs["side"] == OrderSide.BUY
     assert calls[1].kwargs["side"] == OrderSide.SELL, "Expected compensation call to be SELL"
@@ -1883,10 +1883,10 @@ async def test_failed_execution(
     assert trade_execution_result.long_order_id is None  # BP leg (long) should not have been placed
 
     # Assert mock place_order was called on the failing exchange (HL - short leg)
-    mock_hl_api.place_order.assert_called_once()  # type: ignore[attr-defined] # mocker.patch.object attaches this
+    mock_hl_api.place_order.assert_called_once()  # mocker.patch.object attaches this
     # Assert mock place_order was NOT called on the second exchange (BP - long leg)
     # because the first leg's failure should halt the execution of the pair.
-    mock_bp_api.place_order.assert_not_called()  # type: ignore[attr-defined] # mocker.patch.object attaches this
+    mock_bp_api.place_order.assert_not_called()  # mocker.patch.object attaches this
 
     # --- Verify Portfolio State (Should be largely unchanged) ---
     # Use internal dict for test verification

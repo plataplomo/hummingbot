@@ -647,7 +647,7 @@ class StrategyAdapter(BacktestStrategy):
                 try:
                     # DEFENSIVE CHECK: Validate required fields exist
                     required = ["open", "high", "low", "close", "volume"]
-                    if not all(field in data.index for field in required):  # type: ignore[operator]
+                    if not all(field in data.index for field in required):
                         self._logger.warning(
                             f"Missing OHLCV fields for {symbol} at {timestamp}. Skipping candle."
                         )

@@ -163,7 +163,7 @@ class TestHyperliquidRequestBuilderTrading:
 
     def test_build_place_order_with_none_values(self, asset_index: int) -> None:
         """Test build_place_order_payload handles None values gracefully.
-        
+
         Request builder should not perform validation - that's done in the service layer.
         """
         # Request builder should accept None price for LIMIT order (validation happens in service)
@@ -205,7 +205,6 @@ class TestHyperliquidRequestBuilderTrading:
             reduce_only=False,
         )
         assert payload.actions[0].trigger is None  # No trigger created without stop_price
-
 
     def test_build_cancel_order_payload(self, asset_index: int) -> None:
         """Test build_cancel_order_payload with valid inputs."""

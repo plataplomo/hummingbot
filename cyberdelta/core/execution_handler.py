@@ -856,7 +856,7 @@ class ExecutionHandler:
                         # Use record_error or appropriate method if record_failure doesn't exist
                         # Assuming record_error exists based on previous correction attempt
                         # If it fails again, will need to search for the correct method name
-                        self.circuit_breaker_system.record_error(  # type: ignore [attr-defined]
+                        self.circuit_breaker_system.record_error(
                             exchange_id, f"Authentication failed: {e.message}"
                         )
                     return None

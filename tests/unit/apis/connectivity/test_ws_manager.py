@@ -16,7 +16,7 @@ import pytest_asyncio
 from aiohttp import ClientSession as RealAiohttpCliSession
 from aiohttp import WSMessage, WSMsgType
 from aiohttp.helpers import sentinel
-from pydantic import AnyUrl, ValidationError
+from pydantic import AnyUrl, BaseModel, ValidationError
 from pytest import LogCaptureFixture
 
 from cyberdelta.apis.connectivity.connectivity_models import WebSocketManagerConfig
@@ -32,6 +32,11 @@ async def dummy_message_handler(message: dict[str, Any]) -> None:
 
 async def dummy_on_connected_callback() -> None:
     pass
+
+
+class TestMessage(BaseModel):
+    """Simple BaseModel for testing WebSocket messages."""
+    test: str
 
 
 # Helper function for mock side_effect
@@ -1049,7 +1054,7 @@ class TestWebSocketManagerComprehensiveErrorHandling:
         )
 
         # Try to send without connecting
-        success = await manager.send_json({"test": "message"})
+        success = await manager.send_json(TestMessage(test="message"))
 
         assert not success
         assert "Cannot send JSON, WebSocket not connected" in caplog.text

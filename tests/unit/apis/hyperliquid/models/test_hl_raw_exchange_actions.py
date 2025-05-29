@@ -88,8 +88,8 @@ def set_nested_value(
                     f"Path index {key_or_index} requires a list at this level, "
                     f"but found {type(current_level).__name__} at path {path[: i + 1]}"
                 )
-            # After isinstance check, explicitly cast to help pyright understand the type
-            current_list: list[Any] = cast(list[Any], current_level)
+            # After isinstance check, pyright understands the type
+            current_list: list[Any] = current_level
 
             if is_final_element:
                 # Final element: set the value (cast for test compatibility)

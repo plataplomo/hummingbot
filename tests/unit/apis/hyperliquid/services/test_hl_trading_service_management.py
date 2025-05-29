@@ -223,7 +223,8 @@ class TestHyperliquidTradingServiceManagement:
         # Verify get_open_orders was called (no request builder used for open orders)
         # Note: The service calls _get_open_orders_raw which doesn't use request builder
         # Verify cancel_order was called twice (for the 2 BTC orders)
-        # Note: cancel_order creates HyperliquidRawCancelOrderAction directly, doesn't use request builder
+        # Note: cancel_order creates HyperliquidRawCancelOrderAction directly, doesn't use
+        # request builder
         assert mock_get_asset_index_callable.call_count == 2
 
     @pytest.mark.asyncio

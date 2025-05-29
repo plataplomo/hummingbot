@@ -558,7 +558,8 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         assert result_empty == []
 
         # Test case 2: Trade history with mapper errors for some trades
-        # The service is designed to be resilient and skip invalid fills rather than raising APIError
+        # The service is designed to be resilient and skip invalid fills rather than
+        # raising APIError
         mock_fills = [MagicMock(hash=f"fill_{i}") for i in range(3)]
         mock_response_handler.handle_info_user_fills_response.return_value = MagicMock(
             root=mock_fills

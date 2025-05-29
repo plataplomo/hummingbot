@@ -25,7 +25,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 from cyberdelta.apis.backpack.bp_api_components_factory import BackpackAPIComponentsFactory
 from cyberdelta.apis.backpack.bp_auth import BackpackHmacAuthenticator
@@ -37,6 +37,7 @@ from cyberdelta.apis.backpack.bp_ws_raw_message_handler import BackpackWsRawMess
 from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAccountDataMapper
 from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarketDataMapper
 from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
+from cyberdelta.apis.backpack.models import BackpackRawWsSubscriptionRequest
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
@@ -240,9 +241,54 @@ class BackpackAPI(ExchangeAPI):
 
     # --- WebSocket Implementation --- #
 
-    def _construct_subscription_payload(self, topic: str) -> dict[str, Any] | None:
-        """Delegate subscription payload construction to the WebSocket router."""
-        return self._bp_ws_router.construct_subscription_payload(topic)
+    def _construct_subscription_payload(
+        self, topic: str
+    ) -> BackpackRawWsSubscriptionRequest:
+        """Construct subscription payload for the given topic.
+
+        Args:
+            topic: The WebSocket topic to subscribe to
+
+        Returns:
+            BackpackRawWsSubscriptionRequest model
+
+        Raises:
+            ValueError: If topic format is invalid or required info is missing  
+            APIError: If topic is not supported by the exchange
+        """
+        # For Backpack, the standard subscription format is used
+        # Public streams don't require signature
+        is_private = topic.startswith("account.")
+
+        # Parse method from topic (for now, always SUBSCRIBE)
+        # TODO: Handle UNSUBSCRIBE when needed
+        method_val: Literal["SUBSCRIBE", "UNSUBSCRIBE"] = "SUBSCRIBE"
+
+        # Create params list with the topic
+        params_val = [topic]
+
+        # For private streams, we need signature
+        signature_val = None
+        if is_private:
+            # TODO: Implement actual signature generation for private streams
+            # For now, log a warning and proceed without signature
+            logger.warning(
+                f"[{self.exchange_name}] Private stream '{topic}' requires signature. "
+                "TODO: Implement signature generation for WebSocket authentication."
+            )
+
+        try:
+            return BackpackRawWsSubscriptionRequest(
+                method=method_val, params=params_val, signature=signature_val
+            )
+        except (ValueError, APIError):
+            # Re-raise these exceptions as they are already informative
+            raise
+        except Exception as e:
+            # Wrap unexpected exceptions
+            raise ValueError(
+                f"Failed to construct subscription payload for topic '{topic}': {e}"
+            ) from e
 
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
         """

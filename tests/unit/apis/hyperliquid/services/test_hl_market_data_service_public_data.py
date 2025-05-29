@@ -155,7 +155,8 @@ class TestHyperliquidMarketDataServicePublicData:
     ) -> None:
         """Test get_recent_trades raises ValueError for None symbol."""
         # JUSTIFICATION FOR CAST:
-        # This test intentionally passes None to the get_recent_trades method to verify that the method
+        # This test intentionally passes None to the get_recent_trades method to verify that
+        # the method
         # properly validates input types and raises ValueError. The type checker correctly
         # identifies this as a type error, but we need to test the runtime behavior when
         # invalid types are passed. Alternative typing solutions like Union types would not

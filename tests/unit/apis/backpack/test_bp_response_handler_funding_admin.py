@@ -82,7 +82,7 @@ class TestHandleGetFundingRateResponse:
 
     def test_extra_fields_ignored(self, symbol_perp: str) -> None:
         """Test that extra fields in funding rate response cause ValidationError.
-        
+
         This is due to extra='forbid' in the validation model.
         """
         raw_data = {

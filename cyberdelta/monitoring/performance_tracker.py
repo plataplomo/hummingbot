@@ -441,7 +441,7 @@ class PerformanceTracker:
                 df = df[df.index <= pd.to_datetime(end_time)]  # type: ignore[index]
 
             # The following fillna usage may trigger linter warnings due to pandas type stubs
-            df = df.fillna(0)  # type: ignore[attr-defined]
+            df = df.fillna(0)
 
             return df
 

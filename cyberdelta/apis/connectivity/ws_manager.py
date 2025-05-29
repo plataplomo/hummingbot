@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 import aiohttp
 from aiohttp import ClientTimeout, ClientWebSocketResponse
 from aiohttp.helpers import sentinel
+from pydantic import BaseModel
 
 # Import the config model
 from .connectivity_models import WebSocketManagerConfig
@@ -467,12 +468,12 @@ class WebSocketManager:
         finally:
             self._logger.info(f"[{self._exchange_name} _keep_alive] Task ending.")
 
-    async def send_json(self, data: dict[str, Any]) -> bool:
+    async def send_json(self, data: BaseModel) -> bool:
         """
         Sends a JSON payload over the WebSocket connection.
 
         Args:
-            data: The dictionary to send as JSON.
+            data: The Pydantic BaseModel to serialize and send as JSON.
 
         Returns:
             True if the message was sent successfully, False otherwise.
@@ -481,8 +482,10 @@ class WebSocketManager:
             self._logger.error(f"Cannot send JSON, WebSocket not connected to {self._ws_url}.")
             return False
         try:
-            self._logger.debug(f"Sending JSON: {data}")
-            await self._ws_connection.send_json(data)
+            # Serialize the Pydantic model
+            payload_to_send = data.model_dump(by_alias=True, exclude_none=True)
+            self._logger.debug(f"[{self._exchange_name}] Sending WS JSON: {payload_to_send}")
+            await self._ws_connection.send_json(payload_to_send)
             return True
         except asyncio.CancelledError:
             self._logger.warning("Send JSON operation cancelled.")
@@ -496,7 +499,10 @@ class WebSocketManager:
             self._ws_connection = None
             return False
         except Exception as e:
-            self._logger.error(f"Error sending JSON to {self._ws_url}: {e}", exc_info=True)
+            self._logger.error(
+                f"[{self._exchange_name}] Error during WS send_json (serialize/send): {e}",
+                exc_info=True,
+            )
             return False
 
     async def close(self) -> None:

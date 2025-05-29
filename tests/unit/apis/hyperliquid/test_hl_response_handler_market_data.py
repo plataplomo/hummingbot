@@ -53,8 +53,8 @@ class TestHandleInfoMetaAndAssetCtxsResponse:
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
-            "Unexpected info (MetaAndAssetCtxs) response format: expected 2-element list, got 1 elements"
-            in exc_info.value.message
+            "Unexpected info (MetaAndAssetCtxs) response format: expected 2-element list, "
+            "got 1 elements" in exc_info.value.message
         )
 
     def test_validation_error_missing_universe(self) -> None:
@@ -366,7 +366,8 @@ class TestMarketDataEdgeCases:
     """Tests for additional edge cases in market data response handling."""
 
     def test_funding_rate_response_extra_fields(self, symbol: str) -> None:
-        """Test that funding rate response with extra fields causes ValidationError due to extra='forbid'."""
+        """Test that funding rate response with extra fields causes ValidationError due to
+        extra='forbid'."""
         raw_data = {
             "name": "ETH-PERP",
             "funding": "0.00015",

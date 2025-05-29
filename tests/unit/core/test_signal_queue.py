@@ -452,10 +452,10 @@ async def test_clean_expired_signals_direct_patch(
                 hasattr(queue, "_cleanup_task")
                 and queue._cleanup_task
                 and not queue._cleanup_task.done()
-            ):  # type: ignore[attr-defined]
-                queue._cleanup_task.cancel()  # type: ignore[attr-defined]
+            ):
+                queue._cleanup_task.cancel()
                 try:
-                    await queue._cleanup_task  # type: ignore[attr-defined]
+                    await queue._cleanup_task
                 except asyncio.CancelledError:
                     pass  # Expected
 
@@ -584,10 +584,10 @@ async def test_signal_expiration_logic(
             hasattr(queue, "_cleanup_task")
             and queue._cleanup_task
             and not queue._cleanup_task.done()
-        ):  # type: ignore[attr-defined]
-            queue._cleanup_task.cancel()  # type: ignore[attr-defined]
+        ):
+            queue._cleanup_task.cancel()
             try:
-                await queue._cleanup_task  # type: ignore[attr-defined]
+                await queue._cleanup_task
             except asyncio.CancelledError:
                 pass  # Expected
 

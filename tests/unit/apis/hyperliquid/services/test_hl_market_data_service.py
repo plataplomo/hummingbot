@@ -177,28 +177,30 @@ class TestHyperliquidMarketDataService:
             asset_ctxs=[mock_raw_asset_ctx_btc, mock_raw_asset_ctx_eth],
         )
 
-        hyperliquid_market_data_service.get_all_asset_contexts_raw = AsyncMock(  # type: ignore[method-assign]
-            return_value=mock_all_contexts_response
-        )
+        mock_get_all_asset_contexts = AsyncMock(return_value=mock_all_contexts_response)
+        with patch.object(
+            hyperliquid_market_data_service, 
+            'get_all_asset_contexts_raw',
+            new=mock_get_all_asset_contexts
+        ):
+            expected_internal_ticker = Ticker(
+                symbol=symbol_to_find,
+                price=Decimal("50000.0"),
+                bid=Decimal("50000.0"),
+                ask=Decimal("50000.0"),
+                volume=Decimal("1000"),
+                timestamp=datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC),
+            )
 
-        expected_internal_ticker = Ticker(
-            symbol=symbol_to_find,
-            price=Decimal("50000.0"),
-            bid=Decimal("50000.0"),
-            ask=Decimal("50000.0"),
-            volume=Decimal("1000"),
-            timestamp=datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC),
-        )
+            mock_hl_mapper.transform_raw_asset_ctx_to_ticker.return_value = expected_internal_ticker
 
-        mock_hl_mapper.transform_raw_asset_ctx_to_ticker.return_value = expected_internal_ticker
+            result_ticker = await hyperliquid_market_data_service.get_ticker(symbol_to_find)
 
-        result_ticker = await hyperliquid_market_data_service.get_ticker(symbol_to_find)
-
-        hyperliquid_market_data_service.get_all_asset_contexts_raw.assert_called_once()
-        mock_hl_mapper.transform_raw_asset_ctx_to_ticker.assert_called_once_with(
-            mock_raw_asset_ctx_btc
-        )
-        assert result_ticker == expected_internal_ticker
+            mock_get_all_asset_contexts.assert_called_once()
+            mock_hl_mapper.transform_raw_asset_ctx_to_ticker.assert_called_once_with(
+                mock_raw_asset_ctx_btc
+            )
+            assert result_ticker == expected_internal_ticker
 
     @pytest.mark.asyncio
     async def test_get_ticker_not_found(
@@ -212,22 +214,27 @@ class TestHyperliquidMarketDataService:
             meta=mock_meta_response, asset_ctxs=[]
         )
 
-        hyperliquid_market_data_service.get_all_asset_contexts_raw = AsyncMock(  # type: ignore[method-assign]
-            return_value=mock_all_contexts_response
-        )
-
-        # If _get_asset_context_by_name returns None, mapper shouldn't be called.
-        # If it's called with None, it should handle it or map_raw_ctx_to_ticker might return None.
         with patch.object(
-            HyperliquidMarketDataMapper, "transform_raw_asset_ctx_to_ticker", return_value=None
+            hyperliquid_market_data_service, 
+            'get_all_asset_contexts_raw',
+            new=AsyncMock(return_value=mock_all_contexts_response)
         ):
-            result = await hyperliquid_market_data_service.get_ticker(symbol)
-            assert result is None
-            # Depending on exact internal logic of get_ticker if asset_ctx is None:
-            # mock_mapper_method.assert_not_called() or ensure it was called and returned None.
-            # For this test, we assume if context is not found,
-            # transform_raw_asset_ctx_to_ticker might not be called or if it is (e.g. with None),
-            # it's mocked to return None.
+            # If _get_asset_context_by_name returns None, mapper shouldn't be called.
+            # If it's called with None, it should handle it or map_raw_ctx_to_ticker
+            # might return None.
+                with patch.object(
+                    HyperliquidMarketDataMapper, 
+                    "transform_raw_asset_ctx_to_ticker", 
+                    return_value=None
+                ):
+                    result = await hyperliquid_market_data_service.get_ticker(symbol)
+                    assert result is None
+                    # Depending on exact internal logic of get_ticker if asset_ctx is None:
+                    # mock_mapper_method.assert_not_called() or ensure it was called and
+                    # returned None.
+                    # For this test, we assume if context is not found,
+                    # transform_raw_asset_ctx_to_ticker might not be called or if it is
+                    # (e.g. with None), it's mocked to return None.
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_success(
@@ -270,37 +277,39 @@ class TestHyperliquidMarketDataService:
             asset_ctxs=[mock_raw_asset_ctx_btc, mock_raw_asset_ctx_eth],
         )
 
-        hyperliquid_market_data_service.get_all_asset_contexts_raw = AsyncMock(  # type: ignore[method-assign]
-            return_value=mock_all_contexts_response
-        )
-
-        expected_internal_funding_rate = FundingRate(
-            symbol=symbol_to_find,
-            funding_rate=Decimal("0.0002"),
-            timestamp=current_time,
-            mark_price=Decimal("3000.0"),
-        )
-
-        # Use the injected mock_hl_mapper
-        mock_hl_mapper.transform_raw_asset_ctx_to_funding_rate.return_value = (
-            expected_internal_funding_rate
-        )
-
-        # Patch datetime.now to control the timestamp
-        with patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper.datetime",
-            new=MagicMock(datetime=MagicMock(now=MagicMock(side_effect=lambda: current_time))),
+        mock_get_all_asset_contexts = AsyncMock(return_value=mock_all_contexts_response)
+        with patch.object(
+            hyperliquid_market_data_service, 
+            'get_all_asset_contexts_raw',
+            new=mock_get_all_asset_contexts
         ):
-            result_funding_rate = await hyperliquid_market_data_service.get_funding_rate(
-                symbol_to_find
+            expected_internal_funding_rate = FundingRate(
+                symbol=symbol_to_find,
+                funding_rate=Decimal("0.0002"),
+                timestamp=current_time,
+                mark_price=Decimal("3000.0"),
             )
 
-        hyperliquid_market_data_service.get_all_asset_contexts_raw.assert_called_once()
-        # Assert call on the injected mock_hl_mapper
-        mock_hl_mapper.transform_raw_asset_ctx_to_funding_rate.assert_called_once_with(
-            mock_raw_asset_ctx_eth
-        )
-        assert result_funding_rate == expected_internal_funding_rate
+            # Use the injected mock_hl_mapper
+            mock_hl_mapper.transform_raw_asset_ctx_to_funding_rate.return_value = (
+                expected_internal_funding_rate
+            )
+
+            # Patch datetime.now to control the timestamp
+            with patch(
+                "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper.datetime",
+                new=MagicMock(datetime=MagicMock(now=MagicMock(side_effect=lambda: current_time))),
+            ):
+                result_funding_rate = await hyperliquid_market_data_service.get_funding_rate(
+                    symbol_to_find
+                )
+
+            mock_get_all_asset_contexts.assert_called_once()
+            # Assert call on the injected mock_hl_mapper
+            mock_hl_mapper.transform_raw_asset_ctx_to_funding_rate.assert_called_once_with(
+                mock_raw_asset_ctx_eth
+            )
+            assert result_funding_rate == expected_internal_funding_rate
 
     @pytest.mark.asyncio
     async def test_get_order_book_success(
@@ -1428,24 +1437,25 @@ class TestHyperliquidMarketDataService:
             asset_ctxs=[mock_raw_asset_ctx],
         )
 
-        hyperliquid_market_data_service.get_all_asset_contexts_raw = AsyncMock(  # type: ignore[method-assign]
-            return_value=mock_all_contexts_response
-        )
+        with patch.object(
+            hyperliquid_market_data_service, 
+            'get_all_asset_contexts_raw',
+            new=AsyncMock(return_value=mock_all_contexts_response)
+        ):
+            # Mock mapper to raise unexpected exception
+            mock_hl_mapper.transform_raw_asset_ctx_to_ticker.side_effect = RuntimeError(
+                "Unexpected mapper failure"
+            )
 
-        # Mock mapper to raise unexpected exception
-        mock_hl_mapper.transform_raw_asset_ctx_to_ticker.side_effect = RuntimeError(
-            "Unexpected mapper failure"
-        )
+            with pytest.raises(APIError) as exc_info:
+                await hyperliquid_market_data_service.get_ticker(symbol)
 
-        with pytest.raises(APIError) as exc_info:
-            await hyperliquid_market_data_service.get_ticker(symbol)
-
-        # Service should wrap unexpected exceptions in APIError
-        assert (
-            exc_info.value.code == APIErrorCode.UNKNOWN.value
-            or exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
-        )
-        assert isinstance(exc_info.value.original_exception, RuntimeError)
+            # Service should wrap unexpected exceptions in APIError
+            assert (
+                exc_info.value.code == APIErrorCode.UNKNOWN.value
+                or exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
+            )
+            assert isinstance(exc_info.value.original_exception, RuntimeError)
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_mapper_type_error(
@@ -1698,23 +1708,26 @@ class TestHyperliquidMarketDataService:
         symbol = "ETH"
 
         # Test scenario where get_all_asset_contexts_raw raises APIError
-        hyperliquid_market_data_service.get_all_asset_contexts_raw = AsyncMock(  # type: ignore[method-assign]
-            side_effect=APIError(
-                message="Asset contexts request failed",
-                code=APIErrorCode.EXCHANGE_SPECIFIC.value,
-                http_status=503,
+        with patch.object(
+            hyperliquid_market_data_service, 
+            'get_all_asset_contexts_raw',
+            new=AsyncMock(
+                side_effect=APIError(
+                    message="Asset contexts request failed",
+                    code=APIErrorCode.EXCHANGE_SPECIFIC.value,
+                    http_status=503,
+                )
             )
-        )
+        ):
+            with pytest.raises(APIError) as exc_info:
+                await hyperliquid_market_data_service.get_funding_rate(symbol)
 
-        with pytest.raises(APIError) as exc_info:
-            await hyperliquid_market_data_service.get_funding_rate(symbol)
+            assert exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
+            assert exc_info.value.http_status == 503
+            assert "Asset contexts request failed" in exc_info.value.message
 
-        assert exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
-        assert exc_info.value.http_status == 503
-        assert "Asset contexts request failed" in exc_info.value.message
-
-        # Mapper should not be called if asset contexts fail
-        mock_hl_mapper.transform_raw_asset_ctx_to_funding_rate.assert_not_called()
+            # Mapper should not be called if asset contexts fail
+            mock_hl_mapper.transform_raw_asset_ctx_to_funding_rate.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_historical_funding_rates_comprehensive_error_scenarios(

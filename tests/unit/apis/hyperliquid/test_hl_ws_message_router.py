@@ -298,10 +298,12 @@ class TestHyperliquidWsMessageRouter:
             # Should be called twice (once for each control message)
             assert mock_logger.debug.call_count == 2
             mock_logger.debug.assert_any_call(
-                "[Hyperliquid] Control message on 'pong': {'channel': 'pong', 'data': {'status': 'ok'}}"
+                "[Hyperliquid] Control message on 'pong': "
+                "{'channel': 'pong', 'data': {'status': 'ok'}}"
             )
             mock_logger.debug.assert_any_call(
-                "[Hyperliquid] Control message on 'subscriptionResponse': {'channel': 'subscriptionResponse', 'data': {'status': 'ok'}}"
+                "[Hyperliquid] Control message on 'subscriptionResponse': "
+                "{'channel': 'subscriptionResponse', 'data': {'status': 'ok'}}"
             )
         mock_app_handler.assert_not_called()
 

@@ -529,7 +529,10 @@ class TestHyperliquidEip712Authenticator:
 
     @pytest.mark.asyncio
     async def test_signing_failure(
-        self, auth_with_mock_account: HyperliquidEip712Authenticator, mock_account: MagicMock
+        self,
+        auth_with_mock_account: HyperliquidEip712Authenticator,
+        mock_account: MagicMock,
+        mock_logger: MagicMock,
     ) -> None:
         """Test APIError if account.sign_message raises an exception."""
         auth = auth_with_mock_account
@@ -540,7 +543,7 @@ class TestHyperliquidEip712Authenticator:
 
         assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
         assert "Failed to sign EIP-712 Agent request" in str(excinfo.value.message)
-        auth.logger.error.assert_called_with(  # type: ignore[attr-defined]
+        mock_logger.error.assert_called_with(
             "HyperliquidEip712Authenticator: Failed to sign Hyperliquid EIP-712 Agent "
             "message: Crypto error",
             exc_info=True,
@@ -619,7 +622,7 @@ class TestHyperliquidEip712Authenticator:
 
     @pytest.mark.asyncio
     async def test_prepare_request_with_non_dict_data(
-        self, auth_with_mock_account: HyperliquidEip712Authenticator
+        self, auth_with_mock_account: HyperliquidEip712Authenticator, mock_logger: MagicMock
     ) -> None:
         """Test ValueError if data is not a dict (e.g. list or string)."""
         auth = auth_with_mock_account
@@ -646,11 +649,11 @@ class TestHyperliquidEip712Authenticator:
                 invalid_list_data,
                 None,
             )
-        auth.logger.error.assert_called_with(  # type: ignore[attr-defined]
+        mock_logger.error.assert_called_with(
             "HyperliquidEip712Authenticator: Invalid 'data' for Hyperliquid EIP-712 "
             "Agent signature: Must be a dictionary. Received type: <class 'list'>",
         )
-        auth.logger.reset_mock()  # type: ignore[attr-defined]
+        mock_logger.reset_mock()
 
         # Test with string - same justification as above
         # JUSTIFICATION FOR CAST:
@@ -674,7 +677,7 @@ class TestHyperliquidEip712Authenticator:
                 invalid_str_data,
                 None,
             )
-        auth.logger.error.assert_called_with(  # type: ignore[attr-defined]
+        mock_logger.error.assert_called_with(
             "HyperliquidEip712Authenticator: Invalid 'data' for Hyperliquid EIP-712 "
             "Agent signature: Must be a dictionary. Received type: <class 'str'>",
         )

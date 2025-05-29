@@ -363,7 +363,7 @@ class TestDataHandler:
                 "exchanges.hyperliquid.subscriptions.funding_rates": True,
             }.get(key, default)
 
-        data_handler.config.get = config_get  # type: ignore[method-assign]  # For test injection
+        data_handler.config.get = config_get  # For test injection
 
         # Ensure the mock_exchange_api has the necessary subscription methods as AsyncMocks
         # These should be automatically created if mock_exchange_api specs ExchangeAPI

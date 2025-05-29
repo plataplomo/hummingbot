@@ -12,6 +12,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import BaseModel
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
@@ -36,6 +37,12 @@ from cyberdelta.core.models.market.order import CancelOrderResult
 
 # Match the definition in cyberdelta.apis.base.exchange_api.py
 MessageHandler = Callable[..., Coroutine[Any, Any, None]]
+
+
+class TestSubscriptionPayload(BaseModel):
+    """Simple BaseModel for testing subscription payloads."""
+    type: str
+    channel: str
 
 
 class ConcreteTestExchangeAPI(ExchangeAPI):
@@ -164,8 +171,8 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
         return [MagicMock(spec=Order)]
 
-    def _construct_subscription_payload(self, topic: str) -> dict[str, Any] | None:
-        return {"type": "subscribe", "channel": topic}
+    def _construct_subscription_payload(self, topic: str) -> BaseModel:
+        return TestSubscriptionPayload(type="subscribe", channel=topic)
 
     async def ping_websocket(self) -> None:
         pass
@@ -489,9 +496,9 @@ class TestExchangeAPIWebSocketOperations:
                 )
                 self.payload_construction_calls: list[str] = []
 
-            def _construct_subscription_payload(self, topic: str) -> dict[str, Any] | None:
+            def _construct_subscription_payload(self, topic: str) -> BaseModel:
                 self.payload_construction_calls.append(topic)
-                return {"type": "subscribe", "channel": topic, "test": True}
+                return TestSubscriptionPayload(type="subscribe", channel=topic)
 
         api = PayloadTrackingAPI(
             exchange_name="test_exchange",

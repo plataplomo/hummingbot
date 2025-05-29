@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urljoin
 
 import aiohttp
+from pydantic import BaseModel
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
@@ -446,14 +447,14 @@ class ExchangeAPI(ABC):
         """Register a handler for a specific WebSocket topic/channel and send subscription."""
         self._ws_handlers[topic] = handler
         if self._ws_manager and self.is_connected:
-            subscription_payload = self._construct_subscription_payload(topic)
-            if subscription_payload:
+            try:
+                subscription_payload = self._construct_subscription_payload(topic)
                 await self._ws_manager.send_json(subscription_payload)
                 logger.info(f"[{self.exchange_name}] Sent subscription request for topic: {topic}")
-            else:
+            except (ValueError, APIError) as e:
                 logger.warning(
-                    f"[{self.exchange_name}] Could not construct subscription payload "
-                    f"for {topic}. Not subscribing."
+                    f"[{self.exchange_name}] Could not construct/send subscription payload "
+                    f"for topic '{topic}': {e}. Not subscribing to this topic."
                 )
         elif self._ws_manager:
             logger.warning(
@@ -467,8 +468,15 @@ class ExchangeAPI(ABC):
             )
 
     @abstractmethod
-    def _construct_subscription_payload(self, topic: str) -> dict[str, Any] | None:
-        """Helper method to construct exchange-specific subscription payload."""
+    def _construct_subscription_payload(self, topic: str) -> BaseModel:
+        """Helper method to construct exchange-specific subscription payload.
+
+        Returns a Pydantic BaseModel that will be serialized by WebSocketManager.send_json().
+        
+        Should raise ValueError or APIError if a valid payload cannot be constructed
+        for the given topic (e.g., invalid topic format, missing required info for topic type,
+        unsupported topic by the exchange).
+        """
         raise NotImplementedError
 
     async def _on_ws_connected(self) -> None:
@@ -489,8 +497,8 @@ class ExchangeAPI(ABC):
         )
         if self._ws_manager and self.is_connected:
             for topic, _handler in self._ws_handlers.copy().items():
-                subscription_payload = self._construct_subscription_payload(topic)
-                if subscription_payload:
+                try:
+                    subscription_payload = self._construct_subscription_payload(topic)
                     success = await self._ws_manager.send_json(subscription_payload)
                     if success:
                         logger.info(
@@ -500,10 +508,10 @@ class ExchangeAPI(ABC):
                         logger.warning(
                             f"[{self.exchange_name}] Failed to re-send subscription for {topic}."
                         )
-                else:
+                except (ValueError, APIError) as e:
                     logger.warning(
-                        f"[{self.exchange_name}] Could not construct resubscription "
-                        f"payload for {topic}."
+                        f"[{self.exchange_name}] Could not construct/send resubscription "
+                        f"payload for topic '{topic}': {e}. Skipping this topic."
                     )
                 await asyncio.sleep(0.1)
         else:
