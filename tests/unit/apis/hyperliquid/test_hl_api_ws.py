@@ -318,7 +318,7 @@ class TestHyperliquidAPIWebSocketIntegration:
 
         # Get wallet address from API for comparison
         wallet_address = object.__getattribute__(hl_api, "_wallet_address")
-        
+
         # Verify the returned model has correct structure and values
         assert result.method == "subscribe"
         assert result.subscription.type == "userEvents"
@@ -379,11 +379,11 @@ class TestHyperliquidAPIWebSocketEdgeCases:
         construct_method = object.__getattribute__(
             hl_api_edge_case, "_construct_subscription_payload"
         )
-        
+
         # Empty topic should raise APIError for invalid format
         with pytest.raises(APIError) as exc_info:
             construct_method("")
-        
+
         assert "Unsupported WebSocket topic" in str(exc_info.value)
         assert exc_info.value.code == APIErrorCode.INVALID_PARAMS.value
 
@@ -406,12 +406,14 @@ class TestHyperliquidAPIWebSocketEdgeCases:
             with pytest.raises((APIError, ValidationError)):
                 construct_method(topic)
 
-    def test_subscription_payload_extra_parts_ignored(self, hl_api_edge_case: HyperliquidAPI) -> None:
+    def test_subscription_payload_extra_parts_ignored(
+        self, hl_api_edge_case: HyperliquidAPI
+    ) -> None:
         """Test that extra parts in topic are ignored (valid behavior)."""
         construct_method = object.__getattribute__(
             hl_api_edge_case, "_construct_subscription_payload"
         )
-        
+
         # Extra parts should be ignored - this is valid behavior
         result = construct_method("l2Book:ETH:extra")
         assert result.method == "subscribe"
@@ -700,7 +702,9 @@ class TestHyperliquidAPIWebSocketEdgeCases:
 
             # Test userEvents subscription with None wallet address should raise ValueError
             construct_method = object.__getattribute__(api, "_construct_subscription_payload")
-            with pytest.raises(ValueError, match="Cannot subscribe to userEvents without wallet address"):
+            with pytest.raises(
+                ValueError, match="Cannot subscribe to userEvents without wallet address"
+            ):
                 construct_method("userEvents")
 
     @pytest.mark.asyncio

@@ -41,6 +41,7 @@ MessageHandler = Callable[..., Coroutine[Any, Any, None]]
 
 class TestSubscriptionPayload(BaseModel):
     """Simple BaseModel for testing subscription payloads."""
+
     type: str
     channel: str
 

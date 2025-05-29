@@ -48,7 +48,9 @@ def bp_api(
     bp_config: ExchangeSpecificConfig, bp_secrets: ExchangeSecrets, mock_ws_manager: MagicMock
 ) -> BackpackAPI:
     """Create BackpackAPI instance with mocked dependencies."""
-    with patch("cyberdelta.apis.connectivity.ws_manager.WebSocketManager", return_value=mock_ws_manager):
+    with patch(
+        "cyberdelta.apis.connectivity.ws_manager.WebSocketManager", return_value=mock_ws_manager
+    ):
         api = BackpackAPI(exchange_config=bp_config, exchange_secrets=bp_secrets)
         api._ws_manager = mock_ws_manager
         return api

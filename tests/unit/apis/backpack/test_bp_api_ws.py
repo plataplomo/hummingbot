@@ -122,7 +122,7 @@ class TestBackpackAPIWebSocketDelegation:
     ) -> None:
         """Test that subscription payload construction creates valid BackpackRawWsSubscriptionRequest."""
         from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
-        
+
         topic = "depth.SOL_USDC"
 
         # Use object.__getattribute__ to access protected method for testing
@@ -255,7 +255,7 @@ class TestBackpackAPIWebSocketIntegration:
     def test_subscription_payload_construction_integration(self, bp_api: BackpackAPI) -> None:
         """Test subscription payload construction creates proper Pydantic model."""
         from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
-        
+
         topic = "depth.SOL_USDC"
 
         # Use object.__getattribute__ to access protected method for testing
@@ -308,7 +308,7 @@ class TestBackpackAPIWebSocketEdgeCases:
     def test_subscription_payload_empty_topic(self, bp_api_edge_case: BackpackAPI) -> None:
         """Test subscription payload construction with empty topic creates valid model."""
         from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
-        
+
         construct_method = object.__getattribute__(
             bp_api_edge_case, "_construct_subscription_payload"
         )
@@ -323,7 +323,7 @@ class TestBackpackAPIWebSocketEdgeCases:
     def test_subscription_payload_special_characters(self, bp_api_edge_case: BackpackAPI) -> None:
         """Test subscription payload construction with special characters in topic."""
         from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
-        
+
         special_topic = "depth.BTC_USDC@!#$%^&*()"
         construct_method = object.__getattribute__(
             bp_api_edge_case, "_construct_subscription_payload"
@@ -339,7 +339,7 @@ class TestBackpackAPIWebSocketEdgeCases:
     def test_subscription_payload_very_long_topic(self, bp_api_edge_case: BackpackAPI) -> None:
         """Test subscription payload construction with very long topic."""
         from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
-        
+
         long_topic = "depth." + "A" * 1000 + "_USDC"
         construct_method = object.__getattribute__(
             bp_api_edge_case, "_construct_subscription_payload"
@@ -492,7 +492,7 @@ class TestBackpackAPIWebSocketEdgeCases:
     def test_unicode_topic_handling(self, bp_api_edge_case: BackpackAPI) -> None:
         """Test handling of Unicode characters in topics."""
         from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
-        
+
         unicode_topic = "depth.测试_USDC"
         construct_method = object.__getattribute__(
             bp_api_edge_case, "_construct_subscription_payload"

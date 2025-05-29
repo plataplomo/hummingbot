@@ -56,7 +56,9 @@ def hl_api(
     hl_config: ExchangeSpecificConfig, hl_secrets: ExchangeSecrets, mock_ws_manager: MagicMock
 ) -> HyperliquidAPI:
     """Create HyperliquidAPI instance with mocked dependencies."""
-    with patch("cyberdelta.apis.connectivity.ws_manager.WebSocketManager", return_value=mock_ws_manager):
+    with patch(
+        "cyberdelta.apis.connectivity.ws_manager.WebSocketManager", return_value=mock_ws_manager
+    ):
         api = HyperliquidAPI(exchange_config=hl_config, exchange_secrets=hl_secrets)
         api._ws_manager = mock_ws_manager
         return api

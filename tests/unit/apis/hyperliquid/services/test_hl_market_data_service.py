@@ -179,9 +179,9 @@ class TestHyperliquidMarketDataService:
 
         mock_get_all_asset_contexts = AsyncMock(return_value=mock_all_contexts_response)
         with patch.object(
-            hyperliquid_market_data_service, 
-            'get_all_asset_contexts_raw',
-            new=mock_get_all_asset_contexts
+            hyperliquid_market_data_service,
+            "get_all_asset_contexts_raw",
+            new=mock_get_all_asset_contexts,
         ):
             expected_internal_ticker = Ticker(
                 symbol=symbol_to_find,
@@ -215,26 +215,24 @@ class TestHyperliquidMarketDataService:
         )
 
         with patch.object(
-            hyperliquid_market_data_service, 
-            'get_all_asset_contexts_raw',
-            new=AsyncMock(return_value=mock_all_contexts_response)
+            hyperliquid_market_data_service,
+            "get_all_asset_contexts_raw",
+            new=AsyncMock(return_value=mock_all_contexts_response),
         ):
             # If _get_asset_context_by_name returns None, mapper shouldn't be called.
             # If it's called with None, it should handle it or map_raw_ctx_to_ticker
             # might return None.
-                with patch.object(
-                    HyperliquidMarketDataMapper, 
-                    "transform_raw_asset_ctx_to_ticker", 
-                    return_value=None
-                ):
-                    result = await hyperliquid_market_data_service.get_ticker(symbol)
-                    assert result is None
-                    # Depending on exact internal logic of get_ticker if asset_ctx is None:
-                    # mock_mapper_method.assert_not_called() or ensure it was called and
-                    # returned None.
-                    # For this test, we assume if context is not found,
-                    # transform_raw_asset_ctx_to_ticker might not be called or if it is
-                    # (e.g. with None), it's mocked to return None.
+            with patch.object(
+                HyperliquidMarketDataMapper, "transform_raw_asset_ctx_to_ticker", return_value=None
+            ):
+                result = await hyperliquid_market_data_service.get_ticker(symbol)
+                assert result is None
+                # Depending on exact internal logic of get_ticker if asset_ctx is None:
+                # mock_mapper_method.assert_not_called() or ensure it was called and
+                # returned None.
+                # For this test, we assume if context is not found,
+                # transform_raw_asset_ctx_to_ticker might not be called or if it is
+                # (e.g. with None), it's mocked to return None.
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_success(
@@ -279,9 +277,9 @@ class TestHyperliquidMarketDataService:
 
         mock_get_all_asset_contexts = AsyncMock(return_value=mock_all_contexts_response)
         with patch.object(
-            hyperliquid_market_data_service, 
-            'get_all_asset_contexts_raw',
-            new=mock_get_all_asset_contexts
+            hyperliquid_market_data_service,
+            "get_all_asset_contexts_raw",
+            new=mock_get_all_asset_contexts,
         ):
             expected_internal_funding_rate = FundingRate(
                 symbol=symbol_to_find,
@@ -1438,9 +1436,9 @@ class TestHyperliquidMarketDataService:
         )
 
         with patch.object(
-            hyperliquid_market_data_service, 
-            'get_all_asset_contexts_raw',
-            new=AsyncMock(return_value=mock_all_contexts_response)
+            hyperliquid_market_data_service,
+            "get_all_asset_contexts_raw",
+            new=AsyncMock(return_value=mock_all_contexts_response),
         ):
             # Mock mapper to raise unexpected exception
             mock_hl_mapper.transform_raw_asset_ctx_to_ticker.side_effect = RuntimeError(
@@ -1709,15 +1707,15 @@ class TestHyperliquidMarketDataService:
 
         # Test scenario where get_all_asset_contexts_raw raises APIError
         with patch.object(
-            hyperliquid_market_data_service, 
-            'get_all_asset_contexts_raw',
+            hyperliquid_market_data_service,
+            "get_all_asset_contexts_raw",
             new=AsyncMock(
                 side_effect=APIError(
                     message="Asset contexts request failed",
                     code=APIErrorCode.EXCHANGE_SPECIFIC.value,
                     http_status=503,
                 )
-            )
+            ),
         ):
             with pytest.raises(APIError) as exc_info:
                 await hyperliquid_market_data_service.get_funding_rate(symbol)

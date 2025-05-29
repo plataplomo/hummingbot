@@ -37,14 +37,7 @@ from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import (
 from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import (
     HyperliquidTradingDataMapper,
 )
-from cyberdelta.apis.hyperliquid.models import (
-    HyperliquidRawWsAllMidsSubscriptionPayload,
-    HyperliquidRawWsCandleSubscriptionPayload,
-    HyperliquidRawWsL2BookSubscriptionPayload,
-    HyperliquidRawWsSubscribeRequest,
-    HyperliquidRawWsTradesSubscriptionPayload,
-    HyperliquidRawWsUserEventsSubscriptionPayload,
-)
+from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import HyperliquidRawWsSubscribeRequest
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
@@ -372,9 +365,7 @@ class HyperliquidAPI(ExchangeAPI):
         )
         pass
 
-    def _construct_subscription_payload(
-        self, topic: str
-    ) -> HyperliquidRawWsSubscribeRequest:
+    def _construct_subscription_payload(self, topic: str) -> HyperliquidRawWsSubscribeRequest:
         """Construct subscription payload for the given topic.
 
         Args:
@@ -387,65 +378,8 @@ class HyperliquidAPI(ExchangeAPI):
             ValueError: If topic format is invalid or required info is missing
             APIError: If topic is not supported by the exchange
         """
-        # Parse the topic to determine subscription type and parameters
-        # Hyperliquid topics: "l2Book:ETH", "trades:BTC", "userEvents", "candle:BTC:1m", "allMids"
-        parts = topic.split(":", 2)  # Split into at most 3 parts
-        sub_type = parts[0]
-
-        inner_payload: (
-            HyperliquidRawWsL2BookSubscriptionPayload
-            | HyperliquidRawWsTradesSubscriptionPayload
-            | HyperliquidRawWsUserEventsSubscriptionPayload
-            | HyperliquidRawWsCandleSubscriptionPayload
-            | HyperliquidRawWsAllMidsSubscriptionPayload
-        )
-
-        try:
-            if sub_type == "l2Book" and len(parts) >= 2:
-                coin = parts[1]
-                inner_payload = HyperliquidRawWsL2BookSubscriptionPayload(type="l2Book", coin=coin)
-            elif sub_type == "trades" and len(parts) >= 2:
-                coin = parts[1]
-                inner_payload = HyperliquidRawWsTradesSubscriptionPayload(type="trades", coin=coin)
-            elif sub_type == "userEvents":
-                if self._wallet_address is None:
-                    raise ValueError(
-                        "Cannot subscribe to userEvents without wallet address. "
-                        "Ensure private_key is configured in secrets."
-                    )
-                inner_payload = HyperliquidRawWsUserEventsSubscriptionPayload(
-                    type="userEvents", user=self._wallet_address
-                )
-            elif sub_type == "candle" and len(parts) >= 3:
-                coin = parts[1]
-                interval = parts[2]
-                inner_payload = HyperliquidRawWsCandleSubscriptionPayload(
-                    type="candle", coin=coin, interval=interval
-                )
-            elif sub_type == "allMids":
-                inner_payload = HyperliquidRawWsAllMidsSubscriptionPayload(type="allMids")
-            else:
-                raise APIError(
-                    f"Unsupported WebSocket topic: {topic}. "
-                    f"Supported formats: 'l2Book:COIN', 'trades:COIN', 'userEvents', "
-                    f"'candle:COIN:INTERVAL', 'allMids'",
-                    code=APIErrorCode.INVALID_PARAMS.value,
-                )
-
-            # Create the top-level subscription request
-            return HyperliquidRawWsSubscribeRequest(
-                method="subscribe",  # Hyperliquid uses lowercase
-                subscription=inner_payload,
-            )
-
-        except (ValueError, APIError):
-            # Re-raise these exceptions as they are already informative
-            raise
-        except Exception as e:
-            # Wrap unexpected exceptions
-            raise ValueError(
-                f"Failed to construct subscription payload for topic '{topic}': {e}"
-            ) from e
+        # Delegate to the WebSocket router for payload construction
+        return self._hl_ws_router.construct_subscription_payload(topic, self._wallet_address)
 
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
         """

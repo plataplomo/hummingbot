@@ -22,6 +22,14 @@ from cyberdelta.apis.hyperliquid.hl_ws_raw_message_handler import HyperliquidWsR
 from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
 from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
 from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
+from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
+    HyperliquidRawWsAllMidsSubscriptionPayload,
+    HyperliquidRawWsCandleSubscriptionPayload,
+    HyperliquidRawWsL2BookSubscriptionPayload,
+    HyperliquidRawWsSubscribeRequest,
+    HyperliquidRawWsTradesSubscriptionPayload,
+    HyperliquidRawWsUserEventsSubscriptionPayload,
+)
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.logging_config import get_logger
@@ -65,7 +73,7 @@ class HyperliquidWsMessageRouter:
 
     def construct_subscription_payload(
         self, topic: str, wallet_address: str | None
-    ) -> dict[str, Any] | None:
+    ) -> HyperliquidRawWsSubscribeRequest:
         """
         Construct the subscription payload for a given topic for Hyperliquid.
 
@@ -78,38 +86,71 @@ class HyperliquidWsMessageRouter:
             wallet_address: User's wallet address (required for userEvents)
 
         Returns:
-            Dictionary containing the subscription payload, or None if invalid topic
+            HyperliquidRawWsSubscribeRequest model
+
+        Raises:
+            ValueError: If topic format is invalid or required info is missing
+            APIError: If topic is not supported by the exchange
         """
-        parts = topic.split(":")
+        # Parse the topic to determine subscription type and parameters
+        # Hyperliquid topics: "l2Book:ETH", "trades:BTC", "userEvents", "candle:BTC:1m", "allMids"
+        parts = topic.split(":", 2)  # Split into at most 3 parts
         sub_type = parts[0]
 
-        subscription_data: dict[str, Any] = {}
+        inner_payload: (
+            HyperliquidRawWsL2BookSubscriptionPayload
+            | HyperliquidRawWsTradesSubscriptionPayload
+            | HyperliquidRawWsUserEventsSubscriptionPayload
+            | HyperliquidRawWsCandleSubscriptionPayload
+            | HyperliquidRawWsAllMidsSubscriptionPayload
+        )
 
-        if sub_type == "l2Book" and len(parts) > 1:
-            coin = parts[1]
-            subscription_data = {"type": "l2Book", "coin": coin}
-        elif sub_type == "trades" and len(parts) > 1:
-            coin = parts[1]
-            subscription_data = {"type": "trades", "coin": coin}
-        elif sub_type == "userEvents":
-            if not wallet_address:
-                self.logger.error(
-                    f"[{self._exchange_name}] Cannot subscribe to userEvents "
-                    f"without wallet address."
+        try:
+            if sub_type == "l2Book" and len(parts) >= 2:
+                coin = parts[1]
+                inner_payload = HyperliquidRawWsL2BookSubscriptionPayload(type="l2Book", coin=coin)
+            elif sub_type == "trades" and len(parts) >= 2:
+                coin = parts[1]
+                inner_payload = HyperliquidRawWsTradesSubscriptionPayload(type="trades", coin=coin)
+            elif sub_type == "userEvents":
+                if wallet_address is None:
+                    raise ValueError(
+                        "Cannot subscribe to userEvents without wallet address. "
+                        "Ensure private_key is configured in secrets."
+                    )
+                inner_payload = HyperliquidRawWsUserEventsSubscriptionPayload(
+                    type="userEvents", user=wallet_address
                 )
-                return None
-            subscription_data = {"type": "userEvents", "user": wallet_address}
-        elif sub_type == "candle" and len(parts) > 2:
-            coin = parts[1]
-            interval = parts[2]
-            subscription_data = {"type": "candle", "coin": coin, "interval": interval}
-        else:
-            self.logger.warning(
-                f"[{self._exchange_name}] Unknown or invalid topic format for subscription: {topic}"
-            )
-            return None
+            elif sub_type == "candle" and len(parts) >= 3:
+                coin = parts[1]
+                interval = parts[2]
+                inner_payload = HyperliquidRawWsCandleSubscriptionPayload(
+                    type="candle", coin=coin, interval=interval
+                )
+            elif sub_type == "allMids":
+                inner_payload = HyperliquidRawWsAllMidsSubscriptionPayload(type="allMids")
+            else:
+                raise APIError(
+                    f"Unsupported WebSocket topic: {topic}. "
+                    f"Supported formats: 'l2Book:COIN', 'trades:COIN', 'userEvents', "
+                    f"'candle:COIN:INTERVAL', 'allMids'",
+                    code=APIErrorCode.INVALID_PARAMS.value,
+                )
 
-        return {"method": "subscribe", "subscription": subscription_data}
+            # Create the top-level subscription request
+            return HyperliquidRawWsSubscribeRequest(
+                method="subscribe",  # Hyperliquid uses lowercase
+                subscription=inner_payload,
+            )
+
+        except (ValueError, APIError):
+            # Re-raise these exceptions as they are already informative
+            raise
+        except Exception as e:
+            # Wrap unexpected exceptions
+            raise ValueError(
+                f"Failed to construct subscription payload for topic '{topic}': {e}"
+            ) from e
 
     async def route_message(
         self, message: dict[str, Any], ws_handlers: dict[str, MessageHandler]
@@ -320,9 +361,7 @@ class HyperliquidWsMessageRouter:
                             validated_order_details = _handle_order_event(order_update_wrapper.data)
                             try:
                                 # Transform raw validated model to internal domain model
-                                order_transform_method = (
-                                    self._trading_data_mapper.transform_ws_order_update_to_internal_order
-                                )
+                                order_transform_method = self._trading_data_mapper.transform_ws_order_update_to_internal_order
                                 internal_order = order_transform_method(validated_order_details)
                                 # Convert internal model to dict for handler compatibility
                                 order_dict = internal_order.model_dump(mode="json")
@@ -340,9 +379,7 @@ class HyperliquidWsMessageRouter:
                             validated_position_update = _handle_pos_update(event_item_dict)
                             try:
                                 # Transform raw validated model to internal domain model
-                                position_transform_method = (
-                                    self._account_data_mapper.transform_ws_position_update_to_internal_position
-                                )
+                                position_transform_method = self._account_data_mapper.transform_ws_position_update_to_internal_position
                                 internal_position = position_transform_method(
                                     validated_position_update
                                 )

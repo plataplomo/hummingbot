@@ -472,7 +472,7 @@ class ExchangeAPI(ABC):
         """Helper method to construct exchange-specific subscription payload.
 
         Returns a Pydantic BaseModel that will be serialized by WebSocketManager.send_json().
-        
+
         Should raise ValueError or APIError if a valid payload cannot be constructed
         for the given topic (e.g., invalid topic format, missing required info for topic type,
         unsupported topic by the exchange).

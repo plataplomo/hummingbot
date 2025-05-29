@@ -36,6 +36,7 @@ async def dummy_on_connected_callback() -> None:
 
 class TestMessage(BaseModel):
     """Simple BaseModel for testing WebSocket messages."""
+
     test: str
 
 

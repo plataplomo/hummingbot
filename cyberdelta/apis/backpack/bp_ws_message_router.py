@@ -13,12 +13,13 @@ providing a cleaner separation of concerns and better testability.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from cyberdelta.apis.backpack.bp_ws_raw_message_handler import BackpackWsRawMessageHandler
 from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAccountDataMapper
 from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarketDataMapper
 from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
+from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
 from cyberdelta.apis.base.exchange_api import MessageHandler
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.config.logging_config import get_logger
@@ -60,24 +61,47 @@ class BackpackWsMessageRouter:
         self._exchange_name = exchange_name
         self.logger = get_logger(__name__)
 
-    def construct_subscription_payload(self, topic: str) -> dict[str, Any] | None:
+    def construct_subscription_payload(self, topic: str) -> BackpackRawWsSubscriptionRequest:
         """
-        Construct the subscription payload for a given topic for Backpack.
+        Construct the base subscription payload for a given topic for Backpack.
 
-        Backpack uses a simple subscription format:
-        {"op": "subscribe", "channel": topic, "args": {}}
+        This method creates the basic structure of the subscription request without
+        signature components. The BackpackAPI layer will add signatures for private streams.
+
+        Backpack uses the format:
+        {"method": "SUBSCRIBE", "params": ["topic"]} for public streams
+        {"method": "SUBSCRIBE", "params": ["topic"], "signature": [...]} for private streams
 
         Args:
             topic: The WebSocket topic to subscribe to
 
         Returns:
-            Dictionary containing the subscription payload, or None if invalid topic
+            BackpackRawWsSubscriptionRequest model with signature=None
+
+        Raises:
+            ValueError: If topic format is invalid or empty
         """
-        return {
-            "op": "subscribe",
-            "channel": topic,
-            "args": {},  # Backpack doesn't seem to use args for common subscriptions
-        }
+        # Basic topic validation
+        if not topic or not topic.strip():
+            raise ValueError("Topic cannot be empty for Backpack subscription.")
+
+        # For Backpack, the standard subscription format is used
+        # The signature will be added by BackpackAPI for private streams
+        method_val: Literal["SUBSCRIBE", "UNSUBSCRIBE"] = "SUBSCRIBE"
+
+        # Create params list with the topic
+        params_val = [topic]
+
+        # Signature is None at this stage - BackpackAPI will populate for private streams
+        try:
+            return BackpackRawWsSubscriptionRequest(
+                method=method_val, params=params_val, signature=None
+            )
+        except Exception as e:
+            # Wrap unexpected exceptions
+            raise ValueError(
+                f"Failed to construct base subscription payload for topic '{topic}': {e}"
+            ) from e
 
     async def route_message(
         self, message: dict[str, Any], ws_handlers: dict[str, MessageHandler]
