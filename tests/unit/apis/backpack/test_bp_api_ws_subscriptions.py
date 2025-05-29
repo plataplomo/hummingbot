@@ -2,11 +2,10 @@
 Tests for BackpackAPI WebSocket subscription functionality.
 """
 
-from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic import AnyUrl, HttpUrl, SecretStr
+from pydantic import SecretStr
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
@@ -21,8 +20,8 @@ def bp_config() -> ExchangeSpecificConfig:
     return ExchangeSpecificConfig(
         exchange_name=ExchangeName.BACKPACK,
         symbols={},  # Add required symbols field
-        api_base_url=HttpUrl("https://api.backpack.exchange"),
-        ws_url=AnyUrl("wss://ws.backpack.exchange"),
+        api_base_url="https://api.backpack.exchange",
+        ws_url="wss://ws.backpack.exchange",
         rate_limit_per_minute=1200,
     )
 
@@ -45,15 +44,14 @@ def mock_ws_manager() -> MagicMock:
 
 
 @pytest.fixture
-async def bp_api(
+def bp_api(
     bp_config: ExchangeSpecificConfig, bp_secrets: ExchangeSecrets, mock_ws_manager: MagicMock
-) -> AsyncGenerator[BackpackAPI]:
+) -> BackpackAPI:
     """Create BackpackAPI instance with mocked dependencies."""
-    with patch("cyberdelta.apis.backpack.bp_api.WebSocketManager", return_value=mock_ws_manager):
+    with patch("cyberdelta.apis.connectivity.ws_manager.WebSocketManager", return_value=mock_ws_manager):
         api = BackpackAPI(exchange_config=bp_config, exchange_secrets=bp_secrets)
         api._ws_manager = mock_ws_manager
-        yield api
-        await api.close()
+        return api
 
 
 class TestBackpackAPIWsSubscriptions:

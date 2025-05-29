@@ -2,11 +2,10 @@
 Tests for HyperliquidAPI WebSocket subscription functionality.
 """
 
-from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic import AnyUrl, HttpUrl, SecretStr
+from pydantic import SecretStr
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
@@ -26,8 +25,8 @@ def hl_config() -> ExchangeSpecificConfig:
     return ExchangeSpecificConfig(
         exchange_name=ExchangeName.HYPERLIQUID,
         symbols={},  # Add required symbols field
-        api_base_url=HttpUrl("https://api.hyperliquid.xyz"),
-        ws_url=AnyUrl("wss://api.hyperliquid.xyz/ws"),
+        api_base_url="https://api.hyperliquid.xyz",
+        ws_url="wss://api.hyperliquid.xyz/ws",
         rate_limit_per_minute=1200,
         chain_id=1337,
     )
@@ -53,15 +52,14 @@ def mock_ws_manager() -> MagicMock:
 
 
 @pytest.fixture
-async def hl_api(
+def hl_api(
     hl_config: ExchangeSpecificConfig, hl_secrets: ExchangeSecrets, mock_ws_manager: MagicMock
-) -> AsyncGenerator[HyperliquidAPI]:
+) -> HyperliquidAPI:
     """Create HyperliquidAPI instance with mocked dependencies."""
-    with patch("cyberdelta.apis.hyperliquid.hl_api.WebSocketManager", return_value=mock_ws_manager):
+    with patch("cyberdelta.apis.connectivity.ws_manager.WebSocketManager", return_value=mock_ws_manager):
         api = HyperliquidAPI(exchange_config=hl_config, exchange_secrets=hl_secrets)
         api._ws_manager = mock_ws_manager
-        yield api
-        await api.close()
+        return api
 
 
 class TestHyperliquidAPIWsSubscriptions:
@@ -189,7 +187,7 @@ class TestHyperliquidAPIWsSubscriptions:
         assert "invalid:topic:format" in hl_api._ws_handlers
 
         # But no WebSocket message should be sent
-        mock_ws_manager.send_json.assert_called_once()
+        mock_ws_manager.send_json.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_subscribe_when_not_connected(

@@ -10,10 +10,12 @@ from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.hyperliquid.hl_ws_message_router import HyperliquidWsMessageRouter
+from cyberdelta.apis.models.api_error import APIError
+from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ExchangeSecrets
 from cyberdelta.enums.exchange_names import ExchangeName
@@ -135,10 +137,10 @@ class TestHyperliquidAPIWebSocketDelegation:
         ws_handlers = object.__getattribute__(hl_api_with_mocked_router, "_ws_handlers")
         mock_hl_ws_router.route_message.assert_called_once_with(message, ws_handlers)
 
-    def test_construct_subscription_payload_delegates_to_router(
+    def test_construct_subscription_payload_creates_valid_payload(
         self, hl_api_with_mocked_router: HyperliquidAPI, mock_hl_ws_router: Mock
     ) -> None:
-        """Test that subscription payload construction delegates to router."""
+        """Test that subscription payload construction creates valid payload directly."""
         topic = "l2Book:ETH"
 
         # Use object.__getattribute__ to access protected method for testing
@@ -147,12 +149,14 @@ class TestHyperliquidAPIWebSocketDelegation:
         )
         result = construct_method(topic)
 
-        # Verify delegation to router (should pass wallet address)
-        wallet_address = object.__getattribute__(hl_api_with_mocked_router, "_wallet_address")
-        mock_hl_ws_router.construct_subscription_payload.assert_called_once_with(
-            topic, wallet_address
-        )
-        assert result == {"method": "subscribe", "subscription": {"type": "test"}}
+        # Verify the payload structure matches Hyperliquid format
+        assert hasattr(result, "method")
+        assert hasattr(result, "subscription")
+        assert result.method == "subscribe"
+        assert hasattr(result.subscription, "type")
+        assert result.subscription.type == "l2Book"
+        assert hasattr(result.subscription, "coin")
+        assert result.subscription.coin == "ETH"
 
     @pytest.mark.asyncio
     async def test_router_delegation_preserves_ws_handlers(
@@ -292,18 +296,17 @@ class TestHyperliquidAPIWebSocketIntegration:
         assert isinstance(router, HyperliquidWsMessageRouter)
 
     def test_subscription_payload_construction_integration(self, hl_api: HyperliquidAPI) -> None:
-        """Test subscription payload construction through the actual router."""
+        """Test subscription payload construction returns proper model."""
         topic = "l2Book:ETH"
 
         # Use object.__getattribute__ to access protected method for testing
         construct_method = object.__getattribute__(hl_api, "_construct_subscription_payload")
         result = construct_method(topic)
 
-        expected = {
-            "method": "subscribe",
-            "subscription": {"type": "l2Book", "coin": "ETH"},
-        }
-        assert result == expected
+        # Verify the returned model has correct structure and values
+        assert result.method == "subscribe"
+        assert result.subscription.type == "l2Book"
+        assert result.subscription.coin == "ETH"
 
     def test_subscription_payload_construction_user_events(self, hl_api: HyperliquidAPI) -> None:
         """Test userEvents subscription payload construction with wallet address."""
@@ -313,14 +316,13 @@ class TestHyperliquidAPIWebSocketIntegration:
         construct_method = object.__getattribute__(hl_api, "_construct_subscription_payload")
         result = construct_method(topic)
 
-        expected = {
-            "method": "subscribe",
-            "subscription": {
-                "type": "userEvents",
-                "user": object.__getattribute__(hl_api, "_wallet_address"),
-            },
-        }
-        assert result == expected
+        # Get wallet address from API for comparison
+        wallet_address = object.__getattribute__(hl_api, "_wallet_address")
+        
+        # Verify the returned model has correct structure and values
+        assert result.method == "subscribe"
+        assert result.subscription.type == "userEvents"
+        assert result.subscription.user == wallet_address
 
     @pytest.mark.asyncio
     async def test_message_routing_integration_unknown_channel(
@@ -373,25 +375,26 @@ class TestHyperliquidAPIWebSocketEdgeCases:
             )
 
     def test_subscription_payload_empty_topic(self, hl_api_edge_case: HyperliquidAPI) -> None:
-        """Test subscription payload construction with empty topic."""
+        """Test subscription payload construction with empty topic raises appropriate error."""
         construct_method = object.__getattribute__(
             hl_api_edge_case, "_construct_subscription_payload"
         )
-        result = construct_method("")
-
-        # Router should handle empty topic gracefully - actual behavior depends on implementation
-        # The important thing is it doesn't crash
-        assert result is not None or result is None  # Either result is acceptable
+        
+        # Empty topic should raise APIError for invalid format
+        with pytest.raises(APIError) as exc_info:
+            construct_method("")
+        
+        assert "Unsupported WebSocket topic" in str(exc_info.value)
+        assert exc_info.value.code == APIErrorCode.INVALID_PARAMS.value
 
     def test_subscription_payload_malformed_topic(self, hl_api_edge_case: HyperliquidAPI) -> None:
-        """Test subscription payload construction with malformed topic format."""
+        """Test subscription payload construction with malformed topic format raises proper errors."""
         malformed_topics = [
             "l2Book",  # Missing coin
             "l2Book:",  # Empty coin
             ":ETH",  # Missing type
             ":",  # Only separator
             "invalid_format",  # No separator
-            "l2Book:ETH:extra",  # Too many parts
         ]
 
         construct_method = object.__getattribute__(
@@ -399,10 +402,21 @@ class TestHyperliquidAPIWebSocketEdgeCases:
         )
 
         for topic in malformed_topics:
-            # Should not crash, even with malformed topics
-            result = construct_method(topic)
-            # Result can be None or a dict - depends on router implementation
-            assert result is None or isinstance(result, dict)
+            # Malformed topics should raise APIError for invalid format or ValidationError for invalid data
+            with pytest.raises((APIError, ValidationError)):
+                construct_method(topic)
+
+    def test_subscription_payload_extra_parts_ignored(self, hl_api_edge_case: HyperliquidAPI) -> None:
+        """Test that extra parts in topic are ignored (valid behavior)."""
+        construct_method = object.__getattribute__(
+            hl_api_edge_case, "_construct_subscription_payload"
+        )
+        
+        # Extra parts should be ignored - this is valid behavior
+        result = construct_method("l2Book:ETH:extra")
+        assert result.method == "subscribe"
+        assert result.subscription.type == "l2Book"
+        assert result.subscription.coin == "ETH"
 
     def test_subscription_payload_special_characters_in_coin(
         self, hl_api_edge_case: HyperliquidAPI
@@ -414,10 +428,11 @@ class TestHyperliquidAPIWebSocketEdgeCases:
         )
         result = construct_method(special_topic)
 
-        # Should handle special characters gracefully
-        if result is not None:
-            assert isinstance(result, dict)
-            assert "subscription" in result
+        # Should handle special characters gracefully and return proper model
+        assert result is not None
+        assert result.method == "subscribe"
+        assert result.subscription.type == "l2Book"
+        assert result.subscription.coin == "BTC@!#$%^&*()"
 
     def test_subscription_payload_unicode_coin(self, hl_api_edge_case: HyperliquidAPI) -> None:
         """Test subscription payload construction with Unicode characters in coin."""
@@ -427,9 +442,11 @@ class TestHyperliquidAPIWebSocketEdgeCases:
         )
         result = construct_method(unicode_topic)
 
-        # Should handle Unicode gracefully
-        if result is not None:
-            assert isinstance(result, dict)
+        # Should handle Unicode gracefully and return proper model
+        assert result is not None
+        assert result.method == "subscribe"
+        assert result.subscription.type == "l2Book"
+        assert result.subscription.coin == "测试币"
 
     def test_subscription_payload_very_long_coin_name(
         self, hl_api_edge_case: HyperliquidAPI
@@ -440,11 +457,10 @@ class TestHyperliquidAPIWebSocketEdgeCases:
         construct_method = object.__getattribute__(
             hl_api_edge_case, "_construct_subscription_payload"
         )
-        result = construct_method(long_topic)
 
-        # Should handle long names gracefully
-        if result is not None:
-            assert isinstance(result, dict)
+        # Very long coin names should raise ValidationError due to length constraint
+        with pytest.raises(ValidationError, match="String value too long"):
+            construct_method(long_topic)
 
     @pytest.mark.asyncio
     async def test_subscribe_with_none_handler_behavior(
@@ -679,13 +695,13 @@ class TestHyperliquidAPIWebSocketEdgeCases:
                 exchange_secrets=secrets_with_none_wallet,
             )
 
-            # Test userEvents subscription with None wallet address
-            construct_method = object.__getattribute__(api, "_construct_subscription_payload")
-            result = construct_method("userEvents")
+            # Explicitly set wallet address to None to test edge case
+            object.__setattr__(api, "_wallet_address", None)
 
-            # Should handle None wallet address gracefully
-            if result is not None:
-                assert isinstance(result, dict)
+            # Test userEvents subscription with None wallet address should raise ValueError
+            construct_method = object.__getattribute__(api, "_construct_subscription_payload")
+            with pytest.raises(ValueError, match="Cannot subscribe to userEvents without wallet address"):
+                construct_method("userEvents")
 
     @pytest.mark.asyncio
     async def test_message_with_list_data_instead_of_dict(

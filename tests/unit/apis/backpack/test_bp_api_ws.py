@@ -117,10 +117,12 @@ class TestBackpackAPIWebSocketDelegation:
         ws_handlers = object.__getattribute__(bp_api_with_mocked_router, "_ws_handlers")
         mock_bp_ws_router.route_message.assert_called_once_with(message, ws_handlers)
 
-    def test_construct_subscription_payload_delegates_to_router(
+    def test_construct_subscription_payload_creates_valid_payload(
         self, bp_api_with_mocked_router: BackpackAPI, mock_bp_ws_router: Mock
     ) -> None:
-        """Test that subscription payload construction delegates to router."""
+        """Test that subscription payload construction creates valid BackpackRawWsSubscriptionRequest."""
+        from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
+        
         topic = "depth.SOL_USDC"
 
         # Use object.__getattribute__ to access protected method for testing
@@ -129,9 +131,11 @@ class TestBackpackAPIWebSocketDelegation:
         )
         result = construct_method(topic)
 
-        # Verify delegation to router
-        mock_bp_ws_router.construct_subscription_payload.assert_called_once_with(topic)
-        assert result == {"op": "subscribe", "channel": "test"}
+        # Verify result is a proper Pydantic model with expected structure
+        assert isinstance(result, BackpackRawWsSubscriptionRequest)
+        assert result.method == "SUBSCRIBE"
+        assert result.params == [topic]
+        assert result.signature is None  # Public stream, no signature needed
 
     @pytest.mark.asyncio
     async def test_router_delegation_preserves_ws_handlers(
@@ -249,19 +253,20 @@ class TestBackpackAPIWebSocketIntegration:
         assert isinstance(router, BackpackWsMessageRouter)
 
     def test_subscription_payload_construction_integration(self, bp_api: BackpackAPI) -> None:
-        """Test subscription payload construction through the actual router."""
+        """Test subscription payload construction creates proper Pydantic model."""
+        from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
+        
         topic = "depth.SOL_USDC"
 
         # Use object.__getattribute__ to access protected method for testing
         construct_method = object.__getattribute__(bp_api, "_construct_subscription_payload")
         result = construct_method(topic)
 
-        expected: dict[str, Any] = {
-            "op": "subscribe",
-            "channel": topic,
-            "args": {},
-        }
-        assert result == expected
+        # Verify result is a proper Pydantic model with expected structure
+        assert isinstance(result, BackpackRawWsSubscriptionRequest)
+        assert result.method == "SUBSCRIBE"
+        assert result.params == [topic]
+        assert result.signature is None  # Public stream
 
     @pytest.mark.asyncio
     async def test_message_routing_integration_unknown_topic(self, bp_api: BackpackAPI) -> None:
@@ -301,48 +306,51 @@ class TestBackpackAPIWebSocketEdgeCases:
                         )
 
     def test_subscription_payload_empty_topic(self, bp_api_edge_case: BackpackAPI) -> None:
-        """Test subscription payload construction with empty topic."""
+        """Test subscription payload construction with empty topic creates valid model."""
+        from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
+        
         construct_method = object.__getattribute__(
             bp_api_edge_case, "_construct_subscription_payload"
         )
         result = construct_method("")
 
-        expected: dict[str, Any] = {
-            "op": "subscribe",
-            "channel": "",
-            "args": {},
-        }
-        assert result == expected
+        # Verify result is a proper Pydantic model even with empty topic
+        assert isinstance(result, BackpackRawWsSubscriptionRequest)
+        assert result.method == "SUBSCRIBE"
+        assert result.params == [""]  # Empty topic as param
+        assert result.signature is None
 
     def test_subscription_payload_special_characters(self, bp_api_edge_case: BackpackAPI) -> None:
         """Test subscription payload construction with special characters in topic."""
+        from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
+        
         special_topic = "depth.BTC_USDC@!#$%^&*()"
         construct_method = object.__getattribute__(
             bp_api_edge_case, "_construct_subscription_payload"
         )
         result = construct_method(special_topic)
 
-        expected: dict[str, Any] = {
-            "op": "subscribe",
-            "channel": special_topic,
-            "args": {},
-        }
-        assert result == expected
+        # Verify result is a proper Pydantic model with special characters
+        assert isinstance(result, BackpackRawWsSubscriptionRequest)
+        assert result.method == "SUBSCRIBE"
+        assert result.params == [special_topic]
+        assert result.signature is None
 
     def test_subscription_payload_very_long_topic(self, bp_api_edge_case: BackpackAPI) -> None:
         """Test subscription payload construction with very long topic."""
+        from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
+        
         long_topic = "depth." + "A" * 1000 + "_USDC"
         construct_method = object.__getattribute__(
             bp_api_edge_case, "_construct_subscription_payload"
         )
         result = construct_method(long_topic)
 
-        expected: dict[str, Any] = {
-            "op": "subscribe",
-            "channel": long_topic,
-            "args": {},
-        }
-        assert result == expected
+        # Verify result is a proper Pydantic model with very long topic
+        assert isinstance(result, BackpackRawWsSubscriptionRequest)
+        assert result.method == "SUBSCRIBE"
+        assert result.params == [long_topic]
+        assert result.signature is None
 
     @pytest.mark.asyncio
     async def test_subscribe_with_none_handler_behavior(
@@ -483,18 +491,19 @@ class TestBackpackAPIWebSocketEdgeCases:
 
     def test_unicode_topic_handling(self, bp_api_edge_case: BackpackAPI) -> None:
         """Test handling of Unicode characters in topics."""
+        from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
+        
         unicode_topic = "depth.测试_USDC"
         construct_method = object.__getattribute__(
             bp_api_edge_case, "_construct_subscription_payload"
         )
         result = construct_method(unicode_topic)
 
-        expected: dict[str, Any] = {
-            "op": "subscribe",
-            "channel": unicode_topic,
-            "args": {},
-        }
-        assert result == expected
+        # Verify result is a proper Pydantic model with Unicode topic
+        assert isinstance(result, BackpackRawWsSubscriptionRequest)
+        assert result.method == "SUBSCRIBE"
+        assert result.params == [unicode_topic]
+        assert result.signature is None
 
     @pytest.mark.asyncio
     async def test_deeply_nested_message_data(self, bp_api_edge_case: BackpackAPI) -> None:
