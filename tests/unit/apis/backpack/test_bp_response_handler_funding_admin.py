@@ -81,7 +81,10 @@ class TestHandleGetFundingRateResponse:
         assert "got str" in exc_info.value.message
 
     def test_extra_fields_ignored(self, symbol_perp: str) -> None:
-        """Test that extra fields in funding rate response cause ValidationError due to extra='forbid'."""
+        """Test that extra fields in funding rate response cause ValidationError.
+        
+        This is due to extra='forbid' in the validation model.
+        """
         raw_data = {
             "symbol": symbol_perp,
             "rate": "0.000123",

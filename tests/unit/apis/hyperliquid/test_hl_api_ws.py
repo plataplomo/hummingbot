@@ -10,29 +10,38 @@ from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from pydantic import AnyUrl, HttpUrl, SecretStr
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.hyperliquid.hl_ws_message_router import HyperliquidWsMessageRouter
+from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.secrets_models import ExchangeSecrets
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 @pytest.fixture
-def hyperliquid_config() -> dict[str, Any]:
-    """Basic configuration for HyperliquidAPI tests."""
-    return {
-        "rest_endpoint": "https://api.hyperliquid.xyz",
-        "ws_endpoint": "wss://api.hyperliquid.xyz/ws",
-        "rate_limits": {},
-        "request_timeout": 30.0,
-    }
+def hyperliquid_exchange_config() -> ExchangeSpecificConfig:
+    """Basic ExchangeSpecificConfig for HyperliquidAPI tests."""
+    return ExchangeSpecificConfig(
+        exchange_name=ExchangeName.HYPERLIQUID,
+        api_base_url=HttpUrl("https://api.hyperliquid.xyz"),
+        ws_url=AnyUrl("wss://api.hyperliquid.xyz/ws"),
+        rate_limit_per_minute=300,
+        symbols={"ETH": "ETH", "BTC": "BTC"},
+        chain_id=1337,
+        request_timeout_seconds=30.0,
+    )
 
 
 @pytest.fixture
-def hyperliquid_secrets() -> dict[str, str]:
-    """Basic secrets for HyperliquidAPI tests."""
-    return {
-        "wallet_address": "0x0000000000000000000000000000000000000000",
-        "private_key": "0x" + "0" * 64,  # Dummy private key
-    }
+def hyperliquid_exchange_secrets() -> ExchangeSecrets:
+    """Basic ExchangeSecrets for HyperliquidAPI tests."""
+    return ExchangeSecrets(
+        api_key=SecretStr(""),
+        api_secret=SecretStr(""),
+        private_key=SecretStr("0x" + "0" * 64),  # Dummy private key
+        passphrase=None,
+    )
 
 
 @pytest.fixture
@@ -48,7 +57,9 @@ def mock_hl_ws_router() -> Mock:
 
 @pytest.fixture
 def hl_api_with_mocked_router(
-    hyperliquid_config: dict[str, Any], hyperliquid_secrets: dict[str, str], mock_hl_ws_router: Mock
+    hyperliquid_exchange_config: ExchangeSpecificConfig,
+    hyperliquid_exchange_secrets: ExchangeSecrets,
+    mock_hl_ws_router: Mock,
 ) -> HyperliquidAPI:
     """Create HyperliquidAPI instance with mocked router and other dependencies."""
     with (
@@ -64,12 +75,9 @@ def hl_api_with_mocked_router(
         patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidTradingService"),
         patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidMarketDataService"),
     ):
-        # Convert secrets to the expected type
-        secrets_with_none: dict[str, str | None] = {k: v for k, v in hyperliquid_secrets.items()}
-
         api = HyperliquidAPI(
-            api_config=hyperliquid_config,
-            secrets=secrets_with_none,
+            exchange_config=hyperliquid_exchange_config,
+            exchange_secrets=hyperliquid_exchange_secrets,
         )
 
         # Replace router with mock using object.__setattr__ to bypass protection
@@ -162,7 +170,9 @@ class TestHyperliquidAPIWebSocketLifecycle:
 
     @pytest.fixture
     def hl_api(
-        self, hyperliquid_config: dict[str, Any], hyperliquid_secrets: dict[str, str]
+        self,
+        hyperliquid_exchange_config: ExchangeSpecificConfig,
+        hyperliquid_exchange_secrets: ExchangeSecrets,
     ) -> HyperliquidAPI:
         """Create HyperliquidAPI instance with mocked dependencies for lifecycle tests."""
         with (
@@ -178,14 +188,9 @@ class TestHyperliquidAPIWebSocketLifecycle:
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidTradingService"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidMarketDataService"),
         ):
-            # Convert secrets to the expected type
-            secrets_with_none: dict[str, str | None] = {
-                k: v for k, v in hyperliquid_secrets.items()
-            }
-
             return HyperliquidAPI(
-                api_config=hyperliquid_config,
-                secrets=secrets_with_none,
+                exchange_config=hyperliquid_exchange_config,
+                exchange_secrets=hyperliquid_exchange_secrets,
             )
 
     @pytest.mark.asyncio
@@ -241,7 +246,9 @@ class TestHyperliquidAPIWebSocketIntegration:
 
     @pytest.fixture
     def hl_api(
-        self, hyperliquid_config: dict[str, Any], hyperliquid_secrets: dict[str, str]
+        self,
+        hyperliquid_exchange_config: ExchangeSpecificConfig,
+        hyperliquid_exchange_secrets: ExchangeSecrets,
     ) -> HyperliquidAPI:
         """Create HyperliquidAPI instance with real router for integration tests."""
         with (
@@ -257,14 +264,9 @@ class TestHyperliquidAPIWebSocketIntegration:
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidTradingService"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidMarketDataService"),
         ):
-            # Convert secrets to the expected type
-            secrets_with_none: dict[str, str | None] = {
-                k: v for k, v in hyperliquid_secrets.items()
-            }
-
             return HyperliquidAPI(
-                api_config=hyperliquid_config,
-                secrets=secrets_with_none,
+                exchange_config=hyperliquid_exchange_config,
+                exchange_secrets=hyperliquid_exchange_secrets,
             )
 
     def test_router_initialization(self, hl_api: HyperliquidAPI) -> None:
@@ -332,7 +334,9 @@ class TestHyperliquidAPIWebSocketEdgeCases:
 
     @pytest.fixture
     def hl_api_edge_case(
-        self, hyperliquid_config: dict[str, Any], hyperliquid_secrets: dict[str, str]
+        self,
+        hyperliquid_exchange_config: ExchangeSpecificConfig,
+        hyperliquid_exchange_secrets: ExchangeSecrets,
     ) -> HyperliquidAPI:
         """Create HyperliquidAPI instance for edge case testing."""
         with (
@@ -348,14 +352,9 @@ class TestHyperliquidAPIWebSocketEdgeCases:
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidTradingService"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidMarketDataService"),
         ):
-            # Convert secrets to the expected type
-            secrets_with_none: dict[str, str | None] = {
-                k: v for k, v in hyperliquid_secrets.items()
-            }
-
             return HyperliquidAPI(
-                api_config=hyperliquid_config,
-                secrets=secrets_with_none,
+                exchange_config=hyperliquid_exchange_config,
+                exchange_secrets=hyperliquid_exchange_secrets,
             )
 
     def test_subscription_payload_empty_topic(self, hl_api_edge_case: HyperliquidAPI) -> None:
@@ -635,14 +634,16 @@ class TestHyperliquidAPIWebSocketEdgeCases:
 
     @pytest.mark.asyncio
     async def test_subscription_edge_case_wallet_address_none(
-        self, hyperliquid_config: dict[str, Any]
+        self, hyperliquid_exchange_config: ExchangeSpecificConfig
     ) -> None:
         """Test subscription when wallet address is None."""
-        # Create API with None wallet address
-        secrets_with_none_wallet: dict[str, str | None] = {
-            "wallet_address": None,
-            "private_key": "0x" + "0" * 64,
-        }
+        # Create API with None-like secrets
+        secrets_with_none_wallet = ExchangeSecrets(
+            api_key=SecretStr(""),
+            api_secret=SecretStr(""),
+            private_key=SecretStr("0x" + "0" * 64),
+            passphrase=None,
+        )
 
         with (
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidEip712Authenticator"),
@@ -658,8 +659,8 @@ class TestHyperliquidAPIWebSocketEdgeCases:
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidMarketDataService"),
         ):
             api = HyperliquidAPI(
-                api_config=hyperliquid_config,
-                secrets=secrets_with_none_wallet,
+                exchange_config=hyperliquid_exchange_config,
+                exchange_secrets=secrets_with_none_wallet,
             )
 
             # Test userEvents subscription with None wallet address

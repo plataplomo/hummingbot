@@ -11,28 +11,32 @@ from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from pydantic import AnyUrl, HttpUrl, SecretStr
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.backpack.bp_ws_message_router import BackpackWsMessageRouter
+from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.secrets_models import ExchangeSecrets
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 @pytest.fixture
-def mock_api_config() -> dict[str, Any]:
-    """Mock API configuration."""
-    return {
-        "base_url": "https://api.backpack.exchange",
-        "timeout": 30,
-        "ws_endpoint": "wss://ws.backpack.exchange",
-    }
+def mock_exchange_config() -> ExchangeSpecificConfig:
+    """Mock ExchangeSpecificConfig."""
+    return ExchangeSpecificConfig(
+        exchange_name=ExchangeName.BACKPACK,
+        api_base_url=HttpUrl("https://api.backpack.exchange"),
+        ws_url=AnyUrl("wss://ws.backpack.exchange"),
+        rate_limit_per_minute=120,
+        symbols={"SOL_USDC": "SOL_USDC", "BTC_USDC": "BTC_USDC"},
+        request_timeout_seconds=30.0,
+    )
 
 
 @pytest.fixture
-def mock_secrets() -> dict[str, str | None]:
-    """Mock secrets configuration."""
-    return {
-        "BACKPACK_API_KEY": "test_key",
-        "BACKPACK_API_SECRET": "test_secret",
-    }
+def mock_exchange_secrets() -> ExchangeSecrets:
+    """Mock ExchangeSecrets configuration."""
+    return ExchangeSecrets(api_key=SecretStr("test_key"), api_secret=SecretStr("test_secret"))
 
 
 @pytest.fixture
@@ -48,14 +52,18 @@ def mock_bp_ws_router() -> Mock:
 
 @pytest.fixture
 def bp_api_with_mocked_router(
-    mock_api_config: dict[str, Any], mock_secrets: dict[str, str | None], mock_bp_ws_router: Mock
+    mock_exchange_config: ExchangeSpecificConfig,
+    mock_exchange_secrets: ExchangeSecrets,
+    mock_bp_ws_router: Mock,
 ) -> BackpackAPI:
     """Create BackpackAPI instance with mocked router and other dependencies."""
     with patch("cyberdelta.apis.backpack.bp_api.BackpackHmacAuthenticator"):
         with patch("cyberdelta.apis.backpack.bp_api.BackpackErrorMapper"):
             with patch("cyberdelta.apis.backpack.bp_api.BackpackResponseHandler"):
                 with patch("cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder"):
-                    api = BackpackAPI(api_config=mock_api_config, secrets=mock_secrets)
+                    api = BackpackAPI(
+                        exchange_config=mock_exchange_config, exchange_secrets=mock_exchange_secrets
+                    )
                     # Use object.__setattr__ to bypass protection for testing
                     object.__setattr__(api, "_bp_ws_router", mock_bp_ws_router)
                     return api
@@ -143,14 +151,17 @@ class TestBackpackAPIWebSocketLifecycle:
 
     @pytest.fixture
     def bp_api(
-        self, mock_api_config: dict[str, Any], mock_secrets: dict[str, str | None]
+        self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ExchangeSecrets
     ) -> BackpackAPI:
         """Create BackpackAPI instance with mocked dependencies for lifecycle tests."""
         with patch("cyberdelta.apis.backpack.bp_api.BackpackHmacAuthenticator"):
             with patch("cyberdelta.apis.backpack.bp_api.BackpackErrorMapper"):
                 with patch("cyberdelta.apis.backpack.bp_api.BackpackResponseHandler"):
                     with patch("cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder"):
-                        return BackpackAPI(api_config=mock_api_config, secrets=mock_secrets)
+                        return BackpackAPI(
+                            exchange_config=mock_exchange_config,
+                            exchange_secrets=mock_exchange_secrets,
+                        )
 
     @pytest.mark.asyncio
     async def test_subscribe_adds_handler_to_handlers_dict(self, bp_api: BackpackAPI) -> None:
@@ -205,14 +216,17 @@ class TestBackpackAPIWebSocketIntegration:
 
     @pytest.fixture
     def bp_api(
-        self, mock_api_config: dict[str, Any], mock_secrets: dict[str, str | None]
+        self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ExchangeSecrets
     ) -> BackpackAPI:
         """Create BackpackAPI instance with real router for integration tests."""
         with patch("cyberdelta.apis.backpack.bp_api.BackpackHmacAuthenticator"):
             with patch("cyberdelta.apis.backpack.bp_api.BackpackErrorMapper"):
                 with patch("cyberdelta.apis.backpack.bp_api.BackpackResponseHandler"):
                     with patch("cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder"):
-                        return BackpackAPI(api_config=mock_api_config, secrets=mock_secrets)
+                        return BackpackAPI(
+                            exchange_config=mock_exchange_config,
+                            exchange_secrets=mock_exchange_secrets,
+                        )
 
     def test_router_initialization(self, bp_api: BackpackAPI) -> None:
         """Test that the router is properly initialized."""
@@ -261,14 +275,17 @@ class TestBackpackAPIWebSocketEdgeCases:
 
     @pytest.fixture
     def bp_api_edge_case(
-        self, mock_api_config: dict[str, Any], mock_secrets: dict[str, str | None]
+        self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ExchangeSecrets
     ) -> BackpackAPI:
         """Create BackpackAPI instance for edge case testing."""
         with patch("cyberdelta.apis.backpack.bp_api.BackpackHmacAuthenticator"):
             with patch("cyberdelta.apis.backpack.bp_api.BackpackErrorMapper"):
                 with patch("cyberdelta.apis.backpack.bp_api.BackpackResponseHandler"):
                     with patch("cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder"):
-                        return BackpackAPI(api_config=mock_api_config, secrets=mock_secrets)
+                        return BackpackAPI(
+                            exchange_config=mock_exchange_config,
+                            exchange_secrets=mock_exchange_secrets,
+                        )
 
     def test_subscription_payload_empty_topic(self, bp_api_edge_case: BackpackAPI) -> None:
         """Test subscription payload construction with empty topic."""

@@ -5,14 +5,16 @@ Tests all public methods, edge cases, error scenarios, and WebSocket functionali
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import AnyUrl, HttpUrl, SecretStr
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.secrets_models import ExchangeSecrets
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -27,50 +29,48 @@ from cyberdelta.core.models import (
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market import Candle, OrderBook
 from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 class TestBackpackAPIPublicBehavior:
     """Test suite for BackpackAPI focusing on public API behavior and outcomes."""
 
     @pytest.fixture
-    def api_config(self) -> dict[str, Any]:
-        """Mock API configuration."""
-        return {
-            "base_url": "https://api.backpack.exchange",
-            "timeout": 30,
-            "request_weight_limit": 1000,
-            "request_weight_window": 60,
-            "ws_endpoint": "wss://ws.backpack.exchange",
-        }
+    def exchange_config(self) -> ExchangeSpecificConfig:
+        """Mock ExchangeSpecificConfig for testing."""
+        return ExchangeSpecificConfig(
+            exchange_name=ExchangeName.BACKPACK,
+            api_base_url=HttpUrl("https://api.backpack.exchange"),
+            ws_url=AnyUrl("wss://ws.backpack.exchange"),
+            rate_limit_per_minute=120,
+            symbols={"SOL_USDC": "SOL_USDC", "BTC_USDC": "BTC_USDC"},
+            request_timeout_seconds=30.0,
+        )
 
     @pytest.fixture
-    def valid_secrets(self) -> dict[str, str | None]:
-        """Mock valid secrets configuration."""
-        return {
-            "BACKPACK_API_KEY": "test_api_key",
-            "BACKPACK_API_SECRET": "test_api_secret",
-        }
+    def valid_secrets(self) -> ExchangeSecrets:
+        """Mock valid ExchangeSecrets configuration."""
+        return ExchangeSecrets(
+            api_key=SecretStr("test_api_key"), api_secret=SecretStr("test_api_secret")
+        )
 
     @pytest.fixture
-    def invalid_secrets(self) -> dict[str, str | None]:
+    def invalid_secrets(self) -> ExchangeSecrets:
         """Mock invalid/missing secrets configuration."""
-        return {
-            "BACKPACK_API_KEY": None,
-            "BACKPACK_API_SECRET": None,
-        }
+        return ExchangeSecrets(api_key=SecretStr(""), api_secret=SecretStr(""))
 
     @pytest.fixture
     def backpack_api(
-        self, api_config: dict[str, Any], valid_secrets: dict[str, str | None]
+        self, exchange_config: ExchangeSpecificConfig, valid_secrets: ExchangeSecrets
     ) -> BackpackAPI:
         """Create BackpackAPI instance with valid configuration."""
-        return BackpackAPI(api_config=api_config, secrets=valid_secrets)
+        return BackpackAPI(exchange_config=exchange_config, exchange_secrets=valid_secrets)
 
     def test_init_with_valid_configuration(
-        self, api_config: dict[str, Any], valid_secrets: dict[str, str | None]
+        self, exchange_config: ExchangeSpecificConfig, valid_secrets: ExchangeSecrets
     ) -> None:
         """Test successful initialization with valid configuration."""
-        api = BackpackAPI(api_config=api_config, secrets=valid_secrets)
+        api = BackpackAPI(exchange_config=exchange_config, exchange_secrets=valid_secrets)
 
         # Verify that services are properly initialized
         assert api.market_data_service is not None
@@ -78,20 +78,20 @@ class TestBackpackAPIPublicBehavior:
         assert api.trading_service is not None
 
     def test_init_logs_warning_with_missing_secrets(
-        self, api_config: dict[str, Any], invalid_secrets: dict[str, str | None]
+        self, exchange_config: ExchangeSpecificConfig, invalid_secrets: ExchangeSecrets
     ) -> None:
         """Test that initialization logs warning when secrets are missing."""
         with patch("cyberdelta.apis.backpack.bp_api_components_factory.logger") as mock_logger:
-            BackpackAPI(api_config=api_config, secrets=invalid_secrets)
+            BackpackAPI(exchange_config=exchange_config, exchange_secrets=invalid_secrets)
             # Should log warning about missing secrets
             mock_logger.warning.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_authentication_required_operations_fail_without_secrets(
-        self, api_config: dict[str, Any], invalid_secrets: dict[str, str | None]
+        self, exchange_config: ExchangeSpecificConfig, invalid_secrets: ExchangeSecrets
     ) -> None:
         """Test that operations requiring authentication fail appropriately without secrets."""
-        api = BackpackAPI(api_config=api_config, secrets=invalid_secrets)
+        api = BackpackAPI(exchange_config=exchange_config, exchange_secrets=invalid_secrets)
 
         # Mock the account service to simulate authentication requirement
         with patch.object(

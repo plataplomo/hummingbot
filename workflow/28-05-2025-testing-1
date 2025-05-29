@@ -1,0 +1,130 @@
+
+# TASK: Ensure Unit Tests for API Layer Pass After Pydantic Configuration Refactor
+
+## 1. Goal
+Thoroughly review and update all unit tests within the `tests/unit/apis/` directory to align with the recent Pydantic configuration model refactoring in the `cyberdelta/apis/` layer. The primary objective is to make all existing unit tests pass (`pytest` runs green) without altering the core business logic of the `cyberdelta/apis/` modules or the Pydantic configuration models themselves.
+
+## 2. Context: Recent Refactoring
+The `cyberdelta/apis/` layer, specifically `BackpackAPI`, `HyperliquidAPI`, their component factories (`BackpackAPIComponentsFactory`, `HyperliquidAPIComponentsFactory`), and `BackpackRequestBuilder`, has undergone a significant refactoring.
+
+**Key Changes That Impact Tests:**
+1.  **Constructor Signatures:** These classes no longer accept generic `dict`s for `api_config` and `secrets`. They now strictly require instances of Pydantic models:
+    *   `exchange_config: ExchangeSpecificConfig` (from `cyberdelta.config.config_models`)
+    *   `exchange_secrets: ExchangeSecrets` (the sub-model from `cyberdelta.config.secrets_models`)
+    *   `HyperliquidAPIComponentsFactory` additionally requires `chain_id: int`.
+2.  **`ExchangeSpecificConfig` Enhancements:** This model now includes new optional fields for HTTP client settings (e.g., `request_timeout_seconds`), WebSocket manager settings (e.g., `ws_ping_interval_seconds`), and `chain_id`.
+3.  **`ExchangeAPI` Superclass Initialization:** The `config` and `secrets` dictionaries passed to `super().__init__` from `BackpackAPI` and `HyperliquidAPI` have changed structure to accommodate the new settings from `ExchangeSpecificConfig` and to pass flattened secret values.
+4.  **`HttpClientConfig` and `WebSocketManagerConfig` Instantiation:** Within `ExchangeAPI.__init__`, these sub-configurations are now created by prioritizing values from the `ExchangeSpecificConfig` passed via the `config` dict, falling back to Pydantic field defaults if a specific setting is not provided by the exchange's config.
+5.  **Canonical Exchange Names:** `ExchangeSpecificConfig` now includes an `exchange_name: ExchangeName` field.
+
+**Current State:** Before this refactoring, all unit tests in `tests/unit/apis/` were passing. The refactoring of the `cyberdelta/apis/` code is complete. The Pydantic configuration models in `cyberdelta/config/` are considered stable and **MUST NOT BE EDITED** by you.
+
+## 3. Your Task
+Your task is to identify all failing tests in `tests/unit/apis/` due to these refactoring changes and update them so they pass. This primarily involves:
+    - Updating the instantiation of the affected API client classes and their components within the test setup methods (`setUp`, fixtures, etc.) to use correctly populated Pydantic model instances (`ExchangeSpecificConfig`, `ExchangeSecrets`).
+    - Ensuring that any mock objects or assertions related to configuration or secrets reflect the new Pydantic model-based approach and the updated structures passed to `ExchangeAPI`.
+
+## 4. Project Rules Reminder
+-   **`RULE-CONFIG-INTEGRITY-V3`**: Absolutely NO modification of Pydantic models in `cyberdelta/config/`. These are the source of truth for configuration structure.
+-   **`RULE-NO-SILENCING-V4`**: Minimize `cast` and avoid `# type: ignore` in test code. Justify any usage.
+-   **`RULE-STATIC-ANALYSIS-V3`**: All modified test files must pass `mypy --strict` and `ruff`.
+-   **Focus on Test Fixes**: Do NOT change the business logic in `cyberdelta/apis/`. The goal is to make tests compatible with the *existing, refactored* API layer code.
+
+## 5. Detailed Instructions for Test Updates
+
+### 5.1. Setup and Imports
+   - For each affected test file, ensure necessary imports for Pydantic models:
+     ```python
+     from pydantic import HttpUrl, AnyUrl, SecretStr
+     from cyberdelta.config.config_models import ExchangeSpecificConfig
+     from cyberdelta.config.secrets_models import ExchangeSecrets # Sub-model for exchange-specific secrets
+     from cyberdelta.apis.exchange_names import ExchangeName
+     # Import other necessary Pydantic models like HttpClientConfig, RateLimiterConfig if tests mock them.
+     ```
+
+### 5.2. Instantiate Pydantic Models in Tests
+   - **Create Mock `ExchangeSpecificConfig`:**
+     - In test setups, create instances of `ExchangeSpecificConfig` with valid, minimal data necessary for the test.
+     - Populate `exchange_name`, `api_base_url`, `ws_url`, `rate_limit_per_minute`, and `symbols`.
+     - For Hyperliquid, `chain_id` is mandatory if the exchange is enabled.
+     - For new optional fields (e.g., `request_timeout_seconds`), only populate them if the test specifically relies on or verifies these overridden values. Otherwise, let the system use defaults.
+     - **Example:**
+       ```python
+       # For a Backpack test
+       self.mock_bp_exchange_config = ExchangeSpecificConfig(
+           exchange_name=ExchangeName.BACKPACK,
+           api_base_url=HttpUrl("https://test-bp-api.example.com"),
+           ws_url=AnyUrl("wss://test-bp-ws.example.com"),
+           rate_limit_per_minute=120,
+           symbols={"SOL_USDC": "SOL_USDC"}
+           # request_timeout_seconds=10.0 # Only if test specifically needs to override this
+       )
+       # For a Hyperliquid test
+       self.mock_hl_exchange_config = ExchangeSpecificConfig(
+           exchange_name=ExchangeName.HYPERLIQUID,
+           api_base_url=HttpUrl("https://test-hl-api.example.com"),
+           ws_url=AnyUrl("wss://test-hl-ws.example.com"),
+           rate_limit_per_minute=180,
+           symbols={"ETH": "ETH"},
+           chain_id=1337 # Mandatory for enabled Hyperliquid
+       )
+       ```
+   - **Create Mock `ExchangeSecrets`:**
+     - Instantiate `ExchangeSecrets` (the sub-model, not `SecretsConfig`).
+     - **Example:**
+       ```python
+       # For Backpack
+       self.mock_bp_exchange_secrets = ExchangeSecrets(
+           api_key=SecretStr("test_bp_key"),
+           api_secret=SecretStr("test_bp_secret")
+       )
+       # For Hyperliquid
+       self.mock_hl_exchange_secrets = ExchangeSecrets(
+           api_key=SecretStr(""), # Often unused for HL direct EIP-712
+           api_secret=SecretStr(""),
+           private_key=SecretStr("0x" + "a" * 64) # Test private key
+       )
+       ```
+
+### 5.3. Update Class Instantiations
+   - Find all instantiations of `BackpackAPI`, `HyperliquidAPI`, `BackpackAPIComponentsFactory`, `HyperliquidAPIComponentsFactory`, `BackpackRequestBuilder`.
+   - Replace `api_config=old_dict, secrets=old_secrets_dict` with `exchange_config=self.mock_xx_exchange_config, exchange_secrets=self.mock_xx_exchange_secrets`.
+   - For `HyperliquidAPIComponentsFactory`, ensure the `chain_id` argument is correctly passed, sourcing it from `self.mock_hl_exchange_config.chain_id`.
+
+### 5.4. Verify Arguments Passed to `super().__init__` in `ExchangeAPI`
+   - Some tests might mock `ExchangeAPI.__init__` or check the arguments it receives.
+   - The `config` dictionary passed to `super()` from `BackpackAPI` and `HyperliquidAPI` now has a specific structure (as detailed in the refactoring prompt for Phase 2, section 4.1.1 and 4.4.1). It includes:
+     - `exchange_name` (e.g., "backpack")
+     - `rest_endpoint` (string)
+     - `ws_endpoint` (string or None)
+     - A nested `rate_limits` dictionary (e.g., `{"default_rate": ..., "default_bucket_size": ...}`).
+     - Optional HTTP/WS parameters (e.g., `request_timeout`, `ws_ping_interval`) if they were provided in `ExchangeSpecificConfig` (otherwise these keys will be absent, and `ExchangeAPI` will allow sub-component Pydantic defaults to apply).
+   - The `secrets` dictionary passed to `super()` is now a flat dictionary of revealed secret strings (e.g., `{"BACKPACK_API_KEY": "...", "private_key": "..."}`).
+   - Update any assertions or mock expectations for these arguments.
+
+### 5.5. Iterative Testing
+   - Run `pytest tests/unit/apis/` frequently.
+   - Address failures one by one. Use `pytest -k test_name` to focus on specific failing tests.
+   - Use `pytest -vv` for verbose output if needed.
+   - Pay close attention to `TypeError` related to constructor arguments and `AttributeError` if Pydantic model fields are accessed incorrectly.
+
+## 6. What NOT to Do
+   - **Do NOT change the production code in `cyberdelta/apis/` or `cyberdelta/config/`.** Your task is to fix the tests to match the refactored code.
+   - **Do NOT change the logic of the tests.** The tests should still verify the same functionalities, only the setup/instantiation part should change.
+
+## 7. Files to Modify
+   - All relevant `test_*.py` files within `tests/unit/apis/`. This will likely include:
+     - `tests/unit/apis/backpack/test_bp_api.py`
+     - `tests/unit/apis/backpack/test_bp_api_components_factory.py`
+     - `tests/unit/apis/backpack/test_bp_request_builder.py`
+     - `tests/unit/apis/hyperliquid/test_hl_api.py`
+     - `tests/unit/apis/hyperliquid/test_hl_api_components_factory.py`
+     - Possibly tests for services if their instantiation in tests involved direct API client/factory creation with old config dicts.
+     - Tests for `cyberdelta/apis/base/test_exchange_api.py` might need adjustments if they instantiate concrete API classes or mock the `config`/`secrets` dicts.
+
+## 8. Reporting
+   - Upon completion, confirm that `pytest tests/unit/apis/` runs green.
+   - List all test files that were modified.
+   - Report any `cast` usage with justifications.
+   - Report any tests that were particularly challenging to update or any insights gained about the refactoring's impact.
+   - Output the changed test files.

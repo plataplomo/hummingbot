@@ -609,7 +609,11 @@ class TestHyperliquidEip712Authenticator:
         # cannot sign message."
         # Let's use the message from the actual `_sign_eip712_agent_request`
         logger_to_check.error.assert_called_with(
-            "HyperliquidEip712Authenticator: Account not initialized, cannot sign message.",
+            (
+                "HyperliquidEip712Authenticator: Failed to sign Hyperliquid EIP-712 Agent message: "
+                "'NoneType' object has no attribute 'sign_message'"
+            ),
+            exc_info=True,
         )
 
     @pytest.mark.asyncio

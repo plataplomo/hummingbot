@@ -10,10 +10,13 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import AnyUrl, HttpUrl, SecretStr
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.secrets_models import ExchangeSecrets
 from cyberdelta.core.models import (
     DerivativePosition,
     MarginAccountSummary,
@@ -22,6 +25,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
+from cyberdelta.enums.exchange_names import ExchangeName
 
 # --- Dependency Injection Test Fixtures for HyperliquidAPI ---
 
@@ -165,8 +169,6 @@ def mock_hl_market_data_service() -> MagicMock:
 
 @pytest.fixture
 def hl_api_with_di(
-    hyperliquid_config: dict[str, Any],
-    hyperliquid_secrets: dict[str, str],
     mock_hl_authenticator: MagicMock,
     mock_hl_error_mapper: MagicMock,
     mock_hl_request_builder: MagicMock,
@@ -189,20 +191,35 @@ def hl_api_with_di(
 
     def _create_api(
         # Allow overriding specific dependencies if needed
-        config: dict[str, Any] | None = None,
-        secrets: dict[str, str | None] | None = None,
+        config: ExchangeSpecificConfig | None = None,
+        secrets: ExchangeSecrets | None = None,
         **overrides: MagicMock,
     ) -> HyperliquidAPI:
         """Create HyperliquidAPI with injected dependencies."""
-        actual_config = config or hyperliquid_config
-        # Convert dict[str, str] to dict[str, str | None] for API compatibility
-        actual_secrets: dict[str, str | None] = secrets or {
-            k: v for k, v in hyperliquid_secrets.items()
-        }
+        # Create default Pydantic models if not provided
+        if config is None:
+            config = ExchangeSpecificConfig(
+                exchange_name=ExchangeName.HYPERLIQUID,
+                api_base_url=HttpUrl("https://api.hyperliquid.xyz"),
+                ws_url=AnyUrl("wss://api.hyperliquid.xyz/ws"),
+                rate_limit_per_minute=300,
+                symbols={"ETH": "ETH", "BTC": "BTC"},
+                chain_id=1337,
+                request_timeout_seconds=15.0,
+                ws_max_reconnect_attempts=5,
+            )
+
+        if secrets is None:
+            secrets = ExchangeSecrets(
+                api_key=SecretStr(""),
+                api_secret=SecretStr(""),
+                private_key=SecretStr("0x" + "1" * 64),
+                passphrase=None,
+            )
 
         return HyperliquidAPI(
-            api_config=actual_config,
-            secrets=actual_secrets,
+            exchange_config=config,
+            exchange_secrets=secrets,
             authenticator=overrides.get("authenticator", mock_hl_authenticator),
             error_mapper=overrides.get("error_mapper", mock_hl_error_mapper),
             request_builder=overrides.get("request_builder", mock_hl_request_builder),
@@ -245,10 +262,14 @@ class TestHyperliquidAPIInitialization:
         self, hl_api_with_di: Callable[..., HyperliquidAPI]
     ) -> None:
         """Test API creation with custom configuration."""
-        custom_config = {
-            "base_url": "https://custom.hyperliquid.api",
-            "ws_endpoint": "wss://custom.hyperliquid.ws",
-        }
+        custom_config = ExchangeSpecificConfig(
+            exchange_name=ExchangeName.HYPERLIQUID,
+            api_base_url=HttpUrl("https://custom.hyperliquid.api"),
+            ws_url=AnyUrl("wss://custom.hyperliquid.ws"),
+            rate_limit_per_minute=300,
+            symbols={"ETH": "ETH"},
+            chain_id=1337,
+        )
 
         api = hl_api_with_di(config=custom_config)
         assert api is not None
@@ -868,7 +889,7 @@ class TestHyperliquidAPIErrorHandling:
         mock_hl_account_service: MagicMock,
         mock_hl_market_data_service: MagicMock,
     ) -> None:
-        """Test that different services can raise different error types and all are propagated correctly."""
+        """Test different services raise different error types and all are propagated correctly."""
         api = hl_api_with_di()
 
         # Configure different services to raise different error types

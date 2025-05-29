@@ -10,13 +10,17 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import SecretStr
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.secrets_models import ExchangeSecrets
 from cyberdelta.core.models import DerivativePosition, MarginAccountSummary, SpotBalance, Trade
 from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
+from cyberdelta.enums.exchange_names import ExchangeName
 
 # Constants for testing
 TEST_API_KEY = "test_api_key_123"
@@ -129,8 +133,6 @@ def mock_bp_ws_manager() -> MagicMock:
 
 @pytest.fixture
 def bp_api_with_di(
-    backpack_config: dict[str, Any],
-    backpack_secrets: dict[str, str | None],
     mock_bp_account_service: MagicMock,
     mock_bp_trading_service: MagicMock,
     mock_bp_market_data_service: MagicMock,
@@ -143,16 +145,30 @@ def bp_api_with_di(
 
     def _create_api(
         # Allow overriding specific dependencies if needed
-        config: dict[str, Any] | None = None,
-        secrets: dict[str, str | None] | None = None,
+        config: ExchangeSpecificConfig | None = None,
+        secrets: ExchangeSecrets | None = None,
         **overrides: MagicMock,
     ) -> BackpackAPI:
-        # Use provided config/secrets or defaults
-        actual_config = config if config is not None else backpack_config
-        actual_secrets = secrets if secrets is not None else backpack_secrets
+        # Create default Pydantic models if not provided
+        if config is None:
+            config = ExchangeSpecificConfig(
+                exchange_name=ExchangeName.BACKPACK,
+                api_base_url=HttpUrl("https://api.backpack.exchange"),
+                ws_url=AnyUrl("wss://ws.backpack.exchange"),
+                rate_limit_per_minute=120,
+                symbols={"SOL_USDC": "SOL_USDC", "BTC_USDC": "BTC_USDC"},
+                request_timeout_seconds=10.0,
+                ws_ping_interval_seconds=30.0,
+            )
+
+        if secrets is None:
+            secrets = ExchangeSecrets(
+                api_key=SecretStr("test_backpack_api_key_value"),
+                api_secret=SecretStr("test_backpack_api_secret_value"),
+            )
 
         # Create the API instance
-        api = BackpackAPI(actual_config, actual_secrets)
+        api = BackpackAPI(exchange_config=config, exchange_secrets=secrets)
 
         # Inject service dependencies (these are public attributes)
         api.account_service = overrides.get("account_service", mock_bp_account_service)
@@ -182,10 +198,13 @@ class TestBackpackAPIInitialization:
         self, bp_api_with_di: Callable[..., BackpackAPI]
     ) -> None:
         """Test API creation with custom configuration."""
-        custom_config = {
-            "base_url": "https://custom.backpack.api",
-            "ws_endpoint": "wss://custom.backpack.ws",
-        }
+        custom_config = ExchangeSpecificConfig(
+            exchange_name=ExchangeName.BACKPACK,
+            api_base_url=HttpUrl("https://custom.backpack.api"),
+            ws_url=AnyUrl("wss://custom.backpack.ws"),
+            rate_limit_per_minute=120,
+            symbols={"SOL_USDC": "SOL_USDC"},
+        )
 
         api = bp_api_with_di(config=custom_config)
         assert api is not None
