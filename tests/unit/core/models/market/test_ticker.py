@@ -58,11 +58,11 @@ class TestTicker:
 
         ticker = Ticker(
             symbol=VALID_SYMBOL,
-            timestamp=ms_timestamp,  # type: ignore[arg-type] # Test int parsing
-            price="50000.5",  # type: ignore[arg-type] # Test str parsing
-            bid=50000.0,  # type: ignore[arg-type] # Test float parsing
-            ask=50001,  # type: ignore[arg-type] # Test int parsing
-            volume="1234.56",  # type: ignore[arg-type] # Test str parsing
+            timestamp=ms_timestamp,  # Test int parsing
+            price="50000.5",  # Test str parsing
+            bid=50000.0,  # Test float parsing
+            ask=50001,  # Test int parsing
+            volume="1234.56",  # Test str parsing
         )
         # Compare timestamp to the value expected after ms conversion precision loss
         assert ticker.timestamp == expected_dt_from_ms
@@ -95,14 +95,14 @@ class TestTicker:
         """Test timestamp validation (required, parsing, None handling)."""
         # Test None raises error
         with pytest.raises(ValueError, match="timestamp must not be None"):
-            Ticker(symbol=VALID_SYMBOL, timestamp=None)  # type: ignore[arg-type]
+            Ticker(symbol=VALID_SYMBOL, timestamp=None)
 
         # Test invalid format raises error (Pydantic wraps underlying errors)
         with pytest.raises(
             ValidationError,
             match=r"timestamp.*Cannot parse string .* as ISO datetime .* or as numeric timestamp",
         ):
-            Ticker(symbol=VALID_SYMBOL, timestamp="invalid-date-string")  # type: ignore[arg-type]
+            Ticker(symbol=VALID_SYMBOL, timestamp="invalid-date-string")
 
         # Test valid parsing (already covered in test_creation_with_parsable_data)
         ms_timestamp = int(NOW.timestamp() * 1000)
@@ -110,9 +110,9 @@ class TestTicker:
         expected_dt_from_ms = datetime.fromtimestamp(ms_timestamp / 1000, tz=UTC)
 
         # Ignore needed for passing int timestamp to validator
-        assert Ticker(symbol=VALID_SYMBOL, timestamp=ms_timestamp).timestamp == expected_dt_from_ms  # type: ignore[arg-type]
+        assert Ticker(symbol=VALID_SYMBOL, timestamp=ms_timestamp).timestamp == expected_dt_from_ms
         # Ignore needed for passing str timestamp to validator
-        assert Ticker(symbol=VALID_SYMBOL, timestamp=iso_timestamp).timestamp == NOW  # type: ignore[arg-type]
+        assert Ticker(symbol=VALID_SYMBOL, timestamp=iso_timestamp).timestamp == NOW
         assert Ticker(symbol=VALID_SYMBOL, timestamp=NOW).timestamp == NOW
 
     @pytest.mark.parametrize("field_name", ["price", "bid", "ask", "volume"])

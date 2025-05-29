@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
 import pytest
+from pydantic import AnyUrl, HttpUrl
 
 from cyberdelta.config.config_models import (
     AppSettings,
@@ -41,6 +42,7 @@ from cyberdelta.core.models import (
     Ticker,
     TimeInForce,
 )
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem  # Import CB system
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
@@ -246,16 +248,18 @@ def mock_config() -> AppSettings:
         ),
         exchanges={
             "hyperliquid": ExchangeSpecificConfig(
+                exchange_name=ExchangeName.HYPERLIQUID,
                 enabled=True,
-                api_base_url="https://api.hyperliquid.xyz",  # type: ignore[arg-type]
-                ws_url="wss://api.hyperliquid.xyz/ws",  # type: ignore[arg-type]
+                api_base_url=HttpUrl("https://api.hyperliquid.xyz"),
+                ws_url=AnyUrl("wss://api.hyperliquid.xyz/ws"),
                 rate_limit_per_minute=120,
                 symbols={"BTC": "BTC", "ETH": "ETH"},
             ),
             "backpack": ExchangeSpecificConfig(
+                exchange_name=ExchangeName.BACKPACK,
                 enabled=True,
-                api_base_url="https://api.backpack.exchange",  # type: ignore[arg-type]
-                ws_url="wss://ws.backpack.exchange",  # type: ignore[arg-type]
+                api_base_url=HttpUrl("https://api.backpack.exchange"),
+                ws_url=AnyUrl("wss://ws.backpack.exchange"),
                 rate_limit_per_minute=120,
                 symbols={"BTC": "BTC_USDC", "ETH": "ETH_USDC"},
             ),
@@ -276,7 +280,7 @@ def mock_config() -> AppSettings:
         ),
         risk=RiskSettings(
             **{
-                "global": GlobalRiskSettings(  # type: ignore[misc]
+                "global": GlobalRiskSettings(
                     max_position_usd=Decimal("200.0"),
                     max_total_exposure_usd=Decimal("1000.0"),
                 )

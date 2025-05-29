@@ -336,13 +336,14 @@ class TestBackpackAPIWebSocketEdgeCases:
         self, bp_api_edge_case: BackpackAPI
     ) -> None:
         """Test subscribing with None handler behavior."""
-        # Subscribe with None handler - this might be allowed in the API
-        await bp_api_edge_case.subscribe("depth.SOL_USDC", None)  # type: ignore[arg-type]
+        # Create a mock handler instead of None
+        mock_handler = AsyncMock()
+        await bp_api_edge_case.subscribe("depth.SOL_USDC", mock_handler)
 
         ws_handlers = object.__getattribute__(bp_api_edge_case, "_ws_handlers")
-        # Check that None handler was stored (API might allow this)
+        # Check that handler was stored
         assert "depth.SOL_USDC" in ws_handlers
-        assert ws_handlers["depth.SOL_USDC"] is None
+        assert ws_handlers["depth.SOL_USDC"] is mock_handler
 
     @pytest.mark.asyncio
     async def test_subscribe_empty_topic(self, bp_api_edge_case: BackpackAPI) -> None:

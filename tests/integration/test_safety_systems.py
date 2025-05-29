@@ -476,7 +476,9 @@ async def test_position_reconciler_detects_discrepancy(
         # so no size discrepancy expected.
         if disc.detail.symbol == "BTC-PERP" and disc.detail.discrepancy_type == "size":
             found_unexpected_btc_discrepancy_bp = True
-            logger.error(f"Found unexpected BTC-PERP size discrepancy on mock_bp: {disc.detail}")  # type: ignore[unreachable] # Only logs on unexpected finding (test failure path)
+            logger.error(
+                f"Found unexpected BTC-PERP size discrepancy on mock_bp: {disc.detail}"
+            )  # Only logs on unexpected finding (test failure path)
     assert not found_unexpected_btc_discrepancy_bp, (
         f"Found unexpected BTC-PERP size discrepancy for mock_bp. Details: {discrepancies_bp}"
     )
@@ -533,7 +535,7 @@ async def test_position_reconciler_detects_discrepancy(
             and Decimal(disc.detail.local_value) == mock_position.size
         ):
             found_missing_on_exchange = True
-            break  # type: ignore[unreachable] # Mypy struggles with complex conditional, break is intentional.
+            break  # Mypy struggles with complex conditional, break is intentional.
 
     assert found_missing_on_exchange, (
         "Did not find the expected 'missing_on_exchange' (size) discrepancy"

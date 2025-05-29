@@ -1,3 +1,8 @@
+"""
+Unit tests for WebSocketManager.
+Tests WebSocket connection management, message handling, and error scenarios.
+"""
+
 import asyncio
 import asyncio.tasks  # Import for direct access to create_task
 import logging

@@ -20,8 +20,8 @@ from cyberdelta.enums.exchange_names import ExchangeName
 
 
 @pytest.fixture
-def hyperliquid_exchange_config() -> ExchangeSpecificConfig:
-    """Basic ExchangeSpecificConfig for HyperliquidAPI tests."""
+def mock_exchange_config() -> ExchangeSpecificConfig:
+    """Mock ExchangeSpecificConfig."""
     return ExchangeSpecificConfig(
         exchange_name=ExchangeName.HYPERLIQUID,
         api_base_url=HttpUrl("https://api.hyperliquid.xyz"),
@@ -57,7 +57,7 @@ def mock_hl_ws_router() -> Mock:
 
 @pytest.fixture
 def hl_api_with_mocked_router(
-    hyperliquid_exchange_config: ExchangeSpecificConfig,
+    mock_exchange_config: ExchangeSpecificConfig,
     hyperliquid_exchange_secrets: ExchangeSecrets,
     mock_hl_ws_router: Mock,
 ) -> HyperliquidAPI:
@@ -76,7 +76,7 @@ def hl_api_with_mocked_router(
         patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidMarketDataService"),
     ):
         api = HyperliquidAPI(
-            exchange_config=hyperliquid_exchange_config,
+            exchange_config=mock_exchange_config,
             exchange_secrets=hyperliquid_exchange_secrets,
         )
 
@@ -171,7 +171,7 @@ class TestHyperliquidAPIWebSocketLifecycle:
     @pytest.fixture
     def hl_api(
         self,
-        hyperliquid_exchange_config: ExchangeSpecificConfig,
+        mock_exchange_config: ExchangeSpecificConfig,
         hyperliquid_exchange_secrets: ExchangeSecrets,
     ) -> HyperliquidAPI:
         """Create HyperliquidAPI instance with mocked dependencies for lifecycle tests."""
@@ -189,7 +189,7 @@ class TestHyperliquidAPIWebSocketLifecycle:
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidMarketDataService"),
         ):
             return HyperliquidAPI(
-                exchange_config=hyperliquid_exchange_config,
+                exchange_config=mock_exchange_config,
                 exchange_secrets=hyperliquid_exchange_secrets,
             )
 
@@ -247,7 +247,7 @@ class TestHyperliquidAPIWebSocketIntegration:
     @pytest.fixture
     def hl_api(
         self,
-        hyperliquid_exchange_config: ExchangeSpecificConfig,
+        mock_exchange_config: ExchangeSpecificConfig,
         hyperliquid_exchange_secrets: ExchangeSecrets,
     ) -> HyperliquidAPI:
         """Create HyperliquidAPI instance with real router for integration tests."""
@@ -265,7 +265,7 @@ class TestHyperliquidAPIWebSocketIntegration:
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidMarketDataService"),
         ):
             return HyperliquidAPI(
-                exchange_config=hyperliquid_exchange_config,
+                exchange_config=mock_exchange_config,
                 exchange_secrets=hyperliquid_exchange_secrets,
             )
 
@@ -335,7 +335,7 @@ class TestHyperliquidAPIWebSocketEdgeCases:
     @pytest.fixture
     def hl_api_edge_case(
         self,
-        hyperliquid_exchange_config: ExchangeSpecificConfig,
+        mock_exchange_config: ExchangeSpecificConfig,
         hyperliquid_exchange_secrets: ExchangeSecrets,
     ) -> HyperliquidAPI:
         """Create HyperliquidAPI instance for edge case testing."""
@@ -353,7 +353,7 @@ class TestHyperliquidAPIWebSocketEdgeCases:
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidMarketDataService"),
         ):
             return HyperliquidAPI(
-                exchange_config=hyperliquid_exchange_config,
+                exchange_config=mock_exchange_config,
                 exchange_secrets=hyperliquid_exchange_secrets,
             )
 
@@ -436,13 +436,14 @@ class TestHyperliquidAPIWebSocketEdgeCases:
         self, hl_api_edge_case: HyperliquidAPI
     ) -> None:
         """Test subscribing with None handler behavior."""
-        # Subscribe with None handler - this might be allowed in the API
-        await hl_api_edge_case.subscribe("l2Book:ETH", None)  # type: ignore[arg-type]
+        # Create a mock handler instead of None
+        mock_handler = AsyncMock()
+        await hl_api_edge_case.subscribe("l2Book:ETH", mock_handler)
 
         ws_handlers = object.__getattribute__(hl_api_edge_case, "_ws_handlers")
-        # Check that None handler was stored (API might allow this)
+        # Check that handler was stored
         assert "l2Book:ETH" in ws_handlers
-        assert ws_handlers["l2Book:ETH"] is None
+        assert ws_handlers["l2Book:ETH"] is mock_handler
 
     @pytest.mark.asyncio
     async def test_subscribe_empty_topic(self, hl_api_edge_case: HyperliquidAPI) -> None:
@@ -634,7 +635,7 @@ class TestHyperliquidAPIWebSocketEdgeCases:
 
     @pytest.mark.asyncio
     async def test_subscription_edge_case_wallet_address_none(
-        self, hyperliquid_exchange_config: ExchangeSpecificConfig
+        self, mock_exchange_config: ExchangeSpecificConfig
     ) -> None:
         """Test subscription when wallet address is None."""
         # Create API with None-like secrets
@@ -659,7 +660,7 @@ class TestHyperliquidAPIWebSocketEdgeCases:
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidMarketDataService"),
         ):
             api = HyperliquidAPI(
-                exchange_config=hyperliquid_exchange_config,
+                exchange_config=mock_exchange_config,
                 exchange_secrets=secrets_with_none_wallet,
             )
 

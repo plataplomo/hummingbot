@@ -142,22 +142,22 @@ class TestValidationErrorHandling:
         assert summary_updated_mmr.total_maintenance_margin_required == Decimal("25.0")
 
     def test_direct_validation_cross_maintenance_margin_used_invalid(self) -> None:
-        """Test HyperliquidRawClearinghouseState validation for bad crossMaintenanceMarginUsed."""
-        valid_margin_summary_data = {
-            "accountValue": "100",
-            "totalRawUsd": "100",
-            "totalMarginUsed": "0",
-            "totalNtlPos": "0",
-        }
+        """Test direct validation of crossMaintenanceMarginUsed field."""
+        valid_margin_summary = HyperliquidRawMarginSummary(
+            accountValue="1000",
+            totalRawUsd="500",
+            totalMarginUsed="200",
+            totalNtlPos="0",
+        )
 
         with pytest.raises(ValidationError, match="crossMaintenanceMarginUsed"):
             HyperliquidRawClearinghouseState(
                 assetPositions=[],
-                marginSummary=valid_margin_summary_data,  # type: ignore[arg-type]
+                marginSummary=valid_margin_summary,
                 crossMaintenanceMarginUsed="bad-value",
-                crossMarginSummary=valid_margin_summary_data,  # type: ignore[arg-type]
+                crossMarginSummary=valid_margin_summary,
                 isolatedMaintenanceMarginUsed="0",
-                isolatedMarginSummary=valid_margin_summary_data,  # type: ignore[arg-type]
+                isolatedMarginSummary=valid_margin_summary,
                 withdrawable="100",
             )
 

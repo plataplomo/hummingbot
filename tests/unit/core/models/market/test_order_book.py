@@ -31,7 +31,7 @@ class TestOrderBook:
         # Ignore arg-type for bids/asks because this test specifically verifies that the
         # mode='before' validator correctly handles mixed raw input types (str, float, int, Decimal)
         # before parsing them into the expected list[tuple[Decimal, Decimal]].
-        ob = OrderBook(symbol="BTC-PERP", timestamp=now, bids=bids, asks=asks)  # type: ignore[arg-type]
+        ob = OrderBook(symbol="BTC-PERP", timestamp=now, bids=bids, asks=asks)
         assert ob.bids == expected_bids
         assert ob.asks == expected_asks
 
@@ -85,11 +85,11 @@ class TestOrderBook:
         expected_dt = datetime(2023, 3, 15, 12, 0, 0, tzinfo=UTC)
 
         # Ignore arg-type: Testing the validator's ability to parse int timestamp.
-        ob_int = OrderBook(symbol="T", timestamp=ms_timestamp, bids=[], asks=[])  # type: ignore[arg-type]
+        ob_int = OrderBook(symbol="T", timestamp=ms_timestamp, bids=[], asks=[])
         assert ob_int.timestamp == expected_dt
 
         # Ignore arg-type: Testing the validator's ability to parse ISO string timestamp.
-        ob_iso = OrderBook(symbol="T", timestamp=iso_timestamp, bids=[], asks=[])  # type: ignore[arg-type]
+        ob_iso = OrderBook(symbol="T", timestamp=iso_timestamp, bids=[], asks=[])
         assert ob_iso.timestamp == expected_dt
 
         # From naive datetime
@@ -123,10 +123,10 @@ class TestOrderBook:
         # --- Test Top-Level Structure ---
         with pytest.raises(TypeError, match="bids must be a list"):
             # Ignore arg-type: Intentionally passing wrong type (str) for 'bids' to test validator.
-            OrderBook(symbol="T", timestamp=now, bids="not_a_list", asks=[])  # type: ignore[arg-type]
+            OrderBook(symbol="T", timestamp=now, bids="not_a_list", asks=[])
         with pytest.raises(TypeError, match="asks must be a list"):
             # Ignore arg-type: Intentionally passing wrong type (dict) for 'asks' to test validator.
-            OrderBook(symbol="T", timestamp=now, bids=[], asks={})  # type: ignore[arg-type]
+            OrderBook(symbol="T", timestamp=now, bids=[], asks={})
 
         # --- Test Level Item Structure ---
         with pytest.raises(TypeError, match="must be a list or tuple"):

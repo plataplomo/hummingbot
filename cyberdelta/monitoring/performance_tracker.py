@@ -413,7 +413,7 @@ class PerformanceTracker:
             # The following pd.to_datetime usage may trigger linter warnings due to pandas
             # type stubs
             # These are not actionable and are safe in this context
-            df = pd.DataFrame(index=pd.to_datetime(sorted_timestamps))  # type: ignore[arg-type]
+            df = pd.DataFrame(index=pd.to_datetime(sorted_timestamps))
 
             # Fill with returns for each strategy
             for strategy in target_strategies:
@@ -425,7 +425,7 @@ class PerformanceTracker:
                     # These are not actionable and are safe in this context
                     series = pd.Series(
                         strategy_returns,
-                        index=pd.to_datetime(list(strategy_returns.keys())),  # type: ignore[arg-type]
+                        index=pd.to_datetime(list(strategy_returns.keys())),
                     )
                     df[strategy] = series
 

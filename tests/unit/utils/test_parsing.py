@@ -117,7 +117,7 @@ class TestParseDatetimeUTC:
     def test_invalid_type(self) -> None:
         """Should raise ValueError for unsupported type."""
         with pytest.raises(ValueError, match="Unsupported datetime type"):
-            parse_datetime_utc([])  # type: ignore[arg-type]
+            parse_datetime_utc([])
 
     def test_invalid_string(self) -> None:
         """Should raise ValueError for invalid ISO string."""

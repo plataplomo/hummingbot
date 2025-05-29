@@ -57,9 +57,9 @@ def test_symbol_mapper_init_missing_exchanges_key() -> None:
     # SymbolMapper expects the exchanges dict directly.
     # This test should perhaps test that SymbolMapper raises if passed something other than a dict,
     with pytest.raises(SymbolMappingError, match="Invalid configuration: Expected a dictionary"):
-        SymbolMapper(None)  # type: ignore[arg-type]
+        SymbolMapper(None)
     with pytest.raises(SymbolMappingError, match="Invalid configuration: Expected a dictionary"):
-        SymbolMapper("not_a_dict")  # type: ignore[arg-type]
+        SymbolMapper("not_a_dict")
 
 
 def test_symbol_mapper_init_exchanges_not_dict() -> None:
@@ -68,7 +68,7 @@ def test_symbol_mapper_init_exchanges_not_dict() -> None:
         SymbolMappingError,
         match="Invalid configuration: Expected a dictionary of exchanges, got <class 'list'>",
     ):
-        SymbolMapper(["list", "not", "dict"])  # type: ignore[arg-type]
+        SymbolMapper(["list", "not", "dict"])
 
 
 def test_symbol_mapper_init_skips_invalid_entries(caplog: LogCaptureFixture) -> None:

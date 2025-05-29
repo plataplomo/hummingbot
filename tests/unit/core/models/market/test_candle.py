@@ -68,7 +68,7 @@ class TestCandle:
             "volume": 1000,  # Test int parsing
         }
         # Mypy accepts the dict with raw types, validation happens in Candle init
-        candle = Candle(**data)  # type: ignore[arg-type] # Ignore needed for Pyright/overall call type mismatch
+        candle = Candle(**data)  # Ignore needed for Pyright/overall call type mismatch
         assert candle.open_time == expected_dt_from_ms
         assert candle.open == Decimal("100.0")
         assert candle.high == Decimal("105.0")
