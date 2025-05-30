@@ -8,10 +8,10 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import ValidationError
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
-from cyberdelta.config.config_models import AppSettings
+from cyberdelta.config.config_models import AppSettings, PortfolioTrackerConfig
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import (
     DerivativePosition,
@@ -28,20 +28,10 @@ from cyberdelta.utils.parsing import parse_datetime_utc
 
 logger = get_logger(__name__)
 
-# Default timeout for how long balance/position data is considered fresh
-DEFAULT_DATA_FRESHNESS_SECONDS = 60
-
-# Temporarily define ExchangeId, ExchangeType, Symbol as str TypeAlias to unblock linter
+# Temporarily define ExchangeType, Symbol as str TypeAlias to unblock linter
 # TODO: Find or create the canonical definitions for these types
 type Symbol = str
-type ExchangeId = str
 type ExchangeType = str
-
-
-class PortfolioTrackerConfig(BaseModel):
-    data_freshness_seconds: int = Field(DEFAULT_DATA_FRESHNESS_SECONDS, gt=0)
-    initial_balances: dict[ExchangeId, dict[str, str]] = Field(default_factory=dict)
-    initial_positions: list[DerivativePosition] = Field(default_factory=list)
 
 
 class PortfolioTracker:
@@ -60,6 +50,7 @@ class PortfolioTracker:
     def __init__(
         self,
         app_settings: AppSettings,
+        pt_config: PortfolioTrackerConfig,
         api_clients: dict[str, ExchangeAPI] | None = None,
         exchange_factories: dict[ExchangeType, Callable[..., ExchangeAPI]] | None = None,
         symbol_mapper: SymbolMapper | None = None,  # ADDED PARAMETER
@@ -69,6 +60,7 @@ class PortfolioTracker:
 
         Args:
             app_settings: Application configuration
+            pt_config: Portfolio tracker configuration
             api_clients: Dictionary of exchange API clients
             exchange_factories: Dictionary of exchange API factory functions
             symbol_mapper: Symbol mapper instance # ADDED DOC
@@ -125,10 +117,8 @@ class PortfolioTracker:
 
         self.tickers: dict[str, Ticker] = {}
 
-        # Use default portfolio tracker config since it's not in AppSettings yet
-        self.pt_config = PortfolioTrackerConfig(
-            data_freshness_seconds=DEFAULT_DATA_FRESHNESS_SECONDS
-        )
+        # Use the passed portfolio tracker config
+        self.pt_config = pt_config
 
         self._initialize_from_config()
 
@@ -1168,18 +1158,20 @@ class PortfolioTracker:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any], app_settings: AppSettings) -> PortfolioTracker:
+    def from_dict(
+        cls, data: dict[str, Any], app_settings: AppSettings, pt_config: PortfolioTrackerConfig
+    ) -> PortfolioTracker:
         """Deserialize the portfolio state from a dictionary."""
-        tracker = cls(app_settings)
+        tracker = cls(app_settings, pt_config)
 
         balances_data_get = data.get("balances", {})
         if isinstance(balances_data_get, dict):
-            balances_data_typed: dict[str, Any] = balances_data_get
+            balances_data_typed = cast(dict[str, Any], balances_data_get)
             ex_id_str: str
             assets_dict_any: Any
             for ex_id_str, assets_dict_any in balances_data_typed.items():
                 if isinstance(assets_dict_any, dict):
-                    current_assets_items: dict[Any, Any] = assets_dict_any
+                    current_assets_items = cast(dict[Any, Any], assets_dict_any)
                     k_asset_raw: Any
                     bal_data_any: Any
                     for k_asset_raw, bal_data_any in current_assets_items.items():
@@ -1188,7 +1180,7 @@ class PortfolioTracker:
                             try:
                                 # Ensure keys are str for model_validate
                                 # Cast bal_data_any to dict[Any, Any] to help Pyright with k,v types
-                                temp_bal_dict_for_comp: dict[Any, Any] = bal_data_any
+                                temp_bal_dict_for_comp = cast(dict[Any, Any], bal_data_any)
                                 validated_bal_dict: dict[str, Any] = {
                                     str(k): v
                                     for k, v in temp_bal_dict_for_comp.items()  # k, v are Any
@@ -1211,12 +1203,12 @@ class PortfolioTracker:
 
         positions_data_get = data.get("positions", {})
         if isinstance(positions_data_get, dict):
-            positions_data_typed: dict[str, Any] = positions_data_get
+            positions_data_typed = cast(dict[str, Any], positions_data_get)
             ex_id_str_pos: str
             syms_dict_any: Any
             for ex_id_str_pos, syms_dict_any in positions_data_typed.items():
                 if isinstance(syms_dict_any, dict):
-                    syms_dict_typed: dict[str, Any] = syms_dict_any
+                    syms_dict_typed = cast(dict[str, Any], syms_dict_any)
                     sym_str: str
                     pos_data_any: Any
                     for sym_str, pos_data_any in syms_dict_typed.items():
@@ -1224,7 +1216,7 @@ class PortfolioTracker:
                             try:
                                 # Ensure keys are str for model_validate
                                 # Cast pos_data_any to dict[Any, Any] to help Pyright with k,v types
-                                temp_pos_dict_for_comp: dict[Any, Any] = pos_data_any
+                                temp_pos_dict_for_comp = cast(dict[Any, Any], pos_data_any)
                                 validated_pos_dict_for_model: dict[str, Any] = {
                                     str(k): v
                                     for k, v in temp_pos_dict_for_comp.items()  # k, v are Any
@@ -1247,12 +1239,12 @@ class PortfolioTracker:
 
         orders_data_get = data.get("orders", {})
         if isinstance(orders_data_get, dict):
-            orders_data_typed: dict[str, Any] = orders_data_get
+            orders_data_typed = cast(dict[str, Any], orders_data_get)
             ex_id_str_ord: str
             ords_dict_any: Any
             for ex_id_str_ord, ords_dict_any in orders_data_typed.items():
                 if isinstance(ords_dict_any, dict):
-                    ords_dict_typed: dict[str, Any] = ords_dict_any
+                    ords_dict_typed = cast(dict[str, Any], ords_dict_any)
                     ord_id_str: str
                     order_data_any: Any
                     for ord_id_str, order_data_any in ords_dict_typed.items():
@@ -1261,7 +1253,7 @@ class PortfolioTracker:
                                 # Ensure keys are str for model_validate
                                 # Cast order_data_any to dict[Any, Any] to help Pyright
                                 # with k,v types
-                                temp_order_dict_for_comp: dict[Any, Any] = order_data_any
+                                temp_order_dict_for_comp = cast(dict[Any, Any], order_data_any)
                                 validated_order_dict_for_model: dict[str, Any] = {
                                     str(k): v
                                     for k, v in temp_order_dict_for_comp.items()  # k, v are Any
@@ -1284,7 +1276,7 @@ class PortfolioTracker:
 
         last_update_data_get = data.get("last_update_time", {})
         if isinstance(last_update_data_get, dict):
-            last_update_data_typed: dict[str, Any] = last_update_data_get
+            last_update_data_typed = cast(dict[str, Any], last_update_data_get)
             ex_id_str_lut: str
             ts_data_any_lut: Any
             for ex_id_str_lut, ts_data_any_lut in last_update_data_typed.items():
@@ -1309,7 +1301,7 @@ class PortfolioTracker:
 
         last_reconciliation_data_get = data.get("last_reconciliation_time", {})
         if isinstance(last_reconciliation_data_get, dict):
-            last_reconciliation_data_typed: dict[str, Any] = last_reconciliation_data_get
+            last_reconciliation_data_typed = cast(dict[str, Any], last_reconciliation_data_get)
             ex_id_str_lrt: str
             ts_data_any_lrt: Any
             for ex_id_str_lrt, ts_data_any_lrt in last_reconciliation_data_typed.items():
@@ -1704,12 +1696,16 @@ class PortfolioTracker:
                         f"on {exchange_id}: {quantity_str}"
                     )
         # Initialize positions
-        for pos in self.pt_config.initial_positions:
-            self.positions[pos.exchange][pos.symbol] = pos  # Corrected access
-            logger.info(
-                f"Initialized position: {pos.symbol} on {pos.exchange}, "
-                f"Side: {pos.side}, Size: {pos.size}"
-            )
+        for pos_dict in self.pt_config.initial_positions:
+            try:
+                pos = DerivativePosition(**pos_dict)
+                self.positions[pos.exchange][pos.symbol] = pos
+                logger.info(
+                    f"Initialized position: {pos.symbol} on {pos.exchange}, "
+                    f"Side: {pos.side}, Size: {pos.size}"
+                )
+            except (ValidationError, TypeError) as e:
+                logger.error(f"Failed to create DerivativePosition from config: {e}")
         logger.info("PortfolioTracker initialized.")
 
     async def _fetch_exchange_account_summary(

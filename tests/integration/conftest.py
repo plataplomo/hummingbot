@@ -9,6 +9,7 @@ import pytest
 import pytest_asyncio
 
 from cyberdelta.config import AppSettings
+from cyberdelta.config.config_models import PortfolioTrackerConfig
 from cyberdelta.core.data_handler import DataHandler, Ticker
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.models import SpotBalance
@@ -70,10 +71,22 @@ def basic_opportunity() -> ArbitrageOpportunity:
     return opp
 
 
+@pytest.fixture
+def mock_pt_config() -> PortfolioTrackerConfig:
+    """Create a PortfolioTrackerConfig for testing."""
+    return PortfolioTrackerConfig(
+        data_freshness_seconds=60,
+        initial_balances={},
+        initial_positions=[]
+    )
+
+
 @pytest_asyncio.fixture(scope="function")
-async def real_portfolio_tracker(mock_config: AppSettings) -> AsyncGenerator[PortfolioTracker]:
+async def real_portfolio_tracker(
+    mock_config: AppSettings, mock_pt_config: PortfolioTrackerConfig
+) -> AsyncGenerator[PortfolioTracker]:
     """Provides a real PortfolioTracker instance initialized with mock config."""
-    tracker = PortfolioTracker(mock_config)
+    tracker = PortfolioTracker(mock_config, mock_pt_config)
     # DO NOT call await tracker.initialize() here.
     # Initialization should happen in the test or a more specific fixture
     # after API clients are registered.
@@ -271,13 +284,14 @@ def funding_rate_validator() -> FundingRateValidatorProtocol:
 @pytest_asyncio.fixture(scope="function")  # Changed to async fixture
 async def position_reconciler(
     mock_config: AppSettings,
+    mock_pt_config: PortfolioTrackerConfig,
     # real_portfolio_tracker: PortfolioTracker, # No longer directly used, will create its own
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
 ) -> AsyncGenerator[PositionReconciliationSystem]:  # Changed return type
     """Provides a PositionReconciliationSystem instance with mock APIs."""
     # Create a fresh PortfolioTracker for this fixture
-    portfolio_tracker = PortfolioTracker(mock_config)
+    portfolio_tracker = PortfolioTracker(mock_config, mock_pt_config)
     await portfolio_tracker.initialize()  # Initialize it
     portfolio_tracker.register_api_client("mock_hl", mock_hl_api)
     portfolio_tracker.register_api_client("mock_bp", mock_bp_api)

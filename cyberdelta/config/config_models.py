@@ -8,7 +8,7 @@ leveraging utility functions from cyberdelta.utils.parsing for robust parsing an
 """
 
 from decimal import Decimal
-from typing import Annotated, Literal, Self
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import (
     AnyUrl,
@@ -420,6 +420,23 @@ class StrategiesSettings(BaseModel):
     hl_perp_bp_spot: StrategyConfigHLPerpBPSpot
 
 
+# Default timeout for how long balance/position data is considered fresh
+DEFAULT_DATA_FRESHNESS_SECONDS = 60
+
+# Type aliases for portfolio tracker config
+type ExchangeId = str
+
+
+class PortfolioTrackerConfig(BaseModel):
+    """Portfolio tracker configuration."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    data_freshness_seconds: int = Field(DEFAULT_DATA_FRESHNESS_SECONDS, gt=0)
+    initial_balances: dict[ExchangeId, dict[str, str]] = Field(default_factory=dict)
+    initial_positions: list[dict[str, Any]] = Field(default_factory=lambda: [])
+
+
 class AppSettings(BaseModel):
     """Root configuration model for CyberDeltaEngine."""
 
@@ -432,6 +449,7 @@ class AppSettings(BaseModel):
     execution: ExecutionSettings
     safety_systems: SafetySystemsSettings
     monitoring: MonitoringSettings
+    portfolio_tracker: PortfolioTrackerConfig
 
     @field_validator("exchanges", mode="before")
     @classmethod
@@ -513,12 +531,10 @@ class AppSettings(BaseModel):
                         "AppSettings: 'chain_id' must be specified in config.yaml for "
                         "enabled 'hyperliquid' exchange."
                     )
-                # DEFENSIVE CHECK: Verify chain_id is positive int after Field validation.
-                # Mypy=[redundant-expr] Ruff=[redundant-expr]
-                if (
-                    not isinstance(hyperliquid_config.chain_id, int)
-                    or hyperliquid_config.chain_id <= 0
-                ):
+                # DEFENSIVE CHECK: Verify chain_id is positive after Field validation.
+                # Since chain_id is validated as int | None with gt=0, we just need
+                # to check it's positive (redundant but kept as defensive programming)
+                if hyperliquid_config.chain_id <= 0:
                     raise ValueError(
                         "AppSettings: 'chain_id' for 'hyperliquid' exchange must be a "
                         "positive integer."

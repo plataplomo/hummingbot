@@ -14,6 +14,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.config.config_models import PortfolioTrackerConfig
 from cyberdelta.core.models import (
     DerivativePosition,
     MarginAccountSummary,
@@ -59,6 +60,15 @@ class TestPortfolioTracker:
 
         config.get.side_effect = get_config_value
         return config
+
+    @pytest.fixture
+    def pt_config(self) -> PortfolioTrackerConfig:
+        """Create a PortfolioTrackerConfig for testing."""
+        return PortfolioTrackerConfig(
+            data_freshness_seconds=60,
+            initial_balances={},
+            initial_positions=[]
+        )
 
     @pytest.fixture
     def api_clients(self) -> dict[str, AsyncMock]:
@@ -143,10 +153,10 @@ class TestPortfolioTracker:
 
     @pytest.fixture
     def portfolio_tracker(
-        self, config: MagicMock, api_clients: dict[str, AsyncMock]
+        self, config: MagicMock, pt_config: PortfolioTrackerConfig, api_clients: dict[str, AsyncMock]
     ) -> PortfolioTracker:
         """Create a PortfolioTracker instance for testing."""
-        tracker = PortfolioTracker(config)
+        tracker = PortfolioTracker(config, pt_config)
 
         # Register API clients
         for exchange_id, client in api_clients.items():

@@ -102,3 +102,9 @@ safety_systems:
 monitoring:
   notifications_enabled: true
   alert_methods: ["log"]
+
+# Portfolio Tracker Configuration
+portfolio_tracker:
+  data_freshness_seconds: 60
+  initial_balances: {}  # Example: { "hyperliquid": { "USDC": "10000.00" } }
+  initial_positions: []  # Example: List of initial derivative positions

@@ -158,8 +158,10 @@ async def main() -> None:
         symbol_mapper = SymbolMapper(exchanges_conf_dict)
         app_state["symbol_mapper"] = symbol_mapper
 
-        # PortfolioTracker expects Config and SymbolMapper
-        portfolio_tracker: PortfolioTracker = PortfolioTracker(config, symbol_mapper=symbol_mapper)
+        # PortfolioTracker expects Config, PortfolioTrackerConfig, and SymbolMapper
+        portfolio_tracker: PortfolioTracker = PortfolioTracker(
+            config, config.portfolio_tracker, symbol_mapper=symbol_mapper
+        )
         app_state["portfolio_tracker"] = portfolio_tracker
 
         # CircuitBreakerSystem expects Config

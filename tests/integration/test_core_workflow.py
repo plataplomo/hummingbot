@@ -329,11 +329,8 @@ def mock_config_dict() -> dict[str, Any]:
 @pytest.fixture
 def mock_config(mock_config_dict: dict[str, Any], mocker: MockerFixture) -> AppSettings:
     """Provides a mock AppSettings instance for integration tests."""
-    # Use the existing mock_config fixture from conftest.py which properly creates AppSettings
-    # Import the fixture function and call it
-    from tests.conftest import mock_config as base_mock_config
-
-    return base_mock_config()
+    # Create AppSettings from the integration test config dict
+    return AppSettings.model_validate(mock_config_dict)
 
 
 @pytest.fixture
@@ -382,7 +379,7 @@ def portfolio_tracker(
     mock_config: AppSettings, mock_hl_api: MockExchangeAPI, mock_bp_api: MockExchangeAPI
 ) -> PortfolioTracker:
     """Portfolio Tracker instance with APIs registered."""
-    tracker = PortfolioTracker(app_settings=mock_config)
+    tracker = PortfolioTracker(mock_config, mock_config.portfolio_tracker)
     tracker.register_api_client("mock_hl", mock_hl_api)
     tracker.register_api_client("mock_bp", mock_bp_api)
     return tracker
