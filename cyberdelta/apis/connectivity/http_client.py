@@ -396,9 +396,9 @@ class HttpClient:
                         headers=dict(request_headers),
                     )
                 )
-                request_headers.update(auth_components["headers"])
-                if auth_components["params"] is not None:
-                    request_params = auth_components["params"]
+                request_headers.update(auth_components.headers)
+                if auth_components.params is not None:
+                    request_params = auth_components.params
             except APIError as e:
                 logger.error(f"[{self.exchange_name}] Auth prep failed for {full_url}: {e}")
                 raise

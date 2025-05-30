@@ -28,7 +28,7 @@ from decimal import Decimal
 from typing import Any
 
 from cyberdelta.apis.backpack.bp_api_components_factory import BackpackAPIComponentsFactory
-from cyberdelta.apis.backpack.bp_auth import BackpackHmacAuthenticator
+from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
 from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
@@ -41,7 +41,6 @@ from cyberdelta.apis.backpack.models import BackpackRawWsSubscriptionRequest
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
-from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
 from cyberdelta.apis.base.exchange_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -89,7 +88,7 @@ class BackpackAPI(ExchangeAPI):
         exchange_config: ExchangeSpecificConfig,
         exchange_secrets: ExchangeSecretsConfig,
         # Optional dependency injection parameters for testing
-        authenticator: BackpackHmacAuthenticator | None = None,
+        authenticator: BackpackEd25519Authenticator | None = None,
         error_mapper: BackpackErrorMapper | None = None,
         response_handler: BackpackResponseHandler | None = None,
         request_builder: BackpackRequestBuilder | None = None,
@@ -254,8 +253,33 @@ class BackpackAPI(ExchangeAPI):
             ValueError: If topic format is invalid or required info is missing
             APIError: If topic is not supported by the exchange
         """
-        # Delegate to the WebSocket router for payload construction
-        return self._bp_ws_router.construct_subscription_payload(topic)
+        # Determine if this is a private topic that requires authentication
+        private_topics = ["fills", "orders", "balances", "positions"]
+        signature_components_tuple = None
+
+        # Check if topic requires authentication
+        if any(private_topic in topic for private_topic in private_topics):
+            if not self._bp_authenticator or not hasattr(
+                self._bp_authenticator, "get_ws_subscription_signature_tuple"
+            ):
+                raise APIError(
+                    "ED25519 authenticator required for private WebSocket subscriptions",
+                    code=APIErrorCode.AUTHENTICATION_FAILED.value,
+                )
+
+            # Extract subscription type and symbol from topic
+            if "." in topic:
+                subscription_type, symbol = topic.split(".", 1)
+            else:
+                subscription_type = topic
+                symbol = None
+
+            signature_components_tuple = self._bp_authenticator.get_ws_subscription_signature_tuple(
+                subscription_type=subscription_type, symbol=symbol
+            )
+
+        # Delegate to the WebSocket router with signature components
+        return self._bp_ws_router.construct_subscription_payload(topic, signature_components_tuple)
 
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
         """
@@ -269,53 +293,6 @@ class BackpackAPI(ExchangeAPI):
     async def _route_ws_message(self, message: dict[str, Any]) -> None:
         """Delegate WebSocket message routing to the WebSocket router."""
         await self._bp_ws_router.route_message(message, self._ws_handlers)
-
-    async def _authenticate(
-        self,
-        method: str,
-        path: str,
-        params: dict[str, Any] | None = None,
-        data: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Uses the BackpackHmacAuthenticator to prepare request components."""
-        if not self._bp_authenticator:
-            logger.error(
-                f"[{self.exchange_name}] Attempt to call signed endpoint ({method} {path}) "
-                "without configured BP authenticator."
-            )
-            raise APIError(
-                "BP authenticator not initialized (e.g., missing/invalid API key/secret).",
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
-            )
-
-        current_headers = self.default_headers.copy()
-
-        try:
-            auth_components: AuthenticatedRequestComponents = (
-                await self._bp_authenticator.prepare_request(
-                    method, path, params, data, current_headers
-                )
-            )
-        except APIError:
-            # Re-raise APIErrors from authenticator directly
-            raise
-        except Exception as e:
-            # Wrap other exceptions as authentication failures
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error during authentication preparation "
-                f"for {method} {path}: {e}"
-            )
-            raise APIError(
-                f"Authentication preparation failed: {e}",
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
-                original_exception=e,
-            ) from e
-
-        return {
-            "headers": auth_components["headers"],
-            "params": auth_components["params"],
-            "data": auth_components["data"],
-        }
 
     # --- Market Data Methods --- #
 

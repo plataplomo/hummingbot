@@ -1,134 +1,245 @@
-import hashlib
-import hmac
-import json  # For POST body serialization
+import base64
+import json
 import time
+import urllib.parse
+from collections.abc import Mapping
 from typing import Any
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from cyberdelta.apis.base.authenticator_interface import (
     AuthenticatedRequestComponents,
     IAuthenticator,
 )
-from cyberdelta.apis.models.api_error import APIError  # For raising errors
-from cyberdelta.apis.models.api_error_codes import APIErrorCode  # For error codes
+from cyberdelta.apis.models.api_error import APIError
+from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.logging_config import get_logger
 
-logger = get_logger(__name__)  # For logging potential issues
+logger = get_logger(__name__)
 
 
-class BackpackHmacAuthenticator(IAuthenticator):
-    """Authenticator for Backpack API using HMAC-SHA256."""
+class BackpackEd25519Authenticator(IAuthenticator):
+    """Authenticator for Backpack API using ED25519 signature."""
 
-    def __init__(self, api_key: str, api_secret: str) -> None:
+    def __init__(self, api_key_b64: str, private_key_b64: str) -> None:
         """
-        Initialize the authenticator with API key and secret.
+        Initialize the authenticator with Base64-encoded keys.
 
         Args:
-            api_key: The Backpack API key.
-            api_secret: The Backpack API secret.
+            api_key_b64: Base64-encoded public key for API authentication.
+            private_key_b64: Base64-encoded private key for signing.
         """
-        if not api_key:
-            logger.error("API key cannot be empty for BackpackHmacAuthenticator.")
-            raise ValueError("API key cannot be empty")
-        if not api_secret:
-            logger.error("API secret cannot be empty for BackpackHmacAuthenticator.")
-            raise ValueError("API secret cannot be empty")
+        if not api_key_b64:
+            raise ValueError("API key (Base64) cannot be empty")
+        if not private_key_b64:
+            raise ValueError("Private key (Base64) cannot be empty")
 
-        self._api_key = api_key
-        self._api_secret = api_secret
+        self._api_key_b64 = api_key_b64
 
-    def _hmac_sha256_hexdigest(self, key: bytes, msg: bytes) -> str:
+        try:
+            # Decode and load the private key
+            private_key_bytes = base64.b64decode(private_key_b64)
+            self._ed25519_private_key = Ed25519PrivateKey.from_private_bytes(private_key_bytes)
+        except Exception as e:
+            logger.error(f"Failed to load ED25519 private key: {e}")
+            raise ValueError(f"Invalid ED25519 private key: {e}") from e
+
+        # Initialize instruction mapping for Backpack REST API endpoints
+        self.INSTRUCTION_MAP: dict[tuple[str, str], str] = {
+            # Account endpoints
+            ("GET", "/api/v1/capital"): "balanceQuery",
+            ("GET", "/api/v1/deposits"): "depositHistoryQueryAll",
+            ("GET", "/api/v1/withdrawals"): "withdrawalHistoryQueryAll",
+            ("POST", "/api/v1/withdraw"): "withdraw",
+            # Order management endpoints
+            ("POST", "/api/v1/order"): "orderExecute",
+            ("DELETE", "/api/v1/order"): "orderCancel",
+            ("DELETE", "/api/v1/orders"): "orderCancelAll",
+            ("GET", "/api/v1/order"): "orderQuery",
+            ("GET", "/api/v1/orders"): "orderHistoryQueryAll",
+            # Trade endpoints
+            ("GET", "/api/v1/fills"): "fillHistoryQueryAll",
+            # Position endpoints
+            ("GET", "/api/v1/positions"): "positionQuery",
+            # System endpoints
+            ("GET", "/api/v1/system"): "systemStatusQuery",
+            # Market data (if signed)
+            ("GET", "/api/v1/trades"): "tradeHistoryQueryAll",
+            ("GET", "/api/v1/klines"): "klineQuery",
+        }
+
+    def _get_instruction_for_endpoint(self, method: str, path: str) -> str:
         """
-        Helper for HMAC-SHA256 signature generation. Returns a hex digest string.
+        Get the instruction string for a given method and path.
+
+        Args:
+            method: HTTP method (GET, POST, etc.)
+            path: API endpoint path
+
+        Returns:
+            Instruction string for signing
+
+        Raises:
+            APIError: If instruction not found for the endpoint
         """
-        # Pyright/Pylance cannot infer the type of hmac.new (C-extension);
-        # this is a known false positive. This ignore is safe, does not affect mypy,
-        # and is project-approved for stdlib cryptography edge cases.
-        h: Any = hmac.new(key, msg, hashlib.sha256)  # pyright: ignore[reportUnknownMemberType]
-        digest: str = h.hexdigest()
-        return digest
+        method_upper = method.upper()
+
+        # Try exact match first
+        if (method_upper, path) in self.INSTRUCTION_MAP:
+            return self.INSTRUCTION_MAP[(method_upper, path)]
+
+        # Try to match path templates with variables
+        for (map_method, map_path), instruction in self.INSTRUCTION_MAP.items():
+            if map_method == method_upper:
+                # Handle paths with variables like /api/v1/order/{orderId}
+                # For now, simple prefix matching for common patterns
+                if map_path.endswith("/{orderId}") and path.startswith(map_path[:-10]):
+                    return instruction
+                elif map_path.endswith("/{id}") and path.startswith(map_path[:-5]):
+                    return instruction
+
+        # If no match found, raise error
+        raise APIError(
+            f"Backpack instruction not found for {method_upper} {path}",
+            code=APIErrorCode.INVALID_REQUEST.value,
+        )
 
     async def prepare_request(
         self,
         method: str,
-        path: str,  # Path is not directly used in Backpack's signature, but good to have
-        params: dict[str, Any] | None = None,
-        data: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,  # Added type hint for headers
+        path: str,
+        params: dict[str, Any] | None,
+        data: dict[str, Any] | None,
+        headers: Mapping[str, Any] | None,
     ) -> AuthenticatedRequestComponents:
         """
-        Prepares and signs a Backpack API request using HMAC-SHA256.
+        Prepares and signs a Backpack API request using ED25519.
 
         Args:
             method: The HTTP method (e.g., 'GET', 'POST').
-            path: The API endpoint path (not directly used in BP signature construction).
+            path: The API endpoint path (relative path).
             params: Optional dictionary of query parameters.
-            data: Optional dictionary of request body data (for POST/PUT).
-            headers: Optional dictionary of existing headers.
+            data: Optional dictionary of request body data.
+            headers: Optional mapping of existing headers.
 
         Returns:
-            An AuthenticatedRequestComponents TypedDict.
+            An AuthenticatedRequestComponents Pydantic model.
 
         Raises:
-            APIError: If API key or secret are missing.
+            APIError: If signing fails or instruction not found.
         """
-        if not self._api_key or not self._api_secret:
-            raise APIError(
-                "Backpack API key and secret are required for signing requests.",
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+        try:
+            # Get instruction for this endpoint
+            instruction_str = self._get_instruction_for_endpoint(method, path)
+
+            # Generate timestamp and window
+            timestamp_ms = int(time.time() * 1000)
+            window_ms = 5000  # 5 second window
+
+            # Construct content part based on method
+            content_part_str = ""
+            if method.upper() == "GET" and params:
+                # Filter out None values and sort for consistency
+                filtered_params = {k: v for k, v in params.items() if v is not None}
+                if filtered_params:
+                    content_part_str = urllib.parse.urlencode(sorted(filtered_params.items()))
+            elif method.upper() in ["POST", "PUT", "DELETE"] and data:
+                # Filter out None values and serialize to JSON
+                filtered_data = {k: v for k, v in data.items() if v is not None}
+                if filtered_data:
+                    content_part_str = json.dumps(
+                        filtered_data, separators=(",", ":"), sort_keys=True
+                    )
+
+            # Construct string to sign
+            string_to_sign = (
+                f"instruction={instruction_str}&{content_part_str}"
+                f"&timestamp={timestamp_ms}&window={window_ms}"
             )
 
-        timestamp = str(int(time.time() * 1000))
-        signature_payload_str = timestamp
+            # Sign the string using ED25519
+            signature_bytes = self._ed25519_private_key.sign(string_to_sign.encode("utf-8"))
+            signature_b64 = base64.b64encode(signature_bytes).decode("utf-8")
 
-        # Backpack's signature payload construction:
-        # For GET: timestamp + sorted query string (e.g., "symbol=SOL_USDC&limit=10")
-        # For POST/PUT/DELETE with JSON body: timestamp + JSON string of the body
-        # For POST/PUT/DELETE with form data: timestamp + sorted form data string
-        # (not handled here yet)
+            # Create authentication headers
+            auth_headers = {
+                "X-API-Key": self._api_key_b64,
+                "X-Timestamp": str(timestamp_ms),
+                "X-Window": str(window_ms),
+                "X-Signature": signature_b64,
+            }
 
-        # Ensure params and data are processed correctly for signature
-        processed_params = params
-        processed_data = data
+            # Merge with existing headers
+            final_headers: dict[str, Any] = {}
+            if headers:
+                final_headers.update(headers)
+            final_headers.update(auth_headers)
 
-        if method.upper() == "GET" and params:
-            # Sort parameters by key for consistent signature generation
-            query_string = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
-            signature_payload_str += query_string
-        elif method.upper() in ["POST", "PUT", "DELETE"] and data:
-            # Convert data to a compact JSON string without spaces for signature
-            try:
-                json_body_for_signature = json.dumps(data, separators=(",", ":"), sort_keys=True)
-                signature_payload_str += json_body_for_signature
-            except TypeError as e:
-                logger.error(f"Error serializing data for signature: {e}. Data: {data}")
-                raise APIError(
-                    f"Failed to serialize request body for signature: {e}",
-                    code=APIErrorCode.INVALID_PARAMS.value,
-                    original_exception=e,
-                ) from e
-        # Else (e.g. POST with no body, or other methods), payload is just timestamp
+            # Add Content-Type for POST/PUT if needed
+            if method.upper() in ["POST", "PUT"] and data and "Content-Type" not in final_headers:
+                final_headers["Content-Type"] = "application/json; charset=utf-8"
 
-        # DEBUG: Print the exact payload being signed
-        print(f"[DEBUG BP_AUTH] Signing payload: '{signature_payload_str}'")
+            # Convert to string mapping for Pydantic model
+            final_headers_str = {k: str(v) for k, v in final_headers.items()}
 
-        signature = self._hmac_sha256_hexdigest(
-            self._api_secret.encode("utf-8"), signature_payload_str.encode("utf-8")
-        )
+            return AuthenticatedRequestComponents(
+                headers=final_headers_str,
+                params=params,
+                data=data,
+            )
 
-        auth_headers = {
-            "X-Api-Key": self._api_key,
-            "X-Timestamp": timestamp,
-            "X-Signature": signature,
-        }
+        except Exception as e:
+            logger.error(f"ED25519 authentication failed for {method} {path}: {e}")
+            if isinstance(e, APIError):
+                raise
+            raise APIError(
+                f"Authentication preparation failed: {e}",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+                original_exception=e,
+            ) from e
 
-        # Merge with existing headers, giving priority to auth_headers
-        final_headers = {**(headers or {}), **auth_headers}
-        # Ensure Content-Type for POST/PUT if data is present and not already set
-        if method.upper() in ["POST", "PUT"] and data and "Content-Type" not in final_headers:
-            final_headers["Content-Type"] = "application/json; charset=utf-8"
+    def get_ws_subscription_signature_tuple(
+        self,
+        subscription_type: str,
+        symbol: str | None = None,
+    ) -> tuple[str, str, str, str]:
+        """
+        Generate ED25519 signature components for WebSocket subscription.
 
-        return AuthenticatedRequestComponents(
-            headers=final_headers,
-            params=processed_params,  # Return original params, they are sent as query string
-            data=processed_data,  # Return original data, it is sent as JSON body
-        )
+        Args:
+            subscription_type: Type of subscription (e.g., "account", "orderbook")
+            symbol: Optional symbol for market data subscriptions
+
+        Returns:
+            Tuple of (api_key, timestamp, window, signature) for WS signature array
+        """
+        try:
+            timestamp_ms = int(time.time() * 1000)
+            window_ms = 5000
+
+            # Construct message for WebSocket subscription
+            if symbol:
+                message_content = f"stream={subscription_type}&symbol={symbol}"
+            else:
+                message_content = f"stream={subscription_type}"
+
+            string_to_sign = f"{message_content}&timestamp={timestamp_ms}&window={window_ms}"
+
+            # Sign using ED25519
+            signature_bytes = self._ed25519_private_key.sign(string_to_sign.encode("utf-8"))
+            signature_b64 = base64.b64encode(signature_bytes).decode("utf-8")
+
+            return (
+                self._api_key_b64,
+                str(timestamp_ms),
+                str(window_ms),
+                signature_b64,
+            )
+
+        except Exception as e:
+            logger.error(f"WebSocket signature generation failed: {e}")
+            raise APIError(
+                f"WebSocket signature generation failed: {e}",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+                original_exception=e,
+            ) from e

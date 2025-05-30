@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Mapping
 from typing import TYPE_CHECKING
 
-from cyberdelta.apis.backpack.bp_auth import BackpackHmacAuthenticator
+from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
 from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
@@ -67,19 +67,26 @@ class BackpackAPIComponentsFactory:
             exchange_secrets.api_secret.get_secret_value() if exchange_secrets.api_secret else None
         )
 
-    def create_authenticator(self) -> BackpackHmacAuthenticator | None:
+    def create_authenticator(self) -> BackpackEd25519Authenticator | None:
         """
-        Create a BackpackHmacAuthenticator instance.
+        Create a BackpackEd25519Authenticator instance.
+
+        Uses api_key (Base64 public ED25519 key) and api_secret (Base64 private ED25519 key)
+        from ExchangeSecretsConfig to instantiate the ED25519 authenticator.
 
         Returns:
-            Configured authenticator instance or None if credentials are missing
+            Configured ED25519 authenticator instance or None if credentials are missing
         """
         if self._api_key and self._api_secret:
-            return BackpackHmacAuthenticator(api_key=self._api_key, api_secret=self._api_secret)
+            logger.info("Creating BackpackEd25519Authenticator (ED25519 authentication)")
+            return BackpackEd25519Authenticator(
+                api_key_b64=self._api_key, private_key_b64=self._api_secret
+            )
         else:
             logger.warning(
-                "Backpack API key/secret not provided. Signed operations will fail. "
-                "Authenticator not initialized."
+                "Backpack API credentials not provided. For ED25519 auth: provide api_key "
+                "(Base64 public key) and api_secret (Base64 private key). "
+                "Signed operations will fail. Authenticator not initialized."
             )
             return None
 
@@ -173,7 +180,7 @@ class BackpackAPIComponentsFactory:
         self,
         http_client_requester: HttpClientRequesterSig,
         rate_limiter_service: RateLimiterService,
-        authenticator: BackpackHmacAuthenticator | None,
+        authenticator: BackpackEd25519Authenticator | None,
         account_data_mapper: BackpackAccountDataMapper,
         request_builder: BackpackRequestBuilder,
         response_handler: BackpackResponseHandler,
@@ -208,7 +215,7 @@ class BackpackAPIComponentsFactory:
         self,
         http_client_requester: HttpClientRequesterSig,
         rate_limiter_service: RateLimiterService,
-        authenticator: BackpackHmacAuthenticator | None,
+        authenticator: BackpackEd25519Authenticator | None,
         trading_data_mapper: BackpackTradingDataMapper,
         request_builder: BackpackRequestBuilder,
         response_handler: BackpackResponseHandler,

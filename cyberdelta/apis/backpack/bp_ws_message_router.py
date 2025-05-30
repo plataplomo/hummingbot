@@ -61,12 +61,14 @@ class BackpackWsMessageRouter:
         self._exchange_name = exchange_name
         self.logger = get_logger(__name__)
 
-    def construct_subscription_payload(self, topic: str) -> BackpackRawWsSubscriptionRequest:
+    def construct_subscription_payload(
+        self, topic: str, signature_components_tuple: tuple[str, str, str, str] | None = None
+    ) -> BackpackRawWsSubscriptionRequest:
         """
-        Construct the base subscription payload for a given topic for Backpack.
+        Construct the subscription payload for a given topic for Backpack.
 
-        This method creates the basic structure of the subscription request without
-        signature components. The BackpackAPI layer will add signatures for private streams.
+        This method creates the subscription request structure and includes signature
+        components for private streams when provided.
 
         Backpack uses the format:
         {"method": "SUBSCRIBE", "params": ["topic"]} for public streams
@@ -74,9 +76,11 @@ class BackpackWsMessageRouter:
 
         Args:
             topic: The WebSocket topic to subscribe to
+            signature_components_tuple: Optional tuple of (api_key, timestamp, window, signature)
+                                       for private stream authentication
 
         Returns:
-            BackpackRawWsSubscriptionRequest model with signature=None
+            BackpackRawWsSubscriptionRequest model
 
         Raises:
             ValueError: If topic format is invalid or empty
@@ -86,21 +90,23 @@ class BackpackWsMessageRouter:
             raise ValueError("Topic cannot be empty for Backpack subscription.")
 
         # For Backpack, the standard subscription format is used
-        # The signature will be added by BackpackAPI for private streams
         method_val: Literal["SUBSCRIBE", "UNSUBSCRIBE"] = "SUBSCRIBE"
 
         # Create params list with the topic
         params_val = [topic]
 
-        # Signature is None at this stage - BackpackAPI will populate for private streams
+        # Include signature if provided (for private streams)
+        signature_val = signature_components_tuple
+
+        # Create the subscription request
         try:
             return BackpackRawWsSubscriptionRequest(
-                method=method_val, params=params_val, signature=None
+                method=method_val, params=params_val, signature=signature_val
             )
         except Exception as e:
             # Wrap unexpected exceptions
             raise ValueError(
-                f"Failed to construct base subscription payload for topic '{topic}': {e}"
+                f"Failed to construct subscription payload for topic '{topic}': {e}"
             ) from e
 
     async def route_message(

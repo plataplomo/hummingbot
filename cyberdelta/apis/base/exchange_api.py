@@ -224,7 +224,7 @@ class ExchangeAPI(ABC):
         method: str,
         endpoint: str,
         params: dict[str, Any] | None = None,
-        data: dict[str, Any] | None = None,
+        data: BaseModel | dict[str, Any] | None = None,
         headers: dict[str, Any] | None = None,
         is_signed: bool = False,
         endpoint_group: str | None = None,
@@ -236,10 +236,10 @@ class ExchangeAPI(ABC):
         error mapping.
 
         Args:
-            method: HTTP method ('GET', 'POST', etc.)
+            method: HTTP method ('GET', 'POST', etc.')
             endpoint: API endpoint path (relative to base) or full URL if handled by concrete API.
             params: URL parameters for the request.
-            data: Request body data.
+            data: Request body data (can be Pydantic BaseModel or dict).
             headers: HTTP headers.
             is_signed: Whether the request requires authentication.
             endpoint_group: Optional logical group for the endpoint, used for rate limiting.
@@ -258,7 +258,26 @@ class ExchangeAPI(ABC):
             APIError: For mapped exchange-specific errors or unrecoverable issues.
         """
         request_url = urljoin(self.rest_endpoint, endpoint.lstrip("/"))
-        effective_authenticator = self._authenticator if is_signed else None
+
+        # Prepare data for HttpClient - handle Pydantic model serialization here
+        data_for_http_client: dict[str, Any] | None
+        if isinstance(data, BaseModel):
+            data_for_http_client = data.model_dump(
+                by_alias=True, exclude_none=not serialize_none_as_null
+            )
+            # Special cleaning for Hyperliquid orderType if needed, after model_dump
+            if (
+                serialize_none_as_null
+                and self.exchange_name == "hyperliquid"
+                and data_for_http_client
+            ):
+                # Use HttpClient's cleaning method for consistency
+                if hasattr(self._http_client, "_clean_order_type_fields"):
+                    self._http_client._clean_order_type_fields(data_for_http_client)
+        elif isinstance(data, dict) or data is None:
+            data_for_http_client = data
+        else:
+            raise TypeError(f"Unsupported type for 'data' parameter: {type(data)}")
 
         response_content: ParsedJsonResponse | str | None = None
         status_code: int = 0  # Default, will be overwritten
@@ -284,9 +303,9 @@ class ExchangeAPI(ABC):
                 method=method,
                 endpoint_path=request_url,
                 params=params,
-                data=data,
+                data=data_for_http_client,
                 headers=headers,
-                authenticator=effective_authenticator,
+                authenticator=self._authenticator,
                 rate_limiter_service=self._rate_limiter_service,
                 is_signed=is_signed,
                 serialize_none_as_null=serialize_none_as_null,
@@ -424,19 +443,6 @@ class ExchangeAPI(ABC):
         logger.info(f"ExchangeAPI for {self.exchange_name} closed successfully.")
 
     # --- Abstract Methods for Exchange API Implementation --- #
-
-    @abstractmethod
-    async def _authenticate(
-        self,
-        method: str,
-        path: str,
-        params: dict[str, Any] | None = None,
-        data: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Internal method to generate authentication headers/parameters for signed requests.
-        Concrete ExchangeAPI implementations will use their specific IAuthenticator here.
-        """
-        raise NotImplementedError("ExchangeAPI._authenticate must be implemented by subclasses.")
 
     @abstractmethod
     async def _route_ws_message(self, message: dict[str, Any]) -> None:  # Added return type
