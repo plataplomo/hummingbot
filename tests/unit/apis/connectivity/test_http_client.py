@@ -496,7 +496,7 @@ class TestHttpClient:
         final_sent_params = final_call_kwargs["params"]
         assert final_sent_params["auth_param"] == "val"
         # Check if original_params were augmented or replaced based on authenticator mock behavior
-        auth_result_params = prepare_request_mock_signed.return_value["params"]
+        auth_result_params = prepare_request_mock_signed.return_value.params
         if auth_result_params is not original_params:
             assert "client_param" not in final_sent_params  # Assuming authenticator replaces params
         else:
@@ -504,8 +504,11 @@ class TestHttpClient:
                 final_sent_params["client_param"] == "val"
             )  # Assuming authenticator augments params
 
-        final_call_json_data = final_call_kwargs["json"]
-        assert final_call_json_data == original_data
+        final_call_json_data = final_call_kwargs.get("json")
+        # HttpClient always uses auth_components.data when authenticator is present
+        # even if it's None - the authenticator has full control over the data
+        auth_result_data = prepare_request_mock_signed.return_value.data
+        assert final_call_json_data == auth_result_data
 
     @pytest.mark.asyncio
     async def test_request_signed_no_authenticator_raises_api_error(

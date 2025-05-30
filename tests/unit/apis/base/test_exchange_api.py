@@ -39,7 +39,7 @@ from cyberdelta.core.models.market.order import CancelOrderResult
 MessageHandler = Callable[..., Coroutine[Any, Any, None]]
 
 
-class TestSubscriptionPayload(BaseModel):
+class MockSubscriptionPayload(BaseModel):
     """Simple BaseModel for testing subscription payloads."""
 
     type: str
@@ -173,7 +173,7 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
         return [MagicMock(spec=Order)]
 
     def _construct_subscription_payload(self, topic: str) -> BaseModel:
-        return TestSubscriptionPayload(type="subscribe", channel=topic)
+        return MockSubscriptionPayload(type="subscribe", channel=topic)
 
     async def ping_websocket(self) -> None:
         pass
@@ -357,7 +357,12 @@ class TestExchangeAPIWebSocketOperations:
         await api.subscribe("test.topic", test_handler)
 
         # Verify WebSocket manager was called with subscription payload
-        mock_ws.send_json.assert_called_once_with({"type": "subscribe", "channel": "test.topic"})
+        # The payload should be a MockSubscriptionPayload BaseModel instance
+        mock_ws.send_json.assert_called_once()
+        call_args = mock_ws.send_json.call_args[0][0]
+        assert isinstance(call_args, MockSubscriptionPayload)
+        assert call_args.type == "subscribe"
+        assert call_args.channel == "test.topic"
 
         await api.close()
 
@@ -419,7 +424,11 @@ class TestExchangeAPIWebSocketOperations:
         await api.subscribe("test.topic", test_handler)
 
         # Verify the correct payload was sent
-        mock_ws.send_json.assert_called_once_with({"type": "subscribe", "channel": "test.topic"})
+        mock_ws.send_json.assert_called_once()
+        call_args = mock_ws.send_json.call_args[0][0]
+        assert isinstance(call_args, MockSubscriptionPayload)
+        assert call_args.type == "subscribe"
+        assert call_args.channel == "test.topic"
 
         await api.close()
 
@@ -499,7 +508,7 @@ class TestExchangeAPIWebSocketOperations:
 
             def _construct_subscription_payload(self, topic: str) -> BaseModel:
                 self.payload_construction_calls.append(topic)
-                return TestSubscriptionPayload(type="subscribe", channel=topic)
+                return MockSubscriptionPayload(type="subscribe", channel=topic)
 
         api = PayloadTrackingAPI(
             exchange_name="test_exchange",
@@ -519,9 +528,11 @@ class TestExchangeAPIWebSocketOperations:
         assert "test_topic" in api.payload_construction_calls
 
         # Verify the custom payload was sent
-        mock_ws.send_json.assert_called_once_with(
-            {"type": "subscribe", "channel": "test_topic", "test": True}
-        )
+        mock_ws.send_json.assert_called_once()
+        call_args = mock_ws.send_json.call_args[0][0]
+        assert isinstance(call_args, MockSubscriptionPayload)
+        assert call_args.type == "subscribe"
+        assert call_args.channel == "test_topic"
 
         await api.close()
 

@@ -34,7 +34,7 @@ async def dummy_on_connected_callback() -> None:
     pass
 
 
-class TestMessage(BaseModel):
+class MockMessage(BaseModel):
     """Simple BaseModel for testing WebSocket messages."""
 
     test: str
@@ -1055,7 +1055,7 @@ class TestWebSocketManagerComprehensiveErrorHandling:
         )
 
         # Try to send without connecting
-        success = await manager.send_json(TestMessage(test="message"))
+        success = await manager.send_json(MockMessage(test="message"))
 
         assert not success
         assert "Cannot send JSON, WebSocket not connected" in caplog.text

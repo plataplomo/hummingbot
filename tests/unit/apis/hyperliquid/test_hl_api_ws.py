@@ -7,7 +7,7 @@ The detailed routing logic is tested in test_hl_ws_message_router.py.
 """
 
 from typing import Any
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import ANY, AsyncMock, Mock, patch
 
 import pytest
 from pydantic import SecretStr, ValidationError
@@ -140,8 +140,20 @@ class TestHyperliquidAPIWebSocketDelegation:
     def test_construct_subscription_payload_creates_valid_payload(
         self, hl_api_with_mocked_router: HyperliquidAPI, mock_hl_ws_router: Mock
     ) -> None:
-        """Test that subscription payload construction creates valid payload directly."""
+        """Test that subscription payload construction delegates to router."""
+        from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
+            HyperliquidRawWsSubscribeRequest,
+            HyperliquidRawWsL2BookSubscriptionPayload,
+        )
+
         topic = "l2Book:ETH"
+        
+        # Mock the router to return a proper HyperliquidRawWsSubscribeRequest
+        expected_payload = HyperliquidRawWsSubscribeRequest(
+            method="subscribe",
+            subscription=HyperliquidRawWsL2BookSubscriptionPayload(type="l2Book", coin="ETH")
+        )
+        mock_hl_ws_router.construct_subscription_payload.return_value = expected_payload
 
         # Use object.__getattribute__ to access protected method for testing
         construct_method = object.__getattribute__(
@@ -149,14 +161,16 @@ class TestHyperliquidAPIWebSocketDelegation:
         )
         result = construct_method(topic)
 
-        # Verify the payload structure matches Hyperliquid format
-        assert hasattr(result, "method")
-        assert hasattr(result, "subscription")
-        assert result.method == "subscribe"
-        assert hasattr(result.subscription, "type")
-        assert result.subscription.type == "l2Book"
-        assert hasattr(result.subscription, "coin")
-        assert result.subscription.coin == "ETH"
+        # Verify the router was called with correct arguments
+        # The method should pass the wallet address as the second argument
+        # Check the call was made with the topic and a wallet address (string)
+        mock_hl_ws_router.construct_subscription_payload.assert_called_once_with(
+            topic, 
+            ANY  # We don't know the exact wallet address
+        )
+        
+        # Verify result is the expected payload
+        assert result == expected_payload
 
     @pytest.mark.asyncio
     async def test_router_delegation_preserves_ws_handlers(

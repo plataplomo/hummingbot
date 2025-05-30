@@ -177,13 +177,13 @@ async def test_prepare_request_success(
             method, path, params, data, headers
         )
 
-    assert "X-HL-Signature" in result["headers"]
-    assert len(result["headers"]["X-HL-Signature"]) == 130  # 65 bytes hex
-    assert result["headers"]["X-HL-Timestamp"] == str(int(fixed_time_sec * 1000))
-    assert result["headers"]["X-HL-Nonce"] == str(int(fixed_time_sec * 1000))
-    assert result["headers"]["X-Custom-Header"] == "custom"
-    assert result["params"] == params
-    assert result["data"] == data
+    assert "X-HL-Signature" in result.headers
+    assert len(result.headers["X-HL-Signature"]) == 130  # 65 bytes hex
+    assert result.headers["X-HL-Timestamp"] == str(int(fixed_time_sec * 1000))
+    assert result.headers["X-HL-Nonce"] == str(int(fixed_time_sec * 1000))
+    assert result.headers["X-Custom-Header"] == "custom"
+    assert result.params == params
+    assert result.data == data
 
     # Verify that sign_message was called with the output of our mocked encode_typed_data
     mock_account.sign_message.assert_called_once_with(dummy_signable_for_sign_message)
@@ -215,10 +215,10 @@ async def test_prepare_request_success(
     assert structured_data_to_sign["message"]["connectionId"] == expected_connection_id_bytes
 
     # Compare with the content of the signature, as actual output in header lacks "0x"
-    assert result["headers"]["X-HL-Signature"] == mock_signature_hex_content
+    assert result.headers["X-HL-Signature"] == mock_signature_hex_content
 
     expected_ts_ms = str(int(fixed_time_sec * 1000))
-    assert result["headers"]["X-HL-Timestamp"] == expected_ts_ms
+    assert result.headers["X-HL-Timestamp"] == expected_ts_ms
 
 
 @pytest.mark.asyncio
@@ -270,11 +270,11 @@ async def test_prepare_request_timestamp_nonce_generation(
         result = await authenticator_instance.prepare_request(method, path, None, data, None)
 
     expected_timestamp_ms = str(int(fixed_time_sec * 1000))
-    assert result["headers"]["X-HL-Timestamp"] == expected_timestamp_ms
+    assert result.headers["X-HL-Timestamp"] == expected_timestamp_ms
     # For the first call, nonce might be equal to timestamp if no previous calls.
     # This test primarily checks presence and format.
-    assert "X-HL-Nonce" in result["headers"]
-    assert result["headers"]["X-HL-Nonce"] == expected_timestamp_ms  # Or greater if stateful
+    assert "X-HL-Nonce" in result.headers
+    assert result.headers["X-HL-Nonce"] == expected_timestamp_ms  # Or greater if stateful
 
 
 @pytest.mark.asyncio
@@ -309,9 +309,9 @@ async def test_nonce_strictly_increasing(
             await authenticator_instance.prepare_request(method, path, None, data_3, None)
         )
 
-    nonce1 = int(results[0]["headers"]["X-HL-Nonce"])
-    nonce2 = int(results[1]["headers"]["X-HL-Nonce"])
-    nonce3 = int(results[2]["headers"]["X-HL-Nonce"])
+    nonce1 = int(results[0].headers["X-HL-Nonce"])
+    nonce2 = int(results[1].headers["X-HL-Nonce"])
+    nonce3 = int(results[2].headers["X-HL-Nonce"])
 
     assert nonce2 > nonce1, "Nonce should increase even if time is the same millisecond"
     assert nonce3 > nonce2, "Nonce should increase with time"
@@ -319,11 +319,11 @@ async def test_nonce_strictly_increasing(
     expected_ts1_ms = int(fixed_time_sec_1 * 1000)
     expected_ts3_ms = int(fixed_time_sec_3 * 1000)
 
-    assert results[0]["headers"]["X-HL-Timestamp"] == str(expected_ts1_ms)
-    assert results[1]["headers"]["X-HL-Timestamp"] == str(
+    assert results[0].headers["X-HL-Timestamp"] == str(expected_ts1_ms)
+    assert results[1].headers["X-HL-Timestamp"] == str(
         expected_ts1_ms
     )  # Time was patched to same
-    assert results[2]["headers"]["X-HL-Timestamp"] == str(expected_ts3_ms)
+    assert results[2].headers["X-HL-Timestamp"] == str(expected_ts3_ms)
 
 
 # Test class for more structured tests
@@ -465,15 +465,15 @@ class TestHyperliquidEip712Authenticator:
         with patch("time.time", return_value=fixed_time_sec):
             result = await auth.prepare_request(method, path, params, data, headers)
 
-        assert "X-HL-Signature" in result["headers"]
+        assert "X-HL-Signature" in result.headers
         # mock_account.sign_message.return_value.signature is HexBytes("0x" + "b" * 130)
-        assert result["headers"]["X-HL-Signature"] == ("b" * 130)
+        assert result.headers["X-HL-Signature"] == ("b" * 130)
         expected_ts_ms = str(int(fixed_time_sec * 1000))
-        assert result["headers"]["X-HL-Timestamp"] == expected_ts_ms
-        assert result["headers"]["X-HL-Nonce"] == expected_ts_ms  # First call
-        assert result["headers"]["User-Agent"] == "Test"
-        assert result["params"] == params
-        assert result["data"] == data
+        assert result.headers["X-HL-Timestamp"] == expected_ts_ms
+        assert result.headers["X-HL-Nonce"] == expected_ts_ms  # First call
+        assert result.headers["User-Agent"] == "Test"
+        assert result.params == params
+        assert result.data == data
 
         mock_account.sign_message.assert_called_once()
         # typed_data_signed = mock_account.sign_message.call_args[0][0]
@@ -519,13 +519,13 @@ class TestHyperliquidEip712Authenticator:
         with patch("time.time", return_value=time_val):  # Same time
             res2 = await auth.prepare_request("POST", path, None, data2, None)
 
-        nonce1 = int(res1["headers"]["X-HL-Nonce"])
-        nonce2 = int(res2["headers"]["X-HL-Nonce"])
+        nonce1 = int(res1.headers["X-HL-Nonce"])
+        nonce2 = int(res2.headers["X-HL-Nonce"])
 
         assert nonce2 == nonce1 + 1, "Nonce should increment by 1 for same timestamp"
         ts_ms = str(int(time_val * 1000))
-        assert res1["headers"]["X-HL-Timestamp"] == ts_ms
-        assert res2["headers"]["X-HL-Timestamp"] == ts_ms
+        assert res1.headers["X-HL-Timestamp"] == ts_ms
+        assert res2.headers["X-HL-Timestamp"] == ts_ms
 
     @pytest.mark.asyncio
     async def test_signing_failure(
@@ -690,7 +690,7 @@ class TestHyperliquidEip712Authenticator:
         auth = auth_with_mock_account
         action_payload = {"type": "order", "orders": [{"coin": "BTC", "is_buy": True, "sz": "0.1"}]}
         result = await auth.prepare_request("POST", "/exchange", None, action_payload, None)
-        assert "X-HL-Signature" in result["headers"]
+        assert "X-HL-Signature" in result.headers
         mock_account.sign_message.assert_called_once()  # Ensure signing occurred
 
 

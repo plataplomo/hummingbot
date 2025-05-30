@@ -91,17 +91,19 @@ class TestBackpackWsMessageRouter:
         """Test subscription payload construction for basic topics."""
         result = router.construct_subscription_payload("depth.SOL_USDC")
 
-        expected: dict[str, Any] = {
-            "op": "subscribe",
-            "channel": "depth.SOL_USDC",
-            "args": {},
-        }
-        assert result == expected
+        # Verify the result is a BackpackRawWsSubscriptionRequest
+        from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
+        assert isinstance(result, BackpackRawWsSubscriptionRequest)
+        assert result.method == "SUBSCRIBE"
+        assert result.params == ["depth.SOL_USDC"]
+        assert result.signature is None
 
     def test_construct_subscription_payload_various_topics(
         self, router: BackpackWsMessageRouter
     ) -> None:
         """Test subscription payload construction for various topic types."""
+        from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
+        
         test_cases = [
             "ticker.BTC_USDC",
             "fills",
@@ -111,11 +113,10 @@ class TestBackpackWsMessageRouter:
 
         for topic in test_cases:
             result = router.construct_subscription_payload(topic)
-            assert result == {
-                "op": "subscribe",
-                "channel": topic,
-                "args": {},
-            }
+            assert isinstance(result, BackpackRawWsSubscriptionRequest)
+            assert result.method == "SUBSCRIBE"
+            assert result.params == [topic]
+            assert result.signature is None
 
     @pytest.mark.asyncio
     async def test_route_message_depth_topic(

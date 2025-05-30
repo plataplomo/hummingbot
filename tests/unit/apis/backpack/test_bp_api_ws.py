@@ -73,16 +73,27 @@ def bp_api_with_mocked_router(
     mock_bp_ws_router: Mock,
 ) -> BackpackAPI:
     """Create BackpackAPI instance with mocked router and other dependencies."""
+    # Mock the WebSocketManager to avoid creating real connections
+    mock_ws_manager = Mock()
+    mock_ws_manager.is_connected = False
+    mock_ws_manager.send_json = AsyncMock()
+    mock_ws_manager.close = AsyncMock()
+    
     with patch("cyberdelta.apis.backpack.bp_api.BackpackEd25519Authenticator"):
         with patch("cyberdelta.apis.backpack.bp_api.BackpackErrorMapper"):
             with patch("cyberdelta.apis.backpack.bp_api.BackpackResponseHandler"):
                 with patch("cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder"):
-                    api = BackpackAPI(
-                        exchange_config=mock_exchange_config, exchange_secrets=mock_exchange_secrets
-                    )
-                    # Use object.__setattr__ to bypass protection for testing
-                    object.__setattr__(api, "_bp_ws_router", mock_bp_ws_router)
-                    return api
+                    # Patch WebSocketManager in the base module where it's imported
+                    with patch("cyberdelta.apis.base.exchange_api.WebSocketManager") as MockWSManager:
+                        MockWSManager.return_value = mock_ws_manager
+                        api = BackpackAPI(
+                            exchange_config=mock_exchange_config, exchange_secrets=mock_exchange_secrets
+                        )
+                        # Use object.__setattr__ to bypass protection for testing
+                        object.__setattr__(api, "_bp_ws_router", mock_bp_ws_router)
+                        # Ensure the mock is used
+                        assert api._ws_manager is mock_ws_manager
+                        return api
 
 
 class TestBackpackAPIWebSocketDelegation:
@@ -123,10 +134,18 @@ class TestBackpackAPIWebSocketDelegation:
     def test_construct_subscription_payload_creates_valid_payload(
         self, bp_api_with_mocked_router: BackpackAPI, mock_bp_ws_router: Mock
     ) -> None:
-        """Test that subscription payload construction creates valid payload."""
+        """Test that subscription payload construction delegates to router."""
         from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
 
         topic = "depth.SOL_USDC"
+        
+        # Mock the router to return a proper BackpackRawWsSubscriptionRequest
+        expected_payload = BackpackRawWsSubscriptionRequest(
+            method="SUBSCRIBE",
+            params=[topic],
+            signature=None
+        )
+        mock_bp_ws_router.construct_subscription_payload.return_value = expected_payload
 
         # Use object.__getattribute__ to access protected method for testing
         construct_method = object.__getattribute__(
@@ -134,11 +153,11 @@ class TestBackpackAPIWebSocketDelegation:
         )
         result = construct_method(topic)
 
-        # Verify result is a proper Pydantic model with expected structure
-        assert isinstance(result, BackpackRawWsSubscriptionRequest)
-        assert result.method == "SUBSCRIBE"
-        assert result.params == [topic]
-        assert result.signature is None  # Public stream, no signature needed
+        # Verify the router was called with correct arguments
+        mock_bp_ws_router.construct_subscription_payload.assert_called_once_with(topic, None)
+        
+        # Verify result is the expected payload
+        assert result == expected_payload
 
     @pytest.mark.asyncio
     async def test_router_delegation_preserves_ws_handlers(
@@ -174,7 +193,7 @@ class TestBackpackAPIWebSocketLifecycle:
         self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ExchangeSecrets
     ) -> BackpackAPI:
         """Create BackpackAPI instance with mocked dependencies for lifecycle tests."""
-        with patch("cyberdelta.apis.backpack.bp_api.BackpackHmacAuthenticator"):
+        with patch("cyberdelta.apis.backpack.bp_api.BackpackEd25519Authenticator"):
             with patch("cyberdelta.apis.backpack.bp_api.BackpackErrorMapper"):
                 with patch("cyberdelta.apis.backpack.bp_api.BackpackResponseHandler"):
                     with patch("cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder"):
@@ -239,7 +258,7 @@ class TestBackpackAPIWebSocketIntegration:
         self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ExchangeSecrets
     ) -> BackpackAPI:
         """Create BackpackAPI instance with real router for integration tests."""
-        with patch("cyberdelta.apis.backpack.bp_api.BackpackHmacAuthenticator"):
+        with patch("cyberdelta.apis.backpack.bp_api.BackpackEd25519Authenticator"):
             with patch("cyberdelta.apis.backpack.bp_api.BackpackErrorMapper"):
                 with patch("cyberdelta.apis.backpack.bp_api.BackpackResponseHandler"):
                     with patch("cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder"):
@@ -299,7 +318,7 @@ class TestBackpackAPIWebSocketEdgeCases:
         self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ExchangeSecrets
     ) -> BackpackAPI:
         """Create BackpackAPI instance for edge case testing."""
-        with patch("cyberdelta.apis.backpack.bp_api.BackpackHmacAuthenticator"):
+        with patch("cyberdelta.apis.backpack.bp_api.BackpackEd25519Authenticator"):
             with patch("cyberdelta.apis.backpack.bp_api.BackpackErrorMapper"):
                 with patch("cyberdelta.apis.backpack.bp_api.BackpackResponseHandler"):
                     with patch("cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder"):
@@ -309,19 +328,14 @@ class TestBackpackAPIWebSocketEdgeCases:
                         )
 
     def test_subscription_payload_empty_topic(self, bp_api_edge_case: BackpackAPI) -> None:
-        """Test subscription payload construction with empty topic creates valid model."""
-        from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
-
+        """Test subscription payload construction with empty topic raises ValueError."""
         construct_method = object.__getattribute__(
             bp_api_edge_case, "_construct_subscription_payload"
         )
-        result = construct_method("")
-
-        # Verify result is a proper Pydantic model even with empty topic
-        assert isinstance(result, BackpackRawWsSubscriptionRequest)
-        assert result.method == "SUBSCRIBE"
-        assert result.params == [""]  # Empty topic as param
-        assert result.signature is None
+        
+        # Empty topic should raise ValueError
+        with pytest.raises(ValueError, match="Topic cannot be empty"):
+            construct_method("")
 
     def test_subscription_payload_special_characters(self, bp_api_edge_case: BackpackAPI) -> None:
         """Test subscription payload construction with special characters in topic."""
@@ -340,20 +354,17 @@ class TestBackpackAPIWebSocketEdgeCases:
         assert result.signature is None
 
     def test_subscription_payload_very_long_topic(self, bp_api_edge_case: BackpackAPI) -> None:
-        """Test subscription payload construction with very long topic."""
-        from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
-
-        long_topic = "depth." + "A" * 1000 + "_USDC"
+        """Test subscription payload construction with very long topic raises validation error."""
+        from pydantic import ValidationError
+        
+        long_topic = "depth." + "A" * 1000 + "_USDC"  # Over 1000 characters, max is 128
         construct_method = object.__getattribute__(
             bp_api_edge_case, "_construct_subscription_payload"
         )
-        result = construct_method(long_topic)
-
-        # Verify result is a proper Pydantic model with very long topic
-        assert isinstance(result, BackpackRawWsSubscriptionRequest)
-        assert result.method == "SUBSCRIBE"
-        assert result.params == [long_topic]
-        assert result.signature is None
+        
+        # Very long topic should raise ValidationError due to string length limit
+        with pytest.raises((ValidationError, ValueError)):
+            construct_method(long_topic)
 
     @pytest.mark.asyncio
     async def test_subscribe_with_none_handler_behavior(
