@@ -134,7 +134,7 @@ def _decimal_to_float(value: Decimal | int | float | str | None) -> float:
             return f_value if math.isfinite(f_value) else float("nan")
         except ValueError:
             return float("nan")  # Invalid string format
-    # Fallback for other unexpected types
+    # DEFENSIVE CHECK: Fallback for other unexpected types. Mypy=[unreachable] Ruff=[]
     return float("nan")
 
 

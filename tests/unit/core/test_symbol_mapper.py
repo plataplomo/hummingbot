@@ -1,5 +1,5 @@
 import logging
-from typing import Any  # Added Dict and Any
+from typing import Any, cast  # Added Dict, Any and cast
 
 import pytest
 from _pytest.logging import LogCaptureFixture
@@ -57,9 +57,9 @@ def test_symbol_mapper_init_missing_exchanges_key() -> None:
     # SymbolMapper expects the exchanges dict directly.
     # This test should perhaps test that SymbolMapper raises if passed something other than a dict,
     with pytest.raises(SymbolMappingError, match="Invalid configuration: Expected a dictionary"):
-        SymbolMapper(None)
+        SymbolMapper(cast(dict[str, Any], None))
     with pytest.raises(SymbolMappingError, match="Invalid configuration: Expected a dictionary"):
-        SymbolMapper("not_a_dict")
+        SymbolMapper(cast(dict[str, Any], "not_a_dict"))
 
 
 def test_symbol_mapper_init_exchanges_not_dict() -> None:
@@ -68,7 +68,7 @@ def test_symbol_mapper_init_exchanges_not_dict() -> None:
         SymbolMappingError,
         match="Invalid configuration: Expected a dictionary of exchanges, got <class 'list'>",
     ):
-        SymbolMapper(["list", "not", "dict"])
+        SymbolMapper(cast(dict[str, Any], ["list", "not", "dict"]))
 
 
 def test_symbol_mapper_init_skips_invalid_entries(caplog: LogCaptureFixture) -> None:

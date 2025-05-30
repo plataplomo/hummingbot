@@ -28,10 +28,14 @@ class TestOrderBook:
         expected_bids = [(Decimal("50000.0"), Decimal("1.5")), (Decimal("49999.5"), Decimal("2.0"))]
         expected_asks = [(Decimal("50000.5"), Decimal("1.0")), (Decimal("50001.0"), Decimal("0.5"))]
 
-        # Ignore arg-type for bids/asks because this test specifically verifies that the
-        # mode='before' validator correctly handles mixed raw input types (str, float, int, Decimal)
-        # before parsing them into the expected list[tuple[Decimal, Decimal]].
-        ob = OrderBook(symbol="BTC-PERP", timestamp=now, bids=bids, asks=asks)
+        # Use Any to test validator handling of mixed types
+        kwargs: dict[str, Any] = {
+            "symbol": "BTC-PERP",
+            "timestamp": now,
+            "bids": bids,
+            "asks": asks
+        }
+        ob = OrderBook(**kwargs)
         assert ob.bids == expected_bids
         assert ob.asks == expected_asks
 
@@ -84,12 +88,14 @@ class TestOrderBook:
         naive_dt = datetime(2023, 3, 15, 12, 0, 0)
         expected_dt = datetime(2023, 3, 15, 12, 0, 0, tzinfo=UTC)
 
-        # Ignore arg-type: Testing the validator's ability to parse int timestamp.
-        ob_int = OrderBook(symbol="T", timestamp=ms_timestamp, bids=[], asks=[])
+        # Test int timestamp parsing using Any
+        kwargs_int: dict[str, Any] = {"symbol": "T", "timestamp": ms_timestamp, "bids": [], "asks": []}
+        ob_int = OrderBook(**kwargs_int)
         assert ob_int.timestamp == expected_dt
 
-        # Ignore arg-type: Testing the validator's ability to parse ISO string timestamp.
-        ob_iso = OrderBook(symbol="T", timestamp=iso_timestamp, bids=[], asks=[])
+        # Test ISO string timestamp parsing using Any
+        kwargs_iso: dict[str, Any] = {"symbol": "T", "timestamp": iso_timestamp, "bids": [], "asks": []}
+        ob_iso = OrderBook(**kwargs_iso)
         assert ob_iso.timestamp == expected_dt
 
         # From naive datetime
@@ -122,11 +128,13 @@ class TestOrderBook:
 
         # --- Test Top-Level Structure ---
         with pytest.raises(TypeError, match="bids must be a list"):
-            # Ignore arg-type: Intentionally passing wrong type (str) for 'bids' to test validator.
-            OrderBook(symbol="T", timestamp=now, bids="not_a_list", asks=[])
+            # Test invalid bids type using Any
+            kwargs_bids: dict[str, Any] = {"symbol": "T", "timestamp": now, "bids": "not_a_list", "asks": []}
+            OrderBook(**kwargs_bids)
         with pytest.raises(TypeError, match="asks must be a list"):
-            # Ignore arg-type: Intentionally passing wrong type (dict) for 'asks' to test validator.
-            OrderBook(symbol="T", timestamp=now, bids=[], asks={})
+            # Test invalid asks type using Any
+            kwargs_asks: dict[str, Any] = {"symbol": "T", "timestamp": now, "bids": [], "asks": {}}
+            OrderBook(**kwargs_asks)
 
         # --- Test Level Item Structure ---
         with pytest.raises(TypeError, match="must be a list or tuple"):

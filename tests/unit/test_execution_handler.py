@@ -9,11 +9,11 @@ import pytest
 from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAPI
 from cyberdelta.config import AppSettings
 from cyberdelta.core.execution_handler import (
-    CircuitBreakerSystem,
     ExecutionHandler,
     ExecutionStatus,
     TradeExecution,
 )
+from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.core.models import (
     Order,
     OrderSide,

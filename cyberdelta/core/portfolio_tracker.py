@@ -1171,18 +1171,17 @@ class PortfolioTracker:
             assets_dict_any: Any
             for ex_id_str, assets_dict_any in balances_data_typed.items():
                 if isinstance(assets_dict_any, dict):
-                    current_assets_items = assets_dict_any
-                    k_asset_raw: Any
+                    current_assets_items = cast(dict[str, Any], assets_dict_any)
+                    k_asset_raw: str
                     bal_data_any: Any
                     for k_asset_raw, bal_data_any in current_assets_items.items():
                         asset_str = str(k_asset_raw)
                         if isinstance(bal_data_any, dict):
                             try:
                                 # Ensure keys are str for model_validate
-                                temp_bal_dict_for_comp = bal_data_any
+                                temp_bal_dict_for_comp = cast(dict[str, Any], bal_data_any)
                                 validated_bal_dict: dict[str, Any] = {
-                                    str(k): v
-                                    for k, v in temp_bal_dict_for_comp.items()  # k, v are Any
+                                    str(k): v for k, v in temp_bal_dict_for_comp.items()
                                 }
                                 tracker.balances[ex_id_str][asset_str] = SpotBalance.model_validate(
                                     validated_bal_dict
@@ -1207,17 +1206,16 @@ class PortfolioTracker:
             syms_dict_any: Any
             for ex_id_str_pos, syms_dict_any in positions_data_typed.items():
                 if isinstance(syms_dict_any, dict):
-                    syms_dict_typed = syms_dict_any
+                    syms_dict_typed = cast(dict[str, Any], syms_dict_any)
                     sym_str: str
                     pos_data_any: Any
                     for sym_str, pos_data_any in syms_dict_typed.items():
                         if isinstance(pos_data_any, dict):
                             try:
                                 # Ensure keys are str for model_validate
-                                temp_pos_dict_for_comp = pos_data_any
+                                temp_pos_dict_for_comp = cast(dict[str, Any], pos_data_any)
                                 validated_pos_dict_for_model: dict[str, Any] = {
-                                    str(k): v
-                                    for k, v in temp_pos_dict_for_comp.items()  # k, v are Any
+                                    str(k): v for k, v in temp_pos_dict_for_comp.items()
                                 }
                                 tracker.positions[ex_id_str_pos][sym_str] = (
                                     DerivativePosition.model_validate(validated_pos_dict_for_model)
@@ -1242,17 +1240,16 @@ class PortfolioTracker:
             ords_dict_any: Any
             for ex_id_str_ord, ords_dict_any in orders_data_typed.items():
                 if isinstance(ords_dict_any, dict):
-                    ords_dict_typed = ords_dict_any
+                    ords_dict_typed = cast(dict[str, Any], ords_dict_any)
                     ord_id_str: str
                     order_data_any: Any
                     for ord_id_str, order_data_any in ords_dict_typed.items():
                         if isinstance(order_data_any, dict):
                             try:
                                 # Ensure keys are str for model_validate
-                                temp_order_dict_for_comp = order_data_any
+                                temp_order_dict_for_comp = cast(dict[str, Any], order_data_any)
                                 validated_order_dict_for_model: dict[str, Any] = {
-                                    str(k): v
-                                    for k, v in temp_order_dict_for_comp.items()  # k, v are Any
+                                    str(k): v for k, v in temp_order_dict_for_comp.items()
                                 }
                                 tracker.orders[ex_id_str_ord][ord_id_str] = Order.model_validate(
                                     validated_order_dict_for_model

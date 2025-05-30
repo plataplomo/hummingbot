@@ -520,16 +520,8 @@ class RealTimeDashboard:
                                 html.Td(f"{metrics['sortino_ratio']:.2f}"),
                                 html.Td(f"{metrics['max_drawdown']:.2f}%"),
                                 html.Td(f"{metrics['calmar_ratio']:.2f}"),
-                                html.Td(
-                                    f"{metrics.get('win_rate', 'N/A'):.2f}%"
-                                    if isinstance(metrics.get("win_rate"), (int, float))
-                                    else "N/A"
-                                ),
-                                html.Td(
-                                    f"{metrics.get('profit_factor', 'N/A'):.2f}"
-                                    if isinstance(metrics.get("profit_factor"), (int, float))
-                                    else "N/A"
-                                ),
+                                html.Td(f"{metrics.get('win_rate', 'N/A'):.2f}%"),
+                                html.Td(f"{metrics.get('profit_factor', 'N/A'):.2f}"),
                             ]
                         )
                     )

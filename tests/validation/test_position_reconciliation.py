@@ -413,9 +413,9 @@ class TestPositionReconciliationSystem:
         self, reconciliation_system: PositionReconciliationSystem
     ) -> None:
         """Test checking positions and identifying discrepancies."""
-        reconciliation_system._portfolio_tracker.get_positions_by_exchange = MagicMock(
-            return_value=[]
-        )
+        # Mock the portfolio tracker method using setattr
+        mock_get_positions = MagicMock(return_value=[])
+        setattr(reconciliation_system._portfolio_tracker, 'get_positions_by_exchange', mock_get_positions)
 
         now = datetime.now(UTC)
         api_positions_hyper = [
@@ -616,7 +616,7 @@ class TestPositionReconciliationSystem:
         )
 
         # Sample results dictionary now contains a list of DiscrepancyDetail models
-        results = {
+        results: dict[str, Any] = {
             "timestamp": now_ts,
             "discrepancies": [discrepancy_detail_model],
             "success": False,  # Typically, if there are discrepancies, success might be False
@@ -839,9 +839,9 @@ class TestPositionReconciliationSystem:
         self, reconciliation_system: PositionReconciliationSystem
     ) -> None:
         """Test checking positions and identifying discrepancies."""
-        reconciliation_system._portfolio_tracker.get_positions_by_exchange = MagicMock(
-            return_value=[]
-        )
+        # Mock the portfolio tracker method using setattr
+        mock_get_positions = MagicMock(return_value=[])
+        setattr(reconciliation_system._portfolio_tracker, 'get_positions_by_exchange', mock_get_positions)
 
         now = datetime.now(UTC)
         api_positions_hyper = [

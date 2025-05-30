@@ -19,6 +19,7 @@ from cyberdelta.config.config_models import (
     GeneralSettings,
     GlobalRiskSettings,
     MonitoringSettings,
+    PortfolioTrackerConfig,
     PositionReconciliationSettings,
     RiskSettings,
     SafetySystemsSettings,
@@ -287,6 +288,11 @@ def mock_config() -> Callable[..., AppSettings]:
                 notifications_enabled=True,
                 alert_methods=["log"],
             ),
+            portfolio_tracker=PortfolioTrackerConfig(
+                data_freshness_seconds=60,
+                initial_balances={},
+                initial_positions=[],
+            ),
         )
 
     return _create_config
@@ -409,6 +415,11 @@ def test_app_settings() -> AppSettings:
         monitoring=MonitoringSettings(
             notifications_enabled=True,
             alert_methods=["log"],
+        ),
+        portfolio_tracker=PortfolioTrackerConfig(
+            data_freshness_seconds=60,
+            initial_balances={},
+            initial_positions=[],
         ),
     )
 

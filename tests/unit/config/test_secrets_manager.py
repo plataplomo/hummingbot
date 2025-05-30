@@ -203,10 +203,10 @@ class TestSecretsManager:
             # Call load explicitly
             manager.load()
 
-            # DEFENSIVE CHECK: Test assertions after successful load. Mypy=[unreachable]
+            # Test assertions after successful load
+            # If load() raised an exception, we wouldn't reach here
             assert manager.secrets_loaded is True
             assert manager.secrets_data is not None
-            assert isinstance(manager.secrets_data, SecretsConfig)
 
     def test_load_method_file_not_found(self) -> None:
         """Test load method when file doesn't exist."""

@@ -2,33 +2,34 @@
 Handles persistence (saving and loading) of performance tracking data.
 """
 
+from __future__ import annotations
+
 import json
-import logging
 import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import structlog
+
 # Assuming Decimal might be used in trade/signal data, import if needed
 # from decimal import Decimal
 # Using the centralized encoder is recommended
-from cyberdelta.utils.serialization import CyberDeltaJSONEncoder
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class PerformanceDataPersistence:
-    """Handles loading and saving performance data to/from JSON files."""
+    """Handles saving and loading of performance data to/from JSON files."""
 
     def __init__(self, output_dir: str) -> None:
         """
         Initialize the persistence handler.
 
         Args:
-            output_dir: The base directory where data files are stored.
+            output_dir: Directory for saving/loading performance data files.
         """
         self.output_dir = Path(output_dir)
-        # Ensure base directory exists
         self.output_dir.mkdir(parents=True, exist_ok=True)
         # Lock to ensure atomic writes/reads if accessed concurrently (optional, depends on usage)
         # If PerformanceTracker handles locking before calling save/load, this might be redundant.
@@ -37,275 +38,284 @@ class PerformanceDataPersistence:
         logger.info(f"Performance data persistence initialized for directory: {self.output_dir}")
 
     def _get_filepath(self, data_type: str, filename: str) -> Path:
-        """Constructs the full path for a data file."""
+        """
+        Get the full file path for a data type and filename.
+
+        Args:
+            data_type: Type of data (e.g., 'returns', 'trades')
+            filename: Name of the file
+
+        Returns:
+            Full path to the file
+        """
         dir_path = self.output_dir / data_type
         dir_path.mkdir(parents=True, exist_ok=True)
         return dir_path / filename
 
-    # Changed data type from Any to dict | list for better type safety where possible
     def save_data(self, data_type: str, filename: str, data: dict[str, Any] | list[Any]) -> None:
-        """Saves generic data (dict or list) to a JSON file."""
+        """
+        Save data to a JSON file.
+
+        Args:
+            data_type: Type of data (e.g., 'returns', 'trades')
+            filename: Name of the file
+            data: Data to save
+        """
         filepath = self._get_filepath(data_type, filename)
-        serializable_data = self._make_serializable(data)
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+
         try:
-            with self.lock:
-                with open(filepath, "w", encoding="utf-8") as f:
-                    # Use standard json.dump with our custom encoder
-                    json.dump(serializable_data, f, indent=2, cls=CyberDeltaJSONEncoder)
+            # Make data serializable
+            serializable_data = self._make_serializable(data)
+
+            with filepath.open("w", encoding="utf-8") as f:
+                json.dump(serializable_data, f, indent=2, ensure_ascii=False)
+
             logger.debug(f"Saved {data_type} data to {filepath}")
-        except TypeError as e:
-            logger.error(
-                f"Serialization error saving {filepath}: {e}. "
-                f"Data type: {type(data)}. Check contents.",
-                exc_info=True,
-            )
-        except OSError as e:
-            logger.error(f"File system error saving {filepath}: {e}", exc_info=True)
-        except Exception as e:
-            logger.error(f"Unexpected error saving {filepath}: {e}", exc_info=True)
 
-    # Changed return type from Any | None
+        except Exception as e:
+            logger.error(f"Failed to save {data_type} data to {filepath}: {e}")
+
     def load_data(self, data_type: str, filename: str) -> dict[str, Any] | list[Any] | None:
-        """Loads generic data (dict or list) from a JSON file."""
+        """
+        Load data from a JSON file.
+
+        Args:
+            data_type: Type of data (e.g., 'returns', 'trades')
+            filename: Name of the file
+
+        Returns:
+            Loaded data or None if file doesn't exist or loading fails
+        """
         filepath = self._get_filepath(data_type, filename)
+
         if not filepath.exists():
-            logger.debug(f"Data file not found, skipping load: {filepath}")
+            logger.debug(f"File {filepath} does not exist")
             return None
+
         try:
-            with self.lock:
-                with open(filepath, encoding="utf-8") as f:
-                    # Use the utility load_json or standard json.load
-                    loaded_data = json.load(f)
+            with filepath.open("r", encoding="utf-8") as f:
+                loaded_data: dict[str, Any] | list[Any] = json.load(f)
+
+            # Post-process the loaded data (e.g., convert datetime strings back to datetime objects)
+            processed_data = self.post_process_loaded_data(data_type, loaded_data)
+
             logger.debug(f"Loaded {data_type} data from {filepath}")
-            # Post-processing (e.g., datetime conversion) should happen AFTER loading
-            # Ensure loaded data is dict or list before returning
-            # Ruff UP038 Fix: Use X | Y
-            if isinstance(loaded_data, dict | list):
-                return loaded_data  # Ignore partially unknown type
-            else:
-                logger.warning(
-                    f"Loaded data from {filepath} is not dict or list: {type(loaded_data)}"
-                )
-                return None
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON decoding error loading {filepath}: {e}", exc_info=True)
-        except OSError as e:
-            logger.error(f"File system error loading {filepath}: {e}", exc_info=True)
+            return processed_data
+
         except Exception as e:
-            logger.error(f"Unexpected error loading {filepath}: {e}", exc_info=True)
-        return None
+            logger.error(f"Failed to load {data_type} data from {filepath}: {e}")
+            return None
 
-    # Changed input/output types from Any
     def _make_serializable(self, data: dict[str, Any] | list[Any]) -> dict[str, Any] | list[Any]:
-        """Converts data structures containing non-serializable types (like datetime)."""
-        if isinstance(data, dict):
-            # Handle returns dict {strategy: {timestamp: value}}
-            # Check if values are dicts and keys within those are datetime
-            is_returns_dict = False
-            if data:
-                first_val = next(iter(data.values()))
-                if isinstance(first_val, dict) and first_val:
-                    # Ignore unknown type for key k during iteration
-                    is_returns_dict = all(isinstance(k, datetime) for k in first_val.keys())
+        """
+        Make data JSON serializable by converting datetime objects to ISO strings.
 
-            if is_returns_dict:
-                return {
-                    strategy: {
-                        ts.isoformat(): val for ts, val in returns.items()
-                    }  # Ignore potentially undefined 'returns'
-                    for strategy, returns in data.items()
-                }
-            # General dict processing
-            # Ruff UP038 fix: Use X | Y
-            return {
-                # Ignore unknown type for v
-                k: self._make_serializable(v) if isinstance(v, dict | list) else v
-                for k, v in data.items()
-            }
-        # Remove unnecessary elif check, if not dict, it must be list based on type hint
+        Args:
+            data: Data to make serializable
+
+        Returns:
+            Serializable data
+        """
+        if isinstance(data, dict):
+            return self._make_dict_serializable(data)
+        elif isinstance(data, list):
+            serializable_list: list[Any] = []
+            for item in data:
+                if isinstance(item, dict):
+                    serializable_list.append(self._make_dict_serializable(item))
+                elif isinstance(item, datetime):
+                    serializable_list.append(item.isoformat())
+                else:
+                    serializable_list.append(item)
+            return serializable_list
         else:
-            # Handle list of trades/signals/funding_rates (which are dicts)
-            return [
-                self._make_dict_serializable(item) for item in data
-            ]  # Ignore iterating over list[Any]
+            return data
 
     def _make_dict_serializable(self, item: dict[str, Any]) -> dict[str, Any]:
-        """Makes a single dictionary (like a trade or signal) serializable."""
-        item_copy = item.copy()
-        for key, value in item_copy.items():
-            if isinstance(value, datetime):
-                item_copy[key] = value.isoformat()
-            # Recursively handle nested dicts/lists if necessary
-            elif isinstance(value, dict | list):
-                item_copy[key] = self._make_serializable(value)  # Ignore unknown type for value
-            # Add Decimal handling if needed and not using encoder that stringifies it
-            # elif isinstance(value, Decimal):
-            #     item_copy[key] = str(value)
-        return item_copy
+        """
+        Make a dictionary JSON serializable.
 
-    # Changed loaded_data type from Any, return type from Any
+        Args:
+            item: Dictionary to make serializable
+
+        Returns:
+            Serializable dictionary
+        """
+        serializable_item: dict[str, Any] = {}
+        for key, value in item.items():
+            if isinstance(value, datetime):
+                serializable_item[key] = value.isoformat()
+            elif isinstance(value, dict):
+                # DEFENSIVE CHECK: Recursively handle nested dicts. Pyright=[reportUnknownArgumentType]
+                serializable_item[key] = self._make_dict_serializable(value)
+            elif isinstance(value, list):
+                # DEFENSIVE CHECK: Recursively handle nested lists. Pyright=[reportUnknownArgumentType]
+                serializable_item[key] = self._make_serializable(value)
+            else:
+                serializable_item[key] = value
+        return serializable_item
+
     def post_process_loaded_data(
         self, data_type: str, loaded_data: dict[str, Any] | list[Any] | None
     ) -> dict[str, Any] | list[Any] | None:
-        """Converts loaded data structures back (e.g., string to datetime)."""
-        if loaded_data is None:
-            return None  # Or appropriate default (e.g., empty list/dict)
+        """
+        Post-process loaded data to convert datetime strings back to datetime objects.
 
-        if data_type == "returns" and isinstance(loaded_data, dict):
-            # Input: {strategy: {iso_timestamp_str: value}}
-            # Mypy fix: Add type annotation
-            processed_data: dict[str, dict[datetime, float]] = {}
-            for strategy, returns_dict in loaded_data.items():
-                if isinstance(returns_dict, dict):
-                    processed_data[strategy] = {}
-                    # Ignore unknown types for ts_str, val
-                    for ts_str, val in returns_dict.items():
-                        if isinstance(ts_str, str):
+        Args:
+            data_type: Type of data being loaded
+            loaded_data: Raw loaded data
+
+        Returns:
+            Post-processed data
+        """
+        if loaded_data is None:
+            return None
+
+        if data_type == "returns":
+            # For returns data, convert timestamp keys back to datetime objects
+            if isinstance(loaded_data, dict):
+                processed_returns: dict[str, Any] = {}
+                for strategy_name, strategy_data in loaded_data.items():
+                    if isinstance(strategy_data, dict):
+                        processed_strategy_data: dict[datetime, float] = {}
+                        # DEFENSIVE CHECK: Handle unknown types from JSON. Pyright=[reportUnknownVariableType, reportUnknownArgumentType]
+                        for ts_str, val in strategy_data.items():
                             try:
-                                # Assuming val is float or compatible
-                                # Ignore unknown type for val
-                                processed_data[strategy][datetime.fromisoformat(ts_str)] = float(
-                                    val
-                                )
+                                timestamp = datetime.fromisoformat(str(ts_str))
+                                processed_strategy_data[timestamp] = float(val)
                             except (ValueError, TypeError):
-                                logger.warning(
-                                    f"Could not parse timestamp {ts_str} or value "
-                                    f"{val} in {data_type} data"
-                                )
-                        else:
-                            logger.warning(
-                                f"Non-string timestamp key '{ts_str}' found in returns for "
-                                f"{strategy}"
-                            )
-                else:
-                    logger.warning(
-                        f"Invalid returns format for strategy {strategy}: "
-                        f"expected dict, got {type(returns_dict)}"
-                    )
-            return processed_data
-        elif data_type in ["trades", "signals", "funding_rates"] and isinstance(loaded_data, list):
-            # Input: list[dict]
-            processed_list = []
-            # Ignore unknown type for item_dict
-            for item_dict in loaded_data:
-                if isinstance(item_dict, dict):
-                    processed_list.append(self._post_process_dict(item_dict))
-                else:
-                    logger.warning(f"Non-dict item found in {data_type} list: {type(item_dict)}")
-            return processed_list  # Ignore partially unknown return type
+                                logger.warning(f"Could not parse timestamp: {ts_str}")
+                                continue
+                        processed_returns[strategy_name] = processed_strategy_data
+                    else:
+                        processed_returns[strategy_name] = strategy_data
+                return processed_returns
+            else:
+                return loaded_data
+
+        elif data_type in ["trades", "signals", "funding_rates"]:
+            # For list-based data, convert datetime fields in each item
+            if isinstance(loaded_data, list):
+                processed_list: list[dict[str, Any]] = []
+                for item in loaded_data:
+                    if isinstance(item, dict):
+                        # DEFENSIVE CHECK: Handle unknown dict types from JSON. Pyright=[reportUnknownArgumentType]
+                        processed_list.append(self._post_process_dict(item))
+                    else:
+                        processed_list.append(item)
+                return processed_list
+            else:
+                return loaded_data
+
         else:
-            logger.warning(
-                f"Loaded data for {data_type} is not the expected type (dict/list): "
-                f"{type(loaded_data)}"
-            )
-            return loaded_data  # Return original if type mismatch
+            # Unknown data type, return as-is
+            return loaded_data
 
     def _post_process_dict(self, item: dict[str, Any]) -> dict[str, Any]:
-        """Converts known string fields back to datetime in a loaded dict."""
-        item_copy = item.copy()
-        # Define keys that might contain ISO datetime strings
-        datetime_keys = ["timestamp", "entry_time", "exit_time"]
-        for key in datetime_keys:
-            if key in item_copy and isinstance(item_copy[key], str):
-                try:
-                    item_copy[key] = datetime.fromisoformat(item_copy[key])
-                except (ValueError, TypeError):
-                    logger.warning(
-                        f"Could not parse datetime string '{item_copy[key]}' for key '{key}'"
-                    )
-                    item_copy[key] = None  # Set to None if parsing fails
-        # Recursively handle nested structures if needed
-        for key, value in item_copy.items():
-            if isinstance(value, dict):
-                item_copy[key] = self._post_process_dict(value)
-            # Could add list handling if nested lists with datetimes are expected
+        """
+        Post-process a dictionary to convert datetime strings back to datetime objects.
 
-        return item_copy
+        Args:
+            item: Dictionary to post-process
+
+        Returns:
+            Post-processed dictionary
+        """
+        processed_item: dict[str, Any] = {}
+        datetime_fields = [
+            "timestamp",
+            "entry_time",
+            "exit_time",
+            "created_at",
+            "updated_at",
+            "triggered_at",
+        ]
+
+        for key, value in item.items():
+            if key in datetime_fields and isinstance(value, str):
+                try:
+                    processed_item[key] = datetime.fromisoformat(value)
+                except (ValueError, TypeError):
+                    logger.warning(f"Could not parse datetime field {key}: {value}")
+                    processed_item[key] = value
+            else:
+                processed_item[key] = value
+
+        return processed_item
 
     # --- Specific Load/Save Methods --- #
 
     def save_returns(self, strategy_name: str, returns_data: dict[datetime, float]) -> None:
-        """Saves returns for a specific strategy."""
-        # Data needs conversion {datetime: val} -> {iso_str: val}
+        """Save returns data for a strategy."""
+        # Convert datetime keys to strings for JSON serialization
         serializable_data = {ts.isoformat(): val for ts, val in returns_data.items()}
         self.save_data("returns", f"{strategy_name}.json", serializable_data)
 
     def load_all_returns(self) -> dict[str, dict[datetime, float]]:
-        """Loads returns for all strategies found in the returns directory."""
-        # Mypy fix: Add type annotation
-        all_returns: dict[str, dict[datetime, float]] = {}
+        """
+        Load all returns data from files.
+
+        Returns:
+            Dictionary mapping strategy names to their returns data
+        """
         returns_dir = self.output_dir / "returns"
-        if not returns_dir.is_dir():
+        all_returns: dict[str, dict[datetime, float]] = {}
+
+        if not returns_dir.exists():
             return all_returns
-        with self.lock:
-            for filepath in returns_dir.glob("*.json"):
-                strategy_name = filepath.stem
-                # Load raw dict {str: val}
-                loaded_data = self.load_data("returns", filepath.name)
-                if isinstance(loaded_data, dict):
-                    # Post-process: convert keys back to datetime
-                    all_returns[strategy_name] = {}
-                    # Ignore unknown types
-                    for ts_str, val in loaded_data.items():
-                        # Ignore unnecessary isinstance check
-                        # if isinstance(ts_str, str):
-                        try:
-                            # Assuming val is float or compatible
-                            # Ignore unknown type for val
-                            all_returns[strategy_name][datetime.fromisoformat(ts_str)] = float(val)
-                        except (ValueError, TypeError):
-                            logger.warning(
-                                f"Could not parse timestamp {ts_str} or value "
-                                f"{val} in returns file {filepath.name}"
-                            )
-                        # else:
-                        #     logger.warning(
-                        #         f"Non-string timestamp key found in returns file {filepath.name}"
-                        #     )
-                else:
-                    logger.warning(
-                        f"Loaded data for {strategy_name} returns is not a dict: "
-                        f"{type(loaded_data)}"
-                    )
+
+        try:
+            for file_path in returns_dir.glob("*.json"):
+                strategy_name = file_path.stem
+                loaded_data = self.load_data("returns", file_path.name)
+
+                if loaded_data and isinstance(loaded_data, dict):
+                    # Extract the strategy data from the loaded data
+                    if strategy_name in loaded_data:
+                        strategy_data = loaded_data[strategy_name]
+                        if isinstance(strategy_data, dict):
+                            # DEFENSIVE CHECK: Type conversion for loaded data. Pyright=[reportArgumentType]
+                            all_returns[strategy_name] = strategy_data  # type: ignore[assignment]
+                    else:
+                        # If the file contains the strategy data directly
+                        # DEFENSIVE CHECK: Type conversion for loaded data. Pyright=[reportArgumentType]
+                        all_returns[strategy_name] = loaded_data  # type: ignore[assignment]
+
+        except Exception as e:
+            logger.error(f"Failed to load returns data: {e}")
+
         return all_returns
 
     def save_trades(self, trades_data: list[dict[str, Any]]) -> None:
-        """Saves the list of trades."""
-        # Needs conversion for datetime objects within the dicts
+        """Save trades data."""
         self.save_data("trades", "trades.json", trades_data)
 
     def load_trades(self) -> list[dict[str, Any]]:
-        """Loads the list of trades."""
+        """Load trades data."""
         loaded_data = self.load_data("trades", "trades.json")
-        # Ensure loaded_data is list before passing to post-processing
-        if not isinstance(loaded_data, list):
-            logger.warning(f"Loaded trades data is not a list: {type(loaded_data)}")
-            loaded_data = []
-        processed_data = self.post_process_loaded_data("trades", loaded_data)
-        return processed_data if isinstance(processed_data, list) else []
+        if isinstance(loaded_data, list):
+            return loaded_data
+        return []
 
     def save_signals(self, signals_data: list[dict[str, Any]]) -> None:
-        """Saves the list of signals."""
+        """Save signals data."""
         self.save_data("signals", "signals.json", signals_data)
 
     def load_signals(self) -> list[dict[str, Any]]:
-        """Loads the list of signals."""
+        """Load signals data."""
         loaded_data = self.load_data("signals", "signals.json")
-        if not isinstance(loaded_data, list):
-            logger.warning(f"Loaded signals data is not a list: {type(loaded_data)}")
-            loaded_data = []
-        processed_data = self.post_process_loaded_data("signals", loaded_data)
-        return processed_data if isinstance(processed_data, list) else []
+        if isinstance(loaded_data, list):
+            return loaded_data
+        return []
 
     def save_funding_rates(self, funding_rates_data: list[dict[str, Any]]) -> None:
-        """Saves the list of funding rates."""
+        """Save funding rates data."""
         self.save_data("funding_rates", "funding_rates.json", funding_rates_data)
 
     def load_funding_rates(self) -> list[dict[str, Any]]:
-        """Loads the list of funding rates."""
+        """Load funding rates data."""
         loaded_data = self.load_data("funding_rates", "funding_rates.json")
-        if not isinstance(loaded_data, list):
-            logger.warning(f"Loaded funding_rates data is not a list: {type(loaded_data)}")
-            loaded_data = []
-        processed_data = self.post_process_loaded_data("funding_rates", loaded_data)
-        return processed_data if isinstance(processed_data, list) else []
+        if isinstance(loaded_data, list):
+            return loaded_data
+        return []

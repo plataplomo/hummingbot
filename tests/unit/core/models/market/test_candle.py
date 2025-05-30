@@ -57,7 +57,7 @@ class TestCandle:
         """Test creating a Candle with data needing parsing (str, int, float)."""
         ms_timestamp = int(NOW.timestamp() * 1000)
         expected_dt_from_ms = datetime.fromtimestamp(ms_timestamp / 1000, tz=UTC)
-        data = {
+        data: dict[str, Any] = {
             "symbol": VALID_SYMBOL,
             "interval": VALID_INTERVAL,
             "open_time": ms_timestamp,  # Test int parsing
@@ -67,8 +67,8 @@ class TestCandle:
             "close": "102.0",  # Test str parsing
             "volume": 1000,  # Test int parsing
         }
-        # Mypy accepts the dict with raw types, validation happens in Candle init
-        candle = Candle(**data)  # Ignore needed for Pyright/overall call type mismatch
+        # Use Any dict to test validator handling
+        candle = Candle(**data)
         assert candle.open_time == expected_dt_from_ms
         assert candle.open == Decimal("100.0")
         assert candle.high == Decimal("105.0")

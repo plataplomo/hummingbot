@@ -260,7 +260,7 @@ class TestBacktestingIntegration:
 
             def update(
                 self,
-                current_data: pd.Series | pd.DataFrame,  # Removed [Any]
+                current_data: pd.Series[Any] | pd.DataFrame,
             ) -> dict[str, list[dict[str, Any]]]:
                 signals: list[dict[str, Any]] = []
 
@@ -366,7 +366,7 @@ class TestBacktestingIntegration:
 
             def update(
                 self,
-                current_data: pd.Series | pd.DataFrame,  # Removed [Any]
+                current_data: pd.Series[Any] | pd.DataFrame,
             ) -> dict[str, list[Any]]:  # Add Any
                 return {"signals": []}
 
@@ -421,7 +421,7 @@ class TestBacktestingIntegration:
 
             def update(
                 self,
-                current_data: pd.Series | pd.DataFrame,  # Removed [Any]
+                current_data: pd.Series[Any] | pd.DataFrame,
             ) -> dict[str, list[Any]]:  # Add Any
                 return {"signals": []}  # Return no signals
 

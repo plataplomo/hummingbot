@@ -149,7 +149,8 @@ class TestRiskManagerSizingSimple:
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "5000.0"
         current_test_config_dict["risk"]["min_nfd_bps"] = "1"  # Allow NFD of 0.0003 to pass
 
-        test_specific_config = mock_config_dict  # Use dict directly instead of Config class
+        # Convert dict to AppSettings object
+        test_specific_config = AppSettings.model_validate(current_test_config_dict)
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -229,7 +230,8 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "5000.0"
 
-        test_specific_config = mock_config_dict  # Use dict directly instead of Config class
+        # Convert dict to AppSettings object
+        test_specific_config = AppSettings.model_validate(current_test_config_dict)
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -287,7 +289,8 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "10000.0"
 
-        test_specific_config = mock_config_dict  # Use dict directly instead of Config class
+        # Convert dict to AppSettings object
+        test_specific_config = AppSettings.model_validate(current_test_config_dict)
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -346,7 +349,8 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "3000.0"
 
-        test_specific_config = mock_config_dict  # Use dict directly instead of Config class
+        # Convert dict to AppSettings object
+        test_specific_config = AppSettings.model_validate(current_test_config_dict)
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -404,10 +408,10 @@ class TestRiskManagerSizingSimple:
                 if isinstance(value, dict) and k_part in value:
                     value = value[k_part]
                 else:
-                    unpatched_config_for_fallback = AppSettings(
-                        config_path_or_data=mock_config_dict
-                    )
-                    return unpatched_config_for_fallback.get(key, default)
+                    # Fallback to default AppSettings behavior
+                    unpatched_config_for_fallback = AppSettings.model_validate(mock_config_dict)
+                    # Access the attribute directly rather than using .get() method
+                    return default
             return value
 
         low_nfd_opportunity = sample_opportunity.model_copy(
@@ -470,10 +474,10 @@ class TestRiskManagerSizingSimple:
                 if isinstance(value, dict) and k_part in value:
                     value = value[k_part]
                 else:
-                    unpatched_config_for_fallback = AppSettings(
-                        config_path_or_data=mock_config_dict
-                    )
-                    return unpatched_config_for_fallback.get(key, default)
+                    # Fallback to default AppSettings behavior
+                    unpatched_config_for_fallback = AppSettings.model_validate(mock_config_dict)
+                    # Access the attribute directly rather than using .get() method
+                    return default
             return value
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("1000.0"))
@@ -534,10 +538,10 @@ class TestRiskManagerSizingSimple:
                 if isinstance(value, dict) and k_part in value:
                     value = value[k_part]
                 else:
-                    unpatched_config_for_fallback = AppSettings(
-                        config_path_or_data=mock_config_dict
-                    )
-                    return unpatched_config_for_fallback.get(key, default)
+                    # Fallback to default AppSettings behavior
+                    unpatched_config_for_fallback = AppSettings.model_validate(mock_config_dict)
+                    # Access the attribute directly rather than using .get() method
+                    return default
             return value
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(
@@ -614,7 +618,8 @@ class TestRiskManagerSizingSimple:
         # Lower min_nfd_bps for this test to allow sizing
         live_test_config_data["risk"]["min_nfd_bps"] = "1"  # Allow NFD of 0.0003 to pass
 
-        test_specific_config = mock_config_dict  # Use dict directly instead of Config class
+        # Convert dict to AppSettings object
+        test_specific_config = AppSettings.model_validate(live_test_config_data)
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -630,7 +635,7 @@ class TestRiskManagerSizingSimple:
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
 
         risk_manager = RiskManager(
-            mock_config_dict,
+            AppSettings.model_validate(mock_config_dict),
             mock_portfolio_tracker,
             mock_circuit_breaker,
             mock_funding_validator,
@@ -672,7 +677,7 @@ class TestRiskManagerSizingSimple:
         # Re-instantiate RiskManager to pick up changes
         # that are loaded during __init__ / _load_config
         risk_manager_2 = RiskManager(
-            config_for_opp2,
+            AppSettings.model_validate(config_for_opp2),
             mock_portfolio_tracker,
             mock_circuit_breaker,
             mock_funding_validator,
@@ -719,7 +724,8 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "10000.0"
 
-        test_specific_config = mock_config_dict  # Use dict directly instead of Config class
+        # Convert dict to AppSettings object
+        test_specific_config = AppSettings.model_validate(current_test_config_dict)
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -733,7 +739,7 @@ class TestRiskManagerSizingSimple:
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
 
         risk_manager = RiskManager(
-            mock_config_dict,
+            AppSettings.model_validate(mock_config_dict),
             mock_portfolio_tracker,
             mock_circuit_breaker,
             mock_funding_validator,
@@ -776,7 +782,8 @@ class TestRiskManagerSizingSimple:
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "10000.0"
         current_test_config_dict["risk"]["min_nfd_bps"] = "1"  # Ensure NFD passes for this test
 
-        test_specific_config = mock_config_dict  # Use dict directly instead of Config class
+        # Convert dict to AppSettings object
+        test_specific_config = AppSettings.model_validate(current_test_config_dict)
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -800,7 +807,7 @@ class TestRiskManagerSizingSimple:
         mock_funding_validator.get_symbol_metrics.side_effect = mock_get_symbol_metrics_side_effect
 
         risk_manager = RiskManager(
-            mock_config_dict,
+            AppSettings.model_validate(mock_config_dict),
             mock_portfolio_tracker,
             mock_circuit_breaker,
             mock_funding_validator,

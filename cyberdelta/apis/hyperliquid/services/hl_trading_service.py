@@ -457,7 +457,9 @@ class HyperliquidTradingService:
                             f"Order OID {filled_oid} filled immediately. "
                             f"Re-fetching for full details."
                         )
-                        internal_order = await self.get_order(symbol=args.symbol, order_id=filled_oid)
+                        internal_order = await self.get_order(
+                            symbol=args.symbol, order_id=filled_oid
+                        )
                         if internal_order:
                             internal_order.status = OrderStatus.FILLED
                             internal_order.quantity_filled = (

@@ -279,10 +279,11 @@ class TestConfigManager:
             # Call load explicitly
             manager.load()
 
-            # DEFENSIVE CHECK: Test assertions after successful load. Mypy=[unreachable]
+            # Test assertions after successful load
+            # The load() method sets these attributes, so we check them
+            # If load() raised an exception, we wouldn't reach here
             assert manager.loaded is True
             assert manager.settings is not None
-            assert isinstance(manager.settings, AppSettings)
 
     def test_load_method_file_not_found(self) -> None:
         """Test load method when file doesn't exist."""

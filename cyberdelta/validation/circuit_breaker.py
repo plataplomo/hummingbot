@@ -164,8 +164,10 @@ class CircuitBreaker(ABC):
 
     @abstractmethod
     def check(
-        self, *args: Any, **kwargs: Any
-    ) -> None:  # Any required for flexible circuit breaker implementations
+        self,
+        *args: Any,
+        **kwargs: Any,  # Any required for flexible circuit breaker implementations
+    ) -> None:
         """
         Check if the circuit breaker should trip.
 
@@ -1120,7 +1122,7 @@ class CircuitBreakerSystem:
             if cooldown_raw is None:
                 cooldown_raw = 300  # Default 5 minutes
 
-            if not isinstance(cooldown_raw, (int, float, str)):
+            if not isinstance(cooldown_raw, int | float | str):
                 logger.error(
                     f"Cooldown value for breaker '{name}' is of an unexpected type: {cooldown_raw} "
                     f"(type: {type(cooldown_raw)}). Using system default 300s."

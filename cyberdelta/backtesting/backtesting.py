@@ -61,8 +61,8 @@ class BacktestStrategy(ABC):
 
         Args:
             current_data: A pandas Series or DataFrame row representing the current time step.
-                          For OHLCV data, typically includes columns like 'open', 'high', 'low', 'close', 'volume'.
-                          Index is expected to be a Timestamp.
+                          For OHLCV data, typically includes columns like 'open', 'high',
+                          'low', 'close', 'volume'. Index is expected to be a Timestamp.
 
         Returns:
             A dictionary containing a list of signals (dicts) or an empty list if no action.
@@ -115,7 +115,8 @@ class BacktestEngine:
                 self.logger.error(f"Failed to load backtest data from path '{data}': {e}")
                 raise ValueError(f"Invalid data path or format: {data}") from e
         else:
-            # At this point, data is assumed to be a pd.DataFrame (type: ignore for pandas stub limitations)
+            # At this point, data is assumed to be a pd.DataFrame
+            # (pandas stub limitations require type ignore)
             self.data = data.copy()  # Use a copy to avoid modifying original DataFrame
 
         # Verify data is loaded and not empty
@@ -332,7 +333,7 @@ class BacktestEngine:
                             current_capital -= position_value
 
                             # Add entry trade
-                            if isinstance(idx, (datetime, pd.Timestamp)):
+                            if isinstance(idx, datetime | pd.Timestamp):
                                 trade_time = idx.isoformat()
                             else:
                                 trade_time = str(idx)
@@ -377,7 +378,7 @@ class BacktestEngine:
                                 pnl = (entry_price - price) * position_size
 
                             # Add exit trade
-                            if isinstance(idx, (datetime, pd.Timestamp)):
+                            if isinstance(idx, datetime | pd.Timestamp):
                                 trade_time = idx.isoformat()
                             else:
                                 trade_time = str(idx)
@@ -402,7 +403,7 @@ class BacktestEngine:
             # Record equity point at this timestamp
             if self.results_handler:
                 # Determine the correct datetime object for the equity point
-                if isinstance(idx, (datetime, pd.Timestamp)):
+                if isinstance(idx, datetime | pd.Timestamp):
                     timestamp_dt = idx if isinstance(idx, datetime) else idx.to_pydatetime()
                 else:
                     self.logger.error(
@@ -492,19 +493,17 @@ class StrategyAdapter(BacktestStrategy):
 
     def update(self, current_data: pd.Series | pd.DataFrame) -> dict[str, Any]:
         """
-        Processes the current market data (a single time step as a pandas Series or DataFrame row)
-        using the adapted strategy. Converts pandas data to Candle(s) and calls strategy.process_data.
-        Converts resulting TradeSignal(s) back to the backtester's dict format.
-        Handles both synchronous and asynchronous process_data methods.
+        Processes the current market data (a single time step as a pandas Series or
+        DataFrame row) using the adapted strategy. Converts pandas data to Candle(s) and
+        calls strategy.process_data. Converts resulting TradeSignal(s) back to the
+        backtester's dict format. Handles both synchronous and asynchronous process_data
+        methods.
         """
         timestamp_info = (
-            current_data.name
-            if isinstance(current_data, pd.Series)
-            else f"DF from {current_data.index.min()} to {current_data.index.max()}"
-            if not current_data.empty
+            current_data.name.isoformat()
+            if hasattr(current_data, "name") and current_data.name is not None
             else "Empty DF"
         )
-        data_type_info = "Series" if isinstance(current_data, pd.Series) else "DataFrame"
         self._logger.debug(
             f"Updating adapter for strategy '{self.strategy.name}' at {timestamp_info}"
         )
@@ -530,7 +529,8 @@ class StrategyAdapter(BacktestStrategy):
                         # Check if a loop is already running
                         loop = asyncio.get_running_loop()
                         self._logger.warning(
-                            "Running async process_data within sync backtest loop. Consider engine refactor."
+                            "Running async process_data within sync backtest loop. "
+                            "Consider engine refactor."
                         )
                         task = loop.create_task(signal_or_coro)
                         processed_signal = asyncio.get_event_loop().run_until_complete(task)
@@ -540,7 +540,7 @@ class StrategyAdapter(BacktestStrategy):
                         self._logger.exception(f"Error running async process_data: {async_err}")
                         continue  # Skip this candle on async error
 
-                # Handle synchronous results
+                # DEFENSIVE CHECK: Handle synchronous results. Mypy=[unreachable] Ruff=[]
                 if not asyncio.iscoroutine(signal_or_coro):
                     processed_signal = signal_or_coro
 
@@ -555,6 +555,7 @@ class StrategyAdapter(BacktestStrategy):
                 elif isinstance(processed_signal, TradeSignal):
                     trade_signals.append(processed_signal)
                 else:
+                    # DEFENSIVE CHECK: Unexpected type handling. Mypy=[unreachable] Ruff=[]
                     self._logger.warning(
                         f"process_data returned unexpected type: {type(processed_signal)}"
                     )
@@ -586,7 +587,7 @@ class StrategyAdapter(BacktestStrategy):
             # Handle single timestamp (Series)
             timestamp = data.name  # Typically the timestamp from the index
             # DEFENSIVE CHECK: Runtime check for timestamp type
-            if not isinstance(timestamp, (datetime, pd.Timestamp)):
+            if not isinstance(timestamp, datetime | pd.Timestamp):
                 self._logger.warning(
                     f"Input Series name is not a valid timestamp: {timestamp}. Using default."
                 )
@@ -606,17 +607,21 @@ class StrategyAdapter(BacktestStrategy):
                 actual_symbols = data.index.get_level_values(1).unique()  # Get symbols from level 1
                 for actual_symbol_str in actual_symbols:
                     symbol = str(actual_symbol_str)  # Ensure it's a string
-                    # Get all data for this specific symbol: will be a Series with index ['open', 'close', ...]
+                    # Get all data for this specific symbol: will be a Series with index
+                    # ['open', 'close', ...]
                     symbol_specific_data = data.xs(key=actual_symbol_str, level=1, axis=0)
 
                     try:
-                        # DEFENSIVE CHECK: Validate required fields exist in symbol_specific_data.index
+                        # DEFENSIVE CHECK: Validate required fields exist in
+                        # symbol_specific_data.index
                         required_fields = ["open", "high", "low", "close", "volume"]
                         if not all(
                             field in symbol_specific_data.index for field in required_fields
                         ):
                             self._logger.warning(
-                                f"Missing OHLCV fields for {symbol} at {timestamp}. Fields available: {symbol_specific_data.index.tolist()}. Skipping candle."
+                                f"Missing required fields for symbol {symbol} at {timestamp}. "
+                                f"Fields available: {symbol_specific_data.index.tolist()}. "
+                                f"Skipping candle."
                             )
                             continue
 
@@ -631,14 +636,12 @@ class StrategyAdapter(BacktestStrategy):
                             volume=Decimal(str(symbol_specific_data.get("volume", "NaN"))),
                         )
                         candle_list.append(candle)
-                    except Exception as e:
+                    except Exception:
                         self._logger.error(
-                            f"Error converting row to Candle for symbol {symbol} "
-                            f"at {timestamp}: {e} - Symbol data: "
-                            f"{symbol_specific_data.to_dict() if isinstance(symbol_specific_data, pd.Series) else 'Error converting to dict'}"
+                            f"Error creating candle for symbol {symbol} at {timestamp}. "
+                            f"Data: {symbol_specific_data.to_dict() if isinstance(symbol_specific_data, pd.Series) else 'Error converting to dict'}"
                         )
             else:
-                # Assuming single index represents symbol or just one instrument (non-MultiIndex columns case)
                 # Assuming single index represents symbol or just one instrument
                 # (non-MultiIndex columns case)
                 symbol = data.index.name if data.index.name else "UNKNOWN_SYMBOL"
@@ -759,7 +762,8 @@ class StrategyAdapter(BacktestStrategy):
                 return None
 
         for signal in signals:
-            # Use signal.timestamp if available and valid, otherwise fallback to current row timestamp
+            # Use signal.timestamp if available and valid, otherwise fallback to current
+            # row timestamp
             signal_timestamp = signal.timestamp
             # DEFENSIVE CHECK: Ensure timestamp is datetime. Mypy=[unreachable] Ruff=[]
             if not isinstance(signal_timestamp, datetime):
@@ -788,7 +792,8 @@ class StrategyAdapter(BacktestStrategy):
             if isinstance(signal.signal_type, SignalType):
                 signal_dict["action"] = signal.signal_type.name.upper()
             else:
-                # Handle cases where signal_type might be a string already (should not happen with Pydantic)
+                # Handle cases where signal_type might be a string already
+                # (should not happen with Pydantic)
                 signal_dict["action"] = str(signal.signal_type).upper()
 
             self._logger.debug(f"ADAPTER_CONVERT_SIGNALS: signal_dict after action: {signal_dict}")
@@ -842,13 +847,19 @@ class StrategyAdapter(BacktestStrategy):
             )
 
             # Try to get OHLCV directly
-            o = row_data.get("open")
-            h = row_data.get("high")
-            l = row_data.get("low")
-            c = row_data.get("close")
-            v = row_data.get("volume")
+            open_price = row_data.get("open")
+            high_price = row_data.get("high")
+            low_price = row_data.get("low")
+            close_price = row_data.get("close")
+            volume = row_data.get("volume")
 
-            if o is None or h is None or l is None or c is None or v is None:
+            if (
+                open_price is None
+                or high_price is None
+                or low_price is None
+                or close_price is None
+                or volume is None
+            ):
                 self._logger.warning(f"Missing OHLCV fields for {symbol} at {timestamp}")
                 return None
 
@@ -856,11 +867,11 @@ class StrategyAdapter(BacktestStrategy):
                 symbol=symbol,
                 interval="1m",
                 open_time=timestamp,
-                open=Decimal(str(o)),
-                high=Decimal(str(h)),
-                low=Decimal(str(l)),
-                close=Decimal(str(c)),
-                volume=Decimal(str(v)),
+                open=Decimal(str(open_price)),
+                high=Decimal(str(high_price)),
+                low=Decimal(str(low_price)),
+                close=Decimal(str(close_price)),
+                volume=Decimal(str(volume)),
             )
             return candle
         except Exception as e:

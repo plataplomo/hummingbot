@@ -249,7 +249,7 @@ class BacktestResultsHandler:
 
         # Final log of calculated metrics
         formatted_metrics = {
-            k: f"{v:.4f}" if isinstance(v, (float, np.number)) else v
+            k: f"{v:.4f}" if isinstance(v, float | np.number) else v
             for k, v in self.metrics.items()
         }
         logger.info(f"Calculated metrics: {formatted_metrics}")

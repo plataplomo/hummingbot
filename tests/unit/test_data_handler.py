@@ -1,5 +1,4 @@
 import asyncio
-from collections.abc import Awaitable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -11,6 +10,7 @@ from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models.market.funding_rate import FundingRate
 from cyberdelta.core.models.market.ticker import Ticker
+from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.symbol_mapper import SymbolMapper
 
 
@@ -63,7 +63,18 @@ class TestDataHandler:
 
             mock_config.get = MagicMock(side_effect=default_get_side_effect)
 
-        handler = DataHandler(config=mock_config, symbol_mapper=mock_symbol_mapper)
+        # Create mock portfolio tracker
+        mock_portfolio_tracker = MagicMock(spec=PortfolioTracker)
+        
+        # Create mock api_clients dict
+        api_clients: dict[str, Any] = {}
+        
+        handler = DataHandler(
+            app_settings=mock_config,
+            api_clients=api_clients,
+            portfolio_tracker=mock_portfolio_tracker,
+            symbol_mapper=mock_symbol_mapper
+        )
 
         # Use empty dict for ws_tasks; rely on DataHandler's annotation
         # NOTE: Type checkers cannot infer the type of ws_tasks here
@@ -276,10 +287,10 @@ class TestDataHandler:
 
         # Mock the API clients' close_websocket method
         for exchange_id in data_handler.api_clients:
-            # Ensure the attribute exists on the mock_exchange_api fixture if it's used across tests
-            # or that data_handler.api_clients[exchange_id] is a distinct mock per exchange.
-            # Assuming data_handler.api_clients holds distinct mocks or mock_exchange_api is general purpose.
-            data_handler.api_clients[exchange_id].close_websocket = AsyncMock()  # type: ignore[attr-defined]
+            # Create a mock API client with close_websocket method
+            mock_api_client = MagicMock(spec=ExchangeAPI)
+            mock_api_client.close_websocket = AsyncMock()
+            data_handler.api_clients[exchange_id] = mock_api_client
 
         # Call shutdown
         await data_handler.shutdown()
@@ -320,12 +331,11 @@ class TestDataHandler:
 
         async def set_is_connected_false_after_call(
             *args: Any, **kwargs: Any
-        ) -> Awaitable[None] | None:
+        ) -> None:
             mock_exchange_api.is_connected = False
-            # Ensure it returns an awaitable if _update_and_notify is itself async
+            # Just execute without returning anything
             if asyncio.iscoroutinefunction(data_handler._update_and_notify):
-                return await SemicolonAwaitable()  # Placeholder awaitable
-            return None
+                await SemicolonAwaitable()  # Placeholder awaitable
 
         # Patch the _update_and_notify method to check its arguments and stop the loop
         with patch.object(
@@ -363,16 +373,16 @@ class TestDataHandler:
                 "exchanges.hyperliquid.subscriptions.funding_rates": True,
             }.get(key, default)
 
-        data_handler.config.get = config_get  # For test injection
-
-        # Ensure the mock_exchange_api has the necessary subscription methods as AsyncMocks
-        # These should be automatically created if mock_exchange_api specs ExchangeAPI
-        # but we can be explicit for clarity or if spec is not perfect.
-        mock_exchange_api.subscribe_to_tickers = AsyncMock()
-        mock_exchange_api.subscribe_to_order_book = AsyncMock()  # Corrected name
-        mock_exchange_api.subscribe_to_trades = AsyncMock()
-        mock_exchange_api.subscribe_to_account_updates = AsyncMock()
-        mock_exchange_api.subscribe_to_funding_rates = AsyncMock()
+        # Create a mock for the get method that handles dot notation
+        with patch.object(data_handler.app_settings, 'get', config_get):
+            # Ensure the mock_exchange_api has the necessary subscription methods as AsyncMocks
+            # These should be automatically created if mock_exchange_api specs ExchangeAPI
+            # but we can be explicit for clarity or if spec is not perfect.
+            mock_exchange_api.subscribe_to_tickers = AsyncMock()
+            mock_exchange_api.subscribe_to_order_book = AsyncMock()  # Corrected name
+            mock_exchange_api.subscribe_to_trades = AsyncMock()
+            mock_exchange_api.subscribe_to_account_updates = AsyncMock()
+            mock_exchange_api.subscribe_to_funding_rates = AsyncMock()
 
         # Set up connection tracking
         connection_attempts = 0
@@ -481,7 +491,7 @@ class TestDataHandler:
         # handle_message_mock = AsyncMock() # Removed unused variable
 
         # Patch the _update_and_notify method, which is called by _process_websocket_messages
-        with patch.object(data_handler.config, "get", mock_config_get):
+        with patch.object(data_handler.app_settings, "get", mock_config_get):
             with patch.object(
                 data_handler, "_update_and_notify", new_callable=AsyncMock
             ) as mock_update_notify:
@@ -528,8 +538,19 @@ class TestDataHandler:
                 return_value={}
             )  # Default get if not set by fixture properly
 
-        handler = DataHandler(config=mock_config, symbol_mapper=mock_symbol_mapper)
-        assert handler.config == mock_config
+        # Create mock portfolio tracker
+        mock_portfolio_tracker = MagicMock(spec=PortfolioTracker)
+        
+        # Create mock api_clients dict
+        api_clients: dict[str, Any] = {}
+        
+        handler = DataHandler(
+            app_settings=mock_config,
+            api_clients=api_clients,
+            portfolio_tracker=mock_portfolio_tracker,
+            symbol_mapper=mock_symbol_mapper
+        )
+        assert handler.app_settings == mock_config
         assert handler.symbol_mapper == mock_symbol_mapper
         assert isinstance(handler.api_clients, dict)
         assert isinstance(handler.tickers, dict)
@@ -573,7 +594,18 @@ class TestDataHandler:
 
         mock_config.get = MagicMock(side_effect=mock_config_side_effect)
 
-        handler = DataHandler(config=mock_config, symbol_mapper=mock_symbol_mapper)
+        # Create mock portfolio tracker
+        mock_portfolio_tracker = MagicMock(spec=PortfolioTracker)
+        
+        # Create mock api_clients dict
+        api_clients: dict[str, Any] = {}
+        
+        handler = DataHandler(
+            app_settings=mock_config,
+            api_clients=api_clients,
+            portfolio_tracker=mock_portfolio_tracker,
+            symbol_mapper=mock_symbol_mapper
+        )
         mock_api_client = AsyncMock(spec=ExchangeAPI)
         # Ensure _ws_manager exists and is an AsyncMock for the test (though not directly used by DataHandler._process_websocket_messages)
         mock_api_client._ws_manager = AsyncMock()

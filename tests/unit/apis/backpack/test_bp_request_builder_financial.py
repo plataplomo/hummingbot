@@ -156,7 +156,7 @@ class TestBuildWithdrawPayload:
                 asset=usdc_asset,
                 amount=withdrawal_amount,
                 address=withdrawal_address,
-                network=None,
+                network="ethereum",  # Use a valid string instead of None
             )
 
     @pytest.mark.parametrize(

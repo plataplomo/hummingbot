@@ -211,53 +211,70 @@ class Engine:
             raise ValueError(f"DataFrame missing required columns: {missing}")
 
         logger.info(f"Processing DataFrame for {symbol} with {len(df)} rows.")
-        # Note: pandas typing is incomplete; type warnings for row/iterrows are safe to ignore here.
-        for index, row in df.iterrows():
-            # row: pd.Series[Any]  # No need to re-annotate; pandas typing is sufficient
-            # Convert to Decimal safely, handle potential errors per row
+        # Process each row in the DataFrame
+        for idx, row in df.iterrows():
+            # Cast to ensure proper typing for pandas operations
+            # Note: pandas iterrows returns (index, Series[Unknown]) due to dynamic nature
+            idx_typed = cast(int, idx)
+            row_typed = cast(pd.Series[Any], row)
+
+            # Extract timestamp and convert to datetime
+            timestamp_raw = row_typed.get("timestamp")
+            if timestamp_raw is None:
+                logger.warning(f"Row {idx_typed}: Missing timestamp, skipping")
+                continue
+
+            # Convert timestamp to datetime
             try:
+                # Use pandas to_datetime for robust conversion
+                # Note: pd.to_datetime has complex overloads, cast result for clarity
+                pd_timestamp_result = pd.to_datetime(timestamp_raw, utc=True)
+                # Convert to standard datetime if it's a pandas Timestamp
+                if hasattr(pd_timestamp_result, "to_pydatetime"):
+                    timestamp = cast(pd.Timestamp, pd_timestamp_result).to_pydatetime()
+                else:
+                    timestamp = cast(datetime, pd_timestamp_result)
+            except Exception as e:
+                logger.warning(f"Row {idx_typed}: Invalid timestamp {timestamp_raw}, skipping: {e}")
+                continue
+
+            # Convert row to dict for Candle creation
+            row_dict: dict[str, Any] | None = None
+            try:
+                # Cast the to_dict result to ensure proper typing
+                # Note: pandas to_dict has complex overloads, cast for clarity
+                row_dict_result = row_typed.to_dict()
+                row_dict = cast(dict[str, Any], row_dict_result)
+
                 # Ensure conversion from string for precision
-                open_p = Decimal(str(row["open"]))
-                high_p = Decimal(str(row["high"]))
-                low_p = Decimal(str(row["low"]))
-                close_p = Decimal(str(row["close"]))
-                volume_p = Decimal(str(row["volume"]))
+                open_p = Decimal(str(row_dict["open"]))
+                high_p = Decimal(str(row_dict["high"]))
+                low_p = Decimal(str(row_dict["low"]))
+                close_p = Decimal(str(row_dict["close"]))
+                volume_p = Decimal(str(row_dict["volume"]))
 
-                # Ensure timestamp is timezone-aware (UTC)
-                ts_raw: Any = row["timestamp"]
-                ts: datetime
-                if not isinstance(ts_raw, datetime):
-                    # Use .to_pydatetime() to ensure a datetime object for type safety
-                    ts = cast(datetime, pd.to_datetime(ts_raw).to_pydatetime())
-                else:
-                    ts = ts_raw
-                if ts.tzinfo is None:
-                    ts = ts.replace(tzinfo=UTC)  # Assume UTC if naive
-                else:
-                    ts = ts.astimezone(UTC)  # Convert to UTC if already aware
+                # Create Candle instance
+                candle = Candle(
+                    symbol=symbol,
+                    interval="1m",  # TODO: Use actual interval if available
+                    open_time=timestamp,
+                    open=open_p,
+                    high=high_p,
+                    low=low_p,
+                    close=close_p,
+                    volume=volume_p,
+                )
 
+                # Delegate processing to the main method
+                await self.process_market_data(candle)
             except (InvalidOperation, TypeError, ValueError) as e:
                 self.logger.error(
-                    f"Error converting DataFrame row {index} for {symbol} to MarketData types",
-                    row_data=row.to_dict(),  # Log the problematic row data
+                    f"Error converting DataFrame row {idx_typed} for {symbol} to MarketData types",
+                    row_data=row_dict if row_dict is not None else {},
                     error=e,
                     exc_info=False,  # Keep log concise for per-row errors
                 )
                 continue  # Skip this row if conversion fails
-
-            # Create Candle instance
-            candle = Candle(
-                symbol=symbol,
-                interval="1m",  # TODO: Use actual interval if available
-                open_time=ts,
-                open=open_p,
-                high=high_p,
-                low=low_p,
-                close=close_p,
-                volume=volume_p,
-            )
-            # Delegate processing to the main method
-            await self.process_market_data(candle)
         logger.info(f"Finished processing DataFrame for {symbol}.")
 
     def start(self) -> None:

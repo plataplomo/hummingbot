@@ -5,18 +5,23 @@ This module provides tools for tracking and managing strategy performance data.
 It stores trade, signal, and return data for analysis and visualization.
 """
 
-import logging
+from __future__ import annotations
+
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
 import pandas as pd
+import structlog
 
 # Import the new persistence handler
 from .persistence import PerformanceDataPersistence
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
+
+# Type aliases for better readability
+PandasTimestamp = pd.Timestamp | datetime
 
 
 @dataclass
@@ -410,9 +415,7 @@ class PerformanceTracker:
 
             # Create DataFrame with all timestamps
             sorted_timestamps: list[datetime] = sorted(list(all_timestamps))
-            # The following pd.to_datetime usage may trigger linter warnings due to pandas
-            # type stubs
-            # These are not actionable and are safe in this context
+            # Create DataFrame with datetime index
             df = pd.DataFrame(index=pd.to_datetime(sorted_timestamps))
 
             # Fill with returns for each strategy
@@ -420,11 +423,9 @@ class PerformanceTracker:
                 if strategy in self.returns:
                     # Create Series with datetime index before assigning
                     strategy_returns = self.returns[strategy]
-                    # The following pd.to_datetime usage may trigger linter warnings due to pandas
-                    # type stubs
-                    # These are not actionable and are safe in this context
+                    # Create series with proper datetime index
                     series = pd.Series(
-                        strategy_returns,
+                        list(strategy_returns.values()),
                         index=pd.to_datetime(list(strategy_returns.keys())),
                     )
                     df[strategy] = series
@@ -434,13 +435,13 @@ class PerformanceTracker:
 
             # Filter by time range
             if start_time:
-                # The following may trigger linter warnings due to pandas type stubs
+                # Filter by datetime index
                 df = df[df.index >= pd.to_datetime(start_time)]
             if end_time:
-                # The following may trigger linter warnings due to pandas type stubs
+                # Filter by datetime index
                 df = df[df.index <= pd.to_datetime(end_time)]
 
-            # The following fillna usage may trigger linter warnings due to pandas type stubs
+            # Fill NaN values with 0
             df = df.fillna(0)
 
             return df
@@ -481,6 +482,7 @@ class PerformanceTracker:
 
             # Filter by time (ensure times are datetime)
             if start_time:
+                # Convert start_time to pandas timestamp for comparison
                 start_dt = pd.to_datetime(start_time)
                 filtered_trades = [
                     t
@@ -489,6 +491,7 @@ class PerformanceTracker:
                 ]
 
             if end_time:
+                # Convert end_time to pandas timestamp for comparison
                 end_dt = pd.to_datetime(end_time)
                 # Filter based on entry time <= end_time? Or exit_time?
                 # Let's use entry_time for consistency.

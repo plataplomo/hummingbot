@@ -129,17 +129,17 @@ class MockExchangeAPI(ExchangeAPI):
         default_fee = "0.001"  # Default fee rate as string for Decimal
         default_asset = "USD"  # Default fee asset if not in config
         if self.full_config:
-            # Convert fee rates fetched from config (potentially float) to Decimal via string
-            self.maker_fee = Decimal(
-                str(self.full_config.get(f"exchanges.{exchange_name}.maker_fee", default_fee))
-            )
-            self.taker_fee = Decimal(
-                str(self.full_config.get(f"exchanges.{exchange_name}.taker_fee", default_fee))
-            )
-            # Use 'collateral_asset' as the primary indicator for fee asset
-            self.fee_asset = self.full_config.get(
-                f"exchanges.{exchange_name}.collateral_asset", default_asset
-            )
+            # Access exchange config from AppSettings
+            exchange_config = self.full_config.exchanges.get(exchange_name)
+            if exchange_config:
+                # Use default fees since these are not in the exchange config model
+                self.maker_fee = Decimal(default_fee)
+                self.taker_fee = Decimal(default_fee)
+                self.fee_asset = default_asset  # Use default since not in config model
+            else:
+                self.maker_fee = Decimal(default_fee)
+                self.taker_fee = Decimal(default_fee)
+                self.fee_asset = default_asset
         else:
             # Fallback if full_config not provided (less ideal)
             self.maker_fee = Decimal(str(config.get("maker_fee", default_fee)))

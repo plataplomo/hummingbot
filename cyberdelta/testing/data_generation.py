@@ -128,14 +128,15 @@ def generate_synthetic_data(
             # Check if columns are already tuples, if not convert them
             if not isinstance(combined_df.columns, pd.MultiIndex):
                 # Convert column names to tuples if they aren't already
-                # DEFENSIVE CHECK: Check if columns are iterable but not strings. Mypy=[unreachable] Ruff=[]
+                # DEFENSIVE CHECK: Check if columns are iterable but not strings.
+                # Mypy=[unreachable] Ruff=[]
                 if hasattr(combined_df.columns[0], "__iter__") and not isinstance(
                     combined_df.columns[0], str
                 ):
-                    # Already tuples
                     combined_df.columns = pd.MultiIndex.from_tuples(combined_df.columns)
                 else:
-                    # Single level columns, create tuples
+                    # DEFENSIVE CHECK: Single level columns, create tuples.
+                    # Mypy=[unreachable] Ruff=[]
                     combined_df.columns = pd.MultiIndex.from_tuples(
                         [(col, "") for col in combined_df.columns]
                     )

@@ -247,13 +247,9 @@ class DataHandler:
     async def _connect_and_subscribe(
         self, exchange_id: str, client: ExchangeAPI, symbols: list[str]
     ) -> None:
-        """Connect to WebSocket and subscribe to data feeds."""
-        if not self._running:
-            logger.warning("DataHandler is stopping. Cannot connect to WebSocket.")
-            return
-
+        """Connect to WebSocket and subscribe to required data feeds."""
         try:
-            logger.info(f"[{exchange_id}] Attempting to connect and subscribe...")
+            # Connect to WebSocket
             await client.connect_websocket()
             logger.info(f"[{exchange_id}] WebSocket connected.")
 
@@ -261,149 +257,223 @@ class DataHandler:
                 logger.warning(f"[{exchange_id}] No symbols configured. Skipping subscriptions.")
             else:
                 logger.info(f"[{exchange_id}] Subscribing to channels for symbols: {symbols}")
-                # Consolidate subscription logic if possible, or handle per exchange needs
-                # Example: await client.subscribe(symbols, ["ticker", "orderbook", "funding_rate"])
-                # For now, keeping separate calls if API requires it:
-                subscribe_tasks: list[Any] = []
-                if hasattr(client, "subscribe_to_ticker"):
-                    for symbol in symbols:  # Assuming subscribe_to_ticker is per symbol
-                        method = client.subscribe_to_ticker
-                        subscribe_tasks.append(method(symbol))
-                if hasattr(client, "subscribe_to_order_book"):
-                    for symbol in symbols:
-                        method = client.subscribe_to_order_book
-                        subscribe_tasks.append(method(symbol))
-                if hasattr(client, "subscribe_to_funding_rates"):
-                    for symbol in symbols:
-                        method = client.subscribe_to_funding_rates
-                        subscribe_tasks.append(method(symbol))
-                # Add other general subscriptions here
 
-                # Exchange-specific subscriptions
-                if exchange_id == "hyperliquid" and hasattr(client, "subscribe_to_user_events"):
-                    method = client.subscribe_to_user_events
-                    subscribe_tasks.append(method())
+                # Use the standard subscribe method from ExchangeAPI base class
+                # Define message handlers for different data types
+                async def ticker_handler(
+                    data_payload: dict[str, Any], full_message: dict[str, Any]
+                ) -> None:
+                    await self._handle_ticker_message(exchange_id, data_payload, full_message)
 
-                if subscribe_tasks:
-                    # Ensure all items in subscribe_tasks are awaitable
-                    # This might require checking the return types of the subscribe methods
-                    # For now, assuming they return awaitables
-                    awaitable_subscribe_tasks: list[
-                        Coroutine[Any, Any, Any] | asyncio.Future[Any]
-                    ] = []
-                    for task_any in subscribe_tasks:  # task_any is Any
-                        if asyncio.iscoroutine(task_any):
-                            awaitable_subscribe_tasks.append(task_any)
-                        elif isinstance(task_any, asyncio.Future):
-                            awaitable_subscribe_tasks.append(task_any)
+                async def orderbook_handler(
+                    data_payload: dict[str, Any], full_message: dict[str, Any]
+                ) -> None:
+                    await self._handle_orderbook_message(exchange_id, data_payload, full_message)
 
-                    if len(awaitable_subscribe_tasks) != len(
-                        subscribe_tasks
-                    ):  # len() on list[Any] is fine
-                        logger.warning(
-                            f"[{exchange_id}] Some subscription tasks are not awaitable."
+                async def funding_handler(
+                    data_payload: dict[str, Any], full_message: dict[str, Any]
+                ) -> None:
+                    await self._handle_funding_message(exchange_id, data_payload, full_message)
+
+                async def user_events_handler(
+                    data_payload: dict[str, Any], full_message: dict[str, Any]
+                ) -> None:
+                    await self._handle_user_events_message(exchange_id, data_payload, full_message)
+
+                # Subscribe to different topics based on exchange capabilities
+                subscribe_tasks: list[Coroutine[Any, Any, None]] = []
+
+                # Subscribe to ticker/price data for each symbol
+                for symbol in symbols:
+                    # Different exchanges have different topic formats
+                    if exchange_id == "hyperliquid":
+                        # Hyperliquid uses l2Book for order book data
+                        subscribe_tasks.append(
+                            client.subscribe(f"l2Book:{symbol}", orderbook_handler)
+                        )
+                        # Hyperliquid uses trades for trade data
+                        subscribe_tasks.append(client.subscribe(f"trades:{symbol}", ticker_handler))
+                    elif exchange_id == "backpack":
+                        # Backpack topic formats (adjust based on actual implementation)
+                        subscribe_tasks.append(client.subscribe(f"ticker.{symbol}", ticker_handler))
+                        subscribe_tasks.append(
+                            client.subscribe(f"orderbook.{symbol}", orderbook_handler)
+                        )
+                        subscribe_tasks.append(
+                            client.subscribe(f"funding.{symbol}", funding_handler)
+                        )
+                    else:
+                        # Generic fallback - adjust based on actual exchange implementations
+                        subscribe_tasks.append(client.subscribe(f"ticker:{symbol}", ticker_handler))
+                        subscribe_tasks.append(
+                            client.subscribe(f"orderbook:{symbol}", orderbook_handler)
+                        )
+                        subscribe_tasks.append(
+                            client.subscribe(f"funding:{symbol}", funding_handler)
                         )
 
-                    if awaitable_subscribe_tasks:
-                        await asyncio.gather(*awaitable_subscribe_tasks, return_exceptions=True)
-                        logger.info(f"[{exchange_id}] Subscriptions completed.")
-                    else:
-                        logger.warning(f"[{exchange_id}] No awaitable subscription tasks found.")
+                # Subscribe to user events for account data
+                if exchange_id == "hyperliquid":
+                    subscribe_tasks.append(client.subscribe("userEvents", user_events_handler))
+                elif exchange_id == "backpack":
+                    subscribe_tasks.append(client.subscribe("account", user_events_handler))
 
+                if subscribe_tasks:
+                    await asyncio.gather(*subscribe_tasks, return_exceptions=True)
+                    logger.info(f"[{exchange_id}] Subscriptions completed.")
                 else:
-                    logger.warning(
-                        f"[{exchange_id}] No relevant subscribe methods found or "
-                        f"symbols list empty after check."
-                    )
+                    logger.warning(f"[{exchange_id}] No subscription tasks created.")
 
-            # Start the message handling loop. This task will run until
-            # it's cancelled or client.is_connected becomes false.
-            if exchange_id in self.ws_tasks and not self.ws_tasks[exchange_id].done():
-                logger.warning(
-                    f"[{exchange_id}] Previous message handling task still exists "
-                    f"and is not done. Cancelling it."
-                )
-                self.ws_tasks[exchange_id].cancel()
-                try:
-                    await self.ws_tasks[exchange_id]
-                except asyncio.CancelledError:
-                    logger.info(
-                        f"[{exchange_id}] Successfully cancelled old message handling task."
-                    )
-
-            self.ws_tasks[exchange_id] = asyncio.create_task(
-                self._process_websocket_messages(exchange_id, client),
-                name=f"handle_messages_{exchange_id}",
-            )
-            logger.info(
-                f"[{exchange_id}] Message handler task created: "
-                f"{self.ws_tasks[exchange_id].get_name()}"
-            )
-            await self.ws_tasks[
-                exchange_id
-            ]  # Wait for _handle_messages to complete or be cancelled.
+            # The WebSocket connection is now established and subscribed
+            # The message handling will be done through the registered handlers
+            logger.info(f"[{exchange_id}] WebSocket setup completed.")
 
         except ConnectionError as e:
             logger.error(f"[{exchange_id}] ConnectionError during connect/subscribe: {e}")
-            # Re-raise ConnectionError for _maintain_websocket_connection to handle explicitly
             raise
         except asyncio.CancelledError:
             logger.info(f"[{exchange_id}] _connect_and_subscribe task was cancelled.")
-            if hasattr(client, "is_connected") and client.is_connected:
-                logger.info(
-                    f"[{exchange_id}] Closing WebSocket due to cancellation of "
-                    f"_connect_and_subscribe."
-                )
-                if hasattr(client, "close_websocket"):
-                    await client.close_websocket()
-            raise  # Re-raise CancelledError
+            if client.is_connected:
+                logger.info(f"[{exchange_id}] Closing WebSocket due to cancellation.")
+                await client.close_websocket()
+            raise
         except Exception as e:
             logger.error(f"[{exchange_id}] Failed to connect or subscribe: {e}")
-            # Do not re-raise generic exceptions, let _maintain_websocket_connection handle retry.
-            # However, ensure WebSocket is closed if connection was partially made.
-            if hasattr(client, "is_connected") and client.is_connected:
-                logger.info(
-                    f"[{exchange_id}] Closing WebSocket due to error in _connect_and_subscribe: {e}"
+            if client.is_connected:
+                logger.info(f"[{exchange_id}] Closing WebSocket due to error: {e}")
+                await client.close_websocket()
+
+    async def _handle_ticker_message(
+        self, exchange_id: str, data_payload: dict[str, Any], full_message: dict[str, Any]
+    ) -> None:
+        """Handle ticker/price update messages."""
+        try:
+            # Extract symbol and price data from the message
+            # This will need to be customized based on each exchange's message format
+            symbol = data_payload.get("symbol") or full_message.get("symbol")
+            if not symbol:
+                logger.warning(f"[{exchange_id}] Ticker message missing symbol: {data_payload}")
+                return
+
+            # Create a Ticker object from the message data
+            # This is a simplified example - actual implementation depends on message format
+            price = (
+                data_payload.get("price") or data_payload.get("last") or data_payload.get("close")
+            )
+            if price is not None:
+                ticker = Ticker(
+                    symbol=str(symbol),
+                    price=Decimal(str(price)) if price is not None else None,
+                    timestamp=dt_real.now(UTC),
+                    bid=Decimal(str(data_payload.get("bid", price)))
+                    if data_payload.get("bid")
+                    else None,
+                    ask=Decimal(str(data_payload.get("ask", price)))
+                    if data_payload.get("ask")
+                    else None,
+                    volume=Decimal(str(data_payload.get("volume", "0")))
+                    if data_payload.get("volume")
+                    else None,
                 )
-                if hasattr(client, "close_websocket"):
-                    await client.close_websocket()
-            # Not re-raising, so _maintain_websocket_connection will log this and retry.
+                self._update_ticker(exchange_id, str(symbol), ticker, dt_real.now(UTC))
+        except Exception as e:
+            logger.error(f"[{exchange_id}] Error handling ticker message: {e}")
+
+    async def _handle_orderbook_message(
+        self, exchange_id: str, data_payload: dict[str, Any], full_message: dict[str, Any]
+    ) -> None:
+        """Handle order book update messages."""
+        try:
+            # Extract symbol and order book data from the message
+            symbol = data_payload.get("symbol") or full_message.get("symbol")
+            if not symbol:
+                logger.warning(f"[{exchange_id}] Order book message missing symbol: {data_payload}")
+                return
+
+            # Create an OrderBook object from the message data
+            # This is a simplified example - actual implementation depends on message format
+            bids = data_payload.get("bids", [])
+            asks = data_payload.get("asks", [])
+
+            if bids or asks:
+                orderbook = OrderBook(
+                    symbol=str(symbol),
+                    bids=[(Decimal(str(price)), Decimal(str(qty))) for price, qty in bids[:10]],
+                    asks=[(Decimal(str(price)), Decimal(str(qty))) for price, qty in asks[:10]],
+                    timestamp=dt_real.now(UTC),
+                )
+                self._update_order_book(exchange_id, str(symbol), orderbook, dt_real.now(UTC))
+        except Exception as e:
+            logger.error(f"[{exchange_id}] Error handling order book message: {e}")
+
+    async def _handle_funding_message(
+        self, exchange_id: str, data_payload: dict[str, Any], full_message: dict[str, Any]
+    ) -> None:
+        """Handle funding rate update messages."""
+        try:
+            # Extract symbol and funding rate data from the message
+            symbol = data_payload.get("symbol") or full_message.get("symbol")
+            if not symbol:
+                logger.warning(f"[{exchange_id}] Funding message missing symbol: {data_payload}")
+                return
+
+            # Create a FundingRate object from the message data
+            funding_rate_value = data_payload.get("funding_rate") or data_payload.get("rate")
+            if funding_rate_value is not None:
+                funding_rate = FundingRate(
+                    symbol=str(symbol),
+                    funding_rate=Decimal(str(funding_rate_value)),
+                    timestamp=dt_real.now(UTC),
+                    next_funding_time=None,  # Extract from message if available
+                )
+                self._update_funding_rate(exchange_id, str(symbol), funding_rate, dt_real.now(UTC))
+        except Exception as e:
+            logger.error(f"[{exchange_id}] Error handling funding message: {e}")
+
+    async def _handle_user_events_message(
+        self, exchange_id: str, data_payload: dict[str, Any], full_message: dict[str, Any]
+    ) -> None:
+        """Handle user account events (fills, orders, positions)."""
+        try:
+            # Handle different types of user events
+            event_type = data_payload.get("type") or full_message.get("type")
+
+            if event_type == "fill" or event_type == "trade":
+                # Handle trade fills
+                symbol = data_payload.get("symbol")
+                if symbol:
+                    # Create Trade objects and update user fills
+                    # This is a simplified example
+                    pass
+            elif event_type == "order":
+                # Handle order updates
+                # Update open orders
+                pass
+            elif event_type == "position":
+                # Handle position updates
+                pass
+
+        except Exception as e:
+            logger.error(f"[{exchange_id}] Error handling user events message: {e}")
 
     async def _process_websocket_messages(self, exchange_id: str, client: ExchangeAPI) -> None:
         """Handle incoming messages from a WebSocket connection."""
-        if not hasattr(client, "receive_ws_message"):
-            logger.error(f"Client for {exchange_id} does not support receive_ws_message.")
-            return
-        if not hasattr(client, "is_connected"):
-            logger.error(f"Client for {exchange_id} does not support is_connected attribute.")
-            return
+        # This method is no longer needed since message handling is done through
+        # the registered handlers in the subscribe calls
+        logger.info(
+            f"[{exchange_id}] WebSocket message processing is handled through registered handlers."
+        )
 
-        logger.info(f"[{exchange_id}] Starting to handle WebSocket messages...")
+        # Keep the connection alive by monitoring the connection status
         try:
-            # Loop as long as the client is connected and the DataHandler is running
             while client.is_connected and self._running:
-                receive_method = client.receive_ws_message
-                message = await receive_method()
-                if message:
-                    # Process the raw message (parsing delegated)
-                    await self._update_and_notify(exchange_id, message)
-                else:
-                    # Handle potential connection closure or empty messages
-                    logger.warning(
-                        f"Received empty message or connection closed for {exchange_id}. "
-                        f"Attempting reconnect?"
-                    )
-                    # Implement reconnection logic if needed
-                    await asyncio.sleep(5)  # Basic wait before potentially breaking
-                    # break # Or implement robust reconnection
+                await asyncio.sleep(1)  # Check connection status every second
         except asyncio.CancelledError:
             logger.info(f"Message handler for {exchange_id} cancelled.")
         except Exception as e:
             logger.exception(f"Error in message handler for {exchange_id}: {e}")
-            # Consider reconnection or shutdown based on error
         finally:
             logger.info(f"Message loop for {exchange_id} stopped.")
-            # Clean up task reference
             if exchange_id in self.ws_tasks:
                 del self.ws_tasks[exchange_id]
 
@@ -411,162 +481,9 @@ class DataHandler:
         self, exchange_id: str, message: dict[str, object] | list[object] | str
     ) -> None:
         """Parse raw message and update internal state / notify observers."""
-        client = self.api_clients.get(exchange_id)
-        if not client or not hasattr(client, "parse_ws_message"):
-            logger.warning(
-                f"Cannot process message for {exchange_id}: "
-                f"Client not found or lacks parse_ws_message method."
-            )
-            return
-
-        now = dt_real.now(UTC)  # Consistent timestamp for updates from this message batch
-
-        try:
-            # Delegate parsing to the specific API client
-            # Expecting (message_type: str, parsed_data: Any)
-            if not hasattr(client, "parse_ws_message"):
-                logger.warning(f"Client for {exchange_id} does not support parse_ws_message.")
-                return
-
-            parse_method = client.parse_ws_message
-            parsed_result_any: Any = parse_method(message)
-
-            if not (isinstance(parsed_result_any, tuple) and len(parsed_result_any) == 2):
-                logger.warning(
-                    f"[{exchange_id}] parse_ws_message did not return a 2-tuple. "
-                    f"Got: {type(parsed_result_any)}"
-                )
-                return
-
-            # Now we are sure it's a 2-tuple.
-            message_type_any, parsed_data_any = parsed_result_any
-
-            if not isinstance(message_type_any, str):
-                logger.warning(
-                    f"[{exchange_id}] Message type from parse_ws_message is not a string. "
-                    f"Got: {type(message_type_any)}"
-                )
-                return
-
-            message_type: str = message_type_any
-            parsed_data: Any = parsed_data_any
-
-            # --- Handle Different MessageTypes ---
-            if message_type == "ticker":
-                # Expect Ticker | tuple[str, Ticker]
-                symbol_str: str | None = None
-                ticker_obj: Ticker | None = None
-
-                if isinstance(parsed_data, Ticker):
-                    symbol_str = parsed_data.symbol
-                    ticker_obj = parsed_data
-                elif (
-                    isinstance(parsed_data, tuple)
-                    and len(parsed_data) == 2
-                    and isinstance(parsed_data[0], str)
-                    and isinstance(parsed_data[1], Ticker)
-                ):
-                    symbol_str, ticker_obj_tuple_val = parsed_data
-                    ticker_obj = ticker_obj_tuple_val
-                else:
-                    # Log the unexpected type case
-                    logger.warning(
-                        f"Unexpected type or structure for ticker data from {exchange_id}: "
-                        f"{type(parsed_data)}"
-                    )
-
-                if (
-                    symbol_str
-                    and ticker_obj
-                    and ticker_obj.price is not None
-                    and ticker_obj.timestamp is not None
-                ):
-                    # Update internal storage with Ticker object
-                    self._update_ticker(exchange_id, symbol_str, ticker_obj, now)
-
-                    # Convert Ticker to Candle for observers expecting Candle
-                    candle_from_ticker = Candle(
-                        symbol=symbol_str,
-                        interval="1s",  # Placeholder interval for ticker-derived candle
-                        open_time=ticker_obj.timestamp,
-                        open=ticker_obj.price,
-                        high=ticker_obj.price,
-                        low=ticker_obj.price,
-                        close=ticker_obj.price,
-                        volume=ticker_obj.volume if ticker_obj.volume is not None else Decimal("0"),
-                    )
-                    await self._notify_market_data_observers(candle_from_ticker)
-                elif symbol_str and ticker_obj:
-                    logger.warning(
-                        f"Ticker for {exchange_id}/{symbol_str} missing price or timestamp. "
-                        f"Price: {ticker_obj.price}, Timestamp: {ticker_obj.timestamp}"
-                    )
-
-            elif message_type == "order_book":
-                if isinstance(parsed_data, OrderBook):
-                    # OrderBook.timestamp is not Optional after Pydantic validation
-                    # if parsed_data.timestamp is None: # This check is redundant
-                    #    logger.warning(
-                    #        f"OrderBook for {exchange_id}/{parsed_data.symbol} "
-                    #        f"missing timestamp. Using current time."
-                    #    )
-                    #    current_ts = datetime.now(UTC)
-                    #    # Create a new model instance if timestamp needs to be updated,
-                    #    # as Pydantic models are often immutable
-                    #    parsed_data_with_ts = parsed_data.model_copy(
-                    #        update={"timestamp": current_ts}
-                    #    )
-                    #    self._update_order_book(
-                    #        exchange_id,
-                    #        parsed_data_with_ts.symbol,
-                    #        parsed_data_with_ts,
-                    #        now
-                    #    )
-                    #    await self._notify_order_book_observers(parsed_data_with_ts)
-                    # else:
-                    self._update_order_book(exchange_id, parsed_data.symbol, parsed_data, now)
-                    await self._notify_order_book_observers(parsed_data)
-
-                else:
-                    logger.warning(f"Unexpected type for order_book: {type(parsed_data)}")
-
-            elif message_type == "funding_rate":
-                if isinstance(parsed_data, FundingRate):
-                    # FundingRate.timestamp and funding_rate are not Optional after
-                    # Pydantic validation
-                    # if parsed_data.timestamp is None or parsed_data.funding_rate is None:
-                    #    logger.warning(
-                    #        f"FundingRate for {exchange_id}/{parsed_data.symbol} "
-                    #        f"missing timestamp or rate. Skipping."
-                    #    )
-                    # else:
-                    self._update_funding_rate(exchange_id, parsed_data.symbol, parsed_data, now)
-                    await self._notify_funding_rate_observers(parsed_data)
-                else:
-                    logger.warning(f"Unexpected type for funding_rate: {type(parsed_data)}")
-
-            # elif message_type == "trade":
-            #     if isinstance(parsed_data, Trade):
-            #         # Update portfolio or notify observers
-            #         pass
-            # elif message_type == "account_update": # e.g., balances, positions
-            #     # Update portfolio tracker directly
-            #     if isinstance(parsed_data, Balance):
-            #         self.portfolio_tracker.on_balance_update(exchange_id, parsed_data)
-            #     elif isinstance(parsed_data, Position):
-            #          self.portfolio_tracker.on_position_update(exchange_id, parsed_data)
-            #     pass
-            # Add other message types as needed
-
-            else:
-                # Log unhandled message types if necessary
-                # logger.debug(
-                #     f"Received unhandled message type '{message_type}' from {exchange_id}"
-                # )
-                pass  # Ensure else block is not empty
-
-        except Exception as e:  # Ensure this block is properly indented
-            logger.exception(f"Error processing message from {exchange_id}: {message} - Error: {e}")
+        # This method is no longer needed since message parsing and handling
+        # is done through the registered handlers in the subscribe calls
+        logger.debug(f"[{exchange_id}] Message handling delegated to registered handlers.")
 
     # --- Internal Update Methods ---
 
@@ -809,14 +726,8 @@ class DataHandler:
         # Close WebSocket connections via API clients
         close_tasks: list[Awaitable[Any]] = []
         for exchange_id, client in self.api_clients.items():
-            if hasattr(client, "close_ws"):
+            if hasattr(client, "close_websocket"):
                 logger.debug(f"Closing WebSocket connection for {exchange_id}...")
-                close_method = client.close_ws
-                close_tasks.append(close_method())
-            elif hasattr(client, "close_websocket"):  # Fallback if close_ws is not present
-                logger.debug(
-                    f"Closing WebSocket connection for {exchange_id} via close_websocket..."
-                )
                 close_method = client.close_websocket
                 close_tasks.append(close_method())
             elif hasattr(client, "close"):  # General close as last resort

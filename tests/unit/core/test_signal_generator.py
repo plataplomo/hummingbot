@@ -199,7 +199,8 @@ class TestSignalGenerator:
         # as it uses handler.tickers. However, other parts of tests might still use it.
         # For safety, ensure it returns Ticker if something still calls it.
         def get_ticker_side_effect(exchange: str, symbol: str) -> Ticker | None:
-            return handler.tickers.get(exchange, {}).get(symbol)
+            ticker = handler.tickers.get(exchange, {}).get(symbol)
+            return ticker if ticker is None or isinstance(ticker, Ticker) else None
 
         def get_orderbook_side_effect(exchange: str, symbol: str) -> OrderBook | None:
             return orderbooks.get(exchange, {}).get(symbol)
@@ -258,7 +259,7 @@ class TestSignalGenerator:
         assert isinstance(signal_generator.historical_funding_rates["hyperliquid"]["BTC"], deque)
         assert "BTC" in signal_generator.historical_basis
         assert isinstance(signal_generator.historical_basis["BTC"], deque)
-        assert signal_generator.config == config
+        assert signal_generator.app_settings == config
         assert signal_generator.data_handler == data_handler
 
     @patch("cyberdelta.core.signal_generator.datetime")
@@ -413,7 +414,8 @@ class TestSignalGenerator:
         )
         assert estimated_slippage == expected_fallback_slippage  # Expect 0.001 * 0.5 = 0.0005
 
-    def test_generate_opportunities(
+    @pytest.mark.asyncio
+    async def test_generate_opportunities(
         self, signal_generator: SignalGenerator, data_handler: MagicMock, config: MagicMock
     ) -> None:
         """Test generating arbitrage opportunities."""
@@ -434,7 +436,7 @@ class TestSignalGenerator:
         # Ensure data_handler.tickers is populated correctly in the fixture or test setup.
         # The data_handler fixture already populates data_handler.tickers.
 
-        opportunities = signal_generator.generate_arbitrage_opportunities(
+        opportunities = await signal_generator.generate_arbitrage_opportunities(
             funding_data=mock_funding_data
         )
         assert len(opportunities) > 0, "Expected opportunities based on mocked data and thresholds"
@@ -455,7 +457,8 @@ class TestSignalGenerator:
             "0"
         )  # Compare against the rate differential
 
-    def test_generate_opportunities_no_eligible(
+    @pytest.mark.asyncio
+    async def test_generate_opportunities_no_eligible(
         self, signal_generator: SignalGenerator, data_handler: MagicMock, config: MagicMock
     ) -> None:
         """Test when no opportunities meet the eligibility criteria."""
@@ -506,12 +509,13 @@ class TestSignalGenerator:
             }
         }
 
-        opportunities = signal_generator.generate_arbitrage_opportunities(
+        opportunities = await signal_generator.generate_arbitrage_opportunities(
             funding_data=mock_funding_data
         )
         assert len(opportunities) == 0
 
-    def test_generate_opportunities_single_exchange(
+    @pytest.mark.asyncio
+    async def test_generate_opportunities_single_exchange(
         self, signal_generator: SignalGenerator, config: MagicMock, data_handler: MagicMock
     ) -> None:
         """Test scenario with only one exchange configured."""
@@ -534,11 +538,13 @@ class TestSignalGenerator:
             if key.startswith("exchanges.hyperliquid."):
                 prop = key.split(".")[-1]
                 ex_data = mock_single_config_dict.get("exchanges", {}).get("hyperliquid", {})
-                return ex_data.get(prop, default)
+                result: object | None = ex_data.get(prop, default)
+                return result
             elif key.startswith("exchanges.") and key.endswith(".enabled"):
                 # For single exchange test, only hyperliquid should be enabled
                 return key == "exchanges.hyperliquid.enabled"
-            return mock_single_config_dict.get(key, default)
+            final_result: object | None = mock_single_config_dict.get(key, default)
+            return final_result
 
         config.get.side_effect = single_exchange_config_get
         signal_generator._initialize_data_structures()  # Re-initialize with new config
@@ -556,7 +562,7 @@ class TestSignalGenerator:
         # The existing fixture setup for data_handler.tickers should be fine as SignalGenerator
         # will only look for 'hyperliquid' tickers due to the mocked config.
 
-        opportunities = signal_generator.generate_arbitrage_opportunities(
+        opportunities = await signal_generator.generate_arbitrage_opportunities(
             funding_data=mock_funding_data
         )
         assert len(opportunities) == 0

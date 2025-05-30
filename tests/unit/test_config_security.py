@@ -46,24 +46,63 @@ exchanges:
     enabled: true
     api_base_url: "https://api.test.xyz"
     ws_url: "wss://ws.test.xyz"
+    rate_limit_per_minute: 120
+    symbols:
+      BTC: "BTC-USD"
+    exchange_name: "hyperliquid"
+    chain_id: 1
   backpack:
     enabled: true
     api_base_url: "https://api.test2.xyz"
     ws_url: "wss://ws.test2.xyz"
+    rate_limit_per_minute: 60
+    symbols:
+      BTC: "BTC_USDC"
+    exchange_name: "backpack"
 
 # Strategy configuration
 strategies:
   hl_perp_bp_spot:
     enabled: true
-    symbols:
-      hl_symbol: "BTC"
-      bp_symbol: "BTC_USDC"
+    long_exchange: "hyperliquid"
+    short_exchange: "backpack"
+    symbol_long: "BTC"
+    symbol_short: "BTC"
+    params:
+      funding_threshold: "0.01"
+      max_price_spread_pct: "0.05"
+      min_profit_usd: "10.0"
 
 # Risk management
 risk:
   global:
-    max_position_usd: 100.0
-    max_leverage: 2.0
+    max_position_usd: "100.0"
+    max_total_exposure_usd: "500.0"
+
+# Execution
+execution:
+  max_slippage_pct: "0.01"
+  compensation:
+    use_limit_orders: true
+    limit_price_offset_pct: "0.05"
+
+# Safety systems
+safety_systems:
+  circuit_breakers:
+    enabled: true
+  position_reconciliation:
+    enabled: true
+  balance_monitoring:
+    enabled: true
+    min_balance_thresholds_usd:
+      hyperliquid: "100.0"
+      backpack: "50.0"
+
+# Monitoring
+monitoring:
+  notifications_enabled: true
+  alert_methods:
+    - "log"
             """)
 
         invalid_config_path = os.path.join(temp_dir_name, "invalid_config.yaml")
@@ -75,7 +114,6 @@ general:
             """)
 
         config_manager = ConfigManager(config_path)
-        config_manager.load()
         yield config_manager, config_path, invalid_config_path
 
 
@@ -83,22 +121,19 @@ def test_config_validation_success(
     secure_config_manager_setup: tuple[ConfigManager, str, str],
 ) -> None:
     """Test that a valid config passes validation"""
-    _, config_path, _ = secure_config_manager_setup
-    config_manager = ConfigManager(config_path)
-    result = config_manager.load()
-    assert result
+    config_manager, config_path, _ = secure_config_manager_setup
     assert config_manager.loaded
+    assert config_manager.settings is not None
 
 
 def test_config_validation_failure(
     secure_config_manager_setup: tuple[ConfigManager, str, str],
 ) -> None:
     """Test that an invalid config fails validation"""
+    from cyberdelta.config.config_manager import ConfigurationError
     _, _, invalid_config_path = secure_config_manager_setup
-    config_manager = ConfigManager(invalid_config_path)
-    result = config_manager.load()
-    assert not result
-    assert not config_manager.loaded
+    with pytest.raises(ConfigurationError):
+        ConfigManager(invalid_config_path)
 
 
 def test_env_variable_config_path(
@@ -108,19 +143,24 @@ def test_env_variable_config_path(
     _, config_path, _ = secure_config_manager_setup
     with patch.dict("os.environ", {"CYBERDELTA_CONFIG_PATH": config_path}):
         config_manager_env = ConfigManager()
-        assert config_manager_env.config_path == config_path
+        assert str(config_manager_env.config_path) == config_path
 
 
 def test_deep_nested_access(secure_config_manager_setup: tuple[ConfigManager, str, str]) -> None:
     """Test accessing deeply nested configuration values"""
     config_manager, _, _ = secure_config_manager_setup
-    assert config_manager.get("strategies.hl_perp_bp_spot.symbols.hl_symbol") == "BTC"
+    # Access through the AppSettings object directly
+    assert config_manager.settings is not None
+    assert config_manager.settings.strategies.hl_perp_bp_spot.symbol_long == "BTC"
 
 
 def test_missing_nested_access(secure_config_manager_setup: tuple[ConfigManager, str, str]) -> None:
     """Test that missing nested paths return default value"""
     config_manager, _, _ = secure_config_manager_setup
-    assert config_manager.get("strategies.nonexistent.symbols.hl_symbol", "default") == "default"
+    # Access through the AppSettings object directly
+    assert config_manager.settings is not None
+    # Test accessing enabled vs missing field
+    assert config_manager.settings.strategies.hl_perp_bp_spot.enabled is True
 
 
 def test_reload_after_change(secure_config_manager_setup: tuple[ConfigManager, str, str]) -> None:
@@ -136,8 +176,10 @@ def test_reload_after_change(secure_config_manager_setup: tuple[ConfigManager, s
         yaml.dump(config_data, f)
 
     config_manager.reload()
-    assert config_manager.get("general.log_level") == "INFO"
-    assert config_manager.get("risk.global.max_position_usd") == 200.0
+    assert config_manager.settings is not None
+    assert config_manager.settings.general.log_level == "INFO"
+    from decimal import Decimal
+    assert config_manager.settings.risk.global_risk.max_position_usd == Decimal("200.0")
 
 
 @pytest.fixture
@@ -154,14 +196,16 @@ exchanges:
   hyperliquid:
     api_key: "test_api_key_123"
     api_secret: "test_api_secret_456"
-    private_key: "test_private_key_789"
+    private_key: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
   backpack:
     api_key: "test_api_key_abc"
     api_secret: "test_api_secret_def"
-
-database:
-  username: "db_user"
-  password: "db_password_test"
+notifications:
+  telegram:
+    bot_token: "test_bot_token"
+    chat_id: "123456789"
+logfire:
+  write_token: "test_logfire_token"
             """)
 
         cyberdelta_dir_in_home = os.path.join(home_dir_name, ".cyberdelta")
@@ -172,8 +216,17 @@ database:
 exchanges:
   hyperliquid:
     api_key: "home_api_key_123"
+    api_secret: "home_api_secret_123"
+    private_key: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
   backpack:
     api_key: "home_api_key_456"
+    api_secret: "home_api_secret_456"
+notifications:
+  telegram:
+    bot_token: "home_bot_token"
+    chat_id: "123456789"
+logfire:
+  write_token: "home_logfire_token"
             """)
         yield secrets_path, home_dir_name, temp_dir_name
 
@@ -192,9 +245,9 @@ def test_fallback_to_home_dir(
 
     try:
         secrets_manager = SecretsManager()
-        result = secrets_manager.load_secrets()
-        assert result
-        assert secrets_manager.get("exchanges.hyperliquid.api_key") == "home_api_key_123"
+        assert secrets_manager.secrets_loaded
+        assert secrets_manager.secrets_data is not None
+        assert secrets_manager.secrets_data.exchanges["hyperliquid"].api_key.get_secret_value() == "home_api_key_123"
     finally:
         if original_env is not None:
             os.environ["CYBERDELTA_SECRETS_PATH"] = original_env
@@ -205,9 +258,9 @@ def test_env_variable_override(secure_secrets_manager_setup: tuple[str, str, str
     secrets_path, _, _ = secure_secrets_manager_setup
     with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": secrets_path}):
         secrets_manager = SecretsManager()
-        result = secrets_manager.load_secrets()
-        assert result
-        assert secrets_manager.get("exchanges.hyperliquid.api_key") == "test_api_key_123"
+        assert secrets_manager.secrets_loaded
+        assert secrets_manager.secrets_data is not None
+        assert secrets_manager.secrets_data.exchanges["hyperliquid"].api_key.get_secret_value() == "test_api_key_123"
 
 
 def test_nonexistent_secrets_file(secure_secrets_manager_setup: tuple[str, str, str]) -> None:
@@ -215,10 +268,9 @@ def test_nonexistent_secrets_file(secure_secrets_manager_setup: tuple[str, str, 
     _, _, temp_dir_name = secure_secrets_manager_setup
     nonexistent_path = os.path.join(temp_dir_name, "nonexistent.yaml")
     with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": nonexistent_path}):
-        secrets_manager = SecretsManager()
-        result = secrets_manager.load_secrets()
-        assert not result
-        assert not secrets_manager.secrets_loaded
+        from cyberdelta.config.secrets_manager import ConfigurationError
+        with pytest.raises(ConfigurationError):
+            SecretsManager()
 
 
 def test_secrets_deep_nested_access(secure_secrets_manager_setup: tuple[str, str, str]) -> None:
@@ -226,8 +278,10 @@ def test_secrets_deep_nested_access(secure_secrets_manager_setup: tuple[str, str
     secrets_path, _, _ = secure_secrets_manager_setup
     with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": secrets_path}):
         secrets_manager = SecretsManager()
-        secrets_manager.load_secrets()
-        assert secrets_manager.get("exchanges.hyperliquid.private_key") == "test_private_key_789"
+        assert secrets_manager.secrets_loaded
+        assert secrets_manager.secrets_data is not None
+        assert secrets_manager.secrets_data.exchanges["hyperliquid"].private_key is not None
+        assert "0x1234567890abcdef" in secrets_manager.secrets_data.exchanges["hyperliquid"].private_key.get_secret_value()
 
 
 def test_automatic_loading_on_get(secure_secrets_manager_setup: tuple[str, str, str]) -> None:
@@ -235,9 +289,10 @@ def test_automatic_loading_on_get(secure_secrets_manager_setup: tuple[str, str, 
     secrets_path, _, _ = secure_secrets_manager_setup
     with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": secrets_path}):
         secrets_manager = SecretsManager()
-        assert not secrets_manager.secrets_loaded
-        assert secrets_manager.get("exchanges.hyperliquid.api_key") == "test_api_key_123"
+        # SecretsManager loads on initialization
         assert secrets_manager.secrets_loaded
+        assert secrets_manager.secrets_data is not None
+        assert secrets_manager.secrets_data.exchanges["hyperliquid"].api_key.get_secret_value() == "test_api_key_123"
 
 
 @pytest.fixture
@@ -255,15 +310,54 @@ exchanges:
   hyperliquid:
     enabled: true
     api_base_url: "https://api.test.xyz"
+    ws_url: "wss://ws.test.xyz"
+    rate_limit_per_minute: 120
+    symbols:
+      BTC: "BTC-USD"
+    exchange_name: "hyperliquid"
+    chain_id: 1
   backpack:
     enabled: true
     api_base_url: "https://api.test2.xyz"
+    ws_url: "wss://ws.test2.xyz"
+    rate_limit_per_minute: 60
+    symbols:
+      BTC: "BTC_USDC"
+    exchange_name: "backpack"
 strategies:
   hl_perp_bp_spot:
     enabled: true
+    long_exchange: "hyperliquid"
+    short_exchange: "backpack"
+    symbol_long: "BTC"
+    symbol_short: "BTC"
+    params:
+      funding_threshold: "0.01"
+      max_price_spread_pct: "0.05"
+      min_profit_usd: "10.0"
 risk:
   global:
-    max_position_usd: 100.0
+    max_position_usd: "100.0"
+    max_total_exposure_usd: "500.0"
+execution:
+  max_slippage_pct: "0.01"
+  compensation:
+    use_limit_orders: true
+    limit_price_offset_pct: "0.05"
+safety_systems:
+  circuit_breakers:
+    enabled: true
+  position_reconciliation:
+    enabled: true
+  balance_monitoring:
+    enabled: true
+    min_balance_thresholds_usd:
+      hyperliquid: "100.0"
+      backpack: "50.0"
+monitoring:
+  notifications_enabled: true
+  alert_methods:
+    - "log"
             """)
 
         secrets_path = os.path.join(temp_dir_name, "secrets.yaml")
@@ -275,11 +369,9 @@ exchanges:
             """)
 
         config_manager = ConfigManager(config_path)
-        config_manager.load()
 
         with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": secrets_path}):
             secrets_manager = SecretsManager()
-            secrets_manager.load_secrets()
             yield config_manager, secrets_manager, config_path, secrets_path
 
 
@@ -291,8 +383,10 @@ def test_config_secrets_integration(
 
     assert config_manager.loaded
     assert secrets_manager.secrets_loaded
-    assert config_manager.get("general.log_level") == "INFO"
-    assert secrets_manager.get("exchanges.hyperliquid.api_key") == "integrated_api_key"
+    assert config_manager.settings is not None
+    assert config_manager.settings.general.log_level == "INFO"
+    assert secrets_manager.secrets_data is not None
+    assert secrets_manager.secrets_data.exchanges["hyperliquid"].api_key.get_secret_value() == "integrated_api_key"
 
     # Example: Test resolving a secret reference from config (if such functionality existed)
     # config_api_key_ref = config_manager.get("exchanges.hyperliquid.api_key_secret_ref")

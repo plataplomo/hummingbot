@@ -41,7 +41,7 @@ class DashboardIntegration:
         update_interval: int = 5,
         port: int = 8050,
         debug: bool = False,
-    ):
+    ) -> None:
         """
         Initialize the dashboard integration.
 
@@ -245,10 +245,8 @@ class DashboardIntegration:
         symbol = getattr(signal, "symbol", "UnknownSymbol")
         signal_type_enum = getattr(signal, "signal_type", None)
         signal_type_name = signal_type_enum.name if signal_type_enum else "UNKNOWN"
-        side_enum = getattr(signal, "side", None)
-        side_name = side_enum.name if side_enum else "UNKNOWN"
-        price = getattr(signal, "price", None)
-        quantity = getattr(signal, "quantity", None)
+        # Note: side, price, and quantity are extracted but not used in current implementation
+        # They could be used for more detailed signal tracking in the future
 
         # Record the signal in the performance tracker
         self.performance_tracker.track_signal(

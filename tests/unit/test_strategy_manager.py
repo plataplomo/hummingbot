@@ -63,22 +63,23 @@ def mock_signal_queue() -> MagicMock:
     return MagicMock(spec=PrioritySignalQueue)
 
 
+@pytest.fixture
+def mock_app_settings() -> MagicMock:
+    """Create a mock AppSettings object."""
+    return MagicMock(spec=AppSettings)
+
+
 def test_register_strategy(
     mocker: MockerFixture,
-    mock_config_dict: dict[str, Any],
+    mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
     mock_portfolio_tracker: MagicMock,
     mock_risk_manager: AsyncMock,
     mock_signal_queue: MagicMock,
 ) -> None:
     """Test registering a new strategy."""
-    config_data_with_strategy = mock_config_dict
-    # Remove strategy_paths if registering an instance directly
-    if "strategy_paths" in config_data_with_strategy:
-        del config_data_with_strategy["strategy_paths"]
-
     strategy_manager_for_test = StrategyManager(
-        config=config_data_with_strategy,
+        config=mock_app_settings,
         execution_handler=mock_execution_handler,
         portfolio_tracker=mock_portfolio_tracker,
         risk_manager=mock_risk_manager,
@@ -91,7 +92,7 @@ def test_register_strategy(
 
 
 def test_unregister_strategy(
-    mock_config_dict: dict[str, Any],
+    mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
     mock_portfolio_tracker: MagicMock,
     mock_risk_manager: AsyncMock,
@@ -99,7 +100,7 @@ def test_unregister_strategy(
 ) -> None:
     """Test unregistering an existing strategy."""
     strategy_manager_for_test = StrategyManager(
-        config=mock_config_dict,
+        config=mock_app_settings,
         execution_handler=mock_execution_handler,
         portfolio_tracker=mock_portfolio_tracker,
         risk_manager=mock_risk_manager,
@@ -113,7 +114,7 @@ def test_unregister_strategy(
 
 
 def test_enable_disable_strategy(
-    mock_config_dict: dict[str, Any],
+    mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
     mock_portfolio_tracker: MagicMock,
     mock_risk_manager: AsyncMock,
@@ -121,7 +122,7 @@ def test_enable_disable_strategy(
 ) -> None:
     """Test enabling and disabling a strategy."""
     strategy_manager_for_test = StrategyManager(
-        config=mock_config_dict,
+        config=mock_app_settings,
         execution_handler=mock_execution_handler,
         portfolio_tracker=mock_portfolio_tracker,
         risk_manager=mock_risk_manager,
@@ -140,7 +141,7 @@ def test_enable_disable_strategy(
 
 
 def test_get_strategies_for_symbol(
-    mock_config_dict: dict[str, Any],
+    mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
     mock_portfolio_tracker: MagicMock,
     mock_risk_manager: AsyncMock,
@@ -148,7 +149,7 @@ def test_get_strategies_for_symbol(
 ) -> None:
     """Test retrieving strategies relevant to a symbol."""
     strategy_manager_for_test = StrategyManager(
-        config=mock_config_dict,
+        config=mock_app_settings,
         execution_handler=mock_execution_handler,
         portfolio_tracker=mock_portfolio_tracker,
         risk_manager=mock_risk_manager,
@@ -182,7 +183,7 @@ def test_get_strategies_for_symbol(
 @pytest.mark.asyncio
 async def test_start_stop_all(
     mock_gather: MagicMock,
-    mock_config_dict: dict[str, Any],
+    mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
     mock_portfolio_tracker: MagicMock,
     mock_risk_manager: AsyncMock,
@@ -190,7 +191,7 @@ async def test_start_stop_all(
 ) -> None:
     """Test starting and stopping all strategies."""
     strategy_manager_for_test = StrategyManager(
-        config=mock_config_dict,
+        config=mock_app_settings,
         execution_handler=mock_execution_handler,
         portfolio_tracker=mock_portfolio_tracker,
         risk_manager=mock_risk_manager,
@@ -226,7 +227,7 @@ async def test_start_stop_all(
 @pytest.mark.asyncio
 async def test_process_market_data(
     mock_create_task: MagicMock,
-    mock_config_dict: dict[str, Any],
+    mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
     mock_portfolio_tracker: MagicMock,
     mock_risk_manager: AsyncMock,
@@ -234,7 +235,7 @@ async def test_process_market_data(
 ) -> None:
     """Test processing market data and generating signals."""
     strategy_manager_for_test = StrategyManager(
-        config=mock_config_dict,
+        config=mock_app_settings,
         execution_handler=mock_execution_handler,
         portfolio_tracker=mock_portfolio_tracker,
         risk_manager=mock_risk_manager,
@@ -285,7 +286,7 @@ async def test_process_market_data(
 
 @pytest.mark.asyncio
 async def test_process_market_data_no_enabled_strategies(
-    mock_config_dict: dict[str, Any],
+    mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
     mock_portfolio_tracker: MagicMock,
     mock_risk_manager: AsyncMock,
@@ -293,7 +294,7 @@ async def test_process_market_data_no_enabled_strategies(
 ) -> None:
     """Test processing market data when no strategies are enabled."""
     strategy_manager_for_test = StrategyManager(
-        config=mock_config_dict,
+        config=mock_app_settings,
         execution_handler=mock_execution_handler,
         portfolio_tracker=mock_portfolio_tracker,
         risk_manager=mock_risk_manager,
@@ -326,7 +327,7 @@ async def test_process_market_data_no_enabled_strategies(
 @pytest.mark.asyncio
 async def test_process_market_data_exception(
     mock_create_task: MagicMock,
-    mock_config_dict: dict[str, Any],
+    mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
     mock_portfolio_tracker: MagicMock,
     mock_risk_manager: AsyncMock,
@@ -334,7 +335,7 @@ async def test_process_market_data_exception(
 ) -> None:
     """Test that exceptions during signal processing are handled."""
     strategy_manager_for_test = StrategyManager(
-        config=mock_config_dict,
+        config=mock_app_settings,
         execution_handler=mock_execution_handler,
         portfolio_tracker=mock_portfolio_tracker,
         risk_manager=mock_risk_manager,
@@ -371,7 +372,7 @@ async def test_process_market_data_exception(
 @pytest.mark.asyncio
 async def test_process_market_data_signal_handler_raises(
     mock_logger: MagicMock,
-    mock_config_dict: dict[str, Any],
+    mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
     mock_portfolio_tracker: MagicMock,
     mock_risk_manager: AsyncMock,
@@ -379,7 +380,7 @@ async def test_process_market_data_signal_handler_raises(
 ) -> None:
     """Test exception handling when signal_queue.add_signal raises an error."""
     strategy_manager_for_test = StrategyManager(
-        config=mock_config_dict,
+        config=mock_app_settings,
         execution_handler=mock_execution_handler,
         portfolio_tracker=mock_portfolio_tracker,
         risk_manager=mock_risk_manager,
@@ -432,7 +433,7 @@ async def test_process_market_data_signal_handler_raises(
 
 @pytest.mark.asyncio
 async def test_process_market_data_duplicate_signals(
-    mock_config_dict: dict[str, Any],
+    mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
     mock_portfolio_tracker: MagicMock,
     mock_risk_manager: AsyncMock,
@@ -443,7 +444,7 @@ async def test_process_market_data_duplicate_signals(
     downstream (e.g., SignalQueue, ExecutionHandler).
     """
     strategy_manager_for_test = StrategyManager(
-        config=mock_config_dict,
+        config=mock_app_settings,
         execution_handler=mock_execution_handler,
         portfolio_tracker=mock_portfolio_tracker,
         risk_manager=mock_risk_manager,
@@ -489,7 +490,7 @@ async def test_process_market_data_duplicate_signals(
 
 @pytest.mark.asyncio
 async def test_process_market_data_mixed_valid_invalid(
-    mock_config_dict: dict[str, Any],
+    mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
     mock_portfolio_tracker: MagicMock,
     mock_risk_manager: AsyncMock,
@@ -497,7 +498,7 @@ async def test_process_market_data_mixed_valid_invalid(
 ) -> None:
     """Test processing a mix of valid and invalid signals."""
     strategy_manager_for_test = StrategyManager(
-        config=mock_config_dict,
+        config=mock_app_settings,
         execution_handler=mock_execution_handler,
         portfolio_tracker=mock_portfolio_tracker,
         risk_manager=mock_risk_manager,
@@ -568,7 +569,7 @@ async def test_process_market_data_mixed_valid_invalid(
 
 @pytest.mark.asyncio
 async def test_signal_handler_risk_manager_exception(
-    mock_config_dict: dict[str, Any],
+    mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
     mock_portfolio_tracker: MagicMock,
     mock_risk_manager: AsyncMock,
@@ -576,7 +577,7 @@ async def test_signal_handler_risk_manager_exception(
 ) -> None:
     """Test process_market_data when risk_manager.size_signal raises."""
     strategy_manager = StrategyManager(
-        config=mock_config_dict,
+        config=mock_app_settings,
         execution_handler=mock_execution_handler,
         portfolio_tracker=mock_portfolio_tracker,
         risk_manager=mock_risk_manager,
@@ -634,7 +635,7 @@ async def test_signal_handler_risk_manager_exception(
 
 @pytest.mark.asyncio
 async def test_signal_handler_update_historical_data_exception(
-    mock_config_dict: dict[str, Any],
+    mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
     mock_portfolio_tracker: MagicMock,
     mock_risk_manager: AsyncMock,
@@ -642,7 +643,7 @@ async def test_signal_handler_update_historical_data_exception(
 ) -> None:
     """Test process_market_data when strategy.update_historical_data raises an exception."""
     strategy_manager = StrategyManager(
-        config=mock_config_dict,
+        config=mock_app_settings,
         execution_handler=mock_execution_handler,
         portfolio_tracker=mock_portfolio_tracker,
         risk_manager=mock_risk_manager,
@@ -685,7 +686,7 @@ async def test_signal_handler_update_historical_data_exception(
 
 @pytest.mark.asyncio
 async def test_process_market_data_malformed_signal(
-    mock_config_dict: dict[str, Any],
+    mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
     mock_portfolio_tracker: MagicMock,
     mock_risk_manager: AsyncMock,
@@ -693,7 +694,7 @@ async def test_process_market_data_malformed_signal(
 ) -> None:
     """Test process_market_data when strategy returns malformed signal data."""
     strategy_manager = StrategyManager(
-        config=mock_config_dict,
+        config=mock_app_settings,
         execution_handler=mock_execution_handler,
         portfolio_tracker=mock_portfolio_tracker,
         risk_manager=mock_risk_manager,
