@@ -5,6 +5,7 @@ import asyncio
 import os  # Added for path manipulation
 import signal
 import sys
+from collections.abc import Callable
 from typing import Any
 
 import structlog
@@ -13,7 +14,7 @@ import structlog
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.config import ConfigurationError, get_app_settings
+from cyberdelta.config import ConfigurationError, get_app_settings, get_secrets_config
 from cyberdelta.config.logging_config import setup_logging
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.engine import Engine
@@ -200,8 +201,14 @@ async def main() -> None:
         engine = Engine(name="CyberDeltaEngine_Core")
         app_state["engine"] = engine
 
-        # DataHandler expects Config
-        data_handler = DataHandler(config=config, symbol_mapper=symbol_mapper)
+        # DataHandler expects app_settings, api_clients, portfolio_tracker, symbol_mapper
+        # We'll initialize api_clients empty here and register them later
+        data_handler = DataHandler(
+            app_settings=config,
+            api_clients={},
+            portfolio_tracker=portfolio_tracker,
+            symbol_mapper=symbol_mapper,
+        )
         app_state["data_handler"] = data_handler
 
         # Initialize StrategyManager
@@ -225,44 +232,27 @@ async def main() -> None:
     client: ExchangeAPI  # Declare type of client here
     try:
         logger.info("Initializing API clients...")
-        secrets: dict[str, dict[str, str | None]] = {
-            ExchangeName.HYPERLIQUID: {
-                "wallet_address": os.environ.get("HL_WALLET_ADDRESS"),
-                "private_key": os.environ.get("HL_PRIVATE_KEY"),
-            },
-            ExchangeName.BACKPACK: {
-                "BACKPACK_API_KEY": os.environ.get("BP_API_KEY"),
-                "BACKPACK_API_SECRET": os.environ.get("BP_API_SECRET"),
-            },
-        }
-        _exchanges = config.exchanges
-        if not isinstance(_exchanges, dict):
-            logger.error("Config 'exchanges' must be a dictionary.")
-            sys.exit(1)
-        exchanges: dict[str, dict[str, Any]] = _exchanges
-        for (
-            exchange_name,
-            api_config_data,
-        ) in exchanges.items():
-            # The following isinstance check is redundant because 'exchanges' is typed as
-            # dict[str, dict[str, Any]],
-            # so api_config_data will always be a dict[str, Any].
-            # if not isinstance(api_config_data, dict): # REMOVING THIS CHECK
-            #     logger.warning(f"Skipping exchange {exchange_name}: config data is not a dict.")
-            #     continue
-
-            if not api_config_data.get("enabled", False):
+        # Get secrets configuration
+        secrets_config = get_secrets_config()
+        
+        exchanges = config.exchanges
+        for exchange_name, exchange_config in exchanges.items():
+            if not exchange_config.enabled:
                 logger.info("Skipping disabled exchange", exchange=exchange_name)
                 continue
 
-            # Ensure api_config passed to clients is dict[str, Any]
-            current_api_config: dict[str, Any] = api_config_data
+            # Get exchange-specific secrets
+            if exchange_name not in secrets_config.exchanges:
+                logger.error(f"No secrets found for exchange: {exchange_name}")
+                continue
+            
+            exchange_secrets = secrets_config.exchanges[exchange_name]
 
             logger.debug(f"Attempting to initialize API for {exchange_name}...")
             if exchange_name == ExchangeName.HYPERLIQUID:
-                client = HyperliquidAPI(current_api_config, secrets[ExchangeName.HYPERLIQUID])
+                client = HyperliquidAPI(exchange_config, exchange_secrets)
             elif exchange_name == ExchangeName.BACKPACK:
-                client = BackpackAPI(current_api_config, secrets[ExchangeName.BACKPACK])
+                client = BackpackAPI(exchange_config, exchange_secrets)
             else:
                 logger.warning(f"Unsupported exchange: {exchange_name}")
                 continue
@@ -274,6 +264,9 @@ async def main() -> None:
             portfolio_tracker.register_api_client(exchange_name, client)
             logger.info("Initialized and connected API client", exchange=exchange_name)
         app_state["api_clients"] = api_clients
+        
+        # Update data_handler with the initialized API clients
+        data_handler.api_clients = api_clients
 
         if not api_clients:
             logger.error("No enabled API clients found. Exiting.")
@@ -294,44 +287,39 @@ async def main() -> None:
     strategies: list[Strategy] = []
     try:
         logger.info("Initializing strategies...")
-        _strategies_config = config.strategies
-        if not isinstance(_strategies_config, list):
-            logger.error("Config 'strategies' must be a list.")
-            _strategies_config = []
-        strategies_config: list[dict[str, Any]] = _strategies_config
-        for strategy_config in strategies_config:
-            if strategy_config.get("enabled", False):
-                strategy_type = strategy_config.get("type")
-                strategy_name = strategy_config.get("name", "UnnamedStrategy")
-                if strategy_type == "FundingRateArbitrage":
-                    symbol = strategy_config.get("symbol")
-                    if not symbol:
-                        logger.error(
-                            f"Strategy '{strategy_name}' missing required 'symbol' "
-                            f"in config. Skipping."
-                        )
-                        continue
-                    strategy = FundingRateArbitrageStrategy(
-                        name=strategy_name,
-                        symbol=symbol,
-                        data_handler=data_handler,
-                        portfolio_tracker=portfolio_tracker,
-                        risk_manager=risk_manager,
-                        params=strategy_config,
-                    )
-                    strategies.append(strategy)
-                    logger.info("Initialized strategy", name=strategy.name)
-                else:
-                    logger.warning(
-                        "Unsupported strategy type in config",
-                        type=strategy_type,
-                        name=strategy_name,
-                    )
-            else:
-                logger.info(
-                    "Skipping disabled strategy",
-                    name=strategy_config.get("name", "Unnamed"),
-                )
+        # For now, we're using the HyperLiquid Perp vs Backpack Spot strategy
+        # from the config model
+        strategy_config = config.strategies.hl_perp_bp_spot
+        if strategy_config.enabled:
+            # Create the funding rate arbitrage strategy
+            # The strategy expects specific symbols from each exchange
+            strategy_params: dict[str, Any] = {
+                "type": "FundingRateArbitrage",
+                "name": "HL-BP-FundingArbitrage",
+                "symbol": strategy_config.symbol_long,  # Primary symbol
+                "enabled": True,
+                "long_exchange": strategy_config.long_exchange,
+                "short_exchange": strategy_config.short_exchange,
+                "symbol_long": strategy_config.symbol_long,
+                "symbol_short": strategy_config.symbol_short,
+                "funding_threshold": float(strategy_config.params.funding_threshold),
+                "max_price_spread_pct": float(strategy_config.params.max_price_spread_pct),
+                "min_profit_usd": float(strategy_config.params.min_profit_usd),
+            }
+            
+            strategy: Strategy = FundingRateArbitrageStrategy(
+                name=strategy_params["name"],
+                symbol=strategy_params["symbol"],
+                data_handler=data_handler,
+                portfolio_tracker=portfolio_tracker,
+                risk_manager=risk_manager,
+                params=strategy_params,
+            )
+            strategies.append(strategy)
+            logger.info("Initialized strategy", name=strategy.name)
+        else:
+            logger.info("HyperLiquid-Backpack funding arbitrage strategy is disabled")
+        
         logger.info("Strategies initialized", count=len(strategies))
 
     except Exception as e:
@@ -404,12 +392,18 @@ async def main() -> None:
         for sig_name_enum in (signal.SIGINT, signal.SIGTERM):
             # loop.add_signal_handler expects a regular callable.
             # asyncio.create_task will be called when the signal is received.
+            # Create a closure to properly capture the signal
+            def create_signal_handler(sig: signal.Signals) -> Callable[[], None]:
+                def handler() -> None:
+                    asyncio.create_task(
+                        _shutdown_coro_for_signal(),
+                        name=f"ShutdownHandler_{signal.Signals(sig).name}",
+                    )
+                return handler
+            
             loop.add_signal_handler(
                 sig_name_enum,
-                lambda: asyncio.create_task(
-                    _shutdown_coro_for_signal(),
-                    name=f"ShutdownHandler_{signal.Signals(sig_name_enum).name}",
-                ),
+                create_signal_handler(sig_name_enum),
             )
         logger.debug("Signal handlers registered.")
 
