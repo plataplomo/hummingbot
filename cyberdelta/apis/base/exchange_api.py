@@ -260,24 +260,18 @@ class ExchangeAPI(ABC):
         request_url = urljoin(self.rest_endpoint, endpoint.lstrip("/"))
 
         # Prepare data for HttpClient - handle Pydantic model serialization here
-        data_for_http_client: dict[str, Any] | None
+        data_dict_for_http_client: dict[str, Any] | None
         if isinstance(data, BaseModel):
-            data_for_http_client = data.model_dump(
+            data_dict_for_http_client = data.model_dump(
                 by_alias=True, exclude_none=not serialize_none_as_null
             )
-            # Special cleaning for Hyperliquid orderType if needed, after model_dump
-            if (
-                serialize_none_as_null
-                and self.exchange_name == "hyperliquid"
-                and data_for_http_client
-            ):
-                # Use HttpClient's cleaning method for consistency
-                if hasattr(self._http_client, "_clean_order_type_fields"):
-                    self._http_client._clean_order_type_fields(data_for_http_client)
         elif isinstance(data, dict) or data is None:
-            data_for_http_client = data
+            data_dict_for_http_client = data
         else:
-            raise TypeError(f"Unsupported type for 'data' parameter: {type(data)}")
+            raise TypeError(
+                f"ExchangeAPI._request 'data' param must be BaseModel, dict, or None. "
+                f"Got {type(data)}"
+            )
 
         response_content: ParsedJsonResponse | str | None = None
         status_code: int = 0  # Default, will be overwritten
@@ -303,7 +297,7 @@ class ExchangeAPI(ABC):
                 method=method,
                 endpoint_path=request_url,
                 params=params,
-                data=data_for_http_client,
+                data=data_dict_for_http_client,
                 headers=headers,
                 authenticator=self._authenticator,
                 rate_limiter_service=self._rate_limiter_service,

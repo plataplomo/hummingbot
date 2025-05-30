@@ -8,7 +8,7 @@ from typing import Any
 
 import aiohttp
 from multidict import CIMultiDictProxy
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 from cyberdelta.apis.base.authenticator_interface import (
     AuthenticatedRequestComponents,
@@ -150,34 +150,6 @@ class HttpClient:
             else:
                 logger.debug(f"[{self.exchange_name}] Internal ClientSession already closed/None.")
 
-    def _clean_order_type_fields(self, data: dict[str, Any]) -> None:
-        """
-        Recursively clean None values from order type structures in JSON payload.
-        This is specifically for Hyperliquid API which expects order types to have
-        only the active field (limit OR market), not both with one as null.
-        """
-        # Handle order type structures: {"limit": {...}, "market": null} -> {"limit": {...}}
-        if "limit" in data and "market" in data:
-            # This looks like an order type structure
-            if data["limit"] is None and data["market"] is not None:
-                del data["limit"]
-            elif data["market"] is None and data["limit"] is not None:
-                del data["market"]
-
-        # Recursively clean nested structures
-        for value in data.values():
-            if isinstance(value, dict):
-                # Type assertion since we've checked isinstance
-                dict_value: dict[str, Any] = value
-                self._clean_order_type_fields(dict_value)
-            elif isinstance(value, list):
-                item: Any
-                for item in value:
-                    if isinstance(item, dict):
-                        # Type assertion since we've checked isinstance
-                        dict_item: dict[str, Any] = item
-                        self._clean_order_type_fields(dict_item)
-
     async def _parse_and_validate_response(
         self,
         response: aiohttp.ClientResponse,
@@ -306,7 +278,7 @@ class HttpClient:
         rate_limiter_service: RateLimiterService,
         authenticator: IAuthenticator | None = None,
         params: dict[str, Any] | None = None,
-        data: dict[str, Any] | BaseModel | None = None,
+        data: dict[str, Any] | None = None,
         headers: dict[str, Any] | None = None,
         is_signed: bool = False,
         request_timeout: float | None = None,
@@ -320,42 +292,28 @@ class HttpClient:
         Now returns content, status_code, processed_headers, and raw_headers.
 
         Args:
-            serialize_none_as_null: If True, serialize Pydantic models with None values
-                                  as null instead of excluding them. Useful for APIs that
-                                  expect explicit null values.
+            serialize_none_as_null: If True, apply special Hyperliquid order type cleaning
+                                  to remove None values from order type fields.
         """
         request_params = (params or {}).copy()
-        request_data = data  # This can be dict | BaseModel | None
+        request_data = data  # This is dict[str, Any] | None (BaseModel handling in ExchangeAPI)
 
         json_payload: dict[str, Any] | None = None
         if method.upper() not in ["GET", "DELETE"] and request_data is not None:
-            if isinstance(request_data, BaseModel):
-                # Use serialize_none_as_null to determine exclude_none behavior
-                json_payload = request_data.model_dump(
-                    by_alias=True, exclude_none=not serialize_none_as_null
-                )
+            # request_data is already a dict at this point
+            # (BaseModel serialization handled by ExchangeAPI)
+            json_payload = request_data
 
-                # Special handling for Hyperliquid order types: ensure order type fields
-                # exclude None values even when serialize_none_as_null=True
-                if serialize_none_as_null:
-                    self._clean_order_type_fields(json_payload)
+            # Note: Exchange-specific data cleaning (like Hyperliquid order type fields)
+            # is now handled by the respective authenticator's prepare_request method
 
-                logger.debug(
-                    f"[{self.exchange_name}] Converted BaseModel to dict for JSON payload. "
-                    f"Original type: {type(request_data)}. Dumped data: {json_payload}"
-                )
-                # Log the actual JSON string that will be sent for debugging serialization issues
-                import json
+            # Log the actual JSON string that will be sent for debugging serialization issues
+            import json
 
-                json_string = json.dumps(json_payload)
-                logger.info(
-                    f"[{self.exchange_name}] JSON payload to be sent to {endpoint_path}: "
-                    f"{json_string}"
-                )
-            else:
-                # DEFENSIVE CHECK: request_data must be dict[str, Any] based on type annotation
-                # since it's not None and not BaseModel. Mypy=[redundant-expr]
-                json_payload = request_data
+            json_string = json.dumps(json_payload)
+            logger.info(
+                f"[{self.exchange_name}] JSON payload to be sent to {endpoint_path}: {json_string}"
+            )
 
         if endpoint_path.startswith(("http://", "https://")):
             full_url = endpoint_path
@@ -392,13 +350,16 @@ class HttpClient:
                         method=method,
                         path=endpoint_path,
                         params=request_params if request_params else None,
-                        data=json_payload if json_payload else None,  # Use json_payload here
+                        data=json_payload,  # Pass the prepared dict payload
                         headers=dict(request_headers),
                     )
                 )
                 request_headers.update(auth_components.headers)
                 if auth_components.params is not None:
                     request_params = auth_components.params
+                # Always use the data from auth_components for final HTTP call
+                # (authenticator can modify/clean the data as needed)
+                json_payload = auth_components.data
             except APIError as e:
                 logger.error(f"[{self.exchange_name}] Auth prep failed for {full_url}: {e}")
                 raise

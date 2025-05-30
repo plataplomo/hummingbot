@@ -140,13 +140,41 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         json_string = json.dumps(data_payload, sort_keys=True, separators=(",", ":"))
         return Web3.keccak(text=json_string)  # Use Web3.keccak as per HL spec
 
+    def _clean_order_type_fields(self, data: dict[str, Any]) -> None:
+        """
+        Recursively clean None values from order type structures in JSON payload.
+        This is specifically for Hyperliquid API which expects order types to have
+        only the active field (limit OR market), not both with one as null.
+        """
+        # Handle order type structures: {"limit": {...}, "market": null} -> {"limit": {...}}
+        if "limit" in data and "market" in data:
+            # This looks like an order type structure
+            if data["limit"] is None and data["market"] is not None:
+                del data["limit"]
+            elif data["market"] is None and data["limit"] is not None:
+                del data["market"]
+
+        # Recursively clean nested structures
+        for value in data.values():
+            if isinstance(value, dict):
+                # Type assertion since we've checked isinstance
+                dict_value: dict[str, Any] = value
+                self._clean_order_type_fields(dict_value)
+            elif isinstance(value, list):
+                item: Any
+                for item in value:
+                    if isinstance(item, dict):
+                        # Type assertion since we've checked isinstance
+                        dict_item: dict[str, Any] = item
+                        self._clean_order_type_fields(dict_item)
+
     async def prepare_request(
         self,
         method: str,
         path: str,
         params: dict[str, Any] | None,
         data: dict[str, Any] | None,
-        headers: dict[str, Any] | None,
+        headers: Mapping[str, Any] | None,
     ) -> AuthenticatedRequestComponents:
         """
         Prepares and signs a Hyperliquid API request using EIP-712 Agent signature.
@@ -176,7 +204,15 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
         # At this point, 'data' is confirmed to be a dict (due to type hint and above check)
         # and is the action_payload.
-        action_payload: Mapping[str, Any] = data
+        # Create a mutable copy for potential cleaning
+        action_payload_dict: dict[str, Any] = dict(data)
+
+        # Apply Hyperliquid-specific cleaning for order type fields
+        # This handles cases where serialize_none_as_null=True leaves null values
+        # that Hyperliquid expects to be absent
+        self._clean_order_type_fields(action_payload_dict)
+
+        action_payload: Mapping[str, Any] = action_payload_dict
 
         # Capture current time for timestamp BEFORE getting potentially incremented nonce
         current_timestamp_ms = int(time.time() * 1000)
@@ -222,7 +258,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             ) from e
 
         # Prepare headers for the authenticated request
-        updated_headers = (headers or {}).copy()
+        updated_headers = dict(headers) if headers else {}
         # Hyperliquid expects headers with "X-HL-" prefix for agent signature components
         updated_headers.update(
             {
@@ -238,7 +274,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         return AuthenticatedRequestComponents(
             headers=final_headers,
             params=params,
-            data=dict(action_payload),  # Return the action_payload as data
+            data=action_payload_dict,  # Return the cleaned action_payload as data
         )
 
 
