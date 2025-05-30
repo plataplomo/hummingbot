@@ -118,22 +118,28 @@ class ExchangeAPI(ABC):
         self._authenticator = authenticator
         self._ws_handlers: dict[str, MessageHandler] = {}
 
-        # Construct HttpClientConfig parameters carefully
+        # Construct HttpClientConfig parameters using direct field mapping
+        # The concrete API classes are responsible for providing correctly named keys
         http_config_data = {}
-        # Prioritize 'api_base_url' as it's commonly used in per-exchange configs.
-        rest_ep_val = self._config.get(
-            "api_base_url", self._config.get("rest_endpoint", self._config.get("base_url"))
-        )
-        if rest_ep_val is not None:  # HttpUrl field is not Optional
-            http_config_data["rest_endpoint"] = rest_ep_val
+        
+        # Required field: rest_endpoint
+        if "rest_endpoint" in self._config and self._config["rest_endpoint"] is not None:
+            http_config_data["rest_endpoint"] = self._config["rest_endpoint"]
+        # If rest_endpoint is not provided, HttpClientConfig.model_validate will fail,
+        # which is the desired behavior for a required field
 
-        # For fields with defaults in Pydantic, only include if explicitly in main config
-        # to let Pydantic defaults apply correctly for missing keys.
-        if "request_timeout" in self._config:
-            http_config_data["default_request_timeout"] = self._config["request_timeout"]
-        if "max_retries" in self._config:
+        # Optional fields - only include if explicitly provided to let Pydantic defaults apply
+        if (
+            "default_request_timeout" in self._config
+            and self._config["default_request_timeout"] is not None
+        ):
+            http_config_data["default_request_timeout"] = self._config["default_request_timeout"]
+        if "max_retries" in self._config and self._config["max_retries"] is not None:
             http_config_data["max_retries"] = self._config["max_retries"]
-        if "retry_delay_seconds" in self._config:
+        if (
+            "retry_delay_seconds" in self._config
+            and self._config["retry_delay_seconds"] is not None
+        ):
             http_config_data["retry_delay_seconds"] = self._config["retry_delay_seconds"]
 
         # Use model_validate for robust parsing and type coercion from the dict.
@@ -154,16 +160,18 @@ class ExchangeAPI(ABC):
                 f"[{exchange_name}] Missing or invalid 'rest_endpoint' or 'base_url' in config"
             )
 
-        self.ws_endpoint = self._config.get("ws_endpoint", self._config.get("ws_url"))
+        # Construct WebSocketManagerConfig using direct field mapping
+        # The concrete API classes are responsible for providing correctly named keys
+        self.ws_endpoint = self._config.get("ws_url")
         if self.ws_endpoint and not isinstance(self.ws_endpoint, str):
             logger.warning(
-                f"[{exchange_name}] Invalid 'ws_endpoint'/'ws_url' in config (must be str). "
+                f"[{exchange_name}] Invalid 'ws_url' in config (must be str). "
                 f"WebSocket functionality will be disabled."
             )
             self.ws_endpoint = None
         elif not self.ws_endpoint:
             logger.warning(
-                f"[{exchange_name}] Missing 'ws_endpoint'/'ws_url' in config. "
+                f"[{exchange_name}] Missing 'ws_url' in config. "
                 f"WebSocket functionality will be disabled."
             )
 
@@ -186,18 +194,26 @@ class ExchangeAPI(ABC):
             if self.ws_endpoint:  # At this point, ws_endpoint is either a valid string or None
                 ws_config_data = {"ws_url": self.ws_endpoint}  # ws_url is required
 
-                websocket_params_to_check = {
-                    "ws_ping_interval": "ping_interval",
-                    "ws_reconnect_delay": "reconnect_delay",
-                    "ws_max_reconnect_attempts": "max_reconnect_attempts",
-                    "ws_connection_timeout": "connection_timeout",
-                }
-
-                for config_key, model_key in websocket_params_to_check.items():
-                    if config_key in self._config:  # Check if key exists in the main config
-                        value = self._config[config_key]
-                        if value is not None:  # Only add if value is not None
-                            ws_config_data[model_key] = value
+                # Optional fields - only include if explicitly provided to let defaults apply
+                if "ping_interval" in self._config and self._config["ping_interval"] is not None:
+                    ws_config_data["ping_interval"] = self._config["ping_interval"]
+                if (
+                    "reconnect_delay" in self._config
+                    and self._config["reconnect_delay"] is not None
+                ):
+                    ws_config_data["reconnect_delay"] = self._config["reconnect_delay"]
+                if (
+                    "max_reconnect_attempts" in self._config
+                    and self._config["max_reconnect_attempts"] is not None
+                ):
+                    ws_config_data["max_reconnect_attempts"] = self._config[
+                        "max_reconnect_attempts"
+                    ]
+                if (
+                    "connection_timeout" in self._config
+                    and self._config["connection_timeout"] is not None
+                ):
+                    ws_config_data["connection_timeout"] = self._config["connection_timeout"]
 
                 # Use model_validate for robust parsing and type coercion.
                 websocket_manager_config = WebSocketManagerConfig.model_validate(ws_config_data)

@@ -74,7 +74,7 @@ class TestHyperliquidAPIWsSubscriptions:
     ) -> None:
         """Test that subscribing to L2Book sends correct payload."""
         handler = AsyncMock()
-        
+
         # Subscribe to L2Book
         await hl_api.subscribe("l2Book:ETH", handler)
 
@@ -94,7 +94,7 @@ class TestHyperliquidAPIWsSubscriptions:
     ) -> None:
         """Test that subscribing to trades sends correct payload."""
         handler = AsyncMock()
-        
+
         await hl_api.subscribe("trades:BTC", handler)
 
         # Verify WebSocket message was sent
@@ -111,7 +111,7 @@ class TestHyperliquidAPIWsSubscriptions:
     ) -> None:
         """Test that subscribing to userEvents sends correct payload."""
         handler = AsyncMock()
-        
+
         # Set wallet address using object.__setattr__ to bypass protection
         wallet_address = "0x1234567890abcdef1234567890abcdef12345678"
         object.__setattr__(hl_api, "_wallet_address", wallet_address)
@@ -132,7 +132,7 @@ class TestHyperliquidAPIWsSubscriptions:
     ) -> None:
         """Test that userEvents without wallet address logs warning but doesn't crash."""
         handler = AsyncMock()
-        
+
         # Clear wallet address using object.__setattr__ to bypass protection
         object.__setattr__(hl_api, "_wallet_address", None)
 
@@ -149,7 +149,7 @@ class TestHyperliquidAPIWsSubscriptions:
     ) -> None:
         """Test that subscribing to candle sends correct payload."""
         handler = AsyncMock()
-        
+
         await hl_api.subscribe("candle:ETH:1m", handler)
 
         # Verify WebSocket message was sent
@@ -167,7 +167,7 @@ class TestHyperliquidAPIWsSubscriptions:
     ) -> None:
         """Test that subscribing to allMids sends correct payload."""
         handler = AsyncMock()
-        
+
         await hl_api.subscribe("allMids", handler)
 
         # Verify WebSocket message was sent
@@ -187,7 +187,7 @@ class TestHyperliquidAPIWsSubscriptions:
         # Subscribe to invalid topic
         await hl_api.subscribe("invalid_topic", handler)
 
-        # The method should complete without error, but no WebSocket message should be sent 
+        # The method should complete without error, but no WebSocket message should be sent
         # due to error in payload construction
         mock_ws_manager.send_json.assert_not_called()
 
@@ -197,11 +197,11 @@ class TestHyperliquidAPIWsSubscriptions:
     ) -> None:
         """Test that subscribing to malformed topic logs warning but doesn't crash."""
         handler = AsyncMock()
-        
+
         # L2Book without coin
         await hl_api.subscribe("l2Book", handler)
 
-        # The method should complete without error, but no WebSocket message should be sent 
+        # The method should complete without error, but no WebSocket message should be sent
         # due to error in payload construction
         mock_ws_manager.send_json.assert_not_called()
 
@@ -211,10 +211,10 @@ class TestHyperliquidAPIWsSubscriptions:
     ) -> None:
         """Test that subscribing to candle without interval logs warning but doesn't crash."""
         handler = AsyncMock()
-        
+
         await hl_api.subscribe("candle:ETH", handler)
 
-        # The method should complete without error, but no WebSocket message should be sent 
+        # The method should complete without error, but no WebSocket message should be sent
         # due to error in payload construction
         mock_ws_manager.send_json.assert_not_called()
 
@@ -243,7 +243,7 @@ class TestHyperliquidAPIWsSubscriptions:
         # Subscribe to multiple topics
         handler1 = AsyncMock()
         handler2 = AsyncMock()
-        
+
         await hl_api.subscribe("l2Book:ETH", handler1)
         await hl_api.subscribe("trades:BTC", handler2)
 
@@ -269,7 +269,7 @@ class TestHyperliquidAPIWsSubscriptions:
         # Subscribe to valid topics
         await hl_api.subscribe("l2Book:ETH", AsyncMock())
         await hl_api.subscribe("trades:BTC", AsyncMock())
-        
+
         # Subscribe to invalid topic - should not send payload but should not crash
         await hl_api.subscribe("invalid:topic", AsyncMock())
 

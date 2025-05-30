@@ -159,19 +159,19 @@ class HyperliquidAPI(ExchangeAPI):
         config_dict_for_super = {
             "exchange_name": exchange_config.exchange_name.value,
             "rest_endpoint": self.rest_endpoint,
-            "ws_endpoint": self.ws_endpoint,
+            "ws_url": self.ws_endpoint,
             "rate_limits": {
                 "default_rate": rate_per_second,
                 "default_bucket_size": bucket_size,
             },
-            # Include optional HTTP/WS settings if present
-            "request_timeout": exchange_config.request_timeout_seconds,
+            # Include optional HTTP/WS settings with correct field names
+            "default_request_timeout": exchange_config.request_timeout_seconds,
             "max_retries": exchange_config.max_retries,
             "retry_delay_seconds": exchange_config.retry_delay_seconds,
-            "ws_ping_interval": exchange_config.ws_ping_interval_seconds,
-            "ws_reconnect_delay": exchange_config.ws_reconnect_delay_seconds,
-            "ws_max_reconnect_attempts": exchange_config.ws_max_reconnect_attempts,
-            "ws_connection_timeout": exchange_config.ws_connection_timeout_seconds,
+            "ping_interval": exchange_config.ws_ping_interval_seconds,
+            "reconnect_delay": exchange_config.ws_reconnect_delay_seconds,
+            "max_reconnect_attempts": exchange_config.ws_max_reconnect_attempts,
+            "connection_timeout": exchange_config.ws_connection_timeout_seconds,
         }
 
         # Remove None values from config_dict_for_super before passing to super()
@@ -342,9 +342,9 @@ class HyperliquidAPI(ExchangeAPI):
             ) from e
 
         return {
-            "headers": auth_components["headers"],
-            "params": auth_components["params"],
-            "data": auth_components["data"],
+            "headers": auth_components.headers,
+            "params": auth_components.params,
+            "data": auth_components.data,
         }
 
     async def _get_asset_index(self, symbol: str) -> int:
