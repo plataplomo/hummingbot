@@ -254,11 +254,11 @@ class BackpackAPI(ExchangeAPI):
             APIError: If topic is not supported by the exchange
         """
         # Determine if this is a private topic that requires authentication
-        private_topics = ["fills", "orders", "balances", "positions"]
+        # According to Backpack API docs: "Private streams are prefixed with `account.`"
         signature_components = None
 
-        # Check if topic requires authentication
-        if any(private_topic in topic for private_topic in private_topics):
+        # Check if topic requires authentication (private streams start with "account.")
+        if topic.startswith("account."):
             if not self._bp_authenticator or not hasattr(
                 self._bp_authenticator, "get_ws_subscription_signature_components"
             ):

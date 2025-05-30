@@ -1,10 +1,13 @@
+import base64
 from collections.abc import Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from pytest import LogCaptureFixture
 
-from cyberdelta.apis.backpack.bp_auth import BackpackHmacAuthenticator
+from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
+from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackWsSignatureComponents
 from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
 
 
@@ -14,145 +17,200 @@ def mock_time_patch() -> Generator[MagicMock]:
         yield mock_time
 
 
-class TestBackpackHmacAuthenticator:
-    def test_initialization_missing_key_raises_value_error(self, caplog: LogCaptureFixture) -> None:
-        with pytest.raises(ValueError, match="API key cannot be empty"):
-            BackpackHmacAuthenticator(api_key="", api_secret="test_secret")
-        assert "API key cannot be empty for BackpackHmacAuthenticator." in caplog.text
+@pytest.fixture
+def test_ed25519_keys() -> dict[str, str]:
+    """Generate test ED25519 keys for testing."""
+    # Generate a test private key
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+    
+    # Encode to base64
+    private_key_b64 = base64.b64encode(private_key.private_bytes_raw()).decode('utf-8')
+    public_key_b64 = base64.b64encode(public_key.public_bytes_raw()).decode('utf-8')
+    
+    return {
+        "private_key_b64": private_key_b64,
+        "public_key_b64": public_key_b64
+    }
 
-    def test_initialization_missing_secret_raises_value_error(
-        self, caplog: LogCaptureFixture
-    ) -> None:
-        with pytest.raises(ValueError, match="API secret cannot be empty"):
-            BackpackHmacAuthenticator(api_key="test_api_key", api_secret="")
-        assert "API secret cannot be empty for BackpackHmacAuthenticator." in caplog.text
+
+class TestBackpackEd25519Authenticator:
+    def test_initialization_missing_api_key_raises_value_error(self, test_ed25519_keys: dict[str, str]) -> None:
+        with pytest.raises(ValueError, match="API key \\(Base64\\) cannot be empty"):
+            BackpackEd25519Authenticator(api_key_b64="", private_key_b64=test_ed25519_keys["private_key_b64"])
+
+    def test_initialization_missing_private_key_raises_value_error(self, test_ed25519_keys: dict[str, str]) -> None:
+        with pytest.raises(ValueError, match="Private key \\(Base64\\) cannot be empty"):
+            BackpackEd25519Authenticator(api_key_b64=test_ed25519_keys["public_key_b64"], private_key_b64="")
+
+    def test_initialization_invalid_private_key_raises_value_error(self, test_ed25519_keys: dict[str, str]) -> None:
+        with pytest.raises(ValueError, match="Invalid ED25519 private key"):
+            BackpackEd25519Authenticator(
+                api_key_b64=test_ed25519_keys["public_key_b64"], 
+                private_key_b64="invalid_base64"
+            )
+
+    def test_initialization_missing_both_credentials_raises_value_error(self) -> None:
+        with pytest.raises(ValueError, match="API key \\(Base64\\) cannot be empty"):
+            BackpackEd25519Authenticator(api_key_b64="", private_key_b64="")
+
+    def test_initialization_success(self, test_ed25519_keys: dict[str, str]) -> None:
+        """Test that authenticator initializes correctly with valid ED25519 credentials."""
+        auth = BackpackEd25519Authenticator(
+            api_key_b64=test_ed25519_keys["public_key_b64"],
+            private_key_b64=test_ed25519_keys["private_key_b64"]
+        )
+        assert auth._api_key_b64 == test_ed25519_keys["public_key_b64"]
+        assert auth._ed25519_private_key is not None
 
     @pytest.mark.asyncio
-    async def test_init_missing_both_credentials_raises_value_error(self) -> None:
-        with pytest.raises(ValueError, match="API key cannot be empty"):
-            BackpackHmacAuthenticator(api_key="", api_secret="")
-
-    @pytest.mark.asyncio
-    async def test_initialization(self, mock_time_patch: MagicMock) -> None:
-        """Test that authenticator initializes and works correctly with valid credentials."""
-        auth = BackpackHmacAuthenticator(api_key="test_key", api_secret="test_secret")
-
-        # Test that the authenticator works correctly by calling prepare_request
-        # If credentials were properly stored, this should succeed and return expected headers
+    async def test_prepare_request_get_balances(self, test_ed25519_keys: dict[str, str], mock_time_patch: MagicMock) -> None:
+        """Test preparing a signed GET request for balance query."""
+        auth = BackpackEd25519Authenticator(
+            api_key_b64=test_ed25519_keys["public_key_b64"],
+            private_key_b64=test_ed25519_keys["private_key_b64"]
+        )
+        
         components = await auth.prepare_request(
-            method="GET", path="/api/v1/test", params=None, data=None, headers=None
+            method="GET", 
+            path="/api/v1/capital", 
+            params=None, 
+            data=None, 
+            headers=None
         )
-
-        # Verify that the request was properly authenticated (proves credentials were stored)
-        assert "X-Api-Key" in components["headers"]
-        assert "X-Timestamp" in components["headers"]
-        assert "X-Signature" in components["headers"]
-        assert components["headers"]["X-Api-Key"] == "test_key"
-        # Verify signature is not empty (proves secret was used for signing)
-        assert len(components["headers"]["X-Signature"]) > 0
+        
+        # Verify basic structure
+        assert isinstance(components, AuthenticatedRequestComponents)
+        assert "X-API-Key" in components.headers
+        assert "X-Timestamp" in components.headers
+        assert "X-Window" in components.headers
+        assert "X-Signature" in components.headers
+        
+        # Verify values
+        assert components.headers["X-API-Key"] == test_ed25519_keys["public_key_b64"]
+        assert components.headers["X-Timestamp"] == "1678886400000"
+        assert components.headers["X-Window"] == "5000"
+        assert len(components.headers["X-Signature"]) > 0  # Should have a signature
+        
+        assert components.params is None
+        assert components.data is None
 
     @pytest.mark.asyncio
-    async def test_prepare_request_get_no_params(self, mock_time_patch: MagicMock) -> None:
-        auth = BackpackHmacAuthenticator(api_key="testkey123", api_secret="secretkey456")
-        fixed_timestamp_str = "1678886400000"
-        # Expected signature: HMAC_SHA256("secretkey456", "1678886400000")
-        # echo -n "1678886400000" | openssl dgst -sha256 -hmac "secretkey456"
-        # -> (stdin)= c8b0b03025942d62f1039a273171939a1303758dd07966f020a014256905c172
-        expected_signature = "fa7dedc8ff5e7dbe49d0458e1db1b205324c7feb03dea0d321fcc9724bb3e581"
-
-        components: AuthenticatedRequestComponents = await auth.prepare_request(
-            method="GET", path="/api/v1/capital", params=None, data=None, headers=None
+    async def test_prepare_request_get_with_params(self, test_ed25519_keys: dict[str, str], mock_time_patch: MagicMock) -> None:
+        """Test preparing a signed GET request with query parameters."""
+        auth = BackpackEd25519Authenticator(
+            api_key_b64=test_ed25519_keys["public_key_b64"],
+            private_key_b64=test_ed25519_keys["private_key_b64"]
         )
-        print(
-            f"[DEBUG BP_TESTS] Actual signature for GET no_params: "
-            f"{components['headers']['X-Signature']}"
-        )  # DEBUG PRINT
-        assert components["headers"]["X-Api-Key"] == "testkey123"
-        assert components["headers"]["X-Timestamp"] == fixed_timestamp_str
-        assert components["headers"]["X-Signature"] == expected_signature
-        assert components["params"] is None
-        assert components["data"] is None
-
-    @pytest.mark.asyncio
-    async def test_prepare_request_get_with_params(self, mock_time_patch: MagicMock) -> None:
-        auth = BackpackHmacAuthenticator(api_key="testkey123", api_secret="secretkey456")
+        
         params = {"symbol": "SOL_USDC", "limit": "10"}
-        # Payload: timestamp + sorted query string
-        # "1678886400000limit=10&symbol=SOL_USDC"
-        # echo -n "1678886400000limit=10&symbol=SOL_USDC" |
-        #   openssl dgst -sha256 -hmac "secretkey456"
-        # -> (stdin)= 719299c86960f7247986608254250d14c248b3f4f78ff7129bfbe788c6519952
-        expected_signature = "b3b424d113a609f040d92c8bf5ee0b37dd0bbed0fef8232a8fd6f055c0decaa8"
-
+        
         components = await auth.prepare_request(
-            method="GET", path="/api/v1/orders", params=params, data=None, headers=None
+            method="GET", 
+            path="/api/v1/orders", 
+            params=params, 
+            data=None, 
+            headers=None
         )
-        assert components["headers"]["X-Signature"] == expected_signature
-        assert components["params"] == params  # Params should be returned as is
+        
+        # Verify signature exists and params are preserved
+        assert len(components.headers["X-Signature"]) > 0
+        assert components.params == params
 
     @pytest.mark.asyncio
-    async def test_prepare_request_post_with_data(self, mock_time_patch: MagicMock) -> None:
-        auth = BackpackHmacAuthenticator(api_key="testkey123", api_secret="secretkey456")
+    async def test_prepare_request_post_with_data(self, test_ed25519_keys: dict[str, str], mock_time_patch: MagicMock) -> None:
+        """Test preparing a signed POST request with JSON data."""
+        auth = BackpackEd25519Authenticator(
+            api_key_b64=test_ed25519_keys["public_key_b64"],
+            private_key_b64=test_ed25519_keys["private_key_b64"]
+        )
+        
         data = {"symbol": "SOL_USDC", "quantity": "1.0", "side": "buy", "orderType": "market"}
-        # Payload: timestamp + JSON string of data (sorted keys, no spaces)
-        # '1678886400000{"orderType":"market","quantity":"1.0","side":"buy","symbol":"SOL_USDC"}'
-        # echo -n '1678886400000{"orderType":"market","quantity":"1.0",' \
-        #   '"side":"buy","symbol":"SOL_USDC"}' | openssl dgst -sha256 -hmac "secretkey456"
-        # -> (stdin)= 673a805590bc592e2097a5f00e857d7060906a2f0c0d09833615e87c57193745
-        expected_signature = "af7bea788a14abcfd2fb1c96c6344d962fc1232dfa4d13dd5d997243708bdfb7"
-
+        
         components = await auth.prepare_request(
-            method="POST", path="/api/v1/order", params=None, data=data, headers=None
+            method="POST", 
+            path="/api/v1/order", 
+            params=None, 
+            data=data, 
+            headers=None
         )
-        assert components["headers"]["X-Signature"] == expected_signature
-        assert components["headers"]["Content-Type"] == "application/json; charset=utf-8"
-        assert components["data"] == data  # Data should be returned as is
+        
+        # Verify signature and data preservation
+        assert len(components.headers["X-Signature"]) > 0
+        assert components.data == data
 
     @pytest.mark.asyncio
-    async def test_prepare_request_post_no_data(self, mock_time_patch: MagicMock) -> None:
-        auth = BackpackHmacAuthenticator(api_key="testkey123", api_secret="secretkey456")
-        # Expected signature (same as GET with no params)
-        expected_signature = "fa7dedc8ff5e7dbe49d0458e1db1b205324c7feb03dea0d321fcc9724bb3e581"
-
-        components = await auth.prepare_request(
-            method="POST",
-            path="/api/v1/orderCancelAll",
-            params=None,
-            data=None,  # No data for this POST
-            headers=None,
+    async def test_prepare_request_merges_existing_headers(self, test_ed25519_keys: dict[str, str], mock_time_patch: MagicMock) -> None:
+        """Test that existing headers are preserved and merged with auth headers."""
+        auth = BackpackEd25519Authenticator(
+            api_key_b64=test_ed25519_keys["public_key_b64"],
+            private_key_b64=test_ed25519_keys["private_key_b64"]
         )
-        assert components["headers"]["X-Signature"] == expected_signature
-        # Content-Type should not be added if there's no data
-        assert "Content-Type" not in components["headers"]
-
-    @pytest.mark.asyncio
-    async def test_prepare_request_merges_existing_headers(
-        self, mock_time_patch: MagicMock
-    ) -> None:
-        auth = BackpackHmacAuthenticator(api_key="testkey123", api_secret="secretkey456")
+        
         existing_headers = {"X-Custom-Header": "CustomValue", "Content-Type": "application/xml"}
-        data = {"key": "value"}
+        
         components = await auth.prepare_request(
-            method="POST", path="/api/v1/order", params=None, data=data, headers=existing_headers
+            method="GET", 
+            path="/api/v1/capital", 
+            params=None, 
+            data=None, 
+            headers=existing_headers
         )
-        assert components["headers"]["X-Custom-Header"] == "CustomValue"
-        assert (
-            components["headers"]["X-Api-Key"] == "testkey123"
-        )  # Auth header takes precedence if conflict
-        # Content-Type from existing_headers should be preserved if present
-        assert components["headers"]["Content-Type"] == "application/xml"
+        
+        # Verify existing headers are preserved
+        assert components.headers["X-Custom-Header"] == "CustomValue"
+        assert components.headers["Content-Type"] == "application/xml"
+        
+        # Verify auth headers are added
+        assert "X-API-Key" in components.headers
+        assert "X-Signature" in components.headers
+
+    def test_get_ws_subscription_signature_components_account_stream(self, test_ed25519_keys: dict[str, str], mock_time_patch: MagicMock) -> None:
+        """Test WebSocket signature generation for account stream."""
+        auth = BackpackEd25519Authenticator(
+            api_key_b64=test_ed25519_keys["public_key_b64"],
+            private_key_b64=test_ed25519_keys["private_key_b64"]
+        )
+        
+        components = auth.get_ws_subscription_signature_components(
+            subscription_type="account"
+        )
+        
+        # Verify it returns BackpackWsSignatureComponents
+        assert isinstance(components, BackpackWsSignatureComponents)
+        assert components.api_key == test_ed25519_keys["public_key_b64"]
+        assert components.timestamp == "1678886400000"
+        assert components.window == "5000"
+        assert len(components.signature) > 0
+
+    def test_get_ws_subscription_signature_components_with_symbol(self, test_ed25519_keys: dict[str, str], mock_time_patch: MagicMock) -> None:
+        """Test WebSocket signature generation for market data stream with symbol."""
+        auth = BackpackEd25519Authenticator(
+            api_key_b64=test_ed25519_keys["public_key_b64"],
+            private_key_b64=test_ed25519_keys["private_key_b64"]
+        )
+        
+        components = auth.get_ws_subscription_signature_components(
+            subscription_type="orderbook",
+            symbol="SOL_USDC"
+        )
+        
+        assert isinstance(components, BackpackWsSignatureComponents)
+        assert components.api_key == test_ed25519_keys["public_key_b64"]
+        assert len(components.signature) > 0
 
     @pytest.mark.asyncio
-    async def test_prepare_request_adds_content_type_if_missing_for_post_with_data(
-        self, mock_time_patch: MagicMock
-    ) -> None:
-        auth = BackpackHmacAuthenticator(api_key="testkey123", api_secret="secretkey456")
-        data = {"key": "value"}
-        components = await auth.prepare_request(
-            method="POST",
-            path="/api/v1/order",
-            params=None,
-            data=data,
-            headers={"X-Another": "Header"},  # No Content-Type here
+    async def test_instruction_mapping_coverage(self, test_ed25519_keys: dict[str, str]) -> None:
+        """Test that instruction mapping includes expected endpoints."""
+        auth = BackpackEd25519Authenticator(
+            api_key_b64=test_ed25519_keys["public_key_b64"],
+            private_key_b64=test_ed25519_keys["private_key_b64"]
         )
-        assert components["headers"]["Content-Type"] == "application/json; charset=utf-8"
+        
+        # Verify key endpoints are mapped
+        assert ("GET", "/api/v1/capital") in auth.INSTRUCTION_MAP
+        assert ("POST", "/api/v1/order") in auth.INSTRUCTION_MAP
+        assert ("DELETE", "/api/v1/order") in auth.INSTRUCTION_MAP
+        
+        # Verify instruction values are strings
+        assert isinstance(auth.INSTRUCTION_MAP[("GET", "/api/v1/capital")], str)

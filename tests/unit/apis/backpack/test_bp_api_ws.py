@@ -49,7 +49,10 @@ def mock_exchange_config() -> ExchangeSpecificConfig:
 @pytest.fixture
 def mock_exchange_secrets() -> ExchangeSecrets:
     """Mock ExchangeSecrets configuration."""
-    return ExchangeSecrets(api_key=SecretStr("test_key"), api_secret=SecretStr("test_secret"))
+    return ExchangeSecrets(
+        api_key=SecretStr("61D/XTRs1Es8SgdZN4xO438vv1ls0aWhJSs//JDNxLk="),
+        api_secret=SecretStr("7s6pf6Xs8VJDMTNmcseiLge61XCSZeQ6GW8PP6odR1c="),
+    )
 
 
 @pytest.fixture
@@ -70,7 +73,7 @@ def bp_api_with_mocked_router(
     mock_bp_ws_router: Mock,
 ) -> BackpackAPI:
     """Create BackpackAPI instance with mocked router and other dependencies."""
-    with patch("cyberdelta.apis.backpack.bp_api.BackpackHmacAuthenticator"):
+    with patch("cyberdelta.apis.backpack.bp_api.BackpackEd25519Authenticator"):
         with patch("cyberdelta.apis.backpack.bp_api.BackpackErrorMapper"):
             with patch("cyberdelta.apis.backpack.bp_api.BackpackResponseHandler"):
                 with patch("cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder"):
@@ -120,7 +123,7 @@ class TestBackpackAPIWebSocketDelegation:
     def test_construct_subscription_payload_creates_valid_payload(
         self, bp_api_with_mocked_router: BackpackAPI, mock_bp_ws_router: Mock
     ) -> None:
-        """Test that subscription payload construction creates valid BackpackRawWsSubscriptionRequest."""
+        """Test that subscription payload construction creates valid payload."""
         from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
 
         topic = "depth.SOL_USDC"

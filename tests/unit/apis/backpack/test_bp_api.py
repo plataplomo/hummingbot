@@ -28,9 +28,9 @@ from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, Time
 from cyberdelta.core.models.market.order import Order
 from cyberdelta.enums.exchange_names import ExchangeName
 
-# Constants for testing
-TEST_API_KEY = "test_api_key_123"
-TEST_API_SECRET = "test_api_secret_456"
+# Constants for testing - Valid base64-encoded ED25519 keys
+TEST_API_KEY = "61D/XTRs1Es8SgdZN4xO438vv1ls0aWhJSs//JDNxLk="
+TEST_API_SECRET = "7s6pf6Xs8VJDMTNmcseiLge61XCSZeQ6GW8PP6odR1c="
 
 
 def create_test_exchange_config(
@@ -66,10 +66,10 @@ def mock_bp_http_client() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_authenticator() -> MagicMock:
-    """Mock BackpackHmacAuthenticator."""
-    from cyberdelta.apis.backpack.bp_auth import BackpackHmacAuthenticator
+    """Mock BackpackEd25519Authenticator."""
+    from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
 
-    mock_auth = MagicMock(spec=BackpackHmacAuthenticator)
+    mock_auth = MagicMock(spec=BackpackEd25519Authenticator)
     mock_auth.prepare_request = AsyncMock()
     return mock_auth
 
@@ -184,8 +184,8 @@ def bp_api_with_di(
 
         if secrets is None:
             secrets = ExchangeSecrets(
-                api_key=SecretStr("test_backpack_api_key_value"),
-                api_secret=SecretStr("test_backpack_api_secret_value"),
+                api_key=SecretStr(TEST_API_KEY),
+                api_secret=SecretStr(TEST_API_SECRET),
             )
 
         # Create the API instance

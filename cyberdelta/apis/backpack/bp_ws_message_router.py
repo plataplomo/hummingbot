@@ -102,10 +102,10 @@ class BackpackWsMessageRouter:
         signature_val_tuple: tuple[str, str, str, str] | None = None
         if signature_components:
             signature_val_tuple = (
-                signature_components.api_key,
-                signature_components.timestamp,
-                signature_components.window,
-                signature_components.signature,
+                signature_components.api_key,  # verifying key
+                signature_components.signature,  # signature
+                signature_components.timestamp,  # timestamp
+                signature_components.window,  # window
             )
 
         # Create the subscription request

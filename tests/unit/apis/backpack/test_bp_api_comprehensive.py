@@ -65,7 +65,8 @@ class TestBackpackAPIPublicBehavior:
     def valid_secrets(self) -> ExchangeSecrets:
         """Mock valid ExchangeSecrets configuration."""
         return ExchangeSecrets(
-            api_key=SecretStr("test_api_key"), api_secret=SecretStr("test_api_secret")
+            api_key=SecretStr("61D/XTRs1Es8SgdZN4xO438vv1ls0aWhJSs//JDNxLk="),
+            api_secret=SecretStr("7s6pf6Xs8VJDMTNmcseiLge61XCSZeQ6GW8PP6odR1c="),
         )
 
     @pytest.fixture

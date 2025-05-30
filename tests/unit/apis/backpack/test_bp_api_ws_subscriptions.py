@@ -17,20 +17,22 @@ from cyberdelta.enums.exchange_names import ExchangeName
 @pytest.fixture
 def bp_config() -> ExchangeSpecificConfig:
     """Create test configuration for BackpackAPI."""
-    return ExchangeSpecificConfig(
-        exchange_name=ExchangeName.BACKPACK,
-        symbols={},  # Add required symbols field
-        api_base_url="https://api.backpack.exchange",
-        ws_url="wss://ws.backpack.exchange",
-        rate_limit_per_minute=1200,
-    )
+    config_dict = {
+        "exchange_name": ExchangeName.BACKPACK,
+        "symbols": {},  # Add required symbols field
+        "api_base_url": "https://api.backpack.exchange",
+        "ws_url": "wss://ws.backpack.exchange",
+        "rate_limit_per_minute": 1200,
+    }
+    return ExchangeSpecificConfig.model_validate(config_dict)
 
 
 @pytest.fixture
 def bp_secrets() -> ExchangeSecrets:
     """Create test secrets for BackpackAPI."""
     return ExchangeSecrets(
-        api_key=SecretStr("test_api_key"), api_secret=SecretStr("test_api_secret")
+        api_key=SecretStr("61D/XTRs1Es8SgdZN4xO438vv1ls0aWhJSs//JDNxLk="),
+        api_secret=SecretStr("7s6pf6Xs8VJDMTNmcseiLge61XCSZeQ6GW8PP6odR1c="),
     )
 
 
@@ -85,14 +87,15 @@ class TestBackpackAPIWsSubscriptions:
         assert payload.signature is None
 
     def test_construct_private_stream_subscription(self, bp_api: BackpackAPI) -> None:
-        """Test constructing private stream subscription (currently logs warning)."""
+        """Test constructing private stream subscription."""
         # Private streams start with "account."
         payload = bp_api._construct_subscription_payload("account.orderUpdate")
 
         assert payload.method == "SUBSCRIBE"
         assert payload.params == ["account.orderUpdate"]
-        # TODO: When signature is implemented, this should not be None
-        assert payload.signature is None
+        # account.* streams require authentication
+        assert payload.signature is not None
+        assert len(payload.signature) == 4  # (api_key, signature, timestamp, window)
 
     def test_construct_fills_subscription(self, bp_api: BackpackAPI) -> None:
         """Test constructing fills subscription."""
@@ -100,6 +103,7 @@ class TestBackpackAPIWsSubscriptions:
 
         assert payload.method == "SUBSCRIBE"
         assert payload.params == ["fills"]
+        # fills is a public stream, no signature required
         assert payload.signature is None
 
     def test_any_topic_format_accepted(self, bp_api: BackpackAPI) -> None:
@@ -234,18 +238,12 @@ class TestBackpackAPIWsSubscriptions:
         assert data == {"method": "SUBSCRIBE", "params": ["ticker.BTC_USDC"]}
         # signature should not be included when None
 
-    def test_private_stream_warning(
-        self, bp_api: BackpackAPI, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """Test that private stream subscription logs warning about missing signature."""
-        import logging
+    def test_private_stream_signature_generation(self, bp_api: BackpackAPI) -> None:
+        """Test that private stream subscription generates signature properly."""
+        payload = bp_api._construct_subscription_payload("account.orderUpdate")
 
-        with caplog.at_level(logging.WARNING):
-            payload = bp_api._construct_subscription_payload("account.orderUpdate")
-
-        assert "Private stream 'account.orderUpdate' requires signature" in caplog.text
-        assert "TODO: Implement signature generation" in caplog.text
-
-        # Payload should still be created
+        # Payload should be created with signature
         assert payload is not None
         assert payload.params == ["account.orderUpdate"]
+        assert payload.signature is not None
+        assert len(payload.signature) == 4  # (api_key, signature, timestamp, window)
