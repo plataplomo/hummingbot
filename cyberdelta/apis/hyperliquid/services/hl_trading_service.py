@@ -51,14 +51,12 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
 )
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
     CancelOrderResultStatus,
-    OrderSide,
     OrderStatus,
-    OrderType,
-    TimeInForce,
 )
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.utils.parsing import parse_decimal_value
@@ -396,78 +394,16 @@ class HyperliquidTradingService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
-    async def place_order(
-        self,
-        symbol: str,
-        side: OrderSide,
-        order_type: OrderType,
-        quantity: Decimal,
-        price: Decimal | None,
-        time_in_force: TimeInForce,
-        stop_price: Decimal | None = None,
-        client_order_id: str | None = None,
-        reduce_only: bool = False,
-        post_only: bool = False,
-    ) -> Order:
+    async def place_order(self, args: PlaceOrderArgs) -> Order:
         """
         Places an order and maps the raw response to an internal Order model.
         """
-        # Service Input Parameter Validation
+        # Service Input Parameter Validation is now handled by PlaceOrderArgs model
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "place_order"
 
-        if not symbol:
-            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
-        if not quantity.is_finite() or quantity <= 0:
-            raise ValueError(f"[{current_method}] 'quantity' must be a positive finite Decimal.")
-
-        # Business Logic Pre-Validation for order types
-        if order_type == OrderType.LIMIT:
-            if price is None:
-                raise ValueError(f"[{current_method}] 'price' is required for LIMIT orders.")
-            if not price.is_finite() or price <= 0:
-                raise ValueError(
-                    f"[{current_method}] 'price' must be a positive finite Decimal "
-                    f"for LIMIT orders."
-                )
-
-        if order_type == OrderType.STOP_LIMIT:
-            if price is None:
-                raise ValueError(f"[{current_method}] 'price' is required for STOP_LIMIT orders.")
-            if not price.is_finite() or price <= 0:
-                raise ValueError(
-                    f"[{current_method}] 'price' must be a positive finite Decimal "
-                    f"for STOP_LIMIT orders."
-                )
-            if stop_price is None:
-                raise ValueError(
-                    f"[{current_method}] 'stop_price' is required for STOP_LIMIT orders."
-                )
-            if not stop_price.is_finite() or stop_price <= 0:
-                raise ValueError(
-                    f"[{current_method}] 'stop_price' must be a positive finite Decimal "
-                    f"for STOP_LIMIT orders."
-                )
-
-        if order_type == OrderType.STOP_MARKET:
-            if stop_price is None:
-                raise ValueError(
-                    f"[{current_method}] 'stop_price' is required for STOP_MARKET orders."
-                )
-            if not stop_price.is_finite() or stop_price <= 0:
-                raise ValueError(
-                    f"[{current_method}] 'stop_price' must be a positive finite Decimal "
-                    f"for STOP_MARKET orders."
-                )
-
         # Handle optional price - use Decimal("0") for market orders
-        order_price = price if price is not None else Decimal("0")
-
-        # General price validation for cases not covered above
-        if price is not None and (not price.is_finite() or price < 0):
-            raise ValueError(
-                f"[{current_method}] 'price' must be a non-negative finite Decimal when provided."
-            )
+        order_price = args.price if args.price is not None else Decimal("0")
 
         # Initialize context for error handling
         status_code: int = 0
@@ -475,24 +411,24 @@ class HyperliquidTradingService:
 
         try:
             # Core operational logic
-            asset_index = await self._get_asset_index_callable(symbol)
+            asset_index = await self._get_asset_index_callable(args.symbol)
             if asset_index is None:
                 raise APIError(
-                    f"Asset index for {symbol} not found.", APIErrorCode.INVALID_SYMBOL.value
+                    f"Asset index for {args.symbol} not found.", APIErrorCode.INVALID_SYMBOL.value
                 )
 
             # Use the request builder to create the proper payload format
             place_order_payload = self._request_builder.build_place_order_payload(
                 asset_index=asset_index,
-                side=side,
-                order_type=order_type,
-                quantity=quantity,
-                time_in_force=time_in_force,
+                side=args.side,
+                order_type=args.order_type,
+                quantity=args.quantity,
+                time_in_force=args.time_in_force,
                 price=order_price,
-                stop_price=stop_price,
-                client_order_id=client_order_id,
-                reduce_only=reduce_only,
-                post_only=post_only,
+                stop_price=args.stop_price,
+                client_order_id=args.client_order_id,
+                reduce_only=args.reduce_only,
+                post_only=args.post_only,
             )
 
             raw_exchange_response, http_status = await self._place_order_raw(place_order_payload)
@@ -506,7 +442,7 @@ class HyperliquidTradingService:
                         logger.info(
                             f"Order placed with OID: {new_oid}. Re-fetching for full details."
                         )
-                        internal_order = await self.get_order(symbol=symbol, order_id=new_oid)
+                        internal_order = await self.get_order(symbol=args.symbol, order_id=new_oid)
                         if internal_order:
                             return internal_order
                         else:
@@ -521,7 +457,7 @@ class HyperliquidTradingService:
                             f"Order OID {filled_oid} filled immediately. "
                             f"Re-fetching for full details."
                         )
-                        internal_order = await self.get_order(symbol=symbol, order_id=filled_oid)
+                        internal_order = await self.get_order(symbol=args.symbol, order_id=filled_oid)
                         if internal_order:
                             internal_order.status = OrderStatus.FILLED
                             internal_order.quantity_filled = (
@@ -530,7 +466,7 @@ class HyperliquidTradingService:
                                     allow_none=False,
                                     field_name="totalSz",
                                 )
-                                or quantity
+                                or args.quantity
                             )
                             internal_order.average_fill_price = parse_decimal_value(
                                 first_status.filled.avg_px, allow_none=False, field_name="avgPx"
@@ -560,7 +496,7 @@ class HyperliquidTradingService:
         except TransformationError as e_transform:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for {symbol}: {e_transform}",
+                f"data for {args.symbol}: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
@@ -573,7 +509,7 @@ class HyperliquidTradingService:
         except ValidationError as e_val:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for {symbol}: {e_val}",
+                f"failed for {args.symbol}: {e_val}",
                 exc_info=True,
             )
             raise APIError(
@@ -586,7 +522,7 @@ class HyperliquidTradingService:
         except (ValueError, TypeError) as e_service_logic:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for {symbol}: {e_service_logic}",
+                f"for {args.symbol}: {e_service_logic}",
                 exc_info=True,
             )
             raise APIError(
@@ -597,7 +533,7 @@ class HyperliquidTradingService:
         except Exception as e_unexpected:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-                f"for {symbol}: {e_unexpected}",
+                f"for {args.symbol}: {e_unexpected}",
                 exc_info=True,
             )
             raise APIError(

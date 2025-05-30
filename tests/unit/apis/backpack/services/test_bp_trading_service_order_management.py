@@ -14,6 +14,7 @@ from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 
 # Import fixtures from the shared conftest
@@ -32,9 +33,9 @@ class TestBackpackTradingServiceOrderManagement:
         self,
         bp_trading_service: BackpackTradingService,
     ) -> None:
-        """Test place_order raises ValueError for empty symbol."""
-        with pytest.raises(ValueError) as exc_info:
-            await bp_trading_service.place_order(
+        """Test place_order raises ValidationError for empty symbol (now from PlaceOrderArgs)."""
+        with pytest.raises(ValidationError) as exc_info:
+            args = PlaceOrderArgs(
                 symbol="",  # Empty symbol should be rejected
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -42,8 +43,9 @@ class TestBackpackTradingServiceOrderManagement:
                 time_in_force=TimeInForce.GTC,
                 price=Decimal("100.0"),
             )
+            await bp_trading_service.place_order(args=args)
 
-        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+        assert "String cannot be empty" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_place_order_invalid_quantity_validation(
@@ -332,7 +334,7 @@ class TestBackpackTradingServiceOrderManagement:
         with patch.object(bp_trading_service, "_trading_mapper", autospec=True) as mock_mapper:
             mock_mapper.transform_raw_order_to_internal.return_value = mock_order_result
 
-            result = await bp_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol=symbol,
                 side=side,
                 order_type=order_type,
@@ -341,6 +343,7 @@ class TestBackpackTradingServiceOrderManagement:
                 price=price,
                 client_order_id="123456",  # Use numeric string instead of alphanumeric
             )
+            result = await bp_trading_service.place_order(args=args)
 
             mock_request_builder.build_place_order_payload.assert_called_once_with(
                 symbol=symbol,

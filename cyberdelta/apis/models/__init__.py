@@ -10,6 +10,7 @@ from .api_error_codes import APIErrorCode
 from .api_error_response import APIErrorResponse
 from .exchange_api_config import ExchangeAPIConfig
 from .rate_limiter_config import EndpointRateConfig, RateLimiterConfig
+from .service_args_models import PlaceOrderArgs, TransferArgs, WithdrawArgs
 
 __all__ = [
     # Error handling
@@ -22,4 +23,8 @@ __all__ = [
     # Rate limiting
     "EndpointRateConfig",
     "RateLimiterConfig",
+    # Service arguments
+    "PlaceOrderArgs",
+    "TransferArgs",
+    "WithdrawArgs",
 ]

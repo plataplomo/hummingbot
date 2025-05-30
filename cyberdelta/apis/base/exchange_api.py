@@ -6,7 +6,6 @@ import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Coroutine, Mapping
 from datetime import datetime
-from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urljoin
 
@@ -38,17 +37,13 @@ from cyberdelta.core.models import (
     Ticker,
     Trade,
 )
-from cyberdelta.core.models.enums import (
-    OrderSide,  # Moved back
-    OrderType,  # Moved back
-    TimeInForce,  # Moved back
-)
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.core.models.operations import Transfer, Withdrawal
 
 if TYPE_CHECKING:
     # Import models only needed for type hints here
-    from cyberdelta.core.models.market import Candle
+    from cyberdelta.apis.models.service_args_models import PlaceOrderArgs, TransferArgs, WithdrawArgs
 
 # Define what is explicitly exported by this module
 __all__ = [
@@ -590,20 +585,21 @@ class ExchangeAPI(ABC):
     # --- Order Management --- #
 
     @abstractmethod
-    async def place_order(
-        self,
-        symbol: str,
-        side: OrderSide,
-        order_type: OrderType,
-        quantity: Decimal,
-        time_in_force: TimeInForce,
-        price: Decimal | None = None,
-        stop_price: Decimal | None = None,
-        client_order_id: str | None = None,
-        reduce_only: bool = False,
-        post_only: bool = False,
-    ) -> Order:
-        """Place a new order on the exchange."""
+    async def place_order(self, args: PlaceOrderArgs) -> Order:
+        """Place a new order on the exchange.
+        
+        Args:
+            args: PlaceOrderArgs model containing all order parameters including
+                 symbol, side, order_type, quantity, time_in_force, and optional
+                 parameters like price, stop_price, client_order_id, reduce_only,
+                 and post_only.
+        
+        Returns:
+            Order: The placed order details.
+            
+        Raises:
+            APIError: If the order placement fails.
+        """
         raise NotImplementedError
 
     @abstractmethod
@@ -721,4 +717,42 @@ class ExchangeAPI(ABC):
     @abstractmethod
     async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Fetch all open orders, optionally filtering by symbol."""
+        raise NotImplementedError
+
+    # --- Transfer and Withdrawal Operations --- #
+
+    @abstractmethod
+    async def transfer(self, args: TransferArgs) -> Transfer:
+        """
+        Execute an internal funds transfer between account types within the exchange.
+        
+        Args:
+            args: TransferArgs model containing all transfer parameters including
+                 asset, amount, from_account_type, to_account_type, and optional
+                 client_transfer_id.
+        
+        Returns:
+            Transfer: The transfer operation details and status.
+            
+        Raises:
+            APIError: If the transfer operation fails.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
+        """
+        Execute a fund withdrawal to an external address.
+        
+        Args:
+            args: WithdrawArgs model containing all withdrawal parameters including
+                 asset, amount, address, and optional parameters like network, tag,
+                 client_withdrawal_id, and two_factor_token.
+        
+        Returns:
+            Withdrawal: The withdrawal operation details and status.
+            
+        Raises:
+            APIError: If the withdrawal operation fails.
+        """
         raise NotImplementedError

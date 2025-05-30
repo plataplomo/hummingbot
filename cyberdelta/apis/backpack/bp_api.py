@@ -24,7 +24,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import datetime
-from decimal import Decimal
 from typing import Any
 
 from cyberdelta.apis.backpack.bp_api_components_factory import BackpackAPIComponentsFactory
@@ -44,6 +43,7 @@ from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTrading
 from cyberdelta.apis.base.exchange_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import PlaceOrderArgs, TransferArgs, WithdrawArgs
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.config.secrets_models import ExchangeSecrets as ExchangeSecretsConfig
@@ -52,11 +52,8 @@ from cyberdelta.core.models import (
     FundingRate,
     MarginAccountSummary,
     Order,
-    OrderSide,
-    OrderType,
     SpotBalance,
     Ticker,
-    TimeInForce,
     Trade,
 )
 from cyberdelta.core.models.market import Candle, OrderBook
@@ -341,32 +338,9 @@ class BackpackAPI(ExchangeAPI):
 
     # --- Trading Methods --- #
 
-    async def place_order(
-        self,
-        symbol: str,
-        side: OrderSide,
-        order_type: OrderType,
-        quantity: Decimal,
-        time_in_force: TimeInForce,
-        price: Decimal | None = None,
-        stop_price: Decimal | None = None,
-        client_order_id: str | None = None,
-        reduce_only: bool = False,
-        post_only: bool = False,
-    ) -> Order:
+    async def place_order(self, args: PlaceOrderArgs) -> Order:
         """Place a new order."""
-        return await self.trading_service.place_order(
-            symbol=symbol,
-            side=side,
-            order_type=order_type,
-            quantity=quantity,
-            time_in_force=time_in_force,
-            price=price,
-            stop_price=stop_price,
-            client_order_id=client_order_id,
-            post_only=post_only,
-            reduce_only=reduce_only,
-        )
+        return await self.trading_service.place_order(args=args)
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
         """Cancel an existing order."""
@@ -384,45 +358,13 @@ class BackpackAPI(ExchangeAPI):
         """Get account summary information."""
         return await self.account_service.get_account_info()
 
-    async def transfer(
-        self,
-        asset: str,
-        amount: Decimal,
-        from_account_type: str,
-        to_account_type: str,
-        client_transfer_id: str | None = None,
-    ) -> Transfer:
+    async def transfer(self, args: TransferArgs) -> Transfer:
         """Transfer funds between account types."""
-        return await self.account_service.transfer(
-            asset=asset,
-            amount=amount,
-            from_account_type=from_account_type,
-            to_account_type=to_account_type,
-            client_transfer_id=client_transfer_id,
-        )
+        return await self.account_service.transfer(args=args)
 
-    async def withdraw(
-        self,
-        asset: str,
-        amount: Decimal,
-        address: str,
-        network: str | None = None,
-        tag: str | None = None,
-        client_withdrawal_id: str | None = None,
-        two_factor_token: str | None = None,
-        **kwargs: dict[str, Any],
-    ) -> Withdrawal:
+    async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
         """Withdraw funds to an external address."""
-        return await self.account_service.withdraw(
-            asset=asset,
-            amount=amount,
-            address=address,
-            network=network,
-            tag=tag,
-            client_withdrawal_id=client_withdrawal_id,
-            two_factor_token=two_factor_token,
-            **kwargs,
-        )
+        return await self.account_service.withdraw(args=args)
 
     async def subscribe_to_order_book(self, symbol: str) -> None:
         """Subscribe to order book updates for a symbol."""

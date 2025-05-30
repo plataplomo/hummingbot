@@ -13,7 +13,6 @@ from __future__ import annotations
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
 from datetime import datetime  # Added back for order history
-from decimal import Decimal
 
 # from typing import TYPE_CHECKING, Any # Any no longer used
 from typing import TYPE_CHECKING, Any, cast  # Import cast and Any
@@ -54,6 +53,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawClearinghouseState
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import TransferArgs, WithdrawArgs
 from cyberdelta.config.logging_config import get_logger
 
 # Core Domain Models
@@ -828,27 +828,19 @@ class HyperliquidAccountService:
 
     async def transfer(
         self,
-        # Define params based on HL capabilities (e.g. L1 to L1, subaccount transfers?)
-        # For now, placeholder based on generic Transfer model
-        asset: str,
-        amount: Decimal,
-        from_account: str,  # Might be L1 address
-        to_account: str,  # Might be L1 address or subaccount ID
-        # ... other params as needed
+        args: TransferArgs,
     ) -> Transfer:
         """Performs an internal transfer. Details depend on HL capabilities."""
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "transfer"
 
-        if not asset:
-            raise ValueError(f"[{current_method}] 'asset' must be a non-empty string.")
-        if not amount.is_finite() or amount <= 0:
-            raise ValueError(f"[{current_method}] 'amount' must be a positive finite Decimal.")
-        if not from_account:
-            raise ValueError(f"[{current_method}] 'from_account' must be a non-empty string.")
-        if not to_account:
-            raise ValueError(f"[{current_method}] 'to_account' must be a non-empty string.")
+        # Args model validation has already been performed
+        # Extract parameters from args object (for future implementation)
+        _asset = args.asset
+        _amount = args.amount
+        _from_account = args.from_account_type
+        _to_account = args.to_account_type
 
         # Initialize context for error handling
         status_code: int = 0
@@ -892,27 +884,19 @@ class HyperliquidAccountService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            # Check if this is from our own input parameter validation
-            error_msg = str(e_service_logic)
-            if current_method in error_msg and any(
-                param in error_msg for param in ["asset", "amount", "from_account", "to_account"]
-            ):
-                # This is likely from our input parameter validation - re-raise as is
-                raise
-            else:
-                # This is from service internal logic - wrap as APIError
-                logger.error(
-                    f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                    f"for transfer: {e_service_logic}",
-                    exc_info=True,
-                )
-                raise APIError(
-                    code=APIErrorCode.UNKNOWN.value,
-                    message="Service internal logic error.",
-                    original_exception=e_service_logic,
-                    http_status=status_code if status_code != 0 else None,
-                    exchange_message=raw_response_content,
-                ) from e_service_logic
+            # This is from service internal logic - wrap as APIError
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for transfer: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_service_logic
         except Exception as e_unexpected:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure "
@@ -929,25 +913,18 @@ class HyperliquidAccountService:
 
     async def withdraw(
         self,
-        # Define params based on HL capabilities
-        asset: str,  # Usually implied by L1 token being withdrawn
-        amount: Decimal,
-        destination_address: str,  # L1 address
-        # ... other params as needed (e.g. signature of L1 transaction for withdrawal intent)
+        args: WithdrawArgs,
     ) -> Withdrawal:
         """Initiates a withdrawal of funds. Details depend on HL (L1 interaction)."""
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "withdraw"
 
-        if not asset:
-            raise ValueError(f"[{current_method}] 'asset' must be a non-empty string.")
-        if not amount.is_finite() or amount <= 0:
-            raise ValueError(f"[{current_method}] 'amount' must be a positive finite Decimal.")
-        if not destination_address:
-            raise ValueError(
-                f"[{current_method}] 'destination_address' must be a non-empty string."
-            )
+        # Args model validation has already been performed
+        # Extract parameters from args object (for future implementation)
+        _asset = args.asset
+        _amount = args.amount
+        _destination_address = args.address
 
         # Initialize context for error handling
         status_code: int = 0
@@ -991,27 +968,19 @@ class HyperliquidAccountService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            # Check if this is from our own input parameter validation
-            error_msg = str(e_service_logic)
-            if current_method in error_msg and any(
-                param in error_msg for param in ["asset", "amount", "destination_address"]
-            ):
-                # This is likely from our input parameter validation - re-raise as is
-                raise
-            else:
-                # This is from service internal logic - wrap as APIError
-                logger.error(
-                    f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                    f"for withdraw: {e_service_logic}",
-                    exc_info=True,
-                )
-                raise APIError(
-                    code=APIErrorCode.UNKNOWN.value,
-                    message="Service internal logic error.",
-                    original_exception=e_service_logic,
-                    http_status=status_code if status_code != 0 else None,
-                    exchange_message=raw_response_content,
-                ) from e_service_logic
+            # This is from service internal logic - wrap as APIError
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for withdraw: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_service_logic
         except Exception as e_unexpected:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure "

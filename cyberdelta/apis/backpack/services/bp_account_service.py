@@ -13,8 +13,7 @@ from __future__ import annotations
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
 from datetime import datetime
-from decimal import Decimal
-from typing import TYPE_CHECKING  # Keep Any for **kwargs in withdraw
+from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 
@@ -41,6 +40,7 @@ from cyberdelta.core.models import (
     Trade,
 )
 from cyberdelta.core.models.operations import Transfer, Withdrawal
+from cyberdelta.apis.models.service_args_models import TransferArgs, WithdrawArgs
 
 if TYPE_CHECKING:
     from cyberdelta.apis.base.authenticator_interface import IAuthenticator
@@ -587,55 +587,23 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
-    async def transfer(
-        self,
-        asset: str,
-        amount: Decimal,
-        from_account_type: str,
-        to_account_type: str,
-        client_transfer_id: str | None = None,
-    ) -> Transfer:
+    async def transfer(self, args: TransferArgs) -> Transfer:
         """Performs an internal transfer of funds between account types."""
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "transfer"
 
-        if not asset:
-            raise ValueError(f"[{current_method}] 'asset' must be a non-empty string.")
-        if not amount.is_finite() or amount <= 0:
-            raise ValueError(f"[{current_method}] 'amount' must be a positive finite Decimal.")
-        if not from_account_type:
-            raise ValueError(f"[{current_method}] 'from_account_type' must be a non-empty string.")
-        if not to_account_type:
-            raise ValueError(f"[{current_method}] 'to_account_type' must be a non-empty string.")
-
-        # Additional validation for whitespace-only strings
-        if not asset.strip():
-            raise ValueError(f"[{current_method}] 'asset' cannot be empty or whitespace only.")
-        if not from_account_type.strip():
-            raise ValueError(
-                f"[{current_method}] 'from_account_type' cannot be empty or whitespace only."
-            )
-        if not to_account_type.strip():
-            raise ValueError(
-                f"[{current_method}] 'to_account_type' cannot be empty or whitespace only."
-            )
-
         # Business Logic Pre-Validation (moved from RequestBuilder)
         valid_accounts = {"SPOT", "MARGIN", "FUTURES"}
-        if from_account_type not in valid_accounts:
+        if args.from_account_type not in valid_accounts:
             raise ValueError(
-                f"[{current_method}] Invalid from_account_type: {from_account_type}. "
+                f"[{current_method}] Invalid from_account_type: {args.from_account_type}. "
                 f"Must be one of {valid_accounts}"
             )
-        if to_account_type not in valid_accounts:
+        if args.to_account_type not in valid_accounts:
             raise ValueError(
-                f"[{current_method}] Invalid to_account_type: {to_account_type}. "
+                f"[{current_method}] Invalid to_account_type: {args.to_account_type}. "
                 f"Must be one of {valid_accounts}"
-            )
-        if from_account_type == to_account_type:
-            raise ValueError(
-                f"[{current_method}] from_account_type and to_account_type cannot be the same"
             )
 
         # Initialize context for error handling
@@ -647,11 +615,11 @@ class BackpackAccountService:
             # Core operational logic
             endpoint_path = "/api/v1/capital/transfer"
             payload = self._request_builder.build_internal_transfer_payload(
-                asset_symbol=asset,
-                amount=amount,
-                from_account=from_account_type,
-                to_account=to_account_type,
-                client_transfer_id=client_transfer_id,
+                asset_symbol=args.asset,
+                amount=args.amount,
+                from_account=args.from_account_type,
+                to_account=args.to_account_type,
+                client_transfer_id=args.client_transfer_id,
             )
             logger.debug(
                 f"[{self._exchange_name}] Requesting transfer from {endpoint_path} "
@@ -701,11 +669,11 @@ class BackpackAccountService:
             internal_transfer = self._mapper.transform_raw_transfer_to_internal(
                 raw_response=validated_raw_json_response,  # Pass validated dict
                 exchange_name=self._exchange_name,  # Pass exchange_name
-                asset=asset,
-                quantity=amount,
-                from_account_type_raw=from_account_type,
-                to_account_type_raw=to_account_type,
-                client_transfer_id=client_transfer_id,
+                asset=args.asset,
+                quantity=args.amount,
+                from_account_type_raw=args.from_account_type,
+                to_account_type_raw=args.to_account_type,
+                client_transfer_id=args.client_transfer_id,
             )
             logger.debug(f"[{self._exchange_name}] Mapped internal transfer: {internal_transfer}")
             logger.debug(
@@ -750,7 +718,7 @@ class BackpackAccountService:
             error_msg = str(e_service_logic)
             if current_method in error_msg and any(
                 param in error_msg
-                for param in ["asset", "amount", "from_account_type", "to_account_type"]
+                for param in ["from_account_type", "to_account_type"]
             ):
                 # This is likely from our input parameter validation - re-raise as is
                 raise
@@ -782,40 +750,15 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
-    async def withdraw(
-        self,
-        asset: str,
-        amount: Decimal,
-        address: str,
-        network: str | None = None,
-        tag: str | None = None,
-        client_withdrawal_id: str | None = None,
-        two_factor_token: str | None = None,
-        **_kwargs: dict[str, str],  # For potential extra params not yet defined
-    ) -> Withdrawal:
+    async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
         """Initiates a withdrawal of funds to an external address."""
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "withdraw"
 
-        if not asset:
-            raise ValueError(f"[{current_method}] 'asset' must be a non-empty string.")
-        if not amount.is_finite() or amount <= 0:
-            raise ValueError(f"[{current_method}] 'amount' must be a positive finite Decimal.")
-        if not address:
-            raise ValueError(f"[{current_method}] 'address' must be a non-empty string.")
-
         # Business Logic Pre-Validation (moved from RequestBuilder)
-        if network is None:
+        if args.network is None:
             raise ValueError(f"[{current_method}] 'network' is required for withdrawal.")
-
-        # Validate asset is not empty after stripping whitespace
-        if not asset.strip():
-            raise ValueError(f"[{current_method}] 'asset' cannot be empty or whitespace only.")
-
-        # Validate address is not empty after stripping whitespace
-        if not address.strip():
-            raise ValueError(f"[{current_method}] 'address' cannot be empty or whitespace only.")
 
         # Validate network maps to supported blockchain
         blockchain_mapping = {
@@ -835,9 +778,9 @@ class BackpackAccountService:
             "XRP": "XRP",
         }
 
-        if network not in blockchain_mapping:
+        if args.network not in blockchain_mapping:
             raise ValueError(
-                f"[{current_method}] Unsupported network: {network}. "
+                f"[{current_method}] Unsupported network: {args.network}. "
                 f"Supported networks: {list(blockchain_mapping.keys())}"
             )
 
@@ -850,15 +793,14 @@ class BackpackAccountService:
             # Core operational logic
             endpoint_path = "/api/v1/capital/withdrawals"
             payload = self._request_builder.build_withdraw_payload(
-                asset=asset,
-                amount=amount,
-                address=address,
-                network=network,
-                tag=tag,
-                client_withdrawal_id=client_withdrawal_id,
-                two_factor_token=two_factor_token,
-                # **kwargs are not explicitly passed to builder unless it accepts them.
-                # Assuming builder only takes defined params for now.
+                asset=args.asset,
+                amount=args.amount,
+                address=args.address,
+                network=args.network,
+                tag=args.tag,
+                client_withdrawal_id=args.client_withdrawal_id,
+                two_factor_token=args.two_factor_token,
+                # Extra parameters from the args model can be accessed if needed
             )
             logger.debug(
                 f"[{self._exchange_name}] Requesting withdrawal from {endpoint_path} "
@@ -896,12 +838,12 @@ class BackpackAccountService:
 
             internal_withdrawal = self._mapper.transform_raw_withdrawal_response_to_internal(
                 raw_response=raw_withdrawal_model,
-                asset=asset,
-                quantity=amount,
-                address=address,
-                network=network,
-                client_withdrawal_id=client_withdrawal_id,
-                tag=tag,
+                asset=args.asset,
+                quantity=args.amount,
+                address=args.address,
+                network=args.network,
+                client_withdrawal_id=args.client_withdrawal_id,
+                tag=args.tag,
             )
             logger.debug(
                 f"[{self._exchange_name}] Mapped internal withdrawal: {internal_withdrawal}"
@@ -942,9 +884,7 @@ class BackpackAccountService:
             # Input parameter validation errors should propagate as ValueError
             # Service logic errors should be wrapped as APIError
             error_msg = str(e_service_logic)
-            if current_method in error_msg and any(
-                param in error_msg for param in ["asset", "amount", "address"]
-            ):
+            if current_method in error_msg and "network" in error_msg:
                 # This is likely from our input parameter validation - re-raise as is
                 raise
             else:

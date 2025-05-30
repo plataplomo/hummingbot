@@ -23,6 +23,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
 
@@ -46,7 +47,7 @@ class TestHyperliquidTradingServiceOrders:
         hl_trading_service = make_hl_trading_service()
 
         with pytest.raises(ValueError) as exc_info:
-            await hl_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol="",  # Empty symbol should be rejected
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -54,8 +55,9 @@ class TestHyperliquidTradingServiceOrders:
                 price=Decimal("100.0"),
                 time_in_force=TimeInForce.GTC,
             )
+            await hl_trading_service.place_order(args)
 
-        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+        assert "String cannot be empty" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_place_order_invalid_quantity_validation(
@@ -67,7 +69,7 @@ class TestHyperliquidTradingServiceOrders:
 
         # Test zero quantity
         with pytest.raises(ValueError) as exc_info:
-            await hl_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol="ETH",
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -75,11 +77,12 @@ class TestHyperliquidTradingServiceOrders:
                 price=Decimal("100.0"),
                 time_in_force=TimeInForce.GTC,
             )
-        assert "'quantity' must be a positive finite Decimal" in str(exc_info.value)
+            await hl_trading_service.place_order(args)
+        assert "Input should be greater than 0" in str(exc_info.value)
 
         # Test negative quantity
         with pytest.raises(ValueError) as exc_info:
-            await hl_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol="ETH",
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -87,11 +90,12 @@ class TestHyperliquidTradingServiceOrders:
                 price=Decimal("100.0"),
                 time_in_force=TimeInForce.GTC,
             )
-        assert "'quantity' must be a positive finite Decimal" in str(exc_info.value)
+            await hl_trading_service.place_order(args)
+        assert "Input should be greater than 0" in str(exc_info.value)
 
         # Test infinite quantity
         with pytest.raises(ValueError) as exc_info:
-            await hl_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol="ETH",
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -99,7 +103,8 @@ class TestHyperliquidTradingServiceOrders:
                 price=Decimal("100.0"),
                 time_in_force=TimeInForce.GTC,
             )
-        assert "'quantity' must be a positive finite Decimal" in str(exc_info.value)
+            await hl_trading_service.place_order(args)
+        assert "Field 'quantity' must be a finite decimal" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_place_order_invalid_price_validation(
@@ -123,7 +128,7 @@ class TestHyperliquidTradingServiceOrders:
 
         # Test zero price for LIMIT order - should be rejected
         with pytest.raises(ValueError) as exc_info:
-            await hl_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol="ETH",
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -131,11 +136,12 @@ class TestHyperliquidTradingServiceOrders:
                 price=Decimal("0.0"),  # Invalid: zero price for LIMIT order
                 time_in_force=TimeInForce.GTC,
             )
-        assert "'price' must be a positive finite Decimal for LIMIT orders" in str(exc_info.value)
+            await hl_trading_service.place_order(args)
+        assert "Input should be greater than 0" in str(exc_info.value)
 
         # Test negative price
         with pytest.raises(ValueError) as exc_info:
-            await hl_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol="ETH",
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -143,11 +149,12 @@ class TestHyperliquidTradingServiceOrders:
                 price=Decimal("-50.0"),  # Invalid: negative price
                 time_in_force=TimeInForce.GTC,
             )
-        assert "'price' must be a positive finite Decimal for LIMIT orders" in str(exc_info.value)
+            await hl_trading_service.place_order(args)
+        assert "Input should be greater than 0" in str(exc_info.value)
 
         # Test infinite price
         with pytest.raises(ValueError) as exc_info:
-            await hl_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol="ETH",
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -155,7 +162,8 @@ class TestHyperliquidTradingServiceOrders:
                 price=Decimal("inf"),  # Invalid: infinite price
                 time_in_force=TimeInForce.GTC,
             )
-        assert "'price' must be a positive finite Decimal for LIMIT orders" in str(exc_info.value)
+            await hl_trading_service.place_order(args)
+        assert "Field 'price' must be a finite decimal" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_place_order_invalid_stop_price_validation(
@@ -167,7 +175,7 @@ class TestHyperliquidTradingServiceOrders:
 
         # Test negative stop_price
         with pytest.raises(ValueError) as exc_info:
-            await hl_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol="ETH",
                 side=OrderSide.BUY,
                 order_type=OrderType.STOP_LIMIT,
@@ -176,9 +184,8 @@ class TestHyperliquidTradingServiceOrders:
                 time_in_force=TimeInForce.GTC,
                 stop_price=Decimal("-10.0"),  # Invalid: negative stop_price
             )
-        assert "'stop_price' must be a positive finite Decimal for STOP_LIMIT orders" in str(
-            exc_info.value
-        )
+            await hl_trading_service.place_order(args)
+        assert "Input should be greater than 0" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_order_empty_order_id_validation(
@@ -356,7 +363,7 @@ class TestHyperliquidTradingServiceOrders:
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
         with pytest.raises(APIError) as exc_info:
-            await hl_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol=symbol,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -364,6 +371,7 @@ class TestHyperliquidTradingServiceOrders:
                 price=Decimal("100"),
                 time_in_force=TimeInForce.GTC,
             )
+            await hl_trading_service.place_order(args)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Exchange action (order) returned no content" in exc_info.value.message
@@ -468,7 +476,7 @@ class TestHyperliquidTradingServiceOrders:
         with patch.object(
             hl_trading_service, "get_order", return_value=expected_order
         ) as mock_get_order:
-            result = await hl_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol=symbol,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -476,6 +484,7 @@ class TestHyperliquidTradingServiceOrders:
                 price=price,
                 time_in_force=TimeInForce.GTC,
             )
+            result = await hl_trading_service.place_order(args)
 
             assert result == expected_order
             mock_get_asset_index_callable.assert_called_once_with(symbol)

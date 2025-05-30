@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Mapping
 from datetime import datetime
-from decimal import Decimal
 from typing import Any
 
 import aiohttp
@@ -43,6 +42,7 @@ from cyberdelta.apis.hyperliquid.services.hl_market_data_service import Hyperliq
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import PlaceOrderArgs, TransferArgs, WithdrawArgs
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.config.secrets_models import ExchangeSecrets as ExchangeSecretsConfig
@@ -53,11 +53,6 @@ from cyberdelta.core.models import (
     SpotBalance,
     Ticker,
     Trade,
-)
-from cyberdelta.core.models.enums import (
-    OrderSide,
-    OrderType,
-    TimeInForce,
 )
 from cyberdelta.core.models.market import Candle, OrderBook
 from cyberdelta.core.models.market.order import (
@@ -443,32 +438,9 @@ class HyperliquidAPI(ExchangeAPI):
             end_time_ms=end_time_ms,
         )
 
-    async def place_order(
-        self,
-        symbol: str,
-        side: OrderSide,
-        order_type: OrderType,
-        quantity: Decimal,
-        time_in_force: TimeInForce,
-        price: Decimal | None = None,
-        stop_price: Decimal | None = None,
-        client_order_id: str | None = None,
-        reduce_only: bool = False,
-        post_only: bool = False,
-    ) -> Order:
+    async def place_order(self, args: PlaceOrderArgs) -> Order:
         """Place a new order."""
-        return await self.trading_service.place_order(
-            symbol=symbol,
-            side=side,
-            order_type=order_type,
-            quantity=quantity,
-            price=price,
-            time_in_force=time_in_force,
-            stop_price=stop_price,
-            client_order_id=client_order_id,
-            reduce_only=reduce_only,
-            post_only=post_only,
-        )
+        return await self.trading_service.place_order(args)
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
         """Cancel an existing order."""
@@ -529,39 +501,13 @@ class HyperliquidAPI(ExchangeAPI):
             symbol=symbol, start_time=start_time, end_time=end_time
         )
 
-    async def transfer(
-        self,
-        asset: str,  # For HL, this is usually implied by the L1 token
-        amount: Decimal,
-        from_account_type: str,  # e.g., "spot", "margin" - less relevant for HL L1<->L2
-        to_account_type: str,  # e.g., "spot", "margin"
-        client_transfer_id: str | None = None,
-    ) -> Transfer:  # cyberdelta.core.models.operations.Transfer
+    async def transfer(self, args: TransferArgs) -> Transfer:
         """Transfer funds between account types."""
-        return await self.account_service.transfer(
-            asset=asset,
-            amount=amount,
-            from_account=from_account_type,
-            to_account=to_account_type,
-        )
+        return await self.account_service.transfer(args)
 
-    async def withdraw(
-        self,
-        asset: str,  # For HL, this is usually implied by the L1 token
-        amount: Decimal,
-        address: str,  # L1 destination address
-        network: str | None = None,  # L1 network, e.g., "Arbitrum"
-        tag: str | None = None,  # Destination tag/memo, if applicable
-        client_withdrawal_id: str | None = None,
-        two_factor_token: str | None = None,
-        **kwargs: dict[str, Any],  # Changed from Any
-    ) -> Withdrawal:  # cyberdelta.core.models.operations.Withdrawal
+    async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
         """Withdraw funds to an external address."""
-        return await self.account_service.withdraw(
-            asset=asset,
-            amount=amount,
-            destination_address=address,
-        )
+        return await self.account_service.withdraw(args)
 
     async def subscribe_to_order_book(self, symbol: str) -> None:
         """Prepare subscription to order book updates for a symbol.

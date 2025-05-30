@@ -15,6 +15,7 @@ from pydantic import SecretStr
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ExchangeSecrets
 from cyberdelta.core.models import (
@@ -413,7 +414,7 @@ class TestBackpackAPITradingOperations:
         mock_bp_trading_service.place_order.return_value = expected_order
 
         # Test delegation
-        result = await api.place_order(
+        args = PlaceOrderArgs(
             symbol="SOL",
             side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
@@ -421,20 +422,10 @@ class TestBackpackAPITradingOperations:
             price=Decimal("150.0"),
             time_in_force=TimeInForce.GTC,
         )
+        result = await api.place_order(args=args)
 
         # Verify service was called with correct parameters
-        mock_bp_trading_service.place_order.assert_called_once_with(
-            symbol="SOL",
-            side=OrderSide.SELL,
-            order_type=OrderType.LIMIT,
-            quantity=Decimal("10.0"),
-            time_in_force=TimeInForce.GTC,
-            price=Decimal("150.0"),
-            stop_price=None,
-            client_order_id=None,
-            post_only=False,
-            reduce_only=False,
-        )
+        mock_bp_trading_service.place_order.assert_called_once_with(args=args)
         assert result == expected_order
 
         await api.close()
@@ -688,7 +679,7 @@ class TestBackpackAPIErrorHandling:
 
         # API client should propagate the exact same ValueError
         with pytest.raises(ValueError) as exc_info:
-            await api.place_order(
+            args = PlaceOrderArgs(
                 symbol="SOL",
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -696,6 +687,7 @@ class TestBackpackAPIErrorHandling:
                 price=Decimal("150.0"),
                 time_in_force=TimeInForce.GTC,
             )
+            await api.place_order(args=args)
 
         # Assert exact error propagation
         assert exc_info.value is service_error  # Same instance

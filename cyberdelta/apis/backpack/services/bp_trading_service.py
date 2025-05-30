@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
-from decimal import Decimal
 
 from pydantic import ValidationError
 
@@ -25,11 +24,11 @@ from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
     CancelOrderResultStatus,
-    OrderSide,
     OrderType,
     TimeInForce,
 )
@@ -80,44 +79,10 @@ class BackpackTradingService:
             mapper or BackpackTradingDataMapper()
         )  # Instantiate or use static methods
 
-    async def place_order(
-        self,
-        symbol: str,
-        side: OrderSide,
-        order_type: OrderType,
-        quantity: Decimal,
-        time_in_force: TimeInForce,
-        price: Decimal | None = None,
-        stop_price: Decimal | None = None,  # Renamed from trigger_price for consistency
-        client_order_id: str | None = None,
-        post_only: bool = False,
-        reduce_only: bool = False,  # Added to accept from API client
-    ) -> Order:
+    async def place_order(self, args: PlaceOrderArgs) -> Order:
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "place_order"
-
-        if not symbol:
-            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
-        if not quantity.is_finite() or quantity <= 0:
-            raise ValueError(f"[{current_method}] 'quantity' must be a positive finite Decimal.")
-        if price is not None and (not price.is_finite() or price <= 0):
-            raise ValueError(
-                f"[{current_method}] 'price' must be a positive finite Decimal when provided."
-            )
-        if stop_price is not None and (not stop_price.is_finite() or stop_price <= 0):
-            raise ValueError(
-                f"[{current_method}] 'stop_price' must be a positive finite Decimal when provided."
-            )
-
-        # Business Logic Pre-Validation (moved from RequestBuilder)
-        if order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT] and price is None:
-            raise ValueError(f"[{current_method}] Price is required for {order_type.value} orders.")
-
-        if order_type in [OrderType.STOP_MARKET, OrderType.STOP_LIMIT] and stop_price is None:
-            raise ValueError(
-                f"[{current_method}] Stop price is required for {order_type.value} orders."
-            )
 
         # Validate order type is supported by Backpack
         supported_order_types = [
@@ -126,36 +91,32 @@ class BackpackTradingService:
             OrderType.STOP_MARKET,
             OrderType.STOP_LIMIT,
         ]
-        if order_type not in supported_order_types:
+        if args.order_type not in supported_order_types:
             raise ValueError(
-                f"[{current_method}] Unsupported order type for Backpack: {order_type.value}"
+                f"[{current_method}] Unsupported order type for Backpack: {args.order_type.value}"
             )
 
         # Validate time in force for limit orders
-        if order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT]:
+        if args.order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT]:
             supported_tif = [TimeInForce.GTC, TimeInForce.IOC, TimeInForce.FOK]
-            if time_in_force not in supported_tif:
+            if args.time_in_force not in supported_tif:
                 raise ValueError(
                     f"[{current_method}] Unsupported time in force for limit orders: "
-                    f"{time_in_force.value}. Supported: {[tif.value for tif in supported_tif]}"
+                    f"{args.time_in_force.value}. Supported: {[tif.value for tif in supported_tif]}"
                 )
 
-        # Validate post_only is only for LIMIT orders
-        if post_only and order_type != OrderType.LIMIT:
-            raise ValueError(f"[{current_method}] 'post_only' is only applicable to LIMIT orders.")
-
         # Validate client_order_id can be converted to int if provided
-        if client_order_id:
+        if args.client_order_id:
             try:
-                int(client_order_id)
+                int(args.client_order_id)
             except ValueError as e:
                 raise ValueError(
                     f"[{current_method}] client_order_id must be convertible to integer, "
-                    f"got: {client_order_id}"
+                    f"got: {args.client_order_id}"
                 ) from e
 
         # Validate reduce_only is not supported (log warning)
-        if reduce_only:
+        if args.reduce_only:
             logger.warning(
                 f"[{self._exchange_name}] 'reduce_only' parameter is not supported for "
                 f"place_order and will be ignored."
@@ -170,15 +131,15 @@ class BackpackTradingService:
             # Core operational logic
             endpoint = "/api/v1/order"
             payload = self._request_builder.build_place_order_payload(
-                symbol=symbol,
-                side=side,
-                order_type=order_type,
-                quantity=quantity,
-                time_in_force=time_in_force,  # Corrected: Pass TimeInForce enum
-                price=price,
-                client_order_id=client_order_id,
-                post_only=post_only,
-                trigger_price=stop_price,
+                symbol=args.symbol,
+                side=args.side,
+                order_type=args.order_type,
+                quantity=args.quantity,
+                time_in_force=args.time_in_force,
+                price=args.price,
+                client_order_id=args.client_order_id,
+                post_only=args.post_only,
+                trigger_price=args.stop_price,
             )
 
             raw_data, status_code, _ = await self._http_client_requester(
@@ -195,7 +156,7 @@ class BackpackTradingService:
 
             if raw_data is None or not isinstance(raw_data, dict):
                 raise APIError(
-                    f"Place order for {symbol} returned invalid data (status: {status_code})",
+                    f"Place order for {args.symbol} returned invalid data (status: {status_code})",
                     APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
@@ -212,7 +173,7 @@ class BackpackTradingService:
         except TransformationError as e_transform:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for {symbol}: {e_transform}",
+                f"data for {args.symbol}: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
@@ -225,7 +186,7 @@ class BackpackTradingService:
         except ValidationError as e_val:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for {symbol}: {e_val}",
+                f"failed for {args.symbol}: {e_val}",
                 exc_info=True,
             )
             raise APIError(
@@ -241,7 +202,7 @@ class BackpackTradingService:
             # Service logic errors should be wrapped as APIError
             error_msg = str(e_service_logic)
             if current_method in error_msg and any(
-                param in error_msg for param in ["symbol", "quantity", "price", "stop_price"]
+                param in error_msg for param in ["client_order_id", "reduce_only"]
             ):
                 # This is likely from our input parameter validation - re-raise as is
                 raise
@@ -249,7 +210,7 @@ class BackpackTradingService:
                 # This is from service internal logic - wrap as APIError
                 logger.error(
                     f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                    f"for {symbol}: {e_service_logic}",
+                    f"for {args.symbol}: {e_service_logic}",
                     exc_info=True,
                 )
                 raise APIError(
@@ -262,7 +223,7 @@ class BackpackTradingService:
         except Exception as e_unexpected:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-                f"for {symbol}: {e_unexpected}",
+                f"for {args.symbol}: {e_unexpected}",
                 exc_info=True,
             )
             raise APIError(
