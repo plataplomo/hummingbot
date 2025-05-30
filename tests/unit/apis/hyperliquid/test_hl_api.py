@@ -15,6 +15,7 @@ from pydantic import SecretStr
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ExchangeSecrets
 from cyberdelta.core.models import (
@@ -325,7 +326,7 @@ class TestHyperliquidAPIAssetIndexingIntegration:
         mock_hl_trading_service.place_order.return_value = expected_order
 
         # Call place_order - this should internally use asset indexing
-        result = await api.place_order(
+        place_order_args = PlaceOrderArgs(
             symbol="BTC",
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
@@ -333,20 +334,10 @@ class TestHyperliquidAPIAssetIndexingIntegration:
             price=Decimal("50000.0"),
             time_in_force=TimeInForce.GTC,
         )
+        result = await api.place_order(place_order_args)
 
         # Verify the trading service was called correctly
-        mock_hl_trading_service.place_order.assert_called_once_with(
-            symbol="BTC",
-            side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
-            quantity=Decimal("1.0"),
-            price=Decimal("50000.0"),
-            time_in_force=TimeInForce.GTC,
-            stop_price=None,
-            client_order_id=None,
-            reduce_only=False,
-            post_only=False,
-        )
+        mock_hl_trading_service.place_order.assert_called_once_with(place_order_args)
 
         # Verify the result
         assert result == expected_order
@@ -370,7 +361,7 @@ class TestHyperliquidAPIAssetIndexingIntegration:
 
         # Call place_order with an unknown symbol and expect the error to be propagated
         with pytest.raises(APIError) as exc_info:
-            await api.place_order(
+            place_order_args = PlaceOrderArgs(
                 symbol="UNKNOWN_SYMBOL",
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -378,6 +369,7 @@ class TestHyperliquidAPIAssetIndexingIntegration:
                 price=Decimal("50000.0"),
                 time_in_force=TimeInForce.GTC,
             )
+            await api.place_order(place_order_args)
 
         # Verify the error is the expected asset indexing error
         assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
@@ -520,7 +512,7 @@ class TestHyperliquidAPIAssetIndexingIntegration:
         # Each should use asset indexing internally
 
         # Place order
-        place_result = await api.place_order(
+        place_order_args = PlaceOrderArgs(
             symbol="BTC",
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
@@ -528,6 +520,7 @@ class TestHyperliquidAPIAssetIndexingIntegration:
             price=Decimal("50000.0"),
             time_in_force=TimeInForce.GTC,
         )
+        place_result = await api.place_order(place_order_args)
 
         # Get order
         get_result = await api.get_order(order_id="12345", symbol="BTC")
@@ -711,7 +704,7 @@ class TestHyperliquidAPITradingOperations:
         mock_hl_trading_service.place_order.return_value = expected_order
 
         # Test delegation
-        result = await api.place_order(
+        place_order_args = PlaceOrderArgs(
             symbol="BTC",
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
@@ -719,20 +712,10 @@ class TestHyperliquidAPITradingOperations:
             price=Decimal("50000.0"),
             time_in_force=TimeInForce.GTC,
         )
+        result = await api.place_order(place_order_args)
 
         # Verify service was called with correct parameters
-        mock_hl_trading_service.place_order.assert_called_once_with(
-            symbol="BTC",
-            side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
-            quantity=Decimal("1.0"),
-            price=Decimal("50000.0"),
-            time_in_force=TimeInForce.GTC,
-            stop_price=None,
-            client_order_id=None,
-            reduce_only=False,
-            post_only=False,
-        )
+        mock_hl_trading_service.place_order.assert_called_once_with(place_order_args)
         assert result == expected_order
 
         await api.close()
@@ -856,7 +839,7 @@ class TestHyperliquidAPIErrorHandling:
 
         # API client should propagate the exact same APIError
         with pytest.raises(APIError) as exc_info:
-            await api.place_order(
+            place_order_args = PlaceOrderArgs(
                 symbol="BTC",
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -864,6 +847,7 @@ class TestHyperliquidAPIErrorHandling:
                 price=Decimal("50000.0"),
                 time_in_force=TimeInForce.GTC,
             )
+            await api.place_order(place_order_args)
 
         # Assert exact error propagation
         assert exc_info.value is service_error  # Same instance
@@ -1184,7 +1168,7 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
 
         # Test exact unexpected exception propagation
         with pytest.raises(RuntimeError) as exc_info:
-            await api.place_order(
+            place_order_args = PlaceOrderArgs(
                 symbol="BTC",
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -1192,6 +1176,7 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
                 price=Decimal("50000.0"),
                 time_in_force=TimeInForce.GTC,
             )
+            await api.place_order(place_order_args)
 
         assert exc_info.value is unexpected_error  # Same instance
         assert "Unexpected service failure" in str(exc_info.value)

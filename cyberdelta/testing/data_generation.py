@@ -125,13 +125,26 @@ def generate_synthetic_data(
         # If columns are already a MultiIndex, from_tuples will recreate it.
         # If it's some other non-empty Index that from_tuples can handle, it will convert.
         try:
-            combined_df.columns = pd.MultiIndex.from_tuples(combined_df.columns)
+            # Check if columns are already tuples, if not convert them
+            if not isinstance(combined_df.columns, pd.MultiIndex):
+                # Convert column names to tuples if they aren't already
+                # DEFENSIVE CHECK: Check if columns are iterable but not strings. Mypy=[unreachable] Ruff=[]
+                if hasattr(combined_df.columns[0], "__iter__") and not isinstance(
+                    combined_df.columns[0], str
+                ):
+                    # Already tuples
+                    combined_df.columns = pd.MultiIndex.from_tuples(combined_df.columns)
+                else:
+                    # Single level columns, create tuples
+                    combined_df.columns = pd.MultiIndex.from_tuples(
+                        [(col, "") for col in combined_df.columns]
+                    )
             combined_df = combined_df.sort_index(axis=1, level=[1, 0])
-        except TypeError as e:
+        except (TypeError, ValueError) as e:
             logger.error(f"Error processing DataFrame columns: {e}. Columns: {combined_df.columns}")
             # Decide on fallback: return as is, or raise, or return with empty MultiIndex
             # For now, let it pass to see if a later stage handles it or fails revealing more.
-            pass  # Or raise e if this state is truly invalid
+            # Note: Continuing with original columns structure
     # else: combined_df has no columns, leave as is (empty Index for columns)
 
     logger.info(

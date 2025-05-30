@@ -100,10 +100,7 @@ class PerformanceVisualizer:
         assert self.config.color_palette is not None, "color_palette must not be None"
         for i, strategy in enumerate(names):
             color_palette = self.config.color_palette
-            if color_palette is not None:
-                color = color_palette[i % len(color_palette)]
-            else:
-                color = "blue"
+            color = color_palette[i % len(color_palette)]
             fig.add_trace(
                 go.Scatter(
                     x=cum_returns.index,  # NOTE: pandas index type is partially unknown
@@ -209,10 +206,7 @@ class PerformanceVisualizer:
         assert self.config.color_palette is not None, "color_palette must not be None"
         for i, strategy in enumerate(names):
             color_palette = self.config.color_palette
-            if color_palette is not None:
-                color = color_palette[i % len(color_palette)]
-            else:
-                color = "blue"
+            color = color_palette[i % len(color_palette)]
             fig.add_trace(
                 go.Scatter(
                     x=drawdowns.index,  # NOTE: pandas index type is partially unknown
@@ -392,9 +386,7 @@ class PerformanceVisualizer:
         # Pivot data if necessary (if not already in the right format)
         # NOTE: Type checker limitation: pandas stubs are incomplete for pivot, values, index
         if "asset" in funding_data.columns and "funding_rate" in funding_data.columns:
-            pivot_data = funding_data.pivot(
-                index=funding_data.index, columns="asset", values="funding_rate"
-            )
+            pivot_data = funding_data.pivot(index=None, columns="asset", values="funding_rate")
         else:
             pivot_data = funding_data
 
@@ -447,8 +439,8 @@ class PerformanceVisualizer:
         Returns:
             Plotly figure object
         """
-        height = height or self.config.default_height * 2
-        width = width or self.config.default_width * 1.5
+        height = height or int(self.config.default_height * 2)
+        width = width or int(self.config.default_width * 1.5)
 
         # Use a local variable to ensure type safety for strategy names
         names: list[str] = (
@@ -476,8 +468,10 @@ class PerformanceVisualizer:
         # NOTE: Type checker limitation: pandas stubs are incomplete for cumprod/cummax
         cum_returns = (1 + returns_data[names]).cumprod() - 1
 
+        assert self.config.color_palette is not None, "color_palette must not be None"
+        color_palette = self.config.color_palette
         for i, strategy in enumerate(names):
-            color = self.config.color_palette[i % len(self.config.color_palette)]
+            color = color_palette[i % len(color_palette)]
             fig.add_trace(
                 go.Scatter(
                     x=cum_returns.index,
@@ -512,7 +506,7 @@ class PerformanceVisualizer:
         drawdowns = (cum_returns / rolling_max - 1) * 100
 
         for i, strategy in enumerate(names):
-            color = self.config.color_palette[i % len(self.config.color_palette)]
+            color = color_palette[i % len(color_palette)]
             fig.add_trace(
                 go.Scatter(
                     x=drawdowns.index,
@@ -590,9 +584,7 @@ class PerformanceVisualizer:
             # Pivot data if necessary
             # NOTE: Type checker limitation: pandas stubs are incomplete for pivot, values, index
             if "asset" in funding_data.columns and "funding_rate" in funding_data.columns:
-                pivot_data = funding_data.pivot(
-                    index=funding_data.index, columns="asset", values="funding_rate"
-                )
+                pivot_data = funding_data.pivot(index=None, columns="asset", values="funding_rate")
             else:
                 pivot_data = funding_data
 
@@ -683,7 +675,7 @@ class PerformanceMetricsCalculator:
         sharpe = excess_returns.mean() / excess_returns.std()
 
         # Annualize
-        return sharpe * np.sqrt(self.annualization_factor)
+        return float(sharpe * np.sqrt(self.annualization_factor))
 
     def calculate_sortino_ratio(
         self, returns: pd.Series, risk_free_rate: float = 0.0, target_return: float = 0.0
@@ -720,7 +712,7 @@ class PerformanceMetricsCalculator:
         sortino = excess_returns.mean() / downside_returns.std()
 
         # Annualize
-        return sortino * np.sqrt(self.annualization_factor)
+        return float(sortino * np.sqrt(self.annualization_factor))
 
     def calculate_max_drawdown(self, returns: pd.Series) -> float:
         """
@@ -747,7 +739,7 @@ class PerformanceMetricsCalculator:
         # Find the maximum drawdown
         max_drawdown = abs(drawdowns.min())
 
-        return max_drawdown
+        return float(max_drawdown)
 
     def calculate_calmar_ratio(self, returns: pd.Series, period: int = 36) -> float:
         """
@@ -790,7 +782,9 @@ class PerformanceMetricsCalculator:
 
         # Compound the returns
         # NOTE: Type checker limitation: pandas stubs are incomplete for prod
-        total_return = (1 + returns).prod() - 1
+        # Convert to numpy array to avoid pandas type issues
+        returns_array = np.asarray(returns.values, dtype=float)
+        total_return = float(np.prod(1 + returns_array) - 1)
 
         # Annualize
         periods = len(returns)
@@ -799,7 +793,7 @@ class PerformanceMetricsCalculator:
             return 0.0
         annualized_return = (1 + total_return) ** (self.annualization_factor / periods) - 1
 
-        return annualized_return
+        return float(annualized_return)
 
     def calculate_annualized_volatility(self, returns: pd.Series) -> float:
         """
@@ -815,7 +809,7 @@ class PerformanceMetricsCalculator:
             return 0.0
 
         # Annualize the standard deviation
-        return returns.std() * np.sqrt(self.annualization_factor)
+        return float(returns.std() * np.sqrt(self.annualization_factor))
 
     def calculate_win_rate(self, trades: pd.DataFrame) -> float:
         """

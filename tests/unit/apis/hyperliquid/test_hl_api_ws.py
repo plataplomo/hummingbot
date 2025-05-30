@@ -142,8 +142,8 @@ class TestHyperliquidAPIWebSocketDelegation:
     ) -> None:
         """Test that subscription payload construction delegates to router."""
         from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
-            HyperliquidRawWsSubscribeRequest,
             HyperliquidRawWsL2BookSubscriptionPayload,
+            HyperliquidRawWsSubscribeRequest,
         )
 
         topic = "l2Book:ETH"

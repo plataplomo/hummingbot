@@ -11,6 +11,7 @@ import pytest
 
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
+from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 
 # Import fixtures from the shared conftest
@@ -195,7 +196,7 @@ class TestBackpackTradingServiceAccountMisc:
         mock_response_handler.handle_place_order_response.return_value = mock_raw_order
 
         # Test that the service can place orders (requires authentication)
-        result = await bp_trading_service.place_order(
+        place_order_args = PlaceOrderArgs(
             symbol=symbol,
             side=side,
             order_type=order_type,
@@ -203,6 +204,7 @@ class TestBackpackTradingServiceAccountMisc:
             time_in_force=time_in_force,
             price=price,
         )
+        result = await bp_trading_service.place_order(args=place_order_args)
 
         # Verify the authenticated request was made correctly
         mock_http_client_requester.assert_called_once()
@@ -430,7 +432,7 @@ class TestBackpackTradingServiceAccountMisc:
         mock_http_client_requester.return_value = ({"id": "123"}, 200, {})
         mock_response_handler.handle_place_order_response.return_value = mock_raw_order
 
-        placed_order = await bp_trading_service.place_order(
+        place_order_args = PlaceOrderArgs(
             symbol=symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
@@ -438,6 +440,7 @@ class TestBackpackTradingServiceAccountMisc:
             time_in_force=TimeInForce.GTC,
             price=Decimal("100.0"),
         )
+        placed_order = await bp_trading_service.place_order(args=place_order_args)
         assert placed_order is not None
 
         # 3. Test cancelling an order

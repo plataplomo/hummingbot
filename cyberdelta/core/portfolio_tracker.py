@@ -1171,7 +1171,7 @@ class PortfolioTracker:
             assets_dict_any: Any
             for ex_id_str, assets_dict_any in balances_data_typed.items():
                 if isinstance(assets_dict_any, dict):
-                    current_assets_items = cast(dict[Any, Any], assets_dict_any)
+                    current_assets_items = assets_dict_any
                     k_asset_raw: Any
                     bal_data_any: Any
                     for k_asset_raw, bal_data_any in current_assets_items.items():
@@ -1179,8 +1179,7 @@ class PortfolioTracker:
                         if isinstance(bal_data_any, dict):
                             try:
                                 # Ensure keys are str for model_validate
-                                # Cast bal_data_any to dict[Any, Any] to help Pyright with k,v types
-                                temp_bal_dict_for_comp = cast(dict[Any, Any], bal_data_any)
+                                temp_bal_dict_for_comp = bal_data_any
                                 validated_bal_dict: dict[str, Any] = {
                                     str(k): v
                                     for k, v in temp_bal_dict_for_comp.items()  # k, v are Any
@@ -1208,15 +1207,14 @@ class PortfolioTracker:
             syms_dict_any: Any
             for ex_id_str_pos, syms_dict_any in positions_data_typed.items():
                 if isinstance(syms_dict_any, dict):
-                    syms_dict_typed = cast(dict[str, Any], syms_dict_any)
+                    syms_dict_typed = syms_dict_any
                     sym_str: str
                     pos_data_any: Any
                     for sym_str, pos_data_any in syms_dict_typed.items():
                         if isinstance(pos_data_any, dict):
                             try:
                                 # Ensure keys are str for model_validate
-                                # Cast pos_data_any to dict[Any, Any] to help Pyright with k,v types
-                                temp_pos_dict_for_comp = cast(dict[Any, Any], pos_data_any)
+                                temp_pos_dict_for_comp = pos_data_any
                                 validated_pos_dict_for_model: dict[str, Any] = {
                                     str(k): v
                                     for k, v in temp_pos_dict_for_comp.items()  # k, v are Any
@@ -1244,16 +1242,14 @@ class PortfolioTracker:
             ords_dict_any: Any
             for ex_id_str_ord, ords_dict_any in orders_data_typed.items():
                 if isinstance(ords_dict_any, dict):
-                    ords_dict_typed = cast(dict[str, Any], ords_dict_any)
+                    ords_dict_typed = ords_dict_any
                     ord_id_str: str
                     order_data_any: Any
                     for ord_id_str, order_data_any in ords_dict_typed.items():
                         if isinstance(order_data_any, dict):
                             try:
                                 # Ensure keys are str for model_validate
-                                # Cast order_data_any to dict[Any, Any] to help Pyright
-                                # with k,v types
-                                temp_order_dict_for_comp = cast(dict[Any, Any], order_data_any)
+                                temp_order_dict_for_comp = order_data_any
                                 validated_order_dict_for_model: dict[str, Any] = {
                                     str(k): v
                                     for k, v in temp_order_dict_for_comp.items()  # k, v are Any

@@ -345,7 +345,12 @@ class SimpleVisualizer:
             max_dd_idx = drawdown.idxmin()
             ax.annotate(
                 f"Max DD: {max_dd:.2f}%",
-                xy=(max_dd_idx, max_dd),
+                xy=(
+                    float(max_dd_idx.timestamp())
+                    if hasattr(max_dd_idx, "timestamp")
+                    else float(max_dd_idx),
+                    max_dd,
+                ),
                 xytext=(15, -15),  # Adjust position slightly
                 textcoords="offset points",
                 arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=.2"),
@@ -567,7 +572,9 @@ class SimpleVisualizer:
             x_labels = monthly_pnl.index.astype(str).to_list()
 
         x_ticks = np.arange(len(x_labels))
-        bars = ax.bar(x_ticks, monthly_pnl.values, color=colors)  # Use x_ticks for bar positions
+        # Convert pandas values to numpy array to ensure matplotlib compatibility
+        monthly_values = np.asarray(monthly_pnl.values, dtype=float)
+        bars = ax.bar(x_ticks, monthly_values, color=colors)  # Use x_ticks for bar positions
         ax.axhline(0, color="grey", linewidth=0.8)  # Zero line
 
         # Add PnL values on top of bars

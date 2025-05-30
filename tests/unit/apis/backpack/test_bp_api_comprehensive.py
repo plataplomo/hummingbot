@@ -13,6 +13,7 @@ from pydantic import SecretStr
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import PlaceOrderArgs, TransferArgs, WithdrawArgs
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ExchangeSecrets
 from cyberdelta.core.models import (
@@ -291,7 +292,7 @@ class TestBackpackAPIPublicBehavior:
             with patch(
                 "cyberdelta.apis.backpack.services.bp_trading_service.logger"
             ) as mock_logger:
-                result = await backpack_api.place_order(
+                place_order_args = PlaceOrderArgs(
                     symbol="SOL_USDC",
                     side=OrderSide.BUY,
                     order_type=OrderType.LIMIT,
@@ -300,6 +301,7 @@ class TestBackpackAPIPublicBehavior:
                     price=Decimal("100.0"),
                     reduce_only=True,  # This should trigger a warning
                 )
+                result = await backpack_api.place_order(place_order_args)
 
                 # Should warn about reduce_only not being supported
                 mock_logger.warning.assert_called_once()
@@ -314,13 +316,14 @@ class TestBackpackAPIPublicBehavior:
 
         with patch.object(backpack_api.trading_service, "place_order", side_effect=api_error):
             with pytest.raises(APIError) as exc_info:
-                await backpack_api.place_order(
+                place_order_args = PlaceOrderArgs(
                     symbol="SOL_USDC",
                     side=OrderSide.BUY,
                     order_type=OrderType.MARKET,
                     quantity=Decimal("10.0"),
                     time_in_force=TimeInForce.IOC,
                 )
+                await backpack_api.place_order(place_order_args)
 
             assert exc_info.value.code == APIErrorCode.INSUFFICIENT_FUNDS.value
 
@@ -396,13 +399,14 @@ class TestBackpackAPIPublicBehavior:
         mock_transfer.quantity = Decimal("100.0")
 
         with patch.object(backpack_api.account_service, "transfer", return_value=mock_transfer):
-            result = await backpack_api.transfer(
+            transfer_args = TransferArgs(
                 asset="USDC",
                 amount=Decimal("100.0"),
                 from_account_type="spot",
                 to_account_type="margin",
                 client_transfer_id="transfer123",
             )
+            result = await backpack_api.transfer(transfer_args)
 
             assert result == mock_transfer
             assert result.asset == "USDC"
@@ -416,7 +420,7 @@ class TestBackpackAPIPublicBehavior:
         mock_withdrawal.quantity = Decimal("100.0")
 
         with patch.object(backpack_api.account_service, "withdraw", return_value=mock_withdrawal):
-            result = await backpack_api.withdraw(
+            withdraw_args = WithdrawArgs(
                 asset="USDC",
                 amount=Decimal("100.0"),
                 address="0x123...",
@@ -425,6 +429,7 @@ class TestBackpackAPIPublicBehavior:
                 client_withdrawal_id="withdrawal123",
                 two_factor_token="2fa_token",
             )
+            result = await backpack_api.withdraw(withdraw_args)
 
             assert result == mock_withdrawal
             assert result.asset == "USDC"

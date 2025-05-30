@@ -55,7 +55,7 @@ class TestBackpackTradingServiceOrderManagement:
         """Test place_order raises ValueError for invalid quantity values."""
         # Test zero quantity
         with pytest.raises(ValueError) as exc_info:
-            await bp_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol="SOL_USDC",
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -63,11 +63,12 @@ class TestBackpackTradingServiceOrderManagement:
                 time_in_force=TimeInForce.GTC,
                 price=Decimal("100.0"),
             )
+            await bp_trading_service.place_order(args=args)
         assert "'quantity' must be a positive finite Decimal" in str(exc_info.value)
 
         # Test negative quantity
         with pytest.raises(ValueError) as exc_info:
-            await bp_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol="SOL_USDC",
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -75,11 +76,12 @@ class TestBackpackTradingServiceOrderManagement:
                 time_in_force=TimeInForce.GTC,
                 price=Decimal("100.0"),
             )
+            await bp_trading_service.place_order(args=args)
         assert "'quantity' must be a positive finite Decimal" in str(exc_info.value)
 
         # Test infinite quantity
         with pytest.raises(ValueError) as exc_info:
-            await bp_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol="SOL_USDC",
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -87,6 +89,7 @@ class TestBackpackTradingServiceOrderManagement:
                 time_in_force=TimeInForce.GTC,
                 price=Decimal("100.0"),
             )
+            await bp_trading_service.place_order(args=args)
         assert "'quantity' must be a positive finite Decimal" in str(exc_info.value)
 
     @pytest.mark.asyncio
@@ -97,7 +100,7 @@ class TestBackpackTradingServiceOrderManagement:
         """Test place_order raises ValueError for invalid price values when provided."""
         # Test zero price
         with pytest.raises(ValueError) as exc_info:
-            await bp_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol="SOL_USDC",
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -105,11 +108,12 @@ class TestBackpackTradingServiceOrderManagement:
                 time_in_force=TimeInForce.GTC,
                 price=Decimal("0.0"),  # Invalid: zero price
             )
+            await bp_trading_service.place_order(args=args)
         assert "'price' must be a positive finite Decimal when provided" in str(exc_info.value)
 
         # Test negative price
         with pytest.raises(ValueError) as exc_info:
-            await bp_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol="SOL_USDC",
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -117,11 +121,12 @@ class TestBackpackTradingServiceOrderManagement:
                 time_in_force=TimeInForce.GTC,
                 price=Decimal("-50.0"),  # Invalid: negative price
             )
+            await bp_trading_service.place_order(args=args)
         assert "'price' must be a positive finite Decimal when provided" in str(exc_info.value)
 
         # Test infinite price
         with pytest.raises(ValueError) as exc_info:
-            await bp_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol="SOL_USDC",
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -129,6 +134,7 @@ class TestBackpackTradingServiceOrderManagement:
                 time_in_force=TimeInForce.GTC,
                 price=Decimal("inf"),  # Invalid: infinite price
             )
+            await bp_trading_service.place_order(args=args)
         assert "'price' must be a positive finite Decimal when provided" in str(exc_info.value)
 
     @pytest.mark.asyncio
@@ -139,7 +145,7 @@ class TestBackpackTradingServiceOrderManagement:
         """Test place_order raises ValueError for invalid stop_price values when provided."""
         # Test negative stop_price
         with pytest.raises(ValueError) as exc_info:
-            await bp_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol="SOL_USDC",
                 side=OrderSide.BUY,
                 order_type=OrderType.STOP_LIMIT,
@@ -148,6 +154,7 @@ class TestBackpackTradingServiceOrderManagement:
                 price=Decimal("100.0"),
                 stop_price=Decimal("-10.0"),  # Invalid: negative stop_price
             )
+            await bp_trading_service.place_order(args=args)
         assert "'stop_price' must be a positive finite Decimal when provided" in str(exc_info.value)
 
     @pytest.mark.asyncio
@@ -402,7 +409,7 @@ class TestBackpackTradingServiceOrderManagement:
 
         with patch.object(bp_trading_service, "_trading_mapper", autospec=True) as mock_mapper:
             with pytest.raises(APIError) as exc_info:
-                await bp_trading_service.place_order(
+                args = PlaceOrderArgs(
                     symbol=symbol,
                     side=side,
                     order_type=order_type,
@@ -410,6 +417,7 @@ class TestBackpackTradingServiceOrderManagement:
                     time_in_force=time_in_force,
                     price=price,
                 )
+                await bp_trading_service.place_order(args=args)
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
             assert (
@@ -469,7 +477,7 @@ class TestBackpackTradingServiceOrderManagement:
             mock_response_handler.handle_place_order_response.side_effect = e
 
         with pytest.raises(APIError) as exc_info:
-            await bp_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol=symbol,
                 side=side,
                 order_type=order_type,
@@ -477,6 +485,7 @@ class TestBackpackTradingServiceOrderManagement:
                 time_in_force=time_in_force,
                 price=price,
             )
+            await bp_trading_service.place_order(args=args)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Internal data validation failed." in exc_info.value.message
@@ -508,7 +517,7 @@ class TestBackpackTradingServiceOrderManagement:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await bp_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol=symbol,
                 side=side,
                 order_type=order_type,
@@ -516,6 +525,7 @@ class TestBackpackTradingServiceOrderManagement:
                 time_in_force=time_in_force,
                 price=price,
             )
+            await bp_trading_service.place_order(args=args)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
         assert "Unexpected service failure" in exc_info.value.message
@@ -837,7 +847,7 @@ class TestBackpackTradingServiceOrderManagement:
         with patch.object(bp_trading_service, "_trading_mapper", autospec=True) as mock_mapper:
             mock_mapper.transform_raw_order_to_internal.return_value = mock_order_result
 
-            result = await bp_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol=symbol,
                 side=side,
                 order_type=order_type,
@@ -847,6 +857,7 @@ class TestBackpackTradingServiceOrderManagement:
                 stop_price=stop_price,
                 post_only=post_only,
             )
+            result = await bp_trading_service.place_order(args=args)
 
             mock_request_builder.build_place_order_payload.assert_called_once_with(
                 symbol=symbol,
@@ -882,7 +893,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester.return_value = ("invalid_string_response", 200, {})
 
         with pytest.raises(APIError) as exc_info:
-            await bp_trading_service.place_order(
+            args = PlaceOrderArgs(
                 symbol=symbol,
                 side=side,
                 order_type=order_type,
@@ -890,6 +901,7 @@ class TestBackpackTradingServiceOrderManagement:
                 time_in_force=time_in_force,
                 price=price,
             )
+            await bp_trading_service.place_order(args=args)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (

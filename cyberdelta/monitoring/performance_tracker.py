@@ -435,10 +435,10 @@ class PerformanceTracker:
             # Filter by time range
             if start_time:
                 # The following may trigger linter warnings due to pandas type stubs
-                df = df[df.index >= pd.to_datetime(start_time)]  # type: ignore[index]
+                df = df[df.index >= pd.to_datetime(start_time)]
             if end_time:
                 # The following may trigger linter warnings due to pandas type stubs
-                df = df[df.index <= pd.to_datetime(end_time)]  # type: ignore[index]
+                df = df[df.index <= pd.to_datetime(end_time)]
 
             # The following fillna usage may trigger linter warnings due to pandas type stubs
             df = df.fillna(0)

@@ -11,11 +11,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 # Ignore untyped library errors for dash/plotly until stubs are available/configured
-import dash  # type: ignore
-import dash_bootstrap_components as dbc  # type: ignore
+import dash
+import dash_bootstrap_components as dbc
 import pandas as pd
-import plotly.graph_objects as go  # type: ignore
-from dash import Input, Output, dcc, html  # type: ignore
+import plotly.graph_objects as go
+from dash import Input, Output, dcc, html
 
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.monitoring.performance_tracker import PerformanceTracker
@@ -299,7 +299,7 @@ class RealTimeDashboard:
         )
         def update_strategy_options(n_intervals: int) -> tuple[list[dict[str, str]], list[str]]:
             """Update the strategy selector dropdown options."""
-            strategies: list[str] = self.performance_tracker.get_tracked_strategies()
+            strategies: list[str] = self.performance_tracker.get_strategy_names()
             options: list[dict[str, str]] = [{"label": s, "value": s} for s in strategies]
             # Keep current selection if available
             current_selection: list[str] = dash.callback_context.states.get(

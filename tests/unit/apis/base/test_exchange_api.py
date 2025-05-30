@@ -19,6 +19,7 @@ from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import PlaceOrderArgs, TransferArgs, WithdrawArgs
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -34,6 +35,7 @@ from cyberdelta.core.models import (
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.core.models.operations import Transfer, Withdrawal
 
 # Match the definition in cyberdelta.apis.base.exchange_api.py
 MessageHandler = Callable[..., Coroutine[Any, Any, None]]
@@ -121,20 +123,14 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         return [MagicMock(spec=DerivativePosition)]
 
-    async def place_order(
-        self,
-        symbol: str,
-        side: OrderSide,
-        order_type: OrderType,
-        quantity: Decimal,
-        time_in_force: TimeInForce,
-        price: Decimal | None = None,
-        stop_price: Decimal | None = None,
-        client_order_id: str | None = None,
-        reduce_only: bool = False,
-        post_only: bool = False,
-    ) -> Order:
+    async def place_order(self, args: PlaceOrderArgs) -> Order:
         return MagicMock(spec=Order)
+
+    async def transfer(self, args: TransferArgs) -> Transfer:
+        return MagicMock(spec=Transfer)
+
+    async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
+        return MagicMock(spec=Withdrawal)
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
         return True
@@ -510,6 +506,12 @@ class TestExchangeAPIWebSocketOperations:
                 self.payload_construction_calls.append(topic)
                 return MockSubscriptionPayload(type="subscribe", channel=topic)
 
+            async def transfer(self, args: TransferArgs) -> Transfer:
+                return MagicMock(spec=Transfer)
+
+            async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
+                return MagicMock(spec=Withdrawal)
+
         api = PayloadTrackingAPI(
             exchange_name="test_exchange",
             config={"rest_endpoint": "https://test.endpoint", "ws_endpoint": "wss://test.ws"},
@@ -688,7 +690,14 @@ class TestExchangeAPIPublicInterface:
         await api.get_balances()
         await api.get_account_summary()
         await api.get_positions()
-        await api.place_order("BTC", OrderSide.BUY, OrderType.MARKET, Decimal("1"), TimeInForce.GTC)
+        place_order_args = PlaceOrderArgs(
+            symbol="BTC",
+            side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            quantity=Decimal("1"),
+            time_in_force=TimeInForce.GTC,
+        )
+        await api.place_order(place_order_args)
         await api.cancel_order("order123")
         await api.cancel_all_orders()
         await api.get_open_orders()

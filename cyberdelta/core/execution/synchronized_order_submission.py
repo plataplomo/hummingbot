@@ -19,6 +19,7 @@ from typing import Any, Protocol
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.models.api_error import APIError
+from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 from cyberdelta.core.models import (
     Order,
     OrderSide,
@@ -933,15 +934,17 @@ class SynchronizedOrderSubmissionService:
 
             # Place order with verify
             try:
-                placed_order: Order = await first_api.place_order(
+                # Create PlaceOrderArgs object for the API call
+                first_place_order_args = PlaceOrderArgs(
                     symbol=first_order.symbol,
                     side=first_order.side,
                     order_type=first_order.order_type,
                     quantity=first_order.quantity_requested,
-                    price=first_order.price,
                     time_in_force=TimeInForce.GTC,  # Default value
+                    price=first_order.price,
                     # TODO: Handle post_only, reduce_only if needed via config/adapter
                 )
+                placed_order: Order = await first_api.place_order(first_place_order_args)
                 assert hasattr(placed_order, "client_order_id") and hasattr(
                     placed_order, "to_dict"
                 ), "placed_order missing required attributes"
@@ -1013,14 +1016,18 @@ class SynchronizedOrderSubmissionService:
 
                 # Place order with verification
                 try:
-                    second_placed_order: Order = await second_api.place_order(
+                    # Create PlaceOrderArgs object for the API call
+                    second_place_order_args = PlaceOrderArgs(
                         symbol=second_order.symbol,
                         side=second_order.side,
                         order_type=second_order.order_type,
                         quantity=second_order.quantity_requested,
-                        price=second_order.price,
                         time_in_force=TimeInForce.GTC,  # Default value
+                        price=second_order.price,
                         # TODO: Handle post_only, reduce_only if needed via config/adapter
+                    )
+                    second_placed_order: Order = await second_api.place_order(
+                        second_place_order_args
                     )
                     assert hasattr(second_placed_order, "client_order_id") and hasattr(
                         second_placed_order, "to_dict"

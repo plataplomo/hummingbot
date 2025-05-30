@@ -17,6 +17,7 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import WithdrawArgs
 from cyberdelta.core.models.enums import (
     OrderSide,
     OrderStatus,
@@ -281,7 +282,7 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_mapper.transform_raw_withdrawal_response_to_internal.return_value = withdrawal_result
 
         with patch.object(bp_account_service, "_mapper", mock_mapper):
-            result = await bp_account_service.withdraw(
+            withdraw_args = WithdrawArgs(
                 asset=asset,
                 amount=amount,
                 address=address,
@@ -289,6 +290,7 @@ class TestBackpackAccountServiceHistoryOperations:
                 tag=tag,
                 client_withdrawal_id=withdrawal_id,
             )
+            result = await bp_account_service.withdraw(withdraw_args)
 
         assert result == withdrawal_result
         mock_request_builder.build_withdraw_payload.assert_called_once_with(
@@ -328,9 +330,10 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_http_client_requester.return_value = (None, 500, {})
 
         with pytest.raises(APIError) as exc_info:
-            await bp_account_service.withdraw(
+            withdraw_args = WithdrawArgs(
                 asset=asset, amount=amount, address=address, network=network
             )
+            await bp_account_service.withdraw(withdraw_args)
 
         assert "No data received for withdrawal" in str(exc_info.value)
 
@@ -357,9 +360,10 @@ class TestBackpackAccountServiceHistoryOperations:
         )
 
         with pytest.raises(APIError):
-            await bp_account_service.withdraw(
+            withdraw_args = WithdrawArgs(
                 asset=asset, amount=amount, address=address, network=network
             )
+            await bp_account_service.withdraw(withdraw_args)
 
     @pytest.mark.asyncio
     async def test_withdraw_unexpected_exception(
@@ -374,12 +378,13 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_http_client.perform_backpack_withdrawal.side_effect = Exception("Unexpected error")
 
         with pytest.raises(APIError):
-            await bp_account_service.withdraw(
+            withdraw_args = WithdrawArgs(
                 asset=asset,
                 amount=amount,
                 address=address,
                 network="Ethereum",  # Add required network parameter
             )
+            await bp_account_service.withdraw(withdraw_args)
 
     @pytest.mark.asyncio
     async def test_get_trade_history_success(

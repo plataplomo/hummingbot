@@ -523,33 +523,31 @@ class StrategyAdapter(BacktestStrategy):
                 signal_or_coro = self.strategy.process_data(md)
 
                 processed_signal: TradeSignal | list[TradeSignal] | None = None
+
+                # Handle async coroutines
                 if asyncio.iscoroutine(signal_or_coro):
-                    # Run the async process_data method
                     try:
-                        # Use asyncio.run() for simplicity if no loop is running
-                        # Check if a loop is already running - needed if engine becomes async
+                        # Check if a loop is already running
                         loop = asyncio.get_running_loop()
-                        # If loop running, create task and await (adaptation needed if engine is async)
-                        # For now, assume engine is sync, so run might be okay, but prefer creating task if possible
                         self._logger.warning(
                             "Running async process_data within sync backtest loop. Consider engine refactor."
                         )
                         task = loop.create_task(signal_or_coro)
                         processed_signal = asyncio.get_event_loop().run_until_complete(task)
-                        # Ideally: processed_signal = await task (if adapter.update itself was async)
-
                     except RuntimeError:  # No running event loop
                         processed_signal = asyncio.run(signal_or_coro)
                     except Exception as async_err:
                         self._logger.exception(f"Error running async process_data: {async_err}")
                         continue  # Skip this candle on async error
-                else:
-                    # If process_data is synchronous
+
+                # Handle synchronous results
+                if not asyncio.iscoroutine(signal_or_coro):
                     processed_signal = signal_or_coro
 
-                # Process the result (whether sync or awaited async)
+                # Process the result - only if we didn't continue from exception
                 if processed_signal is None:
                     continue
+
                 if isinstance(processed_signal, list):
                     # Ensure all items in the list are TradeSignals
                     valid_signals = [s for s in processed_signal if isinstance(s, TradeSignal)]
@@ -763,6 +761,7 @@ class StrategyAdapter(BacktestStrategy):
         for signal in signals:
             # Use signal.timestamp if available and valid, otherwise fallback to current row timestamp
             signal_timestamp = signal.timestamp
+            # DEFENSIVE CHECK: Ensure timestamp is datetime. Mypy=[unreachable] Ruff=[]
             if not isinstance(signal_timestamp, datetime):
                 signal_timestamp = timestamp  # Fallback to row timestamp
             elif signal_timestamp.tzinfo is None:
@@ -785,7 +784,7 @@ class StrategyAdapter(BacktestStrategy):
             self._logger.debug(f"ADAPTER_CONVERT_SIGNALS: signal_dict before action: {signal_dict}")
 
             # Example: Map SignalType to a simple action string
-            # Ensure signal.signal_type is an Enum member before accessing .name
+            # DEFENSIVE CHECK: Ensure signal_type is SignalType enum. Mypy=[unreachable] Ruff=[]
             if isinstance(signal.signal_type, SignalType):
                 signal_dict["action"] = signal.signal_type.name.upper()
             else:
@@ -802,23 +801,24 @@ class StrategyAdapter(BacktestStrategy):
 
             # Calculate PnL for exit signals
             is_exit = signal.signal_type in [SignalType.EXIT_LONG, SignalType.EXIT_SHORT]
-            if is_exit and signal.entry_price is not None and current_price is not None:
-                # DEFENSIVE CHECK: Ensure entry price is finite Decimal
-                if isinstance(signal.entry_price, Decimal) and signal.entry_price.is_finite():
-                    entry_price = signal.entry_price
+            if is_exit and signal.price is not None and current_price is not None:
+                # DEFENSIVE CHECK: Ensure price is finite Decimal
+                if isinstance(signal.price, Decimal) and signal.price.is_finite():
+                    entry_price = signal.price
                     if signal.signal_type == SignalType.EXIT_LONG:  # Closing a long position
-                        signal_dict["pnl"] = (current_price - entry_price) * signal.quantity
+                        if signal.quantity is not None:
+                            signal_dict["pnl"] = (current_price - entry_price) * signal.quantity
                     elif signal.signal_type == SignalType.EXIT_SHORT:  # Closing a short position
-                        signal_dict["pnl"] = (entry_price - current_price) * signal.quantity
+                        if signal.quantity is not None:
+                            signal_dict["pnl"] = (entry_price - current_price) * signal.quantity
                 else:
                     self._logger.warning(
-                        f"Invalid entry price ({signal.entry_price}) for PnL "
-                        f"calculation on exit signal."
+                        f"Invalid price ({signal.price}) for PnL calculation on exit signal."
                     )
             elif is_exit:
                 self._logger.warning(
-                    f"Could not calculate PnL for exit signal: Missing entry price "
-                    f"({signal.entry_price}) or current price ({current_price})"
+                    f"Could not calculate PnL for exit signal: Missing price "
+                    f"({signal.price}) or current price ({current_price})"
                 )
 
             signals_out.append(signal_dict)

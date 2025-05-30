@@ -6,6 +6,7 @@ with the performance tracker and other system components.
 """
 
 import os
+import threading
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -58,9 +59,9 @@ class DashboardIntegration:
 
         # Initialize tracker and dashboard
         self.performance_tracker = PerformanceTracker(output_dir=self.output_dir)
-        self.portfolio_tracker = None
-        self.dashboard = None
-        self.dashboard_thread = None
+        self.portfolio_tracker: PortfolioTracker | None = None
+        self.dashboard: Any = None
+        self.dashboard_thread: threading.Thread | None = None
 
         # Registered strategies
         self.strategies: dict[str, Strategy] = {}
@@ -112,30 +113,29 @@ class DashboardIntegration:
         Returns:
             Dashboard instance
         """
-        if self.dashboard_thread and self.dashboard_thread.is_alive():
-            logger.warning("Dashboard already running")
-            return
-
-        if not self.portfolio_tracker:
+        if self.portfolio_tracker is None:
             logger.error("Portfolio tracker not registered. Cannot start dashboard.")
             return
 
         # Launch dashboard
-        dashboard_instance = launch_dashboard(
+        result = launch_dashboard(
             performance_tracker=self.performance_tracker,
             portfolio_tracker=self.portfolio_tracker,
-            update_interval=update_interval,
             port=port,
             debug=debug,
             use_threading=in_thread,
         )
-        self.dashboard = dashboard_instance
+        # launch_dashboard returns either dashboard or (dashboard, thread) tuple
+        if isinstance(result, tuple):
+            self.dashboard, self.dashboard_thread = result
+        else:
+            self.dashboard = result
 
         logger.info(f"Started dashboard on port {port}")
 
     def stop_dashboard(self) -> None:
         """Stop the dashboard if it's running."""
-        if self.dashboard_thread and self.dashboard_thread.is_alive():
+        if self.dashboard_thread is not None and self.dashboard_thread.is_alive():
             # For explicit termination, we would need to implement a shutdown mechanism
             logger.info(
                 "Dashboard is running in a separate thread and will terminate "
@@ -146,7 +146,7 @@ class DashboardIntegration:
             logger.info("Dashboard reference removed")
             self.dashboard = None
 
-    def track_return(self, strategy_name: str, timestamp: datetime, return_value: Decimal):
+    def track_return(self, strategy_name: str, timestamp: datetime, return_value: Decimal) -> None:
         """
         Track a return for a strategy.
 
@@ -195,8 +195,8 @@ class DashboardIntegration:
             symbol=symbol,
             exchange=exchange,
             direction=direction,
-            size=size,
-            entry_price=entry_price,
+            size=float(size),
+            entry_price=float(entry_price),
             entry_time=entry_time,
             exit_price=float(exit_price) if exit_price is not None else None,
             exit_time=exit_time,
@@ -251,14 +251,12 @@ class DashboardIntegration:
         quantity = getattr(signal, "quantity", None)
 
         # Record the signal in the performance tracker
-        self.performance_tracker.record_signal(
-            timestamp=getattr(signal, "timestamp", datetime.now(UTC)),
-            strategy_id=strategy_id,
+        self.performance_tracker.track_signal(
+            signal_id=getattr(signal, "signal_id", f"signal_{datetime.now(UTC).timestamp()}"),
+            strategy_name=strategy_id,
             symbol=symbol,
             signal_type=signal_type_name,
-            side=side_name,
-            price=price,
-            quantity=quantity,
+            timestamp=getattr(signal, "timestamp", datetime.now(UTC)),
             metadata=getattr(signal, "metadata", None),
         )
 

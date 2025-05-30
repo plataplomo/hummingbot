@@ -14,6 +14,7 @@ from cyberdelta.apis.backpack.bp_response_handler import RawJsonResponse
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import TransferArgs
 from cyberdelta.core.models.enums import InternalTransferStatus
 from cyberdelta.core.models.operations import BackpackTransferDetails, Transfer
 
@@ -71,13 +72,14 @@ class TestBackpackAccountServiceTransfers:
         mock_http_client_requester.return_value = (mock_raw_response_content, 200, {})
         mock_response_handler.handle_transfer_response.return_value = mock_raw_response_content
 
-        actual_transfer = await bp_account_service.transfer(
+        transfer_args = TransferArgs(
             asset=asset,
             amount=amount,
             from_account_type=from_account,
             to_account_type=to_account,
             client_transfer_id=client_transfer_id,
         )
+        actual_transfer = await bp_account_service.transfer(transfer_args)
 
         mock_request_builder.build_internal_transfer_payload.assert_called_once_with(
             asset_symbol="USDC",
@@ -131,12 +133,13 @@ class TestBackpackAccountServiceTransfers:
         mock_http_client_requester.side_effect = api_error_instance
 
         with pytest.raises(APIError) as exc_info:
-            await bp_account_service.transfer(
+            transfer_args = TransferArgs(
                 asset=asset,
                 amount=amount,
                 from_account_type=from_account,
                 to_account_type=to_account,
             )
+            await bp_account_service.transfer(transfer_args)
 
         assert exc_info.value is api_error_instance
         mock_request_builder.build_internal_transfer_payload.assert_called_once_with(
@@ -191,12 +194,13 @@ class TestBackpackAccountServiceTransfers:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await bp_account_service.transfer(
+            transfer_args = TransferArgs(
                 asset=asset,
                 amount=amount,
                 from_account_type=from_account,
                 to_account_type=to_account,
             )
+            await bp_account_service.transfer(transfer_args)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert exc_info.value.message == expected_error_message
@@ -249,12 +253,13 @@ class TestBackpackAccountServiceTransfers:
         mock_http_client_requester.side_effect = unexpected_error
 
         with pytest.raises(APIError) as exc_info:
-            await bp_account_service.transfer(
+            transfer_args = TransferArgs(
                 asset=asset,
                 amount=amount,
                 from_account_type=from_account,
                 to_account_type=to_account,
             )
+            await bp_account_service.transfer(transfer_args)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
         assert "Service internal logic error" in exc_info.value.message
@@ -299,12 +304,13 @@ class TestBackpackAccountServiceTransfers:
         mock_response_handler.handle_transfer_response.return_value = "invalid_non_dict_response"
 
         with pytest.raises(APIError) as exc_info:
-            await bp_account_service.transfer(
+            transfer_args = TransferArgs(
                 asset=asset,
                 amount=amount,
                 from_account_type=from_account,
                 to_account_type=to_account,
             )
+            await bp_account_service.transfer(transfer_args)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Transfer response handler returned unexpected type" in exc_info.value.message
@@ -359,13 +365,14 @@ class TestBackpackAccountServiceTransfers:
         mock_mapper.transform_raw_transfer_to_internal.return_value = mock_transfer
 
         with patch.object(bp_account_service, "_mapper", mock_mapper):
-            result = await bp_account_service.transfer(
+            transfer_args = TransferArgs(
                 asset=asset,
                 amount=amount,
                 from_account_type=from_account,
                 to_account_type=to_account,
                 client_transfer_id=client_transfer_id,
             )
+            result = await bp_account_service.transfer(transfer_args)
 
         assert result.id == mock_transfer.id
         assert result.asset == mock_transfer.asset

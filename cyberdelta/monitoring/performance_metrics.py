@@ -241,7 +241,9 @@ class PerformanceMetricsCalculator:
             # Optionally return partial metrics or re-raise
 
         # Add basic return metrics
-        cumulative_return = float((1 + returns).prod() - 1)
+        # Convert to numpy array to avoid pandas type issues
+        returns_array = np.asarray(returns.values, dtype=float)
+        cumulative_return = float(np.prod(1 + returns_array) - 1)
         metrics["cumulative_return"] = Decimal(str(cumulative_return))
         metrics["annualized_return"] = Decimal(str(returns.mean() * periods_per_year))
         metrics["annualized_volatility"] = Decimal(str(returns.std() * np.sqrt(periods_per_year)))

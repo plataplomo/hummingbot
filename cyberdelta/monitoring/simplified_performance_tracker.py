@@ -421,7 +421,11 @@ class SimplePerformanceTracker:
                 writer.writerows(signals_data)
 
         logger.info(f"Exported performance data to {self.output_dir}")
-        return {"metrics": metrics_file, "trades": trades_file, "signals": signals_file}
+        return {
+            "metrics": str(metrics_file),
+            "trades": str(trades_file),
+            "signals": str(signals_file),
+        }
 
     def load_metrics_from_csv(self, file_path: str) -> pd.DataFrame:
         """
@@ -631,7 +635,7 @@ class SimplePerformanceAnalyzer:
             logger.error(f"Error calculating daily returns: {e}")
             return pd.Series()
 
-    def calculate_metrics(self) -> dict[str, float | int | str]:
+    def calculate_metrics(self) -> dict[str, float | int]:
         """
         Calculate performance metrics based on trades and returns.
 
@@ -654,23 +658,17 @@ class SimplePerformanceAnalyzer:
 
             # PnL metrics
             total_pnl = trades_df["pnl"].sum()
-            metrics["total_pnl"] = (
-                float(str(total_pnl)) if isinstance(total_pnl, Decimal) else float(total_pnl)
-            )
+            metrics["total_pnl"] = float(total_pnl)
 
             if winning_trades > 0:
                 avg_win = trades_df[trades_df["pnl"] > 0]["pnl"].mean()
-                metrics["avg_win"] = (
-                    float(str(avg_win)) if isinstance(avg_win, Decimal) else float(avg_win)
-                )
+                metrics["avg_win"] = float(avg_win)
             else:
                 metrics["avg_win"] = 0.0
 
             if (total_trades - winning_trades) > 0:
                 avg_loss = trades_df[trades_df["pnl"] < 0]["pnl"].mean()
-                metrics["avg_loss"] = (
-                    float(str(avg_loss)) if isinstance(avg_loss, Decimal) else float(avg_loss)
-                )
+                metrics["avg_loss"] = float(avg_loss)
             else:
                 metrics["avg_loss"] = 0.0
 
@@ -680,11 +678,7 @@ class SimplePerformanceAnalyzer:
 
             if gross_loss > 0:
                 profit_factor = gross_profit / gross_loss
-                metrics["profit_factor"] = (
-                    float(str(profit_factor))
-                    if isinstance(profit_factor, Decimal)
-                    else float(profit_factor)
-                )
+                metrics["profit_factor"] = float(profit_factor)
             else:
                 metrics["profit_factor"] = float("inf") if gross_profit > 0 else 0.0
         else:
@@ -710,14 +704,14 @@ class SimplePerformanceAnalyzer:
             drawdown = self.calculate_drawdown(daily_returns)
             if not drawdown.empty:
                 max_dd = drawdown.min() * 100  # Convert to percentage
-                metrics["max_drawdown"] = (
-                    float(str(max_dd)) if isinstance(max_dd, Decimal) else float(max_dd)
-                )
+                metrics["max_drawdown"] = float(max_dd)
             else:
                 metrics["max_drawdown"] = 0.0
 
             # Calculate return metrics
-            cumulative_return = float((1 + daily_returns).prod() - 1) * 100  # Convert to percentage
+            # Convert to numpy array to avoid pandas type issues
+            returns_array = np.asarray(daily_returns.values, dtype=float)
+            cumulative_return = float(np.prod(1 + returns_array) - 1) * 100  # Convert to percentage
             metrics["cumulative_return"] = cumulative_return
 
             annualized_return = float(daily_returns.mean() * 252) * 100  # Convert to percentage
@@ -789,6 +783,7 @@ if __name__ == "__main__":
         metadata={},
         price=Decimal("50000.0"),  # Add required price field with Decimal
         quantity=Decimal("1.0"),  # Add required quantity field with Decimal
+        exchange="Binance",  # Add required exchange field
     )
 
     signal2 = TradeSignal(
@@ -801,6 +796,7 @@ if __name__ == "__main__":
         metadata={},
         price=Decimal("3000.0"),  # Add required price field with Decimal
         quantity=Decimal("10.0"),  # Add required quantity field with Decimal
+        exchange="Binance",  # Add required exchange field
     )
 
     tracker.track_signal(signal1)
@@ -810,18 +806,31 @@ if __name__ == "__main__":
 
     # Track some trades
     tracker.track_trade(
-        "trade1", "BTC-USDT", "Binance", "LONG", Decimal("1.0"), Decimal("50000.0"), now, "1"
+        "trade1",
+        "BTC-USDT",
+        "Binance",
+        "LONG",
+        float(Decimal("1.0")),
+        float(Decimal("50000.0")),
+        now,
+        "1",
     )
     tracker.track_trade(
-        "trade2", "ETH-USDT", "Binance", "SHORT", Decimal("10.0"), Decimal("3000.0"), now
+        "trade2",
+        "ETH-USDT",
+        "Binance",
+        "SHORT",
+        float(Decimal("10.0")),
+        float(Decimal("3000.0")),
+        now,
     )
 
     # Track trade exits
     tracker.track_trade_exit(
-        "trade1", Decimal("52000.0"), now + timedelta(days=1), Decimal("2000.0")
+        "trade1", float(Decimal("52000.0")), now + timedelta(days=1), float(Decimal("2000.0"))
     )
     tracker.track_trade_exit(
-        "trade2", Decimal("2800.0"), now + timedelta(days=2), Decimal("2000.0")
+        "trade2", float(Decimal("2800.0")), now + timedelta(days=2), float(Decimal("2000.0"))
     )
 
     # Export data

@@ -169,20 +169,24 @@ class BacktestResultsHandler:
         }
 
         # Calculate returns metrics
-        total_return = ((1 + self.returns_series).prod() - 1) * 100  # as percentage
+        # Convert to numpy array to avoid pandas type issues
+        returns_array = np.asarray(self.returns_series.values, dtype=float)
+        total_return = (np.prod(1 + returns_array) - 1) * 100  # as percentage
         # Check if returns_series length is zero before division
         annualized_return = (
             ((1 + total_return / 100) ** (252 / len(self.returns_series)) - 1) * 100
             if len(self.returns_series) > 0
             else 0.0
         )
-        volatility = self.returns_series.std() * np.sqrt(252) * 100  # annualized, as percentage
+        volatility = (
+            float(self.returns_series.std() * np.sqrt(252)) * 100
+        )  # annualized, as percentage
 
         # Calculate drawdown
         cum_returns = (1 + self.returns_series).cumprod()
         running_max = cum_returns.cummax()
         drawdown = (cum_returns / running_max - 1) * 100  # as percentage
-        max_drawdown = abs(drawdown.min())
+        max_drawdown = float(abs(drawdown.min()))
 
         # Sharpe ratio (assuming risk-free rate of 0)
         sharpe_ratio = annualized_return / volatility if volatility > 0 else 0.0

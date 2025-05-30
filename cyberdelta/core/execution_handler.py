@@ -10,6 +10,7 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, Any
 
 from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAPI
+from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 from cyberdelta.config.config_models import AppSettings
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import (
@@ -697,17 +698,21 @@ class ExecutionHandler:
                     f"{side.name} {quantity:.8f} {symbol} on {exchange_id} "
                     f"(Client ID: {client_order_id})"
                 )
-                order_result = await client.place_order(
+
+                # Create PlaceOrderArgs object for the API call
+                place_order_args = PlaceOrderArgs(
                     symbol=symbol,
                     side=side,
                     order_type=order_type,
                     quantity=quantity,
-                    price=price,
                     time_in_force=time_in_force,
+                    price=price,
                     client_order_id=client_order_id,
                     reduce_only=reduce_only,
                     post_only=post_only,
                 )
+
+                order_result = await client.place_order(place_order_args)
                 logger.info(
                     f"Execution {execution.id}: Order placed successfully on {exchange_id}. "
                     f"Exchange ID: {order_result.exchange_order_id}, Status: {order_result.status}"
@@ -853,10 +858,8 @@ class ExecutionHandler:
                     # DEFENSIVE CHECK: Mypy=[comparison-overlap] Ruff=[none]
                     logger.error(f"Authentication failed checking order {order_id}. Aborting.")
                     if self.circuit_breaker_system:
-                        # Use record_error or appropriate method if record_failure doesn't exist
-                        # Assuming record_error exists based on previous correction attempt
-                        # If it fails again, will need to search for the correct method name
-                        self.circuit_breaker_system.record_error(
+                        # Use record_api_error method from CircuitBreakerSystem
+                        self.circuit_breaker_system.record_api_error(
                             exchange_id, f"Authentication failed: {e.message}"
                         )
                     return None

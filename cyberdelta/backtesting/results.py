@@ -207,27 +207,21 @@ class BacktestResultsHandler:
                 )
 
                 # Calculate average holding period if entry/exit times are available
+                avg_holding_hours = np.nan  # Default value
                 if "entry_time" in trades.columns and "exit_time" in trades.columns:
                     # Ensure they are datetime objects before subtraction
                     trades["entry_time"] = pd.to_datetime(trades["entry_time"], errors="coerce")
                     trades["exit_time"] = pd.to_datetime(trades["exit_time"], errors="coerce")
-                    trades = trades.dropna(subset=["entry_time", "exit_time"])
-                    if not trades.empty:
-                        holding_periods = trades["exit_time"] - trades["entry_time"]
-                        # Ensure holding_periods.mean() is timedelta before total_seconds()
+                    trades_clean = trades.dropna(subset=["entry_time", "exit_time"])
+                    if not trades_clean.empty:
+                        holding_periods = trades_clean["exit_time"] - trades_clean["entry_time"]
+                        # Calculate average holding period in hours
+                        # Note: pandas .mean() on TimedeltaIndex can return Timedelta or float(NaN)
                         avg_period = holding_periods.mean()
-                        if isinstance(avg_period, pd.Timedelta):
-                            self.metrics["avg_holding_period_hours"] = (
-                                avg_period.total_seconds() / 3600
-                            )
-                        else:
-                            self.metrics["avg_holding_period_hours"] = (
-                                np.nan
-                            )  # Handle case where mean is not timedelta
-                    else:
-                        self.metrics["avg_holding_period_hours"] = np.nan
-                else:
-                    self.metrics["avg_holding_period_hours"] = np.nan
+                        if pd.notna(avg_period) and hasattr(avg_period, "total_seconds"):
+                            avg_holding_hours = avg_period.total_seconds() / 3600
+
+                self.metrics["avg_holding_period_hours"] = avg_holding_hours
 
             else:
                 # Set trade metrics to default values if no trades
@@ -255,7 +249,7 @@ class BacktestResultsHandler:
 
         # Final log of calculated metrics
         formatted_metrics = {
-            k: f"{v:.4f}" if isinstance(v, float | np.number) else v
+            k: f"{v:.4f}" if isinstance(v, (float, np.number)) else v
             for k, v in self.metrics.items()
         }
         logger.info(f"Calculated metrics: {formatted_metrics}")
