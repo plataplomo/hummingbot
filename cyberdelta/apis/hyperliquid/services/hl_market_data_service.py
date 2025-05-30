@@ -41,6 +41,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
 # from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import HyperliquidRawPublicTrade
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import GetMarketDataArgs
 
 # Utilities
 from cyberdelta.config.logging_config import get_logger
@@ -996,14 +997,7 @@ class HyperliquidMarketDataService:
                 else None,
             ) from e_unexpected
 
-    async def get_market_data(
-        self,
-        symbol: str,
-        interval: str,
-        limit: int = 100,
-        start_time_ms: int | None = None,
-        end_time_ms: int | None = None,
-    ) -> list[Candle]:
+    async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
         """
         Retrieves historical kline/candlestick data for a symbol and timeframe.
         Uses a POST request to /info with payload:
@@ -1012,11 +1006,8 @@ class HyperliquidMarketDataService:
                  "startTime": START_MS, "endTime": END_MS}}
 
         Args:
-            symbol: The trading symbol (e.g., "ETH").
-            interval: The kline interval (e.g., "1m", "1h", "1d"). Refer to Hyperliquid API docs.
-            limit: Number of candles to retrieve (default: 100).
-            start_time_ms: Start timestamp in milliseconds (optional).
-            end_time_ms: End timestamp in milliseconds (optional).
+            args: GetMarketDataArgs containing symbol, timeframe, limit, 
+                 start_time_ms, and end_time_ms parameters.
 
         Returns:
             A list of Candle objects containing lists of candle data points.
@@ -1025,16 +1016,16 @@ class HyperliquidMarketDataService:
             APIError: If the API request fails or the response is invalid.
             ValueError: If input parameters are invalid.
         """
-        # Service Input Parameter Validation
+        # Service Input Parameter Validation is now handled by GetMarketDataArgs Pydantic model
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_market_data"
 
-        if not symbol:
-            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
-        if not interval:
-            raise ValueError(f"[{current_method}] 'interval' must be a non-empty string.")
-        if limit <= 0:
-            raise ValueError(f"[{current_method}] 'limit' must be positive.")
+        # Map timeframe to interval for Hyperliquid internal usage
+        symbol = args.symbol
+        interval = args.timeframe  # Hyperliquid uses same naming internally
+        limit = args.limit
+        start_time_ms = args.start_time_ms
+        end_time_ms = args.end_time_ms
 
         # Calculate time range if not provided
         if start_time_ms is None or end_time_ms is None:

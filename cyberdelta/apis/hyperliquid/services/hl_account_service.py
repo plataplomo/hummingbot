@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
-from datetime import datetime  # Added back for order history
 
 # from typing import TYPE_CHECKING, Any # Any no longer used
 from typing import TYPE_CHECKING, Any, cast  # Import cast and Any
@@ -53,7 +52,11 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawClearinghouseState
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import TransferArgs, WithdrawArgs
+from cyberdelta.apis.models.service_args_models import (
+    GetOrderHistoryArgs,
+    TransferArgs,
+    WithdrawArgs,
+)
 from cyberdelta.config.logging_config import get_logger
 
 # Core Domain Models
@@ -469,37 +472,21 @@ class HyperliquidAccountService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
-    async def get_order_history(
-        self,
-        symbol: str | None = None,  # queryOrderHistory does not take symbol
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-        # limit is not a direct param for HL queryOrderHistory
-    ) -> list[Order]:
+    async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
         """
         Retrieves historical order data using the 'queryOrderHistory' endpoint.
         Requires start_time and end_time.
         Filtering by symbol (if provided) is done client-side.
         """
-        # Service Input Parameter Validation
+        # Service Input Parameter Validation - Hyperliquid specific requirements
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_order_history"
 
-        if symbol is not None and not symbol:
-            raise ValueError(
-                f"[{current_method}] 'symbol' must be a non-empty string when provided."
-            )
-        if not start_time:
-            raise ValueError(f"[{current_method}] 'start_time' is required.")
-        if not end_time:
-            raise ValueError(f"[{current_method}] 'end_time' is required.")
-
-        # Business Logic Pre-Validation
-        if end_time <= start_time:
-            raise ValueError(
-                f"[{current_method}] 'end_time' must be after 'start_time'. "
-                f"Got start_time={start_time}, end_time={end_time}"
-            )
+        # Hyperliquid requires both start_time and end_time
+        if not args.start_time:
+            raise ValueError(f"[{current_method}] 'start_time' is required for Hyperliquid.")
+        if not args.end_time:
+            raise ValueError(f"[{current_method}] 'end_time' is required for Hyperliquid.")
 
         # Initialize context for error handling
         raw_data: ParsedJsonResponse | None = None
@@ -515,8 +502,8 @@ class HyperliquidAccountService:
                 )
 
             endpoint_path = "/info"
-            start_time_ms = int(start_time.timestamp() * 1000)
-            end_time_ms = int(end_time.timestamp() * 1000)
+            start_time_ms = int(args.start_time.timestamp() * 1000)
+            end_time_ms = int(args.end_time.timestamp() * 1000)
 
             payload_model = self._request_builder.build_order_history_payload(
                 wallet_address=self._wallet_address,
@@ -581,7 +568,7 @@ class HyperliquidAccountService:
                         )
                         if mapped_order:
                             # Client-side symbol filtering
-                            if symbol is None or mapped_order.symbol == symbol:
+                            if args.symbol is None or mapped_order.symbol == args.symbol:
                                 internal_orders.append(mapped_order)
                     except (ValidationError, ValueError) as e_map_item:
                         raw_order_repr = (

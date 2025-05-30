@@ -5,12 +5,14 @@ This module contains Pydantic models that encapsulate arguments for various serv
 centralizing validation logic and improving API clarity.
 """
 
+from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
-from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
+from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 
 class PlaceOrderArgs(BaseModel):
@@ -203,8 +205,127 @@ class WithdrawArgs(BaseModel):
     # the service method or a derived model.
 
 
+class GetOrderHistoryArgs(BaseModel):
+    """
+    Encapsulates arguments for fetching order history.
+    
+    This model centralizes validation for order history requests, including
+    time range validation, positive limit constraints, and string field validation.
+    """
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    symbol: str | None = Field(default=None)
+    start_time: datetime | None = Field(default=None)
+    end_time: datetime | None = Field(default=None)
+    limit: int | None = Field(default=None, gt=0)  # Limit must be positive if provided
+    order_id: str | None = Field(default=None)
+    client_order_id: str | None = Field(default=None)
+
+    @field_validator("symbol", "order_id", "client_order_id", mode="before")
+    @classmethod
+    def validate_optional_strings(cls, v: Any, info: ValidationInfo) -> str | None:
+        """Validate optional string fields are non-empty with reasonable max length."""
+        if v is None:
+            return None
+        # Assuming generic string validation for these, max_length can be adjusted
+        return validate_str_field(v, field_name=str(info.field_name), max_length=64, allow_empty=False)
+
+    @field_validator("start_time", "end_time", mode="before")
+    @classmethod
+    def parse_optional_datetime_utc(cls, v: Any, info: ValidationInfo) -> datetime | None:
+        """Parse optional datetime fields to UTC."""
+        if v is None:
+            return None
+        # parse_datetime_utc will return None if parsing fails, which is acceptable for optional fields
+        return parse_datetime_utc(v, field_name=str(info.field_name))
+
+    @field_validator("limit", mode="before")
+    @classmethod
+    def parse_optional_int(cls, v: Any, info: ValidationInfo) -> int | None:
+        """Parse optional integer fields."""
+        if v is None:
+            return None
+        if not isinstance(v, int | str | float):  # Allow int, or str/float that can be int
+            raise ValueError(f"Field '{str(info.field_name)}' must be an integer or convertible to one.")
+        try:
+            int_val = int(v)
+            # Positivity (gt=0) is handled by Field constraint
+            return int_val
+        except ValueError as e:
+            raise ValueError(f"Field '{str(info.field_name)}' could not be converted to int: {v}") from e
+
+    @model_validator(mode="after")
+    def check_time_range(self) -> "GetOrderHistoryArgs":
+        """Validate time range logic."""
+        if self.start_time and self.end_time and self.start_time >= self.end_time:
+            raise ValueError("start_time must be before end_time.")
+        return self
+
+
+class GetMarketDataArgs(BaseModel):
+    """
+    Encapsulates arguments for fetching market data (candlesticks/OHLCV).
+    
+    This model centralizes validation for market data requests, including
+    symbol validation, timeframe validation, and time range constraints.
+    """
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    symbol: str
+    timeframe: str
+    limit: int = Field(default=100, gt=0)  # Limit must be positive
+    start_time_ms: int | None = Field(default=None)
+    end_time_ms: int | None = Field(default=None)
+
+    @field_validator("symbol", "timeframe", mode="before")
+    @classmethod
+    def validate_required_strings(cls, v: Any, info: ValidationInfo) -> str:
+        """Validate required string fields are non-empty with reasonable max length."""
+        return validate_str_field(v, field_name=str(info.field_name), max_length=64, allow_empty=False)
+
+    @field_validator("limit", mode="before")
+    @classmethod
+    def parse_limit_int(cls, v: Any, info: ValidationInfo) -> int:
+        """Parse limit field as positive integer."""
+        if not isinstance(v, int | str | float):
+            raise ValueError(f"Field '{str(info.field_name)}' must be an integer or convertible to one.")
+        try:
+            int_val = int(v)
+            # Positivity (gt=0) is handled by Field constraint
+            return int_val
+        except ValueError as e:
+            raise ValueError(f"Field '{str(info.field_name)}' could not be converted to int: {v}") from e
+
+    @field_validator("start_time_ms", "end_time_ms", mode="before")
+    @classmethod
+    def parse_optional_timestamp_ms(cls, v: Any, info: ValidationInfo) -> int | None:
+        """Parse optional timestamp milliseconds fields."""
+        if v is None:
+            return None
+        if not isinstance(v, int | str | float):
+            raise ValueError(f"Field '{str(info.field_name)}' must be an integer or convertible to one.")
+        try:
+            int_val = int(v)
+            if int_val < 0:
+                raise ValueError(f"Field '{str(info.field_name)}' must be non-negative, got {int_val}.")
+            return int_val
+        except ValueError as e:
+            raise ValueError(f"Field '{str(info.field_name)}' could not be converted to int: {v}") from e
+
+    @model_validator(mode="after")
+    def check_time_range(self) -> "GetMarketDataArgs":
+        """Validate time range logic."""
+        if (self.start_time_ms is not None and 
+            self.end_time_ms is not None and 
+            self.start_time_ms >= self.end_time_ms):
+            raise ValueError("start_time_ms must be before end_time_ms.")
+        return self
+
+
 __all__ = [
     "PlaceOrderArgs",
     "TransferArgs", 
     "WithdrawArgs",
+    "GetOrderHistoryArgs",
+    "GetMarketDataArgs",
 ]

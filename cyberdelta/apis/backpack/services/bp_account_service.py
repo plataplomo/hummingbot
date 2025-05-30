@@ -31,7 +31,7 @@ from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import TransferArgs, WithdrawArgs
+from cyberdelta.apis.models.service_args_models import GetOrderHistoryArgs, TransferArgs, WithdrawArgs
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import (
     DerivativePosition,
@@ -915,24 +915,11 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
-    async def get_order_history(
-        self,
-        symbol: str | None = None,
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-        limit: int | None = 100,
-        order_id: str | None = None,
-        client_order_id: str | None = None,
-    ) -> list[Order]:
+    async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
         """Retrieves historical order data."""
-        # Service Input Parameter Validation
+        # Service Input Parameter Validation is now handled by GetOrderHistoryArgs Pydantic model
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_order_history"
-
-        if limit is not None and limit <= 0:
-            raise ValueError(f"[{current_method}] 'limit' must be positive if provided.")
-        if start_time is not None and end_time is not None and start_time >= end_time:
-            raise ValueError(f"[{current_method}] 'start_time' must be before 'end_time'.")
 
         # Initialize context for error handling
         raw_data: ParsedJsonResponse | None = None
@@ -942,16 +929,16 @@ class BackpackAccountService:
         try:
             # Core operational logic
             endpoint_path = "/api/v1/history/orders"
-            start_time_ms = int(start_time.timestamp() * 1000) if start_time else None
-            end_time_ms = int(end_time.timestamp() * 1000) if end_time else None
+            start_time_ms = int(args.start_time.timestamp() * 1000) if args.start_time else None
+            end_time_ms = int(args.end_time.timestamp() * 1000) if args.end_time else None
 
             params = self._request_builder.build_get_order_history_params(
-                symbol=symbol,
+                symbol=args.symbol,
                 start_time_ms=start_time_ms,
                 end_time_ms=end_time_ms,
-                limit=limit,
-                order_id=order_id,
-                client_order_id=client_order_id,
+                limit=args.limit,
+                order_id=args.order_id,
+                client_order_id=args.client_order_id,
             )
             logger.debug(
                 f"[{self._exchange_name}] Requesting order history from {endpoint_path} "
@@ -982,7 +969,7 @@ class BackpackAccountService:
                 )
 
             raw_orders_list: list[BackpackRawOrder] = (
-                self._response_handler.handle_get_order_history_response(raw_data, symbol)
+                self._response_handler.handle_get_order_history_response(raw_data, args.symbol)
             )
 
             internal_orders: list[Order] = []
@@ -1035,29 +1022,20 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            # Check if this is from our own input parameter validation
-            # Input parameter validation errors should propagate as ValueError
-            # Service logic errors should be wrapped as APIError
-            error_msg = str(e_service_logic)
-            if current_method in error_msg and any(
-                param in error_msg for param in ["limit", "start_time", "end_time"]
-            ):
-                # This is likely from our input parameter validation - re-raise as is
-                raise
-            else:
-                # This is from service internal logic - wrap as APIError
-                logger.error(
-                    f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                    f"for order history: {e_service_logic}",
-                    exc_info=True,
-                )
-                raise APIError(
-                    code=APIErrorCode.UNKNOWN.value,
-                    message="Service internal logic error.",
-                    original_exception=e_service_logic,
-                    http_status=status_code if status_code != 0 else None,
-                    exchange_message=raw_response_content,
-                ) from e_service_logic
+            # Since input parameter validation is now handled by Pydantic model,
+            # any ValueError/TypeError here is from service internal logic - wrap as APIError
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for order history: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_service_logic
         except Exception as e_unexpected:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure "

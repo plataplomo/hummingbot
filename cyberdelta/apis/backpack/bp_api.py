@@ -43,7 +43,13 @@ from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTrading
 from cyberdelta.apis.base.exchange_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import PlaceOrderArgs, TransferArgs, WithdrawArgs
+from cyberdelta.apis.models.service_args_models import (
+    GetMarketDataArgs,
+    GetOrderHistoryArgs,
+    PlaceOrderArgs,
+    TransferArgs,
+    WithdrawArgs,
+)
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.config.secrets_models import ExchangeSecrets as ExchangeSecretsConfig
@@ -309,22 +315,9 @@ class BackpackAPI(ExchangeAPI):
         """Get current funding rate for a specific symbol."""
         return await self.market_data_service.get_funding_rate(symbol=symbol)
 
-    async def get_market_data(
-        self,
-        symbol: str,
-        timeframe: str,
-        limit: int = 100,
-        start_time_ms: int | None = None,
-        end_time_ms: int | None = None,
-    ) -> list[Candle]:
+    async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
         """Get historical market data (candlesticks) for a specific symbol."""
-        return await self.market_data_service.get_market_data(
-            symbol=symbol,
-            timeframe=timeframe,
-            limit=limit,
-            start_time_ms=start_time_ms,
-            end_time_ms=end_time_ms,
-        )
+        return await self.market_data_service.get_market_data(args=args)
 
     # --- Account Methods --- #
 
@@ -390,24 +383,9 @@ class BackpackAPI(ExchangeAPI):
             f"{fill_topic}, {order_topic}"
         )
 
-    async def get_order_history(
-        self,
-        symbol: str | None = None,
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-        limit: int | None = 100,
-        order_id: str | None = None,
-        client_order_id: str | None = None,
-    ) -> list[Order]:
+    async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
         """Get historical orders."""
-        return await self.account_service.get_order_history(
-            symbol=symbol,
-            start_time=start_time,
-            end_time=end_time,
-            limit=limit,
-            order_id=order_id,
-            client_order_id=client_order_id,
-        )
+        return await self.account_service.get_order_history(args=args)
 
     async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
         """Get recent trade history."""

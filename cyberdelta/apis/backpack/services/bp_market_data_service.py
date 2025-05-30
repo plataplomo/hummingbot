@@ -49,6 +49,7 @@ from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 # Base API error models
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import GetMarketDataArgs
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.market import (
     FundingRate,
@@ -177,7 +178,7 @@ class BackpackMarketDataService:
         except TransformationError as e_transform:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for {symbol}: {e_transform}",
+                f"data for {args.symbol}: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
@@ -190,7 +191,7 @@ class BackpackMarketDataService:
         except ValidationError as e_val:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for {symbol}: {e_val}",
+                f"failed for {args.symbol}: {e_val}",
                 exc_info=True,
             )
             raise APIError(
@@ -377,7 +378,7 @@ class BackpackMarketDataService:
         except TransformationError as e_transform:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for {symbol}: {e_transform}",
+                f"data for {args.symbol}: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
@@ -390,7 +391,7 @@ class BackpackMarketDataService:
         except ValidationError as e_val:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for {symbol}: {e_val}",
+                f"failed for {args.symbol}: {e_val}",
                 exc_info=True,
             )
             raise APIError(
@@ -507,7 +508,7 @@ class BackpackMarketDataService:
         except TransformationError as e_transform:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for {symbol}: {e_transform}",
+                f"data for {args.symbol}: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
@@ -520,7 +521,7 @@ class BackpackMarketDataService:
         except ValidationError as e_val:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for {symbol}: {e_val}",
+                f"failed for {args.symbol}: {e_val}",
                 exc_info=True,
             )
             raise APIError(
@@ -630,7 +631,7 @@ class BackpackMarketDataService:
         except TransformationError as e_transform:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for {symbol}: {e_transform}",
+                f"data for {args.symbol}: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
@@ -643,7 +644,7 @@ class BackpackMarketDataService:
         except ValidationError as e_val:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for {symbol}: {e_val}",
+                f"failed for {args.symbol}: {e_val}",
                 exc_info=True,
             )
             raise APIError(
@@ -920,7 +921,7 @@ class BackpackMarketDataService:
         except TransformationError as e_transform:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for {symbol}: {e_transform}",
+                f"data for {args.symbol}: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
@@ -933,7 +934,7 @@ class BackpackMarketDataService:
         except ValidationError as e_val:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for {symbol}: {e_val}",
+                f"failed for {args.symbol}: {e_val}",
                 exc_info=True,
             )
             raise APIError(
@@ -970,31 +971,13 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
-    async def get_market_data(
-        self,
-        symbol: str,
-        timeframe: str,
-        limit: int | None = 100,
-        start_time_ms: int | None = None,
-        end_time_ms: int | None = None,
-    ) -> list[Candle]:
+    async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
         """
         Retrieves market data (K-lines/candlesticks) for a specific symbol and timeframe.
         """
-        # Service Input Parameter Validation
+        # Service Input Parameter Validation is now handled by GetMarketDataArgs Pydantic model
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_market_data"
-
-        if not symbol:
-            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
-        if not timeframe:
-            raise ValueError(f"[{current_method}] 'timeframe' must be a non-empty string.")
-        if limit is not None and limit <= 0:
-            raise ValueError(f"[{current_method}] 'limit' must be positive when provided.")
-        if start_time_ms is not None and start_time_ms <= 0:
-            raise ValueError(f"[{current_method}] 'start_time_ms' must be positive when provided.")
-        if end_time_ms is not None and end_time_ms <= 0:
-            raise ValueError(f"[{current_method}] 'end_time_ms' must be positive when provided.")
 
         # Business Logic Pre-Validation: validate timeframe is supported by Backpack
         supported_intervals = {
@@ -1013,9 +996,9 @@ class BackpackMarketDataService:
             "3d",
             "1w",
         }
-        if timeframe not in supported_intervals:
+        if args.timeframe not in supported_intervals:
             raise ValueError(
-                f"[{current_method}] Unsupported interval '{timeframe}'. "
+                f"[{current_method}] Unsupported interval '{args.timeframe}'. "
                 f"Supported intervals: {sorted(supported_intervals)}"
             )
 
@@ -1045,18 +1028,18 @@ class BackpackMarketDataService:
                     "3d",
                     "1w",
                 ],
-                timeframe,
+                args.timeframe,
             )
             params = self._request_builder.build_get_market_data_params(
-                symbol=symbol,
+                symbol=args.symbol,
                 timeframe_str=validated_timeframe,
-                start_time_ms=start_time_ms,
-                end_time_ms=end_time_ms,
-                limit=limit,
+                start_time_ms=args.start_time_ms,
+                end_time_ms=args.end_time_ms,
+                limit=args.limit,
             )
             endpoint_path = "/api/v1/klines"  # Define endpoint path in service
             logger.debug(
-                f"[{self._exchange_name}] Requesting klines for {symbol}@{timeframe} "
+                f"[{self._exchange_name}] Requesting klines for {args.symbol}@{args.timeframe} "
                 f"from {endpoint_path} with params: {params}"
             )
 
@@ -1074,13 +1057,13 @@ class BackpackMarketDataService:
                 raw_response_content = str(raw_data_list)
 
             logger.debug(
-                f"[{self._exchange_name}] Raw klines for {symbol}@{timeframe}: {raw_data_list!r} "
+                f"[{self._exchange_name}] Raw klines for {args.symbol}@{args.timeframe}: {raw_data_list!r} "
                 f"(Status: {status_code}, Headers: {headers})"
             )
 
             if raw_data_list is None:
                 raise APIError(
-                    f"No data for klines {symbol}@{timeframe}, status: {status_code}",
+                    f"No data for klines {args.symbol}@{args.timeframe}, status: {status_code}",
                     APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
@@ -1097,7 +1080,7 @@ class BackpackMarketDataService:
             # Handler now returns list[BackpackRawKline]
             raw_kline_models: list[BackpackRawKline] = (
                 self._response_handler.handle_get_market_data_response(
-                    raw_data_list, symbol, timeframe, status_code, headers
+                    raw_data_list, args.symbol, args.timeframe, status_code, headers
                 )
             )
             internal_candles: list[Candle] = []
@@ -1107,17 +1090,17 @@ class BackpackMarketDataService:
                 try:
                     # No need to validate to BackpackRawKline here anymore
                     candle = self._mapper.transform_raw_kline_to_internal(
-                        symbol, timeframe, raw_kline_model
+                        args.symbol, args.timeframe, raw_kline_model
                     )
                     internal_candles.append(candle)
                 except (ValidationError, ValueError) as e_map_item:
                     logger.warning(
-                        f"Skipping kline map error for {symbol}@{timeframe}: {e_map_item}. "
+                        f"Skipping kline map error for {args.symbol}@{args.timeframe}: {e_map_item}. "
                         f"Item: {repr(raw_kline_model)}"
                     )
             logger.debug(
                 f"[{self._exchange_name}] Mapped {len(internal_candles)} candles for "
-                f"{symbol}@{timeframe}"
+                f"{args.symbol}@{args.timeframe}"
             )
             return internal_candles
 
@@ -1127,7 +1110,7 @@ class BackpackMarketDataService:
         except TransformationError as e_transform:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for {symbol}: {e_transform}",
+                f"data for {args.symbol}: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
@@ -1140,7 +1123,7 @@ class BackpackMarketDataService:
         except ValidationError as e_val:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for {symbol}: {e_val}",
+                f"failed for {args.symbol}: {e_val}",
                 exc_info=True,
             )
             raise APIError(

@@ -5,7 +5,6 @@ import json
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Coroutine, Mapping
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urljoin
 
@@ -44,6 +43,8 @@ from cyberdelta.core.models.operations import Transfer, Withdrawal
 if TYPE_CHECKING:
     # Import models only needed for type hints here
     from cyberdelta.apis.models.service_args_models import (
+        GetMarketDataArgs,
+        GetOrderHistoryArgs,
         PlaceOrderArgs,
         TransferArgs,
         WithdrawArgs,
@@ -563,10 +564,13 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_market_data(
-        self, symbol: str, timeframe: str, limit: int = 100
-    ) -> list[Candle]:  # Type hint should now work
-        """Fetch historical market data (OHLCV/Kline) for a specific symbol and timeframe."""
+    async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
+        """Fetch historical market data (OHLCV/Kline) for a specific symbol and timeframe.
+        
+        Args:
+            args: Parameters for market data request including symbol, timeframe,
+                 limit, and optional time range constraints.
+        """
         raise NotImplementedError
 
     # --- Account Information --- #
@@ -633,18 +637,12 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_order_history(
-        self,
-        symbol: str | None = None,
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-        limit: int | None = None,
-        order_id: str | None = None,
-        client_order_id: str | None = None,
-    ) -> list[Order]:
+    async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
         """Fetch historical orders.
 
-        Optionally filter by symbol, time range, limit, order ID, or client order ID.
+        Args:
+            args: Parameters for filtering order history including symbol, time range,
+                 limit, order ID, and client order ID.
         """
         raise NotImplementedError
 

@@ -42,7 +42,13 @@ from cyberdelta.apis.hyperliquid.services.hl_market_data_service import Hyperliq
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import PlaceOrderArgs, TransferArgs, WithdrawArgs
+from cyberdelta.apis.models.service_args_models import (
+    GetMarketDataArgs,
+    GetOrderHistoryArgs,
+    PlaceOrderArgs,
+    TransferArgs,
+    WithdrawArgs,
+)
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.config.secrets_models import ExchangeSecrets as ExchangeSecretsConfig
@@ -421,22 +427,9 @@ class HyperliquidAPI(ExchangeAPI):
         """Get funding rates for specified symbols or all symbols."""
         return await self.market_data_service.get_funding_rates(symbols=symbols)
 
-    async def get_market_data(
-        self,
-        symbol: str,
-        timeframe: str,
-        limit: int = 100,
-        start_time_ms: int | None = None,
-        end_time_ms: int | None = None,
-    ) -> list[Candle]:
+    async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
         """Get historical market data (candlesticks) for a specific symbol."""
-        return await self.market_data_service.get_market_data(
-            symbol=symbol,
-            interval=timeframe,
-            limit=limit,
-            start_time_ms=start_time_ms,
-            end_time_ms=end_time_ms,
-        )
+        return await self.market_data_service.get_market_data(args=args)
 
     async def place_order(self, args: PlaceOrderArgs) -> Order:
         """Place a new order."""
@@ -466,21 +459,9 @@ class HyperliquidAPI(ExchangeAPI):
         """Fetch a single order by its ID."""
         return await self.trading_service.get_order(symbol=symbol, order_id=order_id)
 
-    async def get_order_history(
-        self,
-        symbol: str | None = None,
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-        limit: int | None = None,
-        order_id: str | None = None,
-        client_order_id: str | None = None,
-    ) -> list[Order]:
+    async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
         """Get historical orders."""
-        return await self.account_service.get_order_history(
-            symbol=symbol,
-            start_time=start_time,
-            end_time=end_time,
-        )
+        return await self.account_service.get_order_history(args=args)
 
     async def get_trade_history(
         self,

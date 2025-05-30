@@ -12,6 +12,7 @@ from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
 # Added import for ValidationError
 # Import Fill type
 from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAPI, MessageHandler
+from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 
 # Correct the import to use the new typing module
 # REMOVED INCORRECT IMPORT: from cyberdelta.core.symbol_mapper import Symbol
@@ -538,36 +539,19 @@ class MockExchangeAPI(ExchangeAPI):
 
     # --- Order Management ---
 
-    async def place_order(
-        self,
-        symbol: str,
-        side: OrderSide,
-        order_type: OrderType,
-        quantity: Decimal,
-        time_in_force: TimeInForce,
-        price: Decimal | None = None,
-        stop_price: Decimal | None = None,
-        client_order_id: str | None = None,
-        reduce_only: bool = False,
-        post_only: bool = False,
-        trigger_price: Decimal | None = None,
-        stop_loss_price: Decimal | None = None,
-        take_profit_price: Decimal | None = None,
-        trail_amount: Decimal | None = None,
-        trail_percent: Decimal | None = None,
-    ) -> Order:
+    async def place_order(self, args: PlaceOrderArgs) -> Order:
         """Place an order. Mock implementation."""
         self._check_error("place_order")
         await self._simulate_latency()
 
-        if order_type == OrderType.LIMIT and price is None:
+        if args.order_type == OrderType.LIMIT and args.price is None:
             raise APIError(
                 "Price must be specified for LIMIT orders", code=APIErrorCode.INVALID_PARAMS.value
             )
-        if order_type == OrderType.MARKET and price is not None:
+        if args.order_type == OrderType.MARKET and args.price is not None:
             logger.warning("Price is ignored for MARKET orders")
 
-        order_id: str = str(client_order_id) if client_order_id else str(uuid.uuid4())
+        order_id: str = str(args.client_order_id) if args.client_order_id else str(uuid.uuid4())
         self._order_id_counter += 1
         now = datetime.now(UTC)
 
@@ -577,24 +561,24 @@ class MockExchangeAPI(ExchangeAPI):
         avg_fill_price = None
 
         # Basic balance check (improve this based on actual needs)
-        base_asset, quote_asset = self._split_symbol(symbol)
+        base_asset, quote_asset = self._split_symbol(args.symbol)
         required_balance = Decimal("0")  # Initialize
         asset_to_check = ""
 
-        if side == OrderSide.BUY:
+        if args.side == OrderSide.BUY:
             asset_to_check = quote_asset
             # Approximate quote needed (can be refined)
-            required_balance = quantity * (
-                price
-                if price
+            required_balance = args.quantity * (
+                args.price
+                if args.price
                 else self._mock_tickers.get(
-                    symbol, Ticker(symbol=symbol, price=Decimal("0"), timestamp=now)
+                    args.symbol, Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=now)
                 ).price
                 or Decimal("0")
             )
         else:  # SELL
             asset_to_check = base_asset
-            required_balance = quantity
+            required_balance = args.quantity
 
         current_balance = self._balances.get(
             asset_to_check,
@@ -618,27 +602,27 @@ class MockExchangeAPI(ExchangeAPI):
 
         if self._open_orders_behavior == "fill_immediately":
             order_status = OrderStatus.FILLED
-            qty_filled = quantity
+            qty_filled = args.quantity
             # Use provided price for LIMIT, or mock ticker price for MARKET
             avg_fill_price = (
-                price
-                if order_type == OrderType.LIMIT
+                args.price
+                if args.order_type == OrderType.LIMIT
                 else (
                     self._mock_tickers.get(
-                        symbol, Ticker(symbol=symbol, price=Decimal("0"), timestamp=now)
+                        args.symbol, Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=now)
                     ).price
                     or Decimal("0")
                 )
             )
         elif self._open_orders_behavior == "partial_fill":
             order_status = OrderStatus.PARTIALLY_FILLED
-            qty_filled = quantity / 2  # Example partial fill
+            qty_filled = args.quantity / 2  # Example partial fill
             avg_fill_price = (
-                price
-                if order_type == OrderType.LIMIT
+                args.price
+                if args.order_type == OrderType.LIMIT
                 else (
                     self._mock_tickers.get(
-                        symbol, Ticker(symbol=symbol, price=Decimal("0"), timestamp=now)
+                        args.symbol, Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=now)
                     ).price
                     or Decimal("0")
                 )
@@ -649,23 +633,23 @@ class MockExchangeAPI(ExchangeAPI):
         # Create the order using the helper method
         order = self._create_internal_mock_order(
             client_order_id=order_id,  # Use the generated/provided ID
-            symbol=symbol,
-            side=side,
-            order_type=order_type,
+            symbol=args.symbol,
+            side=args.side,
+            order_type=args.order_type,
             status=order_status,
-            qty_req=quantity,
+            qty_req=args.quantity,
             qty_fill=qty_filled,
             avg_price=avg_fill_price,
-            price=price,
-            time_in_force=time_in_force,
+            price=args.price,
+            time_in_force=args.time_in_force,
             ts=now,
             strategy="mock_strategy",  # Example
             signal="mock_signal",  # Example
             # Pass reduce_only, post_only if needed by helper or add here
         )
         # Add reduce_only and post_only after creation if not in helper
-        order.reduce_only = reduce_only
-        order.post_only = post_only
+        order.reduce_only = args.reduce_only or False
+        order.post_only = args.post_only or False
 
         # Store the order
         self._orders[order.client_order_id] = order

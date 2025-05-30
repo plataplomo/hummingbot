@@ -13,7 +13,6 @@ from cyberdelta.core.execution_handler import (
     ExecutionStatus,
     TradeExecution,
 )
-from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.core.models import (
     Order,
     OrderSide,
@@ -26,6 +25,7 @@ from cyberdelta.core.models import (
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
 from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 

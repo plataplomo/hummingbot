@@ -415,7 +415,7 @@ class TestPositionReconciliationSystem:
         """Test checking positions and identifying discrepancies."""
         # Mock the portfolio tracker method using setattr
         mock_get_positions = MagicMock(return_value=[])
-        setattr(reconciliation_system._portfolio_tracker, 'get_positions_by_exchange', mock_get_positions)
+        reconciliation_system._portfolio_tracker.get_positions_by_exchange = mock_get_positions
 
         now = datetime.now(UTC)
         api_positions_hyper = [
@@ -841,7 +841,7 @@ class TestPositionReconciliationSystem:
         """Test checking positions and identifying discrepancies."""
         # Mock the portfolio tracker method using setattr
         mock_get_positions = MagicMock(return_value=[])
-        setattr(reconciliation_system._portfolio_tracker, 'get_positions_by_exchange', mock_get_positions)
+        reconciliation_system._portfolio_tracker.get_positions_by_exchange = mock_get_positions
 
         now = datetime.now(UTC)
         api_positions_hyper = [
