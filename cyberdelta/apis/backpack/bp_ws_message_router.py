@@ -19,7 +19,10 @@ from cyberdelta.apis.backpack.bp_ws_raw_message_handler import BackpackWsRawMess
 from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAccountDataMapper
 from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarketDataMapper
 from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
-from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
+from cyberdelta.apis.backpack.models.bp_ws_payloads import (
+    BackpackRawWsSubscriptionRequest,
+    BackpackWsSignatureComponents,
+)
 from cyberdelta.apis.base.exchange_api import MessageHandler
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.config.logging_config import get_logger
@@ -62,7 +65,7 @@ class BackpackWsMessageRouter:
         self.logger = get_logger(__name__)
 
     def construct_subscription_payload(
-        self, topic: str, signature_components_tuple: tuple[str, str, str, str] | None = None
+        self, topic: str, signature_components: BackpackWsSignatureComponents | None = None
     ) -> BackpackRawWsSubscriptionRequest:
         """
         Construct the subscription payload for a given topic for Backpack.
@@ -76,8 +79,8 @@ class BackpackWsMessageRouter:
 
         Args:
             topic: The WebSocket topic to subscribe to
-            signature_components_tuple: Optional tuple of (api_key, timestamp, window, signature)
-                                       for private stream authentication
+            signature_components: Optional BackpackWsSignatureComponents model
+                                for private stream authentication
 
         Returns:
             BackpackRawWsSubscriptionRequest model
@@ -95,13 +98,20 @@ class BackpackWsMessageRouter:
         # Create params list with the topic
         params_val = [topic]
 
-        # Include signature if provided (for private streams)
-        signature_val = signature_components_tuple
+        # Convert BackpackWsSignatureComponents to tuple format if provided
+        signature_val_tuple: tuple[str, str, str, str] | None = None
+        if signature_components:
+            signature_val_tuple = (
+                signature_components.api_key,
+                signature_components.timestamp,
+                signature_components.window,
+                signature_components.signature,
+            )
 
         # Create the subscription request
         try:
             return BackpackRawWsSubscriptionRequest(
-                method=method_val, params=params_val, signature=signature_val
+                method=method_val, params=params_val, signature=signature_val_tuple
             )
         except Exception as e:
             # Wrap unexpected exceptions

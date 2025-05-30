@@ -5,7 +5,7 @@ import json
 import logging
 import time
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, cast
 
 from eth_account import Account
 from eth_account.messages import encode_typed_data
@@ -15,6 +15,11 @@ from web3 import Web3
 from cyberdelta.apis.base.authenticator_interface import (
     AuthenticatedRequestComponents,
     IAuthenticator,
+)
+from cyberdelta.apis.hyperliquid.models.hl_eip712_models import (
+    EIP712DomainData,
+    EIP712TypeField,
+    EIP712Types,
 )
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -27,28 +32,6 @@ class HyperliquidEip712Authenticator(IAuthenticator):
     """
     Authenticator for Hyperliquid API using EIP-712 Agent signatures.
     """
-
-    # Standard EIP712 domain structure
-    _domain_template = {
-        "name": "Hyperliquid",  # As per Hyperliquid's typical agent signature
-        "version": "1",
-        "chainId": 0,  # Will be replaced by actual chain_id
-        "verifyingContract": "0x0000000000000000000000000000000000000000",  # Standard placeholder
-    }
-
-    # EIP712 types for Agent signature
-    _agent_typed_data_message_types = {
-        "EIP712Domain": [
-            {"name": "name", "type": "string"},
-            {"name": "version", "type": "string"},
-            {"name": "chainId", "type": "uint256"},
-            {"name": "verifyingContract", "type": "address"},
-        ],
-        "Agent": [  # This structure is crucial for Hyperliquid Agent signature
-            {"name": "source", "type": "string"},
-            {"name": "connectionId", "type": "bytes32"},
-        ],
-    }
 
     def __init__(
         self,
@@ -104,8 +87,27 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         self._last_nonce_ms: int = 0
         self._nonce_lock = asyncio.Lock()
 
-        self._domain_data = self._domain_template.copy()
-        self._domain_data["chainId"] = chain_id
+        # Initialize EIP-712 domain data using Pydantic model
+        self._domain_data_model = EIP712DomainData(
+            name="Hyperliquid",
+            version="1",
+            chainId=chain_id,
+            verifyingContract="0x0000000000000000000000000000000000000000",
+        )
+
+        # Initialize EIP-712 types using Pydantic model
+        self._eip712_types_model = EIP712Types(
+            EIP712Domain=[
+                EIP712TypeField(name="name", type="string"),
+                EIP712TypeField(name="version", type="string"),
+                EIP712TypeField(name="chainId", type="uint256"),
+                EIP712TypeField(name="verifyingContract", type="address"),
+            ],
+            Agent=[
+                EIP712TypeField(name="source", type="string"),
+                EIP712TypeField(name="connectionId", type="bytes32"),
+            ],
+        )
 
     @property
     def wallet_address(self) -> str:
@@ -157,16 +159,14 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         # Recursively clean nested structures
         for value in data.values():
             if isinstance(value, dict):
-                # Type assertion since we've checked isinstance
-                dict_value: dict[str, Any] = value
-                self._clean_order_type_fields(dict_value)
+                # Cast to proper type since isinstance check confirms it's a dict
+                self._clean_order_type_fields(cast(dict[str, Any], value))
             elif isinstance(value, list):
-                item: Any
-                for item in value:
+                list_value = cast(list[Any], value)  # type: ignore[redundant-cast]
+                for item in list_value:
                     if isinstance(item, dict):
-                        # Type assertion since we've checked isinstance
-                        dict_item: dict[str, Any] = item
-                        self._clean_order_type_fields(dict_item)
+                        # Cast to proper type since isinstance check confirms it's a dict
+                        self._clean_order_type_fields(cast(dict[str, Any], item))
 
     async def prepare_request(
         self,
@@ -222,13 +222,13 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         # Construct the EIP-712 message for Agent signature
         # Source "a" is commonly used for agent signatures by exchanges like Hyperliquid
         structured_data_to_sign = {
-            "domain": self._domain_data,
+            "domain": self._domain_data_model.model_dump(by_alias=True),
             "message": {
                 "source": "a",  # Per prompt and common convention for agent type
                 "connectionId": connection_id_bytes,
             },
             "primaryType": "Agent",  # Must match the key in `types`
-            "types": self._agent_typed_data_message_types,
+            "types": self._eip712_types_model.model_dump(by_alias=True),
         }
 
         # Account is guaranteed to be non-None after successful initialization

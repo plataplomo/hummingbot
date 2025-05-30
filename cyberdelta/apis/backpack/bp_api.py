@@ -255,12 +255,12 @@ class BackpackAPI(ExchangeAPI):
         """
         # Determine if this is a private topic that requires authentication
         private_topics = ["fills", "orders", "balances", "positions"]
-        signature_components_tuple = None
+        signature_components = None
 
         # Check if topic requires authentication
         if any(private_topic in topic for private_topic in private_topics):
             if not self._bp_authenticator or not hasattr(
-                self._bp_authenticator, "get_ws_subscription_signature_tuple"
+                self._bp_authenticator, "get_ws_subscription_signature_components"
             ):
                 raise APIError(
                     "ED25519 authenticator required for private WebSocket subscriptions",
@@ -274,12 +274,12 @@ class BackpackAPI(ExchangeAPI):
                 subscription_type = topic
                 symbol = None
 
-            signature_components_tuple = self._bp_authenticator.get_ws_subscription_signature_tuple(
+            signature_components = self._bp_authenticator.get_ws_subscription_signature_components(
                 subscription_type=subscription_type, symbol=symbol
             )
 
         # Delegate to the WebSocket router with signature components
-        return self._bp_ws_router.construct_subscription_payload(topic, signature_components_tuple)
+        return self._bp_ws_router.construct_subscription_payload(topic, signature_components)
 
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
         """

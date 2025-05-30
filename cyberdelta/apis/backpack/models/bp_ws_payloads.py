@@ -21,6 +21,22 @@ from .bp_common_raw_types import (
 )
 
 
+class BackpackWsSignatureComponents(BaseModel):
+    """
+    Pydantic model for Backpack WebSocket subscription signature components.
+
+    This model represents the components needed for authenticating private
+    WebSocket subscriptions to the Backpack exchange.
+    """
+
+    api_key: RawBpNonEmptyStringMax255  # Base64 encoded verifying key
+    timestamp: RawBpNonEmptyStringMax64  # Timestamp as string
+    window: RawBpNonEmptyStringMax64  # Window as string
+    signature: RawBpNonEmptyStringMax255  # Base64 encoded signature
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+
 class BackpackRawWsSubscriptionRequest(BaseModel):
     """
     Raw model for Backpack WebSocket subscription/unsubscription requests.

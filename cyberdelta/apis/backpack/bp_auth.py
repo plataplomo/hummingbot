@@ -7,6 +7,7 @@ from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackWsSignatureComponents
 from cyberdelta.apis.base.authenticator_interface import (
     AuthenticatedRequestComponents,
     IAuthenticator,
@@ -198,11 +199,11 @@ class BackpackEd25519Authenticator(IAuthenticator):
                 original_exception=e,
             ) from e
 
-    def get_ws_subscription_signature_tuple(
+    def get_ws_subscription_signature_components(
         self,
         subscription_type: str,
         symbol: str | None = None,
-    ) -> tuple[str, str, str, str]:
+    ) -> BackpackWsSignatureComponents:
         """
         Generate ED25519 signature components for WebSocket subscription.
 
@@ -211,7 +212,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
             symbol: Optional symbol for market data subscriptions
 
         Returns:
-            Tuple of (api_key, timestamp, window, signature) for WS signature array
+            BackpackWsSignatureComponents model with api_key, timestamp, window, and signature
         """
         try:
             timestamp_ms = int(time.time() * 1000)
@@ -229,11 +230,11 @@ class BackpackEd25519Authenticator(IAuthenticator):
             signature_bytes = self._ed25519_private_key.sign(string_to_sign.encode("utf-8"))
             signature_b64 = base64.b64encode(signature_bytes).decode("utf-8")
 
-            return (
-                self._api_key_b64,
-                str(timestamp_ms),
-                str(window_ms),
-                signature_b64,
+            return BackpackWsSignatureComponents(
+                api_key=self._api_key_b64,
+                timestamp=str(timestamp_ms),
+                window=str(window_ms),
+                signature=signature_b64,
             )
 
         except Exception as e:
