@@ -43,7 +43,11 @@ from cyberdelta.core.models.operations import Transfer, Withdrawal
 
 if TYPE_CHECKING:
     # Import models only needed for type hints here
-    from cyberdelta.apis.models.service_args_models import PlaceOrderArgs, TransferArgs, WithdrawArgs
+    from cyberdelta.apis.models.service_args_models import (
+        PlaceOrderArgs,
+        TransferArgs,
+        WithdrawArgs,
+    )
 
 # Define what is explicitly exported by this module
 __all__ = [
