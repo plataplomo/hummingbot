@@ -14,7 +14,7 @@ from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
+from cyberdelta.apis.models.service_args_models import CancelOrderArgs, PlaceOrderArgs
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 
 # Import fixtures from the shared conftest
@@ -162,28 +162,30 @@ class TestBackpackTradingServiceOrderManagement:
         self,
         bp_trading_service: BackpackTradingService,
     ) -> None:
-        """Test cancel_order raises ValueError for empty order_id."""
-        with pytest.raises(ValueError) as exc_info:
-            await bp_trading_service.cancel_order(
+        """Test cancel_order raises ValidationError for empty order_id."""
+        with pytest.raises(ValidationError) as exc_info:
+            args = CancelOrderArgs(
                 order_id="",  # Empty order_id should be rejected
                 symbol="SOL_USDC",
             )
+            await bp_trading_service.cancel_order(args=args)
 
-        assert "'order_id' must be a non-empty string" in str(exc_info.value)
+        assert "order_id" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_cancel_order_empty_symbol_validation(
         self,
         bp_trading_service: BackpackTradingService,
     ) -> None:
-        """Test cancel_order raises ValueError for empty symbol."""
-        with pytest.raises(ValueError) as exc_info:
-            await bp_trading_service.cancel_order(
+        """Test cancel_order raises ValidationError for empty symbol."""
+        with pytest.raises(ValidationError) as exc_info:
+            args = CancelOrderArgs(
                 order_id="12345",
                 symbol="",  # Empty symbol should be rejected
             )
+            await bp_trading_service.cancel_order(args=args)
 
-        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+        assert "symbol" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_order_empty_order_id_validation(
@@ -567,7 +569,9 @@ class TestBackpackTradingServiceOrderManagement:
         )
         mock_response_handler.handle_cancel_order_response.return_value = mock_cancel_result
 
-        result = await bp_trading_service.cancel_order(order_id=order_id, symbol=symbol)
+        result = await bp_trading_service.cancel_order(
+            args=CancelOrderArgs(order_id=order_id, symbol=symbol)
+        )
 
         mock_request_builder.build_cancel_order_payload.assert_called_once_with(
             symbol=symbol,
@@ -608,7 +612,9 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
         with pytest.raises(APIError) as exc_info:
-            await bp_trading_service.cancel_order(order_id=order_id, symbol=symbol)
+            await bp_trading_service.cancel_order(
+                args=CancelOrderArgs(order_id=order_id, symbol=symbol)
+            )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
@@ -656,7 +662,9 @@ class TestBackpackTradingServiceOrderManagement:
         mock_response_handler.handle_cancel_order_response.side_effect = validation_error
 
         with pytest.raises(APIError) as exc_info:
-            await bp_trading_service.cancel_order(order_id=order_id, symbol=symbol)
+            await bp_trading_service.cancel_order(
+                args=CancelOrderArgs(order_id=order_id, symbol=symbol)
+            )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Internal data validation failed." in exc_info.value.message
@@ -684,7 +692,9 @@ class TestBackpackTradingServiceOrderManagement:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await bp_trading_service.cancel_order(order_id=order_id, symbol=symbol)
+            await bp_trading_service.cancel_order(
+                args=CancelOrderArgs(order_id=order_id, symbol=symbol)
+            )
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
         assert "Unexpected service failure" in exc_info.value.message

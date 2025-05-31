@@ -23,7 +23,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
+from cyberdelta.apis.models.service_args_models import CancelOrderArgs, PlaceOrderArgs
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
 
@@ -266,10 +266,11 @@ class TestHyperliquidTradingServiceOrders:
         hl_trading_service = make_hl_trading_service()
 
         with pytest.raises(ValueError) as exc_info:
-            await hl_trading_service.cancel_order(
+            args = CancelOrderArgs(
+                order_id="12345",
                 symbol=None,  # None symbol should be rejected
-                order_id=12345,
             )
+            await hl_trading_service.cancel_order(args)
 
         assert "'symbol' parameter is required" in str(exc_info.value)
 
@@ -282,12 +283,13 @@ class TestHyperliquidTradingServiceOrders:
         hl_trading_service = make_hl_trading_service()
 
         with pytest.raises(ValueError) as exc_info:
-            await hl_trading_service.cancel_order(
+            args = CancelOrderArgs(
+                order_id="12345",
                 symbol="",  # Empty symbol should be rejected
-                order_id=12345,
             )
+            await hl_trading_service.cancel_order(args)
 
-        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+        assert "String cannot be empty" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_cancel_order_invalid_string_order_id_validation(
@@ -298,10 +300,11 @@ class TestHyperliquidTradingServiceOrders:
         hl_trading_service = make_hl_trading_service()
 
         with pytest.raises(ValueError) as exc_info:
-            await hl_trading_service.cancel_order(
-                symbol="ETH",
+            args = CancelOrderArgs(
                 order_id="not_a_number",  # Invalid string order_id
+                symbol="ETH",
             )
+            await hl_trading_service.cancel_order(args)
 
         assert "'order_id' must be a valid integer" in str(exc_info.value)
 
@@ -314,10 +317,11 @@ class TestHyperliquidTradingServiceOrders:
         hl_trading_service = make_hl_trading_service()
 
         with pytest.raises(ValueError) as exc_info:
-            await hl_trading_service.cancel_order(
+            args = CancelOrderArgs(
+                order_id="0",  # Zero order_id should be rejected
                 symbol="ETH",
-                order_id=0,  # Zero order_id should be rejected
             )
+            await hl_trading_service.cancel_order(args)
 
         assert "'order_id' must be positive" in str(exc_info.value)
 
@@ -330,10 +334,11 @@ class TestHyperliquidTradingServiceOrders:
         hl_trading_service = make_hl_trading_service()
 
         with pytest.raises(ValueError) as exc_info:
-            await hl_trading_service.cancel_order(
+            args = CancelOrderArgs(
+                order_id="-12345",  # Negative order_id should be rejected
                 symbol="ETH",
-                order_id=-12345,  # Negative order_id should be rejected
             )
+            await hl_trading_service.cancel_order(args)
 
         assert "'order_id' must be positive" in str(exc_info.value)
 
@@ -794,7 +799,8 @@ class TestHyperliquidTradingServiceOrders:
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
         with pytest.raises(APIError) as exc_info:
-            await hl_trading_service.cancel_order(symbol=symbol, order_id=order_id)
+            args = CancelOrderArgs(order_id=str(order_id), symbol=symbol)
+            await hl_trading_service.cancel_order(args)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Exchange action (cancel) returned no content" in exc_info.value.message
@@ -838,8 +844,7 @@ class TestHyperliquidTradingServiceOrders:
         mock_hl_response_handler.handle_exchange_response.return_value = mock_raw_response
 
         result = await hl_trading_service.cancel_order(
-            symbol=symbol,
-            order_id=order_id,
+            args=CancelOrderArgs(order_id=str(order_id), symbol=symbol)
         )
 
         assert result is True  # cancel_order returns boolean, not raw response

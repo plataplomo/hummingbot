@@ -146,8 +146,8 @@ class OrderBook(BaseModel):
 
             # Extract raw price/quantity. Runtime checks follow.
             # Ignores needed as Pyright cannot infer types from 'level_raw: object'.
-            price_raw = level_raw[0]  # pyright: ignore[reportUnknownVariableType]
-            quantity_raw = level_raw[1]  # pyright: ignore[reportUnknownVariableType]
+            price_raw = level_raw[0]
+            quantity_raw = level_raw[1]
 
             # 2. Validate and Parse Price (Runtime check + parse attempt)
             if not isinstance(price_raw, Decimal | str | int | float):

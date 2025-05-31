@@ -51,7 +51,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
 )
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
+from cyberdelta.apis.models.service_args_models import CancelOrderArgs, PlaceOrderArgs
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
@@ -646,7 +646,7 @@ class HyperliquidTradingService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
-    async def cancel_order(self, symbol: str | None, order_id: str | int) -> bool:
+    async def cancel_order(self, args: CancelOrderArgs) -> bool:
         """
         Cancels a specific order and returns True if successful.
         """
@@ -654,21 +654,21 @@ class HyperliquidTradingService:
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "cancel_order"
 
+        # Extract validated fields from Pydantic model
+        symbol = args.symbol
+        order_id = args.order_id
+
+        # For Hyperliquid, symbol is required
         if symbol is None:
             raise ValueError(f"[{current_method}] 'symbol' parameter is required.")
-        if not symbol:
-            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
 
-        # Convert order_id to int if it's a string
-        if isinstance(order_id, str):
-            try:
-                order_id_int = int(order_id)
-            except ValueError as e:
-                raise ValueError(
-                    f"[{current_method}] 'order_id' must be a valid integer: {order_id}"
-                ) from e
-        else:
-            order_id_int = order_id
+        # Convert order_id to int (it's always a string from Pydantic model)
+        try:
+            order_id_int = int(order_id)
+        except ValueError as e:
+            raise ValueError(
+                f"[{current_method}] 'order_id' must be a valid integer: {order_id}"
+            ) from e
 
         if order_id_int <= 0:
             raise ValueError(f"[{current_method}] 'order_id' must be positive.")
@@ -834,9 +834,10 @@ class HyperliquidTradingService:
                         f"{order_symbol_for_cancel}"
                     )
 
-                    success_flag = await self.cancel_order(
-                        symbol=order_symbol_for_cancel, order_id=order_id_int
+                    cancel_args = CancelOrderArgs(
+                        order_id=str(order_id_int), symbol=order_symbol_for_cancel
                     )
+                    success_flag = await self.cancel_order(args=cancel_args)
 
                     results.append(
                         CancelOrderResult(

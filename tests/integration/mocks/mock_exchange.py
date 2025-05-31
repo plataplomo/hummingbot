@@ -15,6 +15,10 @@ from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
 # Import Fill type
 from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAPI, MessageHandler
 from cyberdelta.apis.models.service_args_models import (
+    CancelOrderArgs,
+    GetFundingRatesArgs,
+    GetMarketDataArgs,
+    GetOrderHistoryArgs,
     PlaceOrderArgs,
 )
 
@@ -704,62 +708,40 @@ class MockExchangeAPI(ExchangeAPI):
         )
         return order
 
-    async def cancel_order(
-        self,
-        order_id: str,
-        symbol: str | None = None,
-    ) -> bool:
-        """Simulate cancelling an order."""
+    async def cancel_order(self, args: CancelOrderArgs) -> bool:
+        """Mock implementation for cancelling an order."""
         self._check_error("cancel_order")
         await self._simulate_latency()
-        # Simplified: find by order_id or client_order_id part of a composite key
-        # if that's the pattern. For this mock, assume self._orders stores by a unique key
-        # that might be order_id or a client_order_id.
-        order_key_to_find = order_id  # Default to using order_id as the key
 
-        # Attempt to find by order_id (exchange order id usually)
-        order_to_cancel = self._orders.get(order_key_to_find)
-        order_key_found = order_key_to_find
+        # Extract validated fields from Pydantic model
+        order_id = args.order_id
+        symbol = args.symbol
 
-        # If not found by order_id, and if we assume client_order_id might be used as key sometimes:
-        if not order_to_cancel:
-            # This part is speculative: if client_order_id can also be a primary key in self._orders
-            # For a robust mock, self._orders might need to support lookups by both types of IDs.
-            # For now, we assume order_id is the primary way, or it's a combined key.
-            pass  # No explicit search by client_order_id as primary key in this simplified version
+        if order_id not in self._orders:
+            logger.warning(f"Mock order not found for order_id: {order_id}")
+            return False
 
-        if not order_to_cancel:
+        order = self._orders[order_id]
+
+        # Optionally validate symbol if provided
+        if symbol is not None and order.symbol != symbol:
             logger.warning(
-                f"Mock {self.exchange_name}: Order {order_key_to_find} not found for cancellation."
+                f"Mock order {order_id} symbol mismatch: expected {symbol}, found {order.symbol}"
             )
-            # Consistent with ExchangeAPI, should return False if order not found or
-            # already terminal.
-            # Raising APIError for not found might be too strict for a simple cancel call
-            # unless specified.
-            return False  # Order not found
+            return False
 
-        order_to_cancel = self.open_orders[order_key_to_find]
+        if order.status not in [OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED]:
+            logger.warning(f"Mock order {order_id} is not in a cancellable state: {order.status}")
+            return False
 
-        # Check if the order is already cancelled or filled
-        if order_to_cancel.status in [
-            OrderStatus.FILLED,
-            OrderStatus.CANCELED,
-            OrderStatus.REJECTED,
-            OrderStatus.EXPIRED,  # Added EXPIRED as a terminal state
-        ]:
-            logger.warning(
-                f"Mock {self.exchange_name}: Order {order_key_found} is already in terminal state: "
-                f"{order_to_cancel.status.name}"
-            )
-            return False  # Already terminal
+        # Simulate cancellation
+        self._orders[order_id].status = OrderStatus.CANCELED
+        self._orders[order_id].updated_at = datetime.now(UTC)
+        if order_id in self.open_orders:
+            del self.open_orders[order_id]
 
-        # Handle different types of orders differently if needed
-        # For simplicity, just mark as CANCELED
-        order_to_cancel.status = OrderStatus.CANCELED
-        order_to_cancel.updated_at = datetime.now(UTC)
-        # self._orders[order_key_found] = order_to_cancel # Ensure this is the correct way to update
-        logger.info(f"Mock {self.exchange_name}: Cancelled order {order_key_found}")
-        return True  # Successfully cancelled
+        logger.info(f"MockExchange {self.exchange_name}: Cancelled order {order_id}")
+        return True
 
     async def get_order(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
@@ -880,10 +862,14 @@ class MockExchangeAPI(ExchangeAPI):
             return MockSubscriptionPayload(op="subscribe", args=[topic])
         return MockSubscriptionPayload(op="subscribe", args=[topic])
 
-    async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
+    async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
         """Return mock funding rates for multiple symbols."""
         self._check_error("get_funding_rates")
         await self._simulate_latency()
+
+        # Extract validated fields from Pydantic model
+        symbols = args.symbols
+
         rates: list[FundingRate] = []
         if symbols:
             for symbol in symbols:
@@ -894,10 +880,16 @@ class MockExchangeAPI(ExchangeAPI):
             rates.extend(list(self._mock_funding_rates.values()))
         return rates
 
-    async def get_market_data(self, symbol: str, timeframe: str, limit: int = 100) -> list[Candle]:
+    async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
         """Return mock market data (candles)."""
         self._check_error("get_market_data")
         await self._simulate_latency()
+
+        # Extract validated fields from Pydantic model
+        symbol = args.symbol
+        timeframe = args.timeframe
+        limit = args.limit or 100
+
         # Return empty list for simplicity, or a predefined set of candles
         logger.debug(
             f"MockExchange {self.exchange_name}: get_market_data for {symbol}, {timeframe}, {limit}"
@@ -941,18 +933,19 @@ class MockExchangeAPI(ExchangeAPI):
         )
         return results
 
-    async def get_order_history(
-        self,
-        symbol: str | None = None,
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-        limit: int | None = None,
-        order_id: str | None = None,  # Added missing param from base
-        client_order_id: str | None = None,  # Added missing param from base
-    ) -> list[Order]:
+    async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
         """Return mock order history."""
         self._check_error("get_order_history")
         await self._simulate_latency()
+
+        # Extract validated fields from Pydantic model
+        symbol = args.symbol
+        start_time = args.start_time
+        end_time = args.end_time
+        limit = args.limit
+        order_id = args.order_id
+        client_order_id = args.client_order_id
+
         # Basic filtering, can be enhanced
         results = list(self._orders.values())
         if symbol:

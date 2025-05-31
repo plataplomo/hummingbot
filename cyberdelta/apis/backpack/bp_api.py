@@ -44,6 +44,8 @@ from cyberdelta.apis.base.exchange_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
+    CancelOrderArgs,
+    GetFundingRatesArgs,
     GetMarketDataArgs,
     GetOrderHistoryArgs,
     PlaceOrderArgs,
@@ -335,17 +337,17 @@ class BackpackAPI(ExchangeAPI):
         """Place a new order."""
         return await self.trading_service.place_order(args=args)
 
-    async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
+    async def cancel_order(self, args: CancelOrderArgs) -> bool:
         """Cancel an existing order."""
-        return await self.trading_service.cancel_order(order_id=order_id, symbol=symbol)
+        return await self.trading_service.cancel_order(args=args)
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Get all open orders."""
         return await self.trading_service.get_open_orders(symbol=symbol)
 
-    async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
+    async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
         """Get funding rates for specified symbols or all symbols."""
-        return await self.market_data_service.get_funding_rates(symbols=symbols)
+        return await self.market_data_service.get_funding_rates(args=args)
 
     async def get_account_summary(self) -> MarginAccountSummary:
         """Get account summary information."""

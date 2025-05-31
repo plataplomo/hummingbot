@@ -20,7 +20,7 @@ All transformation methods follow the standard pattern:
 
 import logging
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
     HyperliquidRawHistoricalOrder,
@@ -144,7 +144,9 @@ class HyperliquidTradingDataMapper:
         """
         # Only limit orders have TIF in HL
         if "limit" in order_type and isinstance(order_type["limit"], dict):
-            limit_dict: dict[str, Any] = order_type["limit"]
+            # Type narrowing for pyright - we've confirmed it's a dict
+            # After isinstance check, we know it's a dict
+            limit_dict: dict[str, Any] = cast(dict[str, Any], order_type["limit"])
             tif_val: Any = limit_dict.get("tif", "")
             tif_str = str(tif_val).upper()
 

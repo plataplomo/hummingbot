@@ -41,7 +41,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
 # from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import HyperliquidRawPublicTrade
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import GetMarketDataArgs
+from cyberdelta.apis.models.service_args_models import GetFundingRatesArgs, GetMarketDataArgs
 
 # Utilities
 from cyberdelta.config.logging_config import get_logger
@@ -717,12 +717,12 @@ class HyperliquidMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
-    async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
+    async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
         """
         Retrieves current funding rates for specified symbols, or all if None.
 
         Args:
-            symbols: A list of symbols to get funding rates for. If None, fetches for all.
+            args: GetFundingRatesArgs containing symbols list or None for all.
 
         Returns:
             A list of FundingRate objects.
@@ -733,6 +733,9 @@ class HyperliquidMarketDataService:
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_funding_rates"
+
+        # Extract validated symbols from Pydantic model
+        symbols = args.symbols
 
         if symbols is not None:
             for symbol in symbols:
@@ -1006,7 +1009,7 @@ class HyperliquidMarketDataService:
                  "startTime": START_MS, "endTime": END_MS}}
 
         Args:
-            args: GetMarketDataArgs containing symbol, timeframe, limit, 
+            args: GetMarketDataArgs containing symbol, timeframe, limit,
                  start_time_ms, and end_time_ms parameters.
 
         Returns:

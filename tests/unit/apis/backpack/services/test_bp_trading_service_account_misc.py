@@ -11,7 +11,7 @@ import pytest
 
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
-from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
+from cyberdelta.apis.models.service_args_models import CancelOrderArgs, PlaceOrderArgs
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 
 # Import fixtures from the shared conftest
@@ -294,7 +294,9 @@ class TestBackpackTradingServiceAccountMisc:
         mock_response_handler.handle_cancel_order_response.return_value = True
 
         # Test that the service can cancel orders
-        result = await bp_trading_service.cancel_order(order_id=order_id, symbol=symbol)
+        result = await bp_trading_service.cancel_order(
+            args=CancelOrderArgs(order_id=order_id, symbol=symbol)
+        )
 
         # Verify the cancellation request was made correctly
         mock_http_client_requester.assert_called_once()
@@ -451,7 +453,9 @@ class TestBackpackTradingServiceAccountMisc:
         mock_http_client_requester.return_value = ({"status": "CANCELLED"}, 200, {})
         mock_response_handler.handle_cancel_order_response.return_value = True
 
-        cancelled = await bp_trading_service.cancel_order(order_id="123", symbol=symbol)
+        cancelled = await bp_trading_service.cancel_order(
+            args=CancelOrderArgs(order_id="123", symbol=symbol)
+        )
         assert cancelled is True
 
         # If we reach here, the service is properly configured for all trading operations

@@ -15,7 +15,12 @@ from pydantic import SecretStr
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import GetOrderHistoryArgs, PlaceOrderArgs
+from cyberdelta.apis.models.service_args_models import (
+    CancelOrderArgs,
+    GetFundingRatesArgs,
+    GetOrderHistoryArgs,
+    PlaceOrderArgs,
+)
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ExchangeSecrets
 from cyberdelta.core.models import (
@@ -435,12 +440,11 @@ class TestBackpackAPITradingOperations:
         mock_bp_trading_service.cancel_order.return_value = True
 
         # Test delegation
-        result = await api.cancel_order(order_id="order_789", symbol="SOL")
+        cancel_args = CancelOrderArgs(order_id="order_789", symbol="SOL")
+        result = await api.cancel_order(args=cancel_args)
 
         # Verify service was called and result returned
-        mock_bp_trading_service.cancel_order.assert_called_once_with(
-            order_id="order_789", symbol="SOL"
-        )
+        mock_bp_trading_service.cancel_order.assert_called_once_with(args=cancel_args)
         assert result is True
 
         await api.close()
@@ -601,10 +605,11 @@ class TestBackpackAPIMarketDataOperations:
         mock_bp_market_data_service.get_funding_rates.return_value = expected_rates
 
         # Test delegation
-        result = await api.get_funding_rates(symbols=["SOL"])
+        funding_args = GetFundingRatesArgs(symbols=["SOL"])
+        result = await api.get_funding_rates(args=funding_args)
 
-        # Verify service was called with correct parameters (positional argument)
-        mock_bp_market_data_service.get_funding_rates.assert_called_once_with(symbols=["SOL"])
+        # Verify service was called and result returned
+        mock_bp_market_data_service.get_funding_rates.assert_called_once_with(args=funding_args)
         assert result == expected_rates
 
         await api.close()
@@ -718,7 +723,8 @@ class TestBackpackAPIErrorHandling:
 
         # Test trading service APIError propagation
         with pytest.raises(APIError) as trading_exc:
-            await api.cancel_order(order_id="12345", symbol="SOL")
+            cancel_args = CancelOrderArgs(order_id="12345", symbol="SOL")
+            await api.cancel_order(args=cancel_args)
         assert trading_exc.value is trading_api_error
 
         # Test account service ValueError propagation

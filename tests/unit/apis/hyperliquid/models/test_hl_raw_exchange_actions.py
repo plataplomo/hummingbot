@@ -89,7 +89,8 @@ def set_nested_value(
                     f"but found {type(current_level).__name__} at path {path[: i + 1]}"
                 )
             # After isinstance check, pyright understands the type
-            current_list: list[Any] = current_level
+            # After isinstance check, we know it's a list
+            current_list: list[Any] = current_level  # pyright: ignore[reportUnknownVariableType]
 
             if is_final_element:
                 # Final element: set the value (cast for test compatibility)

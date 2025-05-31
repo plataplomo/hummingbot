@@ -49,7 +49,7 @@ from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 # Base API error models
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import GetMarketDataArgs
+from cyberdelta.apis.models.service_args_models import GetFundingRatesArgs, GetMarketDataArgs
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.market import (
     FundingRate,
@@ -681,7 +681,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
-    async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
+    async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
         """
         Retrieves current funding rates for one or more symbols.
         If Backpack API doesn't support a bulk endpoint, this method iterates
@@ -690,6 +690,9 @@ class BackpackMarketDataService:
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_funding_rates"
+
+        # Extract validated symbols from Pydantic model
+        symbols = args.symbols
 
         if not symbols:
             raise ValueError(f"[{current_method}] At least one symbol is required for Backpack.")

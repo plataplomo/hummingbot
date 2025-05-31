@@ -6,7 +6,6 @@ Tests use dependency injection patterns to mock collaborators and focus on publi
 import asyncio
 import logging
 from collections.abc import Callable, Coroutine, Mapping
-from datetime import datetime
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -19,7 +18,15 @@ from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import PlaceOrderArgs, TransferArgs, WithdrawArgs
+from cyberdelta.apis.models.service_args_models import (
+    CancelOrderArgs,
+    GetFundingRatesArgs,
+    GetMarketDataArgs,
+    GetOrderHistoryArgs,
+    PlaceOrderArgs,
+    TransferArgs,
+    WithdrawArgs,
+)
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -108,10 +115,10 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     async def get_order_book(self, symbol: str, depth: int | None = None) -> OrderBook:
         return MagicMock(spec=OrderBook)
 
-    async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
+    async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
         return [MagicMock(spec=FundingRate)]
 
-    async def get_market_data(self, symbol: str, timeframe: str, limit: int = 100) -> list[Candle]:
+    async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
         return [MagicMock(spec=Candle)]
 
     async def get_balances(self) -> dict[str, SpotBalance]:
@@ -132,7 +139,7 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
         return MagicMock(spec=Withdrawal)
 
-    async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
+    async def cancel_order(self, args: CancelOrderArgs) -> bool:
         return True
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
@@ -141,15 +148,7 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         return [MagicMock(spec=Order)]
 
-    async def get_order_history(
-        self,
-        symbol: str | None = None,
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-        limit: int | None = None,
-        order_id: str | None = None,
-        client_order_id: str | None = None,
-    ) -> list[Order]:
+    async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
         return [MagicMock(spec=Order)]
 
     async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
@@ -685,8 +684,8 @@ class TestExchangeAPIPublicInterface:
         # Test that all abstract methods can be called without errors
         await api.get_ticker("BTC")
         await api.get_order_book("BTC")
-        await api.get_funding_rates(["BTC"])
-        await api.get_market_data("BTC", "1h")
+        await api.get_funding_rates(GetFundingRatesArgs(symbols=["BTC"]))
+        await api.get_market_data(GetMarketDataArgs(symbol="BTC", timeframe="1h"))
         await api.get_balances()
         await api.get_account_summary()
         await api.get_positions()
@@ -698,10 +697,10 @@ class TestExchangeAPIPublicInterface:
             time_in_force=TimeInForce.GTC,
         )
         await api.place_order(place_order_args)
-        await api.cancel_order("order123")
+        await api.cancel_order(CancelOrderArgs(order_id="order123"))
         await api.cancel_all_orders()
         await api.get_open_orders()
-        await api.get_order_history()
+        await api.get_order_history(GetOrderHistoryArgs())
         await api.get_trade_history()
         await api.get_order_status("order123")
         await api.get_order("order123")

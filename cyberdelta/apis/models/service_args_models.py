@@ -251,7 +251,7 @@ class GetOrderHistoryArgs(BaseModel):
         """Parse optional integer fields."""
         if v is None:
             return None
-        if not isinstance(v, (int, str, float)):  # Allow int, or str/float that can be int
+        if not isinstance(v, int | str | float):  # Allow int, or str/float that can be int
             field_name = str(info.field_name)
             raise ValueError(f"Field '{field_name}' must be an integer or convertible to one.")
         try:
@@ -298,7 +298,7 @@ class GetMarketDataArgs(BaseModel):
     @classmethod
     def parse_limit_int(cls, v: object, info: ValidationInfo) -> int:
         """Parse limit field as positive integer."""
-        if not isinstance(v, (int, str, float)):
+        if not isinstance(v, int | str | float):
             field_name = str(info.field_name)
             raise ValueError(f"Field '{field_name}' must be an integer or convertible to one.")
         try:
@@ -315,7 +315,7 @@ class GetMarketDataArgs(BaseModel):
         """Parse optional timestamp milliseconds fields."""
         if v is None:
             return None
-        if not isinstance(v, (int, str, float)):
+        if not isinstance(v, int | str | float):
             field_name = str(info.field_name)
             raise ValueError(f"Field '{field_name}' must be an integer or convertible to one.")
         try:
@@ -340,10 +340,100 @@ class GetMarketDataArgs(BaseModel):
         return self
 
 
+class CancelOrderArgs(BaseModel):
+    """
+    Encapsulates arguments for cancelling an order.
+
+    This model centralizes input validation for order cancellation across all exchanges,
+    ensuring order_id is always a valid non-empty string and handling optional parameters
+    like symbol and client_order_id gracefully with validation.
+    """
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    order_id: str  # Usually the exchange-generated order ID
+    symbol: str | None = Field(default=None)  # Often required by exchanges
+    client_order_id: str | None = Field(default=None)  # Alternative identifier
+
+    @field_validator("order_id", "symbol", "client_order_id", mode="before")
+    @classmethod
+    def validate_strings(cls, v: str | None, info: ValidationInfo) -> str | None:
+        """Validate string fields with appropriate requirements."""
+        field_name = str(info.field_name)
+        is_required = field_name == "order_id"  # order_id is always required
+
+        if v is None:
+            if is_required:
+                raise ValueError(f"Field '{field_name}' is required.")
+            return None  # For optional fields
+
+        # Assuming generic string validation, max_length can be adjusted
+        # allow_empty should be False for IDs and symbols if they are provided
+        return validate_str_field(v, field_name=field_name, max_length=128, allow_empty=False)
+
+    @model_validator(mode="after")
+    def check_identifiers_logic(self) -> "CancelOrderArgs":
+        """
+        Validate identifier logic.
+
+        Example: Some exchanges might require symbol if not using client_order_id,
+        or only one of order_id/client_order_id.
+        For Backpack, 'symbol' is required, and one of 'orderId' or 'clientId'.
+        For Hyperliquid, 'asset' (derived from symbol) and 'oid' (order_id) are needed.
+        This generic model ensures order_id is present. Exchange-specific services
+        will need to ensure `symbol` is also provided if their RequestBuilder requires it.
+        """
+        if self.symbol is None:
+            # Depending on exchange specifics, this might be an error for some.
+            # For now, allow symbol to be optional in the generic model.
+            # The service/builder for a specific exchange will enforce if it's needed.
+            pass
+        return self
+
+
+class GetFundingRatesArgs(BaseModel):
+    """
+    Encapsulates arguments for fetching funding rates.
+
+    This model centralizes validation for funding rate requests, ensuring that if symbols
+    are provided, it's a list of valid, non-empty strings, and that the list itself is
+    not empty if provided.
+    """
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    symbols: list[str] | None = Field(default=None)  # List of symbols, or None for all
+
+    @field_validator("symbols", mode="before")
+    @classmethod
+    def validate_symbols_list(cls, v: list[str] | None, info: ValidationInfo) -> list[str] | None:
+        """Validate symbols list contains valid non-empty strings."""
+        if v is None:
+            return None  # Allowed
+
+        # v is already typed as list[str] so no isinstance check needed
+        if not v:  # Empty list is passed through, service must decide if "all" or error
+            return []
+
+        validated_symbols: list[str] = []
+        for i, item in enumerate(v):
+            # Ensure item is a non-empty string
+            item_str = validate_str_field(
+                str(item),
+                field_name=f"{str(info.field_name)}[{i}]",
+                max_length=64,
+                allow_empty=False,
+            )
+            validated_symbols.append(item_str)
+        return validated_symbols
+
+
 __all__ = [
     "PlaceOrderArgs",
     "TransferArgs",
     "WithdrawArgs",
     "GetOrderHistoryArgs",
     "GetMarketDataArgs",
+    "CancelOrderArgs",
+    "GetFundingRatesArgs",
 ]

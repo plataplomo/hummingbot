@@ -24,7 +24,7 @@ from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
+from cyberdelta.apis.models.service_args_models import CancelOrderArgs, PlaceOrderArgs
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
@@ -234,15 +234,18 @@ class BackpackTradingService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
-    async def cancel_order(self, order_id: str, symbol: str | None) -> bool:
+    async def cancel_order(self, args: CancelOrderArgs) -> bool:
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "cancel_order"
 
-        if not order_id:
-            raise ValueError(f"[{current_method}] 'order_id' must be a non-empty string.")
-        if not symbol:
-            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
+        # Extract validated fields from Pydantic model
+        order_id = args.order_id
+        symbol = args.symbol
+
+        # For Backpack, symbol is required
+        if symbol is None:
+            raise ValueError(f"[{current_method}] 'symbol' is required for Backpack.")
 
         # Business Logic Pre-Validation (moved from RequestBuilder)
         # For Backpack, either order_id or client_order_id must be provided, but not both

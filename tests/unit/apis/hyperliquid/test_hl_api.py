@@ -15,7 +15,12 @@ from pydantic import SecretStr
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
+from cyberdelta.apis.models.service_args_models import (
+    CancelOrderArgs,
+    GetFundingRatesArgs,
+    GetOrderHistoryArgs,
+    PlaceOrderArgs,
+)
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ExchangeSecrets
 from cyberdelta.core.models import (
@@ -388,10 +393,11 @@ class TestHyperliquidAPIAssetIndexingIntegration:
         mock_hl_trading_service.cancel_order.return_value = True
 
         # Call cancel_order - this should internally use asset indexing
-        result = await api.cancel_order(order_id="12345", symbol="BTC")
+        cancel_args = CancelOrderArgs(order_id="12345", symbol="BTC")
+        result = await api.cancel_order(args=cancel_args)
 
         # Verify the trading service was called correctly
-        mock_hl_trading_service.cancel_order.assert_called_once_with(symbol="BTC", order_id="12345")
+        mock_hl_trading_service.cancel_order.assert_called_once_with(args=cancel_args)
 
         # Verify the result
         assert result is True
@@ -414,7 +420,8 @@ class TestHyperliquidAPIAssetIndexingIntegration:
 
         # Call cancel_order with an invalid symbol and expect the error to be propagated
         with pytest.raises(APIError) as exc_info:
-            await api.cancel_order(order_id="12345", symbol="INVALID_SYMBOL")
+            cancel_args = CancelOrderArgs(order_id="12345", symbol="INVALID_SYMBOL")
+            await api.cancel_order(args=cancel_args)
 
         # Verify the error is the expected asset indexing error
         assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
@@ -526,7 +533,8 @@ class TestHyperliquidAPIAssetIndexingIntegration:
         get_result = await api.get_order(order_id="12345", symbol="BTC")
 
         # Cancel order
-        cancel_result = await api.cancel_order(order_id="12345", symbol="BTC")
+        cancel_args = CancelOrderArgs(order_id="12345", symbol="BTC")
+        cancel_result = await api.cancel_order(args=cancel_args)
 
         # Verify all operations succeeded
         assert place_result == expected_order
@@ -645,11 +653,12 @@ class TestHyperliquidAPIAccountOperations:
         mock_hl_account_service.get_order_history.return_value = expected_orders
 
         # Test delegation
-        result = await api.get_order_history(symbol="ETH")
+        order_args = GetOrderHistoryArgs(symbol="ETH")
+        result = await api.get_order_history(args=order_args)
 
         # Verify service was called with correct parameters
         mock_hl_account_service.get_order_history.assert_called_once_with(
-            symbol="ETH", start_time=None, end_time=None
+            args=order_args
         )
         assert result == expected_orders
 
@@ -731,10 +740,11 @@ class TestHyperliquidAPITradingOperations:
         mock_hl_trading_service.cancel_order.return_value = True
 
         # Test delegation
-        result = await api.cancel_order(order_id="12345", symbol="BTC")
+        cancel_args = CancelOrderArgs(order_id="12345", symbol="BTC")
+        result = await api.cancel_order(args=cancel_args)
 
         # Verify service was called with correct parameters
-        mock_hl_trading_service.cancel_order.assert_called_once_with(symbol="BTC", order_id="12345")
+        mock_hl_trading_service.cancel_order.assert_called_once_with(args=cancel_args)
         assert result is True
 
         await api.close()
@@ -813,10 +823,11 @@ class TestHyperliquidAPIMarketDataOperations:
         api = hl_api_with_di()
         mock_hl_market_data_service.get_funding_rates.return_value = []
 
-        result = await api.get_funding_rates(["BTC"])
+        funding_args = GetFundingRatesArgs(symbols=["BTC"])
+        result = await api.get_funding_rates(args=funding_args)
 
         assert result == []
-        mock_hl_market_data_service.get_funding_rates.assert_called_once_with(symbols=["BTC"])
+        mock_hl_market_data_service.get_funding_rates.assert_called_once_with(args=funding_args)
 
 
 class TestHyperliquidAPIErrorHandling:
@@ -902,7 +913,8 @@ class TestHyperliquidAPIErrorHandling:
 
         # Test trading service APIError propagation
         with pytest.raises(APIError) as trading_exc:
-            await api.cancel_order(order_id="12345")
+            cancel_args = CancelOrderArgs(order_id="12345")
+            await api.cancel_order(args=cancel_args)
         assert trading_exc.value is trading_api_error
 
         # Test account service ValueError propagation

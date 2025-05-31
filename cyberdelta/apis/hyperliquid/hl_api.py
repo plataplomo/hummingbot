@@ -43,6 +43,8 @@ from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidT
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
+    CancelOrderArgs,
+    GetFundingRatesArgs,
     GetMarketDataArgs,
     GetOrderHistoryArgs,
     PlaceOrderArgs,
@@ -423,9 +425,9 @@ class HyperliquidAPI(ExchangeAPI):
         """Get recent trades for a specific symbol."""
         return await self.market_data_service.get_recent_trades(symbol=symbol)
 
-    async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
+    async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
         """Get funding rates for specified symbols or all symbols."""
-        return await self.market_data_service.get_funding_rates(symbols=symbols)
+        return await self.market_data_service.get_funding_rates(args=args)
 
     async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
         """Get historical market data (candlesticks) for a specific symbol."""
@@ -435,9 +437,9 @@ class HyperliquidAPI(ExchangeAPI):
         """Place a new order."""
         return await self.trading_service.place_order(args)
 
-    async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
+    async def cancel_order(self, args: CancelOrderArgs) -> bool:
         """Cancel an existing order."""
-        return await self.trading_service.cancel_order(symbol=symbol, order_id=order_id)
+        return await self.trading_service.cancel_order(args=args)
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
         """Cancel all orders for a given symbol, or all if symbol is None."""

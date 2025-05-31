@@ -43,6 +43,8 @@ from cyberdelta.core.models.operations import Transfer, Withdrawal
 if TYPE_CHECKING:
     # Import models only needed for type hints here
     from cyberdelta.apis.models.service_args_models import (
+        CancelOrderArgs,
+        GetFundingRatesArgs,
         GetMarketDataArgs,
         GetOrderHistoryArgs,
         PlaceOrderArgs,
@@ -121,7 +123,7 @@ class ExchangeAPI(ABC):
         # Construct HttpClientConfig parameters using direct field mapping
         # The concrete API classes are responsible for providing correctly named keys
         http_config_data = {}
-        
+
         # Required field: rest_endpoint
         if "rest_endpoint" in self._config and self._config["rest_endpoint"] is not None:
             http_config_data["rest_endpoint"] = self._config["rest_endpoint"]
@@ -559,14 +561,14 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
+    async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
         """Fetch historical funding rates for specific symbols or all symbols if None."""
         raise NotImplementedError
 
     @abstractmethod
     async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
         """Fetch historical market data (OHLCV/Kline) for a specific symbol and timeframe.
-        
+
         Args:
             args: Parameters for market data request including symbol, timeframe,
                  limit, and optional time range constraints.
@@ -595,23 +597,23 @@ class ExchangeAPI(ABC):
     @abstractmethod
     async def place_order(self, args: PlaceOrderArgs) -> Order:
         """Place a new order on the exchange.
-        
+
         Args:
             args: PlaceOrderArgs model containing all order parameters including
                  symbol, side, order_type, quantity, time_in_force, and optional
                  parameters like price, stop_price, client_order_id, reduce_only,
                  and post_only.
-        
+
         Returns:
             Order: The placed order details.
-            
+
         Raises:
             APIError: If the order placement fails.
         """
         raise NotImplementedError
 
     @abstractmethod
-    async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
+    async def cancel_order(self, args: CancelOrderArgs) -> bool:
         """Cancel an existing order by its ID. Returns True if successful."""
         raise NotImplementedError
 
@@ -727,15 +729,15 @@ class ExchangeAPI(ABC):
     async def transfer(self, args: TransferArgs) -> Transfer:
         """
         Execute an internal funds transfer between account types within the exchange.
-        
+
         Args:
             args: TransferArgs model containing all transfer parameters including
                  asset, amount, from_account_type, to_account_type, and optional
                  client_transfer_id.
-        
+
         Returns:
             Transfer: The transfer operation details and status.
-            
+
         Raises:
             APIError: If the transfer operation fails.
         """
@@ -745,15 +747,15 @@ class ExchangeAPI(ABC):
     async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
         """
         Execute a fund withdrawal to an external address.
-        
+
         Args:
             args: WithdrawArgs model containing all withdrawal parameters including
                  asset, amount, address, and optional parameters like network, tag,
                  client_withdrawal_id, and two_factor_token.
-        
+
         Returns:
             Withdrawal: The withdrawal operation details and status.
-            
+
         Raises:
             APIError: If the withdrawal operation fails.
         """

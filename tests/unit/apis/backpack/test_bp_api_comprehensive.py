@@ -14,6 +14,8 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
+    CancelOrderArgs,
+    GetFundingRatesArgs,
     GetMarketDataArgs,
     GetOrderHistoryArgs,
     PlaceOrderArgs,
@@ -344,18 +346,20 @@ class TestBackpackAPIPublicBehavior:
         with patch.object(
             backpack_api.trading_service, "cancel_order", return_value=True
         ) as mock_cancel:
-            result = await backpack_api.cancel_order("order123", "SOL_USDC")
+            cancel_args = CancelOrderArgs(order_id="order123", symbol="SOL_USDC")
+            result = await backpack_api.cancel_order(cancel_args)
 
             assert result is True
-            mock_cancel.assert_called_once_with(order_id="order123", symbol="SOL_USDC")
+            mock_cancel.assert_called_once_with(args=cancel_args)
 
     @pytest.mark.asyncio
     async def test_cancel_order_requires_symbol(self, backpack_api: BackpackAPI) -> None:
         """Test that cancel_order requires symbol parameter."""
         with pytest.raises(ValueError) as exc_info:
-            await backpack_api.cancel_order("order123")
+            cancel_args = CancelOrderArgs(order_id="order123", symbol=None)
+            await backpack_api.cancel_order(cancel_args)
 
-        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+        assert "'symbol' is required for Backpack" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_open_orders_success(self, backpack_api: BackpackAPI) -> None:
@@ -383,7 +387,8 @@ class TestBackpackAPIPublicBehavior:
         with patch.object(
             backpack_api.market_data_service, "get_funding_rates", return_value=mock_funding_rates
         ):
-            result = await backpack_api.get_funding_rates(["SOL_USDC", "BTC_USDC"])
+            funding_args = GetFundingRatesArgs(symbols=["SOL_USDC", "BTC_USDC"])
+            result = await backpack_api.get_funding_rates(funding_args)
 
             assert result == mock_funding_rates
             assert len(result) == 2
