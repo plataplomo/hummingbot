@@ -13,7 +13,13 @@ from pydantic import SecretStr
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import PlaceOrderArgs, TransferArgs, WithdrawArgs
+from cyberdelta.apis.models.service_args_models import (
+    GetMarketDataArgs,
+    GetOrderHistoryArgs,
+    PlaceOrderArgs,
+    TransferArgs,
+    WithdrawArgs,
+)
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ExchangeSecrets
 from cyberdelta.core.models import (
@@ -211,18 +217,23 @@ class TestBackpackAPIPublicBehavior:
 
     @pytest.mark.asyncio
     async def test_get_market_data_success(self, backpack_api: BackpackAPI) -> None:
-        """Test successful market data (candles) retrieval."""
+        """Test successful market data retrieval."""
         mock_candles = [MagicMock(spec=Candle) for _ in range(100)]
         for i, candle in enumerate(mock_candles):
             candle.symbol = "SOL_USDC"
-            candle.open_price = Decimal(f"{100 + i}")
+            candle.timestamp = datetime.now(UTC) + timedelta(minutes=i)
 
         with patch.object(
             backpack_api.market_data_service, "get_market_data", return_value=mock_candles
         ):
-            result = await backpack_api.get_market_data(
-                "SOL_USDC", "1h", 200, 1234567890000, 1234567999000
+            args = GetMarketDataArgs(
+                symbol="SOL_USDC",
+                timeframe="1h",
+                limit=200,
+                start_time_ms=1234567890000,
+                end_time_ms=1234567999000,
             )
+            result = await backpack_api.get_market_data(args)
 
             assert result == mock_candles
             assert len(result) == 100
@@ -438,20 +449,22 @@ class TestBackpackAPIPublicBehavior:
     async def test_get_order_history_success(self, backpack_api: BackpackAPI) -> None:
         """Test successful order history retrieval."""
         mock_orders = [MagicMock(spec=Order) for _ in range(5)]
-        start_time = datetime.now(UTC)
-        end_time = datetime.now(UTC)
+        for i, order in enumerate(mock_orders):
+            order.exchange_order_id = f"order_{i}"
+            order.symbol = "SOL_USDC"
 
         with patch.object(
             backpack_api.account_service, "get_order_history", return_value=mock_orders
         ):
-            result = await backpack_api.get_order_history(
+            args = GetOrderHistoryArgs(
                 symbol="SOL_USDC",
-                start_time=start_time,
-                end_time=end_time,
+                start_time=datetime.now(UTC) - timedelta(days=1),
+                end_time=datetime.now(UTC),
                 limit=100,
                 order_id="order123",
                 client_order_id="client123",
             )
+            result = await backpack_api.get_order_history(args)
 
             assert result == mock_orders
             assert len(result) == 5

@@ -10,6 +10,7 @@ import pytest
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import GetOrderHistoryArgs
 
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.hyperliquid.services.conftest_account"]
@@ -48,9 +49,11 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             mapped_order
         )
         result = await hyperliquid_account_service.get_order_history(
-            symbol="BTC",
-            start_time=datetime(2024, 1, 1, tzinfo=UTC),
-            end_time=datetime(2024, 1, 2, tzinfo=UTC),
+            GetOrderHistoryArgs(
+                symbol="BTC",
+                start_time=datetime(2024, 1, 1, tzinfo=UTC),
+                end_time=datetime(2024, 1, 2, tzinfo=UTC),
+            )
         )
         assert result == [mapped_order]
 
@@ -136,15 +139,19 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             map_side_effect
         )
         result = await hyperliquid_account_service.get_order_history(
-            symbol="BTC",
-            start_time=datetime(2024, 1, 1),
-            end_time=datetime(2024, 1, 2),
+            GetOrderHistoryArgs(
+                symbol="BTC",
+                start_time=datetime(2024, 1, 1),
+                end_time=datetime(2024, 1, 2),
+            )
         )
         assert result == [mapped_order1]
         result_all = await hyperliquid_account_service.get_order_history(
-            symbol=None,
-            start_time=datetime(2024, 1, 1),
-            end_time=datetime(2024, 1, 2),
+            GetOrderHistoryArgs(
+                symbol=None,
+                start_time=datetime(2024, 1, 1),
+                end_time=datetime(2024, 1, 2),
+            )
         )
         assert set(result_all) == {mapped_order1, mapped_order2}
 
@@ -174,9 +181,11 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         )
         with pytest.raises(APIError) as excinfo_no_wallet:
             await service_no_wallet.get_order_history(
-                symbol=None,
-                start_time=datetime(2024, 1, 1),
-                end_time=datetime(2024, 1, 2),
+                GetOrderHistoryArgs(
+                    symbol=None,
+                    start_time=datetime(2024, 1, 1),
+                    end_time=datetime(2024, 1, 2),
+                )
             )
         assert excinfo_no_wallet.value.code == APIErrorCode.INVALID_REQUEST.value
         assert "Wallet address is required" in excinfo_no_wallet.value.message
@@ -185,7 +194,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         # which has a wallet address)
         with pytest.raises(ValueError) as excinfo_no_times:
             await hyperliquid_account_service.get_order_history(
-                symbol=None, start_time=None, end_time=None
+                GetOrderHistoryArgs(symbol=None, start_time=None, end_time=None)
             )
         assert "'start_time' is required" in str(excinfo_no_times.value)
 
@@ -197,9 +206,11 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         mock_http_client_requester.side_effect = APIError("fail", 1)
         with pytest.raises(APIError):
             await hyperliquid_account_service.get_order_history(
-                symbol=None,
-                start_time=datetime(2024, 1, 1),
-                end_time=datetime(2024, 1, 2),
+                GetOrderHistoryArgs(
+                    symbol=None,
+                    start_time=datetime(2024, 1, 1),
+                    end_time=datetime(2024, 1, 2),
+                )
             )
 
     @pytest.mark.asyncio
@@ -237,7 +248,11 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
 
         with pytest.raises(APIError) as exc_info:
             await hyperliquid_account_service.get_order_history(
-                symbol=symbol, start_time=start_time, end_time=end_time
+                GetOrderHistoryArgs(
+                    symbol=symbol,
+                    start_time=start_time,
+                    end_time=end_time,
+                )
             )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -423,7 +438,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
 
         with pytest.raises(APIError) as exc_info:
             # Using symbol=None to match current build_user_fills_payload simplicity
-            await hyperliquid_account_service.get_trade_history(symbol=symbol)
+            await hyperliquid_account_service.get_trade_history(symbol)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No data received for user fills, status: 200" in exc_info.value.message
@@ -502,9 +517,11 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         # Test case 1: Empty order history
         mock_response_handler.handle_query_order_history_response.return_value = []
         result_empty = await hyperliquid_account_service.get_order_history(
-            symbol="NONEXISTENT",
-            start_time=datetime(2024, 1, 1, tzinfo=UTC),
-            end_time=datetime(2024, 1, 2, tzinfo=UTC),
+            GetOrderHistoryArgs(
+                symbol="NONEXISTENT",
+                start_time=datetime(2024, 1, 1, tzinfo=UTC),
+                end_time=datetime(2024, 1, 2, tzinfo=UTC),
+            )
         )
         assert result_empty == []
 
@@ -527,9 +544,11 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
 
         # Test filtering by BTC symbol
         result_btc = await hyperliquid_account_service.get_order_history(
-            symbol="BTC",
-            start_time=datetime(2024, 1, 1, tzinfo=UTC),
-            end_time=datetime(2024, 1, 2, tzinfo=UTC),
+            GetOrderHistoryArgs(
+                symbol="BTC",
+                start_time=datetime(2024, 1, 1, tzinfo=UTC),
+                end_time=datetime(2024, 1, 2, tzinfo=UTC),
+            )
         )
         # Should return only BTC orders (filtered at the application level)
         btc_orders = [order for order in mock_internal_orders if order.symbol == "BTC"]

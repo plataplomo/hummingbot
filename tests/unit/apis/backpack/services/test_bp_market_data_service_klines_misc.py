@@ -14,6 +14,7 @@ from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import GetMarketDataArgs
 from cyberdelta.core.models.market import Candle
 
 # Import fixtures from the shared conftest
@@ -88,9 +89,8 @@ class TestBackpackMarketDataServiceKlinesMisc:
             mock_internal_candles = [MagicMock(spec=Candle), MagicMock(spec=Candle)]
             mock_mapper.transform_raw_kline_to_internal.side_effect = mock_internal_candles
 
-            result = await backpack_market_data_service.get_market_data(
-                symbol=symbol, timeframe=timeframe, limit=limit
-            )
+            args = GetMarketDataArgs(symbol=symbol, timeframe=timeframe, limit=limit)
+            result = await backpack_market_data_service.get_market_data(args)
 
             mock_request_builder.build_get_market_data_params.assert_called_once_with(
                 symbol=symbol,
@@ -140,9 +140,8 @@ class TestBackpackMarketDataServiceKlinesMisc:
 
         with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
             with pytest.raises(APIError) as exc_info:
-                await backpack_market_data_service.get_market_data(
-                    symbol=symbol, timeframe=timeframe, limit=limit
-                )
+                args = GetMarketDataArgs(symbol=symbol, timeframe=timeframe, limit=limit)
+                await backpack_market_data_service.get_market_data(args)
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
             expected_error_msg = f"No data for klines {symbol}@{timeframe}, status: 200"
@@ -190,7 +189,8 @@ class TestBackpackMarketDataServiceKlinesMisc:
             mock_response_handler.handle_get_market_data_response.side_effect = e
 
         with pytest.raises(APIError) as exc_info:
-            await backpack_market_data_service.get_market_data(symbol, timeframe)
+            args = GetMarketDataArgs(symbol=symbol, timeframe=timeframe)
+            await backpack_market_data_service.get_market_data(args)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Internal data validation failed." in exc_info.value.message
@@ -216,7 +216,8 @@ class TestBackpackMarketDataServiceKlinesMisc:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await backpack_market_data_service.get_market_data(symbol, timeframe)
+            args = GetMarketDataArgs(symbol=symbol, timeframe=timeframe)
+            await backpack_market_data_service.get_market_data(args)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
         assert "Unexpected service failure." in exc_info.value.message
@@ -271,13 +272,14 @@ class TestBackpackMarketDataServiceKlinesMisc:
             mock_internal_candles = [MagicMock(spec=Candle)]
             mock_mapper.transform_raw_kline_to_internal.side_effect = mock_internal_candles
 
-            result = await backpack_market_data_service.get_market_data(
+            args = GetMarketDataArgs(
                 symbol=symbol,
                 timeframe=timeframe,
                 limit=limit,
                 start_time_ms=start_time_ms,
                 end_time_ms=end_time_ms,
             )
+            result = await backpack_market_data_service.get_market_data(args)
 
             mock_request_builder.build_get_market_data_params.assert_called_once_with(
                 symbol=symbol,
@@ -285,6 +287,24 @@ class TestBackpackMarketDataServiceKlinesMisc:
                 limit=limit,
                 start_time_ms=start_time_ms,
                 end_time_ms=end_time_ms,
+            )
+            mock_http_client_requester.assert_called_once_with(
+                method="GET",
+                endpoint="/api/v1/klines",
+                params=mock_params,
+                is_signed=False,
+                endpoint_group="public",
+                request_weight=1,
+            )
+            mock_response_handler.handle_get_market_data_response.assert_called_once_with(
+                mock_raw_kline_data,
+                symbol,
+                timeframe,
+                200,
+                {},
+            )
+            assert mock_mapper.transform_raw_kline_to_internal.call_count == len(
+                mock_validated_klines_raw
             )
             assert result == mock_internal_candles
 

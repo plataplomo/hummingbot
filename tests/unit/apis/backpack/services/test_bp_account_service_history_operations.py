@@ -17,7 +17,7 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import WithdrawArgs
+from cyberdelta.apis.models.service_args_models import GetOrderHistoryArgs, WithdrawArgs
 from cyberdelta.core.models.enums import (
     OrderSide,
     OrderStatus,
@@ -106,9 +106,10 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_mapper.transform_raw_order_to_internal.return_value = expected_internal_order
 
         with patch.object(bp_account_service, "_mapper", mock_mapper):
-            result = await bp_account_service.get_order_history(
+            args = GetOrderHistoryArgs(
                 symbol=symbol, limit=limit, start_time=start_time, end_time=end_time
             )
+            result = await bp_account_service.get_order_history(args)
 
         mock_request_builder.build_get_order_history_params.assert_called_once_with(
             symbol=symbol,
@@ -183,7 +184,8 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_response_handler.handle_get_order_history_response.side_effect = handler_api_error
 
         with pytest.raises(APIError) as excinfo:
-            await bp_account_service.get_order_history(symbol=symbol)
+            args = GetOrderHistoryArgs(symbol=symbol)
+            await bp_account_service.get_order_history(args)
         assert excinfo.value is handler_api_error
         mock_response_handler.handle_get_order_history_response.assert_called_once_with(
             mock_raw_response_list, symbol
@@ -227,7 +229,8 @@ class TestBackpackAccountServiceHistoryOperations:
 
         with patch.object(bp_account_service, "_mapper", mock_mapper):
             with pytest.raises(APIError) as excinfo:
-                await bp_account_service.get_order_history(symbol=symbol)
+                args = GetOrderHistoryArgs(symbol=symbol)
+                await bp_account_service.get_order_history(args)
             assert excinfo.value is mapper_api_error
 
     @pytest.mark.asyncio
@@ -250,7 +253,8 @@ class TestBackpackAccountServiceHistoryOperations:
 
         with patch.object(bp_account_service, "_mapper", mock_mapper):
             with pytest.raises(APIError) as exc_info:
-                await bp_account_service.get_order_history(symbol=symbol, limit=limit)
+                args = GetOrderHistoryArgs(symbol=symbol, limit=limit)
+                await bp_account_service.get_order_history(args)
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
             assert "No data received for order history, status: 200" in exc_info.value.message

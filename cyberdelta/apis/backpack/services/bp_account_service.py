@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
@@ -31,7 +30,11 @@ from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import GetOrderHistoryArgs, TransferArgs, WithdrawArgs
+from cyberdelta.apis.models.service_args_models import (
+    GetOrderHistoryArgs,
+    TransferArgs,
+    WithdrawArgs,
+)
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import (
     DerivativePosition,

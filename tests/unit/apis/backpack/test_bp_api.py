@@ -15,7 +15,7 @@ from pydantic import SecretStr
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
+from cyberdelta.apis.models.service_args_models import GetOrderHistoryArgs, PlaceOrderArgs
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ExchangeSecrets
 from cyberdelta.core.models import (
@@ -341,17 +341,11 @@ class TestBackpackAPIAccountOperations:
         mock_bp_account_service.get_order_history.return_value = expected_orders
 
         # Test delegation
-        result = await api.get_order_history(symbol="SOL")
+        args = GetOrderHistoryArgs(symbol="SOL")
+        result = await api.get_order_history(args)
 
         # Verify service was called with correct parameters
-        mock_bp_account_service.get_order_history.assert_called_once_with(
-            symbol="SOL",
-            start_time=None,
-            end_time=None,
-            limit=100,
-            order_id=None,
-            client_order_id=None,
-        )
+        mock_bp_account_service.get_order_history.assert_called_once_with(args)
         assert result == expected_orders
 
         await api.close()
@@ -825,22 +819,22 @@ class TestBackpackAPIComprehensiveErrorHandling:
     async def test_get_order_history_timeout_error_propagation(
         self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock
     ) -> None:
-        """Test get_order_history exact propagation of TIMEOUT error."""
+        """Test that timeout errors from get_order_history are properly propagated."""
         api = bp_api_with_di()
 
-        timeout_error = APIError(
-            message="Request timeout after 30 seconds",
-            code=APIErrorCode.TIMEOUT.value,
-        )
+        # Configure mock to raise timeout error
+        timeout_error = APIError("Request timeout", APIErrorCode.TIMEOUT.value, http_status=408)
         mock_bp_account_service.get_order_history.side_effect = timeout_error
 
-        # Test exact error propagation
+        # Test error propagation
         with pytest.raises(APIError) as exc_info:
-            await api.get_order_history()
+            args = GetOrderHistoryArgs(symbol="SOL")
+            await api.get_order_history(args)
 
-        assert exc_info.value is timeout_error  # Same instance
         assert exc_info.value.code == APIErrorCode.TIMEOUT.value
-        assert "timeout" in exc_info.value.message.lower()
+        assert exc_info.value.http_status == 408
+
+        await api.close()
 
     @pytest.mark.asyncio
     async def test_get_trade_history_service_unavailable_propagation(

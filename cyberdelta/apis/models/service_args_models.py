@@ -7,7 +7,6 @@ centralizing validation logic and improving API clarity.
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
@@ -18,10 +17,11 @@ from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, va
 class PlaceOrderArgs(BaseModel):
     """
     Encapsulates all arguments for placing an order.
-    
+
     This model centralizes input validation for order placement across all exchanges,
     including type checks, value constraints, and inter-parameter dependencies.
     """
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     symbol: str
@@ -94,16 +94,17 @@ class PlaceOrderArgs(BaseModel):
 class TransferArgs(BaseModel):
     """
     Encapsulates arguments for internal fund transfers between account types within an exchange.
-    
+
     This model centralizes validation for transfer operations, ensuring consistent
     handling of asset, amount, and account type parameters.
     """
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     asset: str
     amount: Decimal = Field(gt=Decimal("0"))
     from_account_type: str  # Specific validation might depend on exchange
-    to_account_type: str    # Specific validation might depend on exchange
+    to_account_type: str  # Specific validation might depend on exchange
     client_transfer_id: str | None = Field(default=None)
 
     @field_validator("asset", "from_account_type", "to_account_type", mode="before")
@@ -126,9 +127,7 @@ class TransferArgs(BaseModel):
 
     @field_validator("amount", mode="before")
     @classmethod
-    def parse_amount_decimal(
-        cls, v: str | int | float | Decimal, info: ValidationInfo
-    ) -> Decimal:
+    def parse_amount_decimal(cls, v: str | int | float | Decimal, info: ValidationInfo) -> Decimal:
         """Parse and validate amount as a positive finite decimal."""
         field_name = str(info.field_name)
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
@@ -152,10 +151,11 @@ class TransferArgs(BaseModel):
 class WithdrawArgs(BaseModel):
     """
     Encapsulates arguments for fund withdrawals.
-    
+
     This model handles withdrawal parameters including asset, amount, address, network,
     and optional tags or IDs, with support for exchange-specific extra parameters.
     """
+
     model_config = ConfigDict(extra="allow", validate_assignment=True)  # extra="allow" for **kwargs
 
     asset: str
@@ -187,9 +187,7 @@ class WithdrawArgs(BaseModel):
 
     @field_validator("amount", mode="before")
     @classmethod
-    def parse_amount_decimal(
-        cls, v: str | int | float | Decimal, info: ValidationInfo
-    ) -> Decimal:
+    def parse_amount_decimal(cls, v: str | int | float | Decimal, info: ValidationInfo) -> Decimal:
         """Parse and validate amount as a positive finite decimal."""
         field_name = str(info.field_name)
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
@@ -208,10 +206,11 @@ class WithdrawArgs(BaseModel):
 class GetOrderHistoryArgs(BaseModel):
     """
     Encapsulates arguments for fetching order history.
-    
+
     This model centralizes validation for order history requests, including
     time range validation, positive limit constraints, and string field validation.
     """
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     symbol: str | None = Field(default=None)
@@ -223,36 +222,45 @@ class GetOrderHistoryArgs(BaseModel):
 
     @field_validator("symbol", "order_id", "client_order_id", mode="before")
     @classmethod
-    def validate_optional_strings(cls, v: Any, info: ValidationInfo) -> str | None:
+    def validate_optional_strings(
+        cls, v: str | int | float | None, info: ValidationInfo
+    ) -> str | None:
         """Validate optional string fields are non-empty with reasonable max length."""
         if v is None:
             return None
         # Assuming generic string validation for these, max_length can be adjusted
-        return validate_str_field(v, field_name=str(info.field_name), max_length=64, allow_empty=False)
+        return validate_str_field(
+            v, field_name=str(info.field_name), max_length=64, allow_empty=False
+        )
 
     @field_validator("start_time", "end_time", mode="before")
     @classmethod
-    def parse_optional_datetime_utc(cls, v: Any, info: ValidationInfo) -> datetime | None:
+    def parse_optional_datetime_utc(
+        cls, v: str | int | float | datetime | None, info: ValidationInfo
+    ) -> datetime | None:
         """Parse optional datetime fields to UTC."""
         if v is None:
             return None
-        # parse_datetime_utc will return None if parsing fails, which is acceptable for optional fields
+        # parse_datetime_utc will return None if parsing fails, which is acceptable
+        # for optional fields
         return parse_datetime_utc(v, field_name=str(info.field_name))
 
     @field_validator("limit", mode="before")
     @classmethod
-    def parse_optional_int(cls, v: Any, info: ValidationInfo) -> int | None:
+    def parse_optional_int(cls, v: object, info: ValidationInfo) -> int | None:
         """Parse optional integer fields."""
         if v is None:
             return None
-        if not isinstance(v, int | str | float):  # Allow int, or str/float that can be int
-            raise ValueError(f"Field '{str(info.field_name)}' must be an integer or convertible to one.")
+        if not isinstance(v, (int, str, float)):  # Allow int, or str/float that can be int
+            field_name = str(info.field_name)
+            raise ValueError(f"Field '{field_name}' must be an integer or convertible to one.")
         try:
             int_val = int(v)
             # Positivity (gt=0) is handled by Field constraint
             return int_val
         except ValueError as e:
-            raise ValueError(f"Field '{str(info.field_name)}' could not be converted to int: {v}") from e
+            field_name = str(info.field_name)
+            raise ValueError(f"Field '{field_name}' could not be converted to int: {v}") from e
 
     @model_validator(mode="after")
     def check_time_range(self) -> "GetOrderHistoryArgs":
@@ -265,10 +273,11 @@ class GetOrderHistoryArgs(BaseModel):
 class GetMarketDataArgs(BaseModel):
     """
     Encapsulates arguments for fetching market data (candlesticks/OHLCV).
-    
+
     This model centralizes validation for market data requests, including
     symbol validation, timeframe validation, and time range constraints.
     """
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     symbol: str
@@ -279,52 +288,61 @@ class GetMarketDataArgs(BaseModel):
 
     @field_validator("symbol", "timeframe", mode="before")
     @classmethod
-    def validate_required_strings(cls, v: Any, info: ValidationInfo) -> str:
+    def validate_required_strings(cls, v: object, info: ValidationInfo) -> str:
         """Validate required string fields are non-empty with reasonable max length."""
-        return validate_str_field(v, field_name=str(info.field_name), max_length=64, allow_empty=False)
+        return validate_str_field(
+            v, field_name=str(info.field_name), max_length=64, allow_empty=False
+        )
 
     @field_validator("limit", mode="before")
     @classmethod
-    def parse_limit_int(cls, v: Any, info: ValidationInfo) -> int:
+    def parse_limit_int(cls, v: object, info: ValidationInfo) -> int:
         """Parse limit field as positive integer."""
-        if not isinstance(v, int | str | float):
-            raise ValueError(f"Field '{str(info.field_name)}' must be an integer or convertible to one.")
+        if not isinstance(v, (int, str, float)):
+            field_name = str(info.field_name)
+            raise ValueError(f"Field '{field_name}' must be an integer or convertible to one.")
         try:
             int_val = int(v)
             # Positivity (gt=0) is handled by Field constraint
             return int_val
         except ValueError as e:
-            raise ValueError(f"Field '{str(info.field_name)}' could not be converted to int: {v}") from e
+            field_name = str(info.field_name)
+            raise ValueError(f"Field '{field_name}' could not be converted to int: {v}") from e
 
     @field_validator("start_time_ms", "end_time_ms", mode="before")
     @classmethod
-    def parse_optional_timestamp_ms(cls, v: Any, info: ValidationInfo) -> int | None:
+    def parse_optional_timestamp_ms(cls, v: object, info: ValidationInfo) -> int | None:
         """Parse optional timestamp milliseconds fields."""
         if v is None:
             return None
-        if not isinstance(v, int | str | float):
-            raise ValueError(f"Field '{str(info.field_name)}' must be an integer or convertible to one.")
+        if not isinstance(v, (int, str, float)):
+            field_name = str(info.field_name)
+            raise ValueError(f"Field '{field_name}' must be an integer or convertible to one.")
         try:
             int_val = int(v)
             if int_val < 0:
-                raise ValueError(f"Field '{str(info.field_name)}' must be non-negative, got {int_val}.")
+                field_name = str(info.field_name)
+                raise ValueError(f"Field '{field_name}' must be non-negative, got {int_val}.")
             return int_val
         except ValueError as e:
-            raise ValueError(f"Field '{str(info.field_name)}' could not be converted to int: {v}") from e
+            field_name = str(info.field_name)
+            raise ValueError(f"Field '{field_name}' could not be converted to int: {v}") from e
 
     @model_validator(mode="after")
     def check_time_range(self) -> "GetMarketDataArgs":
         """Validate time range logic."""
-        if (self.start_time_ms is not None and 
-            self.end_time_ms is not None and 
-            self.start_time_ms >= self.end_time_ms):
+        if (
+            self.start_time_ms is not None
+            and self.end_time_ms is not None
+            and self.start_time_ms >= self.end_time_ms
+        ):
             raise ValueError("start_time_ms must be before end_time_ms.")
         return self
 
 
 __all__ = [
     "PlaceOrderArgs",
-    "TransferArgs", 
+    "TransferArgs",
     "WithdrawArgs",
     "GetOrderHistoryArgs",
     "GetMarketDataArgs",

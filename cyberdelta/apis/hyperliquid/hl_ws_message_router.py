@@ -198,7 +198,13 @@ class HyperliquidWsMessageRouter:
         elif channel == "trades":
             coin_for_topic_str: str | None = None
             if isinstance(raw_data_any, list):
-                checked_list_for_topic_derivation: list[Any] = raw_data_any
+                # Explicitly type the list after check, elements are still Any
+                checked_list_for_topic_derivation: list[dict[str, Any]] = []
+                raw_list = cast(list[Any], raw_data_any)
+                for item in raw_list:
+                    if isinstance(item, dict):
+                        checked_list_for_topic_derivation.append(cast(dict[str, Any], item))
+
                 if checked_list_for_topic_derivation:
                     first_item_for_topic_any: Any = checked_list_for_topic_derivation[0]
                     if isinstance(first_item_for_topic_any, dict):
@@ -271,14 +277,13 @@ class HyperliquidWsMessageRouter:
                 # Convert list items to dict format for validation
                 trade_payloads: list[dict[str, Any]] = []
                 # Explicitly type the list after check, elements are still Any
-                checked_list_of_trades: list[Any] = raw_data_any
-                for item in checked_list_of_trades:
-                    if not isinstance(item, dict):
-                        self.logger.warning(
-                            f"[{self._exchange_name}] Trades list item not dict: {item}. Skipping."
-                        )
-                        continue
-                    trade_payloads.append(cast(dict[str, Any], item))
+                checked_list_of_trades: list[dict[str, Any]] = []
+                raw_list_trades = cast(list[Any], raw_data_any)
+                for item in raw_list_trades:
+                    if isinstance(item, dict):
+                        item_dict = cast(dict[str, Any], item)
+                        checked_list_of_trades.append(item_dict)
+                        trade_payloads.append(item_dict)
 
                 if trade_payloads:
                     validated_trade_models = self._raw_ws_handler.handle_public_trades_payload(
@@ -309,16 +314,13 @@ class HyperliquidWsMessageRouter:
                         code=APIErrorCode.INVALID_RESPONSE.value,
                     )
                 # Explicitly type the list after check, elements are still Any
-                checked_list_of_any_events: list[Any] = raw_data_any
-                for event_loop_var_any in checked_list_of_any_events:
-                    if not isinstance(event_loop_var_any, dict):
-                        self.logger.warning(
-                            f"[{self._exchange_name}] userEvents item not dict: "
-                            f"{event_loop_var_any}, skipping."
-                        )
-                        continue
-                    # Cast here for Pyright
-                    event_item_dict = cast(dict[str, Any], event_loop_var_any)
+                checked_list_of_any_events: list[dict[str, Any]] = []
+                raw_list_events = cast(list[Any], raw_data_any)
+                for event_loop_var_any in raw_list_events:
+                    if isinstance(event_loop_var_any, dict):
+                        checked_list_of_any_events.append(cast(dict[str, Any], event_loop_var_any))
+
+                for event_item_dict in checked_list_of_any_events:
                     event_type_any = event_item_dict.get("type")
 
                     if not isinstance(event_type_any, str):

@@ -16,6 +16,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import GetMarketDataArgs
 from cyberdelta.core.models.market import Candle
 
 # Import fixtures from the shared conftest
@@ -122,9 +123,14 @@ class TestHyperliquidMarketDataServiceCandles:
                 expected_candles
             )
 
-            result_candles = await hyperliquid_market_data_service.get_market_data(
-                symbol, interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+            # Use GetMarketDataArgs instead of individual parameters
+            args = GetMarketDataArgs(
+                symbol=symbol,
+                timeframe=interval,
+                start_time_ms=start_time_ms,
+                end_time_ms=end_time_ms,
             )
+            result_candles = await hyperliquid_market_data_service.get_market_data(args)
 
             mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once_with(
                 symbol=symbol,
@@ -177,9 +183,14 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
         with pytest.raises(APIError) as exc_info:
-            await hyperliquid_market_data_service.get_market_data(
-                symbol, interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+            # Use GetMarketDataArgs instead of individual parameters
+            args = GetMarketDataArgs(
+                symbol=symbol,
+                timeframe=interval,
+                start_time_ms=start_time_ms,
+                end_time_ms=end_time_ms,
             )
+            await hyperliquid_market_data_service.get_market_data(args)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
@@ -231,9 +242,14 @@ class TestHyperliquidMarketDataServiceCandles:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await hyperliquid_market_data_service.get_market_data(
-                symbol, interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+            # Use GetMarketDataArgs instead of individual parameters
+            args = GetMarketDataArgs(
+                symbol=symbol,
+                timeframe=interval,
+                start_time_ms=start_time_ms,
+                end_time_ms=end_time_ms,
             )
+            await hyperliquid_market_data_service.get_market_data(args)
 
         assert exc_info.value.code == APIErrorCode.TIMEOUT.value
         assert exc_info.value.http_status == 408
@@ -266,9 +282,14 @@ class TestHyperliquidMarketDataServiceCandles:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await hyperliquid_market_data_service.get_market_data(
-                symbol, interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+            # Use GetMarketDataArgs instead of individual parameters
+            args = GetMarketDataArgs(
+                symbol=symbol,
+                timeframe=interval,
+                start_time_ms=start_time_ms,
+                end_time_ms=end_time_ms,
             )
+            await hyperliquid_market_data_service.get_market_data(args)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
         assert (
@@ -298,9 +319,14 @@ class TestHyperliquidMarketDataServiceCandles:
 
         # Service should validate time range and raise ValueError directly
         with pytest.raises(ValueError) as exc_info:
-            await hyperliquid_market_data_service.get_market_data(
-                symbol, interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+            # Use GetMarketDataArgs instead of individual parameters
+            args = GetMarketDataArgs(
+                symbol=symbol,
+                timeframe=interval,
+                start_time_ms=start_time_ms,
+                end_time_ms=end_time_ms,
             )
+            await hyperliquid_market_data_service.get_market_data(args)
 
         assert "'end_time_ms' cannot be before 'start_time_ms'" in str(exc_info.value)
         # Request builder should not be called due to early validation
@@ -354,9 +380,14 @@ class TestHyperliquidMarketDataServiceCandles:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await hyperliquid_market_data_service.get_market_data(
-                symbol, interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+            # Use GetMarketDataArgs instead of individual parameters
+            args = GetMarketDataArgs(
+                symbol=symbol,
+                timeframe=interval,
+                start_time_ms=start_time_ms,
+                end_time_ms=end_time_ms,
             )
+            await hyperliquid_market_data_service.get_market_data(args)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Invalid candle snapshot response structure" in exc_info.value.message
@@ -418,9 +449,14 @@ class TestHyperliquidMarketDataServiceCandles:
             )
 
             with pytest.raises(APIError) as exc_info:
-                await hyperliquid_market_data_service.get_market_data(
-                    symbol, interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+                # Use GetMarketDataArgs instead of individual parameters
+                args = GetMarketDataArgs(
+                    symbol=symbol,
+                    timeframe=interval,
+                    start_time_ms=start_time_ms,
+                    end_time_ms=end_time_ms,
                 )
+                await hyperliquid_market_data_service.get_market_data(args)
 
             assert exc_info.value.code == APIErrorCode.UNKNOWN.value
             assert "Service internal logic error." in exc_info.value.message
@@ -482,9 +518,14 @@ class TestHyperliquidMarketDataServiceCandles:
         with patch.object(hyperliquid_market_data_service, "_mapper") as mock_mapper_instance:
             mock_mapper_instance.transform_raw_candle_snapshot_to_candles.return_value = []
 
-            result = await hyperliquid_market_data_service.get_market_data(
-                symbol, interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+            # Use GetMarketDataArgs instead of individual parameters
+            args = GetMarketDataArgs(
+                symbol=symbol,
+                timeframe=interval,
+                start_time_ms=start_time_ms,
+                end_time_ms=end_time_ms,
             )
+            result = await hyperliquid_market_data_service.get_market_data(args)
 
             assert result == []
             mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
@@ -527,9 +568,14 @@ class TestHyperliquidMarketDataServiceCandles:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await hyperliquid_market_data_service.get_market_data(
-                symbol, interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+            # Use GetMarketDataArgs instead of individual parameters
+            args = GetMarketDataArgs(
+                symbol=symbol,
+                timeframe=interval,
+                start_time_ms=start_time_ms,
+                end_time_ms=end_time_ms,
             )
+            await hyperliquid_market_data_service.get_market_data(args)
 
         assert exc_info.value.code == APIErrorCode.SERVER_ERROR.value
         assert exc_info.value.http_status == 500
@@ -605,9 +651,14 @@ class TestHyperliquidMarketDataServiceCandles:
                     expected_candle
                 ]
 
-                result = await hyperliquid_market_data_service.get_market_data(
-                    symbol, interval, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+                # Use GetMarketDataArgs instead of individual parameters
+                args = GetMarketDataArgs(
+                    symbol=symbol,
+                    timeframe=interval,
+                    start_time_ms=start_time_ms,
+                    end_time_ms=end_time_ms,
                 )
+                result = await hyperliquid_market_data_service.get_market_data(args)
 
                 assert len(result) == 1
                 assert result[0].interval == interval

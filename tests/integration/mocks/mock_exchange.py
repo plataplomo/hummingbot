@@ -7,12 +7,16 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
+from pydantic import BaseModel
+
 from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
 
 # Added import for ValidationError
 # Import Fill type
 from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAPI, MessageHandler
-from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
+from cyberdelta.apis.models.service_args_models import (
+    PlaceOrderArgs,
+)
 
 # Correct the import to use the new typing module
 # REMOVED INCORRECT IMPORT: from cyberdelta.core.symbol_mapper import Symbol
@@ -659,7 +663,7 @@ class MockExchangeAPI(ExchangeAPI):
         # Simulate fills/trades if filled
         if order.status in [OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED]:
             trade_fee_rate = self.taker_fee  # Assume taker for market/aggressive limit
-            if order_type == OrderType.LIMIT and post_only:
+            if args.order_type == OrderType.LIMIT and args.post_only:
                 trade_fee_rate = self.maker_fee
 
             # Use avg_fill_price if available, otherwise fallback
@@ -678,10 +682,10 @@ class MockExchangeAPI(ExchangeAPI):
                 id=f"mock_trade_{order.client_order_id}",
                 order_id=order.client_order_id,
                 exchange=self.exchange_name,
-                symbol=symbol,
+                symbol=args.symbol,
                 price=fill_price_for_trade,
                 quantity=qty_filled,
-                side=side,
+                side=args.side,
                 fee=trade_fee,
                 fee_asset=self.fee_asset,
                 is_maker=(trade_fee_rate == self.maker_fee),
@@ -861,16 +865,20 @@ class MockExchangeAPI(ExchangeAPI):
 
     # --- ADDED PLACEHOLDERS FOR MISSING ExchangeAPI ABSTRACT METHODS ---
 
-    def _construct_subscription_payload(self, topic: str) -> dict[str, Any] | None:
+    def _construct_subscription_payload(self, topic: str) -> BaseModel:
         """Mock implementation for constructing subscription payload."""
         logger.debug(f"MockExchange {self.exchange_name}: Constructing payload for {topic}")
-        # Return a generic payload or None, depending on what the base class expects
-        # or what tests might require.
+        # Return a generic payload as a BaseModel
+
+        class MockSubscriptionPayload(BaseModel):
+            op: str
+            args: list[str]
+
         if "orderbook" in topic.lower():
-            return {"op": "subscribe", "args": [topic]}
+            return MockSubscriptionPayload(op="subscribe", args=[topic])
         if "trades" in topic.lower():
-            return {"op": "subscribe", "args": [topic]}
-        return None
+            return MockSubscriptionPayload(op="subscribe", args=[topic])
+        return MockSubscriptionPayload(op="subscribe", args=[topic])
 
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
         """Return mock funding rates for multiple symbols."""

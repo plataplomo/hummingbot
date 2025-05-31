@@ -581,12 +581,12 @@ class HyperliquidAccountService:
                             f"{e_map_item}. Raw: {raw_order_repr}"
                         )
 
-            if symbol:
+            if args.symbol:
                 # Assuming Order object has an instrument_symbol attribute after mapping
                 # which would correspond to raw_hist_order.asset
-                filtered_orders = [o for o in internal_orders if o.symbol == symbol]
+                filtered_orders = [o for o in internal_orders if o.symbol == args.symbol]
                 logger.debug(
-                    f"[{self._exchange_name}] Filtered order history for symbol '{symbol}': "
+                    f"[{self._exchange_name}] Filtered order history for symbol '{args.symbol}': "
                     f"{len(filtered_orders)} orders"
                 )
                 return filtered_orders
