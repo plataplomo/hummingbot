@@ -1,0 +1,127 @@
+[
+  {
+    "openInterest": "1189799.4",
+    "symbol": "SUI_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "1049038.45",
+    "symbol": "XRP_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "459148",
+    "symbol": "ADA_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "2018.564",
+    "symbol": "BNB_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "716354",
+    "symbol": "ONDO_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "288719.14",
+    "symbol": "SOL_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "624.27482",
+    "symbol": "BTC_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "25327.14",
+    "symbol": "AVAX_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "45309.4",
+    "symbol": "DOT_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "137099.98",
+    "symbol": "TRUMP_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "286352.4",
+    "symbol": "BERA_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "35276",
+    "symbol": "LINK_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "9670.4388",
+    "symbol": "ETH_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "127244.94",
+    "symbol": "HYPE_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "5513708.6",
+    "symbol": "DOGE_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "3953.2",
+    "symbol": "LTC_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "1747945.6",
+    "symbol": "FARTCOIN_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "1980726.2",
+    "symbol": "JUP_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "3088.04",
+    "symbol": "AAVE_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "347398",
+    "symbol": "KAITO_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "404176",
+    "symbol": "WIF_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "2537993.6",
+    "symbol": "ENA_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "34253.8",
+    "symbol": "IP_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "644110.2",
+    "symbol": "ARB_USDC_PERP",
+    "timestamp": 1748728431158
+  },
+  {
+    "openInterest": "1055592",
+    "symbol": "S_USDC_PERP",
+    "timestamp": 1748728431158
+  }
+]

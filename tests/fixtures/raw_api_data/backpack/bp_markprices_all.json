@@ -1,0 +1,177 @@
+[
+  {
+    "fundingRate": "0.0001",
+    "indexPrice": "253.06357233",
+    "markPrice": "252.99103351",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "AAVE_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.0001",
+    "indexPrice": "0.69215571",
+    "markPrice": "0.69186721",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "ADA_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000035883",
+    "indexPrice": "0.34385345",
+    "markPrice": "0.34353953",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "ARB_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000116679",
+    "indexPrice": "20.98645576",
+    "markPrice": "20.97069897",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "AVAX_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000396427",
+    "indexPrice": "2.31936611",
+    "markPrice": "2.31782953",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "BERA_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000114532",
+    "indexPrice": "660.50612327",
+    "markPrice": "660.41953202",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "BNB_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000001804",
+    "indexPrice": "104894.95283403",
+    "markPrice": "104840.67945205",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000049003",
+    "indexPrice": "0.19507142",
+    "markPrice": "0.19497751",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "DOGE_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000038158",
+    "indexPrice": "4.11125159",
+    "markPrice": "4.11022005",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "DOT_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000194514",
+    "indexPrice": "0.31009155",
+    "markPrice": "0.31003316",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "ENA_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000029585",
+    "indexPrice": "2544.17694211",
+    "markPrice": "2542.43918181",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "ETH_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.0001",
+    "indexPrice": "1.09344331",
+    "markPrice": "1.09398615",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "FARTCOIN_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.0001",
+    "indexPrice": "33.31883766",
+    "markPrice": "33.31757555",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "HYPE_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000257773",
+    "indexPrice": "4.20789821",
+    "markPrice": "4.20597201",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "IP_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.0001",
+    "indexPrice": "0.53421308",
+    "markPrice": "0.53401847",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "JUP_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000661815",
+    "indexPrice": "1.98324297",
+    "markPrice": "1.98098418",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "KAITO_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.0001",
+    "indexPrice": "14.16342368",
+    "markPrice": "14.16548138",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "LINK_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.0001",
+    "indexPrice": "87.82137038",
+    "markPrice": "87.80710738",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "LTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000081959",
+    "indexPrice": "0.83989552",
+    "markPrice": "0.8398131",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "ONDO_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000245993",
+    "indexPrice": "157.74953162",
+    "markPrice": "157.6378395",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "SOL_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.0001",
+    "indexPrice": "3.28956872",
+    "markPrice": "3.28984391",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "SUI_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000138777",
+    "indexPrice": "0.39734336",
+    "markPrice": "0.39720063",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "S_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000153144",
+    "indexPrice": "11.33424808",
+    "markPrice": "11.32955423",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "TRUMP_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000284629",
+    "indexPrice": "0.859546",
+    "markPrice": "0.85899738",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "WIF_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.0001",
+    "indexPrice": "2.19645372",
+    "markPrice": "2.19579909",
+    "nextFundingTimestamp": 1748736000000,
+    "symbol": "XRP_USDC_PERP"
+  }
+]

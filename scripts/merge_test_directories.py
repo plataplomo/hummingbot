@@ -1,8 +1,9 @@
-#!/usr/bin/env python
-
+#!/usr/bin/env python3
 """
 Script to merge the /cyberdelta/tests directory into /tests
-This consolidates all tests into a single directory structure
+This consolidates all tests into a single directory structure.
+
+This script uses the CyberDeltaEngine configuration system for proper logging setup.
 """
 
 import glob
@@ -12,27 +13,37 @@ import shutil
 import sys
 from pathlib import Path
 
+from cyberdelta.config import get_app_settings
+from cyberdelta.config.logging_config import setup_logging
+
 logger = logging.getLogger(__name__)
 
 
 def ensure_directory_exists(directory: str | Path) -> None:
     """
-    Ensure the specified directory exists, create it if it doesn't
+    Ensure the specified directory exists, create it if it doesn't.
+
+    Args:
+        directory: Directory path to create if it doesn't exist
     """
     if not os.path.exists(directory):
         os.makedirs(directory)
-        print(f"Created directory: {directory}")
+        logger.info(f"Created directory: {directory}")
 
 
 def merge_directories(source_dir: str | Path, target_dir: str | Path) -> None:
     """
-    Merge all files from source_dir into target_dir
+    Merge all files from source_dir into target_dir.
+
+    Args:
+        source_dir: Source directory to merge from
+        target_dir: Target directory to merge into
     """
     # Ensure target directory exists
     ensure_directory_exists(target_dir)
 
     # Get list of files in source directory
-    source_files = glob.glob(os.path.join(source_dir, "*"))
+    source_files: list[str] = glob.glob(os.path.join(source_dir, "*"))
 
     for source_file in source_files:
         file_name = os.path.basename(source_file)
@@ -44,11 +55,11 @@ def merge_directories(source_dir: str | Path, target_dir: str | Path) -> None:
         else:
             # Check if the target file already exists
             if os.path.exists(target_file):
-                print(f"Warning: File {target_file} already exists. Skipping.")
+                logger.warning(f"File {target_file} already exists. Skipping.")
             else:
                 # Copy the file
                 shutil.copy2(source_file, target_file)
-                print(f"Copied: {source_file} -> {target_file}")
+                logger.info(f"Copied: {source_file} -> {target_file}")
 
                 # Update imports if it's a Python file
                 if target_file.endswith(".py"):
@@ -59,31 +70,50 @@ def merge_directories(source_dir: str | Path, target_dir: str | Path) -> None:
 
 def update_imports(file_path: str | Path) -> None:
     """
-    Update imports in the file to reflect the new directory structure
+    Update imports in the file to reflect the new directory structure.
+
+    Args:
+        file_path: Path to the Python file to update
     """
-    with open(file_path) as file:
-        content = file.read()
+    try:
+        with open(file_path, encoding="utf-8") as file:
+            content = file.read()
 
-    # Update common import patterns
-    replacements = [
-        ("from cyberdelta.tests", "from tests"),
-        ("import cyberdelta.tests", "import tests"),
-    ]
+        # Update common import patterns
+        replacements = [
+            ("from cyberdelta.tests", "from tests"),
+            ("import cyberdelta.tests", "import tests"),
+        ]
 
-    updated_content = content
-    for old, new in replacements:
-        updated_content = updated_content.replace(old, new)
+        updated_content = content
+        for old, new in replacements:
+            updated_content = updated_content.replace(old, new)
 
-    if updated_content != content:
-        with open(file_path, "w") as file:
-            file.write(updated_content)
-        print(f"Updated imports in: {file_path}")
+        if updated_content != content:
+            with open(file_path, "w", encoding="utf-8") as file:
+                file.write(updated_content)
+            logger.info(f"Updated imports in: {file_path}")
+
+    except Exception as e:
+        logger.error(f"Error updating imports in {file_path}: {e}")
 
 
 def main() -> None:
     """
-    Main function to merge test directories
+    Main function to merge test directories.
     """
+    # Initialize configuration and logging
+    try:
+        app_settings = get_app_settings()
+        setup_logging(app_settings)
+        logger.info("Configuration and logging initialized successfully")
+    except Exception as e:
+        # Fallback to basic logging if config fails
+        logging.basicConfig(
+            level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+        logger.warning(f"Failed to initialize configuration: {e}. Using basic logging.")
+
     # Determine the project root directory
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(script_dir)
@@ -92,19 +122,22 @@ def main() -> None:
     source_dir = os.path.join(project_root, "cyberdelta", "tests")
     target_dir = os.path.join(project_root, "tests")
 
-    print(f"Merging tests from {source_dir} to {target_dir}...")
+    logger.info(f"Merging tests from {source_dir} to {target_dir}...")
 
     # Check if source directory exists
     if not os.path.exists(source_dir):
-        print(f"Error: Source directory {source_dir} does not exist.")
+        logger.error(f"Source directory {source_dir} does not exist.")
         sys.exit(1)
 
     # Merge directories
-    merge_directories(source_dir, target_dir)
-
-    print("Test directory merge completed successfully.")
-    print("Please review the merged files to ensure everything is correct.")
-    print("After verification, you can remove the original /cyberdelta/tests directory.")
+    try:
+        merge_directories(source_dir, target_dir)
+        logger.info("Test directory merge completed successfully.")
+        logger.info("Please review the merged files to ensure everything is correct.")
+        logger.info("After verification, you can remove the original /cyberdelta/tests directory.")
+    except Exception as e:
+        logger.error(f"Error during directory merge: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
