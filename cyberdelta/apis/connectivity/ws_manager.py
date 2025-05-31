@@ -134,10 +134,30 @@ class WebSocketManager:
             return self._connection_task
 
         self._logger.info(f"Connection requested for {self._ws_url}. Creating new task.")
-        self._connection_task = self._task_factory(
-            self._establish_connection(), name=f"{self._exchange_name}_ws_establish_conn"
-        )
-        return self._connection_task
+        connection_coroutine = None
+        try:
+            connection_coroutine = self._establish_connection()
+            self._connection_task = self._task_factory(
+                connection_coroutine, name=f"{self._exchange_name}_ws_establish_conn"
+            )
+            return self._connection_task
+        except RuntimeError as e:
+            if "no running event loop" in str(e):
+                self._logger.debug(
+                    "Cannot create connection task: no running event loop (likely test cleanup)"
+                )
+                # Close the coroutine to prevent the warning
+                if connection_coroutine:
+                    connection_coroutine.close()
+                return None
+            else:
+                raise
+        except Exception as e:
+            self._logger.error(f"Failed to create connection task: {e}")
+            # Close the coroutine to prevent the warning
+            if connection_coroutine:
+                connection_coroutine.close()
+            return None
 
     async def _establish_connection(self) -> None:
         """
@@ -416,11 +436,20 @@ class WebSocketManager:
                 if self._connection_task is None or self._connection_task.done():
                     self._logger.info("Scheduling reconnection from listener task termination.")
                     try:
-                        self.connect()
+                        reconnect_task = self.connect()
+                        if reconnect_task:
+                            self._logger.debug(
+                                f"Reconnection task created: {reconnect_task.get_name()}"
+                            )
+                        else:
+                            self._logger.debug(
+                                "Reconnection task was not created (already connecting)"
+                            )
                     except RuntimeError as e:
                         if "no running event loop" in str(e):
                             self._logger.debug(
-                                "Cannot schedule reconnection: no running event loop (likely test cleanup)"
+                                "Cannot schedule reconnection: no running event loop "
+                                "(likely test cleanup)"
                             )
                         else:
                             raise
@@ -453,7 +482,13 @@ class WebSocketManager:
                         "Keep-alive: Connection reset during ping. Attempting to reconnect."
                     )
                     self._is_connected = False
-                    self.connect()
+                    reconnect_task = self.connect()
+                    if reconnect_task:
+                        self._logger.debug(
+                            f"Reconnection task created: {reconnect_task.get_name()}"
+                        )
+                    else:
+                        self._logger.debug("Reconnection task was not created (already connecting)")
                     break
 
                 self._logger.debug(f"Keep-alive: sleeping for {self._ping_interval}s after ping.")
@@ -472,10 +507,15 @@ class WebSocketManager:
                     f"[{self._exchange_name} _keep_alive] Attempting reconnect due to error."
                 )
                 new_connection_attempt_task = self.connect()
-                if not new_connection_attempt_task:
+                if new_connection_attempt_task:
                     self._logger.debug(
                         f"[{self._exchange_name} _keep_alive] "
-                        f"Reconnect from error did not start new task."
+                        f"Reconnect task created: {new_connection_attempt_task.get_name()}"
+                    )
+                else:
+                    self._logger.debug(
+                        f"[{self._exchange_name} _keep_alive] "
+                        f"Reconnect from error did not start new task (already connecting)."
                     )
         finally:
             self._logger.info(f"[{self._exchange_name} _keep_alive] Task ending.")
