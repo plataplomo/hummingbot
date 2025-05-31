@@ -1,5 +1,4 @@
 import base64
-import json
 import time
 import urllib.parse
 from collections.abc import Mapping
@@ -145,18 +144,21 @@ class BackpackEd25519Authenticator(IAuthenticator):
                 if filtered_params:
                     content_part_str = urllib.parse.urlencode(sorted(filtered_params.items()))
             elif method.upper() in ["POST", "PUT", "DELETE"] and data:
-                # Filter out None values and serialize to JSON
+                # Filter out None values and convert to query string format for signing
                 filtered_data = {k: v for k, v in data.items() if v is not None}
                 if filtered_data:
-                    content_part_str = json.dumps(
-                        filtered_data, separators=(",", ":"), sort_keys=True
-                    )
+                    # Convert all values to strings for urlencode, as per query string requirements
+                    # Backpack API expects content part in query string format even for JSON bodies
+                    stringified_data = {k: str(v_val) for k, v_val in filtered_data.items()}
+                    content_part_str = urllib.parse.urlencode(sorted(stringified_data.items()))
 
-            # Construct string to sign
-            string_to_sign = (
-                f"instruction={instruction_str}&{content_part_str}"
-                f"&timestamp={timestamp_ms}&window={window_ms}"
-            )
+            # Construct string to sign robustly to avoid double ampersands
+            sign_payload_parts = [f"instruction={instruction_str}"]
+            if content_part_str:  # Only add content_part_str if it's non-empty
+                sign_payload_parts.append(content_part_str)
+            sign_payload_parts.append(f"timestamp={timestamp_ms}")
+            sign_payload_parts.append(f"window={window_ms}")
+            string_to_sign = "&".join(sign_payload_parts)
 
             # Sign the string using ED25519
             signature_bytes = self._ed25519_private_key.sign(string_to_sign.encode("utf-8"))

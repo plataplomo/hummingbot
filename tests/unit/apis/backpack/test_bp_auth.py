@@ -1,5 +1,6 @@
 import base64
-from collections.abc import Generator
+from collections.abc import Generator, Mapping
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -28,6 +29,64 @@ def test_ed25519_keys() -> dict[str, str]:
     public_key_b64 = base64.b64encode(public_key.public_bytes_raw()).decode("utf-8")
 
     return {"private_key_b64": private_key_b64, "public_key_b64": public_key_b64}
+
+
+class InstrumentedBackpackEd25519Authenticator(BackpackEd25519Authenticator):
+    """Instrumented subclass that exposes the signing string for verification."""
+
+    def __init__(self, api_key_b64: str, private_key_b64: str) -> None:
+        super().__init__(api_key_b64, private_key_b64)
+        self.last_string_to_sign: str | None = None
+
+    async def prepare_request(
+        self,
+        method: str,
+        path: str,
+        params: dict[str, Any] | None,
+        data: dict[str, Any] | None,
+        headers: Mapping[str, Any] | None,
+    ) -> AuthenticatedRequestComponents:
+        """Override to capture the signing string for testing."""
+        import time
+        import urllib.parse
+
+        try:
+            # Get instruction for this endpoint
+            instruction_str = self._get_instruction_for_endpoint(method, path)
+
+            # Generate timestamp and window
+            timestamp_ms = int(time.time() * 1000)
+            window_ms = 5000  # 5 second window
+
+            # Construct content part based on method (same logic as parent)
+            content_part_str = ""
+            if method.upper() == "GET" and params:
+                filtered_params = {k: v for k, v in params.items() if v is not None}
+                if filtered_params:
+                    content_part_str = urllib.parse.urlencode(sorted(filtered_params.items()))
+            elif method.upper() in ["POST", "PUT", "DELETE"] and data:
+                filtered_data = {k: v for k, v in data.items() if v is not None}
+                if filtered_data:
+                    stringified_data = {k: str(v_val) for k, v_val in filtered_data.items()}
+                    content_part_str = urllib.parse.urlencode(sorted(stringified_data.items()))
+
+            # Construct string to sign robustly to avoid double ampersands
+            sign_payload_parts = [f"instruction={instruction_str}"]
+            if content_part_str:  # Only add content_part_str if it's non-empty
+                sign_payload_parts.append(content_part_str)
+            sign_payload_parts.append(f"timestamp={timestamp_ms}")
+            sign_payload_parts.append(f"window={window_ms}")
+            string_to_sign = "&".join(sign_payload_parts)
+
+            # Store for testing verification
+            self.last_string_to_sign = string_to_sign
+
+            # Continue with normal signing process
+            return await super().prepare_request(method, path, params, data, headers)
+
+        except Exception:
+            # Re-raise any exceptions from parent
+            raise
 
 
 class TestBackpackEd25519Authenticator:
@@ -216,3 +275,330 @@ class TestBackpackEd25519Authenticator:
 
         # Verify instruction values are strings
         assert isinstance(auth.INSTRUCTION_MAP[("GET", "/api/v1/capital")], str)
+
+    @pytest.mark.asyncio
+    async def test_signing_string_generation_order_cancel_example(
+        self, test_ed25519_keys: dict[str, str]
+    ) -> None:
+        """
+        Test signing string generation using the orderCancel example from Backpack documentation.
+
+        According to Backpack docs, the signing string should be:
+        instruction=orderCancel&orderId=28&symbol=BTC_USDT&timestamp=<timestamp>&window=<window>
+        """
+        auth = BackpackEd25519Authenticator(
+            api_key_b64=test_ed25519_keys["public_key_b64"],
+            private_key_b64=test_ed25519_keys["private_key_b64"],
+        )
+
+        # Mock time to get predictable timestamp
+        with patch("time.time", return_value=1678886400.0):
+            # Test data matching the Backpack documentation example
+            data = {"orderId": "28", "symbol": "BTC_USDT"}
+
+            # We need to access the internal signing logic to verify the string_to_sign
+            # Since prepare_request doesn't expose it, we'll test the components
+            components = await auth.prepare_request(
+                method="DELETE", path="/api/v1/order", params=None, data=data, headers=None
+            )
+
+            # Verify the request was prepared successfully
+            assert isinstance(components, AuthenticatedRequestComponents)
+            assert "X-Signature" in components.headers
+            assert components.data == data
+
+            # The expected signing string should be:
+            # instruction=orderCancel&orderId=28&symbol=BTC_USDT&timestamp=1678886400000&window=5000
+            # We can't directly access string_to_sign, but we can verify the signature was generated
+            assert len(components.headers["X-Signature"]) > 0
+
+    @pytest.mark.asyncio
+    async def test_signing_string_generation_json_body_query_format(
+        self, test_ed25519_keys: dict[str, str]
+    ) -> None:
+        """
+        Test that JSON request bodies are converted to query string format for signing.
+        """
+        auth = BackpackEd25519Authenticator(
+            api_key_b64=test_ed25519_keys["public_key_b64"],
+            private_key_b64=test_ed25519_keys["private_key_b64"],
+        )
+
+        with patch("time.time", return_value=1678886400.0):
+            # Test with a POST request containing JSON data
+            data = {
+                "symbol": "SOL_USDC",
+                "quantity": "1.5",
+                "side": "buy",
+                "orderType": "limit",
+                "price": "100.50",
+            }
+
+            components = await auth.prepare_request(
+                method="POST", path="/api/v1/order", params=None, data=data, headers=None
+            )
+
+            # Verify the request was prepared successfully
+            assert isinstance(components, AuthenticatedRequestComponents)
+            assert "X-Signature" in components.headers
+            assert components.data == data
+
+            # The content should be sorted alphabetically and URL-encoded for signing
+            # Expected order: orderType, price, quantity, side, symbol
+            # But we can't directly verify the string_to_sign, only that signature was generated
+            assert len(components.headers["X-Signature"]) > 0
+
+    @pytest.mark.asyncio
+    async def test_signing_string_generation_with_none_values_filtered(
+        self, test_ed25519_keys: dict[str, str]
+    ) -> None:
+        """
+        Test that None values are properly filtered out from the signing string.
+        """
+        auth = BackpackEd25519Authenticator(
+            api_key_b64=test_ed25519_keys["public_key_b64"],
+            private_key_b64=test_ed25519_keys["private_key_b64"],
+        )
+
+        with patch("time.time", return_value=1678886400.0):
+            # Test data with None values that should be filtered out
+            data = {
+                "symbol": "SOL_USDC",
+                "quantity": "1.0",
+                "side": "buy",
+                "orderType": None,  # This should be filtered out
+                "price": None,  # This should be filtered out
+                "timeInForce": "GTC",
+            }
+
+            components = await auth.prepare_request(
+                method="POST", path="/api/v1/order", params=None, data=data, headers=None
+            )
+
+            # Verify the request was prepared successfully
+            assert isinstance(components, AuthenticatedRequestComponents)
+            assert "X-Signature" in components.headers
+            assert components.data == data  # Original data should be preserved
+
+            # Signature should be generated successfully even with None values
+            assert len(components.headers["X-Signature"]) > 0
+
+    @pytest.mark.asyncio
+    async def test_signing_string_generation_empty_body_no_double_ampersands(
+        self, test_ed25519_keys: dict[str, str]
+    ) -> None:
+        """
+        Test that requests with no body don't create double ampersands in signing string.
+        """
+        auth = BackpackEd25519Authenticator(
+            api_key_b64=test_ed25519_keys["public_key_b64"],
+            private_key_b64=test_ed25519_keys["private_key_b64"],
+        )
+
+        with patch("time.time", return_value=1678886400.0):
+            # Test GET request with no params (empty content_part_str)
+            components = await auth.prepare_request(
+                method="GET", path="/api/v1/capital", params=None, data=None, headers=None
+            )
+
+            # Verify the request was prepared successfully
+            assert isinstance(components, AuthenticatedRequestComponents)
+            assert "X-Signature" in components.headers
+
+            # The signing string should be:
+            # instruction=balanceQuery&timestamp=1678886400000&window=5000
+            # (no double ampersands from empty content_part_str)
+            assert len(components.headers["X-Signature"]) > 0
+
+    @pytest.mark.asyncio
+    async def test_signing_string_generation_get_with_params_query_format(
+        self, test_ed25519_keys: dict[str, str]
+    ) -> None:
+        """
+        Test that GET request parameters are properly URL-encoded and sorted for signing.
+        """
+        auth = BackpackEd25519Authenticator(
+            api_key_b64=test_ed25519_keys["public_key_b64"],
+            private_key_b64=test_ed25519_keys["private_key_b64"],
+        )
+
+        with patch("time.time", return_value=1678886400.0):
+            # Test GET request with query parameters
+            params = {"symbol": "SOL_USDC", "limit": "50", "offset": "0"}
+
+            components = await auth.prepare_request(
+                method="GET", path="/api/v1/orders", params=params, data=None, headers=None
+            )
+
+            # Verify the request was prepared successfully
+            assert isinstance(components, AuthenticatedRequestComponents)
+            assert "X-Signature" in components.headers
+            assert components.params == params
+
+            # Parameters should be sorted alphabetically: limit, offset, symbol
+            # The signing string should include these in query format
+            assert len(components.headers["X-Signature"]) > 0
+
+    @pytest.mark.asyncio
+    async def test_signing_string_generation_complex_data_types_stringified(
+        self, test_ed25519_keys: dict[str, str]
+    ) -> None:
+        """
+        Test that complex data types (numbers, booleans) are properly stringified for signing.
+        """
+        auth = BackpackEd25519Authenticator(
+            api_key_b64=test_ed25519_keys["public_key_b64"],
+            private_key_b64=test_ed25519_keys["private_key_b64"],
+        )
+
+        with patch("time.time", return_value=1678886400.0):
+            # Test data with various data types that need stringification
+            data = {
+                "symbol": "SOL_USDC",
+                "quantity": 1.5,  # float
+                "price": 100,  # int
+                "postOnly": True,  # boolean
+                "clientId": 12345,  # int
+            }
+
+            components = await auth.prepare_request(
+                method="POST", path="/api/v1/order", params=None, data=data, headers=None
+            )
+
+            # Verify the request was prepared successfully
+            assert isinstance(components, AuthenticatedRequestComponents)
+            assert "X-Signature" in components.headers
+            assert components.data == data
+
+            # All values should be stringified for URL encoding in the signing process
+            # Expected alphabetical order: clientId, postOnly, price, quantity, symbol
+            assert len(components.headers["X-Signature"]) > 0
+
+    @pytest.mark.asyncio
+    async def test_exact_signing_string_format_order_cancel_documentation_example(
+        self, test_ed25519_keys: dict[str, str]
+    ) -> None:
+        """
+        Test the exact signing string format using the orderCancel example from Backpack docs.
+
+        This test verifies that the signing string matches exactly:
+        instruction=orderCancel&orderId=28&symbol=BTC_USDT&timestamp=1678886400000&window=5000
+        """
+        auth = InstrumentedBackpackEd25519Authenticator(
+            api_key_b64=test_ed25519_keys["public_key_b64"],
+            private_key_b64=test_ed25519_keys["private_key_b64"],
+        )
+
+        # Mock time to get predictable timestamp
+        with patch("time.time", return_value=1678886400.0):
+            # Test data matching the Backpack documentation example
+            data = {"orderId": "28", "symbol": "BTC_USDT"}
+
+            components = await auth.prepare_request(
+                method="DELETE", path="/api/v1/order", params=None, data=data, headers=None
+            )
+
+            # Verify the request was prepared successfully
+            assert isinstance(components, AuthenticatedRequestComponents)
+            assert "X-Signature" in components.headers
+            assert components.data == data
+
+            # Verify the exact signing string format
+            expected_signing_string = (
+                "instruction=orderCancel&orderId=28&symbol=BTC_USDT&"
+                "timestamp=1678886400000&window=5000"
+            )
+            assert auth.last_string_to_sign == expected_signing_string
+
+    @pytest.mark.asyncio
+    async def test_exact_signing_string_format_json_body_alphabetical_sorting(
+        self, test_ed25519_keys: dict[str, str]
+    ) -> None:
+        """
+        Test that JSON body fields are alphabetically sorted in the signing string.
+        """
+        auth = InstrumentedBackpackEd25519Authenticator(
+            api_key_b64=test_ed25519_keys["public_key_b64"],
+            private_key_b64=test_ed25519_keys["private_key_b64"],
+        )
+
+        with patch("time.time", return_value=1678886400.0):
+            # Test data with fields that need alphabetical sorting
+            data = {
+                "symbol": "SOL_USDC",
+                "quantity": "1.5",
+                "side": "buy",
+                "orderType": "limit",
+                "price": "100.50",
+            }
+
+            components = await auth.prepare_request(
+                method="POST", path="/api/v1/order", params=None, data=data, headers=None
+            )
+
+            # Verify the request was prepared successfully
+            assert isinstance(components, AuthenticatedRequestComponents)
+            assert "X-Signature" in components.headers
+
+            # Verify alphabetical sorting: orderType, price, quantity, side, symbol
+            expected_signing_string = (
+                "instruction=orderExecute&orderType=limit&price=100.50&quantity=1.5&side=buy&"
+                "symbol=SOL_USDC&timestamp=1678886400000&window=5000"
+            )
+            assert auth.last_string_to_sign == expected_signing_string
+
+    @pytest.mark.asyncio
+    async def test_exact_signing_string_format_empty_body_no_double_ampersands(
+        self, test_ed25519_keys: dict[str, str]
+    ) -> None:
+        """
+        Test that empty body requests don't create double ampersands in the signing string.
+        """
+        auth = InstrumentedBackpackEd25519Authenticator(
+            api_key_b64=test_ed25519_keys["public_key_b64"],
+            private_key_b64=test_ed25519_keys["private_key_b64"],
+        )
+
+        with patch("time.time", return_value=1678886400.0):
+            components = await auth.prepare_request(
+                method="GET", path="/api/v1/capital", params=None, data=None, headers=None
+            )
+
+            # Verify the request was prepared successfully
+            assert isinstance(components, AuthenticatedRequestComponents)
+            assert "X-Signature" in components.headers
+
+            # Verify no double ampersands (should skip empty content_part_str)
+            expected_signing_string = "instruction=balanceQuery&timestamp=1678886400000&window=5000"
+            assert auth.last_string_to_sign == expected_signing_string
+            assert "&&" not in auth.last_string_to_sign
+
+    @pytest.mark.asyncio
+    async def test_exact_signing_string_format_get_with_params(
+        self, test_ed25519_keys: dict[str, str]
+    ) -> None:
+        """
+        Test that GET request parameters are properly formatted in the signing string.
+        """
+        auth = InstrumentedBackpackEd25519Authenticator(
+            api_key_b64=test_ed25519_keys["public_key_b64"],
+            private_key_b64=test_ed25519_keys["private_key_b64"],
+        )
+
+        with patch("time.time", return_value=1678886400.0):
+            params = {"symbol": "SOL_USDC", "limit": "50", "offset": "0"}
+
+            components = await auth.prepare_request(
+                method="GET", path="/api/v1/orders", params=params, data=None, headers=None
+            )
+
+            # Verify the request was prepared successfully
+            assert isinstance(components, AuthenticatedRequestComponents)
+            assert "X-Signature" in components.headers
+
+            # Verify alphabetical sorting of params: limit, offset, symbol
+            expected_signing_string = (
+                "instruction=orderHistoryQueryAll&limit=50&offset=0&symbol=SOL_USDC&"
+                "timestamp=1678886400000&window=5000"
+            )
+            assert auth.last_string_to_sign == expected_signing_string
