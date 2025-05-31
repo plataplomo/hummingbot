@@ -19,6 +19,7 @@ from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetFundingRatesArgs,
     GetOrderHistoryArgs,
+    GetTradeHistoryArgs,
     PlaceOrderArgs,
 )
 from cyberdelta.config.config_models import ExchangeSpecificConfig
@@ -676,10 +677,10 @@ class TestHyperliquidAPIAccountOperations:
         mock_hl_account_service.get_trade_history.return_value = expected_trades
 
         # Test delegation
-        result = await api.get_trade_history(symbol="ETH")
+        result = await api.get_trade_history(args=GetTradeHistoryArgs(symbol="ETH"))
 
         # Verify service was called with correct parameters
-        mock_hl_account_service.get_trade_history.assert_called_once_with(symbol="ETH")
+        mock_hl_account_service.get_trade_history.assert_called_once_with(args=GetTradeHistoryArgs(symbol="ETH"))
         assert result == expected_trades
 
         await api.close()

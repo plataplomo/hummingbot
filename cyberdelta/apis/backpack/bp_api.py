@@ -45,9 +45,11 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
+    GetAllOpenOrdersArgs,
     GetFundingRatesArgs,
     GetMarketDataArgs,
     GetOrderHistoryArgs,
+    GetTradeHistoryArgs,
     PlaceOrderArgs,
     TransferArgs,
     WithdrawArgs,
@@ -389,9 +391,13 @@ class BackpackAPI(ExchangeAPI):
         """Get historical orders."""
         return await self.account_service.get_order_history(args=args)
 
-    async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
-        """Get recent trade history."""
-        return await self.account_service.get_trade_history(symbol=symbol, limit=limit)
+    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
+        """Get recent trade history.
+        
+        Args:
+            args: Parameters for filtering trade history including symbol and limit.
+        """
+        return await self.account_service.get_trade_history(args=args)
 
     async def connect_websocket(self) -> None:
         """Establish the WebSocket connection using the base class logic."""
@@ -438,9 +444,13 @@ class BackpackAPI(ExchangeAPI):
             path,
         )
 
-    async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
-        """Fetch all open orders."""
-        return await self.trading_service.get_all_open_orders(symbol=symbol)
+    async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
+        """Fetch all open orders.
+        
+        Args:
+            args: Parameters for filtering open orders including optional symbol.
+        """
+        return await self.trading_service.get_all_open_orders(args=args)
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
         """Register a handler for a WebSocket topic and send subscription via WebSocketManager."""

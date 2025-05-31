@@ -44,9 +44,11 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
+    GetAllOpenOrdersArgs,
     GetFundingRatesArgs,
     GetMarketDataArgs,
     GetOrderHistoryArgs,
+    GetTradeHistoryArgs,
     PlaceOrderArgs,
     TransferArgs,
     WithdrawArgs,
@@ -465,13 +467,13 @@ class HyperliquidAPI(ExchangeAPI):
         """Get historical orders."""
         return await self.account_service.get_order_history(args=args)
 
-    async def get_trade_history(
-        self,
-        symbol: str | None = None,
-        limit: int = 100,
-    ) -> list[Trade]:
-        """Get recent trade history."""
-        return await self.account_service.get_trade_history(symbol=symbol)
+    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
+        """Get recent trade history.
+        
+        Args:
+            args: Parameters for filtering trade history including symbol and limit.
+        """
+        return await self.account_service.get_trade_history(args=args)
 
     async def get_historical_funding_rates(
         self,
@@ -565,6 +567,10 @@ class HyperliquidAPI(ExchangeAPI):
         )
         await super()._resubscribe()
 
-    async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
-        """Retrieves all open orders, optionally filtered by symbol. Alias for get_open_orders."""
-        return await self.trading_service.get_open_orders(symbol=symbol)
+    async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
+        """Retrieves all open orders, optionally filtered by symbol.
+        
+        Args:
+            args: Parameters for filtering open orders including optional symbol.
+        """
+        return await self.trading_service.get_all_open_orders(args=args)

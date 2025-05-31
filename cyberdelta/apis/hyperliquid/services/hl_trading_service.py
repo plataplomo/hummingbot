@@ -51,7 +51,11 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
 )
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import CancelOrderArgs, PlaceOrderArgs
+from cyberdelta.apis.models.service_args_models import (
+    CancelOrderArgs,
+    GetAllOpenOrdersArgs,
+    PlaceOrderArgs,
+)
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
@@ -957,6 +961,81 @@ class HyperliquidTradingService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure "
                 f"for cancel all orders: {e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unexpected
+
+    async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
+        """
+        Fetch all open orders, optionally filtering by symbol.
+        
+        Args:
+            args: Parameters for filtering open orders including optional symbol.
+        """
+        # Service Input Parameter Validation is now handled by GetAllOpenOrdersArgs Pydantic model
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_all_open_orders"
+
+        # Initialize context for error handling
+        status_code: int = 0
+        raw_response_content: str | None = None
+
+        try:
+            # Core operational logic - delegate to get_open_orders with validated symbol
+            return await self.get_open_orders(symbol=args.symbol)
+
+        except APIError:
+            # Re-raise APIErrors from get_open_orders method
+            raise
+        except TransformationError as e_transform:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data: {e_transform}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error: "
+                f"{e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure: "
+                f"{e_unexpected}",
                 exc_info=True,
             )
             raise APIError(

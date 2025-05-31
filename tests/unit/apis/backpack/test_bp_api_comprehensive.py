@@ -15,9 +15,11 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
+    GetAllOpenOrdersArgs,
     GetFundingRatesArgs,
     GetMarketDataArgs,
     GetOrderHistoryArgs,
+    GetTradeHistoryArgs,
     PlaceOrderArgs,
     TransferArgs,
     WithdrawArgs,
@@ -482,7 +484,7 @@ class TestBackpackAPIPublicBehavior:
         with patch.object(
             backpack_api.account_service, "get_trade_history", return_value=mock_trades
         ):
-            result = await backpack_api.get_trade_history("SOL_USDC", 50)
+            result = await backpack_api.get_trade_history(args=GetTradeHistoryArgs(symbol="SOL_USDC", limit=50))
 
             assert result == mock_trades
             assert len(result) == 10
@@ -542,7 +544,7 @@ class TestBackpackAPIPublicBehavior:
         with patch.object(
             backpack_api.trading_service, "get_all_open_orders", return_value=mock_orders
         ):
-            result = await backpack_api.get_all_open_orders("SOL_USDC")
+            result = await backpack_api.get_all_open_orders(args=GetAllOpenOrdersArgs(symbol="SOL_USDC"))
 
             assert result == mock_orders
             assert len(result) == 7

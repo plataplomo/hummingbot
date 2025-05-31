@@ -32,6 +32,7 @@ from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     GetOrderHistoryArgs,
+    GetTradeHistoryArgs,
     TransferArgs,
     WithdrawArgs,
 )
@@ -1053,18 +1054,15 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
-    async def get_trade_history(
-        self,
-        symbol: str | None = None,
-        limit: int | None = 100,  # Match service stub signature
-    ) -> list[Trade]:
-        """Retrieves historical trade data (fills)."""
-        # Service Input Parameter Validation
+    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
+        """Retrieves historical trade data (fills).
+        
+        Args:
+            args: Parameters for filtering trade history including symbol and limit.
+        """
+        # Service Input Parameter Validation is now handled by GetTradeHistoryArgs Pydantic model
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_trade_history"
-
-        if limit is not None and limit <= 0:
-            raise ValueError(f"[{current_method}] 'limit' must be positive if provided.")
 
         # Initialize context for error handling
         raw_data: ParsedJsonResponse | None = None
@@ -1077,8 +1075,8 @@ class BackpackAccountService:
 
             # The builder supports more parameters, pass None for those not in service signature
             params = self._request_builder.build_get_trade_history_params(
-                symbol=symbol,
-                limit=limit,
+                symbol=args.symbol,
+                limit=args.limit,
                 start_time_ms=None,  # Not in service signature
                 end_time_ms=None,  # Not in service signature
                 from_id=None,  # Not in service signature
@@ -1112,7 +1110,7 @@ class BackpackAccountService:
                 )
 
             raw_trades_list: list[BackpackRawTrade] = (
-                self._response_handler.handle_get_trade_history_response(raw_data, symbol)
+                self._response_handler.handle_get_trade_history_response(raw_data, args.symbol)
             )
 
             internal_trades: list[Trade] = []

@@ -54,6 +54,7 @@ from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     GetOrderHistoryArgs,
+    GetTradeHistoryArgs,
     TransferArgs,
     WithdrawArgs,
 )
@@ -651,21 +652,19 @@ class HyperliquidAccountService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
-    async def get_trade_history(
-        self,
-        symbol: str | None = None,  # HL userFills doesn't filter by symbol at request time
-        # start_time, end_time, limit are not typical for HL userFills endpoint
-        # Filtering will be client-side if needed.
-    ) -> list[Trade]:
-        """Retrieves user trade history (fills)."""
-        # Service Input Parameter Validation
+    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
+        """Retrieves user trade history (fills).
+        
+        Args:
+            args: Parameters for filtering trade history including symbol and limit.
+            
+        Note:
+            Hyperliquid's userFills endpoint doesn't support server-side filtering.
+            Symbol filtering and limit are applied client-side after fetching all fills.
+        """
+        # Service Input Parameter Validation is now handled by GetTradeHistoryArgs Pydantic model
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_trade_history"
-
-        if symbol is not None and not symbol:
-            raise ValueError(
-                f"[{current_method}] 'symbol' must be a non-empty string when provided."
-            )
 
         # Initialize context for error handling
         raw_response_list: ParsedJsonResponse | None = None
@@ -749,14 +748,18 @@ class HyperliquidAccountService:
                             raw_fill_obj
                         )
                         # Apply symbol filtering if specified
-                        if symbol is None or mapped_trade.symbol == symbol:
+                        if args.symbol is None or mapped_trade.symbol == args.symbol:
                             internal_trades.append(mapped_trade)
                     except (ValidationError, ValueError) as e_map:
                         logger.warning(
                             f"[{self._exchange_name}] Error mapping raw user fill: {e_map}. "
                             f"Raw: {raw_fill_obj}. Skipping."
                         )
-            logger.debug(f"[{self._exchange_name}] Mapped internal trades: {internal_trades}")
+            # Apply limit if specified
+            if args.limit is not None and len(internal_trades) > args.limit:
+                internal_trades = internal_trades[:args.limit]
+                
+            logger.debug(f"[{self._exchange_name}] Mapped internal trades: {len(internal_trades)} trades")
             return internal_trades
 
         except APIError:

@@ -20,9 +20,11 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
+    GetAllOpenOrdersArgs,
     GetFundingRatesArgs,
     GetMarketDataArgs,
     GetOrderHistoryArgs,
+    GetTradeHistoryArgs,
     PlaceOrderArgs,
     TransferArgs,
     WithdrawArgs,
@@ -151,7 +153,7 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
         return [MagicMock(spec=Order)]
 
-    async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
+    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
         return [MagicMock(spec=Trade)]
 
     async def get_order_status(
@@ -164,7 +166,7 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
         return MagicMock(spec=Order)
 
-    async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
+    async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
         return [MagicMock(spec=Order)]
 
     def _construct_subscription_payload(self, topic: str) -> BaseModel:
@@ -701,10 +703,10 @@ class TestExchangeAPIPublicInterface:
         await api.cancel_all_orders()
         await api.get_open_orders()
         await api.get_order_history(GetOrderHistoryArgs())
-        await api.get_trade_history()
+        await api.get_trade_history(GetTradeHistoryArgs())
         await api.get_order_status("order123")
         await api.get_order("order123")
-        await api.get_all_open_orders()
+        await api.get_all_open_orders(GetAllOpenOrdersArgs())
 
         await api.close()
 

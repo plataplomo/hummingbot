@@ -19,6 +19,7 @@ from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetFundingRatesArgs,
     GetOrderHistoryArgs,
+    GetTradeHistoryArgs,
     PlaceOrderArgs,
 )
 from cyberdelta.config.config_models import ExchangeSpecificConfig
@@ -367,10 +368,14 @@ class TestBackpackAPIAccountOperations:
         mock_bp_account_service.get_trade_history.return_value = expected_trades
 
         # Test delegation
-        result = await api.get_trade_history(symbol="SOL", limit=50)
+        result = await api.get_trade_history(args=GetTradeHistoryArgs(
+            symbol="SOL", limit=50
+        ))
 
         # Verify service was called with correct parameters
-        mock_bp_account_service.get_trade_history.assert_called_once_with(symbol="SOL", limit=50)
+        mock_bp_account_service.get_trade_history.assert_called_once_with(args=GetTradeHistoryArgs(
+            symbol="SOL", limit=50
+        ))
         assert result == expected_trades
 
         await api.close()
@@ -858,7 +863,7 @@ class TestBackpackAPIComprehensiveErrorHandling:
 
         # Test exact error propagation
         with pytest.raises(APIError) as exc_info:
-            await api.get_trade_history()
+            await api.get_trade_history(args=GetTradeHistoryArgs())
 
         assert exc_info.value is service_unavailable_error  # Same instance
         assert exc_info.value.code == APIErrorCode.SERVICE_UNAVAILABLE.value

@@ -44,9 +44,11 @@ if TYPE_CHECKING:
     # Import models only needed for type hints here
     from cyberdelta.apis.models.service_args_models import (
         CancelOrderArgs,
+        GetAllOpenOrdersArgs,
         GetFundingRatesArgs,
         GetMarketDataArgs,
         GetOrderHistoryArgs,
+        GetTradeHistoryArgs,
         PlaceOrderArgs,
         TransferArgs,
         WithdrawArgs,
@@ -649,8 +651,12 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
-        """Fetch historical trade data (account fills)."""
+    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
+        """Fetch historical trade data (account fills).
+        
+        Args:
+            args: Parameters for filtering trade history including symbol and limit.
+        """
         raise NotImplementedError
 
     @abstractmethod
@@ -719,8 +725,12 @@ class ExchangeAPI(ABC):
     # --- Helper Methods --- #
 
     @abstractmethod
-    async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
-        """Fetch all open orders, optionally filtering by symbol."""
+    async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
+        """Fetch all open orders, optionally filtering by symbol.
+        
+        Args:
+            args: Parameters for filtering open orders including optional symbol.
+        """
         raise NotImplementedError
 
     # --- Transfer and Withdrawal Operations --- #

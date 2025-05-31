@@ -13,6 +13,7 @@ from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import GetAllOpenOrdersArgs
 
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.backpack.services.conftest_trading"]
@@ -717,7 +718,7 @@ class TestBackpackTradingServiceQueryStatus:
         with patch.object(bp_trading_service, "_trading_mapper", autospec=True) as mock_mapper:
             mock_mapper.transform_raw_order_to_internal.side_effect = mock_internal_orders
 
-            result = await bp_trading_service.get_all_open_orders()
+            result = await bp_trading_service.get_all_open_orders(args=GetAllOpenOrdersArgs())
 
             mock_request_builder.build_get_open_orders_params.assert_called_once_with(symbol=None)
             mock_http_client_requester.assert_called_once_with(

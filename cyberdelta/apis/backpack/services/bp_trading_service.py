@@ -24,7 +24,11 @@ from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import CancelOrderArgs, PlaceOrderArgs
+from cyberdelta.apis.models.service_args_models import (
+    CancelOrderArgs,
+    GetAllOpenOrdersArgs,
+    PlaceOrderArgs,
+)
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
@@ -868,27 +872,24 @@ class BackpackTradingService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
-    async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
+    async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
         """
         Fetch all open orders, optionally filtering by symbol.
-        This is an alias for get_open_orders as per Backpack API structure.
+        
+        Args:
+            args: Parameters for filtering open orders including optional symbol.
         """
-        # Service Input Parameter Validation
+        # Service Input Parameter Validation is now handled by GetAllOpenOrdersArgs Pydantic model
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_all_open_orders"
-
-        if symbol is not None and not symbol:
-            raise ValueError(
-                f"[{current_method}] 'symbol' must be a non-empty string when provided."
-            )
 
         # Initialize context for error handling
         status_code: int = 0
         raw_response_content: str | None = None
 
         try:
-            # Core operational logic - delegate to get_open_orders
-            return await self.get_open_orders(symbol=symbol)
+            # Core operational logic - delegate to get_open_orders with validated symbol
+            return await self.get_open_orders(symbol=args.symbol)
 
         except APIError:
             # Re-raise APIErrors from get_open_orders method

@@ -19,7 +19,7 @@ from typing import Any, Protocol
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
+from cyberdelta.apis.models.service_args_models import GetTradeHistoryArgs, PlaceOrderArgs
 from cyberdelta.core.models import (
     Order,
     OrderSide,
@@ -425,8 +425,9 @@ class OrderVerifier:
         if api_client:  # api_client itself can be None if not found for exchange
             try:
                 symbol_for_fills = local_order.symbol if local_order else None
-                # Directly call, assuming it's now part of ExchangeAPI protocol
-                fills_result = await api_client.get_trade_history(symbol=symbol_for_fills)
+                # Use GetTradeHistoryArgs for the new Pydantic-based interface
+                trade_history_args = GetTradeHistoryArgs(symbol=symbol_for_fills)
+                fills_result = await api_client.get_trade_history(args=trade_history_args)
                 # No need to check isinstance(fills_result, list) if protocol guarantees list[Trade]
                 recent_fills = fills_result  # Assign to recent_fills for potential use
                 verification_details["recent_fills_count"] = len(recent_fills)

@@ -11,7 +11,11 @@ import pytest
 
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
-from cyberdelta.apis.models.service_args_models import CancelOrderArgs, PlaceOrderArgs
+from cyberdelta.apis.models.service_args_models import (
+    CancelOrderArgs,
+    GetAllOpenOrdersArgs,
+    PlaceOrderArgs,
+)
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 
 # Import fixtures from the shared conftest
@@ -373,7 +377,7 @@ class TestBackpackTradingServiceAccountMisc:
         mock_response_handler.handle_get_open_orders_response.return_value = mock_raw_orders
 
         # Test that the service can get all open orders
-        result = await bp_trading_service.get_all_open_orders()
+        result = await bp_trading_service.get_all_open_orders(args=GetAllOpenOrdersArgs())
 
         # Verify the bulk query request was made correctly
         mock_http_client_requester.assert_called_once()

@@ -428,6 +428,66 @@ class GetFundingRatesArgs(BaseModel):
         return validated_symbols
 
 
+class GetTradeHistoryArgs(BaseModel):
+    """
+    Encapsulates arguments for fetching trade history (fills).
+
+    This model centralizes validation for trade history requests, ensuring consistent
+    handling of optional symbol filters and limit constraints.
+    """
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    symbol: str | None = Field(default=None)
+    limit: int | None = Field(default=100, gt=0)  # Default matches BackpackAPI
+
+    @field_validator("symbol", mode="before")
+    @classmethod
+    def validate_optional_strings(cls, v: str | None, info: ValidationInfo) -> str | None:
+        """Validate optional string fields."""
+        if v is None:
+            return None
+        return validate_str_field(v, field_name=str(info.field_name), max_length=64, allow_empty=False)
+
+    @field_validator("limit", mode="before")
+    @classmethod
+    def parse_optional_positive_int(cls, v: object, info: ValidationInfo) -> int | None:
+        """Parse optional positive integer fields."""
+        if v is None:
+            return None
+        if not isinstance(v, int | str | float):
+            field_name = str(info.field_name)
+            raise ValueError(f"Field '{field_name}' must be an integer or convertible.")
+        try:
+            int_val = int(v)
+            # Positivity (gt=0) is handled by Field constraint.
+            return int_val
+        except ValueError as e:
+            field_name = str(info.field_name)
+            raise ValueError(f"Field '{field_name}' could not be converted to int: {v}") from e
+
+
+class GetAllOpenOrdersArgs(BaseModel):
+    """
+    Encapsulates arguments for fetching all open orders.
+
+    This model centralizes validation for open orders requests, ensuring
+    the optional symbol filter is correctly validated if provided.
+    """
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    symbol: str | None = Field(default=None)  # Optional symbol to filter by
+
+    @field_validator("symbol", mode="before")
+    @classmethod
+    def validate_optional_symbol(cls, v: str | None, info: ValidationInfo) -> str | None:
+        """Validate optional symbol field."""
+        if v is None:
+            return None
+        return validate_str_field(v, field_name=str(info.field_name), max_length=64, allow_empty=False)
+
+
 __all__ = [
     "PlaceOrderArgs",
     "TransferArgs",
@@ -436,4 +496,6 @@ __all__ = [
     "GetMarketDataArgs",
     "CancelOrderArgs",
     "GetFundingRatesArgs",
+    "GetTradeHistoryArgs",
+    "GetAllOpenOrdersArgs",
 ]
