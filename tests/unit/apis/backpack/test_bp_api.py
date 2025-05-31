@@ -351,7 +351,7 @@ class TestBackpackAPIAccountOperations:
         result = await api.get_order_history(args)
 
         # Verify service was called with correct parameters
-        mock_bp_account_service.get_order_history.assert_called_once_with(args)
+        mock_bp_account_service.get_order_history.assert_called_once_with(args=args)
         assert result == expected_orders
 
         await api.close()

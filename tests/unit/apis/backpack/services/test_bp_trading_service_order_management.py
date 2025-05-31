@@ -64,7 +64,7 @@ class TestBackpackTradingServiceOrderManagement:
                 price=Decimal("100.0"),
             )
             await bp_trading_service.place_order(args=args)
-        assert "'quantity' must be a positive finite Decimal" in str(exc_info.value)
+        assert "Input should be greater than 0" in str(exc_info.value)
 
         # Test negative quantity
         with pytest.raises(ValueError) as exc_info:
@@ -77,7 +77,7 @@ class TestBackpackTradingServiceOrderManagement:
                 price=Decimal("100.0"),
             )
             await bp_trading_service.place_order(args=args)
-        assert "'quantity' must be a positive finite Decimal" in str(exc_info.value)
+        assert "Input should be greater than 0" in str(exc_info.value)
 
         # Test infinite quantity
         with pytest.raises(ValueError) as exc_info:
@@ -90,7 +90,7 @@ class TestBackpackTradingServiceOrderManagement:
                 price=Decimal("100.0"),
             )
             await bp_trading_service.place_order(args=args)
-        assert "'quantity' must be a positive finite Decimal" in str(exc_info.value)
+        assert "must be a finite decimal" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_place_order_invalid_price_validation(
@@ -109,7 +109,7 @@ class TestBackpackTradingServiceOrderManagement:
                 price=Decimal("0.0"),  # Invalid: zero price
             )
             await bp_trading_service.place_order(args=args)
-        assert "'price' must be a positive finite Decimal when provided" in str(exc_info.value)
+        assert "Input should be greater than 0" in str(exc_info.value)
 
         # Test negative price
         with pytest.raises(ValueError) as exc_info:
@@ -122,7 +122,7 @@ class TestBackpackTradingServiceOrderManagement:
                 price=Decimal("-50.0"),  # Invalid: negative price
             )
             await bp_trading_service.place_order(args=args)
-        assert "'price' must be a positive finite Decimal when provided" in str(exc_info.value)
+        assert "Input should be greater than 0" in str(exc_info.value)
 
         # Test infinite price
         with pytest.raises(ValueError) as exc_info:
@@ -135,7 +135,7 @@ class TestBackpackTradingServiceOrderManagement:
                 price=Decimal("inf"),  # Invalid: infinite price
             )
             await bp_trading_service.place_order(args=args)
-        assert "'price' must be a positive finite Decimal when provided" in str(exc_info.value)
+        assert "must be a finite decimal" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_place_order_invalid_stop_price_validation(
@@ -155,7 +155,7 @@ class TestBackpackTradingServiceOrderManagement:
                 stop_price=Decimal("-10.0"),  # Invalid: negative stop_price
             )
             await bp_trading_service.place_order(args=args)
-        assert "'stop_price' must be a positive finite Decimal when provided" in str(exc_info.value)
+        assert "Input should be greater than 0" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_cancel_order_empty_order_id_validation(

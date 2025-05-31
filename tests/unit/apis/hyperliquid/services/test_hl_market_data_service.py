@@ -1711,9 +1711,7 @@ class TestHyperliquidMarketDataService:
                 )
             )
 
-        assert "[get_market_data] 'end_time_ms' cannot be before 'start_time_ms'." in str(
-            exc_info.value
-        )
+        assert "start_time_ms must be before end_time_ms" in str(exc_info.value)
 
     # VII. COMPREHENSIVE ERROR CHAINING TESTS
 

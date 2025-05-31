@@ -328,7 +328,7 @@ class TestHyperliquidMarketDataServiceCandles:
             )
             await hyperliquid_market_data_service.get_market_data(args)
 
-        assert "'end_time_ms' cannot be before 'start_time_ms'" in str(exc_info.value)
+        assert "start_time_ms must be before end_time_ms" in str(exc_info.value)
         # Request builder should not be called due to early validation
         mock_hl_request_builder.build_candle_snapshot_payload.assert_not_called()
 
