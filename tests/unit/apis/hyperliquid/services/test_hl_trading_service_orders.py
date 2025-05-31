@@ -515,9 +515,14 @@ class TestHyperliquidTradingServiceOrders:
         wallet_address = "0xWallet"
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
 
-        # Configure the mock to return a payload
-        mock_payload = {"type": "openOrders", "user": wallet_address}
-        mock_hl_request_builder.build_open_orders_payload.return_value = mock_payload
+        # Configure the mock to return a payload for order status
+        from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
+            HyperliquidRawOrderStatusRequestPayload,
+        )
+        mock_payload = HyperliquidRawOrderStatusRequestPayload(
+            type="orderStatus", user=wallet_address, oid=int(order_id)
+        )
+        mock_hl_request_builder.build_order_status_payload.return_value = mock_payload
 
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
@@ -639,8 +644,13 @@ class TestHyperliquidTradingServiceOrders:
         wallet_address = "0xWallet"
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
 
-        # Configure the mock to return a payload
-        mock_payload = {"type": "openOrders", "user": wallet_address}
+        # Configure the mock to return a payload for open orders
+        from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
+            HyperliquidRawOpenOrdersRequestPayload,
+        )
+        mock_payload = HyperliquidRawOpenOrdersRequestPayload(
+            type="openOrders", user=wallet_address
+        )
         mock_hl_request_builder.build_open_orders_payload.return_value = mock_payload
 
         mock_http_client_requester.return_value = (None, 200, MagicMock())
@@ -710,6 +720,15 @@ class TestHyperliquidTradingServiceOrders:
             {"content-type": "application/json"},
         )
 
+        # Mock request builder to return expected payload
+        from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
+            HyperliquidRawOpenOrdersRequestPayload,
+        )
+        mock_payload = HyperliquidRawOpenOrdersRequestPayload(
+            type="openOrders", user=wallet_address
+        )
+        mock_hl_request_builder.build_open_orders_payload.return_value = mock_payload
+
         # Mock response handler to return raw Pydantic model
         mock_raw_response = HyperliquidRawOpenOrdersResponse.model_validate(mock_response_content)
         mock_hl_response_handler.handle_info_open_orders_response.return_value = mock_raw_response
@@ -751,10 +770,15 @@ class TestHyperliquidTradingServiceOrders:
 
         assert result == expected_orders
         assert len(result) == 2
+        # Verify request builder was called correctly
+        mock_hl_request_builder.build_open_orders_payload.assert_called_once_with(
+            wallet_address=wallet_address
+        )
+        # Verify HTTP request was made with the mock payload
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
-            data={"type": "openOrders", "user": wallet_address},
+            data=mock_payload.model_dump(by_alias=True),
             is_signed=True,
         )
         mock_hl_response_handler.handle_info_open_orders_response.assert_called_once_with(

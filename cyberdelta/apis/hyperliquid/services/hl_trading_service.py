@@ -43,7 +43,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOpenOrder,
-    HyperliquidRawOpenOrdersRequestPayload,
     HyperliquidRawOpenOrdersResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
@@ -213,8 +212,8 @@ class HyperliquidTradingService:
         if not self._wallet_address:
             raise APIError(_error_msg_wallet_addr, APIErrorCode.AUTHENTICATION_FAILED.value)
 
-        request_payload_model = HyperliquidRawOpenOrdersRequestPayload(
-            type="openOrders", user=self._wallet_address
+        request_payload_model = self._request_builder.build_open_orders_payload(
+            wallet_address=self._wallet_address
         )
 
         try:

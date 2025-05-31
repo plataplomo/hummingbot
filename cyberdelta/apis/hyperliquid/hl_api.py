@@ -78,10 +78,6 @@ logger = get_logger(__name__)
 class HyperliquidAPI(ExchangeAPI):
     """API Client for Hyperliquid DEX."""
 
-    BASE_URL = "https://api.hyperliquid.xyz"
-    WS_URL = "wss://api.hyperliquid.xyz/ws"
-    CHAIN_ID = 1337
-
     account_service: HyperliquidAccountService
     trading_service: HyperliquidTradingService
     market_data_service: HyperliquidMarketDataService
