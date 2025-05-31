@@ -15,7 +15,7 @@ from pydantic import SecretStr
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.backpack.bp_ws_message_router import BackpackWsMessageRouter
 from cyberdelta.config.config_models import ExchangeSpecificConfig
-from cyberdelta.config.secrets_models import ExchangeSecrets
+from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
@@ -46,9 +46,9 @@ def mock_exchange_config() -> ExchangeSpecificConfig:
 
 
 @pytest.fixture
-def mock_exchange_secrets() -> ExchangeSecrets:
-    """Mock ExchangeSecrets configuration."""
-    return ExchangeSecrets(
+def mock_exchange_secrets() -> ApiKeyAuthSecrets:
+    """Mock ApiKeyAuthSecrets configuration."""
+    return ApiKeyAuthSecrets(
         api_key=SecretStr("61D/XTRs1Es8SgdZN4xO438vv1ls0aWhJSs//JDNxLk="),
         api_secret=SecretStr("7s6pf6Xs8VJDMTNmcseiLge61XCSZeQ6GW8PP6odR1c="),
     )
@@ -68,7 +68,7 @@ def mock_bp_ws_router() -> Mock:
 @pytest.fixture
 def bp_api_with_mocked_router(
     mock_exchange_config: ExchangeSpecificConfig,
-    mock_exchange_secrets: ExchangeSecrets,
+    mock_exchange_secrets: ApiKeyAuthSecrets,
     mock_bp_ws_router: Mock,
 ) -> BackpackAPI:
     """Create BackpackAPI instance with mocked router and other dependencies."""
@@ -193,7 +193,7 @@ class TestBackpackAPIWebSocketLifecycle:
 
     @pytest.fixture
     def bp_api(
-        self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ExchangeSecrets
+        self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ApiKeyAuthSecrets
     ) -> BackpackAPI:
         """Create BackpackAPI instance with mocked dependencies for lifecycle tests."""
         with patch("cyberdelta.apis.backpack.bp_api.BackpackEd25519Authenticator"):
@@ -259,7 +259,7 @@ class TestBackpackAPIWebSocketIntegration:
 
     @pytest.fixture
     def bp_api(
-        self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ExchangeSecrets
+        self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ApiKeyAuthSecrets
     ) -> BackpackAPI:
         """Create BackpackAPI instance with real router for integration tests."""
         with patch("cyberdelta.apis.backpack.bp_api.BackpackEd25519Authenticator"):
@@ -323,7 +323,7 @@ class TestBackpackAPIWebSocketEdgeCases:
 
     @pytest.fixture
     def bp_api_edge_case(
-        self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ExchangeSecrets
+        self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ApiKeyAuthSecrets
     ) -> BackpackAPI:
         """Create BackpackAPI instance for edge case testing."""
         with patch("cyberdelta.apis.backpack.bp_api.BackpackEd25519Authenticator"):

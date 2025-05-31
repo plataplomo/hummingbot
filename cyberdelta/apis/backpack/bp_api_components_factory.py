@@ -9,7 +9,6 @@ request builders, response handlers, domain data mappers, and service classes.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping
-from typing import TYPE_CHECKING
 
 from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
@@ -25,10 +24,7 @@ from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
-from cyberdelta.config.secrets_models import ExchangeSecrets as ExchangeSecretsConfig
-
-if TYPE_CHECKING:
-    pass
+from cyberdelta.config.secrets_models import AnyExchangeSecrets, ApiKeyAuthSecrets
 
 logger = get_logger(__name__)
 
@@ -49,39 +45,63 @@ class BackpackAPIComponentsFactory:
     """
 
     def __init__(
-        self, exchange_config: ExchangeSpecificConfig, exchange_secrets: ExchangeSecretsConfig
+        self, exchange_config: ExchangeSpecificConfig, exchange_secrets: AnyExchangeSecrets
     ) -> None:
         """
         Initialize the factory with configuration and secrets.
 
         Args:
             exchange_config: Exchange-specific configuration model
-            exchange_secrets: Exchange secrets configuration model
+            exchange_secrets: Exchange secrets configuration model (discriminated union)
         """
         self.exchange_config = exchange_config
         self.exchange_secrets = exchange_secrets
-        self._api_key = (
-            exchange_secrets.api_key.get_secret_value() if exchange_secrets.api_key else None
-        )
-        self._api_secret = (
-            exchange_secrets.api_secret.get_secret_value() if exchange_secrets.api_secret else None
-        )
+
+        # Initialize API credentials based on secret type
+        if isinstance(exchange_secrets, ApiKeyAuthSecrets):
+            self._api_key: str | None = exchange_secrets.api_key.get_secret_value()
+            self._api_secret: str | None = exchange_secrets.api_secret.get_secret_value()
+        else:
+            # Log error if Backpack receives wrong auth type
+            logger.error(
+                f"Backpack expects auth_type 'api_key' but received "
+                f"'{exchange_secrets.auth_type}'. ED25519 authentication will not work."
+            )
+            self._api_key = None
+            self._api_secret = None
 
     def create_authenticator(self) -> BackpackEd25519Authenticator | None:
         """
         Create a BackpackEd25519Authenticator instance.
 
         Uses api_key (Base64 public ED25519 key) and api_secret (Base64 private ED25519 key)
-        from ExchangeSecretsConfig to instantiate the ED25519 authenticator.
+        from ApiKeyAuthSecrets to instantiate the ED25519 authenticator.
 
         Returns:
             Configured ED25519 authenticator instance or None if credentials are missing
         """
+        # Check if we have the correct secrets type for Backpack
+        if not isinstance(self.exchange_secrets, ApiKeyAuthSecrets):
+            logger.error(
+                f"Cannot create Backpack authenticator: expected auth_type 'api_key' "
+                f"but received '{self.exchange_secrets.auth_type}'. "
+                f"Signed operations will fail."
+            )
+            return None
+
         if self._api_key and self._api_secret:
             logger.info("Creating BackpackEd25519Authenticator (ED25519 authentication)")
-            return BackpackEd25519Authenticator(
-                api_key_b64=self._api_key, private_key_b64=self._api_secret
-            )
+            try:
+                return BackpackEd25519Authenticator(
+                    api_key_b64=self._api_key, private_key_b64=self._api_secret
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to create Backpack ED25519 authenticator with provided "
+                    f"credentials: {e}. Verify that api_key is a valid Base64 ED25519 "
+                    f"public key and api_secret is a valid Base64 ED25519 private key."
+                )
+                return None
         else:
             logger.warning(
                 "Backpack API credentials not provided. For ED25519 auth: provide api_key "

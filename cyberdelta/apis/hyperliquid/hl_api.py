@@ -56,7 +56,7 @@ from cyberdelta.apis.models.service_args_models import (
 )
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
-from cyberdelta.config.secrets_models import ExchangeSecrets as ExchangeSecretsConfig
+from cyberdelta.config.secrets_models import AnyExchangeSecrets as ExchangeSecretsConfig
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -183,15 +183,31 @@ class HyperliquidAPI(ExchangeAPI):
         }
 
         # Construct secrets dict for super().__init__
-        secrets_dict_for_super = {
-            "private_key": exchange_secrets.private_key.get_secret_value()
-            if exchange_secrets.private_key
-            else None,
-            "passphrase": exchange_secrets.passphrase.get_secret_value()
-            if exchange_secrets.passphrase
-            else None,
-            "wallet_address": self._wallet_address,
-        }
+        # Check if we have the correct auth type for Hyperliquid
+        from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
+        
+        secrets_dict_for_super: dict[str, str | None]
+        if isinstance(exchange_secrets, PrivateKeyAuthSecrets):
+            secrets_dict_for_super = {
+                "private_key": exchange_secrets.private_key.get_secret_value()
+                if exchange_secrets.private_key
+                else None,
+                "passphrase": exchange_secrets.passphrase.get_secret_value()
+                if exchange_secrets.passphrase
+                else None,
+                "wallet_address": self._wallet_address,
+            }
+        else:
+            # This should not happen if secrets validation is working correctly
+            logger.error(
+                f"Hyperliquid API received wrong auth type: {exchange_secrets.auth_type}. "
+                f"Expected 'private_key'. Authentication will fail."
+            )
+            secrets_dict_for_super = {
+                "private_key": None,
+                "passphrase": None,
+                "wallet_address": self._wallet_address,
+            }
 
         super().__init__(
             exchange_name=exchange_config.exchange_name.value,

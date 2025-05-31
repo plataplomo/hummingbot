@@ -11,62 +11,53 @@ import pytest
 from pydantic import SecretStr, ValidationError
 
 from cyberdelta.config.secrets_models import (
-    ExchangeSecrets,
+    AnyExchangeSecrets,
+    ApiKeyAuthSecrets,
     LogfireSecrets,
     NotificationsConfig,
+    PrivateKeyAuthSecrets,
     SecretsConfig,
     TelegramSecrets,
 )
 
 
-class TestExchangeSecrets:
-    """Test cases for ExchangeSecrets model."""
+class TestApiKeyAuthSecrets:
+    """Test cases for ApiKeyAuthSecrets model."""
 
-    def test_valid_exchange_secrets_minimal(self) -> None:
-        """Test valid ExchangeSecrets with minimal required fields."""
+    def test_valid_api_key_auth_secrets(self) -> None:
+        """Test valid ApiKeyAuthSecrets with all required fields."""
+        data = {
+            "auth_type": "api_key",
+            "api_key": "test_api_key",
+            "api_secret": "test_api_secret",
+        }
+
+        secrets = ApiKeyAuthSecrets.model_validate(data)
+
+        assert secrets.auth_type == "api_key"
+        assert secrets.api_key.get_secret_value() == "test_api_key"
+        assert secrets.api_secret.get_secret_value() == "test_api_secret"
+
+    def test_auth_type_default_value(self) -> None:
+        """Test that auth_type defaults to 'api_key'."""
         data = {
             "api_key": "test_api_key",
             "api_secret": "test_api_secret",
         }
 
-        secrets = ExchangeSecrets.model_validate(data)
-
-        assert secrets.api_key.get_secret_value() == "test_api_key"
-        assert secrets.api_secret.get_secret_value() == "test_api_secret"
-        assert secrets.private_key is None
-        assert secrets.passphrase is None
-
-    def test_valid_exchange_secrets_with_optional_fields(self) -> None:
-        """Test valid ExchangeSecrets with all fields."""
-        data = {
-            "api_key": "test_api_key",
-            "api_secret": "test_api_secret",
-            "private_key": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-            "passphrase": "test_passphrase",
-        }
-
-        secrets = ExchangeSecrets.model_validate(data)
-
-        assert secrets.api_key.get_secret_value() == "test_api_key"
-        assert secrets.api_secret.get_secret_value() == "test_api_secret"
-        assert secrets.private_key is not None
-        assert (
-            secrets.private_key.get_secret_value()
-            == "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-        )
-        assert secrets.passphrase is not None
-        assert secrets.passphrase.get_secret_value() == "test_passphrase"
+        secrets = ApiKeyAuthSecrets.model_validate(data)
+        assert secrets.auth_type == "api_key"
 
     def test_missing_required_fields(self) -> None:
         """Test that missing required fields raise ValidationError."""
         # Missing api_key
         with pytest.raises(ValidationError) as exc_info:
-            ExchangeSecrets.model_validate({"api_secret": "test_secret"})
+            ApiKeyAuthSecrets.model_validate({"api_secret": "test_secret"})
         assert "api_key" in str(exc_info.value)
 
         # Missing api_secret
         with pytest.raises(ValidationError) as exc_info:
-            ExchangeSecrets.model_validate({"api_key": "test_key"})
+            ApiKeyAuthSecrets.model_validate({"api_key": "test_key"})
         assert "api_secret" in str(exc_info.value)
 
     def test_extra_fields_forbidden(self) -> None:
@@ -78,12 +69,12 @@ class TestExchangeSecrets:
         }
 
         with pytest.raises(ValidationError) as exc_info:
-            ExchangeSecrets.model_validate(data)
+            ApiKeyAuthSecrets.model_validate(data)
         assert "extra_field" in str(exc_info.value)
 
     def test_secret_str_security(self) -> None:
         """Test that SecretStr fields don't expose values in repr."""
-        secrets = ExchangeSecrets.model_validate(
+        secrets = ApiKeyAuthSecrets.model_validate(
             {
                 "api_key": "secret_key",
                 "api_secret": "secret_value",
@@ -98,7 +89,7 @@ class TestExchangeSecrets:
 
     def test_frozen_model(self) -> None:
         """Test that the model is frozen (immutable)."""
-        secrets = ExchangeSecrets.model_validate(
+        secrets = ApiKeyAuthSecrets.model_validate(
             {
                 "api_key": "test_key",
                 "api_secret": "test_secret",
@@ -107,6 +98,115 @@ class TestExchangeSecrets:
 
         with pytest.raises(ValidationError):
             secrets.api_key = SecretStr("new_key")
+
+
+class TestPrivateKeyAuthSecrets:
+    """Test cases for PrivateKeyAuthSecrets model."""
+
+    def test_valid_private_key_auth_secrets(self) -> None:
+        """Test valid PrivateKeyAuthSecrets with private key."""
+        data = {
+            "auth_type": "private_key",
+            "private_key": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        }
+
+        secrets = PrivateKeyAuthSecrets.model_validate(data)
+
+        assert secrets.auth_type == "private_key"
+        expected_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        assert secrets.private_key.get_secret_value() == expected_key
+        assert secrets.passphrase is None
+
+    def test_valid_private_key_auth_secrets_with_passphrase(self) -> None:
+        """Test valid PrivateKeyAuthSecrets with passphrase."""
+        data = {
+            "auth_type": "private_key",
+            "private_key": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            "passphrase": "test_passphrase",
+        }
+
+        secrets = PrivateKeyAuthSecrets.model_validate(data)
+
+        assert secrets.auth_type == "private_key"
+        expected_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        assert secrets.private_key.get_secret_value() == expected_key
+        assert secrets.passphrase is not None
+        assert secrets.passphrase.get_secret_value() == "test_passphrase"
+
+    def test_auth_type_default_value(self) -> None:
+        """Test that auth_type defaults to 'private_key'."""
+        data = {
+            "private_key": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        }
+
+        secrets = PrivateKeyAuthSecrets.model_validate(data)
+        assert secrets.auth_type == "private_key"
+
+    def test_missing_private_key(self) -> None:
+        """Test that missing private_key raises ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            PrivateKeyAuthSecrets.model_validate({"passphrase": "test_passphrase"})
+        assert "private_key" in str(exc_info.value)
+
+    def test_extra_fields_forbidden(self) -> None:
+        """Test that extra fields are forbidden."""
+        data = {
+            "private_key": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            "extra_field": "not_allowed",
+        }
+
+        with pytest.raises(ValidationError) as exc_info:
+            PrivateKeyAuthSecrets.model_validate(data)
+        assert "extra_field" in str(exc_info.value)
+
+
+class TestAnyExchangeSecrets:
+    """Test cases for AnyExchangeSecrets discriminated union."""
+
+    def test_api_key_auth_secrets_discrimination(self) -> None:
+        """Test that ApiKeyAuthSecrets is correctly discriminated."""
+        data = {
+            "auth_type": "api_key",
+            "api_key": "test_key",
+            "api_secret": "test_secret",
+        }
+
+        # Parse as the union type
+        from pydantic import TypeAdapter
+        adapter: TypeAdapter[AnyExchangeSecrets] = TypeAdapter(AnyExchangeSecrets)
+        secrets = adapter.validate_python(data)
+
+        assert isinstance(secrets, ApiKeyAuthSecrets)
+        assert secrets.auth_type == "api_key"
+
+    def test_private_key_auth_secrets_discrimination(self) -> None:
+        """Test that PrivateKeyAuthSecrets is correctly discriminated."""
+        data = {
+            "auth_type": "private_key",
+            "private_key": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        }
+
+        # Parse as the union type
+        from pydantic import TypeAdapter
+        adapter: TypeAdapter[AnyExchangeSecrets] = TypeAdapter(AnyExchangeSecrets)
+        secrets = adapter.validate_python(data)
+
+        assert isinstance(secrets, PrivateKeyAuthSecrets)
+        assert secrets.auth_type == "private_key"
+
+    def test_invalid_auth_type(self) -> None:
+        """Test that invalid auth_type raises ValidationError."""
+        data = {
+            "auth_type": "invalid_type",
+            "api_key": "test_key",
+            "api_secret": "test_secret",
+        }
+
+        from pydantic import TypeAdapter
+        adapter: TypeAdapter[AnyExchangeSecrets] = TypeAdapter(AnyExchangeSecrets)
+        with pytest.raises(ValidationError) as exc_info:
+            adapter.validate_python(data)
+        assert "auth_type" in str(exc_info.value) or "discriminator" in str(exc_info.value)
 
 
 class TestTelegramSecrets:
@@ -262,12 +362,12 @@ class TestSecretsConfig:
         return {
             "exchanges": {
                 "backpack": {
+                    "auth_type": "api_key",
                     "api_key": "bp_api_key",
                     "api_secret": "bp_api_secret",
                 },
                 "hyperliquid": {
-                    "api_key": "hl_api_key",
-                    "api_secret": "hl_api_secret",
+                    "auth_type": "private_key",
                     "private_key": (
                         "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
                     ),
@@ -293,8 +393,19 @@ class TestSecretsConfig:
         # Test exchanges
         assert "backpack" in config.exchanges
         assert "hyperliquid" in config.exchanges
-        assert config.exchanges["backpack"].api_key.get_secret_value() == "bp_api_key"
-        assert config.exchanges["hyperliquid"].private_key is not None
+        
+        # Test backpack (ApiKeyAuthSecrets)
+        backpack_secrets = config.exchanges["backpack"]
+        assert isinstance(backpack_secrets, ApiKeyAuthSecrets)
+        assert backpack_secrets.auth_type == "api_key"
+        assert backpack_secrets.api_key.get_secret_value() == "bp_api_key"
+        
+        # Test hyperliquid (PrivateKeyAuthSecrets)
+        hyperliquid_secrets = config.exchanges["hyperliquid"]
+        assert isinstance(hyperliquid_secrets, PrivateKeyAuthSecrets)
+        assert hyperliquid_secrets.auth_type == "private_key"
+        expected_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        assert hyperliquid_secrets.private_key.get_secret_value() == expected_key
 
         # Test notifications
         assert isinstance(config.notifications, NotificationsConfig)
@@ -309,165 +420,102 @@ class TestSecretsConfig:
         data = self.create_valid_secrets_data()
 
         # Test empty exchange name
-        data["exchanges"][""] = {"api_key": "key", "api_secret": "secret"}
+        data["exchanges"][""] = {"auth_type": "api_key", "api_key": "key", "api_secret": "secret"}
         with pytest.raises(ValidationError) as exc_info:
             SecretsConfig.model_validate(data)
         assert "exchanges" in str(exc_info.value)
 
         # Test too long exchange name
         data = self.create_valid_secrets_data()
-        data["exchanges"]["x" * 51] = {"api_key": "key", "api_secret": "secret"}
+        data["exchanges"]["x" * 51] = {
+            "auth_type": "api_key",
+            "api_key": "key",
+            "api_secret": "secret",
+        }
         with pytest.raises(ValidationError) as exc_info:
             SecretsConfig.model_validate(data)
         assert "exchanges" in str(exc_info.value)
 
-    def test_hyperliquid_validation_private_key_only(self) -> None:
-        """Test Hyperliquid validation with private_key only."""
+    def test_hyperliquid_wrong_auth_type(self) -> None:
+        """Test Hyperliquid validation when wrong auth_type is provided."""
         data = self.create_valid_secrets_data()
         data["exchanges"]["hyperliquid"] = {
+            "auth_type": "api_key",  # Wrong auth type for Hyperliquid
             "api_key": "hl_api_key",
             "api_secret": "hl_api_secret",
+        }
+
+        with pytest.raises(ValidationError) as exc_info:
+            SecretsConfig.model_validate(data)
+        assert (
+            "Hyperliquid configuration in secrets must have auth_type 'private_key'"
+            in str(exc_info.value)
+        )
+
+    def test_hyperliquid_empty_private_key(self) -> None:
+        """Test Hyperliquid validation with empty private_key."""
+        data = self.create_valid_secrets_data()
+        data["exchanges"]["hyperliquid"] = {
+            "auth_type": "private_key",
+            "private_key": "",  # Empty private key
+        }
+
+        with pytest.raises(ValidationError) as exc_info:
+            SecretsConfig.model_validate(data)
+        assert "Hyperliquid 'private_key' cannot be empty" in str(exc_info.value)
+
+    def test_backpack_wrong_auth_type(self) -> None:
+        """Test Backpack validation when wrong auth_type is provided."""
+        data = self.create_valid_secrets_data()
+        data["exchanges"]["backpack"] = {
+            "auth_type": "private_key",  # Wrong auth type for Backpack
             "private_key": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         }
 
-        config = SecretsConfig.model_validate(data)
-        assert config.exchanges["hyperliquid"].private_key is not None
-        assert config.exchanges["hyperliquid"].passphrase is None
-
-    def test_hyperliquid_validation_passphrase_only(self) -> None:
-        """Test Hyperliquid validation with passphrase only."""
-        data = self.create_valid_secrets_data()
-        # Valid 12-word BIP-39 mnemonic
-        valid_mnemonic = (
-            "abandon abandon abandon abandon abandon abandon abandon abandon "
-            "abandon abandon abandon about"
-        )
-        data["exchanges"]["hyperliquid"] = {
-            "api_key": "hl_api_key",
-            "api_secret": "hl_api_secret",
-            "passphrase": valid_mnemonic,
-        }
-
-        config = SecretsConfig.model_validate(data)
-        assert config.exchanges["hyperliquid"].passphrase is not None
-        assert config.exchanges["hyperliquid"].private_key is None
-
-    def test_hyperliquid_validation_neither_provided(self) -> None:
-        """Test Hyperliquid validation when neither private_key nor passphrase is provided."""
-        data = self.create_valid_secrets_data()
-        data["exchanges"]["hyperliquid"] = {
-            "api_key": "hl_api_key",
-            "api_secret": "hl_api_secret",
-        }
-
         with pytest.raises(ValidationError) as exc_info:
             SecretsConfig.model_validate(data)
-        assert "either 'private_key' or 'passphrase' must be provided" in str(exc_info.value)
-
-    def test_hyperliquid_validation_both_provided(self) -> None:
-        """Test Hyperliquid validation when both private_key and passphrase are provided."""
-        data = self.create_valid_secrets_data()
-        valid_mnemonic = (
-            "abandon abandon abandon abandon abandon abandon abandon abandon "
-            "abandon abandon abandon about"
-        )
-        data["exchanges"]["hyperliquid"] = {
-            "api_key": "hl_api_key",
-            "api_secret": "hl_api_secret",
-            "private_key": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-            "passphrase": valid_mnemonic,
-        }
-
-        with pytest.raises(ValidationError) as exc_info:
-            SecretsConfig.model_validate(data)
-        assert "provide 'private_key' OR 'passphrase', not both" in str(exc_info.value)
-
-    def test_hyperliquid_invalid_private_key_format(self) -> None:
-        """Test Hyperliquid validation with invalid private key format."""
-        data = self.create_valid_secrets_data()
-
-        # Too short
-        data["exchanges"]["hyperliquid"]["private_key"] = "0x123"
-        with pytest.raises(ValidationError) as exc_info:
-            SecretsConfig.model_validate(data)
-        assert "64-character hex string" in str(exc_info.value)
-
-        # Invalid characters
-        data["exchanges"]["hyperliquid"]["private_key"] = "0x" + "g" * 64
-        with pytest.raises(ValidationError) as exc_info:
-            SecretsConfig.model_validate(data)
-        assert "64-character hex string" in str(exc_info.value)
-
-    def test_hyperliquid_invalid_private_key_crypto(self) -> None:
-        """Test Hyperliquid validation with cryptographically invalid private key."""
-        data = self.create_valid_secrets_data()
-
-        # All zeros (invalid private key) - actually, let's use a value that's too large for secp256k1
-        # The secp256k1 curve order is 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
-        # So we'll use all F's which is larger than the curve order
-        data["exchanges"]["hyperliquid"]["private_key"] = "0x" + "F" * 64
-        with pytest.raises(ValidationError) as exc_info:
-            SecretsConfig.model_validate(data)
-        assert "not cryptographically valid" in str(exc_info.value)
-
-    def test_hyperliquid_invalid_passphrase_word_count(self) -> None:
-        """Test Hyperliquid validation with invalid passphrase word count."""
-        data = self.create_valid_secrets_data()
-
-        # Remove private_key and add invalid passphrase
-        data["exchanges"]["hyperliquid"] = {
-            "api_key": "hl_api_key",
-            "api_secret": "hl_api_secret",
-            "passphrase": "abandon abandon abandon",  # Too few words
-        }
-        with pytest.raises(ValidationError) as exc_info:
-            SecretsConfig.model_validate(data)
-        assert "12 or 24 words" in str(exc_info.value)
-
-        # Too many words
-        data["exchanges"]["hyperliquid"]["passphrase"] = " ".join(["abandon"] * 25)
-        with pytest.raises(ValidationError) as exc_info:
-            SecretsConfig.model_validate(data)
-        assert "12 or 24 words" in str(exc_info.value)
-
-    def test_hyperliquid_invalid_passphrase_bip39(self) -> None:
-        """Test Hyperliquid validation with invalid BIP-39 mnemonic."""
-        data = self.create_valid_secrets_data()
-
-        # Remove private_key and add invalid passphrase with exactly 12 words that are not in BIP-39 wordlist
-        data["exchanges"]["hyperliquid"] = {
-            "api_key": "hl_api_key",
-            "api_secret": "hl_api_secret",
-            "passphrase": "invalid words that are not in bip39 wordlist at all here today",
-        }
-        with pytest.raises(ValidationError) as exc_info:
-            SecretsConfig.model_validate(data)
-        assert "not a valid BIP-39 mnemonic" in str(exc_info.value)
-
-    def test_hyperliquid_private_key_without_0x_prefix(self) -> None:
-        """Test Hyperliquid validation with private key without 0x prefix."""
-        data = self.create_valid_secrets_data()
-        data["exchanges"]["hyperliquid"]["private_key"] = (
-            "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        assert (
+            "Backpack configuration in secrets must have auth_type 'api_key'"
+            in str(exc_info.value)
         )
 
-        # Should work without 0x prefix
-        config = SecretsConfig.model_validate(data)
-        assert config.exchanges["hyperliquid"].private_key is not None
+    def test_backpack_empty_api_credentials(self) -> None:
+        """Test Backpack validation with empty API credentials."""
+        data = self.create_valid_secrets_data()
+        
+        # Test empty api_key
+        data["exchanges"]["backpack"] = {
+            "auth_type": "api_key",
+            "api_key": "",  # Empty api_key
+            "api_secret": "test_secret",
+        }
+        with pytest.raises(ValidationError) as exc_info:
+            SecretsConfig.model_validate(data)
+        assert "Backpack 'api_key' (ED25519 Public Key) cannot be empty" in str(exc_info.value)
 
-    def test_non_hyperliquid_exchange_no_validation(self) -> None:
-        """Test that non-Hyperliquid exchanges don't trigger special validation."""
+        # Test empty api_secret
+        data["exchanges"]["backpack"] = {
+            "auth_type": "api_key",
+            "api_key": "test_key",
+            "api_secret": "",  # Empty api_secret
+        }
+        with pytest.raises(ValidationError) as exc_info:
+            SecretsConfig.model_validate(data)
+        assert "Backpack 'api_secret' (ED25519 Private Key) cannot be empty" in str(exc_info.value)
+
+    def test_non_hyperliquid_backpack_exchange_no_validation(self) -> None:
+        """Test that exchanges other than Hyperliquid/Backpack don't trigger special validation."""
         data = self.create_valid_secrets_data()
         data["exchanges"]["other_exchange"] = {
+            "auth_type": "api_key",
             "api_key": "other_key",
             "api_secret": "other_secret",
-            # No private_key or passphrase - should be fine for non-Hyperliquid
         }
 
         config = SecretsConfig.model_validate(data)
         assert "other_exchange" in config.exchanges
-        assert config.exchanges["other_exchange"].private_key is None
-        assert config.exchanges["other_exchange"].passphrase is None
+        assert isinstance(config.exchanges["other_exchange"], ApiKeyAuthSecrets)
+        assert config.exchanges["other_exchange"].auth_type == "api_key"
 
     def test_missing_required_sections(self) -> None:
         """Test missing required sections."""
@@ -485,7 +533,13 @@ class TestSecretsConfig:
         with pytest.raises(ValidationError) as exc_info:
             SecretsConfig.model_validate(
                 {
-                    "exchanges": {"test": {"api_key": "key", "api_secret": "secret"}},
+                    "exchanges": {
+                        "test": {
+                            "auth_type": "api_key",
+                            "api_key": "key",
+                            "api_secret": "secret",
+                        }
+                    },
                     "logfire": {"write_token": "token"},
                 }
             )
@@ -495,7 +549,13 @@ class TestSecretsConfig:
         with pytest.raises(ValidationError) as exc_info:
             SecretsConfig.model_validate(
                 {
-                    "exchanges": {"test": {"api_key": "key", "api_secret": "secret"}},
+                    "exchanges": {
+                        "test": {
+                            "auth_type": "api_key",
+                            "api_key": "key",
+                            "api_secret": "secret",
+                        }
+                    },
                     "notifications": {"telegram": {"bot_token": "token", "chat_id": "id"}},
                 }
             )

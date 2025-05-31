@@ -24,7 +24,7 @@ from cyberdelta.apis.models.service_args_models import (
     PlaceOrderArgs,
 )
 from cyberdelta.config.config_models import ExchangeSpecificConfig
-from cyberdelta.config.secrets_models import ExchangeSecrets
+from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.core.models import (
     DerivativePosition,
     MarginAccountSummary,
@@ -180,7 +180,7 @@ def bp_api_with_di(
     def _create_api(
         # Allow overriding specific dependencies if needed
         config: ExchangeSpecificConfig | None = None,
-        secrets: ExchangeSecrets | None = None,
+        secrets: ApiKeyAuthSecrets | None = None,
         **overrides: MagicMock,
     ) -> BackpackAPI:
         # Create default Pydantic models if not provided
@@ -191,7 +191,7 @@ def bp_api_with_di(
             )
 
         if secrets is None:
-            secrets = ExchangeSecrets(
+            secrets = ApiKeyAuthSecrets(
                 api_key=SecretStr(TEST_API_KEY),
                 api_secret=SecretStr(TEST_API_SECRET),
             )

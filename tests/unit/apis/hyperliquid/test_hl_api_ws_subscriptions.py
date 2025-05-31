@@ -14,7 +14,7 @@ from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
     HyperliquidRawWsSubscribeRequest,
 )
 from cyberdelta.config.config_models import ExchangeSpecificConfig
-from cyberdelta.config.secrets_models import ExchangeSecrets
+from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
@@ -33,12 +33,11 @@ def hl_config() -> ExchangeSpecificConfig:
 
 
 @pytest.fixture
-def hl_secrets() -> ExchangeSecrets:
+def hl_secrets() -> PrivateKeyAuthSecrets:
     """Create test secrets for HyperliquidAPI."""
-    return ExchangeSecrets(
-        api_key=SecretStr("test_key"),
-        api_secret=SecretStr("test_secret"),
+    return PrivateKeyAuthSecrets(
         private_key=SecretStr("0x" + "a" * 64),  # Mock private key
+        passphrase=None,
     )
 
 
@@ -53,7 +52,7 @@ def mock_ws_manager() -> MagicMock:
 
 @pytest.fixture
 def hl_api(
-    hl_config: ExchangeSpecificConfig, hl_secrets: ExchangeSecrets, mock_ws_manager: MagicMock
+    hl_config: ExchangeSpecificConfig, hl_secrets: PrivateKeyAuthSecrets, mock_ws_manager: MagicMock
 ) -> HyperliquidAPI:
     """Create HyperliquidAPI instance with mocked dependencies."""
     with patch(

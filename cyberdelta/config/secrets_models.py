@@ -8,13 +8,12 @@ API keys, tokens, and other credentials. All sensitive fields use SecretStr
 to prevent accidental exposure in logs or tracebacks.
 """
 
-from typing import Self
+from typing import Annotated, Literal, Self
 
-from eth_account.account import Account
-from mnemonic import Mnemonic
 from pydantic import (
     BaseModel,
     ConfigDict,
+    Field,
     SecretStr,
     ValidationInfo,
     field_validator,
@@ -24,23 +23,43 @@ from pydantic import (
 from cyberdelta.utils.parsing import validate_str_field
 
 
-class ExchangeSecrets(BaseModel):
-    """
-    Secrets configuration for a single exchange.
-
-    Contains API credentials required for exchange connectivity.
-    All sensitive fields use SecretStr for security.
-
-    Optional fields (private_key, passphrase) are used by specific exchanges
-    like Hyperliquid but not required for all exchanges.
-    """
-
-    api_key: SecretStr
-    api_secret: SecretStr
-    private_key: SecretStr | None = None
-    passphrase: SecretStr | None = None
+class BaseExchangeSecrets(BaseModel):
+    """Base class for all exchange secret configurations."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+class ApiKeyAuthSecrets(BaseExchangeSecrets):
+    """
+    Secrets configuration for exchanges using API key/secret authentication.
+    
+    This covers exchanges using traditional API key pairs or Backpack's ED25519 
+    keys (where api_key=public key and api_secret=private key).
+    """
+
+    auth_type: Literal["api_key"] = "api_key"
+    api_key: SecretStr
+    api_secret: SecretStr
+
+
+class PrivateKeyAuthSecrets(BaseExchangeSecrets):
+    """
+    Secrets configuration for exchanges using private key authentication.
+    
+    This covers exchanges like Hyperliquid that use Ethereum private keys
+    or mnemonic passphrases for authentication.
+    """
+
+    auth_type: Literal["private_key"] = "private_key"
+    private_key: SecretStr
+    passphrase: SecretStr | None = Field(default=None)
+
+
+# Discriminated union for all exchange secret types
+AnyExchangeSecrets = Annotated[
+    ApiKeyAuthSecrets | PrivateKeyAuthSecrets,
+    Field(discriminator="auth_type")
+]
 
 
 class TelegramSecrets(BaseModel):
@@ -100,17 +119,17 @@ class SecretsConfig(BaseModel):
     API credentials, notification service tokens, and Logfire configuration.
     """
 
-    exchanges: dict[str, ExchangeSecrets]
+    exchanges: dict[str, AnyExchangeSecrets]
     notifications: NotificationsConfig
     logfire: LogfireSecrets
 
     @field_validator("exchanges", mode="after")
     @classmethod
     def validate_exchanges(
-        cls, v: dict[str, ExchangeSecrets], info: ValidationInfo
-    ) -> dict[str, ExchangeSecrets]:
+        cls, v: dict[str, AnyExchangeSecrets], info: ValidationInfo
+    ) -> dict[str, AnyExchangeSecrets]:
         """Validate exchange dictionary keys are valid strings."""
-        validated_exchanges: dict[str, ExchangeSecrets] = {}
+        validated_exchanges: dict[str, AnyExchangeSecrets] = {}
 
         for exchange_name, exchange_secrets in v.items():
             # Validate exchange name is a non-empty string
@@ -126,93 +145,43 @@ class SecretsConfig(BaseModel):
         return validated_exchanges
 
     @model_validator(mode="after")
-    def validate_hyperliquid_requirements(self) -> Self:
+    def validate_exchange_specific_secret_configurations(self) -> Self:
         """
-        Validate Hyperliquid-specific authentication requirements.
-
-        For Hyperliquid exchange, either 'private_key' or 'passphrase' must be provided,
-        but not both. If passphrase is provided, it must be 12 or 24 words and a valid
-        BIP-39 mnemonic. If private_key is provided, it must be a valid Ethereum private key.
+        Validate exchange-specific secret configurations and authentication requirements.
+        
+        Ensures that each exchange uses the correct auth_type and has valid credentials.
+        Basic presence checks are performed here; deeper cryptographic validation is
+        performed in the respective API component factories.
         """
-        for exchange_name, exchange_config in self.exchanges.items():
+        for exchange_name, secrets_config_item in self.exchanges.items():
             if exchange_name == "hyperliquid":
-                hyperliquid_secrets = exchange_config
-
-                # Check if private_key is provided and not empty
-                pk_provided = False
-                if hyperliquid_secrets.private_key is not None:
-                    pk_provided = hyperliquid_secrets.private_key.get_secret_value().strip() != ""
-
-                # Check if passphrase is provided and not empty
-                pp_provided = False
-                if hyperliquid_secrets.passphrase is not None:
-                    pp_provided = hyperliquid_secrets.passphrase.get_secret_value().strip() != ""
-
-                # Constraint 1: One of them MUST be provided
-                if not pk_provided and not pp_provided:
+                if not isinstance(secrets_config_item, PrivateKeyAuthSecrets):
                     raise ValueError(
-                        "For Hyperliquid, either 'private_key' or 'passphrase' must be provided."
+                        "Hyperliquid configuration in secrets must have auth_type 'private_key' and corresponding fields."
                     )
+                # Basic presence check for private_key
+                pk_val = secrets_config_item.private_key.get_secret_value()
+                if not pk_val or not pk_val.strip():
+                    raise ValueError("Hyperliquid 'private_key' cannot be empty in secrets.")
+                
+                # Note: Cryptographic validation (valid hex, BIP-39) is moved to 
+                # HyperliquidAPIComponentsFactory or HyperliquidEip712Authenticator constructor
+                # where the secret is actually used to create an auth component.
 
-                # Constraint 2: NOT BOTH can be provided
-                if pk_provided and pp_provided:
+            elif exchange_name == "backpack":
+                if not isinstance(secrets_config_item, ApiKeyAuthSecrets):
                     raise ValueError(
-                        "For Hyperliquid, provide 'private_key' OR 'passphrase', not both."
+                        "Backpack configuration in secrets must have auth_type 'api_key' and corresponding fields."
                     )
-
-                # Constraint 3: Private key cryptographic validation
-                if pk_provided and hyperliquid_secrets.private_key is not None:
-                    pk_str = hyperliquid_secrets.private_key.get_secret_value()
-
-                    # Strip "0x" prefix if present
-                    processed_pk_str = pk_str[2:] if pk_str.startswith("0x") else pk_str
-
-                    # Validate format (64-character hex string)
-                    if not (
-                        len(processed_pk_str) == 64
-                        and all(c in "0123456789abcdefABCDEF" for c in processed_pk_str)
-                    ):
-                        raise ValueError(
-                            "Hyperliquid private_key must be a 64-character hex string "
-                            "(with or without '0x' prefix)."
-                        )
-
-                    # Cryptographic validation using eth_account
-                    try:
-                        Account.from_key(processed_pk_str)
-                    except Exception as e:
-                        raise ValueError(
-                            f"Hyperliquid private_key is not cryptographically valid: {e}"
-                        ) from e
-
-                # Constraint 4: Passphrase cryptographic validation
-                if pp_provided and hyperliquid_secrets.passphrase is not None:
-                    phrase_str = hyperliquid_secrets.passphrase.get_secret_value()
-
-                    # Word count check (12 or 24 words)
-                    num_words = len(phrase_str.split())
-                    if num_words not in (12, 24):
-                        raise ValueError(
-                            f"Hyperliquid passphrase must consist of 12 or 24 words, "
-                            f"got {num_words} words."
-                        )
-
-                    # BIP-39 mnemonic validation
-                    try:
-                        mnemonic_validator = Mnemonic("english")
-                        if not mnemonic_validator.check(phrase_str):
-                            raise ValueError(
-                                "Hyperliquid passphrase is not a valid BIP-39 mnemonic "
-                                "(checksum or wordlist error)."
-                            )
-                    except Exception as e:
-                        # Handle any other exceptions from mnemonic validation
-                        if "not a valid BIP-39 mnemonic" not in str(e):
-                            raise ValueError(
-                                f"Error validating Hyperliquid passphrase "
-                                f"with mnemonic library: {e}"
-                            ) from e
-                        raise
+                # Basic presence checks for Backpack (ED25519 keys)
+                api_key_val = secrets_config_item.api_key.get_secret_value()
+                api_secret_val = secrets_config_item.api_secret.get_secret_value()
+                if not (api_key_val and api_key_val.strip()):
+                    raise ValueError("Backpack 'api_key' (ED25519 Public Key) cannot be empty.")
+                if not (api_secret_val and api_secret_val.strip()):
+                    raise ValueError("Backpack 'api_secret' (ED25519 Private Key) cannot be empty.")
+                # Note: Deeper crypto validation (is it valid base64 ED25519) is performed 
+                # in BackpackAPIComponentsFactory.
 
         return self
 

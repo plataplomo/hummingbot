@@ -17,7 +17,7 @@ from cyberdelta.apis.hyperliquid.hl_ws_message_router import HyperliquidWsMessag
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.config_models import ExchangeSpecificConfig
-from cyberdelta.config.secrets_models import ExchangeSecrets
+from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
@@ -51,11 +51,9 @@ def mock_exchange_config() -> ExchangeSpecificConfig:
 
 
 @pytest.fixture
-def hyperliquid_exchange_secrets() -> ExchangeSecrets:
-    """Basic ExchangeSecrets for HyperliquidAPI tests."""
-    return ExchangeSecrets(
-        api_key=SecretStr(""),
-        api_secret=SecretStr(""),
+def hyperliquid_exchange_secrets() -> PrivateKeyAuthSecrets:
+    """Basic PrivateKeyAuthSecrets for HyperliquidAPI tests."""
+    return PrivateKeyAuthSecrets(
         private_key=SecretStr("0x" + "0" * 64),  # Dummy private key
         passphrase=None,
     )
@@ -75,7 +73,7 @@ def mock_hl_ws_router() -> Mock:
 @pytest.fixture
 def hl_api_with_mocked_router(
     mock_exchange_config: ExchangeSpecificConfig,
-    hyperliquid_exchange_secrets: ExchangeSecrets,
+    hyperliquid_exchange_secrets: PrivateKeyAuthSecrets,
     mock_hl_ws_router: Mock,
 ) -> HyperliquidAPI:
     """Create HyperliquidAPI instance with mocked router and other dependencies."""
@@ -205,7 +203,7 @@ class TestHyperliquidAPIWebSocketLifecycle:
     def hl_api(
         self,
         mock_exchange_config: ExchangeSpecificConfig,
-        hyperliquid_exchange_secrets: ExchangeSecrets,
+        hyperliquid_exchange_secrets: PrivateKeyAuthSecrets,
     ) -> HyperliquidAPI:
         """Create HyperliquidAPI instance with mocked dependencies for lifecycle tests."""
         with (
@@ -281,7 +279,7 @@ class TestHyperliquidAPIWebSocketIntegration:
     def hl_api(
         self,
         mock_exchange_config: ExchangeSpecificConfig,
-        hyperliquid_exchange_secrets: ExchangeSecrets,
+        hyperliquid_exchange_secrets: PrivateKeyAuthSecrets,
     ) -> HyperliquidAPI:
         """Create HyperliquidAPI instance with real router for integration tests."""
         with (
@@ -367,7 +365,7 @@ class TestHyperliquidAPIWebSocketEdgeCases:
     def hl_api_edge_case(
         self,
         mock_exchange_config: ExchangeSpecificConfig,
-        hyperliquid_exchange_secrets: ExchangeSecrets,
+        hyperliquid_exchange_secrets: PrivateKeyAuthSecrets,
     ) -> HyperliquidAPI:
         """Create HyperliquidAPI instance for edge case testing."""
         with (
@@ -686,9 +684,7 @@ class TestHyperliquidAPIWebSocketEdgeCases:
     ) -> None:
         """Test subscription when wallet address is None."""
         # Create API with None-like secrets
-        secrets_with_none_wallet = ExchangeSecrets(
-            api_key=SecretStr(""),
-            api_secret=SecretStr(""),
+        secrets_with_none_wallet = PrivateKeyAuthSecrets(
             private_key=SecretStr("0x" + "0" * 64),
             passphrase=None,
         )

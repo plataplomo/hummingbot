@@ -15,7 +15,11 @@ import pytest
 import yaml
 
 from cyberdelta.config.secrets_manager import ConfigurationError, SecretsManager
-from cyberdelta.config.secrets_models import SecretsConfig
+from cyberdelta.config.secrets_models import (
+    ApiKeyAuthSecrets,
+    PrivateKeyAuthSecrets,
+    SecretsConfig,
+)
 
 
 class TestSecretsManager:
@@ -26,12 +30,12 @@ class TestSecretsManager:
         return {
             "exchanges": {
                 "backpack": {
+                    "auth_type": "api_key",
                     "api_key": "bp_api_key",
                     "api_secret": "bp_api_secret",
                 },
                 "hyperliquid": {
-                    "api_key": "hl_api_key",
-                    "api_secret": "hl_api_secret",
+                    "auth_type": "private_key",
                     "private_key": (
                         "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
                     ),
@@ -278,6 +282,7 @@ class TestSecretsManager:
             # Modify the secrets file
             modified_data = self.create_valid_secrets_dict()
             modified_data["exchanges"]["new_exchange"] = {
+                "auth_type": "api_key",
                 "api_key": "new_key",
                 "api_secret": "new_secret",
             }
@@ -332,18 +337,22 @@ class TestSecretsManager:
             assert manager.secrets_loaded is True
             assert manager.secrets_data is not None
             hl_secrets = manager.secrets_data.exchanges["hyperliquid"]
+            assert isinstance(hl_secrets, PrivateKeyAuthSecrets)
             assert hl_secrets.private_key is not None
 
     def test_hyperliquid_passphrase_validation(self) -> None:
         """Test Hyperliquid passphrase validation through SecretsManager."""
         with tempfile.TemporaryDirectory() as temp_dir:
             secrets_data = self.create_valid_secrets_dict()
-            # Remove private_key and add valid passphrase
-            del secrets_data["exchanges"]["hyperliquid"]["private_key"]
-            secrets_data["exchanges"]["hyperliquid"]["passphrase"] = (
-                "abandon abandon abandon abandon abandon abandon abandon abandon "
-                "abandon abandon abandon about"
-            )
+            # Update with valid passphrase
+            secrets_data["exchanges"]["hyperliquid"] = {
+                "auth_type": "private_key",
+                "private_key": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                "passphrase": (
+                    "abandon abandon abandon abandon abandon abandon abandon abandon "
+                    "abandon abandon abandon about"
+                ),
+            }
 
             secrets_path = Path(temp_dir) / "secrets.yaml"
             with open(secrets_path, "w") as f:
@@ -354,15 +363,21 @@ class TestSecretsManager:
             assert manager.secrets_loaded is True
             assert manager.secrets_data is not None
             hl_secrets = manager.secrets_data.exchanges["hyperliquid"]
+            assert isinstance(hl_secrets, PrivateKeyAuthSecrets)
             assert hl_secrets.passphrase is not None
-            assert hl_secrets.private_key is None
+            # Both can be present now, validation moved to factory
+            assert hl_secrets.private_key is not None
 
     def test_hyperliquid_validation_failure(self) -> None:
         """Test Hyperliquid validation failure through SecretsManager."""
         with tempfile.TemporaryDirectory() as temp_dir:
             secrets_data = self.create_valid_secrets_dict()
-            # Remove private_key (and no passphrase) - should fail validation
-            del secrets_data["exchanges"]["hyperliquid"]["private_key"]
+            # Use wrong auth_type for Hyperliquid - should fail validation
+            secrets_data["exchanges"]["hyperliquid"] = {
+                "auth_type": "api_key",  # Wrong auth type for Hyperliquid
+                "api_key": "hl_api_key",
+                "api_secret": "hl_api_secret",
+            }
 
             secrets_path = Path(temp_dir) / "secrets.yaml"
             with open(secrets_path, "w") as f:
@@ -371,7 +386,10 @@ class TestSecretsManager:
             with pytest.raises(ConfigurationError) as exc_info:
                 SecretsManager(str(secrets_path))
 
-            assert "either 'private_key' or 'passphrase' must be provided" in str(exc_info.value)
+            assert (
+                "Hyperliquid configuration in secrets must have auth_type 'private_key'"
+                in str(exc_info.value)
+            )
 
     @patch("cyberdelta.config.secrets_manager.logger")
     def test_logging_on_success(self, mock_logger: Mock) -> None:
@@ -427,6 +445,7 @@ class TestSecretsManager:
             # Test accessing exchange secrets
             assert manager.secrets_data is not None
             backpack_secrets = manager.secrets_data.exchanges["backpack"]
+            assert isinstance(backpack_secrets, ApiKeyAuthSecrets)
             assert backpack_secrets.api_key.get_secret_value() == "bp_api_key"
             assert backpack_secrets.api_secret.get_secret_value() == "bp_api_secret"
 

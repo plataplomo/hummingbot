@@ -57,7 +57,7 @@ from cyberdelta.apis.models.service_args_models import (
 )
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
-from cyberdelta.config.secrets_models import ExchangeSecrets as ExchangeSecretsConfig
+from cyberdelta.config.secrets_models import AnyExchangeSecrets as ExchangeSecretsConfig
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -173,14 +173,29 @@ class BackpackAPI(ExchangeAPI):
         }
 
         # Construct secrets dict for super().__init__
-        secrets_dict_for_super = {
-            "BACKPACK_API_KEY": exchange_secrets.api_key.get_secret_value()
-            if exchange_secrets.api_key
-            else None,
-            "BACKPACK_API_SECRET": exchange_secrets.api_secret.get_secret_value()
-            if exchange_secrets.api_secret
-            else None,
-        }
+        # Check if we have the correct auth type for Backpack
+        from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
+        
+        secrets_dict_for_super: dict[str, str | None]
+        if isinstance(exchange_secrets, ApiKeyAuthSecrets):
+            secrets_dict_for_super = {
+                "BACKPACK_API_KEY": exchange_secrets.api_key.get_secret_value()
+                if exchange_secrets.api_key
+                else None,
+                "BACKPACK_API_SECRET": exchange_secrets.api_secret.get_secret_value()
+                if exchange_secrets.api_secret
+                else None,
+            }
+        else:
+            # This should not happen if secrets validation is working correctly
+            logger.error(
+                f"Backpack API received wrong auth type: {exchange_secrets.auth_type}. "
+                f"Expected 'api_key'. Authentication will fail."
+            )
+            secrets_dict_for_super = {
+                "BACKPACK_API_KEY": None,
+                "BACKPACK_API_SECRET": None,
+            }
 
         super().__init__(
             exchange_name=exchange_config.exchange_name.value,

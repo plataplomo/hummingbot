@@ -10,7 +10,7 @@ from pydantic import SecretStr
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
 from cyberdelta.config.config_models import ExchangeSpecificConfig
-from cyberdelta.config.secrets_models import ExchangeSecrets
+from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
@@ -28,9 +28,9 @@ def bp_config() -> ExchangeSpecificConfig:
 
 
 @pytest.fixture
-def bp_secrets() -> ExchangeSecrets:
+def bp_secrets() -> ApiKeyAuthSecrets:
     """Create test secrets for BackpackAPI."""
-    return ExchangeSecrets(
+    return ApiKeyAuthSecrets(
         api_key=SecretStr("61D/XTRs1Es8SgdZN4xO438vv1ls0aWhJSs//JDNxLk="),
         api_secret=SecretStr("7s6pf6Xs8VJDMTNmcseiLge61XCSZeQ6GW8PP6odR1c="),
     )
@@ -48,7 +48,7 @@ def mock_ws_manager() -> MagicMock:
 
 @pytest.fixture
 def bp_api(
-    bp_config: ExchangeSpecificConfig, bp_secrets: ExchangeSecrets, mock_ws_manager: MagicMock
+    bp_config: ExchangeSpecificConfig, bp_secrets: ApiKeyAuthSecrets, mock_ws_manager: MagicMock
 ) -> BackpackAPI:
     """Create BackpackAPI instance with mocked dependencies."""
     with patch(

@@ -24,7 +24,7 @@ from cyberdelta.apis.models.service_args_models import (
     PlaceOrderArgs,
 )
 from cyberdelta.config.config_models import ExchangeSpecificConfig
-from cyberdelta.config.secrets_models import ExchangeSecrets
+from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.core.models import (
     DerivativePosition,
     MarginAccountSummary,
@@ -222,7 +222,7 @@ def hl_api_with_di(
     def _create_api(
         # Allow overriding specific dependencies if needed
         config: ExchangeSpecificConfig | None = None,
-        secrets: ExchangeSecrets | None = None,
+        secrets: PrivateKeyAuthSecrets | None = None,
         **overrides: MagicMock,
     ) -> HyperliquidAPI:
         """Create HyperliquidAPI with injected dependencies."""
@@ -231,9 +231,7 @@ def hl_api_with_di(
             config = create_test_exchange_config()
 
         if secrets is None:
-            secrets = ExchangeSecrets(
-                api_key=SecretStr(""),
-                api_secret=SecretStr(""),
+            secrets = PrivateKeyAuthSecrets(
                 private_key=SecretStr("0x" + "1" * 64),
                 passphrase=None,
             )
