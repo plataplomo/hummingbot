@@ -5,7 +5,6 @@ Tests for the Priority Signal Queue functionality.
 import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
 from unittest.mock import MagicMock, patch  # Import patch
 from uuid import UUID
 
@@ -387,7 +386,7 @@ async def test_clean_expired_signals_direct_patch(
         mock_dt_sq.now.return_value = real_start_time
 
         # Override config values for the test
-        def specific_get_for_cleanup_test(key: str, default: Any = None) -> Any:
+        def specific_get_for_cleanup_test(key: str, default: object = None) -> object:
             if key == "queue_cleanup_interval":
                 return 1.0  # Short interval for testing
             elif key == "default_signal_expiration_seconds":

@@ -65,9 +65,7 @@ class TestPortfolioTracker:
     def pt_config(self) -> PortfolioTrackerConfig:
         """Create a PortfolioTrackerConfig for testing."""
         return PortfolioTrackerConfig(
-            data_freshness_seconds=60,
-            initial_balances={},
-            initial_positions=[]
+            data_freshness_seconds=60, initial_balances={}, initial_positions=[]
         )
 
     @pytest.fixture
@@ -153,7 +151,10 @@ class TestPortfolioTracker:
 
     @pytest.fixture
     def portfolio_tracker(
-        self, config: MagicMock, pt_config: PortfolioTrackerConfig, api_clients: dict[str, AsyncMock]
+        self,
+        config: MagicMock,
+        pt_config: PortfolioTrackerConfig,
+        api_clients: dict[str, AsyncMock],
     ) -> PortfolioTracker:
         """Create a PortfolioTracker instance for testing."""
         tracker = PortfolioTracker(config, pt_config)

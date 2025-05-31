@@ -150,7 +150,7 @@ class TestRiskManagerSizingSimple:
         current_test_config_dict["risk"]["min_nfd_bps"] = "1"  # Allow NFD of 0.0003 to pass
 
         # Convert dict to AppSettings object
-        test_specific_config = AppSettings.model_validate(current_test_config_dict)
+        # test_specific_config = AppSettings.model_validate(current_test_config_dict)
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
@@ -409,7 +409,7 @@ class TestRiskManagerSizingSimple:
                     value = value[k_part]
                 else:
                     # Fallback to default AppSettings behavior
-                    unpatched_config_for_fallback = AppSettings.model_validate(mock_config_dict)
+                    # unpatched_config_for_fallback = AppSettings.model_validate(mock_config_dict)
                     # Access the attribute directly rather than using .get() method
                     return default
             return value
@@ -475,7 +475,7 @@ class TestRiskManagerSizingSimple:
                     value = value[k_part]
                 else:
                     # Fallback to default AppSettings behavior
-                    unpatched_config_for_fallback = AppSettings.model_validate(mock_config_dict)
+                    # unpatched_config_for_fallback = AppSettings.model_validate(mock_config_dict)
                     # Access the attribute directly rather than using .get() method
                     return default
             return value
@@ -539,7 +539,7 @@ class TestRiskManagerSizingSimple:
                     value = value[k_part]
                 else:
                     # Fallback to default AppSettings behavior
-                    unpatched_config_for_fallback = AppSettings.model_validate(mock_config_dict)
+                    # unpatched_config_for_fallback = AppSettings.model_validate(mock_config_dict)
                     # Access the attribute directly rather than using .get() method
                     return default
             return value
@@ -619,7 +619,7 @@ class TestRiskManagerSizingSimple:
         live_test_config_data["risk"]["min_nfd_bps"] = "1"  # Allow NFD of 0.0003 to pass
 
         # Convert dict to AppSettings object
-        test_specific_config = AppSettings.model_validate(live_test_config_data)
+        # test_specific_config = AppSettings.model_validate(live_test_config_data)
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))

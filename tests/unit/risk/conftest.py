@@ -71,7 +71,7 @@ def mock_config(mock_config_dict: dict[str, Any]) -> MagicMock:
     mock = MagicMock(spec=AppSettings)
 
     # Mock the get method to return values from the config dict
-    def get_side_effect(key: str, default: Any = None) -> Any:
+    def get_side_effect(key: str, default: object = None) -> object:
         keys = key.split(".")
         value = mock_config_dict
         try:
@@ -200,7 +200,7 @@ def sample_opportunity(sample_opportunity_dict: dict[str, Any]) -> ArbitrageOppo
     return ArbitrageOpportunity(**sample_opportunity_dict)
 
 
-def mock_get_config(key: str, default: Any = None) -> object | None:
+def mock_get_config(key: str, default: object = None) -> object | None:
     """Mock function for Config.get."""
     config_values = {
         # Global Risk

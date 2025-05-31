@@ -33,7 +33,7 @@ class TestOrderBook:
             "symbol": "BTC-PERP",
             "timestamp": now,
             "bids": bids,
-            "asks": asks
+            "asks": asks,
         }
         ob = OrderBook(**kwargs)
         assert ob.bids == expected_bids
@@ -89,12 +89,22 @@ class TestOrderBook:
         expected_dt = datetime(2023, 3, 15, 12, 0, 0, tzinfo=UTC)
 
         # Test int timestamp parsing using Any
-        kwargs_int: dict[str, Any] = {"symbol": "T", "timestamp": ms_timestamp, "bids": [], "asks": []}
+        kwargs_int: dict[str, Any] = {
+            "symbol": "T",
+            "timestamp": ms_timestamp,
+            "bids": [],
+            "asks": [],
+        }
         ob_int = OrderBook(**kwargs_int)
         assert ob_int.timestamp == expected_dt
 
         # Test ISO string timestamp parsing using Any
-        kwargs_iso: dict[str, Any] = {"symbol": "T", "timestamp": iso_timestamp, "bids": [], "asks": []}
+        kwargs_iso: dict[str, Any] = {
+            "symbol": "T",
+            "timestamp": iso_timestamp,
+            "bids": [],
+            "asks": [],
+        }
         ob_iso = OrderBook(**kwargs_iso)
         assert ob_iso.timestamp == expected_dt
 
@@ -129,7 +139,12 @@ class TestOrderBook:
         # --- Test Top-Level Structure ---
         with pytest.raises(TypeError, match="bids must be a list"):
             # Test invalid bids type using Any
-            kwargs_bids: dict[str, Any] = {"symbol": "T", "timestamp": now, "bids": "not_a_list", "asks": []}
+            kwargs_bids: dict[str, Any] = {
+                "symbol": "T",
+                "timestamp": now,
+                "bids": "not_a_list",
+                "asks": [],
+            }
             OrderBook(**kwargs_bids)
         with pytest.raises(TypeError, match="asks must be a list"):
             # Test invalid asks type using Any

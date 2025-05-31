@@ -74,7 +74,8 @@ class TestRiskManagerControls:
 
         # Mock safety systems: Low validation factor (get_symbol_metrics part)
         mock_funding_validator.get_symbol_metrics.return_value = {
-            "rmse": 1.0,  # Values don't matter as FV is not directly used by _apply_portfolio_level_controls
+            "rmse": 1.0,  # Values don't matter as FV is not directly used by
+            # _apply_portfolio_level_controls
             "bias": 1.0,
         }
 

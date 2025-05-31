@@ -184,7 +184,9 @@ class TestSignalGenerator:
         mock_orderbook = MagicMock(spec=OrderBook)
         mock_orderbook.bids = [(Decimal("29999"), Decimal("2.5"))]
         mock_orderbook.asks = [(Decimal("30001"), Decimal("1.5"))]
-        # This orderbooks mock might not be strictly necessary if get_orderbook is not called by the tested logic
+        # This orderbooks mock might not be strictly necessary if get_orderbook is not called
+        # by the tested logic or if estimate_slippage is mocked directly if it uses
+        # get_orderbook. For now, keeping it as it was.
         # or if estimate_slippage is mocked directly if it uses get_orderbook.
         # For now, keeping it as it was.
         orderbooks: dict[str, dict[str, MagicMock]] = {
@@ -224,9 +226,11 @@ class TestSignalGenerator:
                     enabled = exchange_details.get("enabled", False)
                     symbols = exchange_details.get("symbols", {})
                     if enabled and isinstance(symbols, dict):
-                        # SymbolMapper expects a dict of exchange_id -> { "symbols": {...}, ...other_keys_if_needed }
+                        # SymbolMapper expects a dict of exchange_id -> { "symbols": {...},
+                        # ...other_keys_if_needed }
                         # We only need to pass the symbols map for each enabled exchange.
-                        # The SymbolMapper itself will handle the structure if it gets the raw exchanges_config part.
+                        # The SymbolMapper itself will handle the structure if it gets the
+                        # raw exchanges_config part.
                         # Let's simplify to pass the relevant part of exchanges_config_from_main
                         exchanges_map_for_mapper[ex_id] = (
                             exchange_details  # Pass the whole exchange detail if it has symbols
@@ -283,7 +287,6 @@ class TestSignalGenerator:
 
         data_handler.reset_mock()
 
-        sample_period_seconds = signal_generator.funding_sample_period
         sample_count = signal_generator.funding_sample_count
 
         def get_funding_iter(
@@ -402,9 +405,11 @@ class TestSignalGenerator:
         # The estimate_slippage method in SignalGenerator uses data_handler.get_latest_order_book,
         # which is already mocked. We also need to ensure that the Ticker data is available
         # if it's used internally by estimate_slippage or its callees.
-        # For now, assuming Ticker is not directly used by estimate_slippage based on its current simple mock.
-        # The estimate_slippage method itself might need get_latest_ticker if it uses price data.
-        # For this test, we mock get_latest_order_book. If it also needs get_latest_ticker, that should be mocked too.
+        # For now, assuming Ticker is not directly used by estimate_slippage based on its
+        # current simple mock.
+        # The estimate_slippage method itself might need get_latest_ticker if it uses price
+        # data. For this test, we mock get_latest_order_book. If it also needs
+        # get_latest_ticker, that should be mocked too.
         data_handler.get_latest_order_book.return_value = mock_orderbook
 
         estimated_slippage = signal_generator.estimate_slippage(exchange_id_for_test, "TEST")
@@ -496,7 +501,8 @@ class TestSignalGenerator:
         data_handler.get_latest_funding_rate.side_effect = mock_low_funding
 
         # SignalGenerator uses self.data_handler.tickers. Ensure it's set.
-        # For this test, we assume the prices are such that the low funding diff doesn't create an opp.
+        # For this test, we assume the prices are such that the low funding diff doesn't
+        # create an opp.
         # The data_handler fixture populates tickers, which should be sufficient.
         # If specific ticker values are needed for this test, mock data_handler.tickers here.
         # Example:

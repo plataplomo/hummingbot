@@ -105,7 +105,10 @@ class TestTicker:
             match=r"timestamp.*Cannot parse string .* as ISO datetime .* or as numeric timestamp",
         ):
             # Use Any to test validator behavior
-            kwargs_invalid: dict[str, Any] = {"symbol": VALID_SYMBOL, "timestamp": "invalid-date-string"}
+            kwargs_invalid: dict[str, Any] = {
+                "symbol": VALID_SYMBOL,
+                "timestamp": "invalid-date-string",
+            }
             Ticker(**kwargs_invalid)
 
         # Test valid parsing (already covered in test_creation_with_parsable_data)
