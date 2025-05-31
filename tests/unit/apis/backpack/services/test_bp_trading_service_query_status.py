@@ -13,7 +13,7 @@ from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import GetAllOpenOrdersArgs
+from cyberdelta.apis.models.service_args_models import GetAllOpenOrdersArgs, GetOrderArgs
 
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.backpack.services.conftest_trading"]
@@ -291,7 +291,9 @@ class TestBackpackTradingServiceQueryStatus:
         with patch.object(bp_trading_service, "_trading_mapper", autospec=True) as mock_mapper:
             mock_mapper.transform_raw_order_to_internal.return_value = mock_internal_order
 
-            result = await bp_trading_service.get_order_status(order_id=order_id, symbol=symbol)
+            result = await bp_trading_service.get_order_status(
+                args=GetOrderArgs(order_id=order_id, symbol=symbol)
+            )
 
             mock_request_builder.build_get_order_params.assert_called_once_with(symbol=symbol)
             mock_http_client_requester.assert_called_once_with(
@@ -327,7 +329,9 @@ class TestBackpackTradingServiceQueryStatus:
 
         with patch.object(bp_trading_service, "_trading_mapper", autospec=True) as mock_mapper:
             with pytest.raises(APIError) as exc_info:
-                await bp_trading_service.get_order_status(symbol=symbol, order_id=order_id)
+                await bp_trading_service.get_order_status(
+                    args=GetOrderArgs(order_id=order_id, symbol=symbol)
+                )
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
             assert "Get order 12345 (SOL_USDC) returned invalid data" in exc_info.value.message
@@ -368,7 +372,9 @@ class TestBackpackTradingServiceQueryStatus:
             mock_response_handler.handle_get_order_status_response.side_effect = e
 
         with pytest.raises(APIError) as exc_info:
-            await bp_trading_service.get_order_status(symbol=symbol, order_id=order_id)
+            await bp_trading_service.get_order_status(
+                args=GetOrderArgs(order_id=order_id, symbol=symbol)
+            )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Internal data validation failed" in exc_info.value.message
@@ -394,7 +400,9 @@ class TestBackpackTradingServiceQueryStatus:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await bp_trading_service.get_order_status(symbol=symbol, order_id=order_id)
+            await bp_trading_service.get_order_status(
+                args=GetOrderArgs(order_id=order_id, symbol=symbol)
+            )
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
         assert "Unexpected service failure" in exc_info.value.message
@@ -415,7 +423,9 @@ class TestBackpackTradingServiceQueryStatus:
         mock_http_client_requester.return_value = (None, 404, {})
 
         with pytest.raises(APIError) as exc_info:
-            await bp_trading_service.get_order_status(order_id=order_id, symbol=symbol)
+            await bp_trading_service.get_order_status(
+                args=GetOrderArgs(order_id=order_id, symbol=symbol)
+            )
 
         assert exc_info.value.code == APIErrorCode.ORDER_NOT_FOUND.value
         assert f"Order {order_id} for symbol {symbol} not found" in exc_info.value.message
@@ -501,7 +511,7 @@ class TestBackpackTradingServiceQueryStatus:
             mock_mapper.transform_raw_order_to_internal.return_value = mock_internal_order
 
             result = await bp_trading_service.get_order(
-                order_id=order_id, symbol=symbol, client_order_id=client_order_id
+                args=GetOrderArgs(order_id=order_id, symbol=symbol, client_order_id=client_order_id)
             )
 
             mock_request_builder.build_get_order_params.assert_called_once_with(symbol=symbol)
@@ -538,7 +548,9 @@ class TestBackpackTradingServiceQueryStatus:
 
         with patch.object(bp_trading_service, "_trading_mapper", autospec=True) as mock_mapper:
             with pytest.raises(APIError) as exc_info:
-                await bp_trading_service.get_order(order_id=order_id, symbol=symbol)
+                await bp_trading_service.get_order(
+                    args=GetOrderArgs(order_id=order_id, symbol=symbol)
+                )
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
             assert (
@@ -582,7 +594,7 @@ class TestBackpackTradingServiceQueryStatus:
             mock_response_handler.handle_get_order_status_response.side_effect = e
 
         with pytest.raises(APIError) as exc_info:
-            await bp_trading_service.get_order(order_id=order_id, symbol=symbol)
+            await bp_trading_service.get_order(args=GetOrderArgs(order_id=order_id, symbol=symbol))
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Internal data validation failed" in exc_info.value.message

@@ -490,3 +490,112 @@ class GetAllOpenOrdersArgs(BaseModel):
         return validate_str_field(
             v, field_name=str(info.field_name), max_length=64, allow_empty=False
         )
+
+
+class GetOrderArgs(BaseModel):
+    """
+    Encapsulates arguments for fetching a specific order.
+
+    This model centralizes validation for fetching order details, ensuring consistent
+    handling of order_id (primary identifier) and optional parameters like symbol
+    and client_order_id which may be required by some exchanges.
+    """
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    order_id: str  # Primary identifier, usually exchange-generated
+    symbol: str | None = Field(default=None)  # Often required or recommended by exchanges
+    client_order_id: str | None = Field(default=None)  # Alternative identifier
+
+    @field_validator("order_id", "symbol", "client_order_id", mode="before")
+    @classmethod
+    def validate_strings(cls, v: object, info: ValidationInfo) -> str | None:
+        """Validate string fields with appropriate requirements."""
+        field_name = str(info.field_name)
+        is_required = field_name == "order_id"
+
+        if v is None:
+            if is_required:
+                raise ValueError(f"Field '{field_name}' is required.")
+            return None  # For optional fields
+
+        # Max length for order_id can be quite long for some exchanges (e.g. UUIDs)
+        max_len = 128 if field_name == "order_id" or field_name == "client_order_id" else 64
+        return validate_str_field(v, field_name=field_name, max_length=max_len, allow_empty=False)
+
+    @model_validator(mode="after")
+    def check_identifier_logic(self) -> "GetOrderArgs":
+        """
+        Validate identifier logic.
+
+        While order_id is primary, some exchanges might heavily rely on symbol.
+        Backpack requires symbol for its GET /order/{id} endpoint as a query param.
+        Hyperliquid's orderStatus needs user + oid, symbol is not directly part of request.
+        For a generic model, ensuring order_id is primary.
+        If symbol becomes strictly required for all exchanges, it can be made non-optional.
+        """
+        if self.symbol is None:
+            # Log a debug message or warning if symbol is often needed but not provided.
+            # logger.debug(f"GetOrderArgs created without a symbol for order_id {self.order_id}")
+            pass
+        return self
+
+
+# Alias GetOrderStatusArgs to GetOrderArgs since they have identical fields
+GetOrderStatusArgs = GetOrderArgs  # Alias for clarity in signatures
+
+
+class GetHistoricalFundingRatesArgs(BaseModel):
+    """
+    Encapsulates arguments for fetching historical funding rates.
+
+    This model provides structured access to funding rate history with optional
+    time range filtering and limit constraints.
+    """
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    symbol: str  # Symbol is required for this endpoint on Backpack
+    start_time: datetime | None = Field(default=None)
+    end_time: datetime | None = Field(default=None)
+    limit: int | None = Field(default=None, gt=0)
+
+    @field_validator("symbol", mode="before")
+    @classmethod
+    def validate_symbol_str(cls, v: object, info: ValidationInfo) -> str:
+        """Validate symbol is a non-empty string with max length."""
+        return validate_str_field(
+            v, field_name=str(info.field_name), max_length=64, allow_empty=False
+        )
+
+    @field_validator("start_time", "end_time", mode="before")
+    @classmethod
+    def parse_optional_datetime_utc(
+        cls, v: datetime | int | float | str | None, info: ValidationInfo
+    ) -> datetime | None:
+        """Parse optional datetime fields to UTC."""
+        if v is None:
+            return None
+        return parse_datetime_utc(v, field_name=str(info.field_name))
+
+    @field_validator("limit", mode="before")
+    @classmethod
+    def parse_optional_positive_int(cls, v: object, info: ValidationInfo) -> int | None:
+        """Parse optional positive integer fields."""
+        if v is None:
+            return None
+        if not isinstance(v, int | str | float):
+            raise ValueError(f"Field '{str(info.field_name)}' must be an integer or convertible.")
+        try:
+            int_val = int(v)
+            return int_val
+        except ValueError as e:
+            msg = f"Field '{str(info.field_name)}' could not be converted to int: {v}"
+            raise ValueError(msg) from e
+
+    @model_validator(mode="after")
+    def check_time_range_logic(self) -> "GetHistoricalFundingRatesArgs":
+        """Validate time range logic."""
+        if self.start_time and self.end_time and self.start_time >= self.end_time:
+            raise ValueError("start_time must be before end_time if both are provided.")
+        return self

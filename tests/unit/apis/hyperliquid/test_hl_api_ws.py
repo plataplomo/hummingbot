@@ -147,11 +147,11 @@ class TestHyperliquidAPIWebSocketDelegation:
         )
 
         topic = "l2Book:ETH"
-        
+
         # Mock the router to return a proper HyperliquidRawWsSubscribeRequest
         expected_payload = HyperliquidRawWsSubscribeRequest(
             method="subscribe",
-            subscription=HyperliquidRawWsL2BookSubscriptionPayload(type="l2Book", coin="ETH")
+            subscription=HyperliquidRawWsL2BookSubscriptionPayload(type="l2Book", coin="ETH"),
         )
         mock_hl_ws_router.construct_subscription_payload.return_value = expected_payload
 
@@ -165,10 +165,10 @@ class TestHyperliquidAPIWebSocketDelegation:
         # The method should pass the wallet address as the second argument
         # Check the call was made with the topic and a wallet address (string)
         mock_hl_ws_router.construct_subscription_payload.assert_called_once_with(
-            topic, 
-            ANY  # We don't know the exact wallet address
+            topic,
+            ANY,  # We don't know the exact wallet address
         )
-        
+
         # Verify result is the expected payload
         assert result == expected_payload
 
@@ -402,7 +402,7 @@ class TestHyperliquidAPIWebSocketEdgeCases:
         assert exc_info.value.code == APIErrorCode.INVALID_PARAMS.value
 
     def test_subscription_payload_malformed_topic(self, hl_api_edge_case: HyperliquidAPI) -> None:
-        """Test subscription payload construction with malformed topic format raises proper errors."""
+        """Test subscription payload construction with malformed topic format."""
         malformed_topics = [
             "l2Book",  # Missing coin
             "l2Book:",  # Empty coin
@@ -416,7 +416,7 @@ class TestHyperliquidAPIWebSocketEdgeCases:
         )
 
         for topic in malformed_topics:
-            # Malformed topics should raise APIError for invalid format or ValidationError for invalid data
+            # Malformed topics should raise APIError or ValidationError for invalid data
             with pytest.raises((APIError, ValidationError)):
                 construct_method(topic)
 

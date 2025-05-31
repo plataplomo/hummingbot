@@ -201,7 +201,9 @@ class HyperliquidWsMessageRouter:
                 # Explicitly type the list after check, elements are still Any
                 checked_list_for_topic_derivation: list[dict[str, Any]] = []
                 # After isinstance check, we know it's a list
-                raw_list: list[Any] = cast(list[Any], raw_data_any)
+                # DEFENSIVE CHECK: raw_data_any is confirmed as list[Any] by isinstance.
+                # Mypy=[redundant-cast]
+                raw_list: list[Any] = cast(list[Any], raw_data_any)  # type: ignore[redundant-cast]
                 for item in raw_list:
                     if isinstance(item, dict):
                         checked_list_for_topic_derivation.append(cast(dict[str, Any], item))
@@ -280,7 +282,9 @@ class HyperliquidWsMessageRouter:
                 # Explicitly type the list after check, elements are still Any
                 checked_list_of_trades: list[dict[str, Any]] = []
                 # After isinstance check, we know it's a list
-                raw_list_trades: list[Any] = cast(list[Any], raw_data_any)
+                # DEFENSIVE CHECK: raw_data_any is confirmed as list[Any] by isinstance.
+                # Mypy=[redundant-cast]
+                raw_list_trades: list[Any] = cast(list[Any], raw_data_any)  # type: ignore[redundant-cast]
                 for item in raw_list_trades:
                     if isinstance(item, dict):
                         item_dict = cast(dict[str, Any], item)
@@ -318,7 +322,9 @@ class HyperliquidWsMessageRouter:
                 # Explicitly type the list after check, elements are still Any
                 checked_list_of_any_events: list[dict[str, Any]] = []
                 # After isinstance check, we know it's a list
-                raw_list_events: list[Any] = cast(list[Any], raw_data_any)
+                # DEFENSIVE CHECK: raw_data_any is confirmed as list[Any] by isinstance.
+                # Mypy=[redundant-cast]
+                raw_list_events: list[Any] = cast(list[Any], raw_data_any)  # type: ignore[redundant-cast]
                 for event_loop_var_any in raw_list_events:
                     if isinstance(event_loop_var_any, dict):
                         checked_list_of_any_events.append(cast(dict[str, Any], event_loop_var_any))

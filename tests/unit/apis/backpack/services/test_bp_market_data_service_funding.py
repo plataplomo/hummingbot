@@ -4,7 +4,7 @@ Unit tests for BackpackMarketDataService funding rate functionality.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -15,6 +15,7 @@ from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRat
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import GetHistoricalFundingRatesArgs
 from cyberdelta.core.models.market import FundingRate
 from cyberdelta.core.models.market.funding_rate import BackpackFundingDetails
 
@@ -203,6 +204,9 @@ class TestBackpackMarketDataServiceFunding:
         symbol = "SOL-PERP"
         start_time_ms = 1678880000000
         end_time_ms = 1678886400000
+        # Service converts to seconds, not milliseconds
+        expected_start_time_s = start_time_ms // 1000
+        expected_end_time_s = end_time_ms // 1000
         limit = 10
         mock_endpoint_path = "/api/v1/funding/history"
         mock_params = {
@@ -248,17 +252,18 @@ class TestBackpackMarketDataServiceFunding:
                 mock_internal_funding_rates
             )
 
-            result = await backpack_market_data_service.get_historical_funding_rates(
+            args = GetHistoricalFundingRatesArgs(
                 symbol=symbol,
-                start_time=datetime.fromtimestamp(start_time_ms / 1000),
-                end_time=datetime.fromtimestamp(end_time_ms / 1000),
+                start_time=datetime.fromtimestamp(start_time_ms / 1000, tz=UTC),
+                end_time=datetime.fromtimestamp(end_time_ms / 1000, tz=UTC),
                 limit=limit,
             )
+            result = await backpack_market_data_service.get_historical_funding_rates(args)
 
             mock_request_builder.build_get_historical_funding_rates_params.assert_called_once_with(
                 symbol=symbol,
-                start_time_ms=1678880000,
-                end_time_ms=1678886400,
+                start_time_ms=expected_start_time_s,
+                end_time_ms=expected_end_time_s,
                 limit=limit,
             )
             mock_http_client_requester.assert_called_once_with(
@@ -302,6 +307,7 @@ class TestBackpackMarketDataServiceFunding:
         """Test get_historical_funding_rates when HTTP client returns None content."""
         symbol = "SOL-PERP"
         start_time_ms = 1678880000000
+        expected_start_time_s = start_time_ms // 1000
         limit = 5
         mock_endpoint_path = "/api/v1/funding/history"
         mock_params = {"symbol": symbol, "startTime": start_time_ms, "limit": limit}
@@ -311,11 +317,12 @@ class TestBackpackMarketDataServiceFunding:
 
         with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
             with pytest.raises(APIError) as exc_info:
-                await backpack_market_data_service.get_historical_funding_rates(
+                args = GetHistoricalFundingRatesArgs(
                     symbol=symbol,
-                    start_time=datetime.fromtimestamp(start_time_ms / 1000),
+                    start_time=datetime.fromtimestamp(start_time_ms / 1000, tz=UTC),
                     limit=limit,
                 )
+                await backpack_market_data_service.get_historical_funding_rates(args)
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
             expected_msg = f"No data for historical funding rates {symbol}, status: 200"
@@ -323,7 +330,7 @@ class TestBackpackMarketDataServiceFunding:
 
             mock_request_builder.build_get_historical_funding_rates_params.assert_called_once_with(
                 symbol=symbol,
-                start_time_ms=1678880000,
+                start_time_ms=expected_start_time_s,
                 end_time_ms=None,
                 limit=limit,
             )
@@ -361,7 +368,8 @@ class TestBackpackMarketDataServiceFunding:
             mock_response_handler.handle_get_historical_funding_rates_response.side_effect = e
 
         with pytest.raises(APIError) as exc_info:
-            await backpack_market_data_service.get_historical_funding_rates(symbol)
+            args = GetHistoricalFundingRatesArgs(symbol=symbol)
+            await backpack_market_data_service.get_historical_funding_rates(args)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Internal data validation failed." in exc_info.value.message
@@ -386,7 +394,8 @@ class TestBackpackMarketDataServiceFunding:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await backpack_market_data_service.get_historical_funding_rates(symbol)
+            args = GetHistoricalFundingRatesArgs(symbol=symbol)
+            await backpack_market_data_service.get_historical_funding_rates(args)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
         assert "Unexpected service failure." in exc_info.value.message
@@ -424,7 +433,8 @@ class TestBackpackMarketDataServiceFunding:
                 mock_internal_funding_rates
             )
 
-            result = await backpack_market_data_service.get_historical_funding_rates(symbol=symbol)
+            args = GetHistoricalFundingRatesArgs(symbol=symbol)
+            result = await backpack_market_data_service.get_historical_funding_rates(args)
 
             mock_request_builder.build_get_historical_funding_rates_params.assert_called_once_with(
                 symbol=symbol,

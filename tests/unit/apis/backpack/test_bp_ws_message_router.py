@@ -93,6 +93,7 @@ class TestBackpackWsMessageRouter:
 
         # Verify the result is a BackpackRawWsSubscriptionRequest
         from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
+
         assert isinstance(result, BackpackRawWsSubscriptionRequest)
         assert result.method == "SUBSCRIBE"
         assert result.params == ["depth.SOL_USDC"]
@@ -103,7 +104,7 @@ class TestBackpackWsMessageRouter:
     ) -> None:
         """Test subscription payload construction for various topic types."""
         from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
-        
+
         test_cases = [
             "ticker.BTC_USDC",
             "fills",

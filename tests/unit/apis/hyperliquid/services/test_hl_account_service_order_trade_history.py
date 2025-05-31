@@ -294,7 +294,9 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         )
         mapped_trade = MagicMock(symbol="BTC")
         mock_hl_account_mapper.transform_raw_user_fill_to_internal.return_value = mapped_trade
-        result = await hyperliquid_account_service.get_trade_history(args=GetTradeHistoryArgs(symbol="BTC"))
+        result = await hyperliquid_account_service.get_trade_history(
+            args=GetTradeHistoryArgs(symbol="BTC")
+        )
         assert result == [mapped_trade]
         mock_hl_account_mapper.transform_raw_user_fill_to_internal.assert_called_once_with(
             mock_raw_fill
@@ -360,12 +362,16 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         mock_hl_account_mapper.transform_raw_user_fill_to_internal.side_effect = (
             map_side_effect_func
         )
-        result = await hyperliquid_account_service.get_trade_history(args=GetTradeHistoryArgs(symbol="BTC"))
+        result = await hyperliquid_account_service.get_trade_history(
+            args=GetTradeHistoryArgs(symbol="BTC")
+        )
         assert result == [mapped_trade1]
         mock_hl_account_mapper.transform_raw_user_fill_to_internal.assert_any_call(mock_raw_fill1)
 
         mock_hl_account_mapper.transform_raw_user_fill_to_internal.reset_mock()
-        result_all = await hyperliquid_account_service.get_trade_history(args=GetTradeHistoryArgs(symbol=None))
+        result_all = await hyperliquid_account_service.get_trade_history(
+            args=GetTradeHistoryArgs(symbol=None)
+        )
         assert set(result_all) == {mapped_trade1, mapped_trade2}
         mock_hl_account_mapper.transform_raw_user_fill_to_internal.assert_any_call(mock_raw_fill1)
         mock_hl_account_mapper.transform_raw_user_fill_to_internal.assert_any_call(mock_raw_fill2)
@@ -394,7 +400,9 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             trading_mapper=mock_hl_trading_mapper,
         )
         with pytest.raises(APIError) as excinfo_no_wallet:
-            await service_no_wallet_trade_hist.get_trade_history(args=GetTradeHistoryArgs(symbol=None))
+            await service_no_wallet_trade_hist.get_trade_history(
+                args=GetTradeHistoryArgs(symbol=None)
+            )
         assert excinfo_no_wallet.value.code == APIErrorCode.INVALID_REQUEST.value
         assert "Wallet address is required" in excinfo_no_wallet.value.message
 
@@ -405,7 +413,9 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         )
         mock_http_client_requester.side_effect = APIError("fail", 1)
         with pytest.raises(APIError):
-            await hyperliquid_account_service.get_trade_history(args=GetTradeHistoryArgs(symbol=None))  # Uses the fixture
+            await hyperliquid_account_service.get_trade_history(
+                args=GetTradeHistoryArgs(symbol=None)
+            )  # Uses the fixture
 
     @pytest.mark.asyncio
     async def test_get_trade_history_http_client_returns_none(
@@ -438,7 +448,9 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
 
         with pytest.raises(APIError) as exc_info:
             # Using symbol=None to match current build_user_fills_payload simplicity
-            await hyperliquid_account_service.get_trade_history(args=GetTradeHistoryArgs(symbol=symbol))
+            await hyperliquid_account_service.get_trade_history(
+                args=GetTradeHistoryArgs(symbol=symbol)
+            )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No data received for user fills, status: 200" in exc_info.value.message
@@ -573,7 +585,9 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         mock_http_client_requester.return_value = ([{"fills": []}], 200, {})
         mock_response_handler.handle_info_user_fills_response.return_value = MagicMock(root=[])
 
-        result_empty = await hyperliquid_account_service.get_trade_history(args=GetTradeHistoryArgs(symbol="NONEXISTENT"))
+        result_empty = await hyperliquid_account_service.get_trade_history(
+            args=GetTradeHistoryArgs(symbol="NONEXISTENT")
+        )
         assert result_empty == []
 
         # Test case 2: Trade history with mapper errors for some trades
@@ -594,7 +608,9 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
 
         # The service should handle mapper errors gracefully by skipping invalid fills
         # and returning only the valid ones
-        result = await hyperliquid_account_service.get_trade_history(args=GetTradeHistoryArgs(symbol=None))
+        result = await hyperliquid_account_service.get_trade_history(
+            args=GetTradeHistoryArgs(symbol=None)
+        )
 
         # Should return 2 valid trades (fill_0 and fill_2), skipping fill_1 which raised an error
         assert len(result) == 2

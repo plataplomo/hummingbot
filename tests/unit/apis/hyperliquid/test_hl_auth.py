@@ -320,9 +320,7 @@ async def test_nonce_strictly_increasing(
     expected_ts3_ms = int(fixed_time_sec_3 * 1000)
 
     assert results[0].headers["X-HL-Timestamp"] == str(expected_ts1_ms)
-    assert results[1].headers["X-HL-Timestamp"] == str(
-        expected_ts1_ms
-    )  # Time was patched to same
+    assert results[1].headers["X-HL-Timestamp"] == str(expected_ts1_ms)  # Time was patched to same
     assert results[2].headers["X-HL-Timestamp"] == str(expected_ts3_ms)
 
 

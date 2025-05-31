@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
-from datetime import datetime
 from typing import TYPE_CHECKING, Literal, cast
 
 from pydantic import ValidationError
@@ -49,7 +48,11 @@ from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 # Base API error models
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import GetFundingRatesArgs, GetMarketDataArgs
+from cyberdelta.apis.models.service_args_models import (
+    GetFundingRatesArgs,
+    GetHistoricalFundingRatesArgs,
+    GetMarketDataArgs,
+)
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.market import (
     FundingRate,
@@ -787,20 +790,15 @@ class BackpackMarketDataService:
             ) from e_unexpected
 
     async def get_historical_funding_rates(
-        self,
-        symbol: str,
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-        limit: int | None = None,
+        self, args: GetHistoricalFundingRatesArgs
     ) -> list[FundingRate]:
         """
         Retrieves historical funding rates for a symbol within a given time range.
 
         Args:
-            symbol: The trading symbol
-            start_time: Start time as datetime object (timezone-aware preferred)
-            end_time: End time as datetime object (timezone-aware preferred)
-            limit: Maximum number of results to return
+            args: Parameters for historical funding rate request including
+                 symbol (required), optional time range (start_time, end_time),
+                 and optional limit.
         """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
@@ -808,31 +806,26 @@ class BackpackMarketDataService:
             frame.f_code.co_name if frame is not None else "get_historical_funding_rates"
         )
 
-        if not symbol:
-            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
-        if limit is not None and limit <= 0:
-            raise ValueError(f"[{current_method}] 'limit' must be positive when provided.")
-
         # Convert datetime objects to timestamps with timezone validation
         start_time_ms: int | None = None
-        if start_time is not None:
-            if start_time.tzinfo is None:
+        if args.start_time is not None:
+            if args.start_time.tzinfo is None:
                 logger.warning(
                     f"[{self._exchange_name}] start_time for get_historical_funding_rates "
                     f"is naive. Assuming UTC."
                 )
-            start_time_ms = int(start_time.timestamp())
+            start_time_ms = int(args.start_time.timestamp())
             if start_time_ms <= 0:
                 raise ValueError(f"[{current_method}] 'start_time' must be positive when provided.")
 
         end_time_ms: int | None = None
-        if end_time is not None:
-            if end_time.tzinfo is None:
+        if args.end_time is not None:
+            if args.end_time.tzinfo is None:
                 logger.warning(
                     f"[{self._exchange_name}] end_time for get_historical_funding_rates "
                     f"is naive. Assuming UTC."
                 )
-            end_time_ms = int(end_time.timestamp())
+            end_time_ms = int(args.end_time.timestamp())
             if end_time_ms <= 0:
                 raise ValueError(f"[{current_method}] 'end_time' must be positive when provided.")
 
@@ -844,14 +837,14 @@ class BackpackMarketDataService:
         try:
             # Core operational logic
             params = self._request_builder.build_get_historical_funding_rates_params(
-                symbol=symbol,
+                symbol=args.symbol,
                 start_time_ms=start_time_ms,
                 end_time_ms=end_time_ms,
-                limit=limit,
+                limit=args.limit,
             )
             endpoint_path = "/api/v1/funding/history"  # Define endpoint path in service
             logger.debug(
-                f"[{self._exchange_name}] Requesting historical funding rates for {symbol} "
+                f"[{self._exchange_name}] Requesting historical funding rates for {args.symbol} "
                 f"from {endpoint_path} with params: {params}"
             )
 
@@ -869,24 +862,26 @@ class BackpackMarketDataService:
                 raw_response_content = str(raw_data)
 
             logger.debug(
-                f"[{self._exchange_name}] Raw historical funding rates for {symbol}: {raw_data!r} "
-                f"(Status: {status_code}, Headers: {headers})"
+                f"[{self._exchange_name}] Raw historical funding rates for {args.symbol}: "
+                f"{raw_data!r} (Status: {status_code}, Headers: {headers})"
             )
 
             if raw_data is None:
                 raise APIError(
-                    message=f"No data for historical funding rates {symbol}, status: {status_code}",
+                    message=f"No data for historical funding rates {args.symbol}, "
+                    f"status: {status_code}",
                     code=APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
 
             if not isinstance(raw_data, list):  # raw_data must be a list if not None
                 logger.error(
-                    f"[{self._exchange_name}] Historical funding rates data for {symbol} "
+                    f"[{self._exchange_name}] Historical funding rates data for {args.symbol} "
                     f"is not a list: {type(raw_data)}. Raw: {raw_data!r}, Status: {status_code}"
                 )
                 raise APIError(
-                    f"Historical funding rates data for {symbol} is not a list: {type(raw_data)}",
+                    f"Historical funding rates data for {args.symbol} is not a list: "
+                    f"{type(raw_data)}",
                     APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                     exchange_message=str(raw_data),
@@ -894,7 +889,7 @@ class BackpackMarketDataService:
 
             raw_funding_interval_rates: list[BackpackRawFundingIntervalRate] = (
                 self._response_handler.handle_get_historical_funding_rates_response(
-                    raw_data, symbol, status_code, headers
+                    raw_data, args.symbol, status_code, headers
                 )
             )
 
@@ -903,18 +898,18 @@ class BackpackMarketDataService:
                 try:
                     transformed_rate = self._mapper.transform_raw_funding_interval_rate_to_internal(
                         raw_rate,
-                        symbol=symbol,  # Pass the main symbol argument
+                        symbol=args.symbol,  # Pass the main symbol argument
                     )
                     internal_funding_rates.append(transformed_rate)
                 except (ValidationError, ValueError) as e_map_item:
                     logger.warning(
                         f"[{self._exchange_name}] Skipping mapping for historical funding rate "
-                        f"item for {symbol}: {e_map_item}. Item: {raw_rate!r}"
+                        f"item for {args.symbol}: {e_map_item}. Item: {raw_rate!r}"
                     )
 
             logger.debug(
                 f"[{self._exchange_name}] Mapped {len(internal_funding_rates)} internal "
-                f"historical funding rates for {symbol}"
+                f"historical funding rates for {args.symbol}"
             )
             return internal_funding_rates
 
@@ -924,7 +919,7 @@ class BackpackMarketDataService:
         except TransformationError as e_transform:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for {symbol}: {e_transform}",
+                f"data for {args.symbol}: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
@@ -937,7 +932,7 @@ class BackpackMarketDataService:
         except ValidationError as e_val:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for {symbol}: {e_val}",
+                f"failed for {args.symbol}: {e_val}",
                 exc_info=True,
             )
             raise APIError(
@@ -950,7 +945,7 @@ class BackpackMarketDataService:
         except (ValueError, TypeError) as e_service_logic:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for {symbol}: {e_service_logic}",
+                f"for {args.symbol}: {e_service_logic}",
                 exc_info=True,
             )
             raise APIError(
@@ -963,7 +958,7 @@ class BackpackMarketDataService:
         except Exception as e_unexpected:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-                f"for {symbol}: {e_unexpected}",
+                f"for {args.symbol}: {e_unexpected}",
                 exc_info=True,
             )
             raise APIError(

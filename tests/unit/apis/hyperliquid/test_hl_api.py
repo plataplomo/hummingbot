@@ -18,6 +18,7 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetFundingRatesArgs,
+    GetOrderArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
     PlaceOrderArgs,
@@ -455,10 +456,12 @@ class TestHyperliquidAPIAssetIndexingIntegration:
         mock_hl_trading_service.get_order.return_value = expected_order
 
         # Call get_order - this should internally use asset indexing
-        result = await api.get_order(order_id="12345", symbol="ETH")
+        result = await api.get_order(GetOrderArgs(order_id="12345", symbol="ETH"))
 
         # Verify the trading service was called correctly
-        mock_hl_trading_service.get_order.assert_called_once_with(symbol="ETH", order_id="12345")
+        mock_hl_trading_service.get_order.assert_called_once_with(
+            args=GetOrderArgs(order_id="12345", symbol="ETH")
+        )
 
         # Verify the result
         assert result == expected_order
@@ -481,7 +484,7 @@ class TestHyperliquidAPIAssetIndexingIntegration:
 
         # Call get_order with a nonexistent symbol and expect the error to be propagated
         with pytest.raises(APIError) as exc_info:
-            await api.get_order(order_id="12345", symbol="NONEXISTENT")
+            await api.get_order(GetOrderArgs(order_id="12345", symbol="NONEXISTENT"))
 
         # Verify the error is the expected asset indexing error
         assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
@@ -531,7 +534,7 @@ class TestHyperliquidAPIAssetIndexingIntegration:
         place_result = await api.place_order(place_order_args)
 
         # Get order
-        get_result = await api.get_order(order_id="12345", symbol="BTC")
+        get_result = await api.get_order(GetOrderArgs(order_id="12345", symbol="BTC"))
 
         # Cancel order
         cancel_args = CancelOrderArgs(order_id="12345", symbol="BTC")
@@ -658,9 +661,7 @@ class TestHyperliquidAPIAccountOperations:
         result = await api.get_order_history(args=order_args)
 
         # Verify service was called with correct parameters
-        mock_hl_account_service.get_order_history.assert_called_once_with(
-            args=order_args
-        )
+        mock_hl_account_service.get_order_history.assert_called_once_with(args=order_args)
         assert result == expected_orders
 
         await api.close()
@@ -680,7 +681,9 @@ class TestHyperliquidAPIAccountOperations:
         result = await api.get_trade_history(args=GetTradeHistoryArgs(symbol="ETH"))
 
         # Verify service was called with correct parameters
-        mock_hl_account_service.get_trade_history.assert_called_once_with(args=GetTradeHistoryArgs(symbol="ETH"))
+        mock_hl_account_service.get_trade_history.assert_called_once_with(
+            args=GetTradeHistoryArgs(symbol="ETH")
+        )
         assert result == expected_trades
 
         await api.close()
@@ -775,10 +778,12 @@ class TestHyperliquidAPITradingOperations:
         mock_hl_trading_service.get_order.return_value = expected_order
 
         # Test delegation
-        result = await api.get_order(order_id="12345", symbol="BTC")
+        result = await api.get_order(GetOrderArgs(order_id="12345", symbol="BTC"))
 
         # Verify service was called with correct parameters
-        mock_hl_trading_service.get_order.assert_called_once_with(symbol="BTC", order_id="12345")
+        mock_hl_trading_service.get_order.assert_called_once_with(
+            args=GetOrderArgs(order_id="12345", symbol="BTC")
+        )
         assert result == expected_order
 
         await api.close()
@@ -880,7 +885,7 @@ class TestHyperliquidAPIErrorHandling:
 
         # API client should propagate the exact same ValueError
         with pytest.raises(ValueError) as exc_info:
-            await api.get_order(order_id="invalid_id")
+            await api.get_order(GetOrderArgs(order_id="invalid_id", symbol="BTC"))
 
         # Assert exact error propagation
         assert exc_info.value is service_error  # Same instance

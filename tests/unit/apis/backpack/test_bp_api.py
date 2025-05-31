@@ -18,6 +18,7 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetFundingRatesArgs,
+    GetOrderArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
     PlaceOrderArgs,
@@ -368,14 +369,12 @@ class TestBackpackAPIAccountOperations:
         mock_bp_account_service.get_trade_history.return_value = expected_trades
 
         # Test delegation
-        result = await api.get_trade_history(args=GetTradeHistoryArgs(
-            symbol="SOL", limit=50
-        ))
+        result = await api.get_trade_history(args=GetTradeHistoryArgs(symbol="SOL", limit=50))
 
         # Verify service was called with correct parameters
-        mock_bp_account_service.get_trade_history.assert_called_once_with(args=GetTradeHistoryArgs(
-            symbol="SOL", limit=50
-        ))
+        mock_bp_account_service.get_trade_history.assert_called_once_with(
+            args=GetTradeHistoryArgs(symbol="SOL", limit=50)
+        )
         assert result == expected_trades
 
         await api.close()
@@ -487,11 +486,11 @@ class TestBackpackAPITradingOperations:
         mock_bp_trading_service.get_order.return_value = test_order
 
         # Test delegation
-        result = await api.get_order("order_102", symbol="SOL")
+        result = await api.get_order(GetOrderArgs(order_id="order_102", symbol="SOL"))
 
         # Verify service was called with correct parameters
         mock_bp_trading_service.get_order.assert_called_once_with(
-            order_id="order_102", symbol="SOL", client_order_id=None
+            args=GetOrderArgs(order_id="order_102", symbol="SOL")
         )
         assert result == test_order
 
@@ -530,11 +529,13 @@ class TestBackpackAPITradingOperations:
         mock_bp_trading_service.get_order_status.return_value = test_order
 
         # Test delegation
-        result = await api.get_order_status("order_103", symbol="SOL")
+        result = await api.get_order_status(
+            GetOrderArgs(order_id="order_103", symbol="SOL", client_order_id=None)
+        )
 
         # Verify service was called with correct parameters
         mock_bp_trading_service.get_order_status.assert_called_once_with(
-            order_id="order_103", symbol="SOL", client_order_id=None
+            args=GetOrderArgs(order_id="order_103", symbol="SOL", client_order_id=None)
         )
         assert result == test_order
 
@@ -664,7 +665,7 @@ class TestBackpackAPIErrorHandling:
 
         # API client should propagate the exact same APIError
         with pytest.raises(APIError) as exc_info:
-            await api.get_order("missing_order", symbol="SOL")
+            await api.get_order(GetOrderArgs(order_id="missing_order", symbol="SOL"))
 
         # Assert exact error propagation
         assert exc_info.value is service_error  # Same instance

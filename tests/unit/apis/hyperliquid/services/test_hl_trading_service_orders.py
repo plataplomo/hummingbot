@@ -23,7 +23,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import CancelOrderArgs, PlaceOrderArgs
+from cyberdelta.apis.models.service_args_models import CancelOrderArgs, GetOrderArgs, PlaceOrderArgs
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
 
@@ -196,10 +196,7 @@ class TestHyperliquidTradingServiceOrders:
         hl_trading_service = make_hl_trading_service()
 
         with pytest.raises(ValueError) as exc_info:
-            await hl_trading_service.get_order(
-                symbol="ETH",
-                order_id="",  # Empty order_id should be rejected
-            )
+            await hl_trading_service.get_order(args=GetOrderArgs(symbol="ETH", order_id=""))
 
         assert "'order_id' must be a non-empty value" in str(exc_info.value)
 
@@ -216,8 +213,7 @@ class TestHyperliquidTradingServiceOrders:
 
         with pytest.raises(APIError) as exc_info:
             await hl_trading_service.get_order(
-                symbol="ETH",
-                order_id="not_a_number",  # Invalid string order_id
+                args=GetOrderArgs(symbol="ETH", order_id="not_a_number")
             )
 
         # The service wraps ValueError in APIError due to error handling strategy
@@ -235,10 +231,7 @@ class TestHyperliquidTradingServiceOrders:
         hl_trading_service = make_hl_trading_service()
 
         with pytest.raises(ValueError) as exc_info:
-            await hl_trading_service.get_order(
-                symbol="",  # Empty symbol should be rejected when provided
-                order_id=12345,
-            )
+            await hl_trading_service.get_order(args=GetOrderArgs(symbol="", order_id="12345"))
 
         assert "'symbol' must be a non-empty string when provided" in str(exc_info.value)
 
@@ -518,7 +511,7 @@ class TestHyperliquidTradingServiceOrders:
     ) -> None:
         """Test get_order when the info HTTP client returns None content."""
         symbol = "ETH"
-        order_id = 12345
+        order_id = "12345"
         wallet_address = "0xWallet"
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
 
@@ -529,7 +522,7 @@ class TestHyperliquidTradingServiceOrders:
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
         with pytest.raises(APIError) as exc_info:
-            await hl_trading_service.get_order(symbol=symbol, order_id=order_id)
+            await hl_trading_service.get_order(args=GetOrderArgs(symbol=symbol, order_id=order_id))
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No data received for order status for OID 12345." in exc_info.value.message
@@ -547,20 +540,20 @@ class TestHyperliquidTradingServiceOrders:
     ) -> None:
         """Test successful get_order operation."""
         symbol = "BTC"
-        order_id = 123456
+        order_id = "123456"
         wallet_address = "0xSuccessWallet"
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
 
         # Mock payload building for order status
         mock_payload_model = HyperliquidRawOrderStatusRequestPayload(
-            type="orderStatus", user=wallet_address, oid=order_id
+            type="orderStatus", user=wallet_address, oid=int(order_id)
         )
         mock_hl_request_builder.build_order_status_payload.return_value = mock_payload_model
 
         # Mock successful order status response
         mock_response_content = {
             "order": {
-                "oid": order_id,
+                "oid": int(order_id),
                 "cloid": None,
                 "asset": "BTC",
                 "side": "B",
@@ -615,13 +608,15 @@ class TestHyperliquidTradingServiceOrders:
             expected_order
         )
 
-        result = await hl_trading_service.get_order(symbol=symbol, order_id=order_id)
+        result = await hl_trading_service.get_order(
+            args=GetOrderArgs(symbol=symbol, order_id=order_id)
+        )
 
         assert result == expected_order
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
-            data={"type": "orderStatus", "user": "0xSuccessWallet", "oid": 123456},
+            data={"type": "orderStatus", "user": "0xSuccessWallet", "oid": int(order_id)},
             is_signed=True,
         )
         mock_hl_response_handler.handle_info_order_status_response.assert_called_once_with(

@@ -16,9 +16,12 @@ from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
 from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAPI, MessageHandler
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
+    GetAllOpenOrdersArgs,
     GetFundingRatesArgs,
     GetMarketDataArgs,
+    GetOrderArgs,
     GetOrderHistoryArgs,
+    GetTradeHistoryArgs,
     PlaceOrderArgs,
 )
 
@@ -743,53 +746,47 @@ class MockExchangeAPI(ExchangeAPI):
         logger.info(f"MockExchange {self.exchange_name}: Cancelled order {order_id}")
         return True
 
-    async def get_order(
-        self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
-    ) -> Order | None:
+    async def get_order(self, args: GetOrderArgs) -> Order | None:
         """Get order details by exchange ID or client ID."""
         logger.debug(
-            f"Mock {self.exchange_name}: Getting order: ID={order_id}, ClientID={client_order_id}"
+            f"Mock {self.exchange_name}: Getting order: ID={args.order_id}, "
+            f"Symbol={args.symbol}, ClientID={args.client_order_id}"
         )
         self._check_error("get_order")
         await self._simulate_latency()
 
-        # Prioritize finding by exchange order ID (assuming order_id param is exchange ID)
-        order = self._orders.get(order_id)
+        # Prioritize finding by exchange order ID
+        order = self._orders.get(args.order_id)
 
         # If not found by exchange ID and client_order_id is provided, try that
-        if not order and client_order_id:
-            target_client_order_id = str(client_order_id)
+        if not order and args.client_order_id:
+            target_client_order_id = str(args.client_order_id)
             for o in self._orders.values():
                 if o.client_order_id == target_client_order_id:
                     order = o
                     break
 
         # Optionally check symbol match if provided
-        if symbol and order and order.symbol != symbol:
+        if args.symbol and order and order.symbol != args.symbol:
             logger.warning(
-                f"Order ID {order_id or client_order_id} found but symbol mismatch: "
-                f"req '{symbol}', found '{order.symbol}'"
+                f"Order ID {args.order_id or args.client_order_id} found but symbol mismatch: "
+                f"req '{args.symbol}', found '{order.symbol}'"
             )
             return None  # Behavior for symbol mismatch can be refined.
         return order
 
     async def get_order_status(
         self,
-        order_id: str,
-        symbol: str | None = None,
-        client_order_id: str | None = None,
+        args: GetOrderArgs
     ) -> Order | None:
         """
         Get a specific order by ID, returning None if not found.
         """
-        # Mark params as unused if necessary for linters
-        _ = symbol
-        _ = client_order_id
         self._check_error("get_order_status")
         await self._simulate_latency()
-        order = self._orders.get(order_id)
+        order = self._orders.get(args.order_id)
         if order is None:
-            logger.warning(f"Mock order not found for order_id: {order_id}")
+            logger.warning(f"Mock order not found for order_id: {args.order_id}")
             return None
         return order
 
@@ -810,7 +807,7 @@ class MockExchangeAPI(ExchangeAPI):
             logger.exception(f"Error in mock get_open_orders: {e}")
             return []
 
-    async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
+    async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
         """Return all mock open orders, optionally filtered by symbol."""
         self._check_error("get_all_open_orders")
         await self._simulate_latency()
@@ -819,7 +816,7 @@ class MockExchangeAPI(ExchangeAPI):
             for order in self._orders.values():
                 # Filter by symbol if provided
                 order_symbol: str | None = getattr(order, "symbol", None)
-                if symbol is None or order_symbol == symbol:
+                if args.symbol is None or order_symbol == args.symbol:
                     orders_to_return.append(order)
             return orders_to_return
         except Exception as e:
@@ -963,15 +960,15 @@ class MockExchangeAPI(ExchangeAPI):
             results = results[:limit]
         return results
 
-    async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
+    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
         """Return mock trade history."""
         self._check_error("get_trade_history")
         await self._simulate_latency()
         results = self._trades  # Use the internal _trades list
-        if symbol:
-            results = [t for t in results if t.symbol == symbol]
-        if limit:
-            results = results[:limit]
+        if args.symbol:
+            results = [t for t in results if t.symbol == args.symbol]
+        if args.limit:
+            results = results[:args.limit]
         return results
 
     # --- END OF ADDED PLACEHOLDERS ---

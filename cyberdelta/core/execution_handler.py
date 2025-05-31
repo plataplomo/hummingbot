@@ -10,7 +10,7 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, Any
 
 from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAPI
-from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
+from cyberdelta.apis.models.service_args_models import GetOrderArgs, PlaceOrderArgs
 from cyberdelta.config.config_models import AppSettings
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import (
@@ -813,9 +813,11 @@ class ExecutionHandler:
                     f"Execution {execution.id}: {context} on {exchange_id} (Attempt {attempt + 1})"
                 )
                 order_status = await client.get_order_status(
-                    order_id=order_id,
-                    symbol=symbol,
-                    client_order_id=client_order_id,
+                    args=GetOrderArgs(
+                        order_id=order_id,
+                        symbol=symbol,
+                        client_order_id=client_order_id
+                    )
                 )
                 if order_status:
                     logger.debug(

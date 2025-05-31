@@ -27,6 +27,7 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetAllOpenOrdersArgs,
+    GetOrderArgs,
     PlaceOrderArgs,
 )
 from cyberdelta.config.logging_config import get_logger
@@ -481,26 +482,23 @@ class BackpackTradingService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
-    async def get_order(
-        self, order_id: str, symbol: str | None, client_order_id: str | None = None
-    ) -> Order | None:
+    async def get_order(self, args: GetOrderArgs) -> Order | None:
         """Get a single order by its ID."""
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_order"
 
-        if not order_id:
-            raise ValueError(f"[{current_method}] 'order_id' must be a non-empty string.")
-        if symbol is None:
-            raise ValueError(f"[{current_method}] 'symbol' parameter is required.")
-        if not symbol:
+        # Backpack requires symbol for its GET /order/{id} endpoint
+        if args.symbol is None:
+            raise ValueError(f"[{current_method}] 'symbol' parameter is required for Backpack.")
+        if not args.symbol:
             raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
 
         # Initialize context for error handling
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
         raw_response_content: str | None = None
-        identifier = order_id  # Initialize identifier outside try block
+        identifier = args.order_id  # Initialize identifier outside try block
 
         try:
             # Core operational logic
@@ -509,14 +507,14 @@ class BackpackTradingService:
             # Assuming order_id is the exchange order ID if provided.
             # If only client_order_id, that should be used as identifier.
 
-            if not order_id and client_order_id:
-                identifier = client_order_id
-            elif not order_id and not client_order_id:
+            if not args.order_id and args.client_order_id:
+                identifier = args.client_order_id
+            elif not args.order_id and not args.client_order_id:
                 raise ValueError("Either order_id or client_order_id must be provided.")
 
             endpoint = f"/api/v1/order/{identifier}"
             params = self._request_builder.build_get_order_params(
-                symbol=symbol
+                symbol=args.symbol
             )  # Symbol is a query param
 
             raw_data, status_code, _ = await self._http_client_requester(
@@ -532,12 +530,14 @@ class BackpackTradingService:
                 raw_response_content = str(raw_data)
 
             if status_code == 404:  # Order not found
-                logger.info(f"[{self._exchange_name}] Order {identifier} ({symbol}) not found.")
+                logger.info(
+                    f"[{self._exchange_name}] Order {identifier} ({args.symbol}) not found."
+                )
                 return None
 
             if raw_data is None or not isinstance(raw_data, dict):
                 raise APIError(
-                    f"Get order {identifier} ({symbol}) returned invalid data "
+                    f"Get order {identifier} ({args.symbol}) returned invalid data "
                     f"(status: {status_code})",
                     APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
@@ -553,7 +553,7 @@ class BackpackTradingService:
             # Allow ORDER_NOT_FOUND from handler to propagate if it maps it
             if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
                 logger.info(
-                    f"[{self._exchange_name}] Order {identifier} ({symbol}) not found "
+                    f"[{self._exchange_name}] Order {identifier} ({args.symbol}) not found "
                     f"via handler mapping."
                 )
                 return None
@@ -561,7 +561,7 @@ class BackpackTradingService:
         except TransformationError as e_transform:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for order {order_id} ({symbol}): {e_transform}",
+                f"data for order {args.order_id} ({args.symbol}): {e_transform}",
                 exc_info=True,
             )
             raise APIError(
@@ -574,7 +574,7 @@ class BackpackTradingService:
         except ValidationError as e_val:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for order {order_id} ({symbol}): {e_val}",
+                f"failed for order {identifier} ({args.symbol}): {e_val}",
                 exc_info=True,
             )
             raise APIError(
@@ -598,7 +598,7 @@ class BackpackTradingService:
                 # This is from service internal logic - wrap as APIError
                 logger.error(
                     f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                    f"for order {order_id} ({symbol}): {e_service_logic}",
+                    f"for order {identifier} ({args.symbol}): {e_service_logic}",
                     exc_info=True,
                 )
                 raise APIError(
@@ -611,7 +611,7 @@ class BackpackTradingService:
         except Exception as e_unexpected:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-                f"for order {order_id} ({symbol}): {e_unexpected}",
+                f"for order {identifier} ({args.symbol}): {e_unexpected}",
                 exc_info=True,
             )
             raise APIError(
@@ -622,16 +622,14 @@ class BackpackTradingService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
-    async def get_order_status(
-        self, order_id: str, symbol: str | None, client_order_id: str | None = None
-    ) -> Order:  # As per prompt, this implies it raises if not found.
+    async def get_order_status(self, args: GetOrderArgs) -> Order:
         """Get the status of a specific order."""
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_order_status"
 
-        if symbol is None:
-            raise ValueError(f"[{current_method}] 'symbol' parameter is required.")
+        if args.symbol is None:
+            raise ValueError(f"[{current_method}] 'symbol' parameter is required for Backpack.")
 
         # Initialize context for error handling
         status_code: int = 0
@@ -639,13 +637,16 @@ class BackpackTradingService:
 
         try:
             # Core operational logic
-            order = await self.get_order(
-                order_id=order_id, symbol=symbol, client_order_id=client_order_id
-            )
+            order = await self.get_order(args=args)
             if order is None:
-                identifier = client_order_id if not order_id and client_order_id else order_id
+                identifier = (
+                    args.client_order_id
+                    if not args.order_id and args.client_order_id
+                    else args.order_id
+                )
                 raise APIError(
-                    f"Order {identifier} for symbol {symbol} not found on {self._exchange_name}.",
+                    f"Order {identifier} for symbol {args.symbol} not found on "
+                    f"{self._exchange_name}.",
                     code=APIErrorCode.ORDER_NOT_FOUND.value,
                 )
             return order
@@ -875,7 +876,7 @@ class BackpackTradingService:
     async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
         """
         Fetch all open orders, optionally filtering by symbol.
-        
+
         Args:
             args: Parameters for filtering open orders including optional symbol.
         """

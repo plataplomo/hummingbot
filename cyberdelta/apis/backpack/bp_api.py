@@ -23,7 +23,6 @@ This module implements the Backpack exchange adapter for CyberDeltaEngine, inclu
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import datetime
 from typing import Any
 
 from cyberdelta.apis.backpack.bp_api_components_factory import BackpackAPIComponentsFactory
@@ -47,7 +46,9 @@ from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetAllOpenOrdersArgs,
     GetFundingRatesArgs,
+    GetHistoricalFundingRatesArgs,
     GetMarketDataArgs,
+    GetOrderArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
     PlaceOrderArgs,
@@ -393,7 +394,7 @@ class BackpackAPI(ExchangeAPI):
 
     async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
         """Get recent trade history.
-        
+
         Args:
             args: Parameters for filtering trade history including symbol and limit.
         """
@@ -403,21 +404,19 @@ class BackpackAPI(ExchangeAPI):
         """Establish the WebSocket connection using the base class logic."""
         await super().connect_websocket()
 
-    async def get_order(
-        self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
-    ) -> Order | None:
+    async def get_order(self, args: GetOrderArgs) -> Order | None:
         """Fetch a single order by its ID."""
-        return await self.trading_service.get_order(
-            order_id=order_id, symbol=symbol, client_order_id=client_order_id
-        )
+        if args.symbol is None:
+            raise ValueError("'symbol' parameter is required for Backpack.get_order()")
+        return await self.trading_service.get_order(args=args)
 
-    async def get_order_status(
-        self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
-    ) -> Order:
+    async def get_order_status(self, args: GetOrderArgs) -> Order | None:
         """Fetch the status of a specific order."""
-        return await self.trading_service.get_order_status(
-            order_id=order_id, symbol=symbol, client_order_id=client_order_id
-        )
+        if args.symbol is None:
+            raise ValueError("'symbol' parameter is required for Backpack.get_order_status()")
+        # Return type changed to Order | None to align with abstract method
+        order = await self.trading_service.get_order_status(args=args)
+        return order
 
     # All abstract methods should now be implemented.
 
@@ -446,7 +445,7 @@ class BackpackAPI(ExchangeAPI):
 
     async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
         """Fetch all open orders.
-        
+
         Args:
             args: Parameters for filtering open orders including optional symbol.
         """
@@ -478,19 +477,10 @@ class BackpackAPI(ExchangeAPI):
         await super()._resubscribe()
 
     async def get_historical_funding_rates(
-        self,
-        symbol: str,
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-        limit: int | None = None,
+        self, args: GetHistoricalFundingRatesArgs
     ) -> list[FundingRate]:
         """Get historical funding rates for a specific symbol."""
-        return await self.market_data_service.get_historical_funding_rates(
-            symbol=symbol,
-            start_time=start_time,
-            end_time=end_time,
-            limit=limit,
-        )
+        return await self.market_data_service.get_historical_funding_rates(args=args)
 
     async def close(self) -> None:
         """Close the API client and clean up resources."""

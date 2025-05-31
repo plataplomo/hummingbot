@@ -46,7 +46,9 @@ if TYPE_CHECKING:
         CancelOrderArgs,
         GetAllOpenOrdersArgs,
         GetFundingRatesArgs,
+        GetHistoricalFundingRatesArgs,
         GetMarketDataArgs,
+        GetOrderArgs,
         GetOrderHistoryArgs,
         GetTradeHistoryArgs,
         PlaceOrderArgs,
@@ -564,7 +566,26 @@ class ExchangeAPI(ABC):
 
     @abstractmethod
     async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
-        """Fetch historical funding rates for specific symbols or all symbols if None."""
+        """Fetch current funding rates for specific symbols or all symbols if None."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_historical_funding_rates(
+        self, args: GetHistoricalFundingRatesArgs
+    ) -> list[FundingRate]:
+        """Fetch historical funding rates for a specific symbol.
+
+        Args:
+            args: Parameters for historical funding rate request including
+                 symbol (required), optional time range (start_time, end_time),
+                 and optional limit.
+
+        Returns:
+            List of FundingRate objects with historical data.
+
+        Raises:
+            APIError: If the API request fails.
+        """
         raise NotImplementedError
 
     @abstractmethod
@@ -653,25 +674,44 @@ class ExchangeAPI(ABC):
     @abstractmethod
     async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
         """Fetch historical trade data (account fills).
-        
+
         Args:
             args: Parameters for filtering trade history including symbol and limit.
         """
         raise NotImplementedError
 
     @abstractmethod
-    async def get_order_status(
-        self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
-    ) -> Order | None:
+    async def get_order_status(self, args: GetOrderArgs) -> Order | None:
         """
-        Fetch the current status of a specific order by its ID or client_order_id.
-        At least one of order_id or client_order_id should be provided by implementations.
+        Fetch the current status of a specific order.
+
+        Args:
+            args: GetOrderArgs model containing order_id (primary identifier)
+                 and optional symbol and client_order_id parameters.
+
+        Returns:
+            Order if found, None otherwise.
+
+        Raises:
+            APIError: If the API request fails.
         """
         raise NotImplementedError
 
     @abstractmethod
-    async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
-        """Get a specific order by its ID."""
+    async def get_order(self, args: GetOrderArgs) -> Order | None:
+        """
+        Get a specific order by its ID.
+
+        Args:
+            args: GetOrderArgs model containing order_id (primary identifier)
+                 and optional symbol and client_order_id parameters.
+
+        Returns:
+            Order if found, None otherwise.
+
+        Raises:
+            APIError: If the API request fails.
+        """
         raise NotImplementedError
 
     # --- WebSocket Connection Management Methods ---
@@ -727,7 +767,7 @@ class ExchangeAPI(ABC):
     @abstractmethod
     async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
         """Fetch all open orders, optionally filtering by symbol.
-        
+
         Args:
             args: Parameters for filtering open orders including optional symbol.
         """

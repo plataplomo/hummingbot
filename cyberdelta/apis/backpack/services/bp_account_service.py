@@ -721,8 +721,7 @@ class BackpackAccountService:
             # Service logic errors should be wrapped as APIError
             error_msg = str(e_service_logic)
             if current_method in error_msg and any(
-                param in error_msg
-                for param in ["from_account_type", "to_account_type"]
+                param in error_msg for param in ["from_account_type", "to_account_type"]
             ):
                 # This is likely from our input parameter validation - re-raise as is
                 raise
@@ -1056,7 +1055,7 @@ class BackpackAccountService:
 
     async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
         """Retrieves historical trade data (fills).
-        
+
         Args:
             args: Parameters for filtering trade history including symbol and limit.
         """

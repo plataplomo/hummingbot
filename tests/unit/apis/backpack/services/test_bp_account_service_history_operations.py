@@ -442,9 +442,9 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_mapper.transform_raw_trade_to_internal.return_value = expected_trade
 
         with patch.object(bp_account_service, "_mapper", mock_mapper):
-            result = await bp_account_service.get_trade_history(args=GetTradeHistoryArgs(
-                symbol=symbol, limit=limit
-            ))
+            result = await bp_account_service.get_trade_history(
+                args=GetTradeHistoryArgs(symbol=symbol, limit=limit)
+            )
 
         mock_request_builder.build_get_trade_history_params.assert_called_once_with(
             symbol=symbol, limit=limit, start_time_ms=None, end_time_ms=None, from_id=None
@@ -493,9 +493,9 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_http_client_requester.return_value = (None, 200, {})
 
         with pytest.raises(APIError) as exc_info:
-            await bp_account_service.get_trade_history(args=GetTradeHistoryArgs(
-                symbol=symbol, limit=limit
-            ))
+            await bp_account_service.get_trade_history(
+                args=GetTradeHistoryArgs(symbol=symbol, limit=limit)
+            )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No data received for trade history, status: 200" in exc_info.value.message
@@ -525,9 +525,9 @@ class TestBackpackAccountServiceHistoryOperations:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await bp_account_service.get_trade_history(args=GetTradeHistoryArgs(
-                symbol=symbol, limit=limit
-            ))
+            await bp_account_service.get_trade_history(
+                args=GetTradeHistoryArgs(symbol=symbol, limit=limit)
+            )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Internal data validation failed" in exc_info.value.message

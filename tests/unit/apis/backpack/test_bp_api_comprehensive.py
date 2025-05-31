@@ -17,7 +17,9 @@ from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetAllOpenOrdersArgs,
     GetFundingRatesArgs,
+    GetHistoricalFundingRatesArgs,
     GetMarketDataArgs,
+    GetOrderArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
     PlaceOrderArgs,
@@ -484,7 +486,9 @@ class TestBackpackAPIPublicBehavior:
         with patch.object(
             backpack_api.account_service, "get_trade_history", return_value=mock_trades
         ):
-            result = await backpack_api.get_trade_history(args=GetTradeHistoryArgs(symbol="SOL_USDC", limit=50))
+            result = await backpack_api.get_trade_history(
+                args=GetTradeHistoryArgs(symbol="SOL_USDC", limit=50)
+            )
 
             assert result == mock_trades
             assert len(result) == 10
@@ -496,7 +500,9 @@ class TestBackpackAPIPublicBehavior:
         mock_order.client_order_id = "order123"
 
         with patch.object(backpack_api.trading_service, "get_order", return_value=mock_order):
-            result = await backpack_api.get_order("order123", "SOL_USDC", "client123")
+            result = await backpack_api.get_order(
+                GetOrderArgs(order_id="order123", symbol="SOL_USDC", client_order_id="client123")
+            )
 
             result_order: Order | None = result
             assert result_order == mock_order
@@ -507,7 +513,7 @@ class TestBackpackAPIPublicBehavior:
     async def test_get_order_requires_symbol(self, backpack_api: BackpackAPI) -> None:
         """Test get_order requires symbol parameter."""
         with pytest.raises(ValueError) as exc_info:
-            await backpack_api.get_order("order123", None)
+            await backpack_api.get_order(GetOrderArgs(order_id="order123", symbol=None))
 
         assert "'symbol' parameter is required" in str(exc_info.value)
 
@@ -523,16 +529,19 @@ class TestBackpackAPIPublicBehavior:
         with patch.object(
             backpack_api.trading_service, "get_order_status", return_value=mock_order
         ):
-            result = await backpack_api.get_order_status("order123", "SOL_USDC", "client123")
+            result = await backpack_api.get_order_status(
+                GetOrderArgs(order_id="order123", symbol="SOL_USDC", client_order_id="client123")
+            )
 
             assert result == mock_order
+            assert result is not None
             assert result.status == OrderStatus.FILLED
 
     @pytest.mark.asyncio
     async def test_get_order_status_requires_symbol(self, backpack_api: BackpackAPI) -> None:
         """Test get_order_status requires symbol parameter."""
         with pytest.raises(ValueError) as exc_info:
-            await backpack_api.get_order_status("order123", None)
+            await backpack_api.get_order_status(GetOrderArgs(order_id="order123", symbol=None))
 
         assert "'symbol' parameter is required" in str(exc_info.value)
 
@@ -544,7 +553,9 @@ class TestBackpackAPIPublicBehavior:
         with patch.object(
             backpack_api.trading_service, "get_all_open_orders", return_value=mock_orders
         ):
-            result = await backpack_api.get_all_open_orders(args=GetAllOpenOrdersArgs(symbol="SOL_USDC"))
+            result = await backpack_api.get_all_open_orders(
+                args=GetAllOpenOrdersArgs(symbol="SOL_USDC")
+            )
 
             assert result == mock_orders
             assert len(result) == 7
@@ -561,9 +572,10 @@ class TestBackpackAPIPublicBehavior:
             "get_historical_funding_rates",
             return_value=mock_funding_rates,
         ):
-            result = await backpack_api.get_historical_funding_rates(
-                "SOL_USDC", start_time, end_time, 100
+            args = GetHistoricalFundingRatesArgs(
+                symbol="SOL_USDC", start_time=start_time, end_time=end_time, limit=100
             )
+            result = await backpack_api.get_historical_funding_rates(args)
 
             assert result == mock_funding_rates
             assert len(result) == 20
@@ -576,24 +588,21 @@ class TestBackpackAPIPublicBehavior:
         start_time = datetime.now(UTC)
         end_time = datetime.now(UTC) - timedelta(hours=1)  # Earlier than start
 
-        # Mock the service to avoid actual HTTP requests
-        with patch.object(
-            backpack_api.market_data_service,
-            "get_historical_funding_rates",
-            side_effect=ValueError("end_time cannot be before start_time"),
-        ):
-            with pytest.raises(ValueError) as exc_info:
-                await backpack_api.get_historical_funding_rates("SOL_USDC", start_time, end_time)
+        # The validation now happens at the args model level
+        with pytest.raises(ValueError) as exc_info:
+            GetHistoricalFundingRatesArgs(
+                symbol="SOL_USDC", start_time=start_time, end_time=end_time
+            )
 
-            assert "end_time cannot be before start_time" in str(exc_info.value)
+        assert "start_time must be before end_time" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_get_historical_funding_rates_warns_about_naive_datetimes(
+    async def test_get_historical_funding_rates_accepts_valid_datetimes(
         self, backpack_api: BackpackAPI
     ) -> None:
-        """Test warning for naive datetimes in historical funding rates."""
-        start_time_naive = datetime.now()  # Naive datetime
-        end_time_naive = datetime.now()  # Naive datetime
+        """Test that historical funding rates accepts valid datetime arguments."""
+        start_time_aware = datetime.now(UTC)
+        end_time_aware = datetime.now(UTC) + timedelta(hours=1)
 
         # Mock the HTTP request to return valid data
         mock_raw_data = [
@@ -609,16 +618,22 @@ class TestBackpackAPIPublicBehavior:
             "_http_client_requester",
             return_value=(mock_raw_data, 200, {}),
         ):
-            with patch(
-                "cyberdelta.apis.backpack.services.bp_market_data_service.logger"
-            ) as mock_logger:
-                await backpack_api.get_historical_funding_rates(
-                    "SOL_USDC", start_time_naive, end_time_naive, 100
+            with patch.object(
+                backpack_api.market_data_service,
+                "_mapper",
+                return_value=MagicMock(spec=FundingRate),
+            ):
+                # This should work without issues
+                args = GetHistoricalFundingRatesArgs(
+                    symbol="SOL_USDC",
+                    start_time=start_time_aware,
+                    end_time=end_time_aware,
+                    limit=100,
                 )
+                result = await backpack_api.get_historical_funding_rates(args)
 
-                assert mock_logger.warning.call_count == 2
-                warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
-                assert any("is naive" in call for call in warning_calls)
+                # Should return a list (mocked to return one FundingRate)
+                assert isinstance(result, list)
 
     @pytest.mark.asyncio
     async def test_cancel_all_orders_success(self, backpack_api: BackpackAPI) -> None:

@@ -54,6 +54,7 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetAllOpenOrdersArgs,
+    GetOrderArgs,
     PlaceOrderArgs,
 )
 from cyberdelta.config.logging_config import get_logger
@@ -305,18 +306,14 @@ class HyperliquidTradingService:
             _error_msg_unexpected = f"Unexpected error fetching order status raw: {e}"
             raise APIError(_error_msg_unexpected, APIErrorCode.UNKNOWN.value) from e
 
-    async def get_order(self, symbol: str | None, order_id: str | int) -> Order | None:
+    async def get_order(self, args: GetOrderArgs) -> Order | None:
         """Retrieves a specific order by ID for a given symbol."""
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_order"
 
-        if symbol is not None and not symbol:
-            raise ValueError(
-                f"[{current_method}] 'symbol' must be a non-empty string when provided."
-            )
-        if not order_id:
-            raise ValueError(f"[{current_method}] 'order_id' must be a non-empty value.")
+        # args.order_id is guaranteed to be non-empty by the GetOrderArgs validator
+        # Hyperliquid doesn't require symbol for orderStatus endpoint, so we don't validate it
 
         # Initialize context for error handling
         status_code: int = 0
@@ -324,15 +321,15 @@ class HyperliquidTradingService:
 
         try:
             # Core operational logic
-            if isinstance(order_id, str):
-                try:
-                    order_id_int = int(order_id)
-                except ValueError as e:
-                    raise ValueError(
-                        f"[{current_method}] 'order_id' must be a valid integer, got '{order_id}'"
-                    ) from e
-            else:
-                order_id_int = order_id
+            # DEFENSIVE CHECK: Convert order_id to int with proper error handling.
+            # args.order_id is guaranteed to be str by Pydantic validator.
+            try:
+                order_id_int = int(args.order_id)
+            except (ValueError, TypeError) as e:
+                raise ValueError(
+                    f"[{current_method}] 'order_id' must be a valid integer, "
+                    f"got '{args.order_id}'"
+                ) from e
 
             raw_historical_order = await self._get_order_status_raw(order_id_int)
             if raw_historical_order is None:
@@ -350,7 +347,7 @@ class HyperliquidTradingService:
         except TransformationError as e_transform:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for order {order_id}: {e_transform}",
+                f"data for order {args.order_id}: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
@@ -363,7 +360,7 @@ class HyperliquidTradingService:
         except ValidationError as e_val:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for order {order_id}: {e_val}",
+                f"failed for order {args.order_id}: {e_val}",
                 exc_info=True,
             )
             raise APIError(
@@ -376,7 +373,7 @@ class HyperliquidTradingService:
         except (ValueError, TypeError) as e_service_logic:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for order {order_id}: {e_service_logic}",
+                f"for order {args.order_id}: {e_service_logic}",
                 exc_info=True,
             )
             raise APIError(
@@ -387,7 +384,7 @@ class HyperliquidTradingService:
         except Exception as e_unexpected:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-                f"for order {order_id}: {e_unexpected}",
+                f"for order {args.order_id}: {e_unexpected}",
                 exc_info=True,
             )
             raise APIError(
@@ -446,7 +443,9 @@ class HyperliquidTradingService:
                         logger.info(
                             f"Order placed with OID: {new_oid}. Re-fetching for full details."
                         )
-                        internal_order = await self.get_order(symbol=args.symbol, order_id=new_oid)
+                        internal_order = await self.get_order(
+                            GetOrderArgs(symbol=args.symbol, order_id=str(new_oid))
+                        )
                         if internal_order:
                             return internal_order
                         else:
@@ -462,7 +461,7 @@ class HyperliquidTradingService:
                             f"Re-fetching for full details."
                         )
                         internal_order = await self.get_order(
-                            symbol=args.symbol, order_id=filled_oid
+                            GetOrderArgs(symbol=args.symbol, order_id=str(filled_oid))
                         )
                         if internal_order:
                             internal_order.status = OrderStatus.FILLED
@@ -974,7 +973,7 @@ class HyperliquidTradingService:
     async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
         """
         Fetch all open orders, optionally filtering by symbol.
-        
+
         Args:
             args: Parameters for filtering open orders including optional symbol.
         """

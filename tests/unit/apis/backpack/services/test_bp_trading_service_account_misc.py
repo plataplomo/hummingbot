@@ -14,6 +14,7 @@ from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTrading
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetAllOpenOrdersArgs,
+    GetOrderArgs,
     PlaceOrderArgs,
 )
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
@@ -264,7 +265,9 @@ class TestBackpackTradingServiceAccountMisc:
         mock_response_handler.handle_get_order_status_response.return_value = mock_raw_order
 
         # Test that the service can query order status
-        result = await bp_trading_service.get_order_status(order_id=order_id, symbol=symbol)
+        result = await bp_trading_service.get_order_status(
+            args=GetOrderArgs(order_id=order_id, symbol=symbol)
+        )
 
         # Verify the query request was made correctly
         mock_http_client_requester.assert_called_once()

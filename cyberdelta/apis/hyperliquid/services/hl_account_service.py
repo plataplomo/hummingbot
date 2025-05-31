@@ -654,10 +654,10 @@ class HyperliquidAccountService:
 
     async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
         """Retrieves user trade history (fills).
-        
+
         Args:
             args: Parameters for filtering trade history including symbol and limit.
-            
+
         Note:
             Hyperliquid's userFills endpoint doesn't support server-side filtering.
             Symbol filtering and limit are applied client-side after fetching all fills.
@@ -757,9 +757,11 @@ class HyperliquidAccountService:
                         )
             # Apply limit if specified
             if args.limit is not None and len(internal_trades) > args.limit:
-                internal_trades = internal_trades[:args.limit]
-                
-            logger.debug(f"[{self._exchange_name}] Mapped internal trades: {len(internal_trades)} trades")
+                internal_trades = internal_trades[: args.limit]
+
+            logger.debug(
+                f"[{self._exchange_name}] Mapped internal trades: {len(internal_trades)} trades"
+            )
             return internal_trades
 
         except APIError:

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Mapping
-from datetime import datetime
 from typing import Any
 
 import aiohttp
@@ -46,7 +45,9 @@ from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetAllOpenOrdersArgs,
     GetFundingRatesArgs,
+    GetHistoricalFundingRatesArgs,
     GetMarketDataArgs,
+    GetOrderArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
     PlaceOrderArgs,
@@ -451,17 +452,13 @@ class HyperliquidAPI(ExchangeAPI):
         """Get account summary information."""
         return await self.account_service.get_account_summary()
 
-    async def get_order_status(
-        self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
-    ) -> Order | None:
+    async def get_order_status(self, args: GetOrderArgs) -> Order | None:
         """Fetch the status of a specific order."""
-        return await self.trading_service.get_order(symbol=symbol, order_id=order_id)
+        return await self.trading_service.get_order(args=args)
 
-    async def get_order(
-        self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
-    ) -> Order | None:
+    async def get_order(self, args: GetOrderArgs) -> Order | None:
         """Fetch a single order by its ID."""
-        return await self.trading_service.get_order(symbol=symbol, order_id=order_id)
+        return await self.trading_service.get_order(args=args)
 
     async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
         """Get historical orders."""
@@ -469,22 +466,22 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
         """Get recent trade history.
-        
+
         Args:
             args: Parameters for filtering trade history including symbol and limit.
         """
         return await self.account_service.get_trade_history(args=args)
 
     async def get_historical_funding_rates(
-        self,
-        symbol: str,
-        start_time: datetime,
-        end_time: datetime | None = None,
+        self, args: GetHistoricalFundingRatesArgs
     ) -> list[FundingRate]:
         """Get historical funding rates for a specific symbol."""
-        return await self.market_data_service.get_historical_funding_rates(
-            symbol=symbol, start_time=start_time, end_time=end_time
-        )
+        # Hyperliquid requires start_time
+        if args.start_time is None:
+            raise ValueError(
+                "start_time is required for Hyperliquid.get_historical_funding_rates()"
+            )
+        return await self.market_data_service.get_historical_funding_rates(args=args)
 
     async def transfer(self, args: TransferArgs) -> Transfer:
         """Transfer funds between account types."""
@@ -569,7 +566,7 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
         """Retrieves all open orders, optionally filtered by symbol.
-        
+
         Args:
             args: Parameters for filtering open orders including optional symbol.
         """

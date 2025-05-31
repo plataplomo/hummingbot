@@ -11,7 +11,6 @@ Raw Pydantic Models.
 # Typing and Pydantic
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
@@ -41,7 +40,11 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
 # from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import HyperliquidRawPublicTrade
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import GetFundingRatesArgs, GetMarketDataArgs
+from cyberdelta.apis.models.service_args_models import (
+    GetFundingRatesArgs,
+    GetHistoricalFundingRatesArgs,
+    GetMarketDataArgs,
+)
 
 # Utilities
 from cyberdelta.config.logging_config import get_logger
@@ -846,10 +849,7 @@ class HyperliquidMarketDataService:
             ) from e_unexpected
 
     async def get_historical_funding_rates(
-        self,
-        symbol: str,
-        start_time: datetime,
-        end_time: datetime | None = None,
+        self, args: GetHistoricalFundingRatesArgs
     ) -> list[FundingRate]:
         """Retrieves historical funding rates for a specific symbol and time range."""
         # Service Input Parameter Validation
@@ -858,14 +858,15 @@ class HyperliquidMarketDataService:
             frame.f_code.co_name if frame is not None else "get_historical_funding_rates"
         )
 
-        if not symbol:
-            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
+        # Hyperliquid requires start_time
+        if args.start_time is None:
+            raise ValueError(f"[{current_method}] 'start_time' is required for Hyperliquid.")
 
         # Convert datetime to milliseconds
-        start_time_ms = int(start_time.timestamp() * 1000)
+        start_time_ms = int(args.start_time.timestamp() * 1000)
         end_time_ms: int | None = None
-        if end_time is not None:
-            end_time_ms = int(end_time.timestamp() * 1000)
+        if args.end_time is not None:
+            end_time_ms = int(args.end_time.timestamp() * 1000)
 
         # Validate time parameters
         if start_time_ms <= 0:
@@ -884,13 +885,13 @@ class HyperliquidMarketDataService:
 
         try:
             logger.debug(
-                f"[{self._exchange_name}] Getting historical funding rates for {symbol} "
+                f"[{self._exchange_name}] Getting historical funding rates for {args.symbol} "
                 f"from {start_time_ms} to {end_time_ms if end_time_ms is not None else 'now'}."
             )
 
             endpoint_path = "/info"
             payload = self._request_builder.build_historical_funding_rates_payload(
-                symbol=symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+                symbol=args.symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
             )
 
             raw_response_content, status_code, headers = await self._http_client_requester(
@@ -905,10 +906,10 @@ class HyperliquidMarketDataService:
             if raw_response_content is None:
                 logger.warning(
                     f"[{self._exchange_name}] No content for historical funding rates "
-                    f"for {symbol}. Status: {status_code}."
+                    f"for {args.symbol}. Status: {status_code}."
                 )
                 raise APIError(
-                    message=f"No data received for historical funding rates for {symbol}, "
+                    message=f"No data received for historical funding rates for {args.symbol}, "
                     f"status: {status_code}",
                     code=APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,

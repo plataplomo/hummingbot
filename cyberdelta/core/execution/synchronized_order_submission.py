@@ -19,7 +19,11 @@ from typing import Any, Protocol
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.service_args_models import GetTradeHistoryArgs, PlaceOrderArgs
+from cyberdelta.apis.models.service_args_models import (
+    GetOrderArgs,
+    GetTradeHistoryArgs,
+    PlaceOrderArgs,
+)
 from cyberdelta.core.models import (
     Order,
     OrderSide,
@@ -201,7 +205,10 @@ class OrderVerifier:
             # Assuming get_order exists on the concrete API client
             try:
                 # Assuming get_order exists on the concrete API client
-                api_order = await api_client.get_order(order_id, expected_details.get("symbol"))
+                api_order = await api_client.get_order(GetOrderArgs(
+                    order_id=order_id, 
+                    symbol=expected_details.get("symbol")
+                ))
             except AttributeError:
                 logger.error(f"API client for {exchange} missing get_order method.")
                 verification_success = False
@@ -345,7 +352,10 @@ class OrderVerifier:
             # Let's try using get_order_status as the primary source from API for verification.
             # If not available, fallback to get_order might be an option, or specific handling.
             if hasattr(api_client, "get_order_status"):
-                api_order = await api_client.get_order_status(order_id, symbol_for_api_call)
+                api_order = await api_client.get_order_status(GetOrderArgs(
+                    order_id=order_id, 
+                    symbol=symbol_for_api_call
+                ))
             elif hasattr(
                 api_client, "get_order"
             ):  # Fallback if get_order_status is not on protocol
@@ -353,7 +363,10 @@ class OrderVerifier:
                     f"API client for {exchange} missing get_order_status, "
                     f"falling back to get_order."
                 )
-                api_order = await api_client.get_order(order_id, symbol_for_api_call)
+                api_order = await api_client.get_order(GetOrderArgs(
+                    order_id=order_id, 
+                    symbol=symbol_for_api_call
+                ))
             else:
                 raise AttributeError(
                     f"API client for {exchange} missing get_order_status and get_order methods."

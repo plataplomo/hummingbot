@@ -77,16 +77,19 @@ def bp_api_with_mocked_router(
     mock_ws_manager.is_connected = False
     mock_ws_manager.send_json = AsyncMock()
     mock_ws_manager.close = AsyncMock()
-    
+
     with patch("cyberdelta.apis.backpack.bp_api.BackpackEd25519Authenticator"):
         with patch("cyberdelta.apis.backpack.bp_api.BackpackErrorMapper"):
             with patch("cyberdelta.apis.backpack.bp_api.BackpackResponseHandler"):
                 with patch("cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder"):
                     # Patch WebSocketManager in the base module where it's imported
-                    with patch("cyberdelta.apis.base.exchange_api.WebSocketManager") as MockWSManager:
+                    with patch(
+                        "cyberdelta.apis.base.exchange_api.WebSocketManager"
+                    ) as MockWSManager:
                         MockWSManager.return_value = mock_ws_manager
                         api = BackpackAPI(
-                            exchange_config=mock_exchange_config, exchange_secrets=mock_exchange_secrets
+                            exchange_config=mock_exchange_config,
+                            exchange_secrets=mock_exchange_secrets,
                         )
                         # Use object.__setattr__ to bypass protection for testing
                         object.__setattr__(api, "_bp_ws_router", mock_bp_ws_router)
@@ -105,10 +108,10 @@ class TestBackpackAPIWebSocketDelegation:
         handler = AsyncMock()
         topic = "depth.SOL_USDC"
         await bp_api_with_mocked_router.subscribe(topic, handler)
-        
+
         # Instead of calling protected methods directly, verify that the router receives messages
         # when handlers are registered. This tests the integration without accessing internals.
-        
+
         # The router should have been set up properly during API initialization
         # We can verify the mock router was called during subscription
         assert mock_bp_ws_router is not None
@@ -121,14 +124,14 @@ class TestBackpackAPIWebSocketDelegation:
         # Test that the subscription mechanism works
         handler1 = AsyncMock()
         handler2 = AsyncMock()
-        
+
         topic1 = "ticker.BTC_USDC"
         topic2 = "depth.ETH_USDC"
-        
+
         # Subscribe to multiple topics
         await bp_api_with_mocked_router.subscribe(topic1, handler1)
         await bp_api_with_mocked_router.subscribe(topic2, handler2)
-        
+
         # Verify that the API can handle multiple subscriptions
         # This tests the public interface without accessing protected members
         assert bp_api_with_mocked_router.is_connected is False  # Should be false when not connected
@@ -146,18 +149,16 @@ class TestBackpackAPIWebSocketDelegation:
 
         topic = "depth.SOL_USDC"
         handler = AsyncMock()
-        
+
         # Mock the router to return a proper BackpackRawWsSubscriptionRequest
         expected_payload = BackpackRawWsSubscriptionRequest(
-            method="SUBSCRIBE",
-            params=[topic],
-            signature=None
+            method="SUBSCRIBE", params=[topic], signature=None
         )
         mock_bp_ws_router.construct_subscription_payload.return_value = expected_payload
 
         # Test through the public API - this will internally call the payload construction
         await bp_api_with_mocked_router.subscribe(topic, handler)
-        
+
         # Verify that the router's construct_subscription_payload was called
         # This tests the integration without directly accessing protected methods
         mock_bp_ws_router.construct_subscription_payload.assert_called_with(topic, None)
@@ -170,14 +171,14 @@ class TestBackpackAPIWebSocketDelegation:
         # Set the API to be connected so subscription messages are sent
         ws_manager = object.__getattribute__(bp_api_with_mocked_router, "_ws_manager")
         object.__setattr__(ws_manager, "is_connected", True)
-        
+
         # Register multiple handlers using the public subscribe method
         handler1 = AsyncMock()
         handler2 = AsyncMock()
-        
+
         topic1 = "depth.SOL_USDC"
         topic2 = "ticker.BTC_USDC"
-        
+
         await bp_api_with_mocked_router.subscribe(topic1, handler1)
         await bp_api_with_mocked_router.subscribe(topic2, handler2)
 
@@ -212,10 +213,10 @@ class TestBackpackAPIWebSocketLifecycle:
 
         # Subscribe should complete without error
         await bp_api.subscribe(topic, handler)
-        
+
         # Verify that connection status is maintained properly
         assert bp_api.is_connected is False  # Should be false when not connected
-        
+
         # Additional subscription should also work
         handler2 = AsyncMock()
         topic2 = "ticker.BTC_USDC"
@@ -238,17 +239,17 @@ class TestBackpackAPIWebSocketLifecycle:
 
     @pytest.mark.asyncio
     async def test_handler_replacement(self, bp_api: BackpackAPI) -> None:
-        """Test that subscribing to the same topic works correctly (handler replacement behavior)."""
+        """Test that subscribing to the same topic works correctly."""
         handler1 = AsyncMock()
         handler2 = AsyncMock()
         topic = "depth.SOL_USDC"
 
         # Subscribe with first handler
         await bp_api.subscribe(topic, handler1)
-        
+
         # Subscribe with second handler to same topic should not error
         await bp_api.subscribe(topic, handler2)
-        
+
         # Verify API state remains consistent
         assert bp_api.is_connected is False
 
@@ -275,11 +276,12 @@ class TestBackpackAPIWebSocketIntegration:
         # Test that the router is working by verifying subscription functionality
         handler = AsyncMock()
         topic = "depth.SOL_USDC"
-        
+
         # This should work without error if router is properly initialized
         import asyncio
+
         asyncio.run(bp_api.subscribe(topic, handler))
-        
+
         # Verify that the API maintains proper state
         assert bp_api.is_connected is False
 
@@ -291,11 +293,11 @@ class TestBackpackAPIWebSocketIntegration:
 
         # Test that subscription works, which means payload construction is working
         await bp_api.subscribe(topic, handler)
-        
+
         # Test with different types of topics
         await bp_api.subscribe("ticker.BTC_USDC", handler)
         await bp_api.subscribe("account.orders", handler)
-        
+
         # All should work without error if payload construction is working properly
         assert bp_api.is_connected is False
 
@@ -305,13 +307,13 @@ class TestBackpackAPIWebSocketIntegration:
         # Register a handler for an unknown topic
         handler = AsyncMock()
         unknown_topic = "unknown_topic"
-        
+
         # Should not raise exception when subscribing to unknown topics
         await bp_api.subscribe(unknown_topic, handler)
-        
+
         # Should also work with other unknown topics
         await bp_api.subscribe("another_unknown_topic", handler)
-        
+
         # API should maintain consistent state
         assert bp_api.is_connected is False
 
@@ -337,18 +339,20 @@ class TestBackpackAPIWebSocketEdgeCases:
     async def test_subscription_empty_topic_handling(self, bp_api_edge_case: BackpackAPI) -> None:
         """Test subscription handling with empty topic."""
         handler = AsyncMock()
-        
-        # Test what happens when subscribing to empty topic - should either work or raise appropriate error
+
+        # Test what happens when subscribing to empty topic - should either work or raise error
         try:
             await bp_api_edge_case.subscribe("", handler)
             # If it succeeds, verify API state is consistent
             assert bp_api_edge_case.is_connected is False
         except (ValueError, Exception) as e:
             # If it fails, that's also acceptable behavior - just verify it's a reasonable error
-            assert isinstance(e, (ValueError, Exception))
+            assert isinstance(e, ValueError | Exception)
 
     @pytest.mark.asyncio
-    async def test_subscription_special_characters_topic(self, bp_api_edge_case: BackpackAPI) -> None:
+    async def test_subscription_special_characters_topic(
+        self, bp_api_edge_case: BackpackAPI
+    ) -> None:
         """Test subscription with special characters in topic."""
         handler = AsyncMock()
         special_topic = "depth.BTC_USDC@!#$%^&*()"
@@ -367,17 +371,15 @@ class TestBackpackAPIWebSocketEdgeCases:
         """Test subscription with very long topic."""
         handler = AsyncMock()
         long_topic = "depth." + "A" * 1000 + "_USDC"  # Over 1000 characters, max is 128
-        
+
         # When WebSocket is not connected, subscription should work but not send messages
         # This tests that the API doesn't crash with very long topics
         await bp_api_edge_case.subscribe(long_topic, handler)
-        
+
         # Test passes if no exception is raised (graceful handling of long topics)
 
     @pytest.mark.asyncio
-    async def test_subscribe_handler_behavior(
-        self, bp_api_edge_case: BackpackAPI
-    ) -> None:
+    async def test_subscribe_handler_behavior(self, bp_api_edge_case: BackpackAPI) -> None:
         """Test subscribing with proper handler behavior."""
         # Test that valid handlers work correctly
         mock_handler = AsyncMock()
@@ -390,7 +392,7 @@ class TestBackpackAPIWebSocketEdgeCases:
     async def test_subscribe_empty_topic_duplicate(self, bp_api_edge_case: BackpackAPI) -> None:
         """Test subscribing to empty topic (alternative test)."""
         handler = AsyncMock()
-        
+
         # This test is similar to the earlier empty topic test
         # Just verify it doesn't crash
         try:
@@ -406,11 +408,11 @@ class TestBackpackAPIWebSocketEdgeCases:
         """Test that WebSocket connection status remains consistent."""
         # Test various operations maintain consistent state
         handler = AsyncMock()
-        
+
         # Multiple subscriptions should work
         await bp_api_edge_case.subscribe("depth.SOL_USDC", handler)
         await bp_api_edge_case.subscribe("ticker.BTC_USDC", handler)
-        
+
         # Connection status should remain consistent
         assert bp_api_edge_case.is_connected is False
 
@@ -454,17 +456,19 @@ class TestBackpackAPIWebSocketEdgeCases:
             # If it fails due to validation, that's also acceptable
             pass
 
-    @pytest.mark.asyncio 
-    async def test_api_state_consistency_across_operations(self, bp_api_edge_case: BackpackAPI) -> None:
+    @pytest.mark.asyncio
+    async def test_api_state_consistency_across_operations(
+        self, bp_api_edge_case: BackpackAPI
+    ) -> None:
         """Test that API state remains consistent across various operations."""
         handler = AsyncMock()
-        
+
         # Test multiple different operations
         await bp_api_edge_case.subscribe("depth.SOL_USDC", handler)
         await bp_api_edge_case.subscribe("ticker.BTC_USDC", handler)
-        
+
         # Test connection operations
         await bp_api_edge_case.connect_websocket()
-        
+
         # API should maintain consistent state throughout
         assert isinstance(bp_api_edge_case.is_connected, bool)

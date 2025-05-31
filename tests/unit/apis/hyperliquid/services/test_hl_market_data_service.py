@@ -41,7 +41,10 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import GetMarketDataArgs
+from cyberdelta.apis.models.service_args_models import (
+    GetHistoricalFundingRatesArgs,
+    GetMarketDataArgs,
+)
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market import FundingRate, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market.candle import Candle
@@ -915,9 +918,10 @@ class TestHyperliquidMarketDataService:
             mock_internal_funding_rates
         )
 
-        result = await hyperliquid_market_data_service.get_historical_funding_rates(
-            symbol, start_time, end_time
+        args = GetHistoricalFundingRatesArgs(
+            symbol=symbol, start_time=start_time, end_time=end_time
         )
+        result = await hyperliquid_market_data_service.get_historical_funding_rates(args)
 
         mock_hl_request_builder.build_historical_funding_rates_payload.assert_called_once()
         mock_http_client_requester.assert_called_once_with(
@@ -964,9 +968,10 @@ class TestHyperliquidMarketDataService:
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
         with pytest.raises(APIError) as exc_info:
-            await hyperliquid_market_data_service.get_historical_funding_rates(
-                symbol, start_time, end_time
+            args = GetHistoricalFundingRatesArgs(
+                symbol=symbol, start_time=start_time, end_time=end_time
             )
+            await hyperliquid_market_data_service.get_historical_funding_rates(args)
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
             "No data received for historical funding rates for ETH, status: 200"
@@ -1026,9 +1031,10 @@ class TestHyperliquidMarketDataService:
             original_exception=original_validation_error,
         )
         with pytest.raises(APIError) as exc_info:
-            await hyperliquid_market_data_service.get_historical_funding_rates(
-                symbol, start_time, end_time
+            args = GetHistoricalFundingRatesArgs(
+                symbol=symbol, start_time=start_time, end_time=end_time
             )
+            await hyperliquid_market_data_service.get_historical_funding_rates(args)
 
         mock_hl_request_builder.build_historical_funding_rates_payload.assert_called_once()
         mock_http_client_requester.assert_called_once_with(
@@ -1091,9 +1097,10 @@ class TestHyperliquidMarketDataService:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await hyperliquid_market_data_service.get_historical_funding_rates(
-                symbol, start_time, end_time
+            args = GetHistoricalFundingRatesArgs(
+                symbol=symbol, start_time=start_time, end_time=end_time
             )
+            await hyperliquid_market_data_service.get_historical_funding_rates(args)
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
             assert (
                 "Processing historical funding rate data failed: ValueError('Test mapper error')"
@@ -1148,9 +1155,10 @@ class TestHyperliquidMarketDataService:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await hyperliquid_market_data_service.get_historical_funding_rates(
-                symbol, start_time, end_time
+            args = GetHistoricalFundingRatesArgs(
+                symbol=symbol, start_time=start_time, end_time=end_time
             )
+            await hyperliquid_market_data_service.get_historical_funding_rates(args)
 
         assert exc_info.value.code == expected_api_error.code
         assert exc_info.value.message == expected_api_error.message
@@ -1612,9 +1620,10 @@ class TestHyperliquidMarketDataService:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await hyperliquid_market_data_service.get_historical_funding_rates(
-                symbol, start_time, end_time
+            args = GetHistoricalFundingRatesArgs(
+                symbol=symbol, start_time=start_time, end_time=end_time
             )
+            await hyperliquid_market_data_service.get_historical_funding_rates(args)
 
         assert exc_info.value.code == APIErrorCode.SERVICE_UNAVAILABLE.value
         assert "Connection failed" in exc_info.value.message
@@ -1814,9 +1823,10 @@ class TestHyperliquidMarketDataService:
 
         # Should fail on the second item and raise APIError
         with pytest.raises(APIError) as exc_info:
-            await hyperliquid_market_data_service.get_historical_funding_rates(
-                symbol, start_time, end_time
+            args = GetHistoricalFundingRatesArgs(
+                symbol=symbol, start_time=start_time, end_time=end_time
             )
+            await hyperliquid_market_data_service.get_historical_funding_rates(args)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
         assert "Processing historical funding rate data failed" in exc_info.value.message

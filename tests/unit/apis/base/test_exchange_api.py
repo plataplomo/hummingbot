@@ -22,7 +22,9 @@ from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetAllOpenOrdersArgs,
     GetFundingRatesArgs,
+    GetHistoricalFundingRatesArgs,
     GetMarketDataArgs,
+    GetOrderArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
     PlaceOrderArgs,
@@ -120,6 +122,11 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
         return [MagicMock(spec=FundingRate)]
 
+    async def get_historical_funding_rates(
+        self, args: GetHistoricalFundingRatesArgs
+    ) -> list[FundingRate]:
+        return [MagicMock(spec=FundingRate)]
+
     async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
         return [MagicMock(spec=Candle)]
 
@@ -156,14 +163,12 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
         return [MagicMock(spec=Trade)]
 
-    async def get_order_status(
-        self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
-    ) -> Order | None:
+    async def get_order_status(self, args: GetOrderArgs) -> Order | None:
         mock_order = MagicMock(spec=Order)
-        mock_order.exchange_order_id = order_id
+        mock_order.exchange_order_id = args.order_id
         return mock_order
 
-    async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
+    async def get_order(self, args: GetOrderArgs) -> Order | None:
         return MagicMock(spec=Order)
 
     async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
@@ -704,8 +709,8 @@ class TestExchangeAPIPublicInterface:
         await api.get_open_orders()
         await api.get_order_history(GetOrderHistoryArgs())
         await api.get_trade_history(GetTradeHistoryArgs())
-        await api.get_order_status("order123")
-        await api.get_order("order123")
+        await api.get_order_status(GetOrderArgs(order_id="order123"))
+        await api.get_order(GetOrderArgs(order_id="order123"))
         await api.get_all_open_orders(GetAllOpenOrdersArgs())
 
         await api.close()

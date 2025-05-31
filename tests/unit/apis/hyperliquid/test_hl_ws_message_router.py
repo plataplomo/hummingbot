@@ -97,6 +97,7 @@ class TestHyperliquidWsMessageRouter:
         from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
             HyperliquidRawWsSubscribeRequest,
         )
+
         assert isinstance(result, HyperliquidRawWsSubscribeRequest)
         assert result.method == "subscribe"
         assert result.subscription.type == "l2Book"
@@ -111,6 +112,7 @@ class TestHyperliquidWsMessageRouter:
         from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
             HyperliquidRawWsSubscribeRequest,
         )
+
         assert isinstance(result, HyperliquidRawWsSubscribeRequest)
         assert result.method == "subscribe"
         assert result.subscription.type == "trades"
@@ -126,6 +128,7 @@ class TestHyperliquidWsMessageRouter:
         from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
             HyperliquidRawWsSubscribeRequest,
         )
+
         assert isinstance(result, HyperliquidRawWsSubscribeRequest)
         assert result.method == "subscribe"
         assert result.subscription.type == "userEvents"
@@ -135,7 +138,9 @@ class TestHyperliquidWsMessageRouter:
         self, router: HyperliquidWsMessageRouter
     ) -> None:
         """Test subscription payload construction for userEvents without wallet address."""
-        with pytest.raises(ValueError, match="Cannot subscribe to userEvents without wallet address"):
+        with pytest.raises(
+            ValueError, match="Cannot subscribe to userEvents without wallet address"
+        ):
             router.construct_subscription_payload("userEvents", None)
 
     def test_construct_subscription_payload_candle(
@@ -147,6 +152,7 @@ class TestHyperliquidWsMessageRouter:
         from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
             HyperliquidRawWsSubscribeRequest,
         )
+
         assert isinstance(result, HyperliquidRawWsSubscribeRequest)
         assert result.method == "subscribe"
         assert result.subscription.type == "candle"
@@ -158,6 +164,7 @@ class TestHyperliquidWsMessageRouter:
     ) -> None:
         """Test subscription payload construction for invalid topic."""
         from cyberdelta.apis.models.api_error import APIError
+
         with pytest.raises(APIError, match="Unsupported WebSocket topic"):
             router.construct_subscription_payload("invalid_topic", None)
 
