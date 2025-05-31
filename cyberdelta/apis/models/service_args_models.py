@@ -447,7 +447,9 @@ class GetTradeHistoryArgs(BaseModel):
         """Validate optional string fields."""
         if v is None:
             return None
-        return validate_str_field(v, field_name=str(info.field_name), max_length=64, allow_empty=False)
+        return validate_str_field(
+            v, field_name=str(info.field_name), max_length=64, allow_empty=False
+        )
 
     @field_validator("limit", mode="before")
     @classmethod
@@ -485,17 +487,6 @@ class GetAllOpenOrdersArgs(BaseModel):
         """Validate optional symbol field."""
         if v is None:
             return None
-        return validate_str_field(v, field_name=str(info.field_name), max_length=64, allow_empty=False)
-
-
-__all__ = [
-    "PlaceOrderArgs",
-    "TransferArgs",
-    "WithdrawArgs",
-    "GetOrderHistoryArgs",
-    "GetMarketDataArgs",
-    "CancelOrderArgs",
-    "GetFundingRatesArgs",
-    "GetTradeHistoryArgs",
-    "GetAllOpenOrdersArgs",
-]
+        return validate_str_field(
+            v, field_name=str(info.field_name), max_length=64, allow_empty=False
+        )

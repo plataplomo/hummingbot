@@ -10,7 +10,17 @@ from .api_error_codes import APIErrorCode
 from .api_error_response import APIErrorResponse
 from .exchange_api_config import ExchangeAPIConfig
 from .rate_limiter_config import EndpointRateConfig, RateLimiterConfig
-from .service_args_models import PlaceOrderArgs, TransferArgs, WithdrawArgs
+from .service_args_models import (
+    CancelOrderArgs,
+    GetAllOpenOrdersArgs,
+    GetFundingRatesArgs,
+    GetMarketDataArgs,
+    GetOrderHistoryArgs,
+    GetTradeHistoryArgs,
+    PlaceOrderArgs,
+    TransferArgs,
+    WithdrawArgs,
+)
 
 __all__ = [
     # Error handling
@@ -27,4 +37,10 @@ __all__ = [
     "PlaceOrderArgs",
     "TransferArgs",
     "WithdrawArgs",
+    "GetOrderHistoryArgs",
+    "GetMarketDataArgs",
+    "CancelOrderArgs",
+    "GetFundingRatesArgs",
+    "GetTradeHistoryArgs",
+    "GetAllOpenOrdersArgs",
 ]
