@@ -196,7 +196,7 @@ class TestBackpackTradingServiceOrderManagement:
         with pytest.raises(ValueError) as exc_info:
             await bp_trading_service.get_order(args=GetOrderArgs(order_id="", symbol="SOL_USDC"))
 
-        assert "'order_id' must be a non-empty string" in str(exc_info.value)
+        assert "String cannot be empty" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_order_none_symbol_validation(
@@ -218,7 +218,7 @@ class TestBackpackTradingServiceOrderManagement:
         with pytest.raises(ValueError) as exc_info:
             await bp_trading_service.get_order(args=GetOrderArgs(order_id="12345", symbol=""))
 
-        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+        assert "String cannot be empty" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_order_status_none_symbol_validation(

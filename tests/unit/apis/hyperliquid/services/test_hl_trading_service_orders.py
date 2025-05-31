@@ -198,7 +198,7 @@ class TestHyperliquidTradingServiceOrders:
         with pytest.raises(ValueError) as exc_info:
             await hl_trading_service.get_order(args=GetOrderArgs(symbol="ETH", order_id=""))
 
-        assert "'order_id' must be a non-empty value" in str(exc_info.value)
+        assert "String cannot be empty" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_order_invalid_string_order_id_validation(
@@ -233,7 +233,7 @@ class TestHyperliquidTradingServiceOrders:
         with pytest.raises(ValueError) as exc_info:
             await hl_trading_service.get_order(args=GetOrderArgs(symbol="", order_id="12345"))
 
-        assert "'symbol' must be a non-empty string when provided" in str(exc_info.value)
+        assert "String cannot be empty" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_open_orders_empty_symbol_when_provided_validation(
@@ -499,7 +499,7 @@ class TestHyperliquidTradingServiceOrders:
                 mock_response_content, action_type="order"
             )
             # Verify get_order was called with the returned OID
-            mock_get_order.assert_called_once_with(symbol=symbol, order_id=123456)
+            mock_get_order.assert_called_once_with(GetOrderArgs(symbol=symbol, order_id="123456"))
 
     @pytest.mark.asyncio
     async def test_get_order_http_client_returns_none_in_info_request(
@@ -620,7 +620,7 @@ class TestHyperliquidTradingServiceOrders:
             is_signed=True,
         )
         mock_hl_response_handler.handle_info_order_status_response.assert_called_once_with(
-            mock_response_content, user_address=wallet_address, order_id=order_id
+            mock_response_content, user_address=wallet_address, order_id=int(order_id)
         )
         mock_hl_trading_mapper.transform_raw_historical_order_to_internal.assert_called_once_with(
             raw_historical_order=mock_historical_order, trigger=None
