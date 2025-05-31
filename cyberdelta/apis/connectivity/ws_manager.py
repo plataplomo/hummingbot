@@ -385,7 +385,11 @@ class WebSocketManager:
                 self._is_connected = False
                 self._ws_connection = None
         finally:
-            current_task = asyncio.current_task()
+            try:
+                current_task = asyncio.current_task()
+            except RuntimeError:
+                # No running event loop (e.g., during test cleanup)
+                current_task = None
             final_is_cancelled_state = (
                 current_task and current_task.cancelled()
             ) or was_cancelled_flag
@@ -411,7 +415,15 @@ class WebSocketManager:
             if self._should_reconnect and not final_is_cancelled_state:
                 if self._connection_task is None or self._connection_task.done():
                     self._logger.info("Scheduling reconnection from listener task termination.")
-                    self.connect()
+                    try:
+                        self.connect()
+                    except RuntimeError as e:
+                        if "no running event loop" in str(e):
+                            self._logger.debug(
+                                "Cannot schedule reconnection: no running event loop (likely test cleanup)"
+                            )
+                        else:
+                            raise
 
     async def _keep_alive(self) -> None:
         """Periodically sends a ping to keep the connection alive."""
