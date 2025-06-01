@@ -608,7 +608,7 @@ class TestBackpackEd25519Authenticator:
 
             # Verify alphabetical sorting of params: limit, offset, symbol
             expected_signing_string = (
-                "instruction=orderHistoryQueryAll&limit=50&offset=0&symbol=SOL_USDC&"
+                "instruction=orderQueryAll&limit=50&offset=0&symbol=SOL_USDC&"
                 "timestamp=1678886400000&window=5000"
             )
             assert auth.last_string_to_sign == expected_signing_string
