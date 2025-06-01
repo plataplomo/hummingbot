@@ -10,6 +10,8 @@ from typing import Any, cast
 from eth_account import Account
 from eth_account.messages import encode_typed_data
 from eth_account.signers.local import LocalAccount
+from mnemonic import Mnemonic
+from pydantic import SecretStr
 from web3 import Web3
 
 from cyberdelta.apis.base.authenticator_interface import (
@@ -36,34 +38,92 @@ class HyperliquidEip712Authenticator(IAuthenticator):
     def __init__(
         self,
         *,
-        wallet_private_key: str | None = None,
-        account_object: LocalAccount | None = None,  # Added account_object
+        wallet_private_key_secret: SecretStr | None = None,
         chain_id: int,
-        logger: logging.Logger | None = None,  # Renamed and made optional
+        account_object: LocalAccount | None = None,
+        passphrase_secret: SecretStr | None = None,
+        logger_param: logging.Logger | None = None,
     ) -> None:
-        self.logger = logger or get_logger(__name__)  # Use provided or get new one
+        self.logger = logger_param or get_logger(__name__)  # Use provided or get new one
 
-        if not wallet_private_key and not account_object:
-            msg = "Either wallet_private_key or account_object must be provided."
+        if not wallet_private_key_secret and not account_object:
+            msg = "Either wallet_private_key_secret or account_object must be provided."
             self.logger.error(f"HyperliquidEip712Authenticator: {msg}")
             raise ValueError(msg)
-        if wallet_private_key and account_object:
-            msg = "Provide either wallet_private_key or account_object, not both."
+        if wallet_private_key_secret and account_object:
+            msg = "Provide either wallet_private_key_secret or account_object, not both."
             self.logger.error(f"HyperliquidEip712Authenticator: {msg}")
             raise ValueError(msg)
 
-        if wallet_private_key:
+        if wallet_private_key_secret:
+            # Perform cryptographic validation of private key
             try:
-                # Ensure LocalAccount is used for type consistency if Account.from_key returns it
-                # or can be cast to it, or if Account.from_key actually returns
-                # LocalAccount directly.
-                # For now, assume Account.from_key provides a compatible type or is LocalAccount.
-                self._account: LocalAccount = Account.from_key(wallet_private_key)
+                private_key_str = wallet_private_key_secret.get_secret_value().strip()
+
+                # Strip "0x" prefix if present
+                processed_pk_str = (
+                    private_key_str[2:] if private_key_str.startswith("0x") else private_key_str
+                )
+
+                # Validate format (64-character hex string)
+                if not (
+                    len(processed_pk_str) == 64
+                    and all(c in "0123456789abcdefABCDEF" for c in processed_pk_str)
+                ):
+                    raise ValueError(
+                        "Hyperliquid private_key must be a 64-character hex string "
+                        "(with or without '0x' prefix)."
+                    )
+
+                # Cryptographic validation using eth_account
+                try:
+                    self._account: LocalAccount = Account.from_key(processed_pk_str)
+                except Exception as e:
+                    raise ValueError(
+                        f"Hyperliquid private_key is not cryptographically valid: {e}"
+                    ) from e
+
             except ValueError as e:
                 self.logger.error(
                     f"HyperliquidEip712Authenticator: Invalid private key: {e}", exc_info=True
                 )
                 raise ValueError(f"Invalid private key: {e}") from e
+
+            # Validate passphrase if provided
+            if passphrase_secret:
+                try:
+                    phrase_str = passphrase_secret.get_secret_value().strip()
+
+                    # Word count check (12 or 24 words)
+                    num_words = len(phrase_str.split())
+                    if num_words not in (12, 24):
+                        raise ValueError(
+                            f"Hyperliquid passphrase must consist of 12 or 24 words, "
+                            f"got {num_words} words."
+                        )
+
+                    # BIP-39 mnemonic validation
+                    try:
+                        mnemonic_validator = Mnemonic("english")
+                        if not mnemonic_validator.check(phrase_str):
+                            raise ValueError(
+                                "Hyperliquid passphrase is not a valid BIP-39 mnemonic "
+                                "(checksum or wordlist error)."
+                            )
+                    except Exception as e:
+                        # Handle any other exceptions from mnemonic validation
+                        if "not a valid BIP-39 mnemonic" not in str(e):
+                            raise ValueError(
+                                f"Error validating Hyperliquid passphrase with mnemonic library: {e}"
+                            ) from e
+                        raise
+
+                except ValueError as e:
+                    self.logger.error(
+                        f"HyperliquidEip712Authenticator: Invalid passphrase: {e}", exc_info=True
+                    )
+                    raise ValueError(f"Invalid passphrase: {e}") from e
+
         elif account_object:  # account_object is guaranteed to be non-None here
             self._account = account_object
         else:

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from pydantic import SecretStr
 
 from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
 from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackWsSignatureComponents
@@ -35,7 +36,7 @@ class InstrumentedBackpackEd25519Authenticator(BackpackEd25519Authenticator):
     """Instrumented subclass that exposes the signing string for verification."""
 
     def __init__(self, api_key_b64: str, private_key_b64: str) -> None:
-        super().__init__(api_key_b64, private_key_b64)
+        super().__init__(SecretStr(api_key_b64), SecretStr(private_key_b64))
         self.last_string_to_sign: str | None = None
 
     async def prepare_request(
@@ -93,36 +94,45 @@ class TestBackpackEd25519Authenticator:
     def test_initialization_missing_api_key_raises_value_error(
         self, test_ed25519_keys: dict[str, str]
     ) -> None:
-        with pytest.raises(ValueError, match="API key \\(Base64\\) cannot be empty"):
+        with pytest.raises(
+            ValueError, match="API key \\(Base64 public ED25519 key\\) cannot be empty"
+        ):
             BackpackEd25519Authenticator(
-                api_key_b64="", private_key_b64=test_ed25519_keys["private_key_b64"]
+                api_key_b64_secret=SecretStr(""),
+                private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
             )
 
     def test_initialization_missing_private_key_raises_value_error(
         self, test_ed25519_keys: dict[str, str]
     ) -> None:
-        with pytest.raises(ValueError, match="Private key \\(Base64\\) cannot be empty"):
+        with pytest.raises(
+            ValueError, match="Private key \\(Base64 private ED25519 key\\) cannot be empty"
+        ):
             BackpackEd25519Authenticator(
-                api_key_b64=test_ed25519_keys["public_key_b64"], private_key_b64=""
+                api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
+                private_key_b64_secret=SecretStr(""),
             )
 
     def test_initialization_invalid_private_key_raises_value_error(
         self, test_ed25519_keys: dict[str, str]
     ) -> None:
-        with pytest.raises(ValueError, match="Invalid ED25519 private key"):
+        with pytest.raises(ValueError, match="Invalid Base64 ED25519 private key"):
             BackpackEd25519Authenticator(
-                api_key_b64=test_ed25519_keys["public_key_b64"], private_key_b64="invalid_base64"
+                api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
+                private_key_b64_secret=SecretStr("invalid_base64"),
             )
 
     def test_initialization_missing_both_credentials_raises_value_error(self) -> None:
-        with pytest.raises(ValueError, match="API key \\(Base64\\) cannot be empty"):
-            BackpackEd25519Authenticator(api_key_b64="", private_key_b64="")
+        with pytest.raises(ValueError, match="API key \\(Base64 public ED25519 key\\) cannot be empty"):
+            BackpackEd25519Authenticator(
+                api_key_b64_secret=SecretStr(""), private_key_b64_secret=SecretStr("")
+            )
 
     def test_initialization_success(self, test_ed25519_keys: dict[str, str]) -> None:
         """Test that authenticator initializes correctly with valid ED25519 credentials."""
         auth = BackpackEd25519Authenticator(
-            api_key_b64=test_ed25519_keys["public_key_b64"],
-            private_key_b64=test_ed25519_keys["private_key_b64"],
+            api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
+            private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
         # Test that initialization was successful by verifying the authenticator can be used
         # This tests the internal state without directly accessing protected members
@@ -137,8 +147,8 @@ class TestBackpackEd25519Authenticator:
     ) -> None:
         """Test preparing a signed GET request for balance query."""
         auth = BackpackEd25519Authenticator(
-            api_key_b64=test_ed25519_keys["public_key_b64"],
-            private_key_b64=test_ed25519_keys["private_key_b64"],
+            api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
+            private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
         components = await auth.prepare_request(
@@ -167,8 +177,8 @@ class TestBackpackEd25519Authenticator:
     ) -> None:
         """Test preparing a signed GET request with query parameters."""
         auth = BackpackEd25519Authenticator(
-            api_key_b64=test_ed25519_keys["public_key_b64"],
-            private_key_b64=test_ed25519_keys["private_key_b64"],
+            api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
+            private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
         params = {"symbol": "SOL_USDC", "limit": "10"}
@@ -187,8 +197,8 @@ class TestBackpackEd25519Authenticator:
     ) -> None:
         """Test preparing a signed POST request with JSON data."""
         auth = BackpackEd25519Authenticator(
-            api_key_b64=test_ed25519_keys["public_key_b64"],
-            private_key_b64=test_ed25519_keys["private_key_b64"],
+            api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
+            private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
         data = {"symbol": "SOL_USDC", "quantity": "1.0", "side": "buy", "orderType": "market"}
@@ -207,8 +217,8 @@ class TestBackpackEd25519Authenticator:
     ) -> None:
         """Test that existing headers are preserved and merged with auth headers."""
         auth = BackpackEd25519Authenticator(
-            api_key_b64=test_ed25519_keys["public_key_b64"],
-            private_key_b64=test_ed25519_keys["private_key_b64"],
+            api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
+            private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
         existing_headers = {"X-Custom-Header": "CustomValue", "Content-Type": "application/xml"}
@@ -230,8 +240,8 @@ class TestBackpackEd25519Authenticator:
     ) -> None:
         """Test WebSocket signature generation for account stream."""
         auth = BackpackEd25519Authenticator(
-            api_key_b64=test_ed25519_keys["public_key_b64"],
-            private_key_b64=test_ed25519_keys["private_key_b64"],
+            api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
+            private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
         components = auth.get_ws_subscription_signature_components(subscription_type="account")
@@ -248,8 +258,8 @@ class TestBackpackEd25519Authenticator:
     ) -> None:
         """Test WebSocket signature generation for market data stream with symbol."""
         auth = BackpackEd25519Authenticator(
-            api_key_b64=test_ed25519_keys["public_key_b64"],
-            private_key_b64=test_ed25519_keys["private_key_b64"],
+            api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
+            private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
         components = auth.get_ws_subscription_signature_components(
@@ -264,8 +274,8 @@ class TestBackpackEd25519Authenticator:
     async def test_instruction_mapping_coverage(self, test_ed25519_keys: dict[str, str]) -> None:
         """Test that instruction mapping includes expected endpoints."""
         auth = BackpackEd25519Authenticator(
-            api_key_b64=test_ed25519_keys["public_key_b64"],
-            private_key_b64=test_ed25519_keys["private_key_b64"],
+            api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
+            private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
         # Verify key endpoints are mapped
@@ -287,8 +297,8 @@ class TestBackpackEd25519Authenticator:
         instruction=orderCancel&orderId=28&symbol=BTC_USDT&timestamp=<timestamp>&window=<window>
         """
         auth = BackpackEd25519Authenticator(
-            api_key_b64=test_ed25519_keys["public_key_b64"],
-            private_key_b64=test_ed25519_keys["private_key_b64"],
+            api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
+            private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
         # Mock time to get predictable timestamp
@@ -320,8 +330,8 @@ class TestBackpackEd25519Authenticator:
         Test that JSON request bodies are converted to query string format for signing.
         """
         auth = BackpackEd25519Authenticator(
-            api_key_b64=test_ed25519_keys["public_key_b64"],
-            private_key_b64=test_ed25519_keys["private_key_b64"],
+            api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
+            private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
         with patch("time.time", return_value=1678886400.0):
@@ -356,8 +366,8 @@ class TestBackpackEd25519Authenticator:
         Test that None values are properly filtered out from the signing string.
         """
         auth = BackpackEd25519Authenticator(
-            api_key_b64=test_ed25519_keys["public_key_b64"],
-            private_key_b64=test_ed25519_keys["private_key_b64"],
+            api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
+            private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
         with patch("time.time", return_value=1678886400.0):
@@ -391,8 +401,8 @@ class TestBackpackEd25519Authenticator:
         Test that requests with no body don't create double ampersands in signing string.
         """
         auth = BackpackEd25519Authenticator(
-            api_key_b64=test_ed25519_keys["public_key_b64"],
-            private_key_b64=test_ed25519_keys["private_key_b64"],
+            api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
+            private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
         with patch("time.time", return_value=1678886400.0):
@@ -418,8 +428,8 @@ class TestBackpackEd25519Authenticator:
         Test that GET request parameters are properly URL-encoded and sorted for signing.
         """
         auth = BackpackEd25519Authenticator(
-            api_key_b64=test_ed25519_keys["public_key_b64"],
-            private_key_b64=test_ed25519_keys["private_key_b64"],
+            api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
+            private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
         with patch("time.time", return_value=1678886400.0):
@@ -447,8 +457,8 @@ class TestBackpackEd25519Authenticator:
         Test that complex data types (numbers, booleans) are properly stringified for signing.
         """
         auth = BackpackEd25519Authenticator(
-            api_key_b64=test_ed25519_keys["public_key_b64"],
-            private_key_b64=test_ed25519_keys["private_key_b64"],
+            api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
+            private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
         with patch("time.time", return_value=1678886400.0):

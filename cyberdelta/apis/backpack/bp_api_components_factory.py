@@ -57,28 +57,21 @@ class BackpackAPIComponentsFactory:
         self.exchange_config = exchange_config
         self.exchange_secrets = exchange_secrets
 
-        # Initialize API credentials based on secret type
-        if isinstance(exchange_secrets, ApiKeyAuthSecrets):
-            self._api_key: str | None = exchange_secrets.api_key.get_secret_value()
-            self._api_secret: str | None = exchange_secrets.api_secret.get_secret_value()
-        else:
-            # Log error if Backpack receives wrong auth type
+        # Log error if Backpack receives wrong auth type
+        if not isinstance(exchange_secrets, ApiKeyAuthSecrets):
             logger.error(
                 f"Backpack expects auth_type 'api_key' but received "
                 f"'{exchange_secrets.auth_type}'. ED25519 authentication will not work."
             )
-            self._api_key = None
-            self._api_secret = None
 
     def create_authenticator(self) -> BackpackEd25519Authenticator | None:
         """
         Create a BackpackEd25519Authenticator instance.
 
-        Uses api_key (Base64 public ED25519 key) and api_secret (Base64 private ED25519 key)
-        from ApiKeyAuthSecrets to instantiate the ED25519 authenticator.
+        The authenticator will perform its own cryptographic validation.
 
         Returns:
-            Configured ED25519 authenticator instance or None if credentials are missing
+            Configured ED25519 authenticator instance or None if credentials are missing or invalid
         """
         # Check if we have the correct secrets type for Backpack
         if not isinstance(self.exchange_secrets, ApiKeyAuthSecrets):
@@ -89,24 +82,24 @@ class BackpackAPIComponentsFactory:
             )
             return None
 
-        if self._api_key and self._api_secret:
-            logger.info("Creating BackpackEd25519Authenticator (ED25519 authentication)")
+        secrets: ApiKeyAuthSecrets = self.exchange_secrets  # Type cast for clarity
+
+        if secrets.api_key and secrets.api_secret:  # Check if SecretStr objects themselves exist
+            logger.info(
+                "Attempting to create BackpackEd25519Authenticator (ED25519 authentication)"
+            )
             try:
                 return BackpackEd25519Authenticator(
-                    api_key_b64=self._api_key, private_key_b64=self._api_secret
+                    api_key_b64_secret=secrets.api_key,         # Pass SecretStr for public key
+                    private_key_b64_secret=secrets.api_secret   # Pass SecretStr for private key
                 )
-            except Exception as e:
-                logger.error(
-                    f"Failed to create Backpack ED25519 authenticator with provided "
-                    f"credentials: {e}. Verify that api_key is a valid Base64 ED25519 "
-                    f"public key and api_secret is a valid Base64 ED25519 private key."
-                )
+            except ValueError as e:  # Catch init errors from Authenticator
+                logger.error(f"Failed to initialize BackpackEd25519Authenticator: {e}")
                 return None
         else:
             logger.warning(
-                "Backpack API credentials not provided. For ED25519 auth: provide api_key "
-                "(Base64 public key) and api_secret (Base64 private key). "
-                "Signed operations will fail. Authenticator not initialized."
+                "Backpack secrets (api_key or api_secret as SecretStr) not fully provided. "
+                "Cannot create ED25519 authenticator."
             )
             return None
 

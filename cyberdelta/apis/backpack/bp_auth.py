@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from pydantic import SecretStr
 
 from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackWsSignatureComponents
 from cyberdelta.apis.base.authenticator_interface import (
@@ -21,28 +22,32 @@ logger = get_logger(__name__)
 class BackpackEd25519Authenticator(IAuthenticator):
     """Authenticator for Backpack API using ED25519 signature."""
 
-    def __init__(self, api_key_b64: str, private_key_b64: str) -> None:
+    def __init__(self, api_key_b64_secret: SecretStr, private_key_b64_secret: SecretStr) -> None:
         """
-        Initialize the authenticator with Base64-encoded keys.
+        Initialize the authenticator with SecretStr-wrapped Base64-encoded keys.
 
         Args:
-            api_key_b64: Base64-encoded public key for API authentication.
-            private_key_b64: Base64-encoded private key for signing.
+            api_key_b64_secret: SecretStr containing Base64-encoded public key for API auth.
+            private_key_b64_secret: SecretStr containing Base64-encoded private key for signing.
         """
+        # Get secret values and validate
+        api_key_b64 = api_key_b64_secret.get_secret_value().strip()
+        private_key_b64 = private_key_b64_secret.get_secret_value().strip()
+        
         if not api_key_b64:
-            raise ValueError("API key (Base64) cannot be empty")
+            raise ValueError("API key (Base64 public ED25519 key) cannot be empty")
         if not private_key_b64:
-            raise ValueError("Private key (Base64) cannot be empty")
+            raise ValueError("Private key (Base64 private ED25519 key) cannot be empty")
 
-        self._api_key_b64 = api_key_b64
+        self._api_key_b64 = api_key_b64  # Store the public key string
 
         try:
             # Decode and load the private key
             private_key_bytes = base64.b64decode(private_key_b64)
             self._ed25519_private_key = Ed25519PrivateKey.from_private_bytes(private_key_bytes)
         except Exception as e:
-            logger.error(f"Failed to load ED25519 private key: {e}")
-            raise ValueError(f"Invalid ED25519 private key: {e}") from e
+            logger.error(f"Failed to load ED25519 private key from Base64 string: {e}")
+            raise ValueError(f"Invalid Base64 ED25519 private key: {e}") from e
 
         # Initialize instruction mapping for Backpack REST API endpoints
         self.INSTRUCTION_MAP: dict[tuple[str, str], str] = {

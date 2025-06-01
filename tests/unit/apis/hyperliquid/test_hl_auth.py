@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from eth_account.datastructures import SignedMessage
 from hexbytes import HexBytes
+from pydantic import SecretStr
 
 from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
@@ -46,7 +47,7 @@ def authenticator_instance() -> HyperliquidEip712Authenticator:
     or the account instance directly.
     """
     return HyperliquidEip712Authenticator(
-        wallet_private_key=VALID_PRIVATE_KEY_HEX,
+        wallet_private_key_secret=SecretStr(VALID_PRIVATE_KEY_HEX),
         chain_id=VALID_CHAIN_ID,
     )
 
@@ -64,10 +65,11 @@ def test_hl_auth_init_success_with_private_key(
     mock_account.address = VALID_WALLET_ADDRESS
 
     auth = HyperliquidEip712Authenticator(
-        wallet_private_key=VALID_PRIVATE_KEY_HEX,
+        wallet_private_key_secret=SecretStr(VALID_PRIVATE_KEY_HEX),
         chain_id=VALID_CHAIN_ID,
     )
-    mock_from_key.assert_called_once_with(VALID_PRIVATE_KEY_HEX)
+    # Note: now expects stripped version without 0x prefix for actual validation
+    mock_from_key.assert_called_once_with(VALID_PRIVATE_KEY_HEX[2:])
     assert auth.wallet_address.lower() == VALID_WALLET_ADDRESS.lower()
     assert auth.chain_id == VALID_CHAIN_ID
     assert mock_account.address.lower() == VALID_WALLET_ADDRESS.lower()
@@ -96,7 +98,7 @@ def test_hl_auth_init_success_no_0x_private_key(
 
     key_no_prefix = VALID_PRIVATE_KEY_HEX[2:]
     auth = HyperliquidEip712Authenticator(
-        wallet_private_key=key_no_prefix,
+        wallet_private_key_secret=SecretStr(key_no_prefix),
         chain_id=VALID_CHAIN_ID,
     )
     mock_from_key.assert_called_once_with(key_no_prefix)
@@ -106,7 +108,7 @@ def test_hl_auth_init_success_no_0x_private_key(
 def test_hl_auth_init_no_key_or_account() -> None:
     """Test initialization with no private key or account object raises ValueError."""
     with pytest.raises(
-        ValueError, match="Either wallet_private_key or account_object must be provided."
+        ValueError, match="Either wallet_private_key_secret or account_object must be provided."
     ):
         HyperliquidEip712Authenticator(chain_id=VALID_CHAIN_ID)
 
@@ -114,10 +116,10 @@ def test_hl_auth_init_no_key_or_account() -> None:
 def test_hl_auth_init_both_key_and_account(mock_account: MagicMock) -> None:
     """Test initialization with both private key and account object raises ValueError."""
     with pytest.raises(
-        ValueError, match="Provide either wallet_private_key or account_object, not both."
+        ValueError, match="Provide either wallet_private_key_secret or account_object, not both."
     ):
         HyperliquidEip712Authenticator(
-            wallet_private_key=VALID_PRIVATE_KEY_HEX,
+            wallet_private_key_secret=SecretStr(VALID_PRIVATE_KEY_HEX),
             account_object=mock_account,
             chain_id=VALID_CHAIN_ID,
         )
@@ -126,12 +128,14 @@ def test_hl_auth_init_both_key_and_account(mock_account: MagicMock) -> None:
 @patch("eth_account.Account.from_key", side_effect=ValueError("Simulated Key Error"))
 def test_hl_auth_init_from_key_value_error(mock_from_key: MagicMock) -> None:
     """Test initialization raises ValueError if Account.from_key raises ValueError."""
+    # Use a properly formatted hex key that will pass format validation but fail Account.from_key
+    properly_formatted_but_bad_key = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
     with pytest.raises(
         ValueError,
-        match=r"Invalid private key: Simulated Key Error",
+        match=r"Invalid private key: Hyperliquid private_key is not cryptographically valid: Simulated Key Error",
     ):
         HyperliquidEip712Authenticator(
-            wallet_private_key="somekey_that_will_cause_error_in_mock",
+            wallet_private_key_secret=SecretStr(properly_formatted_but_bad_key),
             chain_id=VALID_CHAIN_ID,
         )
 
@@ -161,7 +165,7 @@ async def test_prepare_request_success(
     mock_encode_typed_data.return_value = dummy_signable_for_sign_message
 
     auth = HyperliquidEip712Authenticator(
-        wallet_private_key=VALID_PRIVATE_KEY_HEX,  # This will use the mocked from_key
+        wallet_private_key_secret=SecretStr(VALID_PRIVATE_KEY_HEX),  # This will use the mocked from_key
         chain_id=VALID_CHAIN_ID,
     )
 
@@ -243,7 +247,7 @@ async def test_prepare_request_signing_error(
     mock_account.sign_message.side_effect = Exception("Simulated signing error")
 
     auth = HyperliquidEip712Authenticator(
-        wallet_private_key=VALID_PRIVATE_KEY_HEX, chain_id=VALID_CHAIN_ID
+        wallet_private_key_secret=SecretStr(VALID_PRIVATE_KEY_HEX), chain_id=VALID_CHAIN_ID
     )
 
     method = "POST"
@@ -354,7 +358,7 @@ class TestHyperliquidEip712Authenticator:
         return HyperliquidEip712Authenticator(
             account_object=mock_account,
             chain_id=self.CHAIN_ID,
-            logger=mock_logger,
+            logger_param=mock_logger,
         )
 
     @pytest.fixture
@@ -368,9 +372,9 @@ class TestHyperliquidEip712Authenticator:
             self.EXPECTED_WALLET_ADDRESS_CLASS_SCOPE
         )  # Ensure derived address matches
         return HyperliquidEip712Authenticator(
-            wallet_private_key=self.VALID_PRIVATE_KEY,
+            wallet_private_key_secret=SecretStr(self.VALID_PRIVATE_KEY),
             chain_id=self.CHAIN_ID,
-            logger=mock_logger,
+            logger_param=mock_logger,
         )
 
     def test_instantiation_with_account_object(
@@ -381,7 +385,7 @@ class TestHyperliquidEip712Authenticator:
         auth = HyperliquidEip712Authenticator(
             account_object=mock_account,
             chain_id=self.CHAIN_ID,
-            logger=mock_logger,
+            logger_param=mock_logger,
         )
         assert auth.wallet_address == self.MOCKED_ACCOUNT_WALLET_ADDRESS
         assert auth.chain_id == self.CHAIN_ID
@@ -407,9 +411,9 @@ class TestHyperliquidEip712Authenticator:
 
         with patch("eth_account.Account.from_key", return_value=mock_account) as mk_from_key:
             auth = HyperliquidEip712Authenticator(
-                wallet_private_key=key_no_prefix,
+                wallet_private_key_secret=SecretStr(key_no_prefix),
                 chain_id=self.CHAIN_ID,
-                logger=mock_logger,
+                logger_param=mock_logger,
             )
         mk_from_key.assert_called_once_with(key_no_prefix)
         assert auth.wallet_address.lower() == self.EXPECTED_WALLET_ADDRESS_CLASS_SCOPE.lower()
@@ -417,7 +421,7 @@ class TestHyperliquidEip712Authenticator:
     def test_instantiation_no_key_or_account_object(self, mock_logger: MagicMock) -> None:
         """Test ValueError if neither private key nor account object is provided."""
         with pytest.raises(ValueError, match="must be provided"):
-            HyperliquidEip712Authenticator(chain_id=self.CHAIN_ID, logger=mock_logger)
+            HyperliquidEip712Authenticator(chain_id=self.CHAIN_ID, logger_param=mock_logger)
 
     def test_instantiation_both_key_and_account_object(
         self, mock_account: MagicMock, mock_logger: MagicMock
@@ -425,10 +429,10 @@ class TestHyperliquidEip712Authenticator:
         """Test ValueError if both private key and account object are provided."""
         with pytest.raises(ValueError, match="not both"):
             HyperliquidEip712Authenticator(
-                wallet_private_key=self.VALID_PRIVATE_KEY,
+                wallet_private_key_secret=SecretStr(self.VALID_PRIVATE_KEY),
                 account_object=mock_account,
                 chain_id=self.CHAIN_ID,
-                logger=mock_logger,
+                logger_param=mock_logger,
             )
 
     @patch("eth_account.Account.from_key", side_effect=ValueError("Bad Key From Test"))
@@ -436,14 +440,16 @@ class TestHyperliquidEip712Authenticator:
         self, mock_from_key: MagicMock, mock_logger: MagicMock
     ) -> None:
         """Test ValueError from Account.from_key is propagated and logged."""
-        with pytest.raises(ValueError, match="Invalid private key: Bad Key From Test"):
+        # Use a properly formatted hex key that will pass format validation but fail Account.from_key
+        properly_formatted_but_bad_key = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        with pytest.raises(ValueError, match="Invalid private key: Hyperliquid private_key is not cryptographically valid: Bad Key From Test"):
             HyperliquidEip712Authenticator(
-                wallet_private_key="invalid-key",
+                wallet_private_key_secret=SecretStr(properly_formatted_but_bad_key),
                 chain_id=self.CHAIN_ID,
-                logger=mock_logger,
+                logger_param=mock_logger,
             )
         mock_logger.error.assert_called_once_with(
-            "HyperliquidEip712Authenticator: Invalid private key: Bad Key From Test",
+            "HyperliquidEip712Authenticator: Invalid private key: Hyperliquid private_key is not cryptographically valid: Bad Key From Test",
             exc_info=True,
         )
 
@@ -778,3 +784,56 @@ async def test_prepare_request_connection_id_properties(
     # The call_count is reset, so we check based on the last call group
     # This assertion might be less useful now with resets, but confirms the last group was called.
     assert mock_encode_typed_data.call_count == 1  # Should be 1 since last reset
+
+
+# New tests for cryptographic validation in authenticator
+def test_hl_auth_init_invalid_hex_format() -> None:
+    """Test initialization raises ValueError for invalid hex format."""
+    with pytest.raises(
+        ValueError,
+        match=r"Invalid private key: Hyperliquid private_key must be a 64-character hex string",
+    ):
+        HyperliquidEip712Authenticator(
+            wallet_private_key_secret=SecretStr("invalid-hex-format"),
+            chain_id=VALID_CHAIN_ID,
+        )
+
+
+def test_hl_auth_init_wrong_length_hex() -> None:
+    """Test initialization raises ValueError for wrong length hex string."""
+    with pytest.raises(
+        ValueError,
+        match=r"Invalid private key: Hyperliquid private_key must be a 64-character hex string",
+    ):
+        HyperliquidEip712Authenticator(
+            wallet_private_key_secret=SecretStr("0x1234"),  # Too short
+            chain_id=VALID_CHAIN_ID,
+        )
+
+
+def test_hl_auth_init_invalid_passphrase_word_count() -> None:
+    """Test initialization raises ValueError for invalid passphrase word count."""
+    with pytest.raises(
+        ValueError,
+        match=r"Invalid passphrase: Hyperliquid passphrase must consist of 12 or 24 words",
+    ):
+        HyperliquidEip712Authenticator(
+            wallet_private_key_secret=SecretStr(VALID_PRIVATE_KEY_HEX),
+            passphrase_secret=SecretStr("just five words here"),  # Only 4 words
+            chain_id=VALID_CHAIN_ID,
+        )
+
+
+@patch("mnemonic.Mnemonic.check", return_value=False)
+def test_hl_auth_init_invalid_bip39_passphrase(mock_mnemonic_check: MagicMock) -> None:
+    """Test initialization raises ValueError for invalid BIP-39 passphrase."""
+    twelve_words = "word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12"
+    with pytest.raises(
+        ValueError,
+        match=r"Invalid passphrase: Hyperliquid passphrase is not a valid BIP-39 mnemonic",
+    ):
+        HyperliquidEip712Authenticator(
+            wallet_private_key_secret=SecretStr(VALID_PRIVATE_KEY_HEX),
+            passphrase_secret=SecretStr(twelve_words),
+            chain_id=VALID_CHAIN_ID,
+        )
