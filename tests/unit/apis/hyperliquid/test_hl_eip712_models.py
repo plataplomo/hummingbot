@@ -30,7 +30,7 @@ class TestEIP712TypeField:
     def test_extra_fields_forbidden(self) -> None:
         """Test that extra fields are not allowed."""
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-            EIP712TypeField(name="test", type="string", extra="not_allowed")
+            EIP712TypeField(name="test", type="string", extra="not_allowed")  # type: ignore[call-arg] # Testing that extra fields raise error
 
 
 class TestHyperliquidAgentDomainData:
@@ -65,8 +65,8 @@ class TestHyperliquidAgentDomainData:
         domain2 = HyperliquidAgentDomainData(
             name="Test",
             version="2",
-            chain_id=42,
-            verifying_contract="0x1234567890123456789012345678901234567890",
+            chainId=42,
+            verifyingContract="0x1234567890123456789012345678901234567890",
         )
         assert domain2.chain_id == 42
         assert domain2.verifying_contract == "0x1234567890123456789012345678901234567890"
@@ -105,7 +105,7 @@ class TestHyperliquidAgentDomainData:
                 version="1",
                 chainId=1337,
                 verifyingContract="0x0000000000000000000000000000000000000000",
-                extra="field",
+                extra="field",  # type: ignore[call-arg] # Testing that extra fields raise error
             )
 
 
@@ -156,13 +156,13 @@ class TestHyperliquidAgentTypes:
         assert isinstance(dumped["Agent"], list)
 
         # Check domain fields
-        domain_fields = dumped["EIP712Domain"]
+        domain_fields: list[dict[str, str]] = dumped["EIP712Domain"]  # pyright: ignore[reportUnknownVariableType]
         assert len(domain_fields) == 4
         assert domain_fields[0]["name"] == "name"
         assert domain_fields[0]["type"] == "string"
 
         # Check agent fields
-        agent_fields = dumped["Agent"]
+        agent_fields: list[dict[str, str]] = dumped["Agent"]  # pyright: ignore[reportUnknownVariableType]
         assert len(agent_fields) == 2
         assert agent_fields[0]["name"] == "source"
         assert agent_fields[0]["type"] == "string"
@@ -189,5 +189,5 @@ class TestHyperliquidAgentTypes:
             HyperliquidAgentTypes(
                 EIP712Domain=[],
                 Agent=[],
-                ExtraType=[],
+                ExtraType=[],  # type: ignore[call-arg] # Testing that extra fields raise error
             )

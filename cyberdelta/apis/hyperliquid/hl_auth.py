@@ -228,9 +228,9 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             if isinstance(value, dict):
                 # Cast to proper type since isinstance check confirms it's a dict
                 self._clean_order_type_fields(cast(dict[str, Any], value))
-            elif isinstance(value, list):
-                list_value = cast(list[Any], value)
-                for item in list_value:
+            elif self._is_list_any(value):
+                # Use TypeGuard to properly type the list
+                for item in value:
                     if isinstance(item, dict):
                         # Cast to proper type since isinstance check confirms it's a dict
                         self._clean_order_type_fields(cast(dict[str, Any], item))

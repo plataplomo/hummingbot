@@ -5,15 +5,18 @@ This tests the refactored authentication method that aligns with Hyperliquid SDK
 sign_l1_action scheme for the /exchange endpoint.
 """
 
-from typing import Any
+from typing import Any, cast
 from unittest.mock import patch
 
 import msgpack
 import pytest
-from eth_utils.crypto import keccak
 from pydantic import SecretStr
 
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator, address_to_bytes
+from cyberdelta.apis.hyperliquid.models.hl_eip712_models import (
+    HyperliquidAgentDomainData,
+    HyperliquidAgentTypes,
+)
 
 # Test constants
 VALID_PRIVATE_KEY = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
@@ -22,6 +25,18 @@ CHAIN_ID = 1337
 
 class TestHyperliquidSignL1Action:
     """Test suite for the sign_l1_action authentication scheme."""
+
+    def _get_domain(
+        self, authenticator: HyperliquidEip712Authenticator
+    ) -> HyperliquidAgentDomainData:
+        """Helper to access protected domain attribute for testing."""
+        return authenticator._exchange_action_domain
+
+    def _get_agent_types(
+        self, authenticator: HyperliquidEip712Authenticator
+    ) -> HyperliquidAgentTypes:
+        """Helper to access protected agent types attribute for testing."""
+        return authenticator._exchange_action_agent_types
 
     @pytest.fixture
     def authenticator(self) -> HyperliquidEip712Authenticator:
@@ -70,6 +85,7 @@ class TestHyperliquidSignL1Action:
         assert result.headers["Content-Type"] == "application/json"
 
         # Should have action, nonce, and signature in body
+        assert result.data is not None
         assert "action" in result.data
         assert "nonce" in result.data
         assert "signature" in result.data
@@ -118,6 +134,7 @@ class TestHyperliquidSignL1Action:
         )
 
         # Check that addresses were lowercased in the action
+        assert result.data is not None
         processed_action = result.data["action"]
         assert processed_action["user"] == "0xabcdef1234567890abcdef1234567890abcdef12"
         assert processed_action["destination"] == "0x9876543210abcdef9876543210abcdef98765432"
@@ -149,6 +166,7 @@ class TestHyperliquidSignL1Action:
         )
 
         # Check that null limit field was removed
+        assert result.data is not None
         processed_order = result.data["action"]["orders"][0]
         assert "limit" not in processed_order["order_type"]
         assert "market" in processed_order["order_type"]
@@ -170,17 +188,14 @@ class TestHyperliquidSignL1Action:
                 headers=None,
             )
 
+        assert result.data is not None
         nonce = result.data["nonce"]
         assert nonce == 1700000000000  # milliseconds
-
-        # Manually calculate expected action_hash
-        msgpacked = msgpack.packb(action)
-        hash_input = msgpacked + nonce.to_bytes(8, "big") + b"\x00"  # vault_address=None
-        expected_hash = keccak(hash_input)
 
         # The signature should have been created with this hash as connectionId
         # We can't directly verify the signature without access to the internal state,
         # but we can ensure the process completed successfully
+        assert result.data is not None
         assert result.data["signature"]["r"].startswith("0x")
         assert result.data["signature"]["s"].startswith("0x")
 
@@ -190,7 +205,7 @@ class TestHyperliquidSignL1Action:
     ) -> None:
         """Test that EIP-712 domain uses 'Exchange' as the name."""
         # Access the domain configuration
-        domain = authenticator._exchange_action_domain
+        domain = self._get_domain(authenticator)
         assert domain.name == "Exchange"
         assert domain.version == "1"
         assert domain.chain_id == CHAIN_ID
@@ -209,6 +224,7 @@ class TestHyperliquidSignL1Action:
             headers=None,
         )
 
+        assert result.data is not None
         assert result.data["action"] == {}
         assert "nonce" in result.data
         assert "signature" in result.data
@@ -239,6 +255,7 @@ class TestHyperliquidSignL1Action:
             headers=None,
         )
 
+        assert result.data is not None
         processed = result.data["action"]
         assert processed["level1"]["address"] == "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         assert (
@@ -264,6 +281,7 @@ class TestHyperliquidSignL1Action:
         )
 
         # vaultAddress should not be in the response for standard user trades
+        assert result.data is not None
         assert "vaultAddress" not in result.data
 
     @pytest.mark.asyncio
@@ -294,7 +312,7 @@ class TestHyperliquidSignL1Action:
         self, authenticator: HyperliquidEip712Authenticator
     ) -> None:
         """Test that nonces are strictly increasing even with rapid calls."""
-        nonces = []
+        nonces: list[int] = []
 
         # Make multiple rapid requests
         for _ in range(5):
@@ -305,6 +323,7 @@ class TestHyperliquidSignL1Action:
                 data={"type": "test"},
                 headers=None,
             )
+            assert result.data is not None
             nonces.append(result.data["nonce"])
 
         # All nonces should be unique and strictly increasing
@@ -333,7 +352,7 @@ class TestHyperliquidSignL1Action:
                 method="POST",
                 path="/exchange",
                 params=None,
-                data="not a dict",
+                data=cast(dict[str, Any], "not a dict"),
                 headers=None,
             )
 
@@ -360,6 +379,7 @@ class TestHyperliquidSignL1Action:
             assert call_args == action
 
         # Ensure the request completed successfully
+        assert result.data is not None
         assert "signature" in result.data
 
     @pytest.mark.asyncio
@@ -367,7 +387,7 @@ class TestHyperliquidSignL1Action:
         self, authenticator: HyperliquidEip712Authenticator
     ) -> None:
         """Test that Agent types are correctly structured for EIP-712."""
-        agent_types = authenticator._exchange_action_agent_types
+        agent_types = self._get_agent_types(authenticator)
 
         # Check Agent type fields
         agent_fields = agent_types.Agent
