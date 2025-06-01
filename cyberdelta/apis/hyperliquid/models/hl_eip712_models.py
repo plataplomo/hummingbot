@@ -24,12 +24,12 @@ class EIP712TypeField(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-class EIP712DomainData(BaseModel):
+class HyperliquidAgentDomainData(BaseModel):
     """
-    Model for EIP-712 domain data structure.
+    Model for EIP-712 domain data structure for Hyperliquid Exchange Agent signatures.
 
-    This represents the actual domain values used in EIP-712 signatures,
-    not the type definition structure.
+    This represents the actual domain values used in EIP-712 signatures for the
+    sign_l1_action scheme with "Exchange" domain name.
     """
 
     name: str
@@ -40,12 +40,13 @@ class EIP712DomainData(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
-class EIP712Types(BaseModel):
+class HyperliquidAgentTypes(BaseModel):
     """
-    Model for EIP-712 type definitions.
+    Model for EIP-712 type definitions for Hyperliquid Exchange Agent signatures.
 
-    This represents the complete "types" structure required for EIP-712 signatures,
-    containing both the EIP712Domain and Agent type definitions.
+    This represents the complete "types" structure required for EIP-712 signatures
+    using the sign_l1_action scheme, containing both the EIP712Domain and Agent
+    type definitions.
     """
 
     EIP712Domain: list[EIP712TypeField]

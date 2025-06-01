@@ -1,33 +1,50 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
 from collections.abc import Mapping
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
+if TYPE_CHECKING:
+    from typing import TypeGuard
+
+import msgpack
 from eth_account import Account
 from eth_account.messages import encode_typed_data
 from eth_account.signers.local import LocalAccount
+from eth_utils.conversions import to_hex
+from eth_utils.crypto import keccak
 from mnemonic import Mnemonic
 from pydantic import SecretStr
-from web3 import Web3
 
 from cyberdelta.apis.base.authenticator_interface import (
     AuthenticatedRequestComponents,
     IAuthenticator,
 )
 from cyberdelta.apis.hyperliquid.models.hl_eip712_models import (
-    EIP712DomainData,
     EIP712TypeField,
-    EIP712Types,
+    HyperliquidAgentDomainData,
+    HyperliquidAgentTypes,
 )
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+
+def address_to_bytes(address: str) -> bytes:
+    """
+    Convert an Ethereum address string to bytes.
+
+    Args:
+        address: Ethereum address string (with or without 0x prefix)
+
+    Returns:
+        Address as bytes
+    """
+    return bytes.fromhex(address[2:] if address.startswith("0x") else address)
 
 
 class HyperliquidEip712Authenticator(IAuthenticator):
@@ -114,7 +131,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                         # Handle any other exceptions from mnemonic validation
                         if "not a valid BIP-39 mnemonic" not in str(e):
                             raise ValueError(
-                                f"Error validating Hyperliquid passphrase with mnemonic library: {e}"
+                                f"Error validating Hyperliquid passphrase with mnemonic "
+                                f"library: {e}"
                             ) from e
                         raise
 
@@ -147,16 +165,16 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         self._last_nonce_ms: int = 0
         self._nonce_lock = asyncio.Lock()
 
-        # Initialize EIP-712 domain data using Pydantic model
-        self._domain_data_model = EIP712DomainData(
-            name="Hyperliquid",
+        # Initialize EIP-712 domain data for Exchange/Agent scheme (sign_l1_action)
+        self._exchange_action_domain = HyperliquidAgentDomainData(
+            name="Exchange",
             version="1",
             chainId=chain_id,
             verifyingContract="0x0000000000000000000000000000000000000000",
         )
 
-        # Initialize EIP-712 types using Pydantic model
-        self._eip712_types_model = EIP712Types(
+        # Initialize EIP-712 types for Exchange/Agent scheme
+        self._exchange_action_agent_types = HyperliquidAgentTypes(
             EIP712Domain=[
                 EIP712TypeField(name="name", type="string"),
                 EIP712TypeField(name="version", type="string"),
@@ -191,17 +209,6 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 self._last_nonce_ms = current_ms
             return self._last_nonce_ms
 
-    def _generate_connection_id(self, data_payload: dict[str, Any]) -> bytes:
-        """
-        Generates the connectionId for EIP-712 Agent signature.
-        connectionId = keccak(payload_string)
-        payload_string is the JSON string of the data_payload (request body/action).
-        """
-        # Sort keys for deterministic output, then dump to JSON string, then encode to bytes
-        # No spaces after separators for compact representation, as often expected.
-        json_string = json.dumps(data_payload, sort_keys=True, separators=(",", ":"))
-        return Web3.keccak(text=json_string)  # Use Web3.keccak as per HL spec
-
     def _clean_order_type_fields(self, data: dict[str, Any]) -> None:
         """
         Recursively clean None values from order type structures in JSON payload.
@@ -222,11 +229,52 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 # Cast to proper type since isinstance check confirms it's a dict
                 self._clean_order_type_fields(cast(dict[str, Any], value))
             elif isinstance(value, list):
-                list_value = cast(list[Any], value)  # type: ignore[redundant-cast]
+                list_value = cast(list[Any], value)
                 for item in list_value:
                     if isinstance(item, dict):
                         # Cast to proper type since isinstance check confirms it's a dict
                         self._clean_order_type_fields(cast(dict[str, Any], item))
+
+    def _is_ethereum_address(self, value: str) -> bool:
+        """Check if a string looks like an Ethereum address."""
+        return len(value) == 42 and value.lower().startswith("0x")
+
+    @staticmethod
+    def _is_list_any(value: object) -> TypeGuard[list[Any]]:
+        """Type guard to check if value is a list."""
+        return isinstance(value, list)
+
+    def _lowercase_addresses_in_list(self, lst: list[Any]) -> None:
+        """Process a list to lowercase Ethereum addresses."""
+        for i in range(len(lst)):
+            item = lst[i]
+            if isinstance(item, str) and self._is_ethereum_address(item):
+                lst[i] = item.lower()
+            elif isinstance(item, dict):
+                self._lowercase_addresses_in_payload(cast(dict[str, Any], item))
+            elif self._is_list_any(item):
+                # Recursive call for nested lists
+                self._lowercase_addresses_in_list(item)
+
+    def _lowercase_addresses_in_payload(self, data: dict[str, Any]) -> None:
+        """
+        Recursively convert Ethereum addresses to lowercase in the payload.
+        This ensures consistent hashing as addresses are case-sensitive in msgpack.
+
+        Args:
+            data: Dictionary to process (modified in place)
+        """
+        # Process all key-value pairs
+        for key, value in data.items():
+            if isinstance(value, str) and self._is_ethereum_address(value):
+                # This looks like an Ethereum address
+                data[key] = value.lower()
+            elif isinstance(value, dict):
+                # Recursively process nested dictionaries
+                self._lowercase_addresses_in_payload(cast(dict[str, Any], value))
+            elif self._is_list_any(value):
+                # Process the list
+                self._lowercase_addresses_in_list(value)
 
     async def prepare_request(
         self,
@@ -237,17 +285,18 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         headers: Mapping[str, Any] | None,
     ) -> AuthenticatedRequestComponents:
         """
-        Prepares and signs a Hyperliquid API request using EIP-712 Agent signature.
-        This signature is typically used for the /exchange endpoint.
-        The 'data' for Hyperliquid /exchange (when using this EIP-712 Agent signature)
-        is expected to be the dictionary payload of the specific action (e.g., order details).
+        Prepares and signs a Hyperliquid API request.
+
+        For /exchange endpoint: Uses sign_l1_action scheme with msgpack-based action_hash
+        and EIP-712 Agent signature in request body (no X-HL-* headers).
+
+        For other endpoints: Currently raises NotImplementedError.
 
         Args:
             method: The HTTP method.
             path: The API endpoint path.
             params: Optional dictionary of query parameters.
-            data: The dictionary payload for the action being signed.
-                  For Hyperliquid Agent EIP-712, this MUST be a dict and not None.
+            data: The dictionary payload for the action being signed (required for /exchange).
             headers: Optional dictionary of existing headers.
 
         Returns:
@@ -255,94 +304,135 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
         Raises:
             APIError: If signing fails or account is not properly initialized.
-            ValueError: If data is None or not a dictionary, as it's required for HL Agent sig.
+            ValueError: If data requirements are not met.
+            NotImplementedError: For non-/exchange paths.
         """
+        if path == "/exchange":
+            return await self._prepare_exchange_request(method, path, params, data, headers)
+        else:
+            self.logger.error(
+                f"HyperliquidEip712Authenticator: Signing for path {path} is not implemented. "
+                f"Only /exchange endpoint is currently supported."
+            )
+            raise NotImplementedError(
+                f"Signing for path {path} is not implemented. Only /exchange endpoint is supported."
+            )
+
+    async def _prepare_exchange_request(
+        self,
+        method: str,
+        path: str,
+        params: dict[str, Any] | None,
+        data: dict[str, Any] | None,
+        headers: Mapping[str, Any] | None,
+    ) -> AuthenticatedRequestComponents:
+        """
+        Prepares and signs a Hyperliquid /exchange request using sign_l1_action scheme.
+
+        This implements the SDK's sign_l1_action flow:
+        1. msgpack the action payload
+        2. Hash action + nonce + vault_address + expires_after with keccak
+        3. Use hash as connectionId in EIP-712 Agent message
+        4. Sign Agent message with "Exchange" domain
+        5. Return JSON body with action, nonce, signature (no X-HL-* headers)
+        """
+        # Input validation
         if not isinstance(data, dict):
-            msg = "Invalid 'data' for Hyperliquid EIP-712 Agent signature: Must be a dictionary."
+            msg = (
+                "Invalid 'data' for Hyperliquid /exchange request: "
+                "Must be a dictionary (action payload)."
+            )
             self.logger.error(f"HyperliquidEip712Authenticator: {msg} Received type: {type(data)}")
             raise ValueError(msg)
 
-        # At this point, 'data' is confirmed to be a dict (due to type hint and above check)
-        # and is the action_payload.
-        # Create a mutable copy for potential cleaning
+        # Prepare action payload
         action_payload_dict: dict[str, Any] = dict(data)
-
-        # Apply Hyperliquid-specific cleaning for order type fields
-        # This handles cases where serialize_none_as_null=True leaves null values
-        # that Hyperliquid expects to be absent
         self._clean_order_type_fields(action_payload_dict)
 
-        action_payload: Mapping[str, Any] = action_payload_dict
+        # Address lowercasing: Convert any Ethereum addresses to lowercase for consistent hashing
+        self._lowercase_addresses_in_payload(action_payload_dict)
 
-        # Capture current time for timestamp BEFORE getting potentially incremented nonce
-        current_timestamp_ms = int(time.time() * 1000)
-        current_nonce_ms = await self._get_next_nonce_ms()
-        connection_id_bytes = self._generate_connection_id(dict(action_payload))
+        # Generate nonce
+        current_nonce_ms: int = await self._get_next_nonce_ms()
 
-        # Construct the EIP-712 message for Agent signature
-        # Source "a" is commonly used for agent signatures by exchanges like Hyperliquid
-        structured_data_to_sign = {
-            "domain": self._domain_data_model.model_dump(by_alias=True),
-            "message": {
-                "source": "a",  # Per prompt and common convention for agent type
-                "connectionId": connection_id_bytes,
-            },
-            "primaryType": "Agent",  # Must match the key in `types`
-            "types": self._eip712_types_model.model_dump(by_alias=True),
+        # Define vault_address and expires_after for hash (None for standard user trades)
+        vault_address_for_hash: str | None = None
+        expires_after_for_hash: int | None = None
+
+        # Calculate action_hash (mimicking SDK's action_hash function)
+        msgpacked_action = msgpack.packb(action_payload_dict)
+        assert isinstance(msgpacked_action, bytes), "msgpack.packb should return bytes"
+        action_hash_data_parts: list[bytes] = [msgpacked_action]
+        action_hash_data_parts.append(current_nonce_ms.to_bytes(8, "big"))
+
+        if vault_address_for_hash is not None:
+            action_hash_data_parts.append(b"\x01")
+            action_hash_data_parts.append(address_to_bytes(vault_address_for_hash))
+        else:
+            action_hash_data_parts.append(b"\x00")
+
+        # Note: expires_after handling - if None, nothing more is added
+        if expires_after_for_hash is not None:
+            action_hash_data_parts.append(b"\x00")
+            action_hash_data_parts.append(expires_after_for_hash.to_bytes(8, "big"))
+
+        action_hash_input_bytes: bytes = b"".join(action_hash_data_parts)
+        action_hash_bytes: bytes = keccak(action_hash_input_bytes)
+
+        # Construct phantom_agent_message for EIP-712
+        source_char: str = "a"  # Assuming mainnet
+        phantom_agent_message: dict[str, Any] = {
+            "source": source_char,
+            "connectionId": action_hash_bytes,
         }
 
-        # Account is guaranteed to be non-None after successful initialization
+        # Construct structured_data_to_sign for EIP-712
+        structured_data_to_sign = {
+            "domain": self._exchange_action_domain.model_dump(by_alias=True),
+            "message": phantom_agent_message,
+            "primaryType": "Agent",
+            "types": self._exchange_action_agent_types.model_dump(by_alias=True),
+        }
 
+        # Sign the message
         try:
             signable_message = encode_typed_data(full_message=structured_data_to_sign)
-            signed_message = self._account.sign_message(signable_message)
-            # Mypy might complain here if it can't infer _account is definitely not None
-            # despite the check. The type: ignore might be needed if a simple check isn't enough.
-            # However, the explicit `if self._account is None:` check above should satisfy mypy.
-            # If not, and mypy still flags attr-defined on a checked Optional, this is
-            # a Mypy limitation.
-            # Per RULE-RUNTIME-SAFETY-V4, the runtime check is paramount.
-            # We will not use cast or ignore if the explicit check is present.
-
-            signature_hex = signed_message.signature.hex()
+            signed_message_obj = self._account.sign_message(signable_message)
+            signature_dict: dict[str, Any] = {
+                "r": to_hex(signed_message_obj.r),
+                "s": to_hex(signed_message_obj.s),
+                "v": signed_message_obj.v,
+            }
         except Exception as e:
             self.logger.error(
-                f"HyperliquidEip712Authenticator: Failed to sign Hyperliquid EIP-712 "
+                f"HyperliquidEip712Authenticator: Failed to sign Hyperliquid Exchange "
                 f"Agent message: {e}",
                 exc_info=True,
             )
             raise APIError(
-                f"Failed to sign EIP-712 Agent request: {e}",
+                f"Failed to sign EIP-712 Agent request for /exchange: {e}",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 original_exception=e,
             ) from e
 
-        # Prepare headers for the authenticated request
-        updated_headers = dict(headers) if headers else {}
-        # Hyperliquid expects headers with "X-HL-" prefix for agent signature components
-        updated_headers.update(
-            {
-                "X-HL-Timestamp": str(current_timestamp_ms),  # Use actual captured timestamp
-                "X-HL-Nonce": str(current_nonce_ms),  # Use strictly increasing nonce
-                "X-HL-Signature": signature_hex,
-            }
-        )
+        # Construct final HTTP JSON body
+        final_http_body: dict[str, Any] = {
+            "action": action_payload_dict,
+            "nonce": current_nonce_ms,
+            "signature": signature_dict,
+        }
+        if vault_address_for_hash:  # Only include if set
+            final_http_body["vaultAddress"] = vault_address_for_hash
 
-        # Ensure all header values are strings
-        final_headers: dict[str, str] = {str(k): str(v) for k, v in updated_headers.items()}
+        # Prepare HTTP headers (no X-HL-* auth headers for /exchange)
+        final_headers: dict[str, str] = {"Content-Type": "application/json"}
+        if headers:
+            for key, value in headers.items():
+                if key != "Content-Type":
+                    final_headers[str(key)] = str(value)
 
         return AuthenticatedRequestComponents(
             headers=final_headers,
             params=params,
-            data=action_payload_dict,  # Return the cleaned action_payload as data
+            data=final_http_body,
         )
-
-
-# Example of how connectionId is formed (for reference, not part of the class):
-# action = {"type": "order", "orders": [...], "grouping": "na"}
-# payload_string = json.dumps(action, separators=(",", ":"), sort_keys=True)
-# connection_id = Web3.keccak(text=payload_string)
-#
-# Then the agent signature:
-# agent = {"source": "a", "connectionId": connection_id.hex()}
-# EIP712 sig of agent.

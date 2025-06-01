@@ -51,6 +51,7 @@ dependencies = [
     "mnemonic==0.21",
     "logfire==3.16.1",
     "msgpack==1.1.0",
+    "cryptography==45.0.3",
 ]
 
 [project.optional-dependencies]
@@ -68,6 +69,7 @@ dev = [
     "pytest-mock==3.14.0",
     "types-pyyaml==6.0.12.20250402",
     "pandas-stubs==2.2.3.250308",
+    "msgpack-types==0.5.0",
 ]
 
 [tool.pytest.ini_options]
