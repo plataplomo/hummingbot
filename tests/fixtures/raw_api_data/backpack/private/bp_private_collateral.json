@@ -1,0 +1,147 @@
+[
+  {
+    "haircutFunction": {
+      "kind": {
+        "base": "0.25",
+        "positiveCurvePenalty": "0.016",
+        "type": "inverseSqrt"
+      },
+      "weight": "1"
+    },
+    "imfFunction": {
+      "base": "1000",
+      "factor": "0",
+      "type": "sqrt"
+    },
+    "mmfFunction": {
+      "base": "9999",
+      "factor": "0",
+      "type": "sqrt"
+    },
+    "symbol": "JUP"
+  },
+  {
+    "haircutFunction": {
+      "kind": {
+        "base": "0.9",
+        "positiveCurvePenalty": "0.0001",
+        "type": "inverseSqrt"
+      },
+      "weight": "1"
+    },
+    "imfFunction": {
+      "base": "0.1",
+      "factor": "0",
+      "type": "sqrt"
+    },
+    "mmfFunction": {
+      "base": "0.05",
+      "factor": "0",
+      "type": "sqrt"
+    },
+    "symbol": "USDT"
+  },
+  {
+    "haircutFunction": {
+      "kind": {
+        "base": "0.9",
+        "positiveCurvePenalty": "0.0015",
+        "type": "inverseSqrt"
+      },
+      "weight": "1"
+    },
+    "imfFunction": {
+      "base": "0.1",
+      "factor": "0.00023",
+      "type": "sqrt"
+    },
+    "mmfFunction": {
+      "base": "0.05",
+      "factor": "0.000138",
+      "type": "sqrt"
+    },
+    "symbol": "ETH"
+  },
+  {
+    "haircutFunction": {
+      "kind": {
+        "type": "identity"
+      },
+      "weight": "1"
+    },
+    "imfFunction": {
+      "base": "0.05",
+      "factor": "0",
+      "type": "sqrt"
+    },
+    "mmfFunction": {
+      "base": "0.025",
+      "factor": "0",
+      "type": "sqrt"
+    },
+    "symbol": "USDC"
+  },
+  {
+    "haircutFunction": {
+      "kind": {
+        "base": "0.5",
+        "positiveCurvePenalty": "0.005",
+        "type": "inverseSqrt"
+      },
+      "weight": "1"
+    },
+    "imfFunction": {
+      "base": "0.1",
+      "factor": "0.0005",
+      "type": "sqrt"
+    },
+    "mmfFunction": {
+      "base": "0.05",
+      "factor": "0.0003",
+      "type": "sqrt"
+    },
+    "symbol": "SUI"
+  },
+  {
+    "haircutFunction": {
+      "kind": {
+        "base": "0.9",
+        "positiveCurvePenalty": "0.0019",
+        "type": "inverseSqrt"
+      },
+      "weight": "1"
+    },
+    "imfFunction": {
+      "base": "0.1",
+      "factor": "0.00036",
+      "type": "sqrt"
+    },
+    "mmfFunction": {
+      "base": "0.05",
+      "factor": "0.000216",
+      "type": "sqrt"
+    },
+    "symbol": "SOL"
+  },
+  {
+    "haircutFunction": {
+      "kind": {
+        "base": "0.9",
+        "positiveCurvePenalty": "0.00085",
+        "type": "inverseSqrt"
+      },
+      "weight": "1"
+    },
+    "imfFunction": {
+      "base": "0.1",
+      "factor": "0.00018",
+      "type": "sqrt"
+    },
+    "mmfFunction": {
+      "base": "0.05",
+      "factor": "0.000108",
+      "type": "sqrt"
+    },
+    "symbol": "BTC"
+  }
+]

@@ -1,0 +1,15 @@
+{
+  "assetsValue": "0",
+  "borrowLiability": "0",
+  "collateral": [],
+  "imf": "0.02",
+  "liabilitiesValue": "0",
+  "marginFraction": null,
+  "mmf": "0.0125",
+  "netEquity": "0",
+  "netEquityAvailable": "0",
+  "netEquityLocked": "0",
+  "netExposureFutures": "0",
+  "pnlUnrealized": "0",
+  "unsettledEquity": "0"
+}

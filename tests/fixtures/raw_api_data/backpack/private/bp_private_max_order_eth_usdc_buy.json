@@ -1,0 +1,10 @@
+{
+  "autoBorrow": null,
+  "autoBorrowRepay": null,
+  "autoLendRedeem": null,
+  "maxOrderQuantity": "0",
+  "price": "100",
+  "reduceOnly": null,
+  "side": "Bid",
+  "symbol": "ETH_USDC"
+}

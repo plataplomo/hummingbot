@@ -1,0 +1,16 @@
+{
+  "autoBorrowSettlements": true,
+  "autoLend": true,
+  "autoRealizePnl": true,
+  "autoRepayBorrows": true,
+  "borrowLimit": "2500000",
+  "futuresMakerFee": "2",
+  "futuresTakerFee": "5",
+  "leverageLimit": "50",
+  "limitOrders": 0,
+  "liquidating": false,
+  "positionLimit": "2500000",
+  "spotMakerFee": "8",
+  "spotTakerFee": "10",
+  "triggerOrders": 0
+}
