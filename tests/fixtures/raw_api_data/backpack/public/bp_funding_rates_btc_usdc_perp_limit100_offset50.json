@@ -1,0 +1,502 @@
+[
+  {
+    "fundingRate": "0.0001",
+    "intervalEndTimestamp": "2025-05-15T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.0001",
+    "intervalEndTimestamp": "2025-05-15T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.0001",
+    "intervalEndTimestamp": "2025-05-15T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.0001",
+    "intervalEndTimestamp": "2025-05-14T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.0001",
+    "intervalEndTimestamp": "2025-05-14T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.0001",
+    "intervalEndTimestamp": "2025-05-14T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.0001",
+    "intervalEndTimestamp": "2025-05-13T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.0001",
+    "intervalEndTimestamp": "2025-05-13T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000103366",
+    "intervalEndTimestamp": "2025-05-13T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.0001",
+    "intervalEndTimestamp": "2025-05-12T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.00023011",
+    "intervalEndTimestamp": "2025-05-12T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000128943",
+    "intervalEndTimestamp": "2025-05-12T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000118527",
+    "intervalEndTimestamp": "2025-05-11T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000062364",
+    "intervalEndTimestamp": "2025-05-11T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000146676",
+    "intervalEndTimestamp": "2025-05-11T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000203246",
+    "intervalEndTimestamp": "2025-05-10T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000091235",
+    "intervalEndTimestamp": "2025-05-10T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000092625",
+    "intervalEndTimestamp": "2025-05-10T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000102573",
+    "intervalEndTimestamp": "2025-05-09T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000165533",
+    "intervalEndTimestamp": "2025-05-09T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000107985",
+    "intervalEndTimestamp": "2025-05-09T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000069574",
+    "intervalEndTimestamp": "2025-05-08T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.00004016",
+    "intervalEndTimestamp": "2025-05-08T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.0000381",
+    "intervalEndTimestamp": "2025-05-08T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000026361",
+    "intervalEndTimestamp": "2025-05-07T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000002487",
+    "intervalEndTimestamp": "2025-05-07T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000072761",
+    "intervalEndTimestamp": "2025-05-07T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000064695",
+    "intervalEndTimestamp": "2025-05-06T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000048316",
+    "intervalEndTimestamp": "2025-05-06T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000047921",
+    "intervalEndTimestamp": "2025-05-06T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000185098",
+    "intervalEndTimestamp": "2025-05-05T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000178192",
+    "intervalEndTimestamp": "2025-05-05T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000029531",
+    "intervalEndTimestamp": "2025-05-05T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000236792",
+    "intervalEndTimestamp": "2025-05-04T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.00007889",
+    "intervalEndTimestamp": "2025-05-04T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000002989",
+    "intervalEndTimestamp": "2025-05-04T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000071236",
+    "intervalEndTimestamp": "2025-05-03T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000008557",
+    "intervalEndTimestamp": "2025-05-03T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000133715",
+    "intervalEndTimestamp": "2025-05-03T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000101559",
+    "intervalEndTimestamp": "2025-05-02T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000076585",
+    "intervalEndTimestamp": "2025-05-02T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000143519",
+    "intervalEndTimestamp": "2025-05-02T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000006933",
+    "intervalEndTimestamp": "2025-05-01T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000015699",
+    "intervalEndTimestamp": "2025-05-01T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000157786",
+    "intervalEndTimestamp": "2025-05-01T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000065545",
+    "intervalEndTimestamp": "2025-04-30T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000006268",
+    "intervalEndTimestamp": "2025-04-30T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000044378",
+    "intervalEndTimestamp": "2025-04-30T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.00001273",
+    "intervalEndTimestamp": "2025-04-29T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000029096",
+    "intervalEndTimestamp": "2025-04-29T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000094559",
+    "intervalEndTimestamp": "2025-04-29T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000013866",
+    "intervalEndTimestamp": "2025-04-28T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000043043",
+    "intervalEndTimestamp": "2025-04-28T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000000008",
+    "intervalEndTimestamp": "2025-04-28T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000085573",
+    "intervalEndTimestamp": "2025-04-27T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000040414",
+    "intervalEndTimestamp": "2025-04-27T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000084277",
+    "intervalEndTimestamp": "2025-04-27T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000005068",
+    "intervalEndTimestamp": "2025-04-26T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000091339",
+    "intervalEndTimestamp": "2025-04-26T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000428735",
+    "intervalEndTimestamp": "2025-04-26T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000153928",
+    "intervalEndTimestamp": "2025-04-25T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000079233",
+    "intervalEndTimestamp": "2025-04-25T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000176902",
+    "intervalEndTimestamp": "2025-04-25T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000116073",
+    "intervalEndTimestamp": "2025-04-24T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.00001092",
+    "intervalEndTimestamp": "2025-04-24T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000114265",
+    "intervalEndTimestamp": "2025-04-24T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000026193",
+    "intervalEndTimestamp": "2025-04-23T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000157671",
+    "intervalEndTimestamp": "2025-04-23T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000406507",
+    "intervalEndTimestamp": "2025-04-23T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.00013223",
+    "intervalEndTimestamp": "2025-04-22T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000182981",
+    "intervalEndTimestamp": "2025-04-22T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000001019",
+    "intervalEndTimestamp": "2025-04-22T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000101542",
+    "intervalEndTimestamp": "2025-04-21T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000146714",
+    "intervalEndTimestamp": "2025-04-21T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000097449",
+    "intervalEndTimestamp": "2025-04-21T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000006909",
+    "intervalEndTimestamp": "2025-04-20T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000025713",
+    "intervalEndTimestamp": "2025-04-20T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000000972",
+    "intervalEndTimestamp": "2025-04-20T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000085686",
+    "intervalEndTimestamp": "2025-04-19T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000036027",
+    "intervalEndTimestamp": "2025-04-19T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000029724",
+    "intervalEndTimestamp": "2025-04-19T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000067526",
+    "intervalEndTimestamp": "2025-04-18T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000004144",
+    "intervalEndTimestamp": "2025-04-18T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000009298",
+    "intervalEndTimestamp": "2025-04-18T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000068742",
+    "intervalEndTimestamp": "2025-04-17T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000190437",
+    "intervalEndTimestamp": "2025-04-17T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.0000874",
+    "intervalEndTimestamp": "2025-04-17T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000149104",
+    "intervalEndTimestamp": "2025-04-16T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000018172",
+    "intervalEndTimestamp": "2025-04-16T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000024806",
+    "intervalEndTimestamp": "2025-04-16T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000062495",
+    "intervalEndTimestamp": "2025-04-15T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000084014",
+    "intervalEndTimestamp": "2025-04-15T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000028107",
+    "intervalEndTimestamp": "2025-04-15T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000015113",
+    "intervalEndTimestamp": "2025-04-14T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000021657",
+    "intervalEndTimestamp": "2025-04-14T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000029936",
+    "intervalEndTimestamp": "2025-04-14T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000043106",
+    "intervalEndTimestamp": "2025-04-13T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000006099",
+    "intervalEndTimestamp": "2025-04-13T08:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000081646",
+    "intervalEndTimestamp": "2025-04-13T00:00:00",
+    "symbol": "BTC_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.00003525",
+    "intervalEndTimestamp": "2025-04-12T16:00:00",
+    "symbol": "BTC_USDC_PERP"
+  }
+]

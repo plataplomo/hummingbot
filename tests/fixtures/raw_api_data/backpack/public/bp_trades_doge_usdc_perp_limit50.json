@@ -1,0 +1,402 @@
+[
+  {
+    "id": 1194157,
+    "isBuyerMaker": true,
+    "price": "0.19017",
+    "quantity": "26",
+    "quoteQuantity": "4.94442",
+    "timestamp": 1748742509621
+  },
+  {
+    "id": 1194156,
+    "isBuyerMaker": true,
+    "price": "0.19025",
+    "quantity": "1145.1",
+    "quoteQuantity": "217.855275",
+    "timestamp": 1748742491660
+  },
+  {
+    "id": 1194155,
+    "isBuyerMaker": true,
+    "price": "0.19045",
+    "quantity": "1500",
+    "quoteQuantity": "285.675",
+    "timestamp": 1748742466462
+  },
+  {
+    "id": 1194154,
+    "isBuyerMaker": false,
+    "price": "0.1904",
+    "quantity": "26",
+    "quoteQuantity": "4.9504",
+    "timestamp": 1748742461740
+  },
+  {
+    "id": 1194153,
+    "isBuyerMaker": false,
+    "price": "0.19009",
+    "quantity": "414.2",
+    "quoteQuantity": "78.735278",
+    "timestamp": 1748742339292
+  },
+  {
+    "id": 1194152,
+    "isBuyerMaker": false,
+    "price": "0.19016",
+    "quantity": "414.2",
+    "quoteQuantity": "78.764272",
+    "timestamp": 1748742334225
+  },
+  {
+    "id": 1194151,
+    "isBuyerMaker": false,
+    "price": "0.19017",
+    "quantity": "26",
+    "quoteQuantity": "4.94442",
+    "timestamp": 1748742320503
+  },
+  {
+    "id": 1194150,
+    "isBuyerMaker": false,
+    "price": "0.1901",
+    "quantity": "213.7",
+    "quoteQuantity": "40.62437",
+    "timestamp": 1748742315562
+  },
+  {
+    "id": 1194149,
+    "isBuyerMaker": true,
+    "price": "0.18985",
+    "quantity": "414.2",
+    "quoteQuantity": "78.63587",
+    "timestamp": 1748742296502
+  },
+  {
+    "id": 1194148,
+    "isBuyerMaker": true,
+    "price": "0.18995",
+    "quantity": "200",
+    "quoteQuantity": "37.99",
+    "timestamp": 1748742213616
+  },
+  {
+    "id": 1194147,
+    "isBuyerMaker": false,
+    "price": "0.18985",
+    "quantity": "5268",
+    "quoteQuantity": "1000.1298",
+    "timestamp": 1748742184250
+  },
+  {
+    "id": 1194146,
+    "isBuyerMaker": false,
+    "price": "0.19",
+    "quantity": "2631.5",
+    "quoteQuantity": "499.985",
+    "timestamp": 1748742071083
+  },
+  {
+    "id": 1194145,
+    "isBuyerMaker": false,
+    "price": "0.18999",
+    "quantity": "2631.7",
+    "quoteQuantity": "499.996683",
+    "timestamp": 1748742071080
+  },
+  {
+    "id": 1194144,
+    "isBuyerMaker": true,
+    "price": "0.18991",
+    "quantity": "50988",
+    "quoteQuantity": "9683.13108",
+    "timestamp": 1748742059034
+  },
+  {
+    "id": 1194143,
+    "isBuyerMaker": true,
+    "price": "0.18992",
+    "quantity": "5266",
+    "quoteQuantity": "1000.11872",
+    "timestamp": 1748742059034
+  },
+  {
+    "id": 1194142,
+    "isBuyerMaker": true,
+    "price": "0.18992",
+    "quantity": "1500",
+    "quoteQuantity": "284.88",
+    "timestamp": 1748742059034
+  },
+  {
+    "id": 1194141,
+    "isBuyerMaker": true,
+    "price": "0.18994",
+    "quantity": "2632.4",
+    "quoteQuantity": "499.998056",
+    "timestamp": 1748742059034
+  },
+  {
+    "id": 1194140,
+    "isBuyerMaker": true,
+    "price": "0.18994",
+    "quantity": "26",
+    "quoteQuantity": "4.93844",
+    "timestamp": 1748742059034
+  },
+  {
+    "id": 1194139,
+    "isBuyerMaker": true,
+    "price": "0.18995",
+    "quantity": "5000",
+    "quoteQuantity": "949.75",
+    "timestamp": 1748742059034
+  },
+  {
+    "id": 1194138,
+    "isBuyerMaker": true,
+    "price": "0.19018",
+    "quantity": "1500",
+    "quoteQuantity": "285.27",
+    "timestamp": 1748742048156
+  },
+  {
+    "id": 1194137,
+    "isBuyerMaker": true,
+    "price": "0.19018",
+    "quantity": "4870.5",
+    "quoteQuantity": "926.27169",
+    "timestamp": 1748742048156
+  },
+  {
+    "id": 1194136,
+    "isBuyerMaker": false,
+    "price": "0.19025",
+    "quantity": "1226.9",
+    "quoteQuantity": "233.417725",
+    "timestamp": 1748742009335
+  },
+  {
+    "id": 1194135,
+    "isBuyerMaker": false,
+    "price": "0.19025",
+    "quantity": "2628.1",
+    "quoteQuantity": "499.996025",
+    "timestamp": 1748742009335
+  },
+  {
+    "id": 1194134,
+    "isBuyerMaker": false,
+    "price": "0.19024",
+    "quantity": "2628.2",
+    "quoteQuantity": "499.988768",
+    "timestamp": 1748742009335
+  },
+  {
+    "id": 1194133,
+    "isBuyerMaker": true,
+    "price": "0.19018",
+    "quantity": "129.5",
+    "quoteQuantity": "24.62831",
+    "timestamp": 1748741993061
+  },
+  {
+    "id": 1194132,
+    "isBuyerMaker": true,
+    "price": "0.19021",
+    "quantity": "5000",
+    "quoteQuantity": "951.05",
+    "timestamp": 1748741993061
+  },
+  {
+    "id": 1194131,
+    "isBuyerMaker": true,
+    "price": "0.19025",
+    "quantity": "5256",
+    "quoteQuantity": "999.954",
+    "timestamp": 1748741993061
+  },
+  {
+    "id": 1194130,
+    "isBuyerMaker": true,
+    "price": "0.19027",
+    "quantity": "2627.8",
+    "quoteQuantity": "499.991506",
+    "timestamp": 1748741993059
+  },
+  {
+    "id": 1194129,
+    "isBuyerMaker": false,
+    "price": "0.19036",
+    "quantity": "4.1",
+    "quoteQuantity": "0.780476",
+    "timestamp": 1748741991532
+  },
+  {
+    "id": 1194128,
+    "isBuyerMaker": false,
+    "price": "0.1904",
+    "quantity": "1437.1",
+    "quoteQuantity": "273.62384",
+    "timestamp": 1748741990628
+  },
+  {
+    "id": 1194127,
+    "isBuyerMaker": false,
+    "price": "0.1904",
+    "quantity": "26",
+    "quoteQuantity": "4.9504",
+    "timestamp": 1748741990628
+  },
+  {
+    "id": 1194126,
+    "isBuyerMaker": false,
+    "price": "0.19039",
+    "quantity": "1136.3",
+    "quoteQuantity": "216.340157",
+    "timestamp": 1748741990628
+  },
+  {
+    "id": 1194125,
+    "isBuyerMaker": false,
+    "price": "0.19039",
+    "quantity": "2626.1",
+    "quoteQuantity": "499.983179",
+    "timestamp": 1748741990628
+  },
+  {
+    "id": 1194124,
+    "isBuyerMaker": false,
+    "price": "0.1903",
+    "quantity": "105.3",
+    "quoteQuantity": "20.03859",
+    "timestamp": 1748741990135
+  },
+  {
+    "id": 1194123,
+    "isBuyerMaker": false,
+    "price": "0.1903",
+    "quantity": "200",
+    "quoteQuantity": "38.06",
+    "timestamp": 1748741989222
+  },
+  {
+    "id": 1194122,
+    "isBuyerMaker": false,
+    "price": "0.19017",
+    "quantity": "26",
+    "quoteQuantity": "4.94442",
+    "timestamp": 1748741985773
+  },
+  {
+    "id": 1194121,
+    "isBuyerMaker": false,
+    "price": "0.19002",
+    "quantity": "2368.7",
+    "quoteQuantity": "450.100374",
+    "timestamp": 1748741984770
+  },
+  {
+    "id": 1194120,
+    "isBuyerMaker": false,
+    "price": "0.19002",
+    "quantity": "2631.3",
+    "quoteQuantity": "499.999626",
+    "timestamp": 1748741984770
+  },
+  {
+    "id": 1194119,
+    "isBuyerMaker": true,
+    "price": "0.18994",
+    "quantity": "26",
+    "quoteQuantity": "4.93844",
+    "timestamp": 1748741984501
+  },
+  {
+    "id": 1194118,
+    "isBuyerMaker": true,
+    "price": "0.18995",
+    "quantity": "48.9",
+    "quoteQuantity": "9.288555",
+    "timestamp": 1748741984501
+  },
+  {
+    "id": 1194117,
+    "isBuyerMaker": true,
+    "price": "0.19017",
+    "quantity": "26",
+    "quoteQuantity": "4.94442",
+    "timestamp": 1748741984389
+  },
+  {
+    "id": 1194116,
+    "isBuyerMaker": true,
+    "price": "0.19018",
+    "quantity": "5258",
+    "quoteQuantity": "999.96644",
+    "timestamp": 1748741984389
+  },
+  {
+    "id": 1194115,
+    "isBuyerMaker": true,
+    "price": "0.19018",
+    "quantity": "41877.9",
+    "quoteQuantity": "7964.339022",
+    "timestamp": 1748741984389
+  },
+  {
+    "id": 1194114,
+    "isBuyerMaker": true,
+    "price": "0.19018",
+    "quantity": "2631.6",
+    "quoteQuantity": "500.477688",
+    "timestamp": 1748741984389
+  },
+  {
+    "id": 1194113,
+    "isBuyerMaker": true,
+    "price": "0.19018",
+    "quantity": "60404.5",
+    "quoteQuantity": "11487.72781",
+    "timestamp": 1748741984389
+  },
+  {
+    "id": 1194112,
+    "isBuyerMaker": true,
+    "price": "0.1902",
+    "quantity": "2628.8",
+    "quoteQuantity": "499.99776",
+    "timestamp": 1748741984389
+  },
+  {
+    "id": 1194111,
+    "isBuyerMaker": true,
+    "price": "0.19024",
+    "quantity": "1442",
+    "quoteQuantity": "274.32608",
+    "timestamp": 1748741984388
+  },
+  {
+    "id": 1194110,
+    "isBuyerMaker": true,
+    "price": "0.19024",
+    "quantity": "39260.8",
+    "quoteQuantity": "7468.974592",
+    "timestamp": 1748741984388
+  },
+  {
+    "id": 1194109,
+    "isBuyerMaker": true,
+    "price": "0.19024",
+    "quantity": "3440.6",
+    "quoteQuantity": "654.539744",
+    "timestamp": 1748741984387
+  },
+  {
+    "id": 1194108,
+    "isBuyerMaker": true,
+    "price": "0.19026",
+    "quantity": "5000",
+    "quoteQuantity": "951.3",
+    "timestamp": 1748741984387
+  }
+]

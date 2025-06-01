@@ -1,0 +1,47 @@
+{
+  "baseSymbol": "ETH",
+  "createdAt": "2025-01-21T06:34:54.691858",
+  "filters": {
+    "price": {
+      "borrowEntryFeeMaxMultiplier": null,
+      "borrowEntryFeeMinMultiplier": null,
+      "maxImpactMultiplier": "1.02",
+      "maxMultiplier": "1.25",
+      "maxPrice": "1000000",
+      "meanMarkPriceBand": {
+        "maxMultiplier": "1.09",
+        "minMultiplier": "0.92"
+      },
+      "meanPremiumBand": {
+        "tolerancePct": "0.05"
+      },
+      "minImpactMultiplier": "0.98",
+      "minMultiplier": "0.75",
+      "minPrice": "0.01",
+      "tickSize": "0.01"
+    },
+    "quantity": {
+      "maxQuantity": null,
+      "minQuantity": "0.0001",
+      "stepSize": "0.0001"
+    }
+  },
+  "fundingInterval": 28800000,
+  "fundingRateLowerBound": "-100",
+  "fundingRateUpperBound": "100",
+  "imfFunction": {
+    "base": "0.02",
+    "factor": "0.0000935",
+    "type": "sqrt"
+  },
+  "marketType": "PERP",
+  "mmfFunction": {
+    "base": "0.0125",
+    "factor": "0.0000561",
+    "type": "sqrt"
+  },
+  "openInterestLimit": "64000",
+  "orderBookState": "Open",
+  "quoteSymbol": "USDC",
+  "symbol": "ETH_USDC_PERP"
+}

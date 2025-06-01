@@ -1,0 +1,9 @@
+[
+  {
+    "fundingRate": "-0.000046385",
+    "indexPrice": "0.19025835",
+    "markPrice": "0.19018315",
+    "nextFundingTimestamp": 1748764800000,
+    "symbol": "DOGE_USDC_PERP"
+  }
+]

@@ -1,0 +1,204 @@
+{
+  "dailyUserVlm": [
+    {
+      "date": "2025-05-18",
+      "userCross": "0.0",
+      "userAdd": "0.0",
+      "exchange": "7713222359.8181686401"
+    },
+    {
+      "date": "2025-05-19",
+      "userCross": "0.0",
+      "userAdd": "0.0",
+      "exchange": "10021623897.1280574799"
+    },
+    {
+      "date": "2025-05-20",
+      "userCross": "0.0",
+      "userAdd": "0.0",
+      "exchange": "11498510670.0138568878"
+    },
+    {
+      "date": "2025-05-21",
+      "userCross": "0.0",
+      "userAdd": "0.0",
+      "exchange": "18250912653.1967277527"
+    },
+    {
+      "date": "2025-05-22",
+      "userCross": "0.0",
+      "userAdd": "0.0",
+      "exchange": "12668361064.4996395111"
+    },
+    {
+      "date": "2025-05-23",
+      "userCross": "0.0",
+      "userAdd": "0.0",
+      "exchange": "14297180734.8187484741"
+    },
+    {
+      "date": "2025-05-24",
+      "userCross": "0.0",
+      "userAdd": "0.0",
+      "exchange": "8053695080.0609350204"
+    },
+    {
+      "date": "2025-05-25",
+      "userCross": "0.0",
+      "userAdd": "0.0",
+      "exchange": "10242947647.95520401"
+    },
+    {
+      "date": "2025-05-26",
+      "userCross": "0.0",
+      "userAdd": "0.0",
+      "exchange": "7819885360.2474737167"
+    },
+    {
+      "date": "2025-05-27",
+      "userCross": "0.0",
+      "userAdd": "0.0",
+      "exchange": "11975033569.9493026733"
+    },
+    {
+      "date": "2025-05-28",
+      "userCross": "0.0",
+      "userAdd": "0.0",
+      "exchange": "9824947277.9848957062"
+    },
+    {
+      "date": "2025-05-29",
+      "userCross": "0.0",
+      "userAdd": "0.0",
+      "exchange": "11634371067.8961524963"
+    },
+    {
+      "date": "2025-05-30",
+      "userCross": "0.0",
+      "userAdd": "0.0",
+      "exchange": "11696236695.3857345581"
+    },
+    {
+      "date": "2025-05-31",
+      "userCross": "0.0",
+      "userAdd": "0.0",
+      "exchange": "4895169797.3136901855"
+    },
+    {
+      "date": "2025-06-01",
+      "userCross": "0.0",
+      "userAdd": "0.0",
+      "exchange": "454854079.5952979922"
+    }
+  ],
+  "feeSchedule": {
+    "cross": "0.00045",
+    "add": "0.00015",
+    "spotCross": "0.0007",
+    "spotAdd": "0.0004",
+    "tiers": {
+      "vip": [
+        {
+          "ntlCutoff": "5000000.0",
+          "cross": "0.0004",
+          "add": "0.00012",
+          "spotCross": "0.0006",
+          "spotAdd": "0.0003"
+        },
+        {
+          "ntlCutoff": "25000000.0",
+          "cross": "0.00035",
+          "add": "0.00008",
+          "spotCross": "0.0005",
+          "spotAdd": "0.0002"
+        },
+        {
+          "ntlCutoff": "100000000.0",
+          "cross": "0.0003",
+          "add": "0.00004",
+          "spotCross": "0.0004",
+          "spotAdd": "0.0001"
+        },
+        {
+          "ntlCutoff": "500000000.0",
+          "cross": "0.00028",
+          "add": "0.0",
+          "spotCross": "0.00035",
+          "spotAdd": "0.0"
+        },
+        {
+          "ntlCutoff": "2000000000.0",
+          "cross": "0.00026",
+          "add": "0.0",
+          "spotCross": "0.0003",
+          "spotAdd": "0.0"
+        },
+        {
+          "ntlCutoff": "7000000000.0",
+          "cross": "0.00024",
+          "add": "0.0",
+          "spotCross": "0.00025",
+          "spotAdd": "0.0"
+        }
+      ],
+      "mm": [
+        {
+          "makerFractionCutoff": "0.005",
+          "add": "-0.00001"
+        },
+        {
+          "makerFractionCutoff": "0.015",
+          "add": "-0.00002"
+        },
+        {
+          "makerFractionCutoff": "0.03",
+          "add": "-0.00003"
+        }
+      ]
+    },
+    "referralDiscount": "0.04",
+    "stakingDiscountTiers": [
+      {
+        "bpsOfMaxSupply": "0.0",
+        "discount": "0.0"
+      },
+      {
+        "bpsOfMaxSupply": "0.0001",
+        "discount": "0.05"
+      },
+      {
+        "bpsOfMaxSupply": "0.001",
+        "discount": "0.1"
+      },
+      {
+        "bpsOfMaxSupply": "0.01",
+        "discount": "0.15"
+      },
+      {
+        "bpsOfMaxSupply": "0.1",
+        "discount": "0.2"
+      },
+      {
+        "bpsOfMaxSupply": "1.0",
+        "discount": "0.3"
+      },
+      {
+        "bpsOfMaxSupply": "5.0",
+        "discount": "0.4"
+      }
+    ]
+  },
+  "userCrossRate": "0.00045",
+  "userAddRate": "0.00015",
+  "userSpotCrossRate": "0.0007",
+  "userSpotAddRate": "0.0004",
+  "activeReferralDiscount": "0.0",
+  "trial": null,
+  "feeTrialReward": "0.0",
+  "nextTrialAvailableTimestamp": null,
+  "stakingLink": null,
+  "activeStakingDiscount": {
+    "bpsOfMaxSupply": "0.0",
+    "discount": "0.0"
+  }
+}

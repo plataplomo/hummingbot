@@ -1,0 +1,47 @@
+{
+  "baseSymbol": "DOGE",
+  "createdAt": "2025-01-28T20:14:31.586836",
+  "filters": {
+    "price": {
+      "borrowEntryFeeMaxMultiplier": null,
+      "borrowEntryFeeMinMultiplier": null,
+      "maxImpactMultiplier": "1.03",
+      "maxMultiplier": "1.25",
+      "maxPrice": "1000",
+      "meanMarkPriceBand": {
+        "maxMultiplier": "1.12",
+        "minMultiplier": "0.9"
+      },
+      "meanPremiumBand": {
+        "tolerancePct": "0.05"
+      },
+      "minImpactMultiplier": "0.97",
+      "minMultiplier": "0.75",
+      "minPrice": "0.00001",
+      "tickSize": "0.00001"
+    },
+    "quantity": {
+      "maxQuantity": null,
+      "minQuantity": "0.1",
+      "stepSize": "0.1"
+    }
+  },
+  "fundingInterval": 28800000,
+  "fundingRateLowerBound": "-100",
+  "fundingRateUpperBound": "100",
+  "imfFunction": {
+    "base": "0.1",
+    "factor": "0.00019",
+    "type": "sqrt"
+  },
+  "marketType": "PERP",
+  "mmfFunction": {
+    "base": "0.05",
+    "factor": "0.000114",
+    "type": "sqrt"
+  },
+  "openInterestLimit": "40000000",
+  "orderBookState": "Open",
+  "quoteSymbol": "USDC",
+  "symbol": "DOGE_USDC_PERP"
+}

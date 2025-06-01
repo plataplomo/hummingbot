@@ -1,0 +1,28 @@
+[
+  {
+    "name": "hedge",
+    "subAccountUser": "0xb090773af22b0624ad5ed133b61ad806b0dc7a83",
+    "master": "0xae24b4bdad4633f0961dc66a491473d6bc8e5ba0",
+    "clearinghouseState": {
+      "marginSummary": {
+        "accountValue": "0.007696",
+        "totalNtlPos": "0.0",
+        "totalRawUsd": "0.007696",
+        "totalMarginUsed": "0.0"
+      },
+      "crossMarginSummary": {
+        "accountValue": "0.007696",
+        "totalNtlPos": "0.0",
+        "totalRawUsd": "0.007696",
+        "totalMarginUsed": "0.0"
+      },
+      "crossMaintenanceMarginUsed": "0.0",
+      "withdrawable": "0.007696",
+      "assetPositions": [],
+      "time": 1748746117165
+    },
+    "spotState": {
+      "balances": []
+    }
+  }
+]

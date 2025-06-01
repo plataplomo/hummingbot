@@ -1,0 +1,6746 @@
+[
+  {
+    "universe": [
+      {
+        "tokens": [
+          1,
+          0
+        ],
+        "name": "PURR/USDC",
+        "index": 0,
+        "isCanonical": true
+      },
+      {
+        "tokens": [
+          2,
+          0
+        ],
+        "name": "@1",
+        "index": 1,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          3,
+          0
+        ],
+        "name": "@2",
+        "index": 2,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          4,
+          0
+        ],
+        "name": "@3",
+        "index": 3,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          5,
+          0
+        ],
+        "name": "@4",
+        "index": 4,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          6,
+          0
+        ],
+        "name": "@5",
+        "index": 5,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          7,
+          0
+        ],
+        "name": "@6",
+        "index": 6,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          8,
+          0
+        ],
+        "name": "@7",
+        "index": 7,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          9,
+          0
+        ],
+        "name": "@8",
+        "index": 8,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          10,
+          0
+        ],
+        "name": "@9",
+        "index": 9,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          11,
+          0
+        ],
+        "name": "@10",
+        "index": 10,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          12,
+          0
+        ],
+        "name": "@11",
+        "index": 11,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          13,
+          0
+        ],
+        "name": "@12",
+        "index": 12,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          14,
+          0
+        ],
+        "name": "@13",
+        "index": 13,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          15,
+          0
+        ],
+        "name": "@14",
+        "index": 14,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          16,
+          0
+        ],
+        "name": "@15",
+        "index": 15,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          17,
+          0
+        ],
+        "name": "@16",
+        "index": 16,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          18,
+          0
+        ],
+        "name": "@17",
+        "index": 17,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          19,
+          0
+        ],
+        "name": "@18",
+        "index": 18,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          20,
+          0
+        ],
+        "name": "@19",
+        "index": 19,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          26,
+          0
+        ],
+        "name": "@20",
+        "index": 20,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          24,
+          0
+        ],
+        "name": "@21",
+        "index": 21,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          29,
+          0
+        ],
+        "name": "@22",
+        "index": 22,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          27,
+          0
+        ],
+        "name": "@23",
+        "index": 23,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          30,
+          0
+        ],
+        "name": "@24",
+        "index": 24,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          23,
+          0
+        ],
+        "name": "@25",
+        "index": 25,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          28,
+          0
+        ],
+        "name": "@26",
+        "index": 26,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          31,
+          0
+        ],
+        "name": "@27",
+        "index": 27,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          22,
+          0
+        ],
+        "name": "@28",
+        "index": 28,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          34,
+          0
+        ],
+        "name": "@29",
+        "index": 29,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          32,
+          0
+        ],
+        "name": "@30",
+        "index": 30,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          35,
+          0
+        ],
+        "name": "@31",
+        "index": 31,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          33,
+          0
+        ],
+        "name": "@32",
+        "index": 32,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          37,
+          0
+        ],
+        "name": "@33",
+        "index": 33,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          38,
+          0
+        ],
+        "name": "@34",
+        "index": 34,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          25,
+          0
+        ],
+        "name": "@35",
+        "index": 35,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          40,
+          0
+        ],
+        "name": "@36",
+        "index": 36,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          42,
+          0
+        ],
+        "name": "@37",
+        "index": 37,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          36,
+          0
+        ],
+        "name": "@38",
+        "index": 38,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          45,
+          0
+        ],
+        "name": "@39",
+        "index": 39,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          46,
+          0
+        ],
+        "name": "@40",
+        "index": 40,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          21,
+          0
+        ],
+        "name": "@41",
+        "index": 41,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          47,
+          0
+        ],
+        "name": "@42",
+        "index": 42,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          52,
+          0
+        ],
+        "name": "@43",
+        "index": 43,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          49,
+          0
+        ],
+        "name": "@44",
+        "index": 44,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          55,
+          0
+        ],
+        "name": "@45",
+        "index": 45,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          56,
+          0
+        ],
+        "name": "@46",
+        "index": 46,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          50,
+          0
+        ],
+        "name": "@47",
+        "index": 47,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          59,
+          0
+        ],
+        "name": "@48",
+        "index": 48,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          39,
+          0
+        ],
+        "name": "@49",
+        "index": 49,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          63,
+          0
+        ],
+        "name": "@50",
+        "index": 50,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          64,
+          0
+        ],
+        "name": "@51",
+        "index": 51,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          66,
+          0
+        ],
+        "name": "@52",
+        "index": 52,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          58,
+          0
+        ],
+        "name": "@53",
+        "index": 53,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          67,
+          0
+        ],
+        "name": "@54",
+        "index": 54,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          62,
+          0
+        ],
+        "name": "@55",
+        "index": 55,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          69,
+          0
+        ],
+        "name": "@56",
+        "index": 56,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          72,
+          0
+        ],
+        "name": "@57",
+        "index": 57,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          75,
+          0
+        ],
+        "name": "@58",
+        "index": 58,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          76,
+          0
+        ],
+        "name": "@59",
+        "index": 59,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          77,
+          0
+        ],
+        "name": "@60",
+        "index": 60,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          74,
+          0
+        ],
+        "name": "@61",
+        "index": 61,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          84,
+          0
+        ],
+        "name": "@62",
+        "index": 62,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          92,
+          0
+        ],
+        "name": "@63",
+        "index": 63,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          93,
+          0
+        ],
+        "name": "@64",
+        "index": 64,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          94,
+          0
+        ],
+        "name": "@65",
+        "index": 65,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          97,
+          0
+        ],
+        "name": "@66",
+        "index": 66,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          99,
+          0
+        ],
+        "name": "@67",
+        "index": 67,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          100,
+          0
+        ],
+        "name": "@68",
+        "index": 68,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          101,
+          0
+        ],
+        "name": "@69",
+        "index": 69,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          102,
+          0
+        ],
+        "name": "@70",
+        "index": 70,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          105,
+          0
+        ],
+        "name": "@72",
+        "index": 72,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          107,
+          0
+        ],
+        "name": "@73",
+        "index": 73,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          53,
+          0
+        ],
+        "name": "@74",
+        "index": 74,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          114,
+          0
+        ],
+        "name": "@75",
+        "index": 75,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          110,
+          0
+        ],
+        "name": "@76",
+        "index": 76,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          113,
+          0
+        ],
+        "name": "@77",
+        "index": 77,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          118,
+          0
+        ],
+        "name": "@78",
+        "index": 78,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          123,
+          0
+        ],
+        "name": "@79",
+        "index": 79,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          112,
+          0
+        ],
+        "name": "@80",
+        "index": 80,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          122,
+          0
+        ],
+        "name": "@81",
+        "index": 81,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          125,
+          0
+        ],
+        "name": "@82",
+        "index": 82,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          126,
+          0
+        ],
+        "name": "@83",
+        "index": 83,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          104,
+          0
+        ],
+        "name": "@84",
+        "index": 84,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          127,
+          0
+        ],
+        "name": "@85",
+        "index": 85,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          129,
+          0
+        ],
+        "name": "@86",
+        "index": 86,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          130,
+          0
+        ],
+        "name": "@87",
+        "index": 87,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          128,
+          0
+        ],
+        "name": "@88",
+        "index": 88,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          131,
+          0
+        ],
+        "name": "@89",
+        "index": 89,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          132,
+          0
+        ],
+        "name": "@90",
+        "index": 90,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          134,
+          0
+        ],
+        "name": "@91",
+        "index": 91,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          135,
+          0
+        ],
+        "name": "@92",
+        "index": 92,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          133,
+          0
+        ],
+        "name": "@93",
+        "index": 93,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          136,
+          0
+        ],
+        "name": "@94",
+        "index": 94,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          51,
+          0
+        ],
+        "name": "@95",
+        "index": 95,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          137,
+          0
+        ],
+        "name": "@96",
+        "index": 96,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          138,
+          0
+        ],
+        "name": "@97",
+        "index": 97,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          141,
+          0
+        ],
+        "name": "@99",
+        "index": 99,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          115,
+          0
+        ],
+        "name": "@100",
+        "index": 100,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          142,
+          0
+        ],
+        "name": "@101",
+        "index": 101,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          144,
+          0
+        ],
+        "name": "@102",
+        "index": 102,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          143,
+          0
+        ],
+        "name": "@103",
+        "index": 103,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          147,
+          0
+        ],
+        "name": "@104",
+        "index": 104,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          148,
+          0
+        ],
+        "name": "@105",
+        "index": 105,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          149,
+          0
+        ],
+        "name": "@106",
+        "index": 106,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          150,
+          0
+        ],
+        "name": "@107",
+        "index": 107,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          139,
+          0
+        ],
+        "name": "@108",
+        "index": 108,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          98,
+          0
+        ],
+        "name": "@109",
+        "index": 109,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          151,
+          0
+        ],
+        "name": "@110",
+        "index": 110,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          152,
+          0
+        ],
+        "name": "@111",
+        "index": 111,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          61,
+          0
+        ],
+        "name": "@112",
+        "index": 112,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          78,
+          0
+        ],
+        "name": "@113",
+        "index": 113,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          71,
+          0
+        ],
+        "name": "@114",
+        "index": 114,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          153,
+          0
+        ],
+        "name": "@115",
+        "index": 115,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          146,
+          0
+        ],
+        "name": "@116",
+        "index": 116,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          80,
+          0
+        ],
+        "name": "@117",
+        "index": 117,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          156,
+          0
+        ],
+        "name": "@118",
+        "index": 118,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          158,
+          0
+        ],
+        "name": "@119",
+        "index": 119,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          103,
+          0
+        ],
+        "name": "@120",
+        "index": 120,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          159,
+          0
+        ],
+        "name": "@121",
+        "index": 121,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          95,
+          0
+        ],
+        "name": "@122",
+        "index": 122,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          161,
+          0
+        ],
+        "name": "@123",
+        "index": 123,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          162,
+          0
+        ],
+        "name": "@124",
+        "index": 124,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          106,
+          0
+        ],
+        "name": "@125",
+        "index": 125,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          48,
+          0
+        ],
+        "name": "@126",
+        "index": 126,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          168,
+          0
+        ],
+        "name": "@127",
+        "index": 127,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          174,
+          0
+        ],
+        "name": "@128",
+        "index": 128,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          164,
+          0
+        ],
+        "name": "@129",
+        "index": 129,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          176,
+          0
+        ],
+        "name": "@130",
+        "index": 130,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          177,
+          0
+        ],
+        "name": "@131",
+        "index": 131,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          178,
+          0
+        ],
+        "name": "@132",
+        "index": 132,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          109,
+          0
+        ],
+        "name": "@133",
+        "index": 133,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          154,
+          0
+        ],
+        "name": "@134",
+        "index": 134,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          186,
+          0
+        ],
+        "name": "@135",
+        "index": 135,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          157,
+          0
+        ],
+        "name": "@136",
+        "index": 136,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          187,
+          0
+        ],
+        "name": "@137",
+        "index": 137,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          79,
+          0
+        ],
+        "name": "@138",
+        "index": 138,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          163,
+          0
+        ],
+        "name": "@139",
+        "index": 139,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          189,
+          0
+        ],
+        "name": "@140",
+        "index": 140,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          165,
+          0
+        ],
+        "name": "@141",
+        "index": 141,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          197,
+          0
+        ],
+        "name": "@142",
+        "index": 142,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          199,
+          0
+        ],
+        "name": "@143",
+        "index": 143,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          204,
+          0
+        ],
+        "name": "@145",
+        "index": 145,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          206,
+          0
+        ],
+        "name": "@146",
+        "index": 146,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          196,
+          0
+        ],
+        "name": "@147",
+        "index": 147,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          217,
+          0
+        ],
+        "name": "@148",
+        "index": 148,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          235,
+          0
+        ],
+        "name": "@150",
+        "index": 150,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          221,
+          0
+        ],
+        "name": "@151",
+        "index": 151,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          239,
+          0
+        ],
+        "name": "@152",
+        "index": 152,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          241,
+          0
+        ],
+        "name": "@153",
+        "index": 153,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          251,
+          0
+        ],
+        "name": "@155",
+        "index": 155,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          254,
+          0
+        ],
+        "name": "@156",
+        "index": 156,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          253,
+          0
+        ],
+        "name": "@157",
+        "index": 157,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          209,
+          0
+        ],
+        "name": "@158",
+        "index": 158,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          257,
+          0
+        ],
+        "name": "@159",
+        "index": 159,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          222,
+          0
+        ],
+        "name": "@160",
+        "index": 160,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          202,
+          0
+        ],
+        "name": "@161",
+        "index": 161,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          269,
+          0
+        ],
+        "name": "@162",
+        "index": 162,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          232,
+          0
+        ],
+        "name": "@163",
+        "index": 163,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          271,
+          0
+        ],
+        "name": "@164",
+        "index": 164,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          272,
+          0
+        ],
+        "name": "@165",
+        "index": 165,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          268,
+          0
+        ],
+        "name": "@166",
+        "index": 166,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          192,
+          0
+        ],
+        "name": "@170",
+        "index": 170,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          240,
+          0
+        ],
+        "name": "@171",
+        "index": 171,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          242,
+          0
+        ],
+        "name": "@172",
+        "index": 172,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          277,
+          0
+        ],
+        "name": "@173",
+        "index": 173,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          218,
+          0
+        ],
+        "name": "@174",
+        "index": 174,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          65,
+          0
+        ],
+        "name": "@175",
+        "index": 175,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          289,
+          0
+        ],
+        "name": "@176",
+        "index": 176,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          255,
+          0
+        ],
+        "name": "@177",
+        "index": 177,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          248,
+          0
+        ],
+        "name": "@178",
+        "index": 178,
+        "isCanonical": false
+      },
+      {
+        "tokens": [
+          219,
+          0
+        ],
+        "name": "@179",
+        "index": 179,
+        "isCanonical": false
+      }
+    ],
+    "tokens": [
+      {
+        "name": "USDC",
+        "szDecimals": 8,
+        "weiDecimals": 8,
+        "index": 0,
+        "tokenId": "0x6d1e7cde53ba9467b783cb7c530ce054",
+        "isCanonical": true,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "PURR",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 1,
+        "tokenId": "0xc1fb593aeffbeb02f85e0308e9956a90",
+        "isCanonical": true,
+        "evmContract": {
+          "address": "0x9b498c3c8a0b8cd8ba1d9851d40d186f1872b44e",
+          "evm_extra_wei_decimals": 13
+        },
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "HFUN",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 2,
+        "tokenId": "0xbaf265ef389da684513d98d68edf4eae",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xa320d9f65ec992eff38622c63627856382db726c",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "LICK",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 3,
+        "tokenId": "0xba3aaf468f793d9b42fd3328e24f1de9",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "MANLET",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 4,
+        "tokenId": "0xe9ced9225d2a69ccc8d6a5b224524b99",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "JEFF",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 5,
+        "tokenId": "0xfcf28885456bf7e7cbe5b7a25407c5bc",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x52e444545fbe9e5972a7a371299522f7871aec1f",
+          "evm_extra_wei_decimals": 13
+        },
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "SIX",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 6,
+        "tokenId": "0x50a9391b4a40caffbe8b16303b95a0c1",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x41de34fc45a770ebcd50200be93f080b4b05151f",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "WAGMI",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 7,
+        "tokenId": "0x649efea44690cf88d464f512bc7e2818",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "CAPPY",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 8,
+        "tokenId": "0x3f8abf62220007cc7ab6d33ef2963d88",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "POINTS",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 9,
+        "tokenId": "0xbb03842e1f71ed27ed8fa012b29affd4",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "TRUMP",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 10,
+        "tokenId": "0x368cb581f0d51e21aa19996d38ffdf6f",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "GMEOW",
+        "szDecimals": 0,
+        "weiDecimals": 8,
+        "index": 11,
+        "tokenId": "0x07615193eaa63d1da6feda6e0ac9e014",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "PEPE",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 12,
+        "tokenId": "0x79b6e1596ea0deb2e6912ff8392c9325",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "XULIAN",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 13,
+        "tokenId": "0x6cc648be7e4c38a8c7fcd8bfa6714127",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "RUG",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 14,
+        "tokenId": "0x4978f3f49f30776d9d7397b873223c2d",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "ILIENS",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 15,
+        "tokenId": "0xa74984ea379be6d899c1bf54db923604",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "FUCKY",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 16,
+        "tokenId": "0x7de5b7a8c115edf0174333446ba0ea78",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "CZ",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 17,
+        "tokenId": "0x3b5ff6cb91f71032578b53960090adfb",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xfdd1834677a50e61fe13e6bce49c8144e333fcbe",
+          "evm_extra_wei_decimals": 11
+        },
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "BAGS",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 18,
+        "tokenId": "0x979978fd8cb07141f97dcab921ba697a",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "ANSEM",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 19,
+        "tokenId": "0xa96cfac10eaecba151f646c5cb4c5507",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "TATE",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 20,
+        "tokenId": "0xfba416cad5d8944e954deb6bfb2a8672",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "FUN",
+        "szDecimals": 1,
+        "weiDecimals": 6,
+        "index": 21,
+        "tokenId": "0x3dc9f93c39ddd9f0182ad1e584bae0d4",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "SUCKY",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 22,
+        "tokenId": "0xfd2ac85551ac85d3f04369e296ed8cd3",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "BIGBEN",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 23,
+        "tokenId": "0x231f2a687770b13fe12adb1f339ff722",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "KOBE",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 24,
+        "tokenId": "0x0d2556646326733d86c3fc4c2fa22ad4",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "VEGAS",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 25,
+        "tokenId": "0xb693d596cd02f5f38e532e647bb43b69",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xb09158c8297acee00b900dc1f8715df46b7246a6",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "PUMP",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 26,
+        "tokenId": "0xefa7e286b99ea49ce6a21d21bb41636f",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "SCHIZO",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 27,
+        "tokenId": "0xe140201197ced74f8884a698190da7aa",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "CATNIP",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 28,
+        "tokenId": "0x8bb39ef7881404c5d019a07b1cf21725",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "HAPPY",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 29,
+        "tokenId": "0x3d06abbbc860b7e97feb1478c21c5cd6",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "SELL",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 30,
+        "tokenId": "0x18bce4e1865f0535689b3c4c71e86a84",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "HBOOST",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 31,
+        "tokenId": "0xe292ab8f7d9ddd078ebbcbc4d328665c",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "FARMED",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 32,
+        "tokenId": "0x002911b408c1ae4ddc144e756cebdc17",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "PURRPS",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 33,
+        "tokenId": "0x1254a7b73720e7e9d53cf822a8603fbf",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "GUP",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 34,
+        "tokenId": "0x5a9a44de6fbdb012284eec608c1cf9b8",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "GPT",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 35,
+        "tokenId": "0x2f9f45766eba7b62f30082f3d4ecc77c",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "PANDA",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 36,
+        "tokenId": "0x92588529ba00e2d2bec07c12c804a580",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "BID",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 37,
+        "tokenId": "0x21c5fd69973e1bee64c92af9eb47420a",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "HODL",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 38,
+        "tokenId": "0x33b1ee8db7496b484db887a7b748d20f",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "RAGE",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 39,
+        "tokenId": "0x0ae968c613d445364de97769f1afb16b",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "ASI",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 40,
+        "tokenId": "0x8811d8fc24b9f4ace2c0bd21996d5899",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Artificial Superintelligence",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "LEAP",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 41,
+        "tokenId": "0xd2f2e10dbfbd43d6147f8784358f5dc4",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "VAPOR",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 42,
+        "tokenId": "0xdb5190bea4b6ab178da0162420c93a73",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Hypervapor",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "PVP",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 43,
+        "tokenId": "0x42825e552b0242aa26d641f5cb6aff56",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "X",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 44,
+        "tokenId": "0x54198368f92dcfbe88e3c2090526690a",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "X",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "PILL",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 45,
+        "tokenId": "0xd56f8732f1cae4fc2db2e48863c25d81",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Take the Hyperliquid pill.",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "ADHD",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 46,
+        "tokenId": "0xba13ed91905624d50318d54651ad3bab",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xe3d5f45d97fee83b48c85e00c8359a2e07d68fee",
+          "evm_extra_wei_decimals": 13
+        },
+        "fullName": "Attention Deficit Hyperliquid Disorder",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "LADY",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 47,
+        "tokenId": "0x71378e1ba5403eb35ad4e1af2048c6e3",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "CAT",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 48,
+        "tokenId": "0x7631702302e6c7fbf69d369e0bcf45d6",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x04d02cb2e963b4490ee02b1925223d04f9d83fc6",
+          "evm_extra_wei_decimals": 11
+        },
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "HPEPE",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 49,
+        "tokenId": "0x501ebeddf15e7433cb84d7cc396cdfa5",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "HypurrPepe",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "MBAPPE",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 50,
+        "tokenId": "0x03e1ad7d4d6d82b3da89ac8d35cc917b",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "MBENIVINI",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "MAGA",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 51,
+        "tokenId": "0x9b91002773083d9292b8cb02dacb7e79",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "MAGA",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "MOG",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 52,
+        "tokenId": "0xbe7772099df97ec90f6ff9c4caf670d1",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "THE INTERNETS FIRST CULTURE COIN ON HYPERLIQUID.",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "OMNIX",
+        "szDecimals": 1,
+        "weiDecimals": 6,
+        "index": 53,
+        "tokenId": "0x216a1428334ac9e908e76a02a1812416",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x45ec8f63fe934c0213476cfb5870835e61dd11fa",
+          "evm_extra_wei_decimals": 12
+        },
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "COKE",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 54,
+        "tokenId": "0x2f0f48f1d1698fd483a0f6f8ebe9782e",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "JEET",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 55,
+        "tokenId": "0x15fa03f87df338eb7d858da86498ea0e",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "“DEVS ARE FROM USA”",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "DROP",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 56,
+        "tokenId": "0x6c30da3dd84bd4f59642fd73fcd46ad6",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Airdrop",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "CBD",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 57,
+        "tokenId": "0xb7bf6dd48ffeb66c22524e065abe6733",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "ARI",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 58,
+        "tokenId": "0xb0027f425afd8f8d7bdab3d0e22c7e54",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "TEST",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 59,
+        "tokenId": "0x677482db6e19ad72108bb042b190709e",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "KING",
+        "szDecimals": 1,
+        "weiDecimals": 6,
+        "index": 60,
+        "tokenId": "0x4b5aea9c6624f354fdfe28274a363f27",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "MEOW",
+        "szDecimals": 1,
+        "weiDecimals": 6,
+        "index": 61,
+        "tokenId": "0xcb820fb2715cad58356916847960a73c",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "ANT",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 62,
+        "tokenId": "0x8a7ade54439539fd1268ca60a528396a",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "ANT POWER",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "FRAC",
+        "szDecimals": 1,
+        "weiDecimals": 6,
+        "index": 63,
+        "tokenId": "0x58fb407b5fce2b90348cdf090d6dd3d4",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Fractality",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "ATEHUN",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 64,
+        "tokenId": "0xbebb35d03b83a302a2aa06dbaa67dd9f",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "The official meme for the $800/pt HL retard",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "FRCT",
+        "szDecimals": 1,
+        "weiDecimals": 6,
+        "index": 65,
+        "tokenId": "0xfebf76468dd13f240281e4a8ef11932d",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Fractality",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "COZY",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 66,
+        "tokenId": "0xd998e1032a1fabfeaf6cf11ae7ddec2a",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Cozy at the beach",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "WASH",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 67,
+        "tokenId": "0x2e348026257e41c936119bf69d9c313f",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Don't wash the cat 🙀🧽🚿",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "POP",
+        "szDecimals": 1,
+        "weiDecimals": 6,
+        "index": 68,
+        "tokenId": "0x99ffa3c6ae342dcd532c8431bf4f3474",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "POP Coin",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "NFT",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 69,
+        "tokenId": "0x5c621972ab84c077a1056d77f509a30f",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "First NFT collection on HL",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "JEFE",
+        "szDecimals": 1,
+        "weiDecimals": 6,
+        "index": 70,
+        "tokenId": "0xe711c656aaadefe8f15579ca22679acd",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Hyperlitquid",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "PEAR",
+        "szDecimals": 1,
+        "weiDecimals": 6,
+        "index": 71,
+        "tokenId": "0x1ad748b576a84f6eb6541389bb53d164",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "RICH",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 72,
+        "tokenId": "0x263db50b9946a0701ccba65b52928dab",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Rich Chinese guy with cigarette",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "BRIDGE",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 73,
+        "tokenId": "0xc196d2b7598991bd0425fc959bc1a40f",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "HyBridge",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "GUESS",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 74,
+        "tokenId": "0x8211bcb445c7c006059cfcccb4f1a1b8",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "LORA",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 75,
+        "tokenId": "0xc6d6fb326749974a028425d9db7681c4",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Lora",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "CATBAL",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 76,
+        "tokenId": "0x38348c17e1a18559bbda232d22007695",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x11735dbd0b97cfa7accf47d005673ba185f7fd49",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "Password? Paw paw time.",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "TJIF",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 77,
+        "tokenId": "0xa167acb332328faa26eda9ec38770eec",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Thanks Jeff I'm Free",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "NEIRO",
+        "szDecimals": 1,
+        "weiDecimals": 6,
+        "index": 78,
+        "tokenId": "0x0d04cae66af89099270d2931709afb32",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "TIME",
+        "szDecimals": 1,
+        "weiDecimals": 8,
+        "index": 79,
+        "tokenId": "0xae3f9675b5825ab20850ce6229c4bdbd",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x266a2491f782eb03b369760889fff8785efb3e46",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "Timeswap",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "BERA",
+        "szDecimals": 1,
+        "weiDecimals": 6,
+        "index": 80,
+        "tokenId": "0x0b6ae68f39bfd088744374daa99db226",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "ANGY",
+        "szDecimals": 0,
+        "weiDecimals": 8,
+        "index": 81,
+        "tokenId": "0x56236a47fbbcc41ea8043207bfa0118d",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "notokmeiangy",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "DOG",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 82,
+        "tokenId": "0xb37dc8f9819f5c7be5393c2241d28d28",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "DOG",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "MOON",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 83,
+        "tokenId": "0xeff9411a23ab28ad69f67fbd9759d491",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "🌕 2themoon's retirement funds 💸",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "MAXI",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 84,
+        "tokenId": "0xed660d18ef6a87bc3dc1b3eeeb94fe21",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "ALL MY FRIENDS LOVE MAX FIEGE.",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "PAIN",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 85,
+        "tokenId": "0x6e99a27fd1de4723848e32d7106aa59f",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "PAINCOIN",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "VDO",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 86,
+        "tokenId": "0x2364d4a94a2a9f89a53b976fa8cadc80",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "ValiDAO",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "HQ",
+        "szDecimals": 1,
+        "weiDecimals": 6,
+        "index": 87,
+        "tokenId": "0xf6f58625ba95ecde953f4aafc7af53fd",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "HyperQuant",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "EUR",
+        "szDecimals": 1,
+        "weiDecimals": 6,
+        "index": 88,
+        "tokenId": "0xd125b605fa732968610dd4962e9a7fb9",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "REGARD",
+        "szDecimals": 1,
+        "weiDecimals": 8,
+        "index": 89,
+        "tokenId": "0x86df9bf70b2d72f2b168508f90026469",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Regarded",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "YUM",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 90,
+        "tokenId": "0x6bc45d95a04a7fba29fdb3ecbeeb053d",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Yum.",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "REKT",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 91,
+        "tokenId": "0x4626a44a785134109cae9ea21f33d9a0",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "NMTD",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 92,
+        "tokenId": "0x22bafa9342b3ac5762056d944a2f6b2a",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Token supporting Pascal Bridge",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "HPUMP",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 93,
+        "tokenId": "0xaa6f295683beb4906a9d21accbe5e604",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "HPUMP",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "PIGEON",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 94,
+        "tokenId": "0xb901e2dfb2dbe1902e03be3c1e3e72ce",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "It's just a pigeon",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "LAUNCH",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 95,
+        "tokenId": "0xa82aa458b2c146e97733d0c05374aa0e",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x4533c3002660117a56fa44ed3c4bf4b6a8e0b0a2",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "Hyperlauncher",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "IRL",
+        "szDecimals": 1,
+        "weiDecimals": 6,
+        "index": 96,
+        "tokenId": "0x2ef25ace7c11f77f0de071b15e8b0bc0",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Integra",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "RISE",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 97,
+        "tokenId": "0x51973ef5533887afcace6b26de5f19dd",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Phoenix",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "WOW",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 98,
+        "tokenId": "0xc81b9a04884f4a8107f734c4d88f811a",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x93f12d8931e97cf41d5934bb5d302aa0e2623305",
+          "evm_extra_wei_decimals": 13
+        },
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "CINDY",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 99,
+        "tokenId": "0xf00cf2c0647e1ce1ee5c1274b4650e40",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Hyperliquid is a CEX with a couple of extra steps",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "CHINA",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 100,
+        "tokenId": "0x650ba53f534d00834002ca10c4792d06",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "SUPPORT CHINA TO ONBOARD MORE CHINESE",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "STACK",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 101,
+        "tokenId": "0x9728448fd10546a8527b21298a9b41e4",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Just STACK.",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "FRIED",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 102,
+        "tokenId": "0xbd859b02096be7a23dd1527269be10a0",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Hypurrfried",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "PICKL",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 103,
+        "tokenId": "0x1a69662de430e900be096c00ea28b810",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "PICKL",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "SHREK",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 104,
+        "tokenId": "0x550ff22831954938f2be76028b15eb18",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Swamp trades, ogre-sized gains!",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "NOCEX",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 105,
+        "tokenId": "0x5901399de6f487a6f7b11b1487811c86",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "NO CEX",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "VAULT",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 106,
+        "tokenId": "0x288553d859333b90ede88640b4279598",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Vault",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "RANK",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 107,
+        "tokenId": "0xd0a824284314e8ceb8cf3c3b31ddf0bd",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "!rank",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "L",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 108,
+        "tokenId": "0xdb7d7cd808bdad7cedf44b5864c3866c",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "H",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 109,
+        "tokenId": "0x52a110041682dbf38277c80a72eecba6",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "G",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 110,
+        "tokenId": "0x7ee78dd38408381c2b5b979b7383e2e1",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "G",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "SCAM",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 111,
+        "tokenId": "0x425e14eb167930e81390c8091bc2d8b7",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "MONAD",
+        "szDecimals": 1,
+        "weiDecimals": 8,
+        "index": 112,
+        "tokenId": "0x3413da62384685cda2528d4ba085a055",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Monad",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "BOZO",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 113,
+        "tokenId": "0x2030eb01e794e9f7e94b9e6b82a08bfb",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "RIP",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 114,
+        "tokenId": "0xc20825d6e56b3bf1aa15d1f80471b166",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Rest in peace HL SPOT",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "UP",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 115,
+        "tokenId": "0xaa60905298f022ad8efab6d4348bc61b",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "UP",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "GIGA",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 116,
+        "tokenId": "0xe536ad7c82d63a53aafe6ae9f19c7e03",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "FELIX",
+        "szDecimals": 0,
+        "weiDecimals": 8,
+        "index": 117,
+        "tokenId": "0x601138020f6eeb930be04fbc31379f08",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Felix",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "SPH",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 118,
+        "tokenId": "0xaced5d1ad2c5ce7b7c789abfb7955b27",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xd2fe47eed2d52725d9e3ae6df45593837f57c1a2",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "SPH800",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "STHYPE",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 119,
+        "tokenId": "0x244d19a8576a492f44ee19622f4104e4",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Staked HYPE",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "HPL",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 120,
+        "tokenId": "0x5e887f0c6c3deec190c36186bf23369f",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "HyperLend",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "KHYPE",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 121,
+        "tokenId": "0xbc8a22f25703a03101630ce6b09f4baa",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Kinetiq Staked HYPE",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "HOPE",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 122,
+        "tokenId": "0xe6ac9d5a7cf91cdd9fdf34fcbbdd58e9",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x869ac826b78bc1d9501014994196e41025b5224b",
+          "evm_extra_wei_decimals": 0
+        },
+        "fullName": "Purr $HOPE for the $HYPE! No planned utility.",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "SHOE",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 123,
+        "tokenId": "0x706aae9a576b939bc8ef1656f9fe9ed0",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Shoe Mario",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "KNTQ",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 124,
+        "tokenId": "0xbd31bd605c0a1b82c72aae3587f9061f",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Kinetiq",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "BUSSY",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 125,
+        "tokenId": "0xd27ab3aa48f744ca0c469902a13c8656",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Bozoussy",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "FATCAT",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 126,
+        "tokenId": "0x1b00cbe4c41fc38e2701df2d75dad892",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Fat Cat in Catbal",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "PIP",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 127,
+        "tokenId": "0xe85f43e1f91e3c8cdf3acbd7e0855b8e",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x1bee6762f0b522c606dc2ffb106c0bb391b2e309",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "a tiny pip in a big hypurrrliquid puddle 🌊",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "YEETI",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 128,
+        "tokenId": "0x2150c49b1b981b88349dae535d607ce2",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x7280cc1f369ab574c35cb8a8d0885e9486e3b733",
+          "evm_extra_wei_decimals": 13
+        },
+        "fullName": "YEETI 液体",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "LQNA",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 129,
+        "tokenId": "0x0dd6980f71e51e6f218a9b7d53c837f6",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xa94676f34f6a2764c7fde5611b53834b71f228ec",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "The Queen of Hyperliquid.",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "NASDAQ",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 130,
+        "tokenId": "0x6a53c88cfa761cd324b0ab4cd50dc2d5",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Professional traders unite in DEX eco.",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "SYLVI",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 131,
+        "tokenId": "0x21c7f844092376ba85aa3875180e194b",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x769a227178f37da50371200eb93aa71a214ca874",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "Sylvanian Families",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "FEIT",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 132,
+        "tokenId": "0x0c29857bd79a8e17437b19f9eaa322a4",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Fortune’s path begins with $FEIT",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "STRICT",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 133,
+        "tokenId": "0x83a38493d264bf3f5b1f47c8ebd67eea",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "FRUDO",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 134,
+        "tokenId": "0xb3d30d38259b99d4a6daaf72ded7bf34",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Frudo is here to lead us into a new bold era.",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "VIZN",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 135,
+        "tokenId": "0x7e640c7d4d529e332c89ac86075a1855",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "AUTIST",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 136,
+        "tokenId": "0x7b659352508b25500406b4cd7fdc4f8c",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Hyperautism levels of autism!",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "HGOD",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 137,
+        "tokenId": "0xd84e1b57dad6c106c3eb8842905d773c",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "The Goddess of Hyperliquid",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "LIQUID",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 138,
+        "tokenId": "0x8e821d72325ab1effd3193c3ac5f9c4b",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "$LIQUID is the Hyperliquid GOD.",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "CHEF",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 139,
+        "tokenId": "0xb59b1334dfefe55b4d6895bdec3ed16c",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "CHEF: The Nourisher of Hyperliquid's Powers",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "AZUR",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 140,
+        "tokenId": "0x14167e36345f2652e90b44ed1a015782",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Azuro Protocol",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "EARTH",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 141,
+        "tokenId": "0xc9a3be0e82dde365b038c34674ed4046",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "We have only one",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "NIGGO",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 142,
+        "tokenId": "0x2e73765c9718421ca426a2bb2d7243b0",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xc1631903081b19f0b7117f34192c7db48960989c",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "Finding Niggo in the vast hyperliquid ocean",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "LUCKY",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 143,
+        "tokenId": "0x6558e9071cbb754b7ee56568a9f5d80a",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "HOP",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 144,
+        "tokenId": "0x9b2cff929d260e8d5015fa188167be74",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Hopurr",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "FAN",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 145,
+        "tokenId": "0x1fedb171e381fce7051832b8bc72ef34",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "fan.fun",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "MUNCH",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 146,
+        "tokenId": "0x26f2bebc98ec2a579febeb5d7b7e3456",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "🍩 Staying Hungry We Keep 🍩n Munching 🍩",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "COPE",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 147,
+        "tokenId": "0x53184ac4c2f5d4729f4e0c0077af63e3",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Cope Hard Token",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "HPYH",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 148,
+        "tokenId": "0x18a98375ce42a0f1e40d0d666eb69e15",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "quant turned memecoin trader trying to make a buck",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "YAP",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 149,
+        "tokenId": "0x7555ea01e1100621bcbf5f9ce3351a69",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Yield Acceleration Protocol",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "HYPE",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 150,
+        "tokenId": "0x0d01dc56dcaaca66ad901c959b4011ec",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Hyperliquid",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "STEEL",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 151,
+        "tokenId": "0x7a176eea76f7c1337134d143d2f4939e",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Steel Panties Token",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "RETARD",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 152,
+        "tokenId": "0x888b2490ddbb2a176fcd0da1e53d44c5",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Really Effective Trading And Research Device",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "HOLD",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 153,
+        "tokenId": "0xdaf550b8afca818dadb7949937528bc6",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "HyperGold",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "STAR",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 154,
+        "tokenId": "0x68aa39b6a6d8abe04ba97d3953fea816",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "WATAR",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 155,
+        "tokenId": "0xc48ddbfec007fa7443259f6b1598797c",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "be watar, my fren",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "GENESY",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 156,
+        "tokenId": "0xc8469678541042226507fd880a105523",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x6f7e96c0267cd22fe04346af21f8c6ff54372939",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "First P2E on Hyperliquid, optimize and earn.",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "SOLV",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 157,
+        "tokenId": "0xcf548188e24a0ce3dc3b281242baafd9",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Solv Protocol",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "BUBZ",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 158,
+        "tokenId": "0x9563495f7d4c195047fc891e2622673b",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "SHEEP",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 159,
+        "tokenId": "0xd99348c20362c8513e2808ac24adc777",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x27542a8d608ee16322fae739c46e6e6ae6d2828a",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "The blue sheep on HyperLiquiq  Don't Miss It",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "HYFI",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 160,
+        "tokenId": "0x1c351bfdefb12591e9329adb38cdcbae",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "HypurrFi",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "FARM",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 161,
+        "tokenId": "0x11c83b5cfeb6419a74a85a5aaba0511d",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x3880c8cf09a5454dc9cb851b08c785e55504f63c",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "World's 1st GenAI AI Agent Game",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "FLASK",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 162,
+        "tokenId": "0x7edce821fc9e272192e73420ac9ad319",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "The flask containing the legendary hyperliquid.",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "SOVRN",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 163,
+        "tokenId": "0xc6aef97252f0081eb8246e24f24c5fe7",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Sovrun",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "MON",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 164,
+        "tokenId": "0x622cf551933f19f9136303dcab56488c",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "MON",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "GOD",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 165,
+        "tokenId": "0x5e525c76aa6e1f0a80fd8a0e71b77c45",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "GOD",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "CREAM",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 166,
+        "tokenId": "0x45b7ba9b61a02d94c19e606d99b7a263",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "ANIME",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 167,
+        "tokenId": "0x0d5012952afd6e4d76baa0a73d16a937",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "HYENA",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 168,
+        "tokenId": "0xf1b242b9725266c3c634909fb575ef10",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Hyena - The Predator on HyperLiquid",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "ETHC",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 169,
+        "tokenId": "0x8d3aeb9873bfbe64eb0554e6fde38a8b",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "ANZ",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 170,
+        "tokenId": "0xd50882aa1d890629d02b2a616dde56e5",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Anzen Token",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "GAME",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 171,
+        "tokenId": "0x323f0986ba5b7f6e8e968e3d072bcd3e",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "GAME by Virtuals",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "RIFT",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 172,
+        "tokenId": "0x0b983d0a300f75b148a6a96ed4c6f793",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "RIFT",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "SWELL",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 173,
+        "tokenId": "0xc2fb8b0d924e6fffe98dd85e6f18f362",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "DEPIN",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 174,
+        "tokenId": "0x934a7e00c1b047c2d27967663f58befe",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xa085221178b4cb7e40415bca547e76e223e6d137",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "DEPIN DEGN DEVICE OFFICIAL TOKEN",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "ROUTE",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 175,
+        "tokenId": "0xd633138efb8cd5bcd1e5f7686abcb4fc",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "BEATS",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 176,
+        "tokenId": "0x74051103aba9e726e0ad877ed3e49c38",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x710a6c044d23949ba3b98ce13d762503c9708ba3",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "BEATS AI - the agentic music creation lab",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "ORA",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 177,
+        "tokenId": "0xd7a5b9b760fd758d2e3f6f3ecd2ae5bb",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "ORA Coin",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "LIQD",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 178,
+        "tokenId": "0xa043053570d42d6f553896820dfd42b6",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x1ecd15865d7f8019d546f76d095d9c93cc34edfa",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "LiquidLaunch",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "XBG",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 179,
+        "tokenId": "0x6f61f3baeca70d913bc619e3e5d559e3",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "HETU",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 180,
+        "tokenId": "0x9d417e6c0904ad3185f7dfa4c82896bc",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "GG",
+        "szDecimals": 0,
+        "weiDecimals": 8,
+        "index": 181,
+        "tokenId": "0x13eaa23f20948f2a43ae24d0630ba5e2",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "WOOL",
+        "szDecimals": 0,
+        "weiDecimals": 8,
+        "index": 182,
+        "tokenId": "0x718a34a10ea60c49aa486d5e0a66a1ce",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "ISLAND",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 183,
+        "tokenId": "0x7663c492f7cfdbb149486af546ee7f9a",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Nifty Island",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "SIPHER",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 184,
+        "tokenId": "0x9b84608875b23c69b83b048480d7a66c",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Sipher",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "DBR",
+        "szDecimals": 1,
+        "weiDecimals": 6,
+        "index": 185,
+        "tokenId": "0x1df7fcdc9af97d44310f6bb8f346b0a8",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "deBridge",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "SENT",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 186,
+        "tokenId": "0x2ceb1907ce5c0c98b86e733d15aea34b",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xed912f61368be50835ad7696f67d106b0cd08fe2",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "https://x.com/Sentiient_AI",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "FLY",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 187,
+        "tokenId": "0x55db85bd0938b111d0f78a98173fd99a",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x3f244819a8359145a8e7cf0272955e4918a50627",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "HyperFly",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "SSS",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 188,
+        "tokenId": "0x7bd8248ebc4bd9ed1898fcf3f61986d9",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Smart Stables System",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "HWTR",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 189,
+        "tokenId": "0xad426cf28a66dc0c8f3b931018ba9845",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x5804bf271d9e691611eea1267b24c1f3d0723639",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "First AI investment DAO on Hyperliquid",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "NEKO",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 190,
+        "tokenId": "0x7079200f1b1511a6d344d399fb9bf984",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Neko is Omo Protocol's debut AI Agent",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "UNIT",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 191,
+        "tokenId": "0x83cb6431830d27338b9afb6150023856",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Unit",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "PEG",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 192,
+        "tokenId": "0x63142af22ec99122436a82c47b8ef2fa",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x28245ab01298eaef7933bc90d35bd9dbca5c89db",
+          "evm_extra_wei_decimals": 13
+        },
+        "fullName": null,
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "NEURAL",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 193,
+        "tokenId": "0x9c3cb39ba8fbd523f9ef02795634cf82",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "NeuralAI",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "PIE",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 194,
+        "tokenId": "0xd45d3412640d43f763d94295ac7fb751",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "PIE",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "DRIVE",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 195,
+        "tokenId": "0x55ac10c740e99c4542175ee946c822b1",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Hyperdrive",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "JPEG",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 196,
+        "tokenId": "0xc1918b90ec9dd64ed6d226600e9f91c7",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "JPEG",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "UBTC",
+        "szDecimals": 5,
+        "weiDecimals": 10,
+        "index": 197,
+        "tokenId": "0x8f254b963e8468305d409b33aa137c67",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x9fdbda0a5e284c32744d2f17ee5c74b284993463",
+          "evm_extra_wei_decimals": -2
+        },
+        "fullName": "Unit Bitcoin",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "TGE",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 198,
+        "tokenId": "0x4a34dc4e210b7d224620f89a57f76497",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "HEAD",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 199,
+        "tokenId": "0x8a1c119f82fc528492b8a353c053a82e",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xa0999b04c23e8b73961a97b463067d9bea5b953c",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "Head to Head",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "EDGE",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 200,
+        "tokenId": "0x7ef7da504e078de1e22637eed68922a7",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "GEN",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 201,
+        "tokenId": "0xc74cbf22461b784e1b78f8d1c68b9c31",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Generative AI",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "PRFI",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 202,
+        "tokenId": "0x592e638c27be0c84f7c2a4aad919b855",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x7bbcf1b600565ae023a1806ef637af4739de3255",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "PrimeFi",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "REI",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 203,
+        "tokenId": "0x228f5c718414182956b11c3ea5380b35",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "REI",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "VORTX",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 204,
+        "tokenId": "0xce98fc675b7de6fa9776d32e00c56717",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xc12b4dd5268322ddbe3d6f65ebb1ce37a9951315",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "Interact with HL on Discord, Twitter and web UI",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "HAR",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 205,
+        "tokenId": "0x9325025f805731935c1df7f97e654cda",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Harmonix Finance",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "DEFIN",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 206,
+        "tokenId": "0x1c1c2e504b6306e6ab6c0377959dc2fb",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Research & trading agents powered Defi trading hub",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "APU",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 207,
+        "tokenId": "0xf20a5f3285ec49d45360fa28d95d6ba3",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Apu Apustaja",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "MOCA",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 208,
+        "tokenId": "0x0b431f75530ae2c7f68ad00f04d7778a",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Moca Network",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "TILT",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 209,
+        "tokenId": "0x346d925b4592c989ff2433dd13a4ec1a",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Tilt.Fun",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "SPR",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 210,
+        "tokenId": "0x3b68a2d22a7efa9cd1ef20706a8658b6",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Supurr App",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "HIPPO",
+        "szDecimals": 1,
+        "weiDecimals": 6,
+        "index": 211,
+        "tokenId": "0x42b217dcbcc3fd263935f755696070fe",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "HANA",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 212,
+        "tokenId": "0x661492e8a1f4202ed4294ef3c96c9be6",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "SWAP",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 213,
+        "tokenId": "0x1684cb225aa305ea5be44f2a79214e7e",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "HyperSwap",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "MORE",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 214,
+        "tokenId": "0xdce99e9dc0c51e09bd36920b929771eb",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Moonveil",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "LOOT",
+        "szDecimals": 0,
+        "weiDecimals": 7,
+        "index": 215,
+        "tokenId": "0xaebc7b19a35ec0a726962772aacc9e7a",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "LiquidLoot",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "LUMI",
+        "szDecimals": 0,
+        "weiDecimals": 6,
+        "index": 216,
+        "tokenId": "0x4c06e1d30e9116751344a0fb9627b0aa",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "WHYPI",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 217,
+        "tokenId": "0x8c6028c318586b2e69cd1848a9ca6434",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "HYPI HRC-20",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "ANON",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 218,
+        "tokenId": "0x5b56ac883c628df1fe24d463b3ac82ac",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x79bbf4508b1391af3a0f4b30bb5fc4aa9ab0e07c",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "HeyAnon",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "OTTI",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 219,
+        "tokenId": "0x2d7b2c50be8a8f2d16c20cbae448109f",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xe45b3fc1f0032532e3d8a3c141cd258bd3eed368",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "Odd Otties: Cute otters will overtake hyperliquid",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "HORSY",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 220,
+        "tokenId": "0x259267575e6da365e8d6292a7640e675",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "$HORSY",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "UETH",
+        "szDecimals": 4,
+        "weiDecimals": 9,
+        "index": 221,
+        "tokenId": "0xe1edd30daaf5caac3fe63569e24748da",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xbe6727b535545c67d5caa73dea54865b92cf7907",
+          "evm_extra_wei_decimals": 9
+        },
+        "fullName": "Unit Ethereum",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "BUDDY",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 222,
+        "tokenId": "0x84ecb2340931f6b153ff10bcfafb6726",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x47bb061c0204af921f43dc73c7d7768d2672ddee",
+          "evm_extra_wei_decimals": -2
+        },
+        "fullName": "alright buddy",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "LATINA",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 223,
+        "tokenId": "0x9774dccfb6ea1667ea499babe9de388d",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "WLFI",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 224,
+        "tokenId": "0x675abb1741c0153bfb51c4298ac9e4b7",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "World Liberty Financial",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "AIR",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 225,
+        "tokenId": "0xd04d518a78fdda67e06c7ce42c9ac9e0",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "AIR",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "K",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 226,
+        "tokenId": "0x02cd8d640cf9be38bf9335213f227976",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Kinto",
+        "deployerTradingFeeShare": "0.01"
+      },
+      {
+        "name": "PLUME",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 227,
+        "tokenId": "0x8a008852ff36d4303690fb168d6cc542",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xcc0f1a2a451fb7bb0c97602e890ef0fe8b6b2e15",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "Plume",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "LIM",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 228,
+        "tokenId": "0xb4215c475856b8487e68e2fbdf314133",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Liminal",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "HUSD",
+        "szDecimals": 1,
+        "weiDecimals": 6,
+        "index": 229,
+        "tokenId": "0x2d8e9750853bde71a1262a73c0025f99",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Halo USD",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "DHYPE",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 230,
+        "tokenId": "0xd526b265e85aa057b7a8c45383e0fb75",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Hyperdrive Staked HYPE",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "EDA",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 231,
+        "tokenId": "0x7577b44c0c4eab39341cba1370681a96",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "EDAMAME",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "FUND",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 232,
+        "tokenId": "0xb50907c7421090108069db4681949f19",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "HL Fund",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "EXP",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 233,
+        "tokenId": "0xf5a960c12ff925c3b7e1b34ca46ad147",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Exponents",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "SENTI",
+        "szDecimals": 1,
+        "weiDecimals": 8,
+        "index": 234,
+        "tokenId": "0xfc2d496a192e696d134dfbc974de1732",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "USDE",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 235,
+        "tokenId": "0x2e6d84f2d7ca82e6581e03523e4389f7",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "USDe",
+        "deployerTradingFeeShare": "0.0"
+      },
+      {
+        "name": "HIP",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 236,
+        "tokenId": "0xdbc8946c19ab6d89d1ce64d08a5914f7",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "HyppieLiquid",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "SLAY",
+        "szDecimals": 1,
+        "weiDecimals": 6,
+        "index": 237,
+        "tokenId": "0xf9dadbe873e83783630c7089320f361a",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "SatLayer",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "B",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 238,
+        "tokenId": "0x8bf4496242db4851312e0d5895bf1504",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "USDXL",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 239,
+        "tokenId": "0xf448c3cad413cdf0feb1746d7b057967",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xca79db4b49f608ef54a5cb813fbed3a6387bc645",
+          "evm_extra_wei_decimals": 11
+        },
+        "fullName": "Last USD",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "USH",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 240,
+        "tokenId": "0x97697ab0da91ab1c7db063b52a93bdbb",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x8ff0dd9f9c40a0d76ef1bcfaf5f98c1610c74bd8",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "FEUSD",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 241,
+        "tokenId": "0x88102bea0bbad5f301f6e9e4dacdf979",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x02c6a2fa58cc01a18b8d9e00ea48d65e4df26c70",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "Felix USD",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "COOK",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 242,
+        "tokenId": "0x2e2c62335d06f2a44d703c66501ce4d6",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x9f0c013016e8656bc256f948cd4b79ab25c7b94d",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "mETH Protocol",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "OKI",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 243,
+        "tokenId": "0xc19bf809d69f87f6b0e8bcf840814e94",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "BORG",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 244,
+        "tokenId": "0x69c7d7659a582b35187d364977931245",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "SwissBorg",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "SIGN",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 245,
+        "tokenId": "0xee794f997a8c9c83c1e23fcc7731369a",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Sign",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "WMNT",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 246,
+        "tokenId": "0x08e0dbf94cc66a239e00baefdd9ac2f6",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Mantle",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "KITTEN",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 247,
+        "tokenId": "0x3bd699153fef2806ffe90f3175d916db",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Kittenswap",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "USR",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 248,
+        "tokenId": "0x44759ebad788666b5ab35f4e20cea722",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x0ad339d66bf4aed5ce31c64bc37b3244b6394a77",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "Resolv USR",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "LEND",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 249,
+        "tokenId": "0x6cf1d9a259f3797734535a7820d58b51",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Sentiment",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "CATH",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 250,
+        "tokenId": "0x8e1cc390b36f72e372af7dc9949cca3c",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "CATHENA AI",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "QUANT",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 251,
+        "tokenId": "0x68c563790c975869358031d0e42e49a1",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xe443d488a8988262f35b921b36f1c8f5b2fa38e1",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "HypurrQuant",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "ONLYUP",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 252,
+        "tokenId": "0xfadb70f442b61aaf3896ae79c3e1b044",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "DOUBLEUP",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "RAT",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 253,
+        "tokenId": "0xd7f58d3c744fbc0100f7d86f3e283d11",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xfdc42f844f3aa19f8fc0b2d67d3276cf1efdc4ca",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "Rat Race Combat: Skill, Gems, Crypto. 🐀💎",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "USOL",
+        "szDecimals": 3,
+        "weiDecimals": 8,
+        "index": 254,
+        "tokenId": "0x49b67c39f5566535de22b29b0e51e685",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x068f321fa8fb9f0d135f290ef6a3e2813e1c8a29",
+          "evm_extra_wei_decimals": 1
+        },
+        "fullName": "Unit Solana",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "PURRO",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 255,
+        "tokenId": "0xaea9bf1dcd2a5de3cd70260ada52c4fa",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x713f4c66221c3920578675dfc45cfa71b5f1f307",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "Purro",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "KITTY",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 256,
+        "tokenId": "0x29337e3b3bb954244d4b384b5b3c9c24",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "A fully on-chain game built on Hyperliquid.",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "TREND",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 257,
+        "tokenId": "0x34fc4f2dac4e69240efefd86729d6627",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Trend Protocol",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "COIN",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 258,
+        "tokenId": "0x3e3a2bdcd2db04b313384e1c42eaa7ae",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "W",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "STORM",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 259,
+        "tokenId": "0x3d9b9406190361a09bc46ec965f2f087",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "RISK",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 260,
+        "tokenId": "0x210ba34d337330d07443d1dc488bf811",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "RISK",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "PLAY",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 261,
+        "tokenId": "0xcdd43c66ff2c2967bbda9fe3bb385d9f",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "NET",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 262,
+        "tokenId": "0xf79028d078d6180d4617a72ec4bef202",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "LOOP",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 263,
+        "tokenId": "0xc77768ff84182dbf7157412f544529aa",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Looping Collective",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "LTHREE",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 264,
+        "tokenId": "0x3d1cf3daf5faca4bccf7853e11383fa4",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Layer3",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "WELL",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 265,
+        "tokenId": "0x74ac699fbf35540ac5407e5d49f5a044",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "WAVE",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 266,
+        "tokenId": "0x6beb0b9433ea24b5932f87e7d44b4c51",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "ZAP",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 267,
+        "tokenId": "0x67e79f5a7be4eb7ab0da1581be098062",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "HyperZap",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "USDT0",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 268,
+        "tokenId": "0x25faedc3f054130dbb4e4203aca63567",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xb8ce59fc3717ada4c02eadf9682a9e934f625ebb",
+          "evm_extra_wei_decimals": -2
+        },
+        "fullName": "USDT0",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "UFART",
+        "szDecimals": 1,
+        "weiDecimals": 6,
+        "index": 269,
+        "tokenId": "0x7650808198966e4285687d3deb556ccc",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x3b4575e689ded21caad31d64c4df1f10f3b2cedf",
+          "evm_extra_wei_decimals": 0
+        },
+        "fullName": "Unit Fartcoin",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "BAPE",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 270,
+        "tokenId": "0x52d448847d2b754285d0cdce8a0bbee9",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xab11329560fa9c9c860bb21a9342215a1265bbb0",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "ApeCoin",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "DIABLO",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 271,
+        "tokenId": "0x9348a089d6fd81ec48699e0ec949480b",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Diablo – The little demon of HyperLiquid",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "PENIS",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 272,
+        "tokenId": "0xf86eb43cc683110ce33d7a86f674cfbd",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xf0c82d188ee54958813e7ac650e119135fc35e94",
+          "evm_extra_wei_decimals": 10
+        },
+        "fullName": "Purr's Elite Network of Interactive Systems",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "LBS",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 273,
+        "tokenId": "0x3834dd888f9766e2fe8907d54c4c90ad",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Lootbase",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "EBISU",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 274,
+        "tokenId": "0x6240595cb860815b6f1e36b3b77d1c6a",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "DEFI",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 275,
+        "tokenId": "0xd815fbce8df4daca2c2e22ee8851d65b",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "DeFi Dollar",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "END",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 276,
+        "tokenId": "0x15dcde35463dd2fd241a8e2fe82e48a8",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "RUB",
+        "szDecimals": 5,
+        "weiDecimals": 10,
+        "index": 277,
+        "tokenId": "0x0921e26b2409bdbb47989ce5692f595f",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0x7dcffcb06b40344eeced2d1cbf096b299fe4b405",
+          "evm_extra_wei_decimals": 8
+        },
+        "fullName": "Reverse Unit Bias",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "ASF",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 278,
+        "tokenId": "0x0692dac3b63105879d1b9cf14a57d30c",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Asymmetry Finance",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "BEAT",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 279,
+        "tokenId": "0xfb41962c0778da46c4cb67482019b0cd",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Hyperbeat",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "VAL",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 280,
+        "tokenId": "0xab665a1c43d3c04c7021032a56bf1b04",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "VALANTIS",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "TRADE",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 281,
+        "tokenId": "0xcb6bac63eddb234edf8d694301fcdbd3",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Trade.fun",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "URBIT",
+        "szDecimals": 0,
+        "weiDecimals": 5,
+        "index": 282,
+        "tokenId": "0xea5feba80278099b4f7be0bc554e9b78",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Urbit Address Space",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "TREE",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 283,
+        "tokenId": "0xdecbff6efe00db0fb0e80be2b2e06dab",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "FI",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 284,
+        "tokenId": "0xba02a3914ecdddb7e398112733823a84",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "STAKE",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 285,
+        "tokenId": "0xf228badd8bb9b73985267556f06aa38e",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "NQ",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 286,
+        "tokenId": "0xcfe4b91486b3fe0377e38433494b688b",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "BLND",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 287,
+        "tokenId": "0x1e7da953f0ba78bf06d2e330bb466199",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": null,
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "WAR",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 288,
+        "tokenId": "0xda37ed48536836994807abb934062694",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Hyperliquid vs FUD",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "PERP",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 289,
+        "tokenId": "0x27e2e115b3067cb20f18a44b067ade73",
+        "isCanonical": false,
+        "evmContract": {
+          "address": "0xd2567ee20d75e8b74b44875173054365f6eb5052",
+          "evm_extra_wei_decimals": -2
+        },
+        "fullName": "Perpcoin",
+        "deployerTradingFeeShare": "0.5"
+      },
+      {
+        "name": "DNDX",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 290,
+        "tokenId": "0x61548910ed6b5e4e1f136907737dd499",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Decentralized Nasdaq",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "USDHL",
+        "szDecimals": 2,
+        "weiDecimals": 7,
+        "index": 291,
+        "tokenId": "0xd289c79872a9eace15cc4cadb030661f",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Hyper USD",
+        "deployerTradingFeeShare": "1.0"
+      },
+      {
+        "name": "HPENGU",
+        "szDecimals": 2,
+        "weiDecimals": 8,
+        "index": 292,
+        "tokenId": "0x1765b5a9ec8fc3cdbc209c63cac68e86",
+        "isCanonical": false,
+        "evmContract": null,
+        "fullName": "Pudgy Penguins",
+        "deployerTradingFeeShare": "1.0"
+      }
+    ]
+  },
+  [
+    {
+      "prevDayPx": "0.17398",
+      "dayNtlVlm": "10776975.6498599965",
+      "markPx": "0.18285",
+      "midPx": "0.18293",
+      "circulatingSupply": "596998248.3202400208",
+      "coin": "PURR/USDC",
+      "totalSupply": "596998254.8430199623",
+      "dayBaseVlm": "58028430.0"
+    },
+    {
+      "prevDayPx": "46.115",
+      "dayNtlVlm": "715725.5112399997",
+      "markPx": "45.532",
+      "midPx": "45.4845",
+      "circulatingSupply": "996515.00605631",
+      "coin": "@1",
+      "totalSupply": "996515.04980841",
+      "dayBaseVlm": "15689.19"
+    },
+    {
+      "prevDayPx": "0.00013816",
+      "dayNtlVlm": "2386.1288",
+      "markPx": "0.00013489",
+      "midPx": "0.00013509",
+      "circulatingSupply": "4872829094.8273096085",
+      "coin": "@2",
+      "totalSupply": "6870829102.0315303802",
+      "dayBaseVlm": "17345659.0"
+    },
+    {
+      "prevDayPx": "0.015305",
+      "dayNtlVlm": "4.53028",
+      "markPx": "0.015305",
+      "midPx": "0.0153275",
+      "circulatingSupply": "9777161.3337099999",
+      "coin": "@3",
+      "totalSupply": "9777161.4943100009",
+      "dayBaseVlm": "296.0"
+    },
+    {
+      "prevDayPx": "10.153",
+      "dayNtlVlm": "164019.5012",
+      "markPx": "9.9128",
+      "midPx": "9.8979",
+      "circulatingSupply": "990700.42908",
+      "coin": "@4",
+      "totalSupply": "995372.68031",
+      "dayBaseVlm": "16486.0"
+    },
+    {
+      "prevDayPx": "0.68689",
+      "dayNtlVlm": "16.086963",
+      "markPx": "0.68689",
+      "midPx": "0.68792",
+      "circulatingSupply": "6658437.9110025596",
+      "coin": "@5",
+      "totalSupply": "6658437.9110025596",
+      "dayBaseVlm": "23.42"
+    },
+    {
+      "prevDayPx": "0.000462",
+      "dayNtlVlm": "261.433807",
+      "markPx": "0.000453",
+      "midPx": "0.000453",
+      "circulatingSupply": "367429848.1196636558",
+      "coin": "@6",
+      "totalSupply": "367429848.1196636558",
+      "dayBaseVlm": "566811.6800000001"
+    },
+    {
+      "prevDayPx": "0.00005291",
+      "dayNtlVlm": "89.849963",
+      "markPx": "0.00005291",
+      "midPx": "0.00005713",
+      "circulatingSupply": "982850376.5012899637",
+      "coin": "@7",
+      "totalSupply": "982850985.5955400467",
+      "dayBaseVlm": "1698166.0"
+    },
+    {
+      "prevDayPx": "0.0098933",
+      "dayNtlVlm": "12910.137619",
+      "markPx": "0.010466",
+      "midPx": "0.0104815",
+      "circulatingSupply": "99522897.4870900065",
+      "coin": "@8",
+      "totalSupply": "99522898.0993199944",
+      "dayBaseVlm": "1318762.0"
+    },
+    {
+      "prevDayPx": "0.001152",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.001321",
+      "midPx": "0.002107",
+      "circulatingSupply": "99736943.4247979969",
+      "coin": "@9",
+      "totalSupply": "99736943.4345767051",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.00027431",
+      "dayNtlVlm": "338.445388",
+      "markPx": "0.00027185",
+      "midPx": "0.00027226",
+      "circulatingSupply": "998383988.3534339666",
+      "coin": "@10",
+      "totalSupply": "998383988.3534339666",
+      "dayBaseVlm": "1237542.0"
+    },
+    {
+      "prevDayPx": "0.001171",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.001186",
+      "midPx": "0.002204",
+      "circulatingSupply": "99728481.1074196994",
+      "coin": "@11",
+      "totalSupply": "99728481.1074196994",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.00021254",
+      "dayNtlVlm": "0.432306",
+      "markPx": "0.00021254",
+      "midPx": "0.00021286",
+      "circulatingSupply": "693096326.3500299454",
+      "coin": "@12",
+      "totalSupply": "693096327.2666900158",
+      "dayBaseVlm": "2034.0"
+    },
+    {
+      "prevDayPx": "0.0093925",
+      "dayNtlVlm": "121.585912",
+      "markPx": "0.0093645",
+      "midPx": "0.0093785",
+      "circulatingSupply": "99771091.1763399988",
+      "coin": "@13",
+      "totalSupply": "99771091.7111400068",
+      "dayBaseVlm": "12945.0"
+    },
+    {
+      "prevDayPx": "0.00033214",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.00033115",
+      "midPx": "0.00033164",
+      "circulatingSupply": "692380890.9471600056",
+      "coin": "@14",
+      "totalSupply": "692380891.9471600056",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.00042",
+      "dayNtlVlm": "66.874134",
+      "markPx": "0.000305",
+      "midPx": "0.000433",
+      "circulatingSupply": "138374332.592893213",
+      "coin": "@15",
+      "totalSupply": "138374332.592893213",
+      "dayBaseVlm": "159224.13"
+    },
+    {
+      "prevDayPx": "0.12409",
+      "dayNtlVlm": "49.10312",
+      "markPx": "0.12409",
+      "midPx": "0.124185",
+      "circulatingSupply": "4437184.4971278002",
+      "coin": "@16",
+      "totalSupply": "4437184.4971278002",
+      "dayBaseVlm": "395.4"
+    },
+    {
+      "prevDayPx": "0.00005706",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.00005743",
+      "midPx": "0.00007427",
+      "circulatingSupply": "733489248.8035999537",
+      "coin": "@17",
+      "totalSupply": "733548170.4539200068",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.010734",
+      "dayNtlVlm": "446.851308",
+      "markPx": "0.01067",
+      "midPx": "0.010686",
+      "circulatingSupply": "99960970.1811300069",
+      "coin": "@18",
+      "totalSupply": "99960970.1811300069",
+      "dayBaseVlm": "41754.0"
+    },
+    {
+      "prevDayPx": "0.012367",
+      "dayNtlVlm": "11.216869",
+      "markPx": "0.012367",
+      "midPx": "0.0123855",
+      "circulatingSupply": "99930003.3123700023",
+      "coin": "@19",
+      "totalSupply": "99930003.3123700023",
+      "dayBaseVlm": "907.0"
+    },
+    {
+      "prevDayPx": "0.00013584",
+      "dayNtlVlm": "58.261911",
+      "markPx": "0.00013502",
+      "midPx": "0.00013522",
+      "circulatingSupply": "1047314962.8159999847",
+      "coin": "@20",
+      "totalSupply": "1047314963.7249699831",
+      "dayBaseVlm": "428901.0"
+    },
+    {
+      "prevDayPx": "0.00009226",
+      "dayNtlVlm": "17.307606",
+      "markPx": "0.0000917",
+      "midPx": "0.00009184",
+      "circulatingSupply": "758093247.4609800577",
+      "coin": "@21",
+      "totalSupply": "998093247.4609800577",
+      "dayBaseVlm": "187596.0"
+    },
+    {
+      "prevDayPx": "0.17335",
+      "dayNtlVlm": "6.580018",
+      "markPx": "0.17284",
+      "midPx": "0.173095",
+      "circulatingSupply": "988576.49742402",
+      "coin": "@22",
+      "totalSupply": "998576.49742402",
+      "dayBaseVlm": "38.07"
+    },
+    {
+      "prevDayPx": "0.98959",
+      "dayNtlVlm": "5564.189614",
+      "markPx": "0.94052",
+      "midPx": "0.939115",
+      "circulatingSupply": "997527.1389135",
+      "coin": "@23",
+      "totalSupply": "997527.1555046",
+      "dayBaseVlm": "5877.17"
+    },
+    {
+      "prevDayPx": "0.00014071",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.00013738",
+      "midPx": "0.00013758",
+      "circulatingSupply": "318947961.9799399972",
+      "coin": "@24",
+      "totalSupply": "393920971.5589399934",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.000311",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.000311",
+      "midPx": "0.000466",
+      "circulatingSupply": "159266852.7981315553",
+      "coin": "@25",
+      "totalSupply": "9999266559.7008724213",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.005451",
+      "dayNtlVlm": "0.391872",
+      "markPx": "0.005451",
+      "midPx": "0.005459",
+      "circulatingSupply": "9923470.9280744493",
+      "coin": "@26",
+      "totalSupply": "9923547.0722500607",
+      "dayBaseVlm": "71.89"
+    },
+    {
+      "prevDayPx": "0.00005157",
+      "dayNtlVlm": "54.463882",
+      "markPx": "0.00005164",
+      "midPx": "0.00005168",
+      "circulatingSupply": "896318710.151919961",
+      "coin": "@27",
+      "totalSupply": "986321720.421020031",
+      "dayBaseVlm": "1053658.0"
+    },
+    {
+      "prevDayPx": "0.0002052",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.0002052",
+      "midPx": "0.00020551",
+      "circulatingSupply": "806739476.131559968",
+      "coin": "@28",
+      "totalSupply": "806739476.131559968",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.053257",
+      "dayNtlVlm": "204.196854",
+      "markPx": "0.045713",
+      "midPx": "0.045644",
+      "circulatingSupply": "868124.9632427701",
+      "coin": "@29",
+      "totalSupply": "968124.9632427701",
+      "dayBaseVlm": "3845.66"
+    },
+    {
+      "prevDayPx": "0.002019",
+      "dayNtlVlm": "166.486776",
+      "markPx": "0.001856",
+      "midPx": "0.001856",
+      "circulatingSupply": "85958258.4781692028",
+      "coin": "@30",
+      "totalSupply": "95891328.8294609934",
+      "dayBaseVlm": "83118.71"
+    },
+    {
+      "prevDayPx": "0.000041",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.000042",
+      "midPx": "0.00006",
+      "circulatingSupply": "3109972149.4713616371",
+      "coin": "@31",
+      "totalSupply": "9115670622.229227066",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.00009373",
+      "dayNtlVlm": "30.282288",
+      "markPx": "0.00009317",
+      "midPx": "0.00009331",
+      "circulatingSupply": "901622269.4271899462",
+      "coin": "@32",
+      "totalSupply": "937312916.811439991",
+      "dayBaseVlm": "323080.0"
+    },
+    {
+      "prevDayPx": "0.00000537",
+      "dayNtlVlm": "8.740018",
+      "markPx": "0.00000535",
+      "midPx": "0.00000536",
+      "circulatingSupply": "19933568364.8919296265",
+      "coin": "@33",
+      "totalSupply": "20369979186.1019287109",
+      "dayBaseVlm": "1627564.0"
+    },
+    {
+      "prevDayPx": "0.003525",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.003525",
+      "midPx": "0.00353",
+      "circulatingSupply": "96483069.5173290074",
+      "coin": "@34",
+      "totalSupply": "99608638.741857484",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.21259",
+      "dayNtlVlm": "21727.817149",
+      "markPx": "0.20883",
+      "midPx": "0.20852",
+      "circulatingSupply": "9950054.2578975502",
+      "coin": "@35",
+      "totalSupply": "9976680.7996769007",
+      "dayBaseVlm": "103216.86"
+    },
+    {
+      "prevDayPx": "0.003578",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.003578",
+      "midPx": "0.003583",
+      "circulatingSupply": "96832251.3632051051",
+      "coin": "@36",
+      "totalSupply": "96832251.3686925024",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.0023143",
+      "dayNtlVlm": "79333.98279",
+      "markPx": "0.0022733",
+      "midPx": "0.0022767",
+      "circulatingSupply": "1000438683.4897199869",
+      "coin": "@37",
+      "totalSupply": "1000457913.7669700384",
+      "dayBaseVlm": "34293585.0"
+    },
+    {
+      "prevDayPx": "0.005057",
+      "dayNtlVlm": "1403.883555",
+      "markPx": "0.0046933",
+      "midPx": "0.0047003",
+      "circulatingSupply": "78195851.8602299988",
+      "coin": "@38",
+      "totalSupply": "99866818.2991299927",
+      "dayBaseVlm": "277840.0"
+    },
+    {
+      "prevDayPx": "0.001328",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.001327",
+      "midPx": "0.001755",
+      "circulatingSupply": "89411600.1512012631",
+      "coin": "@39",
+      "totalSupply": "97586878.4246492982",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.0027609",
+      "dayNtlVlm": "3024.923154",
+      "markPx": "0.0027201",
+      "midPx": "0.00272415",
+      "circulatingSupply": "99312286.7797500044",
+      "coin": "@40",
+      "totalSupply": "99312286.7797500044",
+      "dayBaseVlm": "1137336.0"
+    },
+    {
+      "prevDayPx": "0.039003",
+      "dayNtlVlm": "361.279912",
+      "markPx": "0.039004",
+      "midPx": "0.069487",
+      "circulatingSupply": "10649103.6065139994",
+      "coin": "@41",
+      "totalSupply": "10722318.2826540004",
+      "dayBaseVlm": "9262.4"
+    },
+    {
+      "prevDayPx": "0.005384",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.005411",
+      "midPx": "0.017705",
+      "circulatingSupply": "6390873.2709774002",
+      "coin": "@42",
+      "totalSupply": "7093626.9426873",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.000109",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.000099",
+      "midPx": "0.000154",
+      "circulatingSupply": "880508743.4832500219",
+      "coin": "@43",
+      "totalSupply": "959695612.4035587311",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.0011876",
+      "dayNtlVlm": "343.978756",
+      "markPx": "0.00094034",
+      "midPx": "0.00147017",
+      "circulatingSupply": "98419439.4678000063",
+      "coin": "@44",
+      "totalSupply": "98419440.2681500018",
+      "dayBaseVlm": "205345.0"
+    },
+    {
+      "prevDayPx": "0.00045191",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.0004527",
+      "midPx": "0.0012263",
+      "circulatingSupply": "82809139.0219199955",
+      "coin": "@45",
+      "totalSupply": "94220733.578339994",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.001029",
+      "dayNtlVlm": "15.165054",
+      "markPx": "0.000953",
+      "midPx": "0.000991",
+      "circulatingSupply": "95257481.099968493",
+      "coin": "@46",
+      "totalSupply": "98095824.2534271926",
+      "dayBaseVlm": "15302.78"
+    },
+    {
+      "prevDayPx": "0.008562",
+      "dayNtlVlm": "13.016294",
+      "markPx": "0.008562",
+      "midPx": "0.01013",
+      "circulatingSupply": "6730417.3128450997",
+      "coin": "@47",
+      "totalSupply": "9995917.3194117006",
+      "dayBaseVlm": "1520.24"
+    },
+    {
+      "prevDayPx": "0.00037163",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.00037168",
+      "midPx": "0.00052847",
+      "circulatingSupply": "95181072.6510400027",
+      "coin": "@48",
+      "totalSupply": "97177605.1262499988",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.074622",
+      "dayNtlVlm": "210.823891",
+      "markPx": "0.074399",
+      "midPx": "0.07451",
+      "circulatingSupply": "38230298.5552193299",
+      "coin": "@49",
+      "totalSupply": "99953097.540902555",
+      "dayBaseVlm": "2832.31"
+    },
+    {
+      "prevDayPx": "0.072636",
+      "dayNtlVlm": "51.50843",
+      "markPx": "0.072419",
+      "midPx": "0.0725275",
+      "circulatingSupply": "3992554.0374799999",
+      "coin": "@50",
+      "totalSupply": "23592554.1014400013",
+      "dayBaseVlm": "709.7"
+    },
+    {
+      "prevDayPx": "1.56",
+      "dayNtlVlm": "29414.005082",
+      "markPx": "1.2758",
+      "midPx": "1.2739",
+      "circulatingSupply": "907030.73619553",
+      "coin": "@51",
+      "totalSupply": "1104447.58400553",
+      "dayBaseVlm": "21525.08"
+    },
+    {
+      "prevDayPx": "0.11051",
+      "dayNtlVlm": "331.937742",
+      "markPx": "0.10355",
+      "midPx": "0.103705",
+      "circulatingSupply": "1232817.87957134",
+      "coin": "@52",
+      "totalSupply": "1477706.33957134",
+      "dayBaseVlm": "3021.66"
+    },
+    {
+      "prevDayPx": "0.000475",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.000471",
+      "midPx": "0.000613",
+      "circulatingSupply": "97031179.132647723",
+      "coin": "@53",
+      "totalSupply": "97031179.132647723",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.20548",
+      "dayNtlVlm": "0.895892",
+      "markPx": "0.20548",
+      "midPx": "0.205785",
+      "circulatingSupply": "1038354.7112325",
+      "coin": "@54",
+      "totalSupply": "1038354.7202692",
+      "dayBaseVlm": "4.36"
+    },
+    {
+      "prevDayPx": "0.050554",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.05",
+      "midPx": "0.049976",
+      "circulatingSupply": "999439.2052167",
+      "coin": "@55",
+      "totalSupply": "999439.2052167",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.11025",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.10832",
+      "midPx": "0.10848",
+      "circulatingSupply": "840951.83070411",
+      "coin": "@56",
+      "totalSupply": "999345.45070411",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.098193",
+      "dayNtlVlm": "511.153242",
+      "markPx": "0.087367",
+      "midPx": "0.087236",
+      "circulatingSupply": "930863.30605599",
+      "coin": "@57",
+      "totalSupply": "998488.29825717",
+      "dayBaseVlm": "5430.94"
+    },
+    {
+      "prevDayPx": "0.12128",
+      "dayNtlVlm": "97.170316",
+      "markPx": "0.11879",
+      "midPx": "0.118965",
+      "circulatingSupply": "1004069.61214975",
+      "coin": "@58",
+      "totalSupply": "1004069.61214975",
+      "dayBaseVlm": "801.87"
+    },
+    {
+      "prevDayPx": "5.6994",
+      "dayNtlVlm": "81441.271712",
+      "markPx": "5.65",
+      "midPx": "5.64505",
+      "circulatingSupply": "979975.6758521399",
+      "coin": "@59",
+      "totalSupply": "998230.86424036",
+      "dayBaseVlm": "14416.81"
+    },
+    {
+      "prevDayPx": "0.13856",
+      "dayNtlVlm": "3.957997",
+      "markPx": "0.13815",
+      "midPx": "0.138355",
+      "circulatingSupply": "788324.99526804",
+      "coin": "@60",
+      "totalSupply": "999236.86526804",
+      "dayBaseVlm": "28.65"
+    },
+    {
+      "prevDayPx": "0.002747",
+      "dayNtlVlm": "0.37287",
+      "markPx": "0.00277",
+      "midPx": "0.00402",
+      "circulatingSupply": "9830337.5966477003",
+      "coin": "@61",
+      "totalSupply": "9986543.7548213005",
+      "dayBaseVlm": "135.54"
+    },
+    {
+      "prevDayPx": "0.1588",
+      "dayNtlVlm": "17.458472",
+      "markPx": "0.15833",
+      "midPx": "0.158565",
+      "circulatingSupply": "577785.65902432",
+      "coin": "@62",
+      "totalSupply": "999548.67295554",
+      "dayBaseVlm": "109.94"
+    },
+    {
+      "prevDayPx": "0.09713",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.096549",
+      "midPx": "0.096694",
+      "circulatingSupply": "505713.4282596",
+      "coin": "@63",
+      "totalSupply": "999522.77961254",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.21184",
+      "dayNtlVlm": "131.683016",
+      "markPx": "0.20809",
+      "midPx": "0.2084",
+      "circulatingSupply": "496501.6529926",
+      "coin": "@64",
+      "totalSupply": "974965.8329926",
+      "dayBaseVlm": "623.75"
+    },
+    {
+      "prevDayPx": "0.15324",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.15279",
+      "midPx": "0.153015",
+      "circulatingSupply": "569904.11426753",
+      "coin": "@65",
+      "totalSupply": "999694.72426753",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.001268",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.00126",
+      "midPx": "0.001262",
+      "circulatingSupply": "58028370.5425548106",
+      "coin": "@66",
+      "totalSupply": "59796152.8798691183",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.10308",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.10038",
+      "midPx": "0.10053",
+      "circulatingSupply": "532510.4209399",
+      "coin": "@67",
+      "totalSupply": "999383.5509399",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.20019",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.19901",
+      "midPx": "0.199305",
+      "circulatingSupply": "579747.55769579",
+      "coin": "@68",
+      "totalSupply": "999657.22769579",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.64253",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.64172",
+      "midPx": "0.64198",
+      "circulatingSupply": "414457.96381606",
+      "coin": "@69",
+      "totalSupply": "999765.10381606",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.081639",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.080667",
+      "midPx": "0.080788",
+      "circulatingSupply": "612730.68456109",
+      "coin": "@70",
+      "totalSupply": "999642.43456109",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.0",
+      "dayNtlVlm": "0.0",
+      "markPx": "1.0",
+      "midPx": null,
+      "circulatingSupply": "0.0",
+      "coin": "@71",
+      "totalSupply": "0.0",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.6107",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.55665",
+      "midPx": "0.557485",
+      "circulatingSupply": "512873.31136824",
+      "coin": "@72",
+      "totalSupply": "999648.88136824",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.16701",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.16651",
+      "midPx": "0.16676",
+      "circulatingSupply": "485067.25566282",
+      "coin": "@73",
+      "totalSupply": "999788.82566282",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.0009664",
+      "dayNtlVlm": "3141.556316",
+      "markPx": "0.0008798",
+      "midPx": "0.0008825",
+      "circulatingSupply": "616912199.9062689543",
+      "coin": "@74",
+      "totalSupply": "999135957.2980810404",
+      "dayBaseVlm": "3411351.1999999997"
+    },
+    {
+      "prevDayPx": "0.48372",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.43573",
+      "midPx": "0.43638",
+      "circulatingSupply": "456215.59198062",
+      "coin": "@75",
+      "totalSupply": "999799.48198062",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.065025",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.065129",
+      "midPx": "0.172454",
+      "circulatingSupply": "999764.199696",
+      "coin": "@76",
+      "totalSupply": "999764.199696",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.010251",
+      "dayNtlVlm": "54.459975",
+      "markPx": "0.010251",
+      "midPx": "0.010258",
+      "circulatingSupply": "36011147.5385110006",
+      "coin": "@77",
+      "totalSupply": "36016397.6845782995",
+      "dayBaseVlm": "5312.65"
+    },
+    {
+      "prevDayPx": "1.5956",
+      "dayNtlVlm": "6233.938446",
+      "markPx": "1.6388",
+      "midPx": "1.63635",
+      "circulatingSupply": "616920.82432619",
+      "coin": "@78",
+      "totalSupply": "998956.47432619",
+      "dayBaseVlm": "3925.8"
+    },
+    {
+      "prevDayPx": "0.09217",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.088651",
+      "midPx": "0.088784",
+      "circulatingSupply": "430887.86107303",
+      "coin": "@79",
+      "totalSupply": "999541.69107303",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.000431",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.000431",
+      "midPx": "0.0004316",
+      "circulatingSupply": "224616858.0332100689",
+      "coin": "@80",
+      "totalSupply": "224887065.0946655273",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.0005934",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.0005934",
+      "midPx": "0.00059429",
+      "circulatingSupply": "789794078.5937999487",
+      "coin": "@81",
+      "totalSupply": "999794078.5937999487",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.11178",
+      "dayNtlVlm": "31.219036",
+      "markPx": "0.11113",
+      "midPx": "0.1112",
+      "circulatingSupply": "714342.55056388",
+      "coin": "@82",
+      "totalSupply": "1006184.92056388",
+      "dayBaseVlm": "279.29"
+    },
+    {
+      "prevDayPx": "0.098331",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.098331",
+      "midPx": "0.165575",
+      "circulatingSupply": "726420.7337416",
+      "coin": "@83",
+      "totalSupply": "999258.56989048",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.17858",
+      "dayNtlVlm": "534.375055",
+      "markPx": "0.16434",
+      "midPx": "0.164095",
+      "circulatingSupply": "322398.55531737",
+      "coin": "@84",
+      "totalSupply": "999575.79531737",
+      "dayBaseVlm": "3013.93"
+    },
+    {
+      "prevDayPx": "12.144",
+      "dayNtlVlm": "240332.53843",
+      "markPx": "11.93",
+      "midPx": "11.9125",
+      "circulatingSupply": "805586.96024745",
+      "coin": "@85",
+      "totalSupply": "997740.42662978",
+      "dayBaseVlm": "19739.41"
+    },
+    {
+      "prevDayPx": "2.6839",
+      "dayNtlVlm": "13948.039847",
+      "markPx": "2.7981",
+      "midPx": "2.79395",
+      "circulatingSupply": "1042769.53110197",
+      "coin": "@86",
+      "totalSupply": "1198032.88830197",
+      "dayBaseVlm": "5162.75"
+    },
+    {
+      "prevDayPx": "0.20423",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.20062",
+      "midPx": "0.20092",
+      "circulatingSupply": "776016.28229161",
+      "coin": "@87",
+      "totalSupply": "1199242.8365736101",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.00050329",
+      "dayNtlVlm": "572.259157",
+      "markPx": "0.00050028",
+      "midPx": "0.00050103",
+      "circulatingSupply": "997534428.6183400154",
+      "coin": "@88",
+      "totalSupply": "998451001.4221500158",
+      "dayBaseVlm": "1139701.0"
+    },
+    {
+      "prevDayPx": "0.304",
+      "dayNtlVlm": "3501.178492",
+      "markPx": "0.28863",
+      "midPx": "0.28893",
+      "circulatingSupply": "809145.99385666",
+      "coin": "@89",
+      "totalSupply": "1199067.0958756499",
+      "dayBaseVlm": "11800.95"
+    },
+    {
+      "prevDayPx": "0.059597",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.056132",
+      "midPx": "0.056216",
+      "circulatingSupply": "659066.12104157",
+      "coin": "@90",
+      "totalSupply": "1199182.4016593299",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.092227",
+      "dayNtlVlm": "4.081967",
+      "markPx": "0.091951",
+      "midPx": "0.092089",
+      "circulatingSupply": "698124.0313801999",
+      "coin": "@91",
+      "totalSupply": "1199429.18615757",
+      "dayBaseVlm": "44.26"
+    },
+    {
+      "prevDayPx": "0.14136",
+      "dayNtlVlm": "10.918646",
+      "markPx": "0.14136",
+      "midPx": "0.14157",
+      "circulatingSupply": "3999629.07764075",
+      "coin": "@92",
+      "totalSupply": "3999629.07764075",
+      "dayBaseVlm": "77.24"
+    },
+    {
+      "prevDayPx": "0.00011897",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.00011791",
+      "midPx": "0.00011808",
+      "circulatingSupply": "999585029.1388599873",
+      "coin": "@93",
+      "totalSupply": "999684278.1805599928",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.87859",
+      "dayNtlVlm": "352.651237",
+      "markPx": "0.86814",
+      "midPx": "0.86944",
+      "circulatingSupply": "564750.49274503",
+      "coin": "@94",
+      "totalSupply": "1199245.2149402699",
+      "dayBaseVlm": "403.13"
+    },
+    {
+      "prevDayPx": "0.000558",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.000558",
+      "midPx": "0.000666",
+      "circulatingSupply": "80588815.9738720953",
+      "coin": "@95",
+      "totalSupply": "99943620.8932663053",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.085967",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.076947",
+      "midPx": "0.077062",
+      "circulatingSupply": "642357.5008747",
+      "coin": "@96",
+      "totalSupply": "1199524.1708747",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.15916",
+      "dayNtlVlm": "177.568535",
+      "markPx": "0.16346",
+      "midPx": "0.16322",
+      "circulatingSupply": "560076.7116224",
+      "coin": "@97",
+      "totalSupply": "1199017.6625613",
+      "dayBaseVlm": "1093.45"
+    },
+    {
+      "prevDayPx": "0.0",
+      "dayNtlVlm": "0.0",
+      "markPx": "1.0",
+      "midPx": null,
+      "circulatingSupply": "0.0",
+      "coin": "@98",
+      "totalSupply": "0.0",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.068574",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.066038",
+      "midPx": "0.066096",
+      "circulatingSupply": "567858.1399010801",
+      "coin": "@99",
+      "totalSupply": "1199418.23990108",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.011418",
+      "dayNtlVlm": "2.559572",
+      "markPx": "0.011418",
+      "midPx": "0.011435",
+      "circulatingSupply": "9968991.3025997002",
+      "coin": "@100",
+      "totalSupply": "9991389.5524250008",
+      "dayBaseVlm": "224.17"
+    },
+    {
+      "prevDayPx": "0.38641",
+      "dayNtlVlm": "1291.085432",
+      "markPx": "0.39812",
+      "midPx": "0.397525",
+      "circulatingSupply": "716640.1125211",
+      "coin": "@101",
+      "totalSupply": "1199418.25336025",
+      "dayBaseVlm": "3259.72"
+    },
+    {
+      "prevDayPx": "0.050534",
+      "dayNtlVlm": "183.24915",
+      "markPx": "0.049338",
+      "midPx": "0.049412",
+      "circulatingSupply": "825692.02659672",
+      "coin": "@102",
+      "totalSupply": "1198549.42659672",
+      "dayBaseVlm": "3812.09"
+    },
+    {
+      "prevDayPx": "0.00013913",
+      "dayNtlVlm": "506.811296",
+      "markPx": "0.00013584",
+      "midPx": "0.00013604",
+      "circulatingSupply": "924360580.2037700415",
+      "coin": "@103",
+      "totalSupply": "924660324.2534899712",
+      "dayBaseVlm": "3702630.0"
+    },
+    {
+      "prevDayPx": "0.10059",
+      "dayNtlVlm": "580.778929",
+      "markPx": "0.096758",
+      "midPx": "0.096613",
+      "circulatingSupply": "822298.06565782",
+      "coin": "@104",
+      "totalSupply": "1198818.26556797",
+      "dayBaseVlm": "5840.24"
+    },
+    {
+      "prevDayPx": "1.0752",
+      "dayNtlVlm": "24578.4162692",
+      "markPx": "0.93236",
+      "midPx": "0.93097",
+      "circulatingSupply": "722616.7949934",
+      "coin": "@105",
+      "totalSupply": "1198605.2849934001",
+      "dayBaseVlm": "24634.11"
+    },
+    {
+      "prevDayPx": "0.05095",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.051719",
+      "midPx": "0.051641",
+      "circulatingSupply": "917956.47566627",
+      "coin": "@106",
+      "totalSupply": "1199066.4913383401",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "31.64",
+      "dayNtlVlm": "134797127.5034294724",
+      "markPx": "32.611",
+      "midPx": "32.6115",
+      "circulatingSupply": "335484586.8599696159",
+      "coin": "@107",
+      "totalSupply": "999737536.7397195101",
+      "dayBaseVlm": "4202592.8300000103"
+    },
+    {
+      "prevDayPx": "0.07166",
+      "dayNtlVlm": "7.250558",
+      "markPx": "0.072307",
+      "midPx": "0.072415",
+      "circulatingSupply": "534259.87444336",
+      "coin": "@108",
+      "totalSupply": "1199617.9831906001",
+      "dayBaseVlm": "101.18"
+    },
+    {
+      "prevDayPx": "0.0010703",
+      "dayNtlVlm": "2.198394",
+      "markPx": "0.0010703",
+      "midPx": "0.0010719",
+      "circulatingSupply": "99953213.3585599959",
+      "coin": "@109",
+      "totalSupply": "99953221.0817999989",
+      "dayBaseVlm": "2054.0"
+    },
+    {
+      "prevDayPx": "0.047892",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.047892",
+      "midPx": "0.047964",
+      "circulatingSupply": "903416.00611133",
+      "coin": "@110",
+      "totalSupply": "1198882.18711133",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.1825",
+      "dayNtlVlm": "327.402735",
+      "markPx": "0.17147",
+      "midPx": "0.171725",
+      "circulatingSupply": "962357.04230232",
+      "coin": "@111",
+      "totalSupply": "1198961.7494550101",
+      "dayBaseVlm": "1843.38"
+    },
+    {
+      "prevDayPx": "0.0015868",
+      "dayNtlVlm": "6.141073",
+      "markPx": "0.0015868",
+      "midPx": "0.0015892",
+      "circulatingSupply": "173517011.1328499913",
+      "coin": "@112",
+      "totalSupply": "173517152.7235980034",
+      "dayBaseVlm": "3870.1"
+    },
+    {
+      "prevDayPx": "0.0007509",
+      "dayNtlVlm": "0.699688",
+      "markPx": "0.0007509",
+      "midPx": "0.000752",
+      "circulatingSupply": "98688803.1706099957",
+      "coin": "@113",
+      "totalSupply": "98688823.9864780009",
+      "dayBaseVlm": "931.8"
+    },
+    {
+      "prevDayPx": "0.0008693",
+      "dayNtlVlm": "288.372323",
+      "markPx": "0.0008745",
+      "midPx": "0.0008758",
+      "circulatingSupply": "99852972.3624060005",
+      "coin": "@114",
+      "totalSupply": "99853222.3135499954",
+      "dayBaseVlm": "339065.6"
+    },
+    {
+      "prevDayPx": "0.073742",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.073521",
+      "midPx": "0.073631",
+      "circulatingSupply": "996411.70723509",
+      "coin": "@115",
+      "totalSupply": "1198807.69723509",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.00003849",
+      "dayNtlVlm": "217.325288",
+      "markPx": "0.00003727",
+      "midPx": "0.00003732",
+      "circulatingSupply": "2697336279.2699599266",
+      "coin": "@116",
+      "totalSupply": "2697690244.7755599022",
+      "dayBaseVlm": "5681071.0"
+    },
+    {
+      "prevDayPx": "0.010308",
+      "dayNtlVlm": "0.160336",
+      "markPx": "0.010278",
+      "midPx": "0.010293",
+      "circulatingSupply": "10117353.1213259995",
+      "coin": "@117",
+      "totalSupply": "10117433.3966080006",
+      "dayBaseVlm": "15.6"
+    },
+    {
+      "prevDayPx": "0.69576",
+      "dayNtlVlm": "8842.113364",
+      "markPx": "0.77106",
+      "midPx": "0.76991",
+      "circulatingSupply": "1013610.76841642",
+      "coin": "@118",
+      "totalSupply": "1198856.17841642",
+      "dayBaseVlm": "12225.76"
+    },
+    {
+      "prevDayPx": "0.054716",
+      "dayNtlVlm": "15.29531",
+      "markPx": "0.054064",
+      "midPx": "0.054145",
+      "circulatingSupply": "1038097.59814374",
+      "coin": "@119",
+      "totalSupply": "1198219.10200679",
+      "dayBaseVlm": "279.54"
+    },
+    {
+      "prevDayPx": "0.074016",
+      "dayNtlVlm": "20.629633",
+      "markPx": "0.074005",
+      "midPx": "0.087001",
+      "circulatingSupply": "980812.4702392",
+      "coin": "@120",
+      "totalSupply": "999553.1511952",
+      "dayBaseVlm": "278.76"
+    },
+    {
+      "prevDayPx": "0.042846",
+      "dayNtlVlm": "55.369759",
+      "markPx": "0.044681",
+      "midPx": "0.044748",
+      "circulatingSupply": "946247.79805247",
+      "coin": "@121",
+      "totalSupply": "1198401.09163805",
+      "dayBaseVlm": "1269.98"
+    },
+    {
+      "prevDayPx": "0.057551",
+      "dayNtlVlm": "5508.0724",
+      "markPx": "0.054201",
+      "midPx": "0.054282",
+      "circulatingSupply": "50597453.3585761413",
+      "coin": "@122",
+      "totalSupply": "50597453.3676310778",
+      "dayBaseVlm": "97642.97"
+    },
+    {
+      "prevDayPx": "3.8225",
+      "dayNtlVlm": "90610.233278",
+      "markPx": "4.0214",
+      "midPx": "4.0274",
+      "circulatingSupply": "1108345.7946860399",
+      "coin": "@123",
+      "totalSupply": "1198044.2300670899",
+      "dayBaseVlm": "23175.39"
+    },
+    {
+      "prevDayPx": "0.062253",
+      "dayNtlVlm": "23.444669",
+      "markPx": "0.062346",
+      "midPx": "0.062439",
+      "circulatingSupply": "1104214.5406831601",
+      "coin": "@124",
+      "totalSupply": "1199087.3406831599",
+      "dayBaseVlm": "375.51"
+    },
+    {
+      "prevDayPx": "0.062613",
+      "dayNtlVlm": "4.534432",
+      "markPx": "0.062613",
+      "midPx": "0.062707",
+      "circulatingSupply": "9992967.6484176498",
+      "coin": "@125",
+      "totalSupply": "9996765.30069918",
+      "dayBaseVlm": "72.42"
+    },
+    {
+      "prevDayPx": "0.28022",
+      "dayNtlVlm": "381.423455",
+      "markPx": "0.29003",
+      "midPx": "0.32",
+      "circulatingSupply": "1159054.0820563999",
+      "coin": "@126",
+      "totalSupply": "1199088.0420564001",
+      "dayBaseVlm": "1114.44"
+    },
+    {
+      "prevDayPx": "0.11173",
+      "dayNtlVlm": "265.620161",
+      "markPx": "0.12428",
+      "midPx": "0.124095",
+      "circulatingSupply": "1040367.5313874",
+      "coin": "@127",
+      "totalSupply": "1198957.73155143",
+      "dayBaseVlm": "2286.15"
+    },
+    {
+      "prevDayPx": "0.001619",
+      "dayNtlVlm": "1544.24291",
+      "markPx": "0.001431",
+      "midPx": "0.001804",
+      "circulatingSupply": "1030339558.9619294405",
+      "coin": "@128",
+      "totalSupply": "1199736373.5619294643",
+      "dayBaseVlm": "988452.62"
+    },
+    {
+      "prevDayPx": "0.026528",
+      "dayNtlVlm": "10.128115",
+      "markPx": "0.026449",
+      "midPx": "0.026488",
+      "circulatingSupply": "999983635.9273524284",
+      "coin": "@129",
+      "totalSupply": "999983635.9366518259",
+      "dayBaseVlm": "382.93"
+    },
+    {
+      "prevDayPx": "0.000486",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.000297",
+      "midPx": "0.000213",
+      "circulatingSupply": "1121890125.2836797237",
+      "coin": "@130",
+      "totalSupply": "1199372760.3281259537",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.72703",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.72703",
+      "midPx": "0.72812",
+      "circulatingSupply": "33333297.0173980296",
+      "coin": "@131",
+      "totalSupply": "33333297.0173980296",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.01865",
+      "dayNtlVlm": "912034.13184208",
+      "markPx": "0.020403",
+      "midPx": "0.020392",
+      "circulatingSupply": "1119159788.3514652252",
+      "coin": "@132",
+      "totalSupply": "1198309024.3608429432",
+      "dayBaseVlm": "48226388.2099999934"
+    },
+    {
+      "prevDayPx": "0.001549",
+      "dayNtlVlm": "18.346275",
+      "markPx": "0.001545",
+      "midPx": "0.001781",
+      "circulatingSupply": "113354219.3257467002",
+      "coin": "@133",
+      "totalSupply": "119896424.2824742943",
+      "dayBaseVlm": "11859.26"
+    },
+    {
+      "prevDayPx": "0.000969",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.000971",
+      "midPx": "0.002394",
+      "circulatingSupply": "99990391.5159812868",
+      "coin": "@134",
+      "totalSupply": "99990396.812156707",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.00006",
+      "dayNtlVlm": "0.7185",
+      "markPx": "0.00006",
+      "midPx": "0.000064",
+      "circulatingSupply": "1095341468.5954358578",
+      "coin": "@135",
+      "totalSupply": "1199386205.6407175064",
+      "dayBaseVlm": "11975.0"
+    },
+    {
+      "prevDayPx": "0.035106",
+      "dayNtlVlm": "151613.513852",
+      "markPx": "0.043298",
+      "midPx": "0.043233",
+      "circulatingSupply": "419982006.3612219095",
+      "coin": "@136",
+      "totalSupply": "419982006.3989919424",
+      "dayBaseVlm": "3637473.3700000001"
+    },
+    {
+      "prevDayPx": "0.000916",
+      "dayNtlVlm": "14655.532691",
+      "markPx": "0.001009",
+      "midPx": "0.001007",
+      "circulatingSupply": "1095062286.4512598515",
+      "coin": "@137",
+      "totalSupply": "1197601259.1677212715",
+      "dayBaseVlm": "15177195.5399999991"
+    },
+    {
+      "prevDayPx": "0.0025993",
+      "dayNtlVlm": "3769.112227",
+      "markPx": "0.0026306",
+      "midPx": "0.0026266",
+      "circulatingSupply": "524624220.1513426304",
+      "coin": "@138",
+      "totalSupply": "1749624226.2410125732",
+      "dayBaseVlm": "1441819.7000000002"
+    },
+    {
+      "prevDayPx": "0.044478",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.044345",
+      "midPx": "0.044411",
+      "circulatingSupply": "832497335.9861807823",
+      "coin": "@139",
+      "totalSupply": "999997335.9861807823",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.002501",
+      "dayNtlVlm": "98.913954",
+      "markPx": "0.003706",
+      "midPx": "0.003203",
+      "circulatingSupply": "111525009.7041191161",
+      "coin": "@140",
+      "totalSupply": "119903920.7241191268",
+      "dayBaseVlm": "34485.46"
+    },
+    {
+      "prevDayPx": "0.031964",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.031964",
+      "midPx": "0.032012",
+      "circulatingSupply": "777771675.1586872339",
+      "coin": "@141",
+      "totalSupply": "777771675.1586872339",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "103594.0",
+      "dayNtlVlm": "15340913.5349599943",
+      "markPx": "104337.0",
+      "midPx": "104336.5",
+      "circulatingSupply": "20999999.9994228221",
+      "coin": "@142",
+      "totalSupply": "20999999.9994228221",
+      "dayBaseVlm": "147.34019"
+    },
+    {
+      "prevDayPx": "0.03747",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.037024",
+      "midPx": "0.037079",
+      "circulatingSupply": "10243229.1268665902",
+      "coin": "@143",
+      "totalSupply": "11999999.88686659",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.0",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.000083",
+      "midPx": null,
+      "circulatingSupply": "111701913.049999997",
+      "coin": "@144",
+      "totalSupply": "120000000.0",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.000107",
+      "dayNtlVlm": "13.4232",
+      "markPx": "0.000119",
+      "midPx": "0.000158",
+      "circulatingSupply": "1053458218.1508533955",
+      "coin": "@145",
+      "totalSupply": "1199999999.7908535004",
+      "dayBaseVlm": "112800.0"
+    },
+    {
+      "prevDayPx": "0.000022",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.000022",
+      "midPx": "0.000027",
+      "circulatingSupply": "1011215490.627625227",
+      "coin": "@146",
+      "totalSupply": "1199999999.7876253128",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.00839",
+      "dayNtlVlm": "3342.371734",
+      "markPx": "0.008396",
+      "midPx": "0.008393",
+      "circulatingSupply": "999999999.5174479485",
+      "coin": "@147",
+      "totalSupply": "999999999.5304510593",
+      "dayBaseVlm": "397709.7"
+    },
+    {
+      "prevDayPx": "0.001187",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.000891",
+      "midPx": "0.001198",
+      "circulatingSupply": "20997870.1823530085",
+      "coin": "@148",
+      "totalSupply": "20999999.5193059593",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.0",
+      "dayNtlVlm": "0.0",
+      "markPx": "1.0",
+      "midPx": null,
+      "circulatingSupply": "0.0",
+      "coin": "@149",
+      "totalSupply": "0.0",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.99979",
+      "dayNtlVlm": "2681991.8140539993",
+      "markPx": "1.0007",
+      "midPx": "1.0006",
+      "circulatingSupply": "99999969174.6082000732",
+      "coin": "@150",
+      "totalSupply": "99999969174.6082000732",
+      "dayBaseVlm": "2681082.0999999996"
+    },
+    {
+      "prevDayPx": "2500.4",
+      "dayNtlVlm": "14727546.3004400022",
+      "markPx": "2512.2",
+      "midPx": "2512.25",
+      "circulatingSupply": "99999999.9966527075",
+      "coin": "@151",
+      "totalSupply": "99999999.9966527075",
+      "dayBaseVlm": "5837.7769"
+    },
+    {
+      "prevDayPx": "0.96711",
+      "dayNtlVlm": "246744.9295",
+      "markPx": "0.96817",
+      "midPx": "0.96698",
+      "circulatingSupply": "87999999999.6887817383",
+      "coin": "@152",
+      "totalSupply": "87999999999.6887817383",
+      "dayBaseVlm": "255537.89"
+    },
+    {
+      "prevDayPx": "1.0",
+      "dayNtlVlm": "2495484.2959950007",
+      "markPx": "1.0004",
+      "midPx": "0.99975",
+      "circulatingSupply": "8888888887.6635189056",
+      "coin": "@153",
+      "totalSupply": "8888888887.6635189056",
+      "dayBaseVlm": "2496044.4899999998"
+    },
+    {
+      "prevDayPx": "0.0",
+      "dayNtlVlm": "0.0",
+      "markPx": "1.0",
+      "midPx": null,
+      "circulatingSupply": "0.0",
+      "coin": "@154",
+      "totalSupply": "0.0",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.001078",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.001078",
+      "midPx": "0.001079",
+      "circulatingSupply": "56070397.7598625794",
+      "coin": "@155",
+      "totalSupply": "119999999.884422183",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "153.02",
+      "dayNtlVlm": "10306990.0799599998",
+      "markPx": "155.19",
+      "midPx": "155.195",
+      "circulatingSupply": "499999999.9893605709",
+      "coin": "@156",
+      "totalSupply": "499999999.9893605709",
+      "dayBaseVlm": "66192.921"
+    },
+    {
+      "prevDayPx": "0.016196",
+      "dayNtlVlm": "2625.258347",
+      "markPx": "0.01956",
+      "midPx": "0.019589",
+      "circulatingSupply": "6919865.1239818595",
+      "coin": "@157",
+      "totalSupply": "11999999.8839818593",
+      "dayBaseVlm": "161507.59"
+    },
+    {
+      "prevDayPx": "0.000247",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.000211",
+      "midPx": "0.000264",
+      "circulatingSupply": "1157356624.7143001556",
+      "coin": "@158",
+      "totalSupply": "1199999999.9143002033",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.51321",
+      "dayNtlVlm": "840.248023",
+      "markPx": "0.52085",
+      "midPx": "0.520625",
+      "circulatingSupply": "99999999.8421926945",
+      "coin": "@159",
+      "totalSupply": "99999999.8421926945",
+      "dayBaseVlm": "1623.04"
+    },
+    {
+      "prevDayPx": "0.021601",
+      "dayNtlVlm": "354005.89359924",
+      "markPx": "0.021792",
+      "midPx": "0.021801",
+      "circulatingSupply": "999999999.782269001",
+      "coin": "@160",
+      "totalSupply": "999999999.7921755314",
+      "dayBaseVlm": "15910741.7199999969"
+    },
+    {
+      "prevDayPx": "0.19018",
+      "dayNtlVlm": "1380.949727",
+      "markPx": "0.1937",
+      "midPx": "0.193895",
+      "circulatingSupply": "99999999.8937537223",
+      "coin": "@161",
+      "totalSupply": "99999999.8993649632",
+      "dayBaseVlm": "7230.4"
+    },
+    {
+      "prevDayPx": "1.018",
+      "dayNtlVlm": "5503230.7586800065",
+      "markPx": "1.0899",
+      "midPx": "1.08995",
+      "circulatingSupply": "999999998.9630889893",
+      "coin": "@162",
+      "totalSupply": "999999998.9630889893",
+      "dayBaseVlm": "5127749.3000000026"
+    },
+    {
+      "prevDayPx": "0.43498",
+      "dayNtlVlm": "3816.267362",
+      "markPx": "0.52974",
+      "midPx": "0.52895",
+      "circulatingSupply": "769273.97172794",
+      "coin": "@163",
+      "totalSupply": "1199999.8317279399",
+      "dayBaseVlm": "7959.27"
+    },
+    {
+      "prevDayPx": "0.004084",
+      "dayNtlVlm": "202.071057",
+      "markPx": "0.003868",
+      "midPx": "0.003874",
+      "circulatingSupply": "7625890.7218583804",
+      "coin": "@164",
+      "totalSupply": "11999999.8518583793",
+      "dayBaseVlm": "49085.01"
+    },
+    {
+      "prevDayPx": "0.088518",
+      "dayNtlVlm": "1169.939312",
+      "markPx": "0.077356",
+      "midPx": "0.077472",
+      "circulatingSupply": "1005477.7495332001",
+      "coin": "@165",
+      "totalSupply": "1199999.8995332001",
+      "dayBaseVlm": "14092.13"
+    },
+    {
+      "prevDayPx": "0.99966",
+      "dayNtlVlm": "10830622.9857899956",
+      "markPx": "0.99979",
+      "midPx": "0.99978",
+      "circulatingSupply": "184467440736.9771728516",
+      "coin": "@166",
+      "totalSupply": "184467440736.9771728516",
+      "dayBaseVlm": "10832067.9699999951"
+    },
+    {
+      "prevDayPx": "0.0",
+      "dayNtlVlm": "0.0",
+      "markPx": "1.0",
+      "midPx": null,
+      "circulatingSupply": "0.0",
+      "coin": "@167",
+      "totalSupply": "0.0",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.0",
+      "dayNtlVlm": "0.0",
+      "markPx": "1.0",
+      "midPx": null,
+      "circulatingSupply": "184467440737.0955200195",
+      "coin": "@168",
+      "totalSupply": "184467440737.0955200195",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.0",
+      "dayNtlVlm": "0.0",
+      "markPx": "1.0",
+      "midPx": null,
+      "circulatingSupply": "184467440737.0955200195",
+      "coin": "@169",
+      "totalSupply": "184467440737.0955200195",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.038",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.038",
+      "midPx": "0.024565",
+      "circulatingSupply": "49999999834.0900115967",
+      "coin": "@170",
+      "totalSupply": "49999999834.7708129883",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.9999",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.55495",
+      "midPx": null,
+      "circulatingSupply": "88000000000.0",
+      "coin": "@171",
+      "totalSupply": "88000000000.0",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.43997",
+      "dayNtlVlm": "0.0",
+      "markPx": "0.43985",
+      "midPx": "0.220563",
+      "circulatingSupply": "4999999999.9749422073",
+      "coin": "@172",
+      "totalSupply": "4999999999.9749422073",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "4625333.0",
+      "dayNtlVlm": "60535.70272",
+      "markPx": "4356572.0",
+      "midPx": "4346693.0",
+      "circulatingSupply": "0.9999988547",
+      "coin": "@173",
+      "totalSupply": "99999999.9999988675",
+      "dayBaseVlm": "0.01309"
+    },
+    {
+      "prevDayPx": "6.6",
+      "dayNtlVlm": "0.0",
+      "markPx": "6.2",
+      "midPx": null,
+      "circulatingSupply": "21000000.0",
+      "coin": "@174",
+      "totalSupply": "21000000.0",
+      "dayBaseVlm": "0.0"
+    },
+    {
+      "prevDayPx": "0.0038223",
+      "dayNtlVlm": "8739.255898",
+      "markPx": "0.04",
+      "midPx": "0.0312495",
+      "circulatingSupply": "17142564.6273560002",
+      "coin": "@175",
+      "totalSupply": "17142564.6273560002",
+      "dayBaseVlm": "164437.9"
+    },
+    {
+      "prevDayPx": "0.0027",
+      "dayNtlVlm": "12852.182567",
+      "markPx": "0.00324",
+      "midPx": "0.003519",
+      "circulatingSupply": "999991612.6653054953",
+      "coin": "@176",
+      "totalSupply": "999991612.6653054953",
+      "dayBaseVlm": "3947399.9999999991"
+    },
+    {
+      "prevDayPx": "0.13053",
+      "dayNtlVlm": "720.467851",
+      "markPx": "0.13768",
+      "midPx": "0.137885",
+      "circulatingSupply": "552258.71648916",
+      "coin": "@177",
+      "totalSupply": "1199999.9786356201",
+      "dayBaseVlm": "5082.6"
+    },
+    {
+      "prevDayPx": "1.0007",
+      "dayNtlVlm": "29.978004",
+      "markPx": "0.9996",
+      "midPx": "1.0002",
+      "circulatingSupply": "88000000000.0",
+      "coin": "@178",
+      "totalSupply": "88000000000.0",
+      "dayBaseVlm": "29.99"
+    },
+    {
+      "prevDayPx": "0.60078",
+      "dayNtlVlm": "68113.037682",
+      "markPx": "0.59364",
+      "midPx": "0.592755",
+      "circulatingSupply": "852563.81571175",
+      "coin": "@179",
+      "totalSupply": "1199999.9857117501",
+      "dayBaseVlm": "102798.7899999999"
+    }
+  ]
+]

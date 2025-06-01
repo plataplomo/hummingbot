@@ -7,7 +7,7 @@ and saves them as fixture files for testing purposes. It uses the CyberDeltaEngi
 configuration system to get exchange settings.
 
 Usage:
-    python fetch_backpack_public_data.py --output-dir tests/fixtures/raw_api_data/backpack
+    python fetch_backpack_public_data.py --output-dir tests/fixtures/raw_api_data/backpack/public
     python fetch_backpack_public_data.py --symbols SOL_USDC,BTC_USDC --output-dir fixtures/
 """
 
@@ -76,6 +76,22 @@ class BackpackDataCollector:
             logger.error(f"Error fetching {url}: {e}")
             return None
 
+    async def _fetch_text(self, url: str, params: dict[str, Any] | None = None) -> str | None:
+        """Fetch text data from a URL with error handling."""
+        try:
+            logger.info(f"Fetching text: {url} with params: {params}")
+            async with self.session.get(url, params=params) as response:
+                if response.status == 200:
+                    data: str = await response.text()
+                    logger.info(f"Successfully fetched text from {url}")
+                    return data
+                else:
+                    logger.error(f"HTTP {response.status} error for {url}: {await response.text()}")
+                    return None
+        except Exception as e:
+            logger.error(f"Error fetching {url}: {e}")
+            return None
+
     def _save_json(self, data: dict[str, Any], filename: str) -> None:
         """Save JSON data to a file."""
         filepath = self.output_dir / filename
@@ -86,6 +102,71 @@ class BackpackDataCollector:
         except Exception as e:
             logger.error(f"Error saving {filepath}: {e}")
 
+    def _save_text(self, data: str, filename: str) -> None:
+        """Save text data to a file."""
+        filepath = self.output_dir / filename
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(data)
+            logger.info(f"Saved fixture: {filepath}")
+        except Exception as e:
+            logger.error(f"Error saving {filepath}: {e}")
+
+    # System endpoints
+    async def fetch_ping(self) -> None:
+        """Fetch ping response."""
+        url = f"{self.api_base_url}/api/v1/ping"
+        data = await self._fetch_text(url)
+        if data:
+            self._save_text(data, "bp_ping.txt")
+
+    async def fetch_status(self) -> None:
+        """Fetch system status."""
+        url = f"{self.api_base_url}/api/v1/status"
+        data = await self._fetch_json(url)
+        if data:
+            self._save_json(data, "bp_status.json")
+
+    async def fetch_time(self) -> None:
+        """Fetch system time."""
+        url = f"{self.api_base_url}/api/v1/time"
+        # /api/v1/time returns text/plain, not JSON
+        data = await self._fetch_text(url)
+        if data:
+            self._save_text(data, "bp_time.txt")
+
+    # Market information endpoints
+    async def fetch_markets(self) -> None:
+        """Fetch markets information."""
+        url = f"{self.api_base_url}/api/v1/markets"
+        data = await self._fetch_json(url)
+        if data:
+            self._save_json(data, "bp_markets.json")
+
+    async def fetch_market(self, symbol: str) -> None:
+        """Fetch single market information."""
+        url = f"{self.api_base_url}/api/v1/market"
+        params = {"symbol": symbol}
+        data = await self._fetch_json(url, params)
+        if data:
+            filename = f"bp_market_{symbol.lower()}.json"
+            self._save_json(data, filename)
+
+    async def fetch_assets(self) -> None:
+        """Fetch assets information."""
+        url = f"{self.api_base_url}/api/v1/assets"
+        data = await self._fetch_json(url)
+        if data:
+            self._save_json(data, "bp_assets.json")
+
+    async def fetch_collateral(self) -> None:
+        """Fetch collateral information."""
+        url = f"{self.api_base_url}/api/v1/collateral"
+        data = await self._fetch_json(url)
+        if data:
+            self._save_json(data, "bp_collateral.json")
+
+    # Market data endpoints
     async def fetch_ticker(self, symbol: str) -> None:
         """Fetch ticker data for a symbol."""
         url = f"{self.api_base_url}/api/v1/ticker"
@@ -93,6 +174,18 @@ class BackpackDataCollector:
         data = await self._fetch_json(url, params)
         if data:
             filename = f"bp_ticker_{symbol.lower()}.json"
+            self._save_json(data, filename)
+
+    async def fetch_tickers(self, interval: str | None = None) -> None:
+        """Fetch all tickers."""
+        url = f"{self.api_base_url}/api/v1/tickers"
+        params = {"interval": interval} if interval else None
+        data = await self._fetch_json(url, params)
+        if data:
+            if interval:
+                filename = f"bp_tickers_{interval}.json"
+            else:
+                filename = "bp_tickers_all.json"
             self._save_json(data, filename)
 
     async def fetch_depth(self, symbol: str, limit: int | None = None) -> None:
@@ -139,43 +232,8 @@ class BackpackDataCollector:
             filename = f"bp_klines_{symbol.lower()}_{interval}.json"
             self._save_json(data, filename)
 
-    async def fetch_status(self) -> None:
-        """Fetch system status."""
-        url = f"{self.api_base_url}/api/v1/status"
-        data = await self._fetch_json(url)
-        if data:
-            self._save_json(data, "bp_status.json")
-
-    async def fetch_time(self) -> None:
-        """Fetch system time."""
-        url = f"{self.api_base_url}/api/v1/time"
-        data = await self._fetch_json(url)
-        if data:
-            self._save_json(data, "bp_time.json")
-
-    async def fetch_markets(self) -> None:
-        """Fetch markets information."""
-        url = f"{self.api_base_url}/api/v1/markets"
-        data = await self._fetch_json(url)
-        if data:
-            self._save_json(data, "bp_markets.json")
-
-    async def fetch_assets(self) -> None:
-        """Fetch assets information."""
-        url = f"{self.api_base_url}/api/v1/assets"
-        data = await self._fetch_json(url)
-        if data:
-            self._save_json(data, "bp_assets.json")
-
-    async def fetch_collateral(self) -> None:
-        """Fetch collateral information."""
-        url = f"{self.api_base_url}/api/v1/collateral"
-        data = await self._fetch_json(url)
-        if data:
-            self._save_json(data, "bp_collateral.json")
-
     async def fetch_mark_prices(self, symbol: str | None = None) -> None:
-        """Fetch mark prices."""
+        """Fetch mark prices (only works for futures/perp symbols)."""
         url = f"{self.api_base_url}/api/v1/markPrices"
         params = {"symbol": symbol} if symbol else None
         data = await self._fetch_json(url, params)
@@ -187,7 +245,7 @@ class BackpackDataCollector:
             self._save_json(data, filename)
 
     async def fetch_open_interest(self, symbol: str | None = None) -> None:
-        """Fetch open interest."""
+        """Fetch open interest (only works for futures/perp symbols)."""
         url = f"{self.api_base_url}/api/v1/openInterest"
         params = {"symbol": symbol} if symbol else None
         data = await self._fetch_json(url, params)
@@ -196,6 +254,44 @@ class BackpackDataCollector:
                 filename = f"bp_openinterest_{symbol.lower()}.json"
             else:
                 filename = "bp_openinterest_all.json"
+            self._save_json(data, filename)
+
+    async def fetch_funding_rates(self, symbol: str, limit: int = 100, offset: int = 0) -> None:
+        """Fetch funding interval rates for futures (only works for perp symbols)."""
+        url = f"{self.api_base_url}/api/v1/fundingRates"
+        params = {
+            "symbol": symbol,
+            "limit": str(limit),
+            "offset": str(offset),
+        }
+        data = await self._fetch_json(url, params)
+        if data:
+            filename = f"bp_funding_rates_{symbol.lower()}_limit{limit}_offset{offset}.json"
+            self._save_json(data, filename)
+
+    # Borrow Lend endpoints
+    async def fetch_borrow_lend_markets(self) -> None:
+        """Fetch borrow lend markets."""
+        url = f"{self.api_base_url}/api/v1/borrowLend/markets"
+        data = await self._fetch_json(url)
+        if data:
+            self._save_json(data, "bp_borrow_lend_markets.json")
+
+    async def fetch_borrow_lend_markets_history(
+        self, interval: str, symbol: str | None = None
+    ) -> None:
+        """Fetch borrow lend markets history (requires interval parameter)."""
+        url = f"{self.api_base_url}/api/v1/borrowLend/markets/history"
+        params = {"interval": interval}
+        if symbol:
+            params["symbol"] = symbol
+
+        data = await self._fetch_json(url, params)
+        if data:
+            if symbol:
+                filename = f"bp_borrow_lend_markets_history_{symbol.lower()}_{interval}.json"
+            else:
+                filename = f"bp_borrow_lend_markets_history_all_{interval}.json"
             self._save_json(data, filename)
 
     def get_default_symbols(self) -> list[str]:
@@ -207,39 +303,109 @@ class BackpackDataCollector:
             else ["SOL_USDC", "BTC_USDC"]
         )
 
-    async def collect_all_data(self, symbols: list[str]) -> None:
-        """Collect data from all endpoints for the given symbols."""
-        logger.info("Starting Backpack data collection...")
+    def get_perp_symbols(self) -> list[str]:
+        """Get perpetual futures symbols for funding rate data."""
+        # Correct perpetual futures symbols on Backpack (with _PERP suffix)
+        return [
+            "SOL_USDC_PERP",
+            "BTC_USDC_PERP",
+            "ETH_USDC_PERP",
+            "WIF_USDC_PERP",
+            "DOGE_USDC_PERP",
+        ]
 
-        # System-wide endpoints (no symbol required)
+    def get_borrow_lend_symbols(self) -> list[str]:
+        """Get common borrow/lend market symbols."""
+        # These should be actual market symbols, not just assets
+        return ["SOL_USDC", "BTC_USDC", "ETH_USDC", "USDC_USD"]
+
+    async def collect_all_data(self, symbols: list[str]) -> None:
+        """Collect data from all public endpoints for the given symbols."""
+        logger.info("Starting comprehensive Backpack public data collection...")
+
+        # System endpoints
+        logger.info("Fetching system endpoints...")
+        await self.fetch_ping()
         await self.fetch_status()
         await self.fetch_time()
+
+        # Market information endpoints
+        logger.info("Fetching market information endpoints...")
         await self.fetch_markets()
         await self.fetch_assets()
         await self.fetch_collateral()
+
+        # Global market data endpoints
+        logger.info("Fetching global market data...")
+        await self.fetch_tickers()  # All tickers
+        await self.fetch_tickers("1d")  # 1d interval tickers (valid)
+        await self.fetch_tickers("1w")  # 1w interval tickers (valid)
         await self.fetch_mark_prices()  # All mark prices
         await self.fetch_open_interest()  # All open interest
 
-        # Symbol-specific endpoints
+        # Borrow Lend market endpoints
+        logger.info("Fetching borrow/lend market data...")
+        await self.fetch_borrow_lend_markets()
+
+        # Fetch borrow/lend history with valid intervals
+        borrow_lend_intervals = ["1d", "1w", "1month", "1year"]
+        for interval in borrow_lend_intervals:
+            await self.fetch_borrow_lend_markets_history(interval)  # All markets
+            await asyncio.sleep(0.2)  # Small delay between requests
+
+        # Fetch borrow/lend history for specific market symbols
+        for symbol in self.get_borrow_lend_symbols():
+            for interval in ["1d", "1w"]:  # Just use shorter intervals for specific symbols
+                await self.fetch_borrow_lend_markets_history(interval, symbol)
+                await asyncio.sleep(0.2)
+
+        # Symbol-specific endpoints (Spot markets)
+        logger.info("Fetching symbol-specific data...")
         for symbol in symbols:
             logger.info(f"Collecting data for symbol: {symbol}")
 
             # Basic market data
+            await self.fetch_market(symbol)
             await self.fetch_ticker(symbol)
             await self.fetch_depth(symbol)
             await self.fetch_depth(symbol, limit=20)
+            await self.fetch_depth(symbol, limit=100)
+            await self.fetch_trades(symbol, limit=50)
             await self.fetch_trades(symbol, limit=100)
-            await self.fetch_klines(symbol, interval="1m")
-            await self.fetch_klines(symbol, interval="5m")
 
-            # Symbol-specific mark prices and open interest
-            await self.fetch_mark_prices(symbol)
-            await self.fetch_open_interest(symbol)
+            # Klines with different intervals
+            await self.fetch_klines(symbol, interval="1m", hours_back=1)
+            await self.fetch_klines(symbol, interval="5m", hours_back=2)
+            await self.fetch_klines(symbol, interval="1h", hours_back=24)
+            await self.fetch_klines(symbol, interval="1d", hours_back=168)  # 7 days
+
+            # Note: Mark prices and open interest don't work for spot symbols
+            # They only work for perpetual futures symbols
 
             # Small delay between symbols to be respectful to the API
             await asyncio.sleep(0.5)
 
-        logger.info("Backpack data collection completed!")
+        # Perpetual futures-specific data
+        logger.info("Fetching perpetual futures data...")
+        perp_symbols = self.get_perp_symbols()
+        for symbol in perp_symbols:
+            logger.info(f"Collecting perp data for: {symbol}")
+
+            # Basic market data for perp symbols
+            await self.fetch_market(symbol)
+            await self.fetch_ticker(symbol)
+            await self.fetch_depth(symbol, limit=20)
+            await self.fetch_trades(symbol, limit=50)
+            await self.fetch_klines(symbol, interval="1h", hours_back=6)
+
+            # Perp-specific data
+            await self.fetch_mark_prices(symbol)
+            await self.fetch_open_interest(symbol)
+            await self.fetch_funding_rates(symbol, limit=50)
+            await self.fetch_funding_rates(symbol, limit=100, offset=50)
+            await asyncio.sleep(0.3)
+
+        logger.info("Comprehensive Backpack public data collection completed!")
 
 
 async def main() -> None:
@@ -254,7 +420,7 @@ async def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="tests/fixtures/raw_api_data/backpack",
+        default="tests/fixtures/raw_api_data/backpack/public",
         help="Output directory for fixture files",
     )
     parser.add_argument(

@@ -1,0 +1,37 @@
+{
+  "baseSymbol": "ETH",
+  "createdAt": "2025-01-21T06:34:54.691858",
+  "filters": {
+    "price": {
+      "borrowEntryFeeMaxMultiplier": null,
+      "borrowEntryFeeMinMultiplier": null,
+      "maxImpactMultiplier": "1.02",
+      "maxMultiplier": "1.25",
+      "maxPrice": null,
+      "meanMarkPriceBand": {
+        "maxMultiplier": "1.07",
+        "minMultiplier": "0.92"
+      },
+      "meanPremiumBand": null,
+      "minImpactMultiplier": "0.98",
+      "minMultiplier": "0.75",
+      "minPrice": "0.01",
+      "tickSize": "0.01"
+    },
+    "quantity": {
+      "maxQuantity": null,
+      "minQuantity": "0.0001",
+      "stepSize": "0.0001"
+    }
+  },
+  "fundingInterval": 28800000,
+  "fundingRateLowerBound": null,
+  "fundingRateUpperBound": null,
+  "imfFunction": null,
+  "marketType": "SPOT",
+  "mmfFunction": null,
+  "openInterestLimit": "0",
+  "orderBookState": "Open",
+  "quoteSymbol": "USDC",
+  "symbol": "ETH_USDC"
+}

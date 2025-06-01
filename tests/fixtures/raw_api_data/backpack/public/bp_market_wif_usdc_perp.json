@@ -1,0 +1,47 @@
+{
+  "baseSymbol": "WIF",
+  "createdAt": "2025-02-04T02:00:18.814963",
+  "filters": {
+    "price": {
+      "borrowEntryFeeMaxMultiplier": null,
+      "borrowEntryFeeMinMultiplier": null,
+      "maxImpactMultiplier": "1.05",
+      "maxMultiplier": "1.25",
+      "maxPrice": "1000",
+      "meanMarkPriceBand": {
+        "maxMultiplier": "1.15",
+        "minMultiplier": "0.87"
+      },
+      "meanPremiumBand": {
+        "tolerancePct": "0.05"
+      },
+      "minImpactMultiplier": "0.96",
+      "minMultiplier": "0.75",
+      "minPrice": "0.0001",
+      "tickSize": "0.0001"
+    },
+    "quantity": {
+      "maxQuantity": null,
+      "minQuantity": "0.1",
+      "stepSize": "0.1"
+    }
+  },
+  "fundingInterval": 28800000,
+  "fundingRateLowerBound": "-100",
+  "fundingRateUpperBound": "100",
+  "imfFunction": {
+    "base": "0.1",
+    "factor": "0.00033",
+    "type": "sqrt"
+  },
+  "marketType": "PERP",
+  "mmfFunction": {
+    "base": "0.05",
+    "factor": "0.0002",
+    "type": "sqrt"
+  },
+  "openInterestLimit": "4000000",
+  "orderBookState": "Open",
+  "quoteSymbol": "USDC",
+  "symbol": "WIF_USDC_PERP"
+}

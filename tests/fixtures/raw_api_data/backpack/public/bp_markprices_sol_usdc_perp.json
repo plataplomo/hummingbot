@@ -1,0 +1,9 @@
+[
+  {
+    "fundingRate": "-0.000130155",
+    "indexPrice": "155.62892132",
+    "markPrice": "155.53209302",
+    "nextFundingTimestamp": 1748764800000,
+    "symbol": "SOL_USDC_PERP"
+  }
+]
