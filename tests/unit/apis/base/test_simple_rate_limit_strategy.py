@@ -42,7 +42,6 @@ class TestSimpleTokenBucketStrategy:
         
         assert result is None
         mock_limiter.acquire.assert_called_once_with(tokens_to_consume=1)
-        return
 
     async def test_prepare_and_acquire_custom_weight(
         self, strategy: SimpleTokenBucketStrategy, mock_limiter: AsyncMock
@@ -124,7 +123,6 @@ class TestSimpleTokenBucketStrategy:
         
         assert result is None
         assert real_limiter.tokens == 7.0  # 10 - 3 = 7
-        return
 
     async def test_limiter_wait_time_propagation(self, mock_limiter: AsyncMock) -> None:
         """Test that wait time from limiter is handled properly."""
@@ -138,7 +136,6 @@ class TestSimpleTokenBucketStrategy:
         
         assert result is None
         mock_limiter.acquire.assert_called_once_with(tokens_to_consume=2)
-        return
 
     async def test_exception_from_limiter_propagates(self, mock_limiter: AsyncMock) -> None:
         """Test that exceptions from limiter are propagated."""
@@ -149,7 +146,6 @@ class TestSimpleTokenBucketStrategy:
         
         with pytest.raises(Exception, match="Rate limiter error"):
             await strategy.prepare_and_acquire(request_context)
-        return
 
     async def test_strategy_does_not_modify_payload(
         self, strategy: SimpleTokenBucketStrategy, mock_limiter: AsyncMock
