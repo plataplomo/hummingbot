@@ -1,12 +1,12 @@
 {
-  "firstPrice": "0.8468",
-  "high": "0.8727",
-  "lastPrice": "0.847",
-  "low": "0.7859",
-  "priceChange": "0.0002",
-  "priceChangePercent": "0.000236",
-  "quoteVolume": "1238149.73381",
+  "firstPrice": "0.8421",
+  "high": "0.8912",
+  "lastPrice": "0.8718",
+  "low": "0.8136",
+  "priceChange": "0.0297",
+  "priceChangePercent": "0.035269",
+  "quoteVolume": "1068294.09331",
   "symbol": "WIF_USDC_PERP",
-  "trades": "4338",
-  "volume": "1487332.8"
+  "trades": "2822",
+  "volume": "1242897"
 }

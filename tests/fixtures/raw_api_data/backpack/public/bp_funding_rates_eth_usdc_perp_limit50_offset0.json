@@ -1,6 +1,21 @@
 [
   {
-    "fundingRate": "0.000019354",
+    "fundingRate": "0.000067835",
+    "intervalEndTimestamp": "2025-06-02T08:00:00",
+    "symbol": "ETH_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000053617",
+    "intervalEndTimestamp": "2025-06-02T00:00:00",
+    "symbol": "ETH_USDC_PERP"
+  },
+  {
+    "fundingRate": "0.000025153",
+    "intervalEndTimestamp": "2025-06-01T16:00:00",
+    "symbol": "ETH_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000028109",
     "intervalEndTimestamp": "2025-06-01T08:00:00",
     "symbol": "ETH_USDC_PERP"
   },
@@ -232,21 +247,6 @@
   {
     "fundingRate": "0.0001",
     "intervalEndTimestamp": "2025-05-17T00:00:00",
-    "symbol": "ETH_USDC_PERP"
-  },
-  {
-    "fundingRate": "0.0001",
-    "intervalEndTimestamp": "2025-05-16T16:00:00",
-    "symbol": "ETH_USDC_PERP"
-  },
-  {
-    "fundingRate": "0.0001",
-    "intervalEndTimestamp": "2025-05-16T08:00:00",
-    "symbol": "ETH_USDC_PERP"
-  },
-  {
-    "fundingRate": "0.0001",
-    "intervalEndTimestamp": "2025-05-16T00:00:00",
     "symbol": "ETH_USDC_PERP"
   }
 ]

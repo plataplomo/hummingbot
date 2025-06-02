@@ -1,5 +1,53 @@
 [
   {
+    "borrowInterestRate": "0.0059785",
+    "borrowedQuantity": "23.7918058",
+    "lendInterestRate": "0.0005316",
+    "lentQuantity": "227.4023216",
+    "timestamp": "2025-06-02T00:00:00+00:00",
+    "utilization": "0.1046242"
+  },
+  {
+    "borrowInterestRate": "0.0042748",
+    "borrowedQuantity": "219.5452296",
+    "lendInterestRate": "0.0002718",
+    "lentQuantity": "2934.7416865",
+    "timestamp": "2025-06-02T00:00:00+00:00",
+    "utilization": "0.074809"
+  },
+  {
+    "borrowInterestRate": "0.0236348",
+    "borrowedQuantity": "41195.5608843",
+    "lendInterestRate": "0.0034033",
+    "lentQuantity": "243174.5401313",
+    "timestamp": "2025-06-02T00:00:00+00:00",
+    "utilization": "0.1694073"
+  },
+  {
+    "borrowInterestRate": "0.0260525",
+    "borrowedQuantity": "21557486.2594392",
+    "lendInterestRate": "0.0082836",
+    "lentQuantity": "61019459.0484907",
+    "timestamp": "2025-06-02T00:00:00+00:00",
+    "utilization": "0.3532887"
+  },
+  {
+    "borrowInterestRate": "0.0086401",
+    "borrowedQuantity": "47849.5955631",
+    "lendInterestRate": "0.0011104",
+    "lentQuantity": "316460.0297545",
+    "timestamp": "2025-06-02T00:00:00+00:00",
+    "utilization": "0.1512026"
+  },
+  {
+    "borrowInterestRate": "0.0380019",
+    "borrowedQuantity": "1600671.3627706",
+    "lendInterestRate": "0.0194276",
+    "lentQuantity": "2817929.0929575",
+    "timestamp": "2025-06-02T00:00:00+00:00",
+    "utilization": "0.5680311"
+  },
+  {
     "borrowInterestRate": "0.0054648",
     "borrowedQuantity": "21.9110228",
     "lendInterestRate": "0.0004442",
@@ -17469,54 +17517,6 @@
     "lendInterestRate": "0",
     "lentQuantity": "0",
     "timestamp": "2024-06-03T00:00:00+00:00",
-    "utilization": "0"
-  },
-  {
-    "borrowInterestRate": "0",
-    "borrowedQuantity": "0",
-    "lendInterestRate": "0",
-    "lentQuantity": "0",
-    "timestamp": "2024-06-02T00:00:00+00:00",
-    "utilization": "0"
-  },
-  {
-    "borrowInterestRate": "0",
-    "borrowedQuantity": "0",
-    "lendInterestRate": "0",
-    "lentQuantity": "0",
-    "timestamp": "2024-06-02T00:00:00+00:00",
-    "utilization": "0"
-  },
-  {
-    "borrowInterestRate": "0",
-    "borrowedQuantity": "0",
-    "lendInterestRate": "0",
-    "lentQuantity": "0",
-    "timestamp": "2024-06-02T00:00:00+00:00",
-    "utilization": "0"
-  },
-  {
-    "borrowInterestRate": "0",
-    "borrowedQuantity": "0",
-    "lendInterestRate": "0",
-    "lentQuantity": "0",
-    "timestamp": "2024-06-02T00:00:00+00:00",
-    "utilization": "0"
-  },
-  {
-    "borrowInterestRate": "0",
-    "borrowedQuantity": "0",
-    "lendInterestRate": "0",
-    "lentQuantity": "0",
-    "timestamp": "2024-06-02T00:00:00+00:00",
-    "utilization": "0"
-  },
-  {
-    "borrowInterestRate": "0",
-    "borrowedQuantity": "0",
-    "lendInterestRate": "0",
-    "lentQuantity": "0",
-    "timestamp": "2024-06-02T00:00:00+00:00",
     "utilization": "0"
   }
 ]

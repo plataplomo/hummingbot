@@ -1,12 +1,12 @@
 {
-  "firstPrice": "153.25",
-  "high": "158",
-  "lastPrice": "155.57",
-  "low": "152.1",
-  "priceChange": "2.32",
-  "priceChangePercent": "0.015139",
-  "quoteVolume": "67933470.0222",
+  "firstPrice": "154.65",
+  "high": "158.9",
+  "lastPrice": "156.34",
+  "low": "150.6",
+  "priceChange": "1.69",
+  "priceChangePercent": "0.010928",
+  "quoteVolume": "85453740.271",
   "symbol": "SOL_USDC_PERP",
-  "trades": "48862",
-  "volume": "437686.43"
+  "trades": "53244",
+  "volume": "552807.54"
 }

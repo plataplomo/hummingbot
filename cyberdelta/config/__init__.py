@@ -42,7 +42,7 @@ def _get_secrets_file_path() -> Path:
     """Get the secrets file path from environment or default location."""
     env_path_str = os.environ.get("CYBERDELTA_SECRETS_PATH")
     if env_path_str:
-        return Path(env_path_str)
+        return Path(env_path_str).expanduser()
 
     # Use default location in user's home directory
     return Path.home() / ".cyberdelta" / "secrets.yaml"

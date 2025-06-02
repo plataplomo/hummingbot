@@ -1,6 +1,21 @@
 [
   {
-    "fundingRate": "-0.000130155",
+    "fundingRate": "-0.000018086",
+    "intervalEndTimestamp": "2025-06-02T08:00:00",
+    "symbol": "SOL_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000157778",
+    "intervalEndTimestamp": "2025-06-02T00:00:00",
+    "symbol": "SOL_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.00000143",
+    "intervalEndTimestamp": "2025-06-01T16:00:00",
+    "symbol": "SOL_USDC_PERP"
+  },
+  {
+    "fundingRate": "-0.000233277",
     "intervalEndTimestamp": "2025-06-01T08:00:00",
     "symbol": "SOL_USDC_PERP"
   },
@@ -232,21 +247,6 @@
   {
     "fundingRate": "0.000064859",
     "intervalEndTimestamp": "2025-05-17T00:00:00",
-    "symbol": "SOL_USDC_PERP"
-  },
-  {
-    "fundingRate": "-0.000035205",
-    "intervalEndTimestamp": "2025-05-16T16:00:00",
-    "symbol": "SOL_USDC_PERP"
-  },
-  {
-    "fundingRate": "-0.000055656",
-    "intervalEndTimestamp": "2025-05-16T08:00:00",
-    "symbol": "SOL_USDC_PERP"
-  },
-  {
-    "fundingRate": "-0.000010149",
-    "intervalEndTimestamp": "2025-05-16T00:00:00",
     "symbol": "SOL_USDC_PERP"
   }
 ]

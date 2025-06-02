@@ -106,7 +106,7 @@ class SecretsManager:
         # Try environment variable first
         env_path_str = os.environ.get("CYBERDELTA_SECRETS_PATH")
         if env_path_str:
-            env_path = Path(env_path_str)
+            env_path = Path(env_path_str).expanduser()
             logger.debug(f"Using secrets path from CYBERDELTA_SECRETS_PATH: {env_path}")
             return env_path
 

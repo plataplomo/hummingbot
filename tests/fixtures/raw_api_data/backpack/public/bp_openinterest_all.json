@@ -1,127 +1,127 @@
 [
   {
-    "openInterest": "1210017.02",
+    "openInterest": "1181084.08",
     "symbol": "SUI_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "1052171.9728",
+    "openInterest": "1056741.8092",
     "symbol": "XRP_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "449630",
+    "openInterest": "382124",
     "symbol": "ADA_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "2040.678",
+    "openInterest": "1915.218",
     "symbol": "BNB_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "708207.6",
+    "openInterest": "701299.6",
     "symbol": "ONDO_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "280298.38",
+    "openInterest": "271457.14",
     "symbol": "SOL_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "622.731",
+    "openInterest": "627.08242",
     "symbol": "BTC_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "24614.98",
+    "openInterest": "20304.58",
     "symbol": "AVAX_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "44908.4",
+    "openInterest": "39671.4",
     "symbol": "DOT_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "137284.88",
+    "openInterest": "136170.24",
     "symbol": "TRUMP_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "252645.6",
+    "openInterest": "299917.2",
     "symbol": "BERA_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "36147",
+    "openInterest": "34629.2",
     "symbol": "LINK_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "9797.1998",
+    "openInterest": "10311.9294",
     "symbol": "ETH_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "131417.64",
+    "openInterest": "121134.08",
     "symbol": "HYPE_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "5432564",
+    "openInterest": "5920816",
     "symbol": "DOGE_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "4118.4",
+    "openInterest": "3823.2",
     "symbol": "LTC_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "1765780.8",
+    "openInterest": "1789640.8",
     "symbol": "FARTCOIN_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "1924063.6",
+    "openInterest": "1923122.6",
     "symbol": "JUP_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "3230.08",
+    "openInterest": "2861.04",
     "symbol": "AAVE_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "345643.6",
+    "openInterest": "381580.6",
     "symbol": "KAITO_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "377043.8",
+    "openInterest": "367772",
     "symbol": "WIF_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "2498755.6",
+    "openInterest": "2610483.4",
     "symbol": "ENA_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "36572.4",
+    "openInterest": "45133.4",
     "symbol": "IP_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "658466",
+    "openInterest": "569241.6",
     "symbol": "ARB_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   },
   {
-    "openInterest": "1058524",
+    "openInterest": "907522",
     "symbol": "S_USDC_PERP",
-    "timestamp": 1748742625974
+    "timestamp": 1748849164066
   }
 ]

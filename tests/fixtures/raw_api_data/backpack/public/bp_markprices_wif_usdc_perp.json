@@ -1,9 +1,9 @@
 [
   {
-    "fundingRate": "-0.000100624",
-    "indexPrice": "0.84678205",
-    "markPrice": "0.84695803",
-    "nextFundingTimestamp": 1748764800000,
+    "fundingRate": "-0.000130635",
+    "indexPrice": "0.87201346",
+    "markPrice": "0.87176633",
+    "nextFundingTimestamp": 1748851200000,
     "symbol": "WIF_USDC_PERP"
   }
 ]

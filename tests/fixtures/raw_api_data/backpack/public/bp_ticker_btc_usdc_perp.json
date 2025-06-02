@@ -1,12 +1,12 @@
 {
-  "firstPrice": "103439.8",
-  "high": "104895",
-  "lastPrice": "104295.1",
-  "low": "103108.4",
-  "priceChange": "855.3",
-  "priceChangePercent": "0.008269",
-  "quoteVolume": "69905760.889515",
+  "firstPrice": "104362.9",
+  "high": "105860",
+  "lastPrice": "105369.8",
+  "low": "103774.1",
+  "priceChange": "1006.9",
+  "priceChangePercent": "0.009648",
+  "quoteVolume": "69671752.617546",
   "symbol": "BTC_USDC_PERP",
-  "trades": "79435",
-  "volume": "672.31601"
+  "trades": "87260",
+  "volume": "665.12205"
 }

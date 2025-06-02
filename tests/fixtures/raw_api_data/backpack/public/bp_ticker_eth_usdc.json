@@ -1,12 +1,12 @@
 {
-  "firstPrice": "2494.25",
-  "high": "2551.57",
-  "lastPrice": "2521.1",
-  "low": "2485.9",
-  "priceChange": "26.85",
-  "priceChangePercent": "0.010765",
-  "quoteVolume": "6022142.154938",
+  "firstPrice": "2513.76",
+  "high": "2548.88",
+  "lastPrice": "2509.64",
+  "low": "2471.4",
+  "priceChange": "-4.12",
+  "priceChangePercent": "-0.001639",
+  "quoteVolume": "6277195.159746",
   "symbol": "ETH_USDC",
-  "trades": "5275",
-  "volume": "2380.162"
+  "trades": "28159",
+  "volume": "2493.5722"
 }
