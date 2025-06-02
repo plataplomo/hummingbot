@@ -57,14 +57,24 @@ class SimpleTokenBucketStrategy(RateLimitStrategy):
         self, duration_seconds: float, request_context: dict[str, Any]
     ) -> None:
         """
-        Handle exchange-advised retry-after delays.
-        
-        The simple token bucket strategy does not react to retry-after directives,
-        as it maintains a constant rate limit. Subclasses can override this method
-        to implement exchange-specific behavior.
+        Reacts to an exchange-advised retry_after directive.
+        For this simple strategy, it means temporarily pausing its limiter.
 
         Args:
-            duration_seconds: The exchange-advised delay in seconds (ignored).
-            request_context: Context of the request that was rate-limited (ignored).
+            duration_seconds: The exchange-advised delay in seconds.
+            request_context: Context of the request that was rate-limited.
         """
-        pass  # No-op for simple strategy
+        if hasattr(self, "limiter") and hasattr(self.limiter, "trigger_ip_ban"):
+            # Log the action being taken by this specific strategy
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.info(
+                f"SimpleTokenBucketStrategy for {request_context.get('exchange_name', 'N/A')}: "
+                f"Received exchange-advised retry_after of {duration_seconds:.2f}s. "
+                f"Triggering temporary pause on its limiter."
+            )
+            await self.limiter.trigger_ip_ban(duration_seconds)
+        else:
+            # This case implies incorrect setup or that the limiter doesn't support banning
+            pass

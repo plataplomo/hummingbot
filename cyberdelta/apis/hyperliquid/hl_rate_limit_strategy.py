@@ -148,14 +148,25 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
         self, duration_seconds: float, request_context: dict[str, Any]
     ) -> None:
         """
-        Handle exchange-advised retry-after delays.
+        Handles exchange-advised retry_after directives.
 
-        Hyperliquid already handles rate limiting through IP bans (HTTP 403) which are
-        detected and handled separately in ExchangeAPI._request. This method is a no-op
-        as Hyperliquid doesn't provide retry-after headers or messages like Backpack does.
+        Hyperliquid's primary rate limit feedback mechanism is an IP ban (403 error),
+        which is handled by trigger_ip_ban_on_main_pool. If Hyperliquid were to
+        provide explicit retry-after durations in other rate limit error messages,
+        this method could be used to trigger a similar ban on the appropriate limiter pool.
+        For now, this implementation will call trigger_ip_ban_on_main_pool, assuming any
+        explicit retry-after from HL implies a general backoff is needed.
 
         Args:
-            duration_seconds: The exchange-advised delay in seconds (ignored).
-            request_context: Context of the request that was rate-limited (ignored).
+            duration_seconds: The exchange-advised delay in seconds.
+            request_context: Context of the request that was rate-limited.
         """
-        pass  # No-op for Hyperliquid
+        logger.info(
+            f"HyperliquidRateLimitStrategy: Received exchange-advised retry_after of "
+            f"{duration_seconds:.2f}s for {request_context.get('exchange_name', 'Hyperliquid')}. "
+            f"Applying as a temporary IP ban on the main pool."
+        )
+        await self.trigger_ip_ban_on_main_pool(duration_seconds)
+        # If more granular control based on request_context (e.g., endpoint_group) is needed
+        # for different limiter pools within HyperliquidRateLimitStrategy,
+        # that logic would be added here.

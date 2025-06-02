@@ -89,6 +89,8 @@ class HyperliquidErrorMapper(IErrorMapper):
                 r"too many requests.*please wait",
                 r"exceeded.*address.*limit",
                 r"one request every \d+ seconds",
+                r"your ip has been rate limited",  # IP ban pattern
+                r"ip.*rate.*limit",  # General IP rate limit pattern
             ],
         ):
             return HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED
@@ -168,6 +170,7 @@ class HyperliquidErrorMapper(IErrorMapper):
             elif "one request every" in msg_lower:
                 # Try to extract the number of seconds from the message
                 import re
+
                 match = re.search(r"one request every (\d+) seconds", msg_lower)
                 if match:
                     seconds = int(match.group(1))
@@ -204,6 +207,26 @@ class HyperliquidErrorMapper(IErrorMapper):
         Returns:
             APIError: The standardized internal error model for business logic.
         """
+        # Priority check for Hyperliquid IP ban (403 + rate limit message)
+        if status_code == 403:
+            # Check if the error is categorized as rate limit
+            error_category = self._categorize_hyperliquid_error(error_body or "")
+            if error_category == HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED:
+                logger.warning(
+                    f"[HyperliquidErrorMapper] Detected IP ban pattern: "
+                    f"HTTP 403 with rate limit message: {error_body}"
+                )
+                return APIError(
+                    message=error_body or "IP ban suspected - rate limit on 403",
+                    code=APIErrorCode.IP_BAN_SUSPECTED.value,
+                    http_status=status_code,
+                    exchange_message=error_body,
+                    original_exception=original_exception,
+                    # Hyperliquid IP bans typically last 60-65 seconds, but no explicit duration
+                    # is provided in the error message
+                    retry_after=None,
+                )
+
         # Prioritize critical HTTP status codes for direct mapping if body/data is uninformative
         if status_code == 503:
             return APIError(
@@ -223,7 +246,7 @@ class HyperliquidErrorMapper(IErrorMapper):
             )
         # Handle common authentication/authorization issues based on status code,
         # especially if the error_body might be generic or empty.
-        if status_code == 401 or status_code == 403:
+        if status_code == 401:
             # If error_body provides a more specific reason, map_string_error might refine it.
             # However, if error_body is empty or generic, this status code is a strong indicator.
             specific_error_from_string = self.map_string_error(
@@ -238,6 +261,17 @@ class HyperliquidErrorMapper(IErrorMapper):
 
             # If error_body is empty, provide a clearer default message for these statuses
             message = error_body if error_body else "Authentication failed"
+            return APIError(
+                message=message,
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+                http_status=status_code,
+                exchange_message=error_body,
+                original_exception=original_exception,
+            )
+        # Handle 403 that is NOT a rate limit (authentication/forbidden)
+        if status_code == 403:
+            # This is a non-rate-limit 403, treat as authentication failure
+            message = error_body if error_body else "Forbidden"
             return APIError(
                 message=message,
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,

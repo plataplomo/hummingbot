@@ -44,6 +44,7 @@ class APIErrorCode(Enum):
     MARKET_CLOSED = 116
     LIQUIDATION_IN_PROGRESS = 117
     FUNDING_RATE_UNAVAILABLE = 118
+    IP_BAN_SUSPECTED = 119
 
     # --- Unknown/Miscellaneous Errors (200-299) ---
     UNKNOWN = 200

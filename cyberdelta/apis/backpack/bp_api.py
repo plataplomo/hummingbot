@@ -86,19 +86,16 @@ class BackpackAPI(ExchangeAPI):
     Handles REST API requests and WebSocket connections for market data and account updates.
 
     **Rate Limiting:**
-    - Proactive rate limiting is managed by a `SimpleTokenBucketStrategy` initialized using
-      the static `rate_limit_per_minute` from the exchange-specific configuration
-      (`ExchangeSpecificConfig`).
-    - The client does not dynamically adjust this token bucket's parameters based on response
-      headers, as Backpack Exchange does not appear to provide the necessary standard headers
-      (e.g., `X-RateLimit-Remaining`, `X-RateLimit-Reset`).
-    - When rate limit errors (e.g., HTTP 429 or specific Backpack error codes like
-      "TOO_MANY_REQUESTS") are encountered, the `BackpackErrorMapper` now attempts to parse
-      `retry-after` durations from the error message body.
-    - If a `retry-after` duration is successfully parsed, it is populated in the
-      `APIError.retry_after` field (in seconds). This information is then available for
-      consumption by the `RateLimitStrategy` layer (via `ExchangeAPI._request`) or other
-      higher-level system components to inform more precise retry or pause behavior.
+    - Proactive rate limiting uses `BackpackRateLimitStrategy` (extends `SimpleTokenBucketStrategy`)
+      based on `rate_limit_per_minute` from `ExchangeSpecificConfig`.
+    - Dynamic adjustment of this strategy from response headers is not performed (Backpack does not
+      provide the necessary headers).
+    - When rate limit errors occur, `BackpackErrorMapper` parses `retry_after` durations from the
+      error message body, populating `APIError.retry_after`. This value is informational and can be
+      used by higher-level application logic (e.g., to inform the `RateLimitStrategy` instance to
+      pause or for monitoring). `HttpClient`'s internal retry mechanism and the
+      `BackpackRateLimitStrategy` do not directly consume this `APIError.retry_after` to modify
+      their behavior without higher-level intervention.
     """
 
     account_service: BackpackAccountService
@@ -465,15 +462,12 @@ class BackpackAPI(ExchangeAPI):
         """
         Update rate limit information based on response headers.
 
-        Backpack Exchange does not provide standard or known non-standard HTTP response
-        headers that detail remaining rate limits or explicit `Retry-After` durations for
-        dynamic adjustment of client-side rate limiters.
+        This method is a no-op for dynamic limiter adjustments due to lack of Backpack headers.
+        Backpack Exchange does not provide standard or known non-standard HTTP response headers
+        that detail remaining rate limits or explicit `Retry-After` durations.
 
-        Therefore, this method remains a no-op concerning dynamic adjustment of the
-        `SimpleTokenBucketStrategy`.
-
-        Hints for `retry-after` delays are primarily parsed from error message bodies by
-        `BackpackErrorMapper` when a rate limit error occurs.
+        Note that `retry-after` hints are parsed from error *message bodies* by the mapper for
+        informational purposes.
         """
         # Backpack does not seem to provide standard rate limit headers.
         # If specific headers are discovered, they could be parsed here.

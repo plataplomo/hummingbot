@@ -138,3 +138,60 @@ def test_map_hl_empty_error_body(hyperliquid_error_mapper: HyperliquidErrorMappe
     assert error.http_status == 401
     assert "Authentication failed" in error.message  # Default for 401
     assert error.exchange_message == ""
+
+
+@pytest.mark.parametrize(
+    "status_code, error_body, expected_code",
+    [
+        # Test Case: IP Ban (403 + rate limit message)
+        (
+            403,
+            "Your IP has been rate limited for 1 minute. Please try again later.",
+            APIErrorCode.IP_BAN_SUSPECTED,
+        ),
+        # Test Case: Normal 403 (not rate limit)
+        (
+            403,
+            "Forbidden action.",
+            APIErrorCode.AUTHENTICATION_FAILED,
+        ),
+        # Test Case: Normal rate limit (429)
+        (
+            429,
+            "Rate limit exceeded",
+            APIErrorCode.RATE_LIMITED,
+        ),
+        # Test Case: 403 with various rate limit messages
+        (
+            403,
+            "Ratelimit exceeded",
+            APIErrorCode.IP_BAN_SUSPECTED,
+        ),
+        (
+            403,
+            "Too many requests. Please wait and retry.",
+            APIErrorCode.IP_BAN_SUSPECTED,
+        ),
+    ],
+)
+def test_ip_ban_detection(
+    hyperliquid_error_mapper: HyperliquidErrorMapper,
+    status_code: int,
+    error_body: str,
+    expected_code: APIErrorCode,
+) -> None:
+    """Test detection of Hyperliquid IP ban pattern (403 + rate limit message)."""
+    error = hyperliquid_error_mapper.map_exchange_error(
+        status_code=status_code,
+        error_body=error_body,
+        error_data=None,
+        request_path="/exchange",
+    )
+    assert isinstance(error, APIError)
+    assert error.code == expected_code.value
+    assert error.http_status == status_code
+    assert error.exchange_message == error_body
+
+    # IP ban errors should not have retry_after set (Hyperliquid doesn't provide it)
+    if expected_code == APIErrorCode.IP_BAN_SUSPECTED:
+        assert error.retry_after is None

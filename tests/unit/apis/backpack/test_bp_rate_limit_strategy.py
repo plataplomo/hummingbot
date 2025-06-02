@@ -1,7 +1,8 @@
 """Unit tests for BackpackRateLimitStrategy."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from cyberdelta.apis.backpack.bp_rate_limit_strategy import BackpackRateLimitStrategy
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
@@ -75,11 +76,13 @@ class TestBackpackRateLimitStrategy:
         }
 
         # Act
-        result = await strategy.prepare_and_acquire(request_context)
+        result = await strategy.prepare_and_acquire(request_context)  # type: ignore[func-returns-value]
 
         # Assert
         assert result is None  # SimpleTokenBucketStrategy returns None
-        mock_limiter.acquire.assert_called_once_with(tokens_to_consume=2)  # Uses request_weight from context
+        mock_limiter.acquire.assert_called_once_with(
+            tokens_to_consume=2
+        )  # Uses request_weight from context
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_default_weight(
@@ -95,8 +98,10 @@ class TestBackpackRateLimitStrategy:
         }
 
         # Act
-        result = await strategy.prepare_and_acquire(request_context)
+        result = await strategy.prepare_and_acquire(request_context)  # type: ignore[func-returns-value]
 
         # Assert
         assert result is None
-        mock_limiter.acquire.assert_called_once_with(tokens_to_consume=1)  # Uses default_request_weight
+        mock_limiter.acquire.assert_called_once_with(
+            tokens_to_consume=1
+        )  # Uses default_request_weight
