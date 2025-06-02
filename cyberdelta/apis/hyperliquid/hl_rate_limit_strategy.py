@@ -143,3 +143,19 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
             duration_seconds: Duration of the IP ban in seconds.
         """
         await self._ip_weight_limiter.trigger_ip_ban(duration_seconds)
+
+    async def handle_exchange_retry_after(
+        self, duration_seconds: float, request_context: dict[str, Any]
+    ) -> None:
+        """
+        Handle exchange-advised retry-after delays.
+
+        Hyperliquid already handles rate limiting through IP bans (HTTP 403) which are
+        detected and handled separately in ExchangeAPI._request. This method is a no-op
+        as Hyperliquid doesn't provide retry-after headers or messages like Backpack does.
+
+        Args:
+            duration_seconds: The exchange-advised delay in seconds (ignored).
+            request_context: Context of the request that was rate-limited (ignored).
+        """
+        pass  # No-op for Hyperliquid

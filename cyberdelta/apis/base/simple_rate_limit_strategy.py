@@ -52,3 +52,19 @@ class SimpleTokenBucketStrategy(RateLimitStrategy):
         if cost > 0:  # Only acquire if cost is positive
             await self.limiter.acquire(tokens_to_consume=cost)
         return None  # Does not modify data payload
+
+    async def handle_exchange_retry_after(
+        self, duration_seconds: float, request_context: dict[str, Any]
+    ) -> None:
+        """
+        Handle exchange-advised retry-after delays.
+        
+        The simple token bucket strategy does not react to retry-after directives,
+        as it maintains a constant rate limit. Subclasses can override this method
+        to implement exchange-specific behavior.
+
+        Args:
+            duration_seconds: The exchange-advised delay in seconds (ignored).
+            request_context: Context of the request that was rate-limited (ignored).
+        """
+        pass  # No-op for simple strategy

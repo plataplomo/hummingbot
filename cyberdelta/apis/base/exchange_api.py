@@ -399,10 +399,41 @@ class ExchangeAPI(ABC):
                 request_path=request_url,
                 original_exception=e_http_failed,
             )
-            
+
+            # Check if we have a rate limit error with retry_after
+            if (
+                self.rate_limit_strategy
+                and mapped_error.code == APIErrorCode.RATE_LIMITED.value
+                and mapped_error.retry_after is not None
+                and mapped_error.retry_after > 0
+            ):
+                logger.info(
+                    f"[{self.exchange_name}] Exchange advised retry_after: "
+                    f"{mapped_error.retry_after:.2f}s for {method} {endpoint}. "
+                    f"Informing rate limit strategy."
+                )
+                request_context_for_strategy = {
+                    "exchange_name": self.exchange_name,
+                    "method": method,
+                    "endpoint": endpoint,  # This is the relative path
+                    "endpoint_group": endpoint_group,
+                    # Add other relevant context if available and useful for the strategy
+                }
+                try:
+                    await self.rate_limit_strategy.handle_exchange_retry_after(
+                        duration_seconds=mapped_error.retry_after,
+                        request_context=request_context_for_strategy,
+                    )
+                except Exception as e_strat_handle:
+                    logger.error(
+                        f"[{self.exchange_name}] Error calling "
+                        f"rate_limit_strategy.handle_exchange_retry_after: {e_strat_handle}",
+                        exc_info=True,
+                    )
+
             # Check if this is an IP ban scenario for Hyperliquid
             if (
-                self.exchange_name == "hyperliquid" 
+                self.exchange_name == "hyperliquid"
                 and mapped_error.code == APIErrorCode.RATE_LIMITED.value
                 and e_http_failed.http_status == 403
             ):
@@ -412,6 +443,7 @@ class ExchangeAPI(ABC):
                 from cyberdelta.apis.hyperliquid.hl_rate_limit_strategy import (
                     HyperliquidRateLimitStrategy,
                 )
+
                 if isinstance(self.rate_limit_strategy, HyperliquidRateLimitStrategy):
                     # Standard IP ban duration for Hyperliquid is ~65 seconds
                     ban_duration = 65.0
@@ -420,7 +452,7 @@ class ExchangeAPI(ABC):
                         f"Triggering {ban_duration}s ban on rate limiter."
                     )
                     await self.rate_limit_strategy.trigger_ip_ban_on_main_pool(ban_duration)
-            
+
             # print(f"DIAGNOSTIC: Mapped error type: {type(mapped_error)}, "
             #       f"code: {mapped_error.code}", flush=True) # DIAGNOSTIC REMOVED
             raise mapped_error from e_http_failed

@@ -337,3 +337,96 @@ class TestBackpackErrorMapper:
         assert api_error.code == APIErrorCode.EXCHANGE_SPECIFIC.value
         assert api_error.http_status == 500
         assert api_error.exchange_message == ""
+
+    @pytest.mark.parametrize(
+        "status_code, error_data, error_body, expected_retry_after",
+        [
+            # Test Case: Primary Regex - Seconds
+            (
+                429,
+                {"message": "Retry after 30 seconds", "code": "TOO_MANY_REQUESTS"},
+                None,
+                30.0,
+            ),
+            # Test Case: Milliseconds
+            (
+                429,
+                {"message": "Try again in 1500 ms.", "code": "TOO_MANY_REQUESTS"},
+                None,
+                1.5,
+            ),
+            # Test Case: No Retry Info
+            (
+                429,
+                {"message": "Rate limit exceeded.", "code": "TOO_MANY_REQUESTS"},
+                None,
+                None,
+            ),
+            # Test Case: Error Body String (no error_data)
+            (
+                429,
+                None,
+                "Wait for 10000 milliseconds then try again",
+                10.0,
+            ),
+            # Test Case: Non-Rate Limit Error
+            (
+                400,
+                {"message": "Bad request.", "code": "INVALID_REQUEST"},
+                None,
+                None,
+            ),
+            # Test Case: Malformed Retry - Text Number
+            (
+                429,
+                {"message": "Retry after twenty seconds.", "code": "TOO_MANY_REQUESTS"},
+                None,
+                None,
+            ),
+            # Additional test cases for other patterns
+            (
+                429,
+                {"message": "Please wait 15s", "code": "TOO_MANY_REQUESTS"},
+                None,
+                15.0,
+            ),
+            (
+                429,
+                {"message": "Wait 45 seconds before retrying", "code": "TOO_MANY_REQUESTS"},
+                None,
+                45.0,
+            ),
+            # Case insensitive test
+            (
+                429,
+                {"message": "RETRY AFTER 60 SECONDS", "code": "TOO_MANY_REQUESTS"},
+                None,
+                60.0,
+            ),
+        ],
+    )
+    def test_retry_after_parsing(
+        self,
+        backpack_error_mapper: BackpackErrorMapper,
+        status_code: int,
+        error_data: dict[str, str] | None,
+        error_body: str | None,
+        expected_retry_after: float | None,
+    ) -> None:
+        """Test parsing of retry_after from rate limit error messages."""
+        # Prepare error_body if not provided but error_data is
+        if error_body is None and error_data:
+            error_body = json.dumps(error_data)
+
+        api_error = backpack_error_mapper.map_exchange_error(
+            status_code, error_body, error_data=error_data
+        )
+
+        # Check retry_after value
+        assert api_error.retry_after == expected_retry_after
+
+        # Verify rate limit errors have correct code
+        if status_code == 429 or (
+            error_data and error_data.get("code") in ["TOO_MANY_REQUESTS", "RATE_LIMIT_EXCEEDED"]
+        ):
+            assert api_error.code == APIErrorCode.RATE_LIMITED.value

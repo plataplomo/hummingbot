@@ -42,3 +42,24 @@ class RateLimitStrategy(ABC):
             APIError: If rate limiting fails or times out.
         """
         pass
+
+    @abstractmethod
+    async def handle_exchange_retry_after(
+        self, duration_seconds: float, request_context: dict[str, Any]
+    ) -> None:
+        """
+        Optional method for strategies to react to an explicit 'retry_after'
+        directive received from the exchange after a request has failed with
+        a rate limit error.
+
+        The base implementation does nothing (`pass`). Subclasses should override
+        this method if they can make use of this information (e.g., to
+        temporarily pause token acquisition or adjust internal state).
+
+        Args:
+            duration_seconds: The exchange-advised delay in seconds.
+            request_context: Context of the request that was rate-limited,
+                             containing details like 'exchange_name', 'method',
+                             'endpoint', 'endpoint_group'.
+        """
+        pass

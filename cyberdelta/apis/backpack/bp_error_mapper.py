@@ -21,6 +21,7 @@ by the `BackpackAPI` client when handling non-2xx HTTP responses or other error 
 """
 
 import logging
+import re
 from typing import Any
 
 from pydantic import ValidationError
@@ -313,6 +314,47 @@ class BackpackErrorMapper(IErrorMapper):
                     f"Backpack API Error (HTTP {status_code}): {effective_exchange_message}"
                 )
 
+        # Parse retry_after if this is a rate limit error
+        parsed_retry_after_seconds: float | None = None
+        if api_error_code_enum == APIErrorCode.RATE_LIMITED:
+            logger.debug(
+                f"Attempting to parse retry_after from Backpack rate limit message: "
+                f"'{effective_exchange_message}'"
+            )
+
+            # Define regex patterns to search for retry-after hints (case-insensitive)
+            retry_patterns = [
+                (re.compile(r"retry after (\d+) seconds?", re.IGNORECASE), "seconds"),
+                (re.compile(r"try again in (\d+) ms", re.IGNORECASE), "milliseconds"),
+                (re.compile(r"please wait (\d+)s", re.IGNORECASE), "seconds"),
+                (re.compile(r"wait for (\d+) milliseconds", re.IGNORECASE), "milliseconds"),
+                (re.compile(r"wait (\d+) seconds?", re.IGNORECASE), "seconds"),
+            ]
+
+            for pattern, unit in retry_patterns:
+                match = pattern.search(effective_exchange_message)
+                if match:
+                    try:
+                        numeric_value = int(match.group(1))
+                        if unit == "milliseconds":
+                            parsed_retry_after_seconds = float(numeric_value) / 1000.0
+                        else:  # seconds
+                            parsed_retry_after_seconds = float(numeric_value)
+
+                        logger.info(
+                            f"Parsed retry_after from Backpack message: "
+                            f"{parsed_retry_after_seconds} seconds."
+                        )
+                        break  # Use first successful match
+                    except (ValueError, IndexError) as e:
+                        logger.debug(f"Failed to parse numeric value from regex match: {e}")
+                        continue
+
+            if parsed_retry_after_seconds is None:
+                logger.debug(
+                    "No parsable retry_after information found in Backpack rate limit message."
+                )
+
         # Construct the final APIError
         current_metadata = error_data if error_data is not None else {}
         if request_path:
@@ -327,4 +369,5 @@ class BackpackErrorMapper(IErrorMapper):
             exchange_message=effective_exchange_message,
             metadata=current_metadata,  # Pass updated metadata
             original_exception=original_exception,
+            retry_after=parsed_retry_after_seconds,  # Add the parsed retry_after
         )
