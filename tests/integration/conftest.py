@@ -75,9 +75,7 @@ def basic_opportunity() -> ArbitrageOpportunity:
 def mock_pt_config() -> PortfolioTrackerConfig:
     """Create a PortfolioTrackerConfig for testing."""
     return PortfolioTrackerConfig(
-        data_freshness_seconds=60,
-        initial_balances={},
-        initial_positions=[]
+        data_freshness_seconds=60, initial_balances={}, initial_positions=[]
     )
 
 
@@ -200,7 +198,7 @@ def data_handler(
 def symbol_mapper(mock_config: AppSettings) -> SymbolMapper:
     """Provides a SymbolMapper instance initialized with mock config."""
     # For AppSettings, provide empty dict for exchanges config
-    config_data_for_mapper = {}
+    config_data_for_mapper: dict[str, Any] = {}
     return SymbolMapper(config_data_for_mapper)
 
 
@@ -255,7 +253,7 @@ def execution_handler(
     from cyberdelta.core.execution_handler import ExecutionHandler  # Local import
 
     # For AppSettings, provide empty dict for exchanges config
-    config_data_for_mapper_eh = {}
+    config_data_for_mapper_eh: dict[str, Any] = {}
     symbol_mapper_instance = SymbolMapper(config_data_for_mapper_eh)
     eh = ExecutionHandler(
         app_settings=mock_config,

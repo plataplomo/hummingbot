@@ -12,6 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from cyberdelta.config.config_manager import ConfigManager
 from cyberdelta.config.secrets_manager import SecretsManager
+from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 
 
 @pytest.fixture
@@ -192,11 +193,18 @@ def test_get_existing_secret(secrets_manager_setup: tuple[SecretsManager, str]) 
     """Test retrieving existing secrets from loaded data"""
     secrets_manager, _ = secrets_manager_setup
     assert secrets_manager.secrets_data is not None
-    assert secrets_manager.secrets_data.exchanges["hyperliquid"].api_key == "test_api_key_123"
-    assert secrets_manager.secrets_data.exchanges["backpack"].api_key == "test_api_key_789"
+
+    # Type narrow the union types before accessing specific attributes
+    hl_secrets = secrets_manager.secrets_data.exchanges["hyperliquid"]
+    if isinstance(hl_secrets, ApiKeyAuthSecrets):
+        assert hl_secrets.api_key == "test_api_key_123"
+
+    bp_secrets = secrets_manager.secrets_data.exchanges["backpack"]
+    if isinstance(bp_secrets, ApiKeyAuthSecrets):
+        assert bp_secrets.api_key == "test_api_key_789"
     # Database field does not exist in current SecretsConfig model
     # Testing with available fields
-    assert hasattr(secrets_manager.secrets_data, 'logfire')
+    assert hasattr(secrets_manager.secrets_data, "logfire")
 
 
 def test_get_default_secret(secrets_manager_setup: tuple[SecretsManager, str]) -> None:

@@ -28,7 +28,7 @@ class TestRiskManagerInit:
             "0.0001"
         )  # Used by is_opportunity_profitable
         # Verify references to dependencies
-        assert risk_manager.config == mock_config
+        assert risk_manager.app_settings == mock_config
         assert risk_manager.portfolio_tracker == mock_portfolio_tracker
         # Assert optional dependencies are set (even if None from fixture)
         assert hasattr(risk_manager, "circuit_breaker_system")

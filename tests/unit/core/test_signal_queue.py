@@ -462,8 +462,8 @@ async def test_clean_expired_signals_direct_patch(
 @pytest.mark.asyncio  # Mark test as async
 async def test_trim_queue(mock_config: AppSettings, mock_circuit_breaker: MagicMock) -> None:
     """Test trimming the queue when it exceeds the maximum size."""
-    # Set max size low for testing using the Config object's set method
-    mock_config.set("max_signal_queue_size", 3)
+    # Set max size low for testing by patching the attribute
+    mock_config.signal_queue.max_signal_queue_size = 3
     queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
 
     # Create signals using the helper
@@ -499,8 +499,8 @@ async def test_signal_expiration_logic(
 ) -> None:  # Needs to be async to use await
     """Test signal expiration logic with explicit cleanup task management."""
     # Reduce expiration and cleanup times for faster testing
-    mock_config.set("default_signal_expiration_seconds", 2)  # type: ignore
-    mock_config.set("queue_cleanup_interval", 1)  # type: ignore
+    mock_config.signal_queue.default_signal_expiration_seconds = 2
+    mock_config.signal_queue.queue_cleanup_interval = 1
 
     queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
     try:

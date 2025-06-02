@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -122,57 +122,69 @@ async def test_position_sizing_integration(
     # Ensure _should_rebalance returns False to avoid TypeError in logger
     mock_position_with_zero_size = MagicMock()
     mock_position_with_zero_size.size = Decimal("0")
-    setup_dependencies["portfolio_tracker"].get_position = MagicMock(
-        return_value=mock_position_with_zero_size
-    )
-    setup_dependencies["data_handler"].get_latest_ticker = MagicMock(
-        return_value=MagicMock(spec=Ticker, price=Decimal("30000"))
-    )
 
-    # Mock _check_opportunity to return our test opportunity
-    strategy_with_risk_manager._check_opportunity = AsyncMock(return_value=mock_opportunity)
-
-    # Mock TradeSignal creation
-    mock_trade_signal = MagicMock(spec=TradeSignal)
-    mock_trade_signal.symbol = "BTC-PERP"
-    mock_trade_signal.signal_type = SignalType.ENTER_SHORT
-    mock_trade_signal.trades = [
-        {
-            "exchange": "hyperliquid",
-            "side": "SHORT",
-            "size": Decimal("15000.0") / Decimal("30000.0"),
-        },
-        {"exchange": "backpack", "side": "LONG", "size": Decimal("15000.0") / Decimal("29990.0")},
-    ]
-    mock_trade_signal.metadata = {
-        "position_sizing": {
-            "enhanced": True,
-            "long_size": Decimal("15000.0"),
-            "short_size": Decimal("15000.0"),
-            "allocation_percentage": Decimal("0.3"),
-            "risk_adjusted_return": Decimal("0.28"),
+    # Use patch.object for proper mocking
+    with (
+        patch.object(
+            setup_dependencies["portfolio_tracker"],
+            "get_position",
+            return_value=mock_position_with_zero_size,
+        ),
+        patch.object(
+            setup_dependencies["data_handler"],
+            "get_latest_ticker",
+            return_value=MagicMock(spec=Ticker, price=Decimal("30000")),
+        ),
+        patch.object(
+            strategy_with_risk_manager, "_check_opportunity", return_value=mock_opportunity
+        ),
+    ):
+        # Mock TradeSignal creation
+        mock_trade_signal = MagicMock(spec=TradeSignal)
+        mock_trade_signal.symbol = "BTC-PERP"
+        mock_trade_signal.signal_type = SignalType.ENTER_SHORT
+        mock_trade_signal.trades = [
+            {
+                "exchange": "hyperliquid",
+                "side": "SHORT",
+                "size": Decimal("15000.0") / Decimal("30000.0"),
+            },
+            {
+                "exchange": "backpack",
+                "side": "LONG",
+                "size": Decimal("15000.0") / Decimal("29990.0"),
+            },
+        ]
+        mock_trade_signal.metadata = {
+            "position_sizing": {
+                "enhanced": True,
+                "long_size": Decimal("15000.0"),
+                "short_size": Decimal("15000.0"),
+                "allocation_percentage": Decimal("0.3"),
+                "risk_adjusted_return": Decimal("0.28"),
+            }
         }
-    }
 
-    # Mock _generate_entry_signal to return a list
-    strategy_with_risk_manager._generate_entry_signal = MagicMock(return_value=[mock_trade_signal])
+        # Mock _generate_entry_signal to return a list
+        with patch.object(
+            strategy_with_risk_manager, "_generate_entry_signal", return_value=[mock_trade_signal]
+        ):
+            # Setup risk manager to return a sized opportunity
+            mock_sized_opportunity = SizedOpportunity(
+                opportunity=mock_opportunity,
+                long_size=Decimal("15000.0"),
+                short_size=Decimal("15000.0"),
+                expected_profit=Decimal("50.0"),
+                allocation_percentage=Decimal("0.1"),  # Example: 10% allocation
+                expected_return=Decimal("0.001"),  # Example: 0.1% return
+                risk_adjusted_return=Decimal("0.15"),  # Example: risk-adjusted score
+            )
+            setup_dependencies["risk_manager"].size_opportunity = MagicMock(
+                return_value=mock_sized_opportunity
+            )
 
-    # Setup risk manager to return a sized opportunity
-    mock_sized_opportunity = SizedOpportunity(
-        opportunity=mock_opportunity,
-        long_size=Decimal("15000.0"),
-        short_size=Decimal("15000.0"),
-        expected_profit=Decimal("50.0"),
-        allocation_percentage=Decimal("0.1"),  # Example: 10% allocation
-        expected_return=Decimal("0.001"),  # Example: 0.1% return
-        risk_adjusted_return=Decimal("0.15"),  # Example: risk-adjusted score
-    )
-    setup_dependencies["risk_manager"].size_opportunity = MagicMock(
-        return_value=mock_sized_opportunity
-    )
-
-    # Call the method to generate a signal with position sizing
-    signals = await strategy_with_risk_manager.evaluate_entry_opportunity()
+            # Call the method to generate a signal with position sizing
+            signals = await strategy_with_risk_manager.evaluate_entry_opportunity()
 
     # Verify that risk manager was called
     setup_dependencies["risk_manager"].size_opportunity.assert_called_once()
@@ -219,15 +231,26 @@ async def test_risk_manager_rejection(
     # Ensure _should_rebalance returns False cleanly for this test
     mock_position_with_zero_size = MagicMock()
     mock_position_with_zero_size.size = Decimal("0")
-    setup_dependencies["portfolio_tracker"].get_position = MagicMock(
-        return_value=mock_position_with_zero_size
-    )
-    setup_dependencies["data_handler"].get_latest_ticker = MagicMock(
-        return_value=MagicMock(spec=Ticker, price=Decimal("30000"))
-    )
+    with (
+        patch.object(
+            setup_dependencies["portfolio_tracker"],
+            "get_position",
+            return_value=mock_position_with_zero_size,
+        ),
+        patch.object(
+            setup_dependencies["data_handler"],
+            "get_latest_ticker",
+            return_value=MagicMock(spec=Ticker, price=Decimal("30000")),
+        ),
+        patch.object(
+            strategy_with_risk_manager, "_check_opportunity", return_value=mock_opportunity
+        ),
+    ):
+        # Configure risk manager to reject the opportunity
+        setup_dependencies["risk_manager"].size_opportunity = MagicMock(return_value=None)
 
-    # Mock _check_opportunity to return our test opportunity
-    strategy_with_risk_manager._check_opportunity = AsyncMock(return_value=mock_opportunity)
+        # Try to generate a signal
+        signals = await strategy_with_risk_manager.evaluate_entry_opportunity()
 
     # Configure risk manager to reject the opportunity
     setup_dependencies["risk_manager"].size_opportunity = MagicMock(return_value=None)

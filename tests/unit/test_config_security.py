@@ -25,6 +25,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from cyberdelta.config.config_manager import ConfigManager
 from cyberdelta.config.secrets_manager import SecretsManager
+from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 
 
 @pytest.fixture
@@ -131,6 +132,7 @@ def test_config_validation_failure(
 ) -> None:
     """Test that an invalid config fails validation"""
     from cyberdelta.config.config_manager import ConfigurationError
+
     _, _, invalid_config_path = secure_config_manager_setup
     with pytest.raises(ConfigurationError):
         ConfigManager(invalid_config_path)
@@ -179,6 +181,7 @@ def test_reload_after_change(secure_config_manager_setup: tuple[ConfigManager, s
     assert config_manager.settings is not None
     assert config_manager.settings.general.log_level == "INFO"
     from decimal import Decimal
+
     assert config_manager.settings.risk.global_risk.max_position_usd == Decimal("200.0")
 
 
@@ -194,10 +197,10 @@ def secure_secrets_manager_setup() -> Generator[tuple[str, str, str]]:
             f.write("""
 exchanges:
   hyperliquid:
-    api_key: "test_api_key_123"
-    api_secret: "test_api_secret_456"
+    auth_type: "private_key"
     private_key: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
   backpack:
+    auth_type: "api_key"
     api_key: "test_api_key_abc"
     api_secret: "test_api_secret_def"
 notifications:
@@ -215,10 +218,10 @@ logfire:
             f.write("""
 exchanges:
   hyperliquid:
-    api_key: "home_api_key_123"
-    api_secret: "home_api_secret_123"
+    auth_type: "private_key"
     private_key: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
   backpack:
+    auth_type: "api_key"
     api_key: "home_api_key_456"
     api_secret: "home_api_secret_456"
 notifications:
@@ -247,7 +250,9 @@ def test_fallback_to_home_dir(
         secrets_manager = SecretsManager()
         assert secrets_manager.secrets_loaded
         assert secrets_manager.secrets_data is not None
-        assert secrets_manager.secrets_data.exchanges["hyperliquid"].api_key.get_secret_value() == "home_api_key_123"
+        backpack_secrets = secrets_manager.secrets_data.exchanges["backpack"]
+        if isinstance(backpack_secrets, ApiKeyAuthSecrets):
+            assert backpack_secrets.api_key.get_secret_value() == "home_api_key_456"
     finally:
         if original_env is not None:
             os.environ["CYBERDELTA_SECRETS_PATH"] = original_env
@@ -260,7 +265,9 @@ def test_env_variable_override(secure_secrets_manager_setup: tuple[str, str, str
         secrets_manager = SecretsManager()
         assert secrets_manager.secrets_loaded
         assert secrets_manager.secrets_data is not None
-        assert secrets_manager.secrets_data.exchanges["hyperliquid"].api_key.get_secret_value() == "test_api_key_123"
+        backpack_secrets = secrets_manager.secrets_data.exchanges["backpack"]
+        if isinstance(backpack_secrets, ApiKeyAuthSecrets):
+            assert backpack_secrets.api_key.get_secret_value() == "test_api_key_abc"
 
 
 def test_nonexistent_secrets_file(secure_secrets_manager_setup: tuple[str, str, str]) -> None:
@@ -269,6 +276,7 @@ def test_nonexistent_secrets_file(secure_secrets_manager_setup: tuple[str, str, 
     nonexistent_path = os.path.join(temp_dir_name, "nonexistent.yaml")
     with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": nonexistent_path}):
         from cyberdelta.config.secrets_manager import ConfigurationError
+
         with pytest.raises(ConfigurationError):
             SecretsManager()
 
@@ -280,8 +288,10 @@ def test_secrets_deep_nested_access(secure_secrets_manager_setup: tuple[str, str
         secrets_manager = SecretsManager()
         assert secrets_manager.secrets_loaded
         assert secrets_manager.secrets_data is not None
-        assert secrets_manager.secrets_data.exchanges["hyperliquid"].private_key is not None
-        assert "0x1234567890abcdef" in secrets_manager.secrets_data.exchanges["hyperliquid"].private_key.get_secret_value()
+        hyperliquid_secrets = secrets_manager.secrets_data.exchanges["hyperliquid"]
+        if isinstance(hyperliquid_secrets, PrivateKeyAuthSecrets):
+            assert hyperliquid_secrets.private_key is not None
+            assert "0x1234567890abcdef" in hyperliquid_secrets.private_key.get_secret_value()
 
 
 def test_automatic_loading_on_get(secure_secrets_manager_setup: tuple[str, str, str]) -> None:
@@ -292,7 +302,10 @@ def test_automatic_loading_on_get(secure_secrets_manager_setup: tuple[str, str, 
         # SecretsManager loads on initialization
         assert secrets_manager.secrets_loaded
         assert secrets_manager.secrets_data is not None
-        assert secrets_manager.secrets_data.exchanges["hyperliquid"].api_key.get_secret_value() == "test_api_key_123"
+        assert (
+            secrets_manager.secrets_data.exchanges["hyperliquid"].api_key.get_secret_value()
+            == "test_api_key_123"
+        )
 
 
 @pytest.fixture
@@ -365,7 +378,12 @@ monitoring:
             f.write("""
 exchanges:
   hyperliquid:
+    auth_type: "private_key"
+    private_key: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+  backpack:
+    auth_type: "api_key"
     api_key: "integrated_api_key"
+    api_secret: "integrated_api_secret"
             """)
 
         config_manager = ConfigManager(config_path)
@@ -386,7 +404,10 @@ def test_config_secrets_integration(
     assert config_manager.settings is not None
     assert config_manager.settings.general.log_level == "INFO"
     assert secrets_manager.secrets_data is not None
-    assert secrets_manager.secrets_data.exchanges["hyperliquid"].api_key.get_secret_value() == "integrated_api_key"
+    assert (
+        secrets_manager.secrets_data.exchanges["hyperliquid"].api_key.get_secret_value()
+        == "integrated_api_key"
+    )
 
     # Example: Test resolving a secret reference from config (if such functionality existed)
     # config_api_key_ref = config_manager.get("exchanges.hyperliquid.api_key_secret_ref")

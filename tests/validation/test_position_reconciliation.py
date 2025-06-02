@@ -413,29 +413,29 @@ class TestPositionReconciliationSystem:
         self, reconciliation_system: PositionReconciliationSystem
     ) -> None:
         """Test checking positions and identifying discrepancies."""
-        # Mock the portfolio tracker method using setattr
-        mock_get_positions = MagicMock(return_value=[])
-        reconciliation_system._portfolio_tracker.get_positions_by_exchange = mock_get_positions
-
-        now = datetime.now(UTC)
-        api_positions_hyper = [
-            DerivativePosition(
-                exchange="hyperliquid",
-                symbol="BTC",
-                side=OrderSide.BUY,
-                size=Decimal("1.0"),
-                entry_price=Decimal("100"),
-                timestamp=now,
-            ),
-            DerivativePosition(
-                exchange="hyperliquid",
-                symbol="ETH",
-                side=OrderSide.SELL,
-                size=Decimal("-2.0"),
-                entry_price=Decimal("50"),
-                timestamp=now,
-            ),
-        ]
+        # Mock the portfolio tracker method using patch.object
+        with patch.object(
+            reconciliation_system._portfolio_tracker, "get_positions_by_exchange", return_value=[]
+        ):
+            now = datetime.now(UTC)
+            api_positions_hyper = [
+                DerivativePosition(
+                    exchange="hyperliquid",
+                    symbol="BTC",
+                    side=OrderSide.BUY,
+                    size=Decimal("1.0"),
+                    entry_price=Decimal("100"),
+                    timestamp=now,
+                ),
+                DerivativePosition(
+                    exchange="hyperliquid",
+                    symbol="ETH",
+                    side=OrderSide.SELL,
+                    size=Decimal("-2.0"),
+                    entry_price=Decimal("50"),
+                    timestamp=now,
+                ),
+            ]
         api_positions_bp = [
             DerivativePosition(
                 exchange="backpack",
@@ -839,72 +839,72 @@ class TestPositionReconciliationSystem:
         self, reconciliation_system: PositionReconciliationSystem
     ) -> None:
         """Test checking positions and identifying discrepancies."""
-        # Mock the portfolio tracker method using setattr
-        mock_get_positions = MagicMock(return_value=[])
-        reconciliation_system._portfolio_tracker.get_positions_by_exchange = mock_get_positions
-
-        now = datetime.now(UTC)
-        api_positions_hyper = [
-            DerivativePosition(
-                exchange="hyperliquid",
-                symbol="BTC",
-                side=OrderSide.BUY,
-                size=Decimal("1.0"),
-                entry_price=Decimal("100"),
-                timestamp=now,
-            ),
-            DerivativePosition(
-                exchange="hyperliquid",
-                symbol="ETH",
-                side=OrderSide.SELL,
-                size=Decimal("-2.0"),
-                entry_price=Decimal("50"),
-                timestamp=now,
-            ),
-        ]
-        api_positions_bp = [
-            DerivativePosition(
-                exchange="backpack",
-                symbol="SOL",
-                side=OrderSide.BUY,
-                size=Decimal("5.0"),
-                entry_price=Decimal("20"),
-                timestamp=now,
-            )
-        ]
-
-        mock_hl_api_client = AsyncMock(spec=ExchangeAPI)
-        mock_hl_api_client.get_positions = AsyncMock(return_value=api_positions_hyper)
-
-        mock_bp_api_client = AsyncMock(spec=ExchangeAPI)
-        mock_bp_api_client.get_positions = AsyncMock(return_value=api_positions_bp)
-
-        portfolio_tracker = reconciliation_system._portfolio_tracker
-        portfolio_tracker.api_clients = {
-            "hyperliquid": mock_hl_api_client,
-            "backpack": mock_bp_api_client,
-        }
-
-        # Patch _reconcile_exchange to return a known structure to avoid internal errors
-        # This helps test check_positions's aggregation logic rather than _reconcile_exchange itself here.
-        mock_reconcile_result = {
-            "success": True,
-            "discrepancies": [],
-            "symbols_checked": 0,
-            "error": None,
-            "timestamp": datetime.now(UTC),
-        }
+        # Mock the portfolio tracker method using patch.object
         with patch.object(
-            reconciliation_system,
-            "_reconcile_exchange",
-            return_value=mock_reconcile_result,
-        ) as patched_reconcile_pos:
-            results = await reconciliation_system.check_positions()
+            reconciliation_system._portfolio_tracker, "get_positions_by_exchange", return_value=[]
+        ):
+            now = datetime.now(UTC)
+            api_positions_hyper = [
+                DerivativePosition(
+                    exchange="hyperliquid",
+                    symbol="BTC",
+                    side=OrderSide.BUY,
+                    size=Decimal("1.0"),
+                    entry_price=Decimal("100"),
+                    timestamp=now,
+                ),
+                DerivativePosition(
+                    exchange="hyperliquid",
+                    symbol="ETH",
+                    side=OrderSide.SELL,
+                    size=Decimal("-2.0"),
+                    entry_price=Decimal("50"),
+                    timestamp=now,
+                ),
+            ]
+            api_positions_bp = [
+                DerivativePosition(
+                    exchange="backpack",
+                    symbol="SOL",
+                    side=OrderSide.BUY,
+                    size=Decimal("5.0"),
+                    entry_price=Decimal("20"),
+                    timestamp=now,
+                )
+            ]
 
-        assert "hyperliquid" in results
-        assert "backpack" in results
-        assert (
-            results["hyperliquid"] == mock_reconcile_result
-        )  # As _reconcile_exchange directly returns _reconcile_exchange result if no error
-        assert results["backpack"] == mock_reconcile_result
-        assert patched_reconcile_pos.call_count == 2  # Called for hyperliquid and backpack
+            mock_hl_api_client = AsyncMock(spec=ExchangeAPI)
+            mock_hl_api_client.get_positions = AsyncMock(return_value=api_positions_hyper)
+
+            mock_bp_api_client = AsyncMock(spec=ExchangeAPI)
+            mock_bp_api_client.get_positions = AsyncMock(return_value=api_positions_bp)
+
+            portfolio_tracker = reconciliation_system._portfolio_tracker
+            portfolio_tracker.api_clients = {
+                "hyperliquid": mock_hl_api_client,
+                "backpack": mock_bp_api_client,
+            }
+
+            # Patch _reconcile_exchange to return a known structure to avoid internal errors
+            # This helps test check_positions's aggregation logic rather than _reconcile_exchange itself here.
+            mock_reconcile_result = {
+                "success": True,
+                "discrepancies": [],
+                "symbols_checked": 0,
+                "error": None,
+                "timestamp": datetime.now(UTC),
+            }
+            with patch.object(
+                reconciliation_system,
+                "_reconcile_exchange",
+                return_value=mock_reconcile_result,
+            ) as patched_reconcile_pos:
+                results = await reconciliation_system.check_positions()
+
+            assert "hyperliquid" in results
+            assert "backpack" in results
+            assert (
+                results["hyperliquid"] == mock_reconcile_result
+            )  # As _reconcile_exchange directly returns _reconcile_exchange result if no error
+            assert results["backpack"] == mock_reconcile_result
+            assert patched_reconcile_pos.call_count == 2  # Called for hyperliquid and backpack

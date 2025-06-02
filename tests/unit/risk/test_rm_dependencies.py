@@ -91,7 +91,7 @@ class TestRiskManagerDependencyFailures:
         risk_manager.max_position_size = Decimal("5000.0")
 
         with patch.object(mock_config, "get", side_effect=get_side_effect_for_constraint_fail):
-            risk_manager.config = mock_config  # Explicitly assign patched config
+            risk_manager.app_settings = mock_config  # Explicitly assign patched config
             mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
             mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
             with patch.object(
