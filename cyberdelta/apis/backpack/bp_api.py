@@ -40,6 +40,7 @@ from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccount
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.base.exchange_api import ExchangeAPI, MessageHandler
+from cyberdelta.apis.base.simple_rate_limit_strategy import SimpleTokenBucketStrategy
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
@@ -55,6 +56,7 @@ from cyberdelta.apis.models.service_args_models import (
     TransferArgs,
     WithdrawArgs,
 )
+from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.config.secrets_models import AnyExchangeSecrets as ExchangeSecretsConfig
@@ -145,17 +147,23 @@ class BackpackAPI(ExchangeAPI):
         rest_endpoint_str = str(exchange_config.api_base_url)
         ws_endpoint_str = str(exchange_config.ws_url) if exchange_config.ws_url else None
 
+        # Create Backpack's simple rate limit strategy
+        if exchange_config.rate_limit_per_minute is None:
+            raise ValueError("rate_limit_per_minute is required for Backpack")
+
         rate_per_second = exchange_config.rate_limit_per_minute / 60.0
         bucket_size = max(1, int(rate_per_second * 2))
+        bp_limiter_primitive = TokenBucketRateLimiterRuntime(
+            rate=rate_per_second, bucket_size=bucket_size
+        )
+        bp_strategy = SimpleTokenBucketStrategy(
+            limiter=bp_limiter_primitive, default_request_weight=1
+        )
 
         config_dict_for_super = {
             "exchange_name": exchange_config.exchange_name.value,
             "rest_endpoint": rest_endpoint_str,
             "ws_url": ws_endpoint_str,
-            "rate_limits": {
-                "default_rate": rate_per_second,
-                "default_bucket_size": bucket_size,
-            },
             # Include optional HTTP/WS settings with correct field names
             "default_request_timeout": exchange_config.request_timeout_seconds,
             "max_retries": exchange_config.max_retries,
@@ -167,15 +175,14 @@ class BackpackAPI(ExchangeAPI):
         }
 
         # Remove None values from config_dict_for_super before passing to super()
-        # But keep rate_limits since it's always required and doesn't contain None
         config_dict_for_super_cleaned = {
-            k: v for k, v in config_dict_for_super.items() if v is not None or k == "rate_limits"
+            k: v for k, v in config_dict_for_super.items() if v is not None
         }
 
         # Construct secrets dict for super().__init__
         # Check if we have the correct auth type for Backpack
         from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
-        
+
         secrets_dict_for_super: dict[str, str | None]
         if isinstance(exchange_secrets, ApiKeyAuthSecrets):
             secrets_dict_for_super = {
@@ -203,6 +210,8 @@ class BackpackAPI(ExchangeAPI):
             secrets=secrets_dict_for_super,
             authenticator=self._bp_authenticator,
             error_mapper=self._backpack_error_mapper,
+            rate_limit_strategy=bp_strategy,
+            exchange_config=exchange_config,
         )
 
         # Initialize WebSocket message router
@@ -223,7 +232,6 @@ class BackpackAPI(ExchangeAPI):
         else:
             self.market_data_service = factory.create_market_data_service(
                 http_client_requester=service_requester,
-                rate_limiter_service=self._rate_limiter_service,
                 market_data_mapper=self._bp_market_data_mapper,
                 request_builder=self._bp_request_builder,
                 response_handler=self._bp_response_handler,
@@ -235,7 +243,6 @@ class BackpackAPI(ExchangeAPI):
         else:
             self.account_service = factory.create_account_service(
                 http_client_requester=service_requester,
-                rate_limiter_service=self._rate_limiter_service,
                 authenticator=self._bp_authenticator,
                 account_data_mapper=self._bp_account_data_mapper,
                 request_builder=self._bp_request_builder,
@@ -248,7 +255,6 @@ class BackpackAPI(ExchangeAPI):
         else:
             self.trading_service = factory.create_trading_service(
                 http_client_requester=service_requester,
-                rate_limiter_service=self._rate_limiter_service,
                 authenticator=self._bp_authenticator,
                 trading_data_mapper=self._bp_trading_data_mapper,
                 request_builder=self._bp_request_builder,

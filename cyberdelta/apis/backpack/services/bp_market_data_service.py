@@ -4,7 +4,7 @@ CyberDeltaEngine: Backpack Market Data Service
 
 This service encapsulates the logic for fetching and processing market data
 from the Backpack Exchange. It uses the HttpClient, BackpackRequestBuilder,
-BackpackResponseHandler, and RateLimiterService to interact with the API
+BackpackResponseHandler to interact with the API
 and returns validated Raw Pydantic Models.
 """
 
@@ -41,9 +41,6 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
 # Assuming BackpackRawTrade is for individual trades, used in lists
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse  # Import ParsedJsonResponse
-
-# Add RateLimiterService import
-from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 
 # Base API error models
 from cyberdelta.apis.models.api_error import APIError, TransformationError
@@ -87,7 +84,6 @@ class BackpackMarketDataService:
     _response_handler: BackpackResponseHandler
     _mapper: BackpackMarketDataMapper
     _exchange_name: str
-    _rate_limiter_service: RateLimiterService
 
     def __init__(
         self,
@@ -95,7 +91,6 @@ class BackpackMarketDataService:
         request_builder: BackpackRequestBuilder,
         response_handler: BackpackResponseHandler,
         exchange_name: str,
-        rate_limiter_service: RateLimiterService,
         mapper: BackpackMarketDataMapper | None = None,
     ) -> None:
         """
@@ -106,7 +101,6 @@ class BackpackMarketDataService:
             request_builder: An instance of BackpackRequestBuilder.
             response_handler: An instance of BackpackResponseHandler.
             exchange_name: The name of the exchange.
-            rate_limiter_service: The rate limiter service.
             mapper: Optional mapper instance for dependency injection.
         """
         self._http_client_requester = http_client_requester
@@ -114,7 +108,6 @@ class BackpackMarketDataService:
         self._response_handler = response_handler
         self._exchange_name = exchange_name
         self._mapper = mapper or BackpackMarketDataMapper()
-        self._rate_limiter_service = rate_limiter_service
 
     async def get_ticker(self, symbol: str) -> Ticker:
         """Retrieves the latest ticker information for a specific symbol."""

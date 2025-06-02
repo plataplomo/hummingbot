@@ -18,6 +18,7 @@ from cyberdelta.apis.hyperliquid.hl_api_components_factory import HyperliquidAPI
 from cyberdelta.apis.hyperliquid.hl_asset_indexer import HyperliquidAssetIndexResolver
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
+from cyberdelta.apis.hyperliquid.hl_rate_limit_strategy import HyperliquidRateLimitStrategy
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
@@ -154,18 +155,14 @@ class HyperliquidAPI(ExchangeAPI):
 
         self.exchange_name = "hyperliquid"
 
-        # Construct config dict for super().__init__
-        rate_per_second = exchange_config.rate_limit_per_minute / 60.0
-        bucket_size = max(1, int(rate_per_second * 2))
+        # Create Hyperliquid-specific rate limit strategy
+        hl_strategy = HyperliquidRateLimitStrategy(exchange_config)
 
+        # Construct config dict for super().__init__
         config_dict_for_super = {
             "exchange_name": exchange_config.exchange_name.value,
             "rest_endpoint": self.rest_endpoint,
             "ws_url": self.ws_endpoint,
-            "rate_limits": {
-                "default_rate": rate_per_second,
-                "default_bucket_size": bucket_size,
-            },
             # Include optional HTTP/WS settings with correct field names
             "default_request_timeout": exchange_config.request_timeout_seconds,
             "max_retries": exchange_config.max_retries,
@@ -177,15 +174,14 @@ class HyperliquidAPI(ExchangeAPI):
         }
 
         # Remove None values from config_dict_for_super before passing to super()
-        # But keep rate_limits since it's always required and doesn't contain None
         config_dict_for_super_cleaned = {
-            k: v for k, v in config_dict_for_super.items() if v is not None or k == "rate_limits"
+            k: v for k, v in config_dict_for_super.items() if v is not None
         }
 
         # Construct secrets dict for super().__init__
         # Check if we have the correct auth type for Hyperliquid
         from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
-        
+
         secrets_dict_for_super: dict[str, str | None]
         if isinstance(exchange_secrets, PrivateKeyAuthSecrets):
             secrets_dict_for_super = {
@@ -215,6 +211,8 @@ class HyperliquidAPI(ExchangeAPI):
             secrets=secrets_dict_for_super,
             authenticator=self._hl_authenticator,
             error_mapper=self._hyperliquid_error_mapper,
+            rate_limit_strategy=hl_strategy,
+            exchange_config=exchange_config,
         )
 
         # Use injected HTTP client or create one

@@ -26,7 +26,7 @@ from pydantic import BaseModel
 from .connectivity_models import WebSocketManagerConfig
 
 if TYPE_CHECKING:
-    pass
+    from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 
 # Define MessageHandler type alias
 MessageHandler = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
@@ -52,6 +52,7 @@ class WebSocketManager:
         on_connected_callback: Callable[[], Coroutine[Any, Any, None]] | None = None,
         session: aiohttp.ClientSession | None = None,
         task_factory: TaskFactory | None = None,  # New parameter
+        outgoing_message_limiter: "TokenBucketRateLimiterRuntime | None" = None,
     ) -> None:
         """
         Initialize the WebSocketManager.
@@ -66,6 +67,7 @@ class WebSocketManager:
                 created.
             task_factory: Optional callable to create asyncio tasks. Defaults to
                 asyncio.create_task.
+            outgoing_message_limiter: Optional rate limiter for outgoing WebSocket messages.
         """
         self._exchange_name: str = exchange_name
         self._ws_url: str = str(config.ws_url)
@@ -90,6 +92,7 @@ class WebSocketManager:
         self._connection_task: asyncio.Task[None] | None = None
 
         self._task_factory: TaskFactory = task_factory or asyncio.create_task  # Store task factory
+        self._outgoing_message_limiter = outgoing_message_limiter
 
         self._reconnect_lock = asyncio.Lock()
         self._logger = logging.getLogger(f"WebSocketManager.{self._exchange_name}")
@@ -534,6 +537,10 @@ class WebSocketManager:
             self._logger.error(f"Cannot send JSON, WebSocket not connected to {self._ws_url}.")
             return False
         try:
+            # Apply rate limiting if configured
+            if self._outgoing_message_limiter:
+                await self._outgoing_message_limiter.acquire(1)
+                
             # Serialize the Pydantic model
             payload_to_send = data.model_dump(by_alias=True, exclude_none=True)
             self._logger.debug(f"[{self._exchange_name}] Sending WS JSON: {payload_to_send}")

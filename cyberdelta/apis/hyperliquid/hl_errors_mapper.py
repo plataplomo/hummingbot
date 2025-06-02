@@ -80,6 +80,18 @@ class HyperliquidErrorMapper(IErrorMapper):
             return HyperliquidAPIErrorCategory.PRICE_OUT_OF_BOUNDS
         if HyperliquidErrorMapper._regex_match(msg, r"(rate limit|ratelimit) exceeded"):
             return HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED
+        # Detect address-based rate limit messages that indicate fallback to
+        # "one request every 10 seconds"
+        if HyperliquidErrorMapper._regex_match(
+            msg,
+            [
+                r"please wait and retry",
+                r"too many requests.*please wait",
+                r"exceeded.*address.*limit",
+                r"one request every \d+ seconds",
+            ],
+        ):
+            return HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED
         if HyperliquidErrorMapper._regex_match(msg, r"unauthorized"):
             return HyperliquidAPIErrorCategory.UNAUTHORIZED
         if HyperliquidErrorMapper._regex_match(msg, r"user not found"):
@@ -145,12 +157,29 @@ class HyperliquidErrorMapper(IErrorMapper):
         ):
             exchange_specific_code = category.name
 
+        # Check for specific address-based rate limit messages that indicate
+        # the "one request every 10 seconds" fallback mode
+        retry_after: float | None = None
+        if category == HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED:
+            msg_lower = error_message.lower()
+            # Look for specific patterns that indicate the 10-second fallback
+            if "one request every 10 seconds" in msg_lower:
+                retry_after = 10.5  # Add small buffer
+            elif "one request every" in msg_lower:
+                # Try to extract the number of seconds from the message
+                import re
+                match = re.search(r"one request every (\d+) seconds", msg_lower)
+                if match:
+                    seconds = int(match.group(1))
+                    retry_after = seconds + 0.5  # Add small buffer
+
         return APIError(
             message=error_message,  # Use the original error_message for clarity
             code=api_error_code_enum.value,
             http_status=http_status,  # Can be None if not from HTTP context
             exchange_code=exchange_specific_code,
             exchange_message=error_message,
+            retry_after=retry_after,
         )
 
     def map_exchange_error(
@@ -258,12 +287,28 @@ class HyperliquidErrorMapper(IErrorMapper):
         ):
             exchange_specific_code = category.name  # Use the enum member name as a code
 
+        # Check for specific address-based rate limit messages that indicate
+        # the "one request every X seconds" fallback mode
+        retry_after: float | None = None
+        if category == HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED:
+            msg_lower = extracted_message.lower()
+            # Look for specific patterns that indicate the fallback mode
+            if "one request every 10 seconds" in msg_lower:
+                retry_after = 10.5  # Add small buffer
+            elif "one request every" in msg_lower:
+                # Try to extract the number of seconds from the message
+                match = re.search(r"one request every (\d+) seconds", msg_lower)
+                if match:
+                    seconds = int(match.group(1))
+                    retry_after = seconds + 0.5  # Add small buffer
+
         api_err_response_obj = APIErrorResponse.from_exchange_error(
             message=extracted_message,
             code=api_error_code_enum.value,
             http_status=status_code,
             exchange_code=exchange_specific_code,  # Pass the derived exchange_specific_code
             exchange_message=extracted_message,
+            retry_after=retry_after,  # Pass the calculated retry_after
             # original_exception not part of interface, metadata can hold request_path
             metadata={"request_path": request_path} if request_path else None,
         )

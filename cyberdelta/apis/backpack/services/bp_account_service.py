@@ -27,7 +27,6 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
-from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
@@ -68,7 +67,6 @@ class BackpackAccountService:
     _mapper: BackpackAccountDataMapper
     _authenticator: IAuthenticator | None
     _exchange_name: str
-    _rate_limiter_service: RateLimiterService
 
     def __init__(
         self,
@@ -77,7 +75,6 @@ class BackpackAccountService:
         response_handler: BackpackResponseHandler,
         authenticator: IAuthenticator | None,
         exchange_name: str,
-        rate_limiter_service: RateLimiterService,
         mapper: BackpackAccountDataMapper | None = None,
     ) -> None:
         """
@@ -89,7 +86,6 @@ class BackpackAccountService:
             response_handler: An instance of BackpackResponseHandler.
             authenticator: An instance of IAuthenticator for signed requests.
             exchange_name: The name of the exchange.
-            rate_limiter_service: Service for managing API rate limits.
             mapper: Optional mapper instance for dependency injection.
         """
         self._http_client_requester = http_client_requester
@@ -100,7 +96,6 @@ class BackpackAccountService:
         self._mapper = (
             mapper or BackpackAccountDataMapper()
         )  # Updated to use account-specific mapper
-        self._rate_limiter_service = rate_limiter_service
 
     async def _get_raw_balances_dict(self) -> dict[str, BackpackRawBalance]:
         """Helper to fetch and validate raw account balances dictionary."""

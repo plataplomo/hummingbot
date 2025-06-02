@@ -21,7 +21,6 @@ from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccount
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
-from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.config.secrets_models import AnyExchangeSecrets, ApiKeyAuthSecrets
@@ -160,7 +159,6 @@ class BackpackAPIComponentsFactory:
     def create_market_data_service(
         self,
         http_client_requester: HttpClientRequesterSig,
-        rate_limiter_service: RateLimiterService,
         market_data_mapper: BackpackMarketDataMapper,
         request_builder: BackpackRequestBuilder,
         response_handler: BackpackResponseHandler,
@@ -171,7 +169,6 @@ class BackpackAPIComponentsFactory:
 
         Args:
             http_client_requester: HTTP client request function
-            rate_limiter_service: Rate limiter service instance
             market_data_mapper: Market data mapper instance
             request_builder: Request builder instance
             response_handler: Response handler instance
@@ -185,14 +182,12 @@ class BackpackAPIComponentsFactory:
             request_builder=request_builder,
             response_handler=response_handler,
             exchange_name=exchange_name,
-            rate_limiter_service=rate_limiter_service,
             mapper=market_data_mapper,
         )
 
     def create_account_service(
         self,
         http_client_requester: HttpClientRequesterSig,
-        rate_limiter_service: RateLimiterService,
         authenticator: BackpackEd25519Authenticator | None,
         account_data_mapper: BackpackAccountDataMapper,
         request_builder: BackpackRequestBuilder,
@@ -204,7 +199,6 @@ class BackpackAPIComponentsFactory:
 
         Args:
             http_client_requester: HTTP client request function
-            rate_limiter_service: Rate limiter service instance
             authenticator: Authenticator instance
             account_data_mapper: Account data mapper instance
             request_builder: Request builder instance
@@ -220,14 +214,12 @@ class BackpackAPIComponentsFactory:
             response_handler=response_handler,
             authenticator=authenticator,
             exchange_name=exchange_name,
-            rate_limiter_service=rate_limiter_service,
             mapper=account_data_mapper,
         )
 
     def create_trading_service(
         self,
         http_client_requester: HttpClientRequesterSig,
-        rate_limiter_service: RateLimiterService,
         authenticator: BackpackEd25519Authenticator | None,
         trading_data_mapper: BackpackTradingDataMapper,
         request_builder: BackpackRequestBuilder,
@@ -239,7 +231,6 @@ class BackpackAPIComponentsFactory:
 
         Args:
             http_client_requester: HTTP client request function
-            rate_limiter_service: Rate limiter service instance
             authenticator: Authenticator instance
             trading_data_mapper: Trading data mapper instance
             request_builder: Request builder instance
@@ -255,6 +246,5 @@ class BackpackAPIComponentsFactory:
             response_handler=response_handler,
             authenticator=authenticator,
             exchange_name=exchange_name,
-            rate_limiter_service=rate_limiter_service,
             mapper=trading_data_mapper,
         )

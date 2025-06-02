@@ -21,10 +21,8 @@ from cyberdelta.apis.connectivity.connectivity_models import (
     HttpClientConfig,
     ProcessedResponseHeaders,
 )
-from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 from cyberdelta.config.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -66,7 +64,7 @@ class HttpRequestFailedError(APIError):
 class HttpClient:
     """
     Generic HTTP client for making requests to exchange APIs.
-    Handles session management, request signing, rate limiting, and retries.
+    Handles session management, request signing, and retries.
     """
 
     _session: aiohttp.ClientSession | None  # Explicit type hint for instance variable
@@ -275,7 +273,6 @@ class HttpClient:
         self,
         method: str,
         endpoint_path: str,
-        rate_limiter_service: RateLimiterService,
         authenticator: IAuthenticator | None = None,
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
@@ -287,7 +284,7 @@ class HttpClient:
         ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str]
     ]:
         """
-        Executes an HTTP request with authentication, rate limiting, and retries.
+        Executes an HTTP request with authentication and retries.
         Response parsing and validation are delegated to _parse_and_validate_response.
         Now returns content, status_code, processed_headers, and raw_headers.
 
@@ -366,10 +363,6 @@ class HttpClient:
 
         while current_attempt <= self.max_retries:
             current_attempt += 1
-            limiter: TokenBucketRateLimiterRuntime = rate_limiter_service.get_limiter(
-                method, endpoint_path
-            )
-            await limiter.acquire()
 
             session = await self._get_session()
             request_log_details = (

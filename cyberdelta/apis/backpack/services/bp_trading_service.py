@@ -21,7 +21,6 @@ from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTrad
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
-from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
@@ -59,7 +58,6 @@ class BackpackTradingService:
         response_handler: BackpackResponseHandler,
         authenticator: IAuthenticator | None,  # Added authenticator
         exchange_name: str,
-        rate_limiter_service: RateLimiterService,
         mapper: BackpackTradingDataMapper | None = None,
     ) -> None:
         """
@@ -71,7 +69,6 @@ class BackpackTradingService:
             response_handler: An instance of BackpackResponseHandler.
             authenticator: An instance of IAuthenticator for signed requests.
             exchange_name: The name of the exchange.
-            rate_limiter_service: Service for managing API rate limits.
             mapper: Optional mapper instance for dependency injection.
         """
         self._http_client_requester = http_client_requester
@@ -79,7 +76,6 @@ class BackpackTradingService:
         self._response_handler = response_handler
         self._authenticator = authenticator
         self._exchange_name = exchange_name
-        self._rate_limiter_service = rate_limiter_service
         self._trading_mapper = (
             mapper or BackpackTradingDataMapper()
         )  # Instantiate or use static methods
@@ -749,7 +745,6 @@ class BackpackTradingService:
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
-                rate_limiter_service=self._rate_limiter_service,
             )
 
             if raw_data is not None:

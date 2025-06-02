@@ -71,7 +71,7 @@ class HyperliquidMarketDataService:
     This class centralizes the logic for fetching market data such as tickers,
     order books, trades, funding rates, and candlestick data.
     It leverages shared components like HttpClient, HyperliquidRequestBuilder,
-    HyperliquidResponseHandler, and RateLimiterService to perform its tasks.
+    and HyperliquidResponseHandler to perform its tasks.
     """
 
     _http_client_requester: HttpClientRequesterSig

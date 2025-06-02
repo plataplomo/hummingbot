@@ -13,6 +13,8 @@ from pydantic import BaseModel
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
+from cyberdelta.apis.base.rate_limit_strategy_interface import RateLimitStrategy
+from cyberdelta.apis.base.simple_rate_limit_strategy import SimpleTokenBucketStrategy
 from cyberdelta.apis.connectivity.connectivity_models import (
     HttpClientConfig,
     WebSocketManagerConfig,
@@ -22,10 +24,11 @@ from cyberdelta.apis.connectivity.http_client import (
     HttpRequestFailedError,
     ParsedJsonResponse,
 )
-from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.connectivity.ws_manager import WebSocketManager
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
+from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -89,6 +92,8 @@ class ExchangeAPI(ABC):
         authenticator: IAuthenticator | None = None,
         http_client: HttpClient | None = None,
         ws_manager: WebSocketManager | None = None,
+        rate_limit_strategy: RateLimitStrategy | None = None,
+        exchange_config: ExchangeSpecificConfig | None = None,
     ) -> None:
         """
         Initialize the exchange API client.
@@ -102,6 +107,8 @@ class ExchangeAPI(ABC):
             authenticator: Optional authenticator instance for signed requests.
             http_client: Optional HttpClient instance for dependency injection (testing)
             ws_manager: Optional WebSocketManager instance for dependency injection (testing)
+            rate_limit_strategy: Optional rate limiting strategy instance
+            exchange_config: Optional ExchangeSpecificConfig for creating default strategy
         """
         self.exchange_name = exchange_name
         self._config = config
@@ -153,11 +160,28 @@ class ExchangeAPI(ABC):
         # are missing or if types are incorrect, which is the desired behavior.
         http_client_config = HttpClientConfig.model_validate(http_config_data)
 
-        self._rate_limiter_service = RateLimiterService(
-            exchange_name=self.exchange_name,
-            config=self._config,  # RateLimiterService has its own config parsing
-            loop=self.loop,
-        )
+        # Set up rate limiting strategy
+        self.rate_limit_strategy = rate_limit_strategy
+        self.exchange_config = exchange_config
+
+        # Create default strategy if none provided
+        if self.rate_limit_strategy is None:
+            if exchange_config and exchange_config.rate_limit_per_minute is not None:
+                # Create a simple token bucket strategy with default settings
+                rate_per_second = exchange_config.rate_limit_per_minute / 60.0
+                bucket_size = max(1, int(rate_per_second * 2))  # 2-second bucket
+                default_limiter_primitive = TokenBucketRateLimiterRuntime(
+                    rate=rate_per_second, bucket_size=bucket_size
+                )
+                self.rate_limit_strategy = SimpleTokenBucketStrategy(
+                    limiter=default_limiter_primitive, default_request_weight=1
+                )
+                logger.info(f"[{self.exchange_name}] Created default simple rate limit strategy")
+            else:
+                logger.warning(
+                    f"[{self.exchange_name}] No rate limit strategy provided and no "
+                    f"rate_limit_per_minute in exchange config. Rate limiting may not work."
+                )
 
         self.rest_endpoint = str(http_client_config.rest_endpoint)  # Get validated endpoint
         # Ensure rest_endpoint is still validated as before, though Pydantic does it now
@@ -224,11 +248,30 @@ class ExchangeAPI(ABC):
                 # Use model_validate for robust parsing and type coercion.
                 websocket_manager_config = WebSocketManagerConfig.model_validate(ws_config_data)
 
+                # Check if we need to create a WebSocket rate limiter for Hyperliquid
+                outgoing_message_limiter = None
+                if (
+                    self.exchange_name == "hyperliquid"
+                    and exchange_config
+                    and exchange_config.websocket_send_rate_per_minute is not None
+                ):
+                    ws_rate_per_minute = exchange_config.websocket_send_rate_per_minute
+                    ws_rate_per_second = ws_rate_per_minute / 60.0
+                    ws_bucket_size = max(1, int(ws_rate_per_second * 2))
+                    outgoing_message_limiter = TokenBucketRateLimiterRuntime(
+                        rate=ws_rate_per_second, bucket_size=ws_bucket_size
+                    )
+                    logger.info(
+                        f"[{self.exchange_name}] Created WebSocket outgoing message limiter: "
+                        f"rate={ws_rate_per_second:.2f} msg/sec"
+                    )
+
                 self._ws_manager = WebSocketManager(
                     exchange_name=self.exchange_name,
                     config=websocket_manager_config,  # Pass the WebSocketManagerConfig object
                     message_handler=self._handle_websocket_message,
                     on_connected_callback=self._on_ws_connected,
+                    outgoing_message_limiter=outgoing_message_limiter,
                 )
 
         logger.info(
@@ -300,14 +343,17 @@ class ExchangeAPI(ABC):
         response_headers_dict: Mapping[str, str] = {}
 
         try:
-            # Determine which limiter to use
-            # Use endpoint_group if provided, otherwise the raw endpoint string for the limiter key
-            limiter_key_for_get_limiter = endpoint_group if endpoint_group else endpoint
-            limiter = self._rate_limiter_service.get_limiter(method, limiter_key_for_get_limiter)
-
-            # Acquire tokens according to request_weight
-            for _ in range(request_weight):
-                await limiter.acquire()
+            # Rate limiting step using the new strategy pattern
+            if self.rate_limit_strategy:
+                request_context = {
+                    "exchange_name": self.exchange_name,
+                    "method": method,
+                    "endpoint": endpoint,
+                    "action_payload": data_dict_for_http_client,
+                    "request_weight": request_weight,
+                    "endpoint_group": endpoint_group,
+                }
+                await self.rate_limit_strategy.prepare_and_acquire(request_context)
 
             # HttpClient.request now returns: (content, status_code, processed_headers, raw_headers)
             (
@@ -322,7 +368,6 @@ class ExchangeAPI(ABC):
                 data=data_dict_for_http_client,
                 headers=headers,
                 authenticator=self._authenticator,
-                rate_limiter_service=self._rate_limiter_service,
                 is_signed=is_signed,
                 serialize_none_as_null=serialize_none_as_null,
             )
@@ -354,6 +399,28 @@ class ExchangeAPI(ABC):
                 request_path=request_url,
                 original_exception=e_http_failed,
             )
+            
+            # Check if this is an IP ban scenario for Hyperliquid
+            if (
+                self.exchange_name == "hyperliquid" 
+                and mapped_error.code == APIErrorCode.RATE_LIMITED.value
+                and e_http_failed.http_status == 403
+            ):
+                # This looks like a Hyperliquid IP ban (403 with rate limit message)
+                # Trigger IP ban on the rate limit strategy
+                # Use duck typing to check for the method
+                from cyberdelta.apis.hyperliquid.hl_rate_limit_strategy import (
+                    HyperliquidRateLimitStrategy,
+                )
+                if isinstance(self.rate_limit_strategy, HyperliquidRateLimitStrategy):
+                    # Standard IP ban duration for Hyperliquid is ~65 seconds
+                    ban_duration = 65.0
+                    logger.critical(
+                        f"[{self.exchange_name}] Detected IP ban (HTTP 403 with rate limit). "
+                        f"Triggering {ban_duration}s ban on rate limiter."
+                    )
+                    await self.rate_limit_strategy.trigger_ip_ban_on_main_pool(ban_duration)
+            
             # print(f"DIAGNOSTIC: Mapped error type: {type(mapped_error)}, "
             #       f"code: {mapped_error.code}", flush=True) # DIAGNOSTIC REMOVED
             raise mapped_error from e_http_failed

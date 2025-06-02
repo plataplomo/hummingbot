@@ -63,6 +63,18 @@ StringForLiteral = Annotated[str, BeforeValidator(_validate_string_for_literal_c
 NonEmptyConfigString = Annotated[str, BeforeValidator(_validate_non_empty_string)]
 
 
+class AddressActionSafetyNetConfig(BaseModel):
+    """Configuration for address-based action safety net rate limiting."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    rate_per_minute: int = Field(
+        ...,
+        gt=0,
+        description="Client-side safety net rate for address-based actions, in actions per minute.",
+    )
+
+
 class GeneralSettings(BaseModel):
     """General application settings."""
 
@@ -134,10 +146,39 @@ class ExchangeSpecificConfig(BaseModel):
     enabled: bool = True
     api_base_url: HttpUrl
     ws_url: AnyUrl
-    rate_limit_per_minute: int = Field(..., gt=0)
+    rate_limit_per_minute: int | None = Field(
+        default=None, gt=0, description="For simple exchanges: total requests per minute."
+    )
     symbols: dict[str, str]
     exchange_name: ExchangeName = Field(
         ..., description="Canonical exchange name, must match a value from ExchangeName enum."
+    )
+
+    # Hyperliquid-specific rate limiting configuration
+    ip_weight_limit_per_minute: int | None = Field(
+        default=None,
+        gt=0,
+        description="Hyperliquid: Total IP weight budget per minute (e.g., 1200).",
+    )
+    info_request_type_ip_weights: dict[str, int] | None = Field(
+        default=None,
+        description="Hyperliquid: IP weights for /info request types. Keys are API 'type' strings.",
+    )
+    default_info_weight: int | None = Field(
+        default=None, ge=1, description="Hyperliquid: Default IP weight for unlisted /info types."
+    )
+    exchange_action_base_ip_weight: int | None = Field(
+        default=None,
+        ge=1,
+        description="Hyperliquid: Base IP weight for one /exchange action.",
+    )
+    address_action_safety_net: AddressActionSafetyNetConfig | None = Field(
+        default=None, description="Hyperliquid: Config for address action safety net limiter."
+    )
+    websocket_send_rate_per_minute: int | None = Field(
+        default=None,
+        gt=0,
+        description="Hyperliquid: Max outgoing WS messages (commands) per minute.",
     )
 
     # HTTP Client Settings (Optional overrides for HttpClientConfig defaults)
@@ -220,6 +261,36 @@ class ExchangeSpecificConfig(BaseModel):
             validated_symbols[validated_key] = validated_value
 
         return validated_symbols
+
+    @model_validator(mode="after")
+    def check_exchange_specific_rate_limit_configs(self) -> Self:
+        """Validate that appropriate rate limit fields are present for each exchange type."""
+        if self.exchange_name == ExchangeName.HYPERLIQUID:
+            # Hyperliquid requires its specific rate limit configuration
+            required_fields = [
+                "ip_weight_limit_per_minute",
+                "info_request_type_ip_weights",
+                "default_info_weight",
+                "exchange_action_base_ip_weight",
+                "address_action_safety_net",
+            ]
+            # websocket_send_rate_per_minute is optional
+            for field_name in required_fields:
+                field_value = getattr(self, field_name)
+                if field_value is None:
+                    raise ValueError(
+                        f"ExchangeSpecificConfig for Hyperliquid: '{field_name}' is required "
+                        f"but not provided."
+                    )
+        elif self.exchange_name == ExchangeName.BACKPACK:
+            # Backpack requires the simple rate_limit_per_minute
+            if self.rate_limit_per_minute is None:
+                raise ValueError(
+                    "ExchangeSpecificConfig for Backpack: 'rate_limit_per_minute' is required "
+                    "but not provided."
+                )
+
+        return self
 
 
 class StrategyParamsHLPerpBPSpot(BaseModel):
