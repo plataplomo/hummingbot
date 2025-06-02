@@ -3,6 +3,7 @@ Unit tests for SimpleTokenBucketStrategy.
 Tests the basic rate limiting strategy used by exchanges like Backpack.
 """
 
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -30,7 +31,7 @@ class TestSimpleTokenBucketStrategy:
         self, strategy: SimpleTokenBucketStrategy, mock_limiter: AsyncMock
     ) -> None:
         """Test acquiring with default request weight."""
-        request_context = {
+        request_context: dict[str, Any] = {
             "exchange_name": "backpack",
             "method": "GET",
             "endpoint": "/api/v1/ticker",
@@ -41,12 +42,13 @@ class TestSimpleTokenBucketStrategy:
         
         assert result is None
         mock_limiter.acquire.assert_called_once_with(tokens_to_consume=1)
+        return
 
     async def test_prepare_and_acquire_custom_weight(
         self, strategy: SimpleTokenBucketStrategy, mock_limiter: AsyncMock
     ) -> None:
         """Test acquiring with custom request weight from context."""
-        request_context = {
+        request_context: dict[str, Any] = {
             "exchange_name": "backpack",
             "method": "POST",
             "endpoint": "/api/v1/order",
@@ -63,7 +65,7 @@ class TestSimpleTokenBucketStrategy:
         self, strategy: SimpleTokenBucketStrategy, mock_limiter: AsyncMock
     ) -> None:
         """Test acquiring with zero weight (should not call limiter)."""
-        request_context = {
+        request_context: dict[str, Any] = {
             "exchange_name": "backpack",
             "method": "GET",
             "endpoint": "/api/v1/status",
@@ -79,7 +81,7 @@ class TestSimpleTokenBucketStrategy:
         self, strategy: SimpleTokenBucketStrategy, mock_limiter: AsyncMock
     ) -> None:
         """Test acquiring with negative weight (should not call limiter)."""
-        request_context = {
+        request_context: dict[str, Any] = {
             "exchange_name": "backpack",
             "method": "GET",
             "endpoint": "/api/v1/test",
@@ -95,7 +97,7 @@ class TestSimpleTokenBucketStrategy:
         self, strategy: SimpleTokenBucketStrategy, mock_limiter: AsyncMock
     ) -> None:
         """Test acquiring when request_weight is missing from context."""
-        request_context = {
+        request_context: dict[str, Any] = {
             "exchange_name": "backpack",
             "method": "GET",
             "endpoint": "/api/v1/ticker"
@@ -116,41 +118,44 @@ class TestSimpleTokenBucketStrategy:
         real_limiter = TokenBucketRateLimiterRuntime(rate=10.0, bucket_size=10)
         strategy = SimpleTokenBucketStrategy(limiter=real_limiter, default_request_weight=2)
         
-        request_context = {"request_weight": 3}
+        request_context: dict[str, Any] = {"request_weight": 3}
         
         result = await strategy.prepare_and_acquire(request_context)
         
         assert result is None
         assert real_limiter.tokens == 7.0  # 10 - 3 = 7
+        return
 
     async def test_limiter_wait_time_propagation(self, mock_limiter: AsyncMock) -> None:
         """Test that wait time from limiter is handled properly."""
         mock_limiter.acquire.return_value = 1.5  # Simulate wait time
         strategy = SimpleTokenBucketStrategy(limiter=mock_limiter)
         
-        request_context = {"request_weight": 2}
+        request_context: dict[str, Any] = {"request_weight": 2}
         
         # The strategy doesn't return wait time, but should still call limiter
         result = await strategy.prepare_and_acquire(request_context)
         
         assert result is None
         mock_limiter.acquire.assert_called_once_with(tokens_to_consume=2)
+        return
 
     async def test_exception_from_limiter_propagates(self, mock_limiter: AsyncMock) -> None:
         """Test that exceptions from limiter are propagated."""
         mock_limiter.acquire.side_effect = Exception("Rate limiter error")
         strategy = SimpleTokenBucketStrategy(limiter=mock_limiter)
         
-        request_context = {"request_weight": 1}
+        request_context: dict[str, Any] = {"request_weight": 1}
         
         with pytest.raises(Exception, match="Rate limiter error"):
             await strategy.prepare_and_acquire(request_context)
+        return
 
     async def test_strategy_does_not_modify_payload(
         self, strategy: SimpleTokenBucketStrategy, mock_limiter: AsyncMock
     ) -> None:
         """Test that strategy returns None (does not modify payload)."""
-        request_context = {
+        request_context: dict[str, Any] = {
             "action_payload": {"symbol": "BTC-USD", "side": "buy"},
             "request_weight": 1
         }

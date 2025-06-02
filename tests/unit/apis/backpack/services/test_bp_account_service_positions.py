@@ -33,9 +33,7 @@ class TestBackpackAccountServicePositions:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_mapper: MagicMock,
-        mock_rate_limiter_service: AsyncMock,
-    ) -> None:
+        mock_mapper: MagicMock,    ) -> None:
         """Test _get_raw_positions_list successfully fetches and processes position data,
         tested via public get_positions."""
         symbol_arg = "SOL-PERP"

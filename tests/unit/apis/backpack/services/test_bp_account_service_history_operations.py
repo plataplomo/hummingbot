@@ -44,9 +44,7 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_mapper: MagicMock,
-        mock_rate_limiter_service: AsyncMock,
-    ) -> None:
+        mock_mapper: MagicMock,    ) -> None:
         """Test successful fetching of order history."""
         symbol = "SOL_USDC"
         limit = 5
@@ -244,9 +242,7 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_mapper: MagicMock,
-        mock_rate_limiter_service: AsyncMock,
-    ) -> None:
+        mock_mapper: MagicMock,    ) -> None:
         """Test get_order_history when HTTP client returns None content."""
         symbol = "SOL_USDC"
         limit = 10
@@ -564,9 +560,7 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_authenticator: MagicMock,
-        mock_rate_limiter_service: AsyncMock,
-        mock_mapper: MagicMock,
+        mock_authenticator: MagicMock,        mock_mapper: MagicMock,
     ) -> None:
         """Test constructor with custom mapper injection by testing behavior."""
         custom_mapper = MagicMock()
@@ -576,9 +570,7 @@ class TestBackpackAccountServiceHistoryOperations:
             request_builder=mock_request_builder,
             response_handler=mock_response_handler,
             authenticator=mock_authenticator,
-            exchange_name="backpack_test",
-            rate_limiter_service=mock_rate_limiter_service,
-            mapper=custom_mapper,
+            exchange_name="backpack_test",            mapper=custom_mapper,
         )
 
         # Test that custom mapper is used through behavior
@@ -613,9 +605,7 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_authenticator: MagicMock,
-        mock_rate_limiter_service: AsyncMock,
-        mock_mapper: MagicMock,
+        mock_authenticator: MagicMock,        mock_mapper: MagicMock,
     ) -> None:
         """Test constructor creates default mapper when none provided by testing behavior."""
         service = BackpackAccountService(
@@ -623,9 +613,7 @@ class TestBackpackAccountServiceHistoryOperations:
             request_builder=mock_request_builder,
             response_handler=mock_response_handler,
             authenticator=mock_authenticator,
-            exchange_name="backpack_test",
-            rate_limiter_service=mock_rate_limiter_service,
-            mapper=None,  # Explicitly pass None
+            exchange_name="backpack_test",            mapper=None,  # Explicitly pass None
         )
 
         # Test behavior that would require a mapper

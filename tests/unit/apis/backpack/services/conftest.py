@@ -17,7 +17,8 @@ from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAcco
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
-from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
+
+# from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService  # Removed in refactor
 from cyberdelta.core.models.enums import InternalWithdrawalStatus
 from cyberdelta.core.models.operations import Withdrawal
 
@@ -58,10 +59,10 @@ def mock_authenticator() -> MagicMock:
     return MagicMock(spec=IAuthenticator)
 
 
-@pytest.fixture
-def mock_rate_limiter_service() -> AsyncMock:
-    """Provides a mock RateLimiterService."""
-    return AsyncMock(spec=RateLimiterService)
+# @pytest.fixture
+# def mock_rate_limiter_service() -> AsyncMock:
+#     """Provides a mock RateLimiterService."""
+#     return AsyncMock(spec=RateLimiterService)  # Removed in refactor
 
 
 @pytest.fixture
@@ -76,7 +77,6 @@ def bp_account_service(
     mock_request_builder: MagicMock,
     mock_response_handler: MagicMock,
     mock_authenticator: MagicMock,
-    mock_rate_limiter_service: AsyncMock,
 ) -> BackpackAccountService:
     """Provides an instance of BackpackAccountService with mocked dependencies."""
     service = BackpackAccountService(
@@ -85,7 +85,6 @@ def bp_account_service(
         response_handler=mock_response_handler,
         authenticator=mock_authenticator,
         exchange_name="backpack_test_account",
-        rate_limiter_service=mock_rate_limiter_service,
     )
     return service
 

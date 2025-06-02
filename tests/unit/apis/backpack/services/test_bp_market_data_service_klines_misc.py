@@ -333,9 +333,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
             http_client_requester=mock_http_client_requester,
             request_builder=mock_request_builder,
             response_handler=mock_response_handler,
-            exchange_name="test_exchange",
-            rate_limiter_service=mock_rate_limiter_service,
-            mapper=mock_mapper,
+            exchange_name="test_exchange",            mapper=mock_mapper,
         )
 
         # Test behavior that uses the mapper to verify it was set correctly
@@ -364,9 +362,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
             http_client_requester=mock_http_client_requester,
             request_builder=mock_request_builder,
             response_handler=mock_response_handler,
-            exchange_name="test_exchange",
-            rate_limiter_service=mock_rate_limiter_service,
-            mapper=None,
+            exchange_name="test_exchange",            mapper=None,
         )
 
         # Test behavior that uses the mapper to verify it's working

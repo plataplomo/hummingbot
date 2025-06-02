@@ -33,7 +33,6 @@ class TestBackpackTradingServiceAccountMisc:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
         mock_authenticator: MagicMock,
-        mock_rate_limiter_service: AsyncMock,
         mock_order_mapper: MagicMock,
     ) -> None:
         """Test that service with custom mapper uses it to transform data."""
@@ -43,7 +42,6 @@ class TestBackpackTradingServiceAccountMisc:
             response_handler=mock_response_handler,
             authenticator=mock_authenticator,
             exchange_name="test_exchange",
-            rate_limiter_service=mock_rate_limiter_service,
             mapper=mock_order_mapper,
         )
 
@@ -97,7 +95,6 @@ class TestBackpackTradingServiceAccountMisc:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
         mock_authenticator: MagicMock,
-        mock_rate_limiter_service: AsyncMock,
     ) -> None:
         """Test that service with default mapper creates and uses a real mapper."""
         service = BackpackTradingService(
@@ -106,7 +103,6 @@ class TestBackpackTradingServiceAccountMisc:
             response_handler=mock_response_handler,
             authenticator=mock_authenticator,
             exchange_name="test_exchange",
-            rate_limiter_service=mock_rate_limiter_service,
             mapper=None,
         )
 

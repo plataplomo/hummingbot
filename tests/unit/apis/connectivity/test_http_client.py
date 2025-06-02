@@ -23,25 +23,13 @@ from cyberdelta.apis.connectivity.http_client import (
     HttpClient,
     HttpRequestFailedError,
 )
-from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.rate_limiter import (
-    TokenBucketRateLimiterRuntime,
-)
 
 
 @pytest.fixture
 def default_http_client_config() -> HttpClientConfig:
     return HttpClientConfig(rest_endpoint=HttpUrl("http://test.api"))
-
-
-@pytest.fixture
-def mock_rate_limiter_service() -> MagicMock:
-    service = MagicMock(spec=RateLimiterService)
-    limiter_instance = AsyncMock(spec=TokenBucketRateLimiterRuntime)
-    service.get_limiter.return_value = limiter_instance
-    return service
 
 
 @pytest.fixture
@@ -99,7 +87,6 @@ class TestHttpClient:
         self,
         MockAiohttpSession: MagicMock,  # Patched class constructor
         http_client_instance: HttpClient,  # Uses internal session by default
-        mock_rate_limiter_service: RateLimiterService,
     ) -> None:
         """
         Test internal session is created on first request, reused, and closed correctly.
@@ -117,7 +104,7 @@ class TestHttpClient:
         mock_session_instance1.request.return_value.__aenter__.return_value = mock_response1
         MockAiohttpSession.return_value = mock_session_instance1
 
-        await http_client_instance.request("GET", "/test1", mock_rate_limiter_service)
+        await http_client_instance.request("GET", "/test1")
 
         MockAiohttpSession.assert_called_once()  # Constructor called
         # Check headers passed to ClientSession constructor
@@ -128,7 +115,7 @@ class TestHttpClient:
         mock_session_instance1.request.assert_called_once()  # Session's request method called
 
         # --- Second request: Session Reuse ---
-        await http_client_instance.request("GET", "/test2", mock_rate_limiter_service)
+        await http_client_instance.request("GET", "/test2")
         MockAiohttpSession.assert_called_once()  # Constructor NOT called again
         assert mock_session_instance1.request.call_count == 2  # Session's request called again
 
@@ -148,7 +135,7 @@ class TestHttpClient:
         mock_session_instance2.request.return_value.__aenter__.return_value = mock_response2
         MockAiohttpSession.return_value = mock_session_instance2  # Point constructor to new mock
 
-        await http_client_instance.request("GET", "/test3", mock_rate_limiter_service)
+        await http_client_instance.request("GET", "/test3")
 
         assert MockAiohttpSession.call_count == 2  # Constructor called again for new session
         mock_session_instance2.request.assert_called_once()
@@ -162,7 +149,6 @@ class TestHttpClient:
         self,
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,  # Uses internal session
-        mock_rate_limiter_service: RateLimiterService,
     ) -> None:
         """Test close_session() is idempotent for internally managed sessions."""
         mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
@@ -176,7 +162,7 @@ class TestHttpClient:
         MockAiohttpSession.return_value = mock_session_instance
 
         # Make a request to ensure session is created
-        await http_client_instance.request("GET", "/test_idempotent", mock_rate_limiter_service)
+        await http_client_instance.request("GET", "/test_idempotent")
         MockAiohttpSession.assert_called_once()
         mock_session_instance.request.assert_called_once()
 
@@ -193,7 +179,6 @@ class TestHttpClient:
         self,
         MockAiohttpSession: MagicMock,
         default_http_client_config: HttpClientConfig,  # For new HttpClient instance
-        mock_rate_limiter_service: RateLimiterService,
     ) -> None:
         """Test async context manager properly creates and closes internal session."""
         mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
@@ -222,7 +207,6 @@ class TestHttpClient:
     async def test_external_session_is_used_and_not_closed(
         self,
         default_http_client_config: HttpClientConfig,
-        mock_rate_limiter_service: RateLimiterService,
     ) -> None:
         """Test HttpClient uses a provided external session and doesn't close it."""
         external_session_mock = AsyncMock(spec=aiohttp.ClientSession)
@@ -245,7 +229,7 @@ class TestHttpClient:
             )
 
             await client_with_external_session.request(
-                "GET", "/test_ext", mock_rate_limiter_service
+                "GET", "/test_ext"
             )
 
             MockAiohttpSessionClsConstruction.assert_not_called()  # Internal session ctor !called
@@ -263,7 +247,7 @@ class TestHttpClient:
                 config=default_http_client_config,
                 session=external_session_mock,
             ) as client_ctx:
-                await client_ctx.request("GET", "/test_ext_ctx", mock_rate_limiter_service)
+                await client_ctx.request("GET", "/test_ext_ctx")
                 MockAiohttpSessionClsConstructionCtx.assert_not_called()
                 assert external_session_mock.request.call_count == 2
 
@@ -275,7 +259,6 @@ class TestHttpClient:
         self,
         mock_session_request_method: AsyncMock,
         http_client_instance: HttpClient,
-        mock_rate_limiter_service: RateLimiterService,
         default_http_client_config: HttpClientConfig,
     ) -> None:
         """Test a successful request returning JSON."""
@@ -289,7 +272,7 @@ class TestHttpClient:
         mock_session_request_method.return_value.__aenter__.return_value = mock_aio_response
 
         content, status_code, processed_headers, raw_headers = await http_client_instance.request(
-            method="GET", endpoint_path="/test", rate_limiter_service=mock_rate_limiter_service
+            method="GET", endpoint_path="/test"
         )
 
         assert content == expected_body_dict
@@ -297,29 +280,7 @@ class TestHttpClient:
         assert processed_headers.content_type == "application/json; charset=utf-8"
         assert raw_headers.get("Content-Type") == "application/json; charset=utf-8"
 
-        # JUSTIFICATION: mock_rate_limiter_service.get_limiter is an attribute from a
-        # MagicMock(spec=RateLimiterService). Runtime: unittest.mock ensures that
-        # accessing a spec attribute that is a method (like get_limiter) results
-        # in a new MagicMock/AsyncMock. Type checker sees original signature.
-        # To access mock-specific attrs (assert_called_once_with), we cast to tell
-        # the type checker its true runtime MagicMock nature.
-        # Alternatives (changing fixture types, local hints without cast) failed due
-        # to spec's signature precedence. Cast is safe: object *is* MagicMock.
-        # [CAST-REVIEW-REQUIRED]
-        get_limiter_mock = cast(MagicMock, mock_rate_limiter_service.get_limiter)
-        assert isinstance(get_limiter_mock, MagicMock)
-        get_limiter_mock.assert_called_once_with("GET", "/test")
-
-        # JUSTIFICATION: get_limiter_mock.return_value was configured in the fixture to be an
-        # AsyncMock(spec=TokenBucketRateLimiterRuntime). The type checker may only see it
-        # as TokenBucketRateLimiterRuntime based on the original get_limiter signature.
-        # We cast to AsyncMock to access its mock-specific attributes (e.g., .acquire which
-        # is also an AsyncMock).
-        # This cast is safe due to the fixture's explicit setup.
-        # [CAST-REVIEW-REQUIRED]
-        limiter_instance_mock = cast(AsyncMock, get_limiter_mock.return_value)
-        assert isinstance(limiter_instance_mock, AsyncMock)
-        limiter_instance_mock.acquire.assert_called_once()
+        # Rate limiting is no longer handled in the HttpClient request method
 
         # E501: Break long assignment
         full_expected_url = str(default_http_client_config.rest_endpoint).rstrip("/") + "/test"
@@ -343,7 +304,6 @@ class TestHttpClient:
         self,
         mock_session_request_method: AsyncMock,
         http_client_instance: HttpClient,
-        mock_rate_limiter_service: RateLimiterService,
         default_http_client_config: HttpClientConfig,
     ) -> None:
         """Test a successful request returning plain text."""
@@ -357,7 +317,7 @@ class TestHttpClient:
         mock_session_request_method.return_value.__aenter__.return_value = mock_aio_response
 
         content, status_code, processed_headers, raw_headers = await http_client_instance.request(
-            method="GET", endpoint_path="/text", rate_limiter_service=mock_rate_limiter_service
+            method="GET", endpoint_path="/text"
         )
 
         assert content == expected_text_content
@@ -372,7 +332,6 @@ class TestHttpClient:
         self,
         mock_session_request_method: AsyncMock,
         http_client_instance: HttpClient,
-        mock_rate_limiter_service: RateLimiterService,
         default_http_client_config: HttpClientConfig,
     ) -> None:
         """Test a request that returns 204 No Content."""
@@ -389,7 +348,6 @@ class TestHttpClient:
         content, status_code, processed_headers, raw_headers = await http_client_instance.request(
             method="POST",
             endpoint_path="/empty",
-            rate_limiter_service=mock_rate_limiter_service,
             data={},
         )
         assert content is None
@@ -404,7 +362,6 @@ class TestHttpClient:
         self,
         mock_session_request_method: AsyncMock,
         http_client_instance: HttpClient,
-        mock_rate_limiter_service: RateLimiterService,
         mock_authenticator: IAuthenticator,
         default_http_client_config: HttpClientConfig,
     ) -> None:
@@ -446,7 +403,6 @@ class TestHttpClient:
             _, status_code, processed_headers, raw_headers = await http_client_instance.request(
                 method="POST",
                 endpoint_path="/signed_action",
-                rate_limiter_service=mock_rate_limiter_service,
                 authenticator=mock_authenticator,
                 params=original_params.copy(),
                 data=original_data.copy(),
@@ -512,14 +468,13 @@ class TestHttpClient:
 
     @pytest.mark.asyncio
     async def test_request_signed_no_authenticator_raises_api_error(
-        self, http_client_instance: HttpClient, mock_rate_limiter_service: RateLimiterService
+        self, http_client_instance: HttpClient
     ) -> None:
         """Test signed request raises APIError if no authenticator is provided."""
         with pytest.raises(APIError) as excinfo:
             await http_client_instance.request(
                 method="POST",
                 endpoint_path="/needs_auth",
-                rate_limiter_service=mock_rate_limiter_service,
                 is_signed=True,
             )
         assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
@@ -528,7 +483,6 @@ class TestHttpClient:
     async def test_authenticator_prepare_request_raises_api_error(
         self,
         http_client_instance: HttpClient,
-        mock_rate_limiter_service: RateLimiterService,
         mock_authenticator: IAuthenticator,
     ) -> None:
         """Test that if authenticator.prepare_request fails, the APIError is propagated."""
@@ -547,7 +501,6 @@ class TestHttpClient:
             await http_client_instance.request(
                 method="POST",
                 endpoint_path="/auth_fail",
-                rate_limiter_service=mock_rate_limiter_service,
                 authenticator=mock_authenticator,
                 is_signed=True,
             )
@@ -559,7 +512,6 @@ class TestHttpClient:
         self,
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
-        mock_rate_limiter_service: RateLimiterService,
     ) -> None:
         """Test that a 400 error raises HttpRequestFailedError immediately without retry."""
         mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
@@ -575,7 +527,7 @@ class TestHttpClient:
         http_client_instance.max_retries = 3  # Ensure retries are configured
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
-            await http_client_instance.request("GET", "/bad_req", mock_rate_limiter_service)
+            await http_client_instance.request("GET", "/bad_req")
 
         assert excinfo.value.http_status == 400
         assert excinfo.value.exchange_message == error_body
@@ -590,7 +542,6 @@ class TestHttpClient:
         MockAiohttpSession: MagicMock,
         mock_sleep: AsyncMock,
         http_client_instance: HttpClient,
-        mock_rate_limiter_service: RateLimiterService,
     ) -> None:
         """Test that a 500 error is retried and then raises HttpRequestFailedError."""
         mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
@@ -607,7 +558,7 @@ class TestHttpClient:
         http_client_instance.retry_delay_seconds = 0.01
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
-            await http_client_instance.request("GET", "/server_err", mock_rate_limiter_service)
+            await http_client_instance.request("GET", "/server_err")
 
         assert excinfo.value.http_status == 500
         assert excinfo.value.exchange_message == error_body
@@ -625,7 +576,6 @@ class TestHttpClient:
         MockAiohttpSession: MagicMock,
         mock_sleep: AsyncMock,
         http_client_instance: HttpClient,
-        mock_rate_limiter_service: RateLimiterService,
     ) -> None:
         """Test aiohttp.ClientError is retried and then HttpRequestFailedError is raised."""
         mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
@@ -639,7 +589,7 @@ class TestHttpClient:
         http_client_instance.retry_delay_seconds = 0.01
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
-            await http_client_instance.request("GET", "/client_err", mock_rate_limiter_service)
+            await http_client_instance.request("GET", "/client_err")
 
         assert excinfo.value.code == APIErrorCode.NETWORK_ISSUE.value
         assert isinstance(excinfo.value.__cause__, aiohttp.ClientConnectorError)
@@ -653,7 +603,6 @@ class TestHttpClient:
     async def test_url_construction(
         self,
         MockAiohttpSession: MagicMock,
-        mock_rate_limiter_service: RateLimiterService,
         # http_client_instance is not used directly to allow re-init with different configs
     ) -> None:
         """Test that URLs are constructed correctly through public request method."""
@@ -669,7 +618,7 @@ class TestHttpClient:
         # Scenario 1: Relative path with base URL not ending in slash
         config1 = HttpClientConfig(rest_endpoint=HttpUrl("http://base.url/v1"))
         async with HttpClient(exchange_name="url_test1", config=config1) as client1:
-            await client1.request("GET", "/path1", mock_rate_limiter_service)
+            await client1.request("GET", "/path1")
             args, _kwargs = mock_session_instance.request.call_args  # _kwargs unused
             assert args[0] == "GET"
             assert args[1] == "http://base.url/v1/path1"
@@ -677,7 +626,7 @@ class TestHttpClient:
 
             # Scenario 2: Relative path (no leading slash) with base URL not ending in slash
             # HttpClient's logic should ensure the slash is correctly handled by urljoin
-            await client1.request("GET", "path1_no_lead_slash", mock_rate_limiter_service)
+            await client1.request("GET", "path1_no_lead_slash")
             args, _kwargs = mock_session_instance.request.call_args  # _kwargs unused
             assert args[0] == "GET"
             assert args[1] == "http://base.url/v1/path1_no_lead_slash"
@@ -696,7 +645,6 @@ class TestHttpClient:
             await client2.request(
                 "GET",
                 "https://specific.api.com/specific/path",
-                mock_rate_limiter_service,
             )
             args, _kwargs = mock_session_instance.request.call_args  # _kwargs unused
             assert args[0] == "GET"
@@ -708,7 +656,6 @@ class TestHttpClient:
         self,
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
-        mock_rate_limiter_service: RateLimiterService,
         default_http_client_config: HttpClientConfig,  # To check against default
     ) -> None:
         """Test that a custom request_timeout is used when calling request()."""
@@ -729,7 +676,6 @@ class TestHttpClient:
         await http_client_instance.request(
             method="GET",
             endpoint_path="/custom_timeout_test",
-            rate_limiter_service=mock_rate_limiter_service,
             request_timeout=custom_timeout,
         )
 
@@ -748,7 +694,6 @@ class TestHttpClient:
         self,
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
-        mock_rate_limiter_service: RateLimiterService,
     ) -> None:
         """Test HttpRequestFailedError for JSONDecodeError during parsing."""
         mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
@@ -764,7 +709,7 @@ class TestHttpClient:
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
-            await http_client_instance.request("GET", "/invalid_json", mock_rate_limiter_service)
+            await http_client_instance.request("GET", "/invalid_json")
 
         assert excinfo.value.http_status == 200
         assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -779,7 +724,6 @@ class TestHttpClient:
         self,
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
-        mock_rate_limiter_service: RateLimiterService,
     ) -> None:
         """Test HttpRequestFailedError for ClientPayloadError during response.text()."""
         mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
@@ -798,7 +742,7 @@ class TestHttpClient:
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
             await http_client_instance.request(
-                "GET", "/payload_error_path", mock_rate_limiter_service
+                "GET", "/payload_error_path"
             )
 
         assert excinfo.value.http_status == 200
@@ -814,7 +758,6 @@ class TestHttpClient:
         self,
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
-        mock_rate_limiter_service: RateLimiterService,
     ) -> None:
         """Test HttpRequestFailedError for invalid Content-Type header from server."""
         mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
@@ -831,7 +774,7 @@ class TestHttpClient:
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
             await http_client_instance.request(
-                "GET", "/invalid_content_type", mock_rate_limiter_service
+                "GET", "/invalid_content_type"
             )
 
         assert excinfo.value.http_status == 200
@@ -850,7 +793,6 @@ class TestHttpClientRequestResponseParsing:
         self,
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
-        mock_rate_limiter_service: RateLimiterService,
         mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with a valid JSON response."""
@@ -865,7 +807,7 @@ class TestHttpClientRequestResponseParsing:
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         content, status_code, processed_headers, raw_headers = await http_client_instance.request(
-            "GET", "/test_json", mock_rate_limiter_service
+            "GET", "/test_json"
         )
         assert status_code == 200
 
@@ -880,7 +822,6 @@ class TestHttpClientRequestResponseParsing:
         self,
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
-        mock_rate_limiter_service: RateLimiterService,
         mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with a valid plain text response."""
@@ -895,7 +836,7 @@ class TestHttpClientRequestResponseParsing:
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         content, status_code, processed_headers, raw_headers = await http_client_instance.request(
-            "GET", "/test_text", mock_rate_limiter_service
+            "GET", "/test_text"
         )
         assert status_code == 200
 
@@ -910,7 +851,6 @@ class TestHttpClientRequestResponseParsing:
         self,
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
-        mock_rate_limiter_service: RateLimiterService,
         mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with a 204 No Content response."""
@@ -926,7 +866,7 @@ class TestHttpClientRequestResponseParsing:
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         content, status_code, processed_headers, raw_headers = await http_client_instance.request(
-            "POST", "/test_204", mock_rate_limiter_service, data={}
+            "POST", "/test_204", data={}
         )
         assert status_code == 204
 
@@ -945,7 +885,6 @@ class TestHttpClientRequestResponseParsing:
         self,
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
-        mock_rate_limiter_service: RateLimiterService,
         mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with Content-Type too long."""
@@ -962,7 +901,7 @@ class TestHttpClientRequestResponseParsing:
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
-            await http_client_instance.request("GET", "/test_ct_long", mock_rate_limiter_service)
+            await http_client_instance.request("GET", "/test_ct_long")
 
         assert excinfo.value.http_status == 200
         assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -976,7 +915,6 @@ class TestHttpClientRequestResponseParsing:
         self,
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
-        mock_rate_limiter_service: RateLimiterService,
         mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with missing Content-Type (defaults to empty string)."""
@@ -992,7 +930,7 @@ class TestHttpClientRequestResponseParsing:
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         content, status_code, processed_headers, _ = await http_client_instance.request(
-            "GET", "/test_ct_missing", mock_rate_limiter_service
+            "GET", "/test_ct_missing"
         )
         assert status_code == 200
         assert content == expected_text  # Should be treated as text
@@ -1005,7 +943,6 @@ class TestHttpClientRequestResponseParsing:
         self,
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
-        mock_rate_limiter_service: RateLimiterService,
         mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() raising HttpRequestFailedError with a JSONDecodeError cause."""
@@ -1020,7 +957,7 @@ class TestHttpClientRequestResponseParsing:
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
-            await http_client_instance.request("GET", "/test_json_err", mock_rate_limiter_service)
+            await http_client_instance.request("GET", "/test_json_err")
 
         assert excinfo.value.http_status == 200
         assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -1035,7 +972,6 @@ class TestHttpClientRequestResponseParsing:
         self,
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
-        mock_rate_limiter_service: RateLimiterService,
         mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with ClientPayloadError on response.text()."""
@@ -1054,7 +990,7 @@ class TestHttpClientRequestResponseParsing:
         http_client_instance.max_retries = 0  # Test with no retries for direct error
         with pytest.raises(HttpRequestFailedError) as excinfo:
             await http_client_instance.request(
-                "GET", "/test_payload_err", mock_rate_limiter_service
+                "GET", "/test_payload_err"
             )
 
         assert excinfo.value.http_status == 200
@@ -1070,7 +1006,6 @@ class TestHttpClientRequestResponseParsing:
         self,
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
-        mock_rate_limiter_service: RateLimiterService,
         mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with JSON Content-Type but None/empty body (not 204)."""
@@ -1087,7 +1022,7 @@ class TestHttpClientRequestResponseParsing:
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
             await http_client_instance.request(
-                "GET", "/test_json_empty_body", mock_rate_limiter_service
+                "GET", "/test_json_empty_body"
             )
 
         assert excinfo.value.http_status == 200
@@ -1106,5 +1041,5 @@ class TestRateLimiterIntegration:  # This class can remain as is or be expanded
         # This test would need a more involved setup to truly test rate limiting behavior,
         # e.g. by patching asyncio.sleep within the rate limiter or by using a real
         # rate limiter with a very small token bucket and fast refill to observe delays.
-        # For now, the existing mock_rate_limiter_service checks that acquire() is called.
+        # Rate limiting integration is tested elsewhere in the API clients that use HttpClient.
         pass

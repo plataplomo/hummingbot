@@ -3,6 +3,7 @@ Unit tests for HyperliquidRequestWeighter.
 Tests the IP weight and address action calculation logic for Hyperliquid requests.
 """
 
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
@@ -97,7 +98,9 @@ class TestHyperliquidRequestWeighterIPWeight:
         # base_weight (1) + (batch_length (45) // 40) = 1 + 1 = 2
         assert ip_weight == 2
 
-    def test_exchange_endpoint_batch_formula_large(self, weighter: HyperliquidRequestWeighter) -> None:
+    def test_exchange_endpoint_batch_formula_large(
+        self, weighter: HyperliquidRequestWeighter
+    ) -> None:
         """Test IP weight calculation for large batch."""
         payload = {"actions": [{"type": "order"}] * 120}  # 120 actions
         
@@ -108,7 +111,7 @@ class TestHyperliquidRequestWeighterIPWeight:
 
     def test_exchange_endpoint_empty_actions(self, weighter: HyperliquidRequestWeighter) -> None:
         """Test IP weight calculation for empty actions array."""
-        payload = {"actions": []}
+        payload: dict[str, Any] = {"actions": []}
         
         ip_weight = weighter.get_ip_weight("/exchange", payload)
         
@@ -227,7 +230,7 @@ class TestHyperliquidRequestWeighterAddressActionCount:
 
     def test_exchange_endpoint_empty_actions(self, weighter: HyperliquidRequestWeighter) -> None:
         """Test address action count for empty actions."""
-        payload = {"actions": []}
+        payload: dict[str, Any] = {"actions": []}
         
         action_count = weighter.get_address_action_count("/exchange", payload)
         
@@ -313,7 +316,7 @@ class TestHyperliquidRequestWeighterEdgeCases:
         weighter = HyperliquidRequestWeighter(minimal_config)
         
         # 1000 actions
-        payload = {"actions": [{}] * 1000}
+        payload: dict[str, Any] = {"actions": [{}] * 1000}
         
         ip_weight = weighter.get_ip_weight("/exchange", payload)
         action_count = weighter.get_address_action_count("/exchange", payload)

@@ -24,29 +24,37 @@ class TestTokenBucketRateLimiterRuntime:
         """Create a slow rate limiter for testing wait scenarios."""
         return TokenBucketRateLimiterRuntime(rate=1.0, bucket_size=2)
 
-    async def test_acquire_single_token_default(self, limiter: TokenBucketRateLimiterRuntime) -> None:
+    async def test_acquire_single_token_default(
+        self, limiter: TokenBucketRateLimiterRuntime
+    ) -> None:
         """Test acquiring single token with default parameter."""
         wait_time = await limiter.acquire()
         assert wait_time == 0.0
         assert limiter.tokens == 9.0
+        return
 
-    async def test_acquire_single_token_explicit(self, limiter: TokenBucketRateLimiterRuntime) -> None:
+    async def test_acquire_single_token_explicit(
+        self, limiter: TokenBucketRateLimiterRuntime
+    ) -> None:
         """Test acquiring single token with explicit parameter."""
         wait_time = await limiter.acquire(tokens_to_consume=1)
         assert wait_time == 0.0
         assert limiter.tokens == 9.0
+        return
 
     async def test_acquire_multiple_tokens(self, limiter: TokenBucketRateLimiterRuntime) -> None:
         """Test acquiring multiple tokens at once."""
         wait_time = await limiter.acquire(tokens_to_consume=3)
         assert wait_time == 0.0
         assert limiter.tokens == 7.0
+        return
 
     async def test_acquire_all_tokens(self, limiter: TokenBucketRateLimiterRuntime) -> None:
         """Test acquiring all available tokens."""
         wait_time = await limiter.acquire(tokens_to_consume=10)
         assert wait_time == 0.0
         assert limiter.tokens == 0.0
+        return
 
     async def test_acquire_more_than_available_triggers_wait(
         self, slow_limiter: TokenBucketRateLimiterRuntime
@@ -68,6 +76,7 @@ class TestTokenBucketRateLimiterRuntime:
         wait_time = await limiter.acquire(tokens_to_consume=0)
         assert wait_time == 0.0
         assert limiter.tokens == initial_tokens
+        return
 
     async def test_concurrent_acquisition(self, limiter: TokenBucketRateLimiterRuntime) -> None:
         """Test concurrent token acquisition is properly serialized."""
@@ -86,6 +95,7 @@ class TestTokenBucketRateLimiterRuntime:
         # First acquisitions should not wait, but later ones might
         assert limiter.tokens == 3.0  # 10 - 2 - 3 - 2 = 3
         assert all(wt >= 0.0 for wt in wait_times)
+        return
 
     async def test_token_refill_over_time(self) -> None:
         """Test that tokens are refilled over time."""
@@ -96,6 +106,7 @@ class TestTokenBucketRateLimiterRuntime:
         
         wait_time = await limiter.acquire(tokens_to_consume=2)
         assert wait_time == 0.0  # Should have enough tokens
+        return
 
 
 class TestTokenBucketRateLimiterRuntimeIPBan:
@@ -111,6 +122,7 @@ class TestTokenBucketRateLimiterRuntimeIPBan:
         await limiter.trigger_ip_ban(1.0)
         assert limiter.is_ip_banned_until is not None
         assert limiter.is_ip_banned_until > time.monotonic()
+        return
 
     async def test_acquire_during_ip_ban(self, limiter: TokenBucketRateLimiterRuntime) -> None:
         """Test that acquire waits during an IP ban."""
@@ -126,8 +138,11 @@ class TestTokenBucketRateLimiterRuntimeIPBan:
         assert end_time - start_time >= 0.4
         assert limiter.is_ip_banned_until is None  # Ban should be cleared
         assert limiter.tokens == 9.0  # Token should be consumed after ban
+        return
 
-    async def test_ip_ban_clears_after_duration(self, limiter: TokenBucketRateLimiterRuntime) -> None:
+    async def test_ip_ban_clears_after_duration(
+        self, limiter: TokenBucketRateLimiterRuntime
+    ) -> None:
         """Test that IP ban clears automatically after duration."""
         await limiter.trigger_ip_ban(0.1)
         await asyncio.sleep(0.2)  # Wait longer than ban duration
@@ -145,10 +160,15 @@ class TestTokenBucketRateLimiterRuntimeIPBan:
         await limiter.trigger_ip_ban(2.0)
         second_ban_time = limiter.is_ip_banned_until
         
+        assert first_ban_time is not None
+        assert second_ban_time is not None
         assert second_ban_time != first_ban_time
         assert second_ban_time > first_ban_time
+        return
 
-    async def test_acquire_with_expired_ip_ban(self, limiter: TokenBucketRateLimiterRuntime) -> None:
+    async def test_acquire_with_expired_ip_ban(
+        self, limiter: TokenBucketRateLimiterRuntime
+    ) -> None:
         """Test acquire when IP ban has already expired."""
         # Set ban in the past
         limiter.is_ip_banned_until = time.monotonic() - 1.0
@@ -169,6 +189,7 @@ class TestTokenBucketRateLimiterRuntimeEdgeCases:
         # This should be treated as 0 or handled gracefully
         wait_time = await limiter.acquire(tokens_to_consume=-1)
         assert wait_time >= 0.0
+        return
 
     async def test_very_large_token_request(self) -> None:
         """Test requesting more tokens than bucket size."""
@@ -183,6 +204,7 @@ class TestTokenBucketRateLimiterRuntimeEdgeCases:
         expected_wait = 5.0  # Need 5 additional tokens at 1.0/sec rate
         assert wait_time == expected_wait
         assert end_time - start_time >= 4.5  # Allow some tolerance
+        return
 
     async def test_bucket_size_limits_tokens(self) -> None:
         """Test that tokens cannot exceed bucket size."""
@@ -195,6 +217,7 @@ class TestTokenBucketRateLimiterRuntimeEdgeCases:
         wait_time = await limiter.acquire(tokens_to_consume=5)
         assert wait_time == 0.0
         assert limiter.tokens == 0.0
+        return
 
     async def test_initialization_with_custom_tokens(self) -> None:
         """Test initialization with custom token count."""
@@ -205,3 +228,5 @@ class TestTokenBucketRateLimiterRuntimeEdgeCases:
         wait_time = await limiter.acquire(tokens_to_consume=3)
         assert wait_time == 0.0
         assert limiter.tokens == 0.0
+
+        return
