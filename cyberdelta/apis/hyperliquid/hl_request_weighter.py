@@ -39,7 +39,7 @@ class HyperliquidRequestWeighter:
         # Validate that we have the required Hyperliquid-specific fields
         if not all(
             [
-                self.hl_exchange_config.info_request_type_ip_weights,
+                self.hl_exchange_config.info_request_type_ip_weights is not None,
                 self.hl_exchange_config.default_info_weight is not None,
                 self.hl_exchange_config.exchange_action_base_ip_weight is not None,
             ]

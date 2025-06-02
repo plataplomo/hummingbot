@@ -28,6 +28,21 @@ def hl_config() -> ExchangeSpecificConfig:
         "ws_url": "wss://api.hyperliquid.xyz/ws",
         "rate_limit_per_minute": 1200,
         "chain_id": 1337,
+        # Hyperliquid-specific rate limiting fields
+        "ip_weight_limit_per_minute": 1200,
+        "info_request_type_ip_weights": {
+            "l2Book": 2,
+            "allMids": 2,
+            "meta": 2,
+            "userRole": 60,
+            "clearinghouseState": 10,
+            "openOrders": 1,
+        },
+        "default_info_weight": 20,
+        "exchange_action_base_ip_weight": 1,
+        "address_action_safety_net": {
+            "rate_per_minute": 300,
+        },
     }
     return ExchangeSpecificConfig.model_validate(config_dict)
 

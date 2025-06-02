@@ -291,22 +291,21 @@ def test_fallback_without_risk_manager(
     mock_trade_signal.metadata = {"position_sizing": {"enhanced": False}}
 
     # Mock _generate_entry_signal to return a list
-    strategy_without_risk_manager._generate_entry_signal = MagicMock(
-        return_value=[mock_trade_signal]
-    )
+    with patch.object(
+        strategy_without_risk_manager, "_generate_entry_signal", return_value=[mock_trade_signal]
+    ):
+        # Generate a signal
+        signals = strategy_without_risk_manager._generate_entry_signal(mock_opportunity)
 
-    # Generate a signal
-    signals = strategy_without_risk_manager._generate_entry_signal(mock_opportunity)
+        # Use the first signal for assertions (perp leg)
+        signal = signals[0]
 
-    # Use the first signal for assertions (perp leg)
-    signal = signals[0]
+        # There is no 'trades' attribute on TradeSignal; check metadata for fallback sizing
+        metadata = signal.metadata
+        assert metadata is not None
+        assert metadata["position_sizing"]["enhanced"] is False
 
-    # There is no 'trades' attribute on TradeSignal; check metadata for fallback sizing
-    metadata = signal.metadata
-    assert metadata is not None
-    assert metadata["position_sizing"]["enhanced"] is False
-
-    # Check config fallback values are used correctly
-    assert strategy_without_risk_manager.params["default_position_size"] == Decimal("100.0")
-    assert strategy_without_risk_manager.params["min_funding_differential"] == Decimal("0.01")
-    assert strategy_without_risk_manager.params["min_profit_threshold"] == Decimal("1.0")
+        # Check config fallback values are used correctly
+        assert strategy_without_risk_manager.params["default_position_size"] == Decimal("100.0")
+        assert strategy_without_risk_manager.params["min_funding_differential"] == Decimal("0.01")
+        assert strategy_without_risk_manager.params["min_profit_threshold"] == Decimal("1.0")

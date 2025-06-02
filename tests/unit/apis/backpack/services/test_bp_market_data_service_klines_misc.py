@@ -325,7 +325,6 @@ class TestBackpackMarketDataServiceKlinesMisc:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
         mock_mapper: MagicMock,
     ) -> None:
         """Test constructor with custom mapper injection."""
@@ -333,7 +332,8 @@ class TestBackpackMarketDataServiceKlinesMisc:
             http_client_requester=mock_http_client_requester,
             request_builder=mock_request_builder,
             response_handler=mock_response_handler,
-            exchange_name="test_exchange",            mapper=mock_mapper,
+            exchange_name="test_exchange",
+            mapper=mock_mapper,
         )
 
         # Test behavior that uses the mapper to verify it was set correctly
@@ -355,14 +355,14 @@ class TestBackpackMarketDataServiceKlinesMisc:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test constructor creates default mapper when none provided."""
         service = BackpackMarketDataService(
             http_client_requester=mock_http_client_requester,
             request_builder=mock_request_builder,
             response_handler=mock_response_handler,
-            exchange_name="test_exchange",            mapper=None,
+            exchange_name="test_exchange",
+            mapper=None,
         )
 
         # Test behavior that uses the mapper to verify it's working

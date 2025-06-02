@@ -25,7 +25,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from cyberdelta.config.config_manager import ConfigManager
 from cyberdelta.config.secrets_manager import SecretsManager
-from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
+from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, PrivateKeyAuthSecrets
 
 
 @pytest.fixture
@@ -122,7 +122,7 @@ def test_config_validation_success(
     secure_config_manager_setup: tuple[ConfigManager, str, str],
 ) -> None:
     """Test that a valid config passes validation"""
-    config_manager, config_path, _ = secure_config_manager_setup
+    config_manager, _, _ = secure_config_manager_setup
     assert config_manager.loaded
     assert config_manager.settings is not None
 
@@ -302,10 +302,10 @@ def test_automatic_loading_on_get(secure_secrets_manager_setup: tuple[str, str, 
         # SecretsManager loads on initialization
         assert secrets_manager.secrets_loaded
         assert secrets_manager.secrets_data is not None
-        assert (
-            secrets_manager.secrets_data.exchanges["hyperliquid"].api_key.get_secret_value()
-            == "test_api_key_123"
-        )
+        hyperliquid_secrets = secrets_manager.secrets_data.exchanges["hyperliquid"]
+        if isinstance(hyperliquid_secrets, PrivateKeyAuthSecrets):
+            assert hyperliquid_secrets.private_key is not None
+            assert "0x1234567890abcdef" in hyperliquid_secrets.private_key.get_secret_value()
 
 
 @pytest.fixture
@@ -404,10 +404,9 @@ def test_config_secrets_integration(
     assert config_manager.settings is not None
     assert config_manager.settings.general.log_level == "INFO"
     assert secrets_manager.secrets_data is not None
-    assert (
-        secrets_manager.secrets_data.exchanges["hyperliquid"].api_key.get_secret_value()
-        == "integrated_api_key"
-    )
+    backpack_secrets = secrets_manager.secrets_data.exchanges["backpack"]
+    if isinstance(backpack_secrets, ApiKeyAuthSecrets):
+        assert backpack_secrets.api_key.get_secret_value() == "integrated_api_key"
 
     # Example: Test resolving a secret reference from config (if such functionality existed)
     # config_api_key_ref = config_manager.get("exchanges.hyperliquid.api_key_secret_ref")

@@ -37,6 +37,21 @@ def create_test_exchange_config(
         "rate_limit_per_minute": 300,
         "symbols": {"ETH": "ETH", "BTC": "BTC"},
         "chain_id": 1337,
+        # Hyperliquid-specific rate limiting fields
+        "ip_weight_limit_per_minute": 1200,
+        "info_request_type_ip_weights": {
+            "l2Book": 2,
+            "allMids": 2,
+            "meta": 2,
+            "userRole": 60,
+            "clearinghouseState": 10,
+            "openOrders": 1,
+        },
+        "default_info_weight": 20,
+        "exchange_action_base_ip_weight": 1,
+        "address_action_safety_net": {
+            "rate_per_minute": 300,
+        },
         **kwargs,
     }
     return ExchangeSpecificConfig.model_validate(config_dict)
@@ -89,6 +104,7 @@ def hl_api_with_mocked_router(
         patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidAccountService"),
         patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidTradingService"),
         patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidMarketDataService"),
+        patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidRateLimitStrategy"),
     ):
         api = HyperliquidAPI(
             exchange_config=mock_exchange_config,
@@ -218,6 +234,7 @@ class TestHyperliquidAPIWebSocketLifecycle:
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidAccountService"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidTradingService"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidMarketDataService"),
+            patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidRateLimitStrategy"),
         ):
             return HyperliquidAPI(
                 exchange_config=mock_exchange_config,
@@ -294,6 +311,7 @@ class TestHyperliquidAPIWebSocketIntegration:
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidAccountService"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidTradingService"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidMarketDataService"),
+            patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidRateLimitStrategy"),
         ):
             return HyperliquidAPI(
                 exchange_config=mock_exchange_config,
@@ -380,6 +398,7 @@ class TestHyperliquidAPIWebSocketEdgeCases:
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidAccountService"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidTradingService"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidMarketDataService"),
+            patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidRateLimitStrategy"),
         ):
             return HyperliquidAPI(
                 exchange_config=mock_exchange_config,

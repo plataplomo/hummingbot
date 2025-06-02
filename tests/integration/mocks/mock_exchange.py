@@ -18,6 +18,7 @@ from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetAllOpenOrdersArgs,
     GetFundingRatesArgs,
+    GetHistoricalFundingRatesArgs,
     GetMarketDataArgs,
     GetOrderArgs,
     GetOrderHistoryArgs,
@@ -775,10 +776,7 @@ class MockExchangeAPI(ExchangeAPI):
             return None  # Behavior for symbol mismatch can be refined.
         return order
 
-    async def get_order_status(
-        self,
-        args: GetOrderArgs
-    ) -> Order | None:
+    async def get_order_status(self, args: GetOrderArgs) -> Order | None:
         """
         Get a specific order by ID, returning None if not found.
         """
@@ -877,6 +875,19 @@ class MockExchangeAPI(ExchangeAPI):
             rates.extend(list(self._mock_funding_rates.values()))
         return rates
 
+    async def get_historical_funding_rates(
+        self, args: GetHistoricalFundingRatesArgs
+    ) -> list[FundingRate]:
+        """Return mock historical funding rates."""
+        self._check_error("get_historical_funding_rates")
+        await self._simulate_latency()
+
+        # Return empty list for simplicity, or a predefined set of historical rates
+        logger.debug(
+            f"MockExchange {self.exchange_name}: get_historical_funding_rates for {args.symbol}"
+        )
+        return []
+
     async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
         """Return mock market data (candles)."""
         self._check_error("get_market_data")
@@ -968,8 +979,51 @@ class MockExchangeAPI(ExchangeAPI):
         if args.symbol:
             results = [t for t in results if t.symbol == args.symbol]
         if args.limit:
-            results = results[:args.limit]
+            results = results[: args.limit]
         return results
+
+    async def transfer(self, args: TransferArgs) -> Transfer:
+        """Mock implementation for internal transfer."""
+        self._check_error("transfer")
+        await self._simulate_latency()
+
+        # Return a mock transfer result
+        from cyberdelta.core.models.operations import Transfer, TransferStatus
+
+        return Transfer(
+            id=f"mock_transfer_{args.client_transfer_id or 'auto'}",
+            exchange=self.exchange_name,
+            asset=args.asset,
+            amount=args.amount,
+            from_account_type=args.from_account_type,
+            to_account_type=args.to_account_type,
+            status=TransferStatus.COMPLETED,
+            created_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
+            client_transfer_id=args.client_transfer_id,
+        )
+
+    async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
+        """Mock implementation for withdrawal."""
+        self._check_error("withdraw")
+        await self._simulate_latency()
+
+        # Return a mock withdrawal result
+        from cyberdelta.core.models.operations import Withdrawal, WithdrawalStatus
+
+        return Withdrawal(
+            id=f"mock_withdrawal_{args.client_withdrawal_id or 'auto'}",
+            exchange=self.exchange_name,
+            asset=args.asset,
+            amount=args.amount,
+            address=args.address,
+            network=args.network,
+            tag=args.tag,
+            status=WithdrawalStatus.PENDING,
+            created_at=datetime.now(UTC),
+            client_withdrawal_id=args.client_withdrawal_id,
+            fee=Decimal("0.001"),  # Mock fee
+        )
 
     # --- END OF ADDED PLACEHOLDERS ---
 

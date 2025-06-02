@@ -244,7 +244,6 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test place_order successfully places an order."""
         symbol = "SOL_USDC"
@@ -376,7 +375,6 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test place_order when HTTP client returns None content."""
         symbol = "SOL_USDC"
@@ -446,7 +444,6 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test place_order handles validation error from response handler."""
         symbol = "SOL_USDC"
@@ -489,7 +486,6 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test place_order handles unexpected exception."""
         symbol = "SOL_USDC"
@@ -529,7 +525,6 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test cancel_order successfully cancels an order."""
         symbol = "SOL_USDC"
@@ -589,7 +584,6 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test cancel_order when HTTP client returns None content."""
         symbol = "SOL_USDC"
@@ -632,7 +626,6 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test cancel_order handles validation error from response handler."""
         symbol = "SOL_USDC"
@@ -666,7 +659,6 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test cancel_order handles unexpected exception."""
         symbol = "SOL_USDC"
@@ -696,7 +688,6 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test cancel_all_orders successfully cancels orders for a given symbol."""
         symbol = "SOL_USDC"
@@ -731,7 +722,6 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test cancel_all_orders when HTTP client returns None content."""
         symbol = "SOL_USDC"
@@ -761,7 +751,6 @@ class TestBackpackTradingServiceOrderManagement:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test place_order with optional parameters like stop_price and post_only."""
         symbol = "SOL_USDC"
@@ -874,7 +863,6 @@ class TestBackpackTradingServiceOrderManagement:
         bp_trading_service: BackpackTradingService,
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test place_order handles non-dict response."""
         symbol = "SOL_USDC"
@@ -911,7 +899,6 @@ class TestBackpackTradingServiceOrderManagement:
         bp_trading_service: BackpackTradingService,
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
-        mock_rate_limiter_service: MagicMock,
     ) -> None:
         """Test cancel_all_orders when no data is returned."""
         symbol = "SOL_USDC"

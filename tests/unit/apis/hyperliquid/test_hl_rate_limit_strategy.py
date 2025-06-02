@@ -83,6 +83,7 @@ class TestHyperliquidRateLimitStrategy:
 
         asyncio.run(test_rate_behavior())
 
+    @pytest.mark.asyncio
     async def test_prepare_and_acquire_exchange_endpoint_single_action(
         self, hl_config: ExchangeSpecificConfig
     ) -> None:
@@ -101,6 +102,7 @@ class TestHyperliquidRateLimitStrategy:
         # Should not modify the payload
         assert result is None
 
+    @pytest.mark.asyncio
     async def test_prepare_and_acquire_exchange_endpoint_multiple_actions(
         self, hl_config: ExchangeSpecificConfig
     ) -> None:
@@ -120,6 +122,7 @@ class TestHyperliquidRateLimitStrategy:
 
         assert result is None
 
+    @pytest.mark.asyncio
     async def test_prepare_and_acquire_info_endpoint_known_type(
         self, hl_config: ExchangeSpecificConfig
     ) -> None:
@@ -137,6 +140,7 @@ class TestHyperliquidRateLimitStrategy:
 
         assert result is None
 
+    @pytest.mark.asyncio
     async def test_prepare_and_acquire_info_endpoint_expensive_type(
         self, hl_config: ExchangeSpecificConfig
     ) -> None:
@@ -154,6 +158,7 @@ class TestHyperliquidRateLimitStrategy:
 
         assert result is None
 
+    @pytest.mark.asyncio
     async def test_prepare_and_acquire_info_endpoint_unknown_type(
         self, hl_config: ExchangeSpecificConfig
     ) -> None:
@@ -171,6 +176,7 @@ class TestHyperliquidRateLimitStrategy:
 
         assert result is None
 
+    @pytest.mark.asyncio
     async def test_prepare_and_acquire_info_endpoint_none_payload(
         self, hl_config: ExchangeSpecificConfig
     ) -> None:
@@ -188,6 +194,7 @@ class TestHyperliquidRateLimitStrategy:
 
         assert result is None
 
+    @pytest.mark.asyncio
     async def test_prepare_and_acquire_exchange_endpoint_empty_actions(
         self, hl_config: ExchangeSpecificConfig
     ) -> None:
@@ -205,6 +212,7 @@ class TestHyperliquidRateLimitStrategy:
 
         assert result is None
 
+    @pytest.mark.asyncio
     async def test_prepare_and_acquire_unknown_endpoint(
         self, hl_config: ExchangeSpecificConfig
     ) -> None:
@@ -222,6 +230,7 @@ class TestHyperliquidRateLimitStrategy:
 
         assert result is None
 
+    @pytest.mark.asyncio
     async def test_prepare_and_acquire_concurrent_calls(
         self, hl_config: ExchangeSpecificConfig
     ) -> None:
@@ -262,6 +271,7 @@ class TestHyperliquidRateLimitStrategyIntegration:
         config.address_action_safety_net.rate_per_minute = 60  # 1/sec for testing
         return config
 
+    @pytest.mark.asyncio
     async def test_real_limiters_consume_tokens(self, hl_config: ExchangeSpecificConfig) -> None:
         """Test with real TokenBucketRateLimiterRuntime instances."""
         strategy = HyperliquidRateLimitStrategy(hl_config)
@@ -278,6 +288,7 @@ class TestHyperliquidRateLimitStrategyIntegration:
         assert result is None
         # Test passes if no exception is raised and result is as expected
 
+    @pytest.mark.asyncio
     async def test_real_limiters_rate_limiting_behavior(
         self, hl_config: ExchangeSpecificConfig
     ) -> None:
