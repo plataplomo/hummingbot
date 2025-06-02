@@ -66,7 +66,7 @@ class HyperliquidRequestWeighter:
             if action_payload and "actions" in action_payload:
                 actions = action_payload["actions"]
                 if isinstance(actions, list):
-                    batch_length = len(cast(list[Any], actions)) if actions else 1
+                    batch_length = len(cast(list[Any], actions)) if actions else 1  # type: ignore [redundant-cast]
 
             # Formula: base_weight + (batch_length // 40)
             base_weight = self.hl_exchange_config.exchange_action_base_ip_weight or 1
@@ -125,7 +125,7 @@ class HyperliquidRequestWeighter:
             if action_payload and "actions" in action_payload:
                 actions = action_payload["actions"]
                 if isinstance(actions, list):
-                    action_count = len(cast(list[Any], actions)) if actions else 1
+                    action_count = len(cast(list[Any], actions)) if actions else 1  # type: ignore [redundant-cast]
 
             logger.debug(f"Hyperliquid /exchange request: address_action_count={action_count}")
             return action_count

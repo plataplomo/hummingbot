@@ -39,7 +39,7 @@ class TestSimpleTokenBucketStrategy:
             "action_payload": None,
         }
 
-        result = await strategy.prepare_and_acquire(request_context)
+        result = await strategy.prepare_and_acquire(request_context)  # type: ignore[func-returns-value]
 
         assert result is None
         mock_limiter.acquire.assert_called_once_with(tokens_to_consume=1)
@@ -57,7 +57,7 @@ class TestSimpleTokenBucketStrategy:
             "request_weight": 5,
         }
 
-        result = await strategy.prepare_and_acquire(request_context)
+        result = await strategy.prepare_and_acquire(request_context)  # type: ignore[func-returns-value]
 
         assert result is None
         mock_limiter.acquire.assert_called_once_with(tokens_to_consume=5)
@@ -74,7 +74,7 @@ class TestSimpleTokenBucketStrategy:
             "request_weight": 0,
         }
 
-        result = await strategy.prepare_and_acquire(request_context)
+        result = await strategy.prepare_and_acquire(request_context)  # type: ignore[func-returns-value]
 
         assert result is None
         mock_limiter.acquire.assert_not_called()
@@ -91,7 +91,7 @@ class TestSimpleTokenBucketStrategy:
             "request_weight": -1,
         }
 
-        result = await strategy.prepare_and_acquire(request_context)
+        result = await strategy.prepare_and_acquire(request_context)  # type: ignore[func-returns-value]
 
         assert result is None
         mock_limiter.acquire.assert_not_called()
@@ -107,7 +107,7 @@ class TestSimpleTokenBucketStrategy:
             "endpoint": "/api/v1/ticker",
         }
 
-        result = await strategy.prepare_and_acquire(request_context)
+        result = await strategy.prepare_and_acquire(request_context)  # type: ignore[func-returns-value]
 
         assert result is None
         mock_limiter.acquire.assert_called_once_with(tokens_to_consume=1)
@@ -125,7 +125,7 @@ class TestSimpleTokenBucketStrategy:
 
         request_context: dict[str, Any] = {"request_weight": 3}
 
-        result = await strategy.prepare_and_acquire(request_context)
+        result = await strategy.prepare_and_acquire(request_context)  # type: ignore[func-returns-value]
 
         assert result is None
         assert real_limiter.tokens == 7.0  # 10 - 3 = 7
@@ -139,7 +139,7 @@ class TestSimpleTokenBucketStrategy:
         request_context: dict[str, Any] = {"request_weight": 2}
 
         # The strategy doesn't return wait time, but should still call limiter
-        result = await strategy.prepare_and_acquire(request_context)
+        result = await strategy.prepare_and_acquire(request_context)  # type: ignore[func-returns-value]
 
         assert result is None
         mock_limiter.acquire.assert_called_once_with(tokens_to_consume=2)
@@ -165,7 +165,7 @@ class TestSimpleTokenBucketStrategy:
             "request_weight": 1,
         }
 
-        result = await strategy.prepare_and_acquire(request_context)
+        result = await strategy.prepare_and_acquire(request_context)  # type: ignore[func-returns-value]
 
         # Should not modify the payload
         assert result is None
