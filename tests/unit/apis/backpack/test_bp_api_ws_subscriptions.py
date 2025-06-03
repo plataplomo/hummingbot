@@ -20,8 +20,11 @@ def bp_config() -> ExchangeSpecificConfig:
     config_dict: dict[str, object] = {
         "exchange_name": ExchangeName.BACKPACK,
         "symbols": {},  # Add required symbols field
-        "api_base_url": "https://api.backpack.exchange",
-        "ws_url": "wss://ws.backpack.exchange",
+        "api_base_url_mainnet": "https://api.backpack.exchange",
+        "ws_url_mainnet": "wss://ws.backpack.exchange",
+        "api_base_url_testnet": None,
+        "ws_url_testnet": None,
+        "is_mainnet_environment": True,
         "rate_limit_per_minute": 1200,
     }
     return ExchangeSpecificConfig.model_validate(config_dict)

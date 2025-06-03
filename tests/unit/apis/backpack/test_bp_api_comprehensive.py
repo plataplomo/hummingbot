@@ -46,8 +46,11 @@ from cyberdelta.enums.exchange_names import ExchangeName
 
 
 def create_test_exchange_config(
-    api_base_url: str = "https://api.backpack.exchange",
-    ws_url: str = "wss://ws.backpack.exchange",
+    api_base_url_mainnet: str = "https://api.backpack.exchange",
+    ws_url_mainnet: str = "wss://ws.backpack.exchange",
+    api_base_url_testnet: str | None = None,
+    ws_url_testnet: str | None = None,
+    is_mainnet_environment: bool = True,
     **kwargs: object,
 ) -> ExchangeSpecificConfig:
     """
@@ -56,8 +59,11 @@ def create_test_exchange_config(
     """
     config_dict = {
         "exchange_name": ExchangeName.BACKPACK,
-        "api_base_url": api_base_url,
-        "ws_url": ws_url,
+        "api_base_url_mainnet": api_base_url_mainnet,
+        "ws_url_mainnet": ws_url_mainnet,
+        "api_base_url_testnet": api_base_url_testnet,
+        "ws_url_testnet": ws_url_testnet,
+        "is_mainnet_environment": is_mainnet_environment,
         "rate_limit_per_minute": 120,
         "symbols": {"SOL_USDC": "SOL_USDC", "BTC_USDC": "BTC_USDC"},
         "request_timeout_seconds": 30.0,

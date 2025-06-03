@@ -42,8 +42,11 @@ TEST_API_SECRET = "7s6pf6Xs8VJDMTNmcseiLge61XCSZeQ6GW8PP6odR1c="
 
 
 def create_test_exchange_config(
-    api_base_url: str = "https://api.backpack.exchange",
-    ws_url: str = "wss://ws.backpack.exchange",
+    api_base_url_mainnet: str = "https://api.backpack.exchange",
+    ws_url_mainnet: str = "wss://ws.backpack.exchange",
+    api_base_url_testnet: str | None = None,
+    ws_url_testnet: str | None = None,
+    is_mainnet_environment: bool = True,
     **kwargs: object,
 ) -> ExchangeSpecificConfig:
     """
@@ -52,8 +55,11 @@ def create_test_exchange_config(
     """
     config_dict = {
         "exchange_name": ExchangeName.BACKPACK,
-        "api_base_url": api_base_url,
-        "ws_url": ws_url,
+        "api_base_url_mainnet": api_base_url_mainnet,
+        "ws_url_mainnet": ws_url_mainnet,
+        "api_base_url_testnet": api_base_url_testnet,
+        "ws_url_testnet": ws_url_testnet,
+        "is_mainnet_environment": is_mainnet_environment,
         "rate_limit_per_minute": 120,
         "symbols": {"SOL_USDC": "SOL_USDC", "BTC_USDC": "BTC_USDC"},
         **kwargs,
@@ -228,8 +234,8 @@ class TestBackpackAPIInitialization:
     ) -> None:
         """Test API creation with custom configuration."""
         custom_config = create_test_exchange_config(
-            api_base_url="https://custom.backpack.api",
-            ws_url="wss://custom.backpack.ws",
+            api_base_url_mainnet="https://custom.backpack.api",
+            ws_url_mainnet="wss://custom.backpack.ws",
             symbols={"SOL_USDC": "SOL_USDC"},
         )
 

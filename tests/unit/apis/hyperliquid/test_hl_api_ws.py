@@ -19,8 +19,11 @@ from cyberdelta.enums.exchange_names import ExchangeName
 
 
 def create_test_exchange_config(
-    api_base_url: str = "https://api.hyperliquid-testnet.xyz",
-    ws_url: str = "wss://api.hyperliquid-testnet.xyz/ws",
+    api_base_url_mainnet: str = "https://api.hyperliquid.xyz",
+    ws_url_mainnet: str = "wss://api.hyperliquid.xyz/ws",
+    api_base_url_testnet: str = "https://api.hyperliquid-testnet.xyz",
+    ws_url_testnet: str = "wss://api.hyperliquid-testnet.xyz/ws",
+    is_mainnet_environment: bool = False,  # Default to testnet for unit tests
     **kwargs: object,
 ) -> ExchangeSpecificConfig:
     """
@@ -29,11 +32,11 @@ def create_test_exchange_config(
     """
     config_dict = {
         "exchange_name": ExchangeName.HYPERLIQUID,
-        "api_base_url_mainnet": "https://api.hyperliquid.xyz",
-        "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
-        "api_base_url_testnet": api_base_url,
-        "ws_url_testnet": ws_url,
-        "is_mainnet_environment": False,  # Default to testnet for unit tests
+        "api_base_url_mainnet": api_base_url_mainnet,
+        "ws_url_mainnet": ws_url_mainnet,
+        "api_base_url_testnet": api_base_url_testnet,
+        "ws_url_testnet": ws_url_testnet,
+        "is_mainnet_environment": is_mainnet_environment,
         "rate_limit_per_minute": 300,
         "symbols": {"ETH": "ETH", "BTC": "BTC"},
         "chain_id": 1337,
@@ -206,8 +209,8 @@ class TestHyperliquidAPIWebSocketConfiguration:
     def test_api_initialization_with_mainnet_config(self) -> None:
         """Test that API can be initialized with mainnet configuration."""
         config = create_test_exchange_config(
-            api_base_url="https://api.hyperliquid.xyz",
-            ws_url="wss://api.hyperliquid.xyz/ws",
+            api_base_url_mainnet="https://api.hyperliquid.xyz",
+            ws_url_mainnet="wss://api.hyperliquid.xyz/ws",
             is_mainnet_environment=True,
         )
         secrets = PrivateKeyAuthSecrets(
