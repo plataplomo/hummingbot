@@ -32,6 +32,7 @@ from cyberdelta.config.config_models import (
     StrategyParamsHLPerpBPSpot,
 )
 from cyberdelta.config.secrets_manager import SecretsManager
+from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -251,16 +252,21 @@ def mock_config() -> AppSettings:
             "hyperliquid": ExchangeSpecificConfig(
                 exchange_name=ExchangeName.HYPERLIQUID,
                 enabled=True,
-                api_base_url=HttpUrl("https://api.hyperliquid.xyz"),
-                ws_url=AnyUrl("wss://api.hyperliquid.xyz/ws"),
+                api_base_url_mainnet=HttpUrl("https://api.hyperliquid.xyz"),
+                ws_url_mainnet=AnyUrl("wss://api.hyperliquid.xyz/ws"),
+                api_base_url_testnet=HttpUrl("https://api.hyperliquid-testnet.xyz"),
+                ws_url_testnet=AnyUrl("wss://api.hyperliquid-testnet.xyz/ws"),
+                is_mainnet_environment=False,  # Default to testnet for testing
+                chain_id=1337,
                 rate_limit_per_minute=120,
                 symbols={"BTC": "BTC", "ETH": "ETH"},
             ),
             "backpack": ExchangeSpecificConfig(
                 exchange_name=ExchangeName.BACKPACK,
                 enabled=True,
-                api_base_url=HttpUrl("https://api.backpack.exchange"),
-                ws_url=AnyUrl("wss://ws.backpack.exchange"),
+                api_base_url_mainnet=HttpUrl("https://api.backpack.exchange"),
+                ws_url_mainnet=AnyUrl("wss://ws.backpack.exchange"),
+                is_mainnet_environment=True,  # Backpack only has mainnet
                 rate_limit_per_minute=120,
                 symbols={"BTC": "BTC_USDC", "ETH": "ETH_USDC"},
             ),
@@ -510,6 +516,87 @@ def mock_secrets_manager_with_missing() -> MagicMock:
 
     manager.get.side_effect = mock_get
     return manager
+
+
+# --- Environment-Aware Hyperliquid Test Fixtures ---
+
+
+@pytest.fixture(scope="session")
+def hl_test_environment() -> str:
+    """
+    Fixture to determine Hyperliquid test environment.
+    
+    Defaults to 'testnet' but can be overridden with CYBERDELTA_TEST_ENV_HL environment variable.
+    """
+    return os.environ.get("CYBERDELTA_TEST_ENV_HL", "testnet")
+
+
+@pytest.fixture(scope="session")
+def active_hl_config(hl_test_environment: str) -> ExchangeSpecificConfig:
+    """
+    Environment-aware ExchangeSpecificConfig fixture for Hyperliquid.
+    
+    Configures the exchange for mainnet or testnet based on hl_test_environment.
+    Always includes both mainnet and testnet URLs.
+    """
+    is_mainnet_env_flag = hl_test_environment == "mainnet"
+    
+    return ExchangeSpecificConfig.model_validate({
+        "exchange_name": ExchangeName.HYPERLIQUID,
+        "api_base_url_mainnet": "https://api.hyperliquid.xyz",
+        "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
+        "api_base_url_testnet": "https://api.hyperliquid-testnet.xyz",
+        "ws_url_testnet": "wss://api.hyperliquid-testnet.xyz/ws",
+        "is_mainnet_environment": is_mainnet_env_flag,
+        "chain_id": 1337,
+        "rate_limit_per_minute": 300,
+        "symbols": {"BTC": "BTC", "ETH": "ETH"},
+        # Hyperliquid-specific rate limiting configuration
+        "ip_weight_limit_per_minute": 1200,
+        "info_request_type_ip_weights": {
+            "l2Book": 2,
+            "allMids": 2,
+            "meta": 2,
+            "userRole": 60,
+            "clearinghouseState": 10,
+            "openOrders": 1,
+        },
+        "default_info_weight": 20,
+        "exchange_action_base_ip_weight": 1,
+        "address_action_safety_net": {"rate_per_minute": 300},
+        "websocket_send_rate_per_minute": 1800,
+    })
+
+
+@pytest.fixture(scope="session")
+def active_hl_secrets() -> PrivateKeyAuthSecrets:
+    """
+    Environment-aware PrivateKeyAuthSecrets fixture for Hyperliquid.
+    
+    Uses environment variables if available, otherwise provides test placeholders.
+    Supports both dedicated testnet credentials and main credentials.
+    """
+    # Main private key (always required)
+    main_private_key = os.environ.get(
+        "HL_PRIVATE_KEY", 
+        "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+    )
+    
+    # Optional testnet-specific private key
+    testnet_private_key = os.environ.get("HL_TESTNET_PRIVATE_KEY")
+    
+    # Optional testnet seed passphrase
+    testnet_seed = os.environ.get("HL_TESTNET_SEED_PASSPHRASE")
+    
+    # Optional passphrase for main key encryption
+    passphrase = os.environ.get("HL_PASSPHRASE")
+    
+    return PrivateKeyAuthSecrets.model_validate({
+        "private_key": main_private_key,
+        "passphrase": passphrase,
+        "private_key_testnet": testnet_private_key,
+        "testnet_seed_passphrase": testnet_seed,
+    })
 
 
 # --- Async Mocking Helpers ---

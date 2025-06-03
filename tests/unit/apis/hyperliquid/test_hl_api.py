@@ -6,7 +6,7 @@ Tests use dependency injection patterns to mock collaborators and focus on publi
 from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -37,18 +37,28 @@ from cyberdelta.enums.exchange_names import ExchangeName
 
 
 def create_test_exchange_config(
-    api_base_url: str = "https://api.hyperliquid.xyz",
-    ws_url: str = "wss://api.hyperliquid.xyz/ws",
-    **kwargs: object,
+    env_type: Literal["mainnet", "testnet"] = "testnet",
+    **kwargs: Any,
 ) -> ExchangeSpecificConfig:
     """
-    Create ExchangeSpecificConfig for testing by parsing from dict.
-    This works with the validator that expects string inputs.
+    Create ExchangeSpecificConfig for testing with environment awareness.
+    
+    Args:
+        env_type: Environment type ("mainnet" or "testnet")
+        **kwargs: Additional config overrides
     """
+    is_mainnet_env = env_type == "mainnet"
+    
     config_dict = {
         "exchange_name": ExchangeName.HYPERLIQUID,
-        "api_base_url": api_base_url,
-        "ws_url": ws_url,
+        # Mainnet URLs
+        "api_base_url_mainnet": "https://api.hyperliquid.xyz",
+        "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
+        # Testnet URLs
+        "api_base_url_testnet": "https://api.hyperliquid-testnet.xyz",
+        "ws_url_testnet": "wss://api.hyperliquid-testnet.xyz/ws",
+        # Environment flag
+        "is_mainnet_environment": is_mainnet_env,
         "rate_limit_per_minute": 300,
         "symbols": {"ETH": "ETH", "BTC": "BTC"},
         "chain_id": 1337,
@@ -248,6 +258,8 @@ def hl_api_with_di(
             secrets = PrivateKeyAuthSecrets(
                 private_key=SecretStr("0x" + "1" * 64),
                 passphrase=None,
+                private_key_testnet=None,
+                testnet_seed_passphrase=None,
             )
 
         return HyperliquidAPI(
@@ -296,8 +308,9 @@ class TestHyperliquidAPIInitialization:
     ) -> None:
         """Test API creation with custom configuration."""
         custom_config = create_test_exchange_config(
-            api_base_url="https://custom.hyperliquid.api",
-            ws_url="wss://custom.hyperliquid.ws",
+            env_type="testnet",
+            api_base_url_testnet="https://custom.hyperliquid.api",
+            ws_url_testnet="wss://custom.hyperliquid.ws",
         )
 
         api = hl_api_with_di(config=custom_config)
@@ -1035,6 +1048,70 @@ class TestHyperliquidAPIDependencyIsolation:
         api1_id = id(api1)
         api2_id = id(api2)
         assert api1_id != api2_id
+
+
+class TestHyperliquidAPIEnvironmentAwareness:
+    """Test environment awareness features for mainnet/testnet support."""
+
+    def test_create_test_exchange_config_testnet_default(self) -> None:
+        """Test that create_test_exchange_config defaults to testnet."""
+        config = create_test_exchange_config()
+        
+        assert config.is_mainnet_environment is False
+        assert str(config.api_base_url_mainnet) == "https://api.hyperliquid.xyz/"
+        assert str(config.ws_url_mainnet) == "wss://api.hyperliquid.xyz/ws"
+        assert str(config.api_base_url_testnet) == "https://api.hyperliquid-testnet.xyz/"
+        assert str(config.ws_url_testnet) == "wss://api.hyperliquid-testnet.xyz/ws"
+
+    def test_create_test_exchange_config_mainnet_explicit(self) -> None:
+        """Test that create_test_exchange_config can be set to mainnet."""
+        config = create_test_exchange_config(env_type="mainnet")
+        
+        assert config.is_mainnet_environment is True
+        assert str(config.api_base_url_mainnet) == "https://api.hyperliquid.xyz/"
+        assert str(config.ws_url_mainnet) == "wss://api.hyperliquid.xyz/ws"
+        assert str(config.api_base_url_testnet) == "https://api.hyperliquid-testnet.xyz/"
+        assert str(config.ws_url_testnet) == "wss://api.hyperliquid-testnet.xyz/ws"
+
+    def test_create_test_exchange_config_testnet_explicit(self) -> None:
+        """Test that create_test_exchange_config can be explicitly set to testnet."""
+        config = create_test_exchange_config(env_type="testnet")
+        
+        assert config.is_mainnet_environment is False
+        assert str(config.api_base_url_mainnet) == "https://api.hyperliquid.xyz/"
+        assert str(config.ws_url_mainnet) == "wss://api.hyperliquid.xyz/ws"
+        assert str(config.api_base_url_testnet) == "https://api.hyperliquid-testnet.xyz/"
+        assert str(config.ws_url_testnet) == "wss://api.hyperliquid-testnet.xyz/ws"
+
+    def test_create_test_exchange_config_with_overrides(self) -> None:
+        """Test that create_test_exchange_config accepts kwargs overrides."""
+        config = create_test_exchange_config(
+            env_type="testnet",
+            api_base_url_testnet="https://custom-testnet.hyperliquid.xyz",
+            chain_id=42,
+        )
+        
+        assert config.is_mainnet_environment is False
+        assert str(config.api_base_url_testnet) == "https://custom-testnet.hyperliquid.xyz/"
+        assert config.chain_id == 42
+
+    def test_api_environment_awareness_through_config(
+        self, hl_api_with_di: Callable[..., HyperliquidAPI]
+    ) -> None:
+        """Test that API can be created with environment-aware config."""
+        # Test with testnet config
+        testnet_config = create_test_exchange_config(env_type="testnet")
+        api_testnet = hl_api_with_di(config=testnet_config)
+        
+        assert api_testnet is not None
+        assert api_testnet.exchange_name == "hyperliquid"
+
+        # Test with mainnet config
+        mainnet_config = create_test_exchange_config(env_type="mainnet")
+        api_mainnet = hl_api_with_di(config=mainnet_config)
+        
+        assert api_mainnet is not None
+        assert api_mainnet.exchange_name == "hyperliquid"
 
 
 class TestHyperliquidAPIResourceManagement:

@@ -15,9 +15,32 @@ exchanges:
   hyperliquid:
     exchange_name: "hyperliquid"
     enabled: true
-    api_base_url: "https://api.hyperliquid.xyz"
-    ws_url: "wss://api.hyperliquid.xyz/ws"
-    rate_limit_per_minute: 120
+    # Mainnet URLs
+    api_base_url_mainnet: "https://api.hyperliquid.xyz"
+    ws_url_mainnet: "wss://api.hyperliquid.xyz/ws"
+    # Testnet URLs
+    api_base_url_testnet: "https://api.hyperliquid-testnet.xyz"
+    ws_url_testnet: "wss://api.hyperliquid-testnet.xyz/ws"
+    # Environment flag - set to false to use testnet (default for development)
+    is_mainnet_environment: false
+    # Hyperliquid-specific rate limiting configuration
+    ip_weight_limit_per_minute: 1140
+    info_request_type_ip_weights:
+      l2Book: 2                 # Level 2 Order Book
+      allMids: 2                # All Mid Prices
+      clearingHouseState: 20    # User state
+      meta: 2                   # Exchange metadata
+      userRole: 60              # User role check
+      openOrders: 2             # Open orders
+      historicalOrders: 20      # Historical orders
+      orderStatus: 2            # Single order status
+      fundingHistory: 20        # Funding history
+      recentTrades: 20          # Recent trades
+    default_info_weight: 20
+    exchange_action_base_ip_weight: 1
+    address_action_safety_net:
+      rate_per_minute: 300
+    websocket_send_rate_per_minute: 1800
     symbols:
       BTC: "BTC"
       ETH: "ETH"
@@ -31,8 +54,14 @@ exchanges:
   backpack:
     exchange_name: "backpack"
     enabled: true
-    api_base_url: "https://api.backpack.exchange"
-    ws_url: "wss://ws.backpack.exchange"
+    # Mainnet URLs (Backpack currently only has mainnet)
+    api_base_url_mainnet: "https://api.backpack.exchange"
+    ws_url_mainnet: "wss://ws.backpack.exchange"
+    # Testnet URLs not provided (Backpack doesn't have testnet)
+    # api_base_url_testnet: null
+    # ws_url_testnet: null
+    # Environment flag - always true for Backpack as they only have mainnet
+    is_mainnet_environment: true
     rate_limit_per_minute: 120
     symbols:
       BTC: "BTC_USDC"

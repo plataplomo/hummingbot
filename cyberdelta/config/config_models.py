@@ -144,8 +144,27 @@ class ExchangeSpecificConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     enabled: bool = True
-    api_base_url: HttpUrl
-    ws_url: AnyUrl
+    # Mainnet URLs (renamed from api_base_url and ws_url)
+    api_base_url_mainnet: HttpUrl = Field(
+        ..., description="Base URL for the exchange's mainnet REST API."
+    )
+    ws_url_mainnet: AnyUrl = Field(
+        ..., description="Base URL for the exchange's mainnet WebSocket API."
+    )
+    # Testnet URLs (optional)
+    api_base_url_testnet: HttpUrl | None = Field(
+        default=None, description="Optional base URL for the exchange's testnet REST API."
+    )
+    ws_url_testnet: AnyUrl | None = Field(
+        default=None, description="Optional base URL for the exchange's testnet WebSocket API."
+    )
+    # Environment flag
+    is_mainnet_environment: bool = Field(
+        default=True,
+        description=(
+            "If True, mainnet URLs are used. If False, testnet URLs are used (if provided)."
+        ),
+    )
     rate_limit_per_minute: int | None = Field(
         default=None, gt=0, description="For simple exchanges: total requests per minute."
     )
@@ -234,9 +253,20 @@ class ExchangeSpecificConfig(BaseModel):
         description="Blockchain Chain ID, required for some exchanges (e.g., Hyperliquid).",
     )
 
-    @field_validator("api_base_url", "ws_url", mode="before")
+    @field_validator(
+        "api_base_url_mainnet",
+        "ws_url_mainnet",
+        "api_base_url_testnet",
+        "ws_url_testnet",
+        mode="before",
+    )
     @classmethod
-    def _validate_url_strings(cls, v: str | int | float | bool, info: ValidationInfo) -> str:
+    def _validate_url_strings(
+        cls, v: str | int | float | bool | None, info: ValidationInfo
+    ) -> str | None:
+        # Testnet URLs can be None
+        if v is None and info.field_name and "testnet" in info.field_name:
+            return None
         # Ensure it's a valid string before Pydantic URL validation
         return validate_str_field(v, field_name=info.field_name or "url_field", allow_empty=False)
 
@@ -290,6 +320,22 @@ class ExchangeSpecificConfig(BaseModel):
                     "but not provided."
                 )
 
+        return self
+
+    @model_validator(mode="after")
+    def check_testnet_urls_when_needed(self) -> Self:
+        """Validate that testnet URLs are provided when is_mainnet_environment is False."""
+        if not self.is_mainnet_environment:
+            if self.api_base_url_testnet is None:
+                raise ValueError(
+                    f"ExchangeSpecificConfig for {self.exchange_name.value}: "
+                    f"'api_base_url_testnet' is required when 'is_mainnet_environment' is False."
+                )
+            if self.ws_url_testnet is None:
+                raise ValueError(
+                    f"ExchangeSpecificConfig for {self.exchange_name.value}: "
+                    f"'ws_url_testnet' is required when 'is_mainnet_environment' is False."
+                )
         return self
 
 

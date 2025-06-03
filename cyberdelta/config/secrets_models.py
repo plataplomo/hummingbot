@@ -32,8 +32,8 @@ class BaseExchangeSecrets(BaseModel):
 class ApiKeyAuthSecrets(BaseExchangeSecrets):
     """
     Secrets configuration for exchanges using API key/secret authentication.
-    
-    This covers exchanges using traditional API key pairs or Backpack's ED25519 
+
+    This covers exchanges using traditional API key pairs or Backpack's ED25519
     keys (where api_key=public key and api_secret=private key).
     """
 
@@ -45,7 +45,7 @@ class ApiKeyAuthSecrets(BaseExchangeSecrets):
 class PrivateKeyAuthSecrets(BaseExchangeSecrets):
     """
     Secrets configuration for exchanges using private key authentication.
-    
+
     This covers exchanges like Hyperliquid that use Ethereum private keys
     or mnemonic passphrases for authentication.
     """
@@ -53,12 +53,26 @@ class PrivateKeyAuthSecrets(BaseExchangeSecrets):
     auth_type: Literal["private_key"] = "private_key"
     private_key: SecretStr
     passphrase: SecretStr | None = Field(default=None)
+    private_key_testnet: SecretStr | None = Field(
+        default=None,
+        description=(
+            "Optional dedicated private key for testnet environment. "
+            "If not provided, the main 'private_key' or 'testnet_seed_passphrase' "
+            "might be used for testnet operations."
+        ),
+    )
+    testnet_seed_passphrase: SecretStr | None = Field(
+        default=None,
+        description=(
+            "Optional BIP-39 seed passphrase specifically for generating/using testnet wallets. "
+            "Can be used if a dedicated 'private_key_testnet' is not provided."
+        ),
+    )
 
 
 # Discriminated union for all exchange secret types
 AnyExchangeSecrets = Annotated[
-    ApiKeyAuthSecrets | PrivateKeyAuthSecrets,
-    Field(discriminator="auth_type")
+    ApiKeyAuthSecrets | PrivateKeyAuthSecrets, Field(discriminator="auth_type")
 ]
 
 
@@ -148,7 +162,7 @@ class SecretsConfig(BaseModel):
     def validate_exchange_specific_secret_configurations(self) -> Self:
         """
         Validate exchange-specific secret configurations and authentication requirements.
-        
+
         Ensures that each exchange uses the correct auth_type and has valid credentials.
         Basic presence checks are performed here; deeper cryptographic validation is
         performed in the respective API component factories.
@@ -157,21 +171,23 @@ class SecretsConfig(BaseModel):
             if exchange_name == "hyperliquid":
                 if not isinstance(secrets_config_item, PrivateKeyAuthSecrets):
                     raise ValueError(
-                        "Hyperliquid configuration in secrets must have auth_type 'private_key' and corresponding fields."
+                        "Hyperliquid configuration in secrets must have auth_type 'private_key' "
+                        "and corresponding fields."
                     )
                 # Basic presence check for private_key
                 pk_val = secrets_config_item.private_key.get_secret_value()
                 if not pk_val or not pk_val.strip():
                     raise ValueError("Hyperliquid 'private_key' cannot be empty in secrets.")
-                
-                # Note: Cryptographic validation (valid hex, BIP-39) is moved to 
+
+                # Note: Cryptographic validation (valid hex, BIP-39) is moved to
                 # HyperliquidAPIComponentsFactory or HyperliquidEip712Authenticator constructor
                 # where the secret is actually used to create an auth component.
 
             elif exchange_name == "backpack":
                 if not isinstance(secrets_config_item, ApiKeyAuthSecrets):
                     raise ValueError(
-                        "Backpack configuration in secrets must have auth_type 'api_key' and corresponding fields."
+                        "Backpack configuration in secrets must have auth_type 'api_key' "
+                        "and corresponding fields."
                     )
                 # Basic presence checks for Backpack (ED25519 keys)
                 api_key_val = secrets_config_item.api_key.get_secret_value()
@@ -180,7 +196,7 @@ class SecretsConfig(BaseModel):
                     raise ValueError("Backpack 'api_key' (ED25519 Public Key) cannot be empty.")
                 if not (api_secret_val and api_secret_val.strip()):
                     raise ValueError("Backpack 'api_secret' (ED25519 Private Key) cannot be empty.")
-                # Note: Deeper crypto validation (is it valid base64 ED25519) is performed 
+                # Note: Deeper crypto validation (is it valid base64 ED25519) is performed
                 # in BackpackAPIComponentsFactory.
 
         return self

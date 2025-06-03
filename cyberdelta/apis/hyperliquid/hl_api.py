@@ -121,9 +121,38 @@ class HyperliquidAPI(ExchangeAPI):
             trading_service: Optional trading service instance for dependency injection
             market_data_service: Optional market data service instance for dependency injection
         """
-        # Extract endpoints from config
-        self.rest_endpoint = str(exchange_config.api_base_url)
-        self.ws_endpoint = str(exchange_config.ws_url) if exchange_config.ws_url else None
+        # URL Selection Logic based on environment
+        if exchange_config.is_mainnet_environment:
+            self.active_api_base_url = str(exchange_config.api_base_url_mainnet)
+            self.active_ws_url = (
+                str(exchange_config.ws_url_mainnet) if exchange_config.ws_url_mainnet else None
+            )
+            logger.info(
+                f"[{exchange_config.exchange_name.value}] Initializing for MAINNET environment."
+            )
+        elif exchange_config.api_base_url_testnet:  # Check if testnet URL is actually configured
+            self.active_api_base_url = str(exchange_config.api_base_url_testnet)
+            self.active_ws_url = (
+                str(exchange_config.ws_url_testnet) if exchange_config.ws_url_testnet else None
+            )
+            logger.info(
+                f"[{exchange_config.exchange_name.value}] Initializing for TESTNET environment."
+            )
+        else:
+            # Fallback or error if is_mainnet_environment is False but no testnet URLs
+            logger.error(
+                f"[{exchange_config.exchange_name.value}] Configuration error: "
+                f"is_mainnet_environment is False, but no testnet URLs "
+                f"(api_base_url_testnet) are provided. Falling back to mainnet URLs."
+            )
+            self.active_api_base_url = str(exchange_config.api_base_url_mainnet)
+            self.active_ws_url = (
+                str(exchange_config.ws_url_mainnet) if exchange_config.ws_url_mainnet else None
+            )
+
+        # Set endpoints to the active URLs
+        self.rest_endpoint = self.active_api_base_url
+        self.ws_endpoint = self.active_ws_url
 
         # Check chain_id is present for Hyperliquid
         if exchange_config.chain_id is None:
@@ -161,8 +190,8 @@ class HyperliquidAPI(ExchangeAPI):
         # Construct config dict for super().__init__
         config_dict_for_super = {
             "exchange_name": exchange_config.exchange_name.value,
-            "rest_endpoint": self.rest_endpoint,
-            "ws_url": self.ws_endpoint,
+            "rest_endpoint": self.active_api_base_url,  # Use active URL
+            "ws_url": self.active_ws_url,  # Use active URL
             # Include optional HTTP/WS settings with correct field names
             "default_request_timeout": exchange_config.request_timeout_seconds,
             "max_retries": exchange_config.max_retries,
@@ -221,7 +250,7 @@ class HyperliquidAPI(ExchangeAPI):
         else:
             # Build HttpClientConfig from exchange_config
             http_client_config_data = {
-                "rest_endpoint": exchange_config.api_base_url,
+                "rest_endpoint": self.active_api_base_url,  # Use active URL
                 "default_request_timeout": exchange_config.request_timeout_seconds,
                 "max_retries": exchange_config.max_retries,
                 "retry_delay_seconds": exchange_config.retry_delay_seconds,
@@ -232,7 +261,7 @@ class HyperliquidAPI(ExchangeAPI):
             }
             # Ensure rest_endpoint is always passed
             if "rest_endpoint" not in http_client_config_data_cleaned:
-                http_client_config_data_cleaned["rest_endpoint"] = exchange_config.api_base_url
+                http_client_config_data_cleaned["rest_endpoint"] = self.active_api_base_url
 
             http_client_config_obj = HttpClientConfig.model_validate(
                 http_client_config_data_cleaned

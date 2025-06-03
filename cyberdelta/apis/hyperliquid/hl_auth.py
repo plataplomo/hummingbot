@@ -59,9 +59,11 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         chain_id: int,
         account_object: LocalAccount | None = None,
         passphrase_secret: SecretStr | None = None,
+        is_mainnet_environment: bool = True,
         logger_param: logging.Logger | None = None,
     ) -> None:
         self.logger = logger_param or get_logger(__name__)  # Use provided or get new one
+        self._is_mainnet_env = is_mainnet_environment
 
         if not wallet_private_key_secret and not account_object:
             msg = "Either wallet_private_key_secret or account_object must be provided."
@@ -380,7 +382,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         action_hash_bytes: bytes = keccak(action_hash_input_bytes)
 
         # Construct phantom_agent_message for EIP-712
-        source_char: str = "a"  # Assuming mainnet
+        source_char: str = "a" if self._is_mainnet_env else "b"  # "a" for mainnet, "b" for testnet
         phantom_agent_message: dict[str, Any] = {
             "source": source_char,
             "connectionId": action_hash_bytes,

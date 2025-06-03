@@ -11,6 +11,8 @@ from __future__ import annotations
 from collections.abc import Callable, Coroutine, Mapping
 from typing import TYPE_CHECKING, Any
 
+from pydantic import SecretStr
+
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
@@ -67,7 +69,7 @@ class HyperliquidAPIComponentsFactory:
         self.exchange_config = exchange_config
         self.exchange_secrets = exchange_secrets
         self.chain_id = chain_id
-        
+
         # Log error if Hyperliquid receives wrong auth type
         if not isinstance(exchange_secrets, PrivateKeyAuthSecrets):
             logger.error(
@@ -95,27 +97,57 @@ class HyperliquidAPIComponentsFactory:
 
         secrets: PrivateKeyAuthSecrets = self.exchange_secrets  # Type cast for clarity
 
-        if secrets.private_key:
+        # Determine which private key to use based on environment
+        private_key_to_use: SecretStr | None = None
+
+        if self.exchange_config.is_mainnet_environment:
+            # Mainnet: use the main private_key
+            private_key_to_use = secrets.private_key
+            logger.info("Using main private_key for mainnet environment")
+        else:
+            # Testnet: implement precedence logic
+            if secrets.testnet_seed_passphrase:
+                # Priority 1: testnet_seed_passphrase (for future implementation)
+                logger.warning(
+                    "testnet_seed_passphrase is provided but wallet derivation "
+                    "is not yet implemented. Falling back to other options."
+                )
+                # TODO: Implement BIP-39 seed phrase to private key derivation
+                # For now, continue to check other options
+
+            if secrets.private_key_testnet:
+                # Priority 2: dedicated testnet private key
+                private_key_to_use = secrets.private_key_testnet
+                logger.info("Using dedicated private_key_testnet for testnet environment")
+            elif secrets.private_key:
+                # Priority 3: fall back to main private key
+                private_key_to_use = secrets.private_key
+                logger.warning(
+                    "No testnet-specific credentials found. Using main private_key for testnet. "
+                    "Consider using a dedicated testnet key for safety."
+                )
+            else:
+                logger.error(
+                    "No suitable private key found for testnet environment. "
+                    "Provide either private_key_testnet or private_key."
+                )
+                return None
+
+        if private_key_to_use:
             try:
                 return HyperliquidEip712Authenticator(
-                    wallet_private_key_secret=secrets.private_key,  # Pass SecretStr
-                    passphrase_secret=secrets.passphrase,           # Pass SecretStr or None
+                    wallet_private_key_secret=private_key_to_use,
+                    passphrase_secret=secrets.passphrase,  # Pass SecretStr or None
                     chain_id=self.chain_id,
+                    is_mainnet_environment=self.exchange_config.is_mainnet_environment,
                 )
             except ValueError as e:  # Catch init errors from Authenticator
                 logger.error(f"Failed to initialize HyperliquidEip712Authenticator: {e}")
                 return None
-        elif secrets.passphrase:  # This branch is for passphrase-only scenarios
-            logger.error(
-                "Hyperliquid authentication via passphrase only is not fully supported for "
-                "direct authenticator creation without a private key from passphrase derivation "
-                "being implemented here."
-            )
-            # Or if passphrase was meant with a private key from keystore (not current design)
-            return None  # Keep consistent with current factory logic for passphrase-only
         else:
             logger.warning(
-                "Hyperliquid secrets provided but missing private_key. Cannot create authenticator."
+                "Hyperliquid secrets provided but no suitable private key found. "
+                "Cannot create authenticator."
             )
             return None
 
