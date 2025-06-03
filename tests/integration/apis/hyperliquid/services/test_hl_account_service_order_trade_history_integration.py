@@ -1,5 +1,5 @@
 """
-Unit tests for HyperliquidAccountService order and trade history functionality.
+Integration tests for HyperliquidAccountService order and trade history functionality.
 """
 
 from datetime import UTC, datetime
@@ -12,11 +12,14 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import GetOrderHistoryArgs, GetTradeHistoryArgs
 
+# Mark all tests in this file as integration tests
+pytestmark = pytest.mark.integration
+
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.hyperliquid.services.conftest_account"]
 
 
-class TestHyperliquidAccountServiceOrderTradeHistory:
+class TestHyperliquidAccountServiceOrderTradeHistoryIntegration:
     """Tests for the HyperliquidAccountService order and trade history functionality."""
 
     @pytest.mark.asyncio

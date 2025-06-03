@@ -1,7 +1,9 @@
 """
-Unit tests for the HyperliquidMarketDataService.
+Integration tests for the HyperliquidMarketDataService.
+Tests complete workflows through public interfaces with mocked HTTP responses.
 """
 
+# Mark all tests in this file as integration tests
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
@@ -49,6 +51,9 @@ from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market import FundingRate, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market.candle import Candle
 
+# Mark all tests in this file as integration tests
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def mock_http_client_requester() -> AsyncMock:
@@ -86,8 +91,8 @@ def hyperliquid_market_data_service(
     )
 
 
-class TestHyperliquidMarketDataService:
-    """Tests for the HyperliquidMarketDataService class."""
+class TestHyperliquidMarketDataServiceIntegrationIntegration:
+    """Integration tests for the HyperliquidMarketDataService class."""
 
     @pytest.mark.asyncio
     async def test_get_all_asset_contexts_success(

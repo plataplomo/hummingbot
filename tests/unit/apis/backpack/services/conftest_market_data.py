@@ -13,7 +13,8 @@ from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarketDataMapper
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 
-# from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService  # Removed in refactor
+# from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
+# Removed in refactor
 
 
 @pytest.fixture

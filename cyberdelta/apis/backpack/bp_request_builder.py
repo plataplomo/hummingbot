@@ -58,8 +58,13 @@ class BackpackRequestBuilder:
             exchange_config: Exchange-specific configuration model.
         """
         self._exchange_config = exchange_config
-        # Get base URL from the configuration
-        self.base_url = str(self._exchange_config.api_base_url)
+        # Get base URL from the configuration based on environment
+        if self._exchange_config.is_mainnet_environment:
+            self.base_url = str(self._exchange_config.api_base_url_mainnet)
+        else:
+            if self._exchange_config.api_base_url_testnet is None:
+                raise ValueError("Testnet API URL not configured but testnet environment requested")
+            self.base_url = str(self._exchange_config.api_base_url_testnet)
 
     def _get_endpoint_url(self, path: str) -> str:
         """Constructs the full URL for an API endpoint path."""

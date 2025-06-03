@@ -1,5 +1,5 @@
 """
-Unit tests for HyperliquidMarketDataService public data operations.
+Integration tests for HyperliquidMarketDataService public data operations.
 Tests the public market data methods including get_ticker, get_order_book, and get_recent_trades.
 """
 
@@ -30,11 +30,14 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market import OrderBook, Ticker, Trade
 
+# Mark all tests in this file as integration tests
+pytestmark = pytest.mark.integration
+
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.hyperliquid.services.conftest_market_data"]
 
 
-class TestHyperliquidMarketDataServicePublicData:
+class TestHyperliquidMarketDataServicePublicDataIntegration:
     """Tests for the HyperliquidMarketDataService public market data functionality."""
 
     # =============================================================================

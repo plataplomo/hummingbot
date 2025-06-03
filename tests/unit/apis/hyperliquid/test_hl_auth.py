@@ -86,10 +86,15 @@ def test_hl_auth_init_both_key_and_account(mock_account: MagicMock) -> None:
 def test_hl_auth_init_from_key_value_error(mock_from_key: MagicMock) -> None:
     """Test initialization raises ValueError if Account.from_key raises ValueError."""
     # Use a properly formatted hex key that will pass format validation but fail Account.from_key
-    properly_formatted_but_bad_key = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+    properly_formatted_but_bad_key = (
+        "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+    )
     with pytest.raises(
         ValueError,
-        match=r"Invalid private key: Hyperliquid private_key is not cryptographically valid: Simulated Key Error",
+        match=(
+            r"Invalid private key: Hyperliquid private_key is not cryptographically "
+            r"valid: Simulated Key Error"
+        ),
     ):
         HyperliquidEip712Authenticator(
             wallet_private_key_secret=SecretStr(properly_formatted_but_bad_key),
@@ -193,7 +198,11 @@ async def test_prepare_request_data_is_not_dict(
     with pytest.raises(ValueError, match="Must be a dictionary"):
         # Cast to bypass type checking for this error handling test
         await authenticator_instance.prepare_request(
-            "POST", "/exchange", None, "not a dict", None  # type: ignore[arg-type]
+            "POST",
+            "/exchange",
+            None,
+            "not a dict",  # type: ignore[arg-type]
+            None,
         )
 
 
@@ -292,6 +301,7 @@ class TestHyperliquidEip712Authenticator:
         """Test prepare_request with a valid dictionary payload for 'data'."""
         # Set up the mock to return a proper signature structure
         from unittest.mock import MagicMock
+
         signed_msg_mock = MagicMock()
         signed_msg_mock.r = 12345
         signed_msg_mock.s = 67890
@@ -301,7 +311,7 @@ class TestHyperliquidEip712Authenticator:
         auth = auth_with_mock_account
         action_payload = {"type": "order", "orders": [{"coin": "BTC", "is_buy": True, "sz": "0.1"}]}
         result = await auth.prepare_request("POST", "/exchange", None, action_payload, None)
-        
+
         # Verify the new authentication scheme is used
         assert result.data is not None
         assert "action" in result.data

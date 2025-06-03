@@ -1,5 +1,5 @@
 """
-Unit tests for HyperliquidTradingService order operations.
+Integration tests for HyperliquidTradingService order operations.
 """
 
 from collections.abc import Callable
@@ -27,11 +27,14 @@ from cyberdelta.apis.models.service_args_models import CancelOrderArgs, GetOrder
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
 
+# Mark all tests in this file as integration tests
+pytestmark = pytest.mark.integration
+
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.hyperliquid.services.conftest_trading"]
 
 
-class TestHyperliquidTradingServiceOrders:
+class TestHyperliquidTradingServiceOrdersIntegration:
     """Tests for the HyperliquidTradingService order operations."""
 
     # =============================================================================
@@ -519,6 +522,7 @@ class TestHyperliquidTradingServiceOrders:
         from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
             HyperliquidRawOrderStatusRequestPayload,
         )
+
         mock_payload = HyperliquidRawOrderStatusRequestPayload(
             type="orderStatus", user=wallet_address, oid=int(order_id)
         )
@@ -648,6 +652,7 @@ class TestHyperliquidTradingServiceOrders:
         from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
             HyperliquidRawOpenOrdersRequestPayload,
         )
+
         mock_payload = HyperliquidRawOpenOrdersRequestPayload(
             type="openOrders", user=wallet_address
         )
@@ -724,6 +729,7 @@ class TestHyperliquidTradingServiceOrders:
         from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
             HyperliquidRawOpenOrdersRequestPayload,
         )
+
         mock_payload = HyperliquidRawOpenOrdersRequestPayload(
             type="openOrders", user=wallet_address
         )

@@ -180,10 +180,17 @@ def data_handler(
     real_portfolio_tracker: PortfolioTracker,
 ) -> DataHandler:
     """Data Handler instance with mock APIs registered."""
-    api_clients = {
-        "mock_hl": mock_hl_api,
-        "mock_bp": mock_bp_api,
-    }
+    from typing import cast
+
+    from cyberdelta.apis.base.exchange_api import ExchangeAPI
+
+    api_clients: dict[str, ExchangeAPI] = cast(
+        dict[str, ExchangeAPI],
+        {
+            "mock_hl": mock_hl_api,
+            "mock_bp": mock_bp_api,
+        },
+    )
     dh = DataHandler(
         app_settings=mock_config,
         api_clients=api_clients,
@@ -308,7 +315,6 @@ async def position_reconciler(
 @pytest.fixture
 def circuit_breaker_system(mock_config: AppSettings) -> CircuitBreakerSystem:
     """Provides a CircuitBreakerSystem instance initialized with mock config."""
-    global_cb_path_parts = ["validation", "circuit_breaker", "global", "api_errors"]
     # Create a mock config structure for circuit breaker
     from unittest.mock import MagicMock
 

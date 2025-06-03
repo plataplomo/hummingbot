@@ -6,8 +6,7 @@ from decimal import Decimal
 from typing import Any, cast
 
 import pytest
-from _pytest.logging import LogCaptureFixture  # Added for caplog typing
-from pytest import approx  # Import approx for typing
+from pytest import LogCaptureFixture
 from pytest_mock import MockerFixture  # Added MockerFixture
 
 from cyberdelta.apis.models.api_error import (  # Import APIError for test_failed_execution
@@ -491,6 +490,7 @@ async def test_happy_path_full_cycle(
     portfolio_tracker.reset()  # Explicitly reset state for this test
     # Directly set balances for testing via internal API (necessary for mocks)
     # Consider adding a test-specific method to PortfolioTracker if this pattern persists
+    # DEFENSIVE CHECK: Using protected method for test setup. Mypy=[misc] Ruff=[SLF001]
     portfolio_tracker._update_balance(
         "mock_hl",
         SpotBalance(
@@ -501,6 +501,7 @@ async def test_happy_path_full_cycle(
             available_quantity=initial_usdc_balance,
         ),
     )
+    # DEFENSIVE CHECK: Using protected method for test setup. Mypy=[misc] Ruff=[SLF001]
     portfolio_tracker._update_balance(
         "mock_bp",
         SpotBalance(
@@ -552,6 +553,7 @@ async def test_happy_path_full_cycle(
     mock_bp_api.set_mock_ticker(mock_bp_ticker)
 
     # --- ADDED: Configure Mock APIs to fill orders immediately for this test ---
+    # DEFENSIVE CHECK: Using protected attribute for test setup. Mypy=[misc] Ruff=[SLF001]
     mock_hl_api._open_orders_behavior = "fill_immediately"
     mock_bp_api._open_orders_behavior = "fill_immediately"
     # --- END ADDED ---
@@ -671,7 +673,10 @@ async def test_happy_path_full_cycle(
 
     # Mock datetime.now by patching the 'dt_real' alias in data_handler.py
     # used by self.datetime_alias
+    from unittest.mock import MagicMock
+
     with mocker.patch("cyberdelta.core.data_handler.dt_real.now") as mock_dt_real_now:
+        mock_dt_real_now = cast(MagicMock, mock_dt_real_now)
         mock_dt_real_now.return_value = start_time  # Use start_time for this test
 
         opportunities = await signal_generator.generate_arbitrage_opportunities(
@@ -706,9 +711,9 @@ async def test_happy_path_full_cycle(
     assert bp_rate is not None, "Mock BP funding rate is None, cannot calculate NFD"
     assert hl_rate is not None, "Mock HL funding rate is None, cannot calculate NFD"
     expected_nfd = bp_rate - hl_rate
-    assert opportunity.net_funding_differential == approx(
-        expected_nfd
-    )  # Mypy struggles with approx typing
+    # Manual tolerance check instead of pytest.approx for type safety
+    tolerance = Decimal("1e-10")
+    assert abs(opportunity.net_funding_differential - expected_nfd) <= tolerance
     assert opportunity.expected_profit is not None
     assert opportunity.expected_profit > 0
 
@@ -803,14 +808,15 @@ async def test_happy_path_full_cycle(
     expected_hl_quantity = sized_opportunity.short_size / sized_opportunity.opportunity.short_price
 
     assert bp_pos.side == OrderSide.BUY, f"Expected Backpack ({symbol_base}) side to be BUY"
-    assert bp_pos.size == approx(expected_bp_quantity), (
+    # Check position sizes with tolerance for floating point precision
+    assert abs(bp_pos.size - expected_bp_quantity) < Decimal("1e-8"), (
         f"Backpack ({symbol_base}) position size mismatch. "
         f"Expected approx {expected_bp_quantity}, got {bp_pos.size}"
     )
 
     assert hl_pos.side == OrderSide.SELL, f"Expected Hyperliquid ({symbol_base}) side to be SELL"
     # Position size for SELL side is negative
-    assert hl_pos.size == approx(-expected_hl_quantity), (
+    assert abs(hl_pos.size - (-expected_hl_quantity)) < Decimal("1e-8"), (
         f"Hyperliquid ({symbol_base}) position size mismatch. "
         f"Expected approx {-expected_hl_quantity}, got {hl_pos.size}"
     )
@@ -958,7 +964,6 @@ async def test_partial_fill(
 
     # --- Explicitly set logger level for signal_generator for this test ---
     sg_logger = logging.getLogger("cyberdelta.core.signal_generator")
-    original_sg_level = sg_logger.level
     sg_logger.setLevel(logging.DEBUG)
     # Ensure handlers can also see DEBUG messages if they have their own levels
     # This might be needed if pytest's caplog handler has a higher level set
@@ -1174,7 +1179,6 @@ async def test_partial_fill(
 
     # --- Restore original logger level for signal_generator ---
     sg_logger = logging.getLogger("cyberdelta.core.signal_generator")
-    original_sg_level = sg_logger.level
     sg_logger.setLevel(logging.DEBUG)
     # for handler, level in original_handler_levels.items():
     # handler.setLevel(level)
@@ -1192,9 +1196,9 @@ async def test_partial_fill(
     assert bp_rate is not None, "Mock BP funding rate is None, cannot calculate NFD"
     assert hl_rate is not None, "Mock HL funding rate is None, cannot calculate NFD"
     expected_nfd = bp_rate - hl_rate
-    assert opportunity.net_funding_differential == approx(
-        expected_nfd
-    )  # Mypy struggles with approx typing
+    # Manual tolerance check instead of pytest.approx for type safety
+    tolerance = Decimal("1e-10")
+    assert abs(opportunity.net_funding_differential - expected_nfd) <= tolerance
 
     # --- Add Debug Logging ---
     # Get balances using internal dict for test verification
@@ -1252,12 +1256,15 @@ async def test_partial_fill(
     # (which doesn't wait for full fills/compensation)
     assert bp_final_pos is not None
     assert bp_final_pos.size is not None  # Ensure not None before approx
-    assert abs(bp_final_pos.size) == approx(
-        partial_fill_qty
-    )  # Should reflect the partial fill recorded
+    # Check position sizes with tolerance for floating point precision
+    assert abs(abs(bp_final_pos.size) - partial_fill_qty) < Decimal("1e-8"), (
+        f"BP position size mismatch. Expected {partial_fill_qty}, got {bp_final_pos.size}"
+    )
     assert hl_final_pos is not None
-    assert hl_final_pos.size is not None  # Ensure not None before approx
-    assert abs(hl_final_pos.size) == approx(target_qty)  # Should reflect the full fill recorded
+    assert hl_final_pos.size is not None  # Ensure not None before comparison
+    assert abs(abs(hl_final_pos.size) - target_qty) < Decimal("1e-8"), (
+        f"HL position size mismatch. Expected {target_qty}, got {hl_final_pos.size}"
+    )
 
     # Assert that compensation was NOT triggered in logs (as neither leg initially FAILED)
     assert "compensation" not in caplog.text.lower(), (
@@ -1596,7 +1603,6 @@ async def test_execution_failure_compensation(
 
     # --- Restore original logger level for signal_generator ---
     sg_logger = logging.getLogger("cyberdelta.core.signal_generator")
-    original_sg_level = sg_logger.level
     sg_logger.setLevel(logging.DEBUG)
     # for handler, level in original_handler_levels.items():
     # handler.setLevel(level)
@@ -1614,9 +1620,9 @@ async def test_execution_failure_compensation(
     assert bp_rate is not None, "Mock BP funding rate is None, cannot calculate NFD"
     assert hl_rate is not None, "Mock HL funding rate is None, cannot calculate NFD"
     expected_nfd = bp_rate - hl_rate
-    assert opportunity.net_funding_differential == approx(
-        expected_nfd
-    )  # Mypy struggles with approx typing
+    # Manual tolerance check instead of pytest.approx for type safety
+    tolerance = Decimal("1e-10")
+    assert abs(opportunity.net_funding_differential - expected_nfd) <= tolerance
 
     # --- Add Debug Logging ---
     # Get balances using internal dict for test verification
@@ -1660,9 +1666,11 @@ async def test_execution_failure_compensation(
 
     # Verify compensation order was placed and filled (check mocks and logs)
     # Use the mock object returned by mocker.patch.object for assertions
-    # bp_place_order_mock = mock_bp_api.place_order # REMOVED Unused variable
-    mock_bp_api.place_order.assert_called()
-    calls = mock_bp_api.place_order.call_args_list
+    from unittest.mock import MagicMock
+
+    bp_place_order_mock = cast(MagicMock, mock_bp_api.place_order)
+    bp_place_order_mock.assert_called()
+    calls = bp_place_order_mock.call_args_list
     assert len(calls) == 2, "Expected 2 place_order calls on BP (initial + compensation)"
     assert calls[0].kwargs["side"] == OrderSide.BUY
     assert calls[1].kwargs["side"] == OrderSide.SELL, "Expected compensation call to be SELL"
@@ -1880,10 +1888,17 @@ async def test_failed_execution(
     assert trade_execution_result.long_order_id is None  # BP leg (long) should not have been placed
 
     # Assert mock place_order was called on the failing exchange (HL - short leg)
-    mock_hl_api.place_order.assert_called_once()  # mocker.patch.object attaches this
+    # Note: We need to check the mock object created by mocker.patch.object
+    # The actual mock object is accessible through the patched method
+    from unittest.mock import MagicMock
+
+    hl_place_order_mock = cast(MagicMock, mock_hl_api.place_order)
+    hl_place_order_mock.assert_called_once()
+
     # Assert mock place_order was NOT called on the second exchange (BP - long leg)
     # because the first leg's failure should halt the execution of the pair.
-    mock_bp_api.place_order.assert_not_called()  # mocker.patch.object attaches this
+    bp_place_order_mock = cast(MagicMock, mock_bp_api.place_order)
+    bp_place_order_mock.assert_not_called()
 
     # --- Verify Portfolio State (Should be largely unchanged) ---
     # Use internal dict for test verification

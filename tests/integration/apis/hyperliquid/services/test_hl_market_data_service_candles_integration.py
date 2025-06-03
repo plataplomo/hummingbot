@@ -1,5 +1,5 @@
 """
-Unit tests for HyperliquidMarketDataService market data/candles functionality.
+Integration tests for HyperliquidMarketDataService market data/candles functionality.
 """
 
 from datetime import UTC, datetime
@@ -19,11 +19,14 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import GetMarketDataArgs
 from cyberdelta.core.models.market import Candle
 
+# Mark all tests in this file as integration tests
+pytestmark = pytest.mark.integration
+
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.hyperliquid.services.conftest_market_data"]
 
 
-class TestHyperliquidMarketDataServiceCandles:
+class TestHyperliquidMarketDataServiceCandlesIntegration:
     """Tests for the HyperliquidMarketDataService market data/candles functionality."""
 
     @pytest.mark.asyncio

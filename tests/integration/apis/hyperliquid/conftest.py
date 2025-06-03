@@ -1,7 +1,5 @@
-"""
-Unit tests for the HyperliquidAPI client implementation.
-Tests use dependency injection patterns to mock collaborators and focus on isolated logic testing.
-"""
+# Integration test fixtures for Hyperliquid API
+# Copy of necessary fixtures from unit tests
 
 from collections.abc import Callable
 from typing import Any, Literal
@@ -59,9 +57,6 @@ def create_test_exchange_config(
         **kwargs,
     }
     return ExchangeSpecificConfig.model_validate(config_dict)
-
-
-# --- Dependency Injection Test Fixtures for HyperliquidAPI ---
 
 
 @pytest.fixture
@@ -221,7 +216,6 @@ def hl_api_with_di(
     Factory fixture to create HyperliquidAPI instances with all dependencies injected.
     This enables black-box testing without accessing private members.
     """
-    from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 
     def _create_api(
         # Allow overriding specific dependencies if needed
@@ -259,193 +253,3 @@ def hl_api_with_di(
         )
 
     return _create_api
-
-
-# --- End Dependency Injection Fixtures ---
-
-# Constants for testing
-TEST_WALLET_ADDRESS = "0x0000000000000000000000000000000000000000"
-
-
-class TestHyperliquidAPIInitialization:
-    """Test HyperliquidAPI initialization with dependency injection."""
-
-    def test_api_creation_with_di_fixture(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI]
-    ) -> None:
-        """Test that the DI fixture creates a valid API instance."""
-        api = hl_api_with_di()
-
-        # Verify the API instance is created correctly
-        assert api is not None
-        assert api.exchange_name == "hyperliquid"
-        assert hasattr(api, "trading_service")
-        assert hasattr(api, "account_service")
-        assert hasattr(api, "market_data_service")
-
-    def test_api_creation_with_custom_config(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI]
-    ) -> None:
-        """Test API creation with custom configuration."""
-        custom_config = create_test_exchange_config(
-            env_type="testnet",
-            api_base_url_testnet="https://custom.hyperliquid.api",
-            ws_url_testnet="wss://custom.hyperliquid.ws",
-        )
-
-        api = hl_api_with_di(config=custom_config)
-        assert api is not None
-
-    def test_api_has_required_services(self, hl_api_with_di: Callable[..., HyperliquidAPI]) -> None:
-        """Test that API instance has all required services initialized."""
-        api = hl_api_with_di()
-
-        # Verify the API instance has all required services
-        assert api is not None
-        assert api.exchange_name == "hyperliquid"
-        assert hasattr(api, "trading_service")
-        assert hasattr(api, "account_service")
-        assert hasattr(api, "market_data_service")
-
-
-class TestHyperliquidAPIWebSocketOperations:
-    """Test WebSocket operations."""
-
-    def test_subscription_payload_construction_public_behavior(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI]
-    ) -> None:
-        """Test subscription payload construction through public interface."""
-        api = hl_api_with_di()
-
-        # Test that the method exists and can be called
-        # Note: We avoid accessing protected members directly
-        # Instead we test through public interface behavior
-        assert hasattr(api, "subscribe_to_order_book")
-        assert hasattr(api, "subscribe_to_trades")
-        assert hasattr(api, "subscribe_to_account_updates")
-
-
-class TestHyperliquidAPIDependencyIsolation:
-    """Test dependency isolation and injection."""
-
-    def test_custom_dependency_override(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI]
-    ) -> None:
-        """Test that custom dependencies can be injected."""
-        custom_trading_service = MagicMock()
-        api = hl_api_with_di(trading_service=custom_trading_service)
-
-        # Verify the custom dependency was injected
-        assert api.trading_service is custom_trading_service
-
-    def test_multiple_api_instances_are_isolated(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI]
-    ) -> None:
-        """Test that multiple API instances are different objects."""
-        api1 = hl_api_with_di()
-        api2 = hl_api_with_di()
-
-        # Verify instances are different
-        assert api1 is not api2
-
-        # Note: In testing, services are the same mock instances (expected behavior)
-        # but in production, each API instance would have its own service instances
-        assert api1.trading_service is api2.trading_service  # Same mock in tests
-        assert api1.account_service is api2.account_service  # Same mock in tests
-        assert api1.market_data_service is api2.market_data_service  # Same mock in tests
-
-        # Verify they have the same exchange name but are independent API instances
-        assert api1.exchange_name == api2.exchange_name == "hyperliquid"
-
-        # Test that the API instances themselves are different objects
-        api1_id = id(api1)
-        api2_id = id(api2)
-        assert api1_id != api2_id
-
-
-class TestHyperliquidAPIEnvironmentAwareness:
-    """Test environment awareness features for mainnet/testnet support."""
-
-    def test_create_test_exchange_config_testnet_default(self) -> None:
-        """Test that create_test_exchange_config defaults to testnet."""
-        config = create_test_exchange_config()
-
-        assert config.is_mainnet_environment is False
-        assert str(config.api_base_url_mainnet) == "https://api.hyperliquid.xyz/"
-        assert str(config.ws_url_mainnet) == "wss://api.hyperliquid.xyz/ws"
-        assert str(config.api_base_url_testnet) == "https://api.hyperliquid-testnet.xyz/"
-        assert str(config.ws_url_testnet) == "wss://api.hyperliquid-testnet.xyz/ws"
-
-    def test_create_test_exchange_config_mainnet_explicit(self) -> None:
-        """Test that create_test_exchange_config can be set to mainnet."""
-        config = create_test_exchange_config(env_type="mainnet")
-
-        assert config.is_mainnet_environment is True
-        assert str(config.api_base_url_mainnet) == "https://api.hyperliquid.xyz/"
-        assert str(config.ws_url_mainnet) == "wss://api.hyperliquid.xyz/ws"
-        assert str(config.api_base_url_testnet) == "https://api.hyperliquid-testnet.xyz/"
-        assert str(config.ws_url_testnet) == "wss://api.hyperliquid-testnet.xyz/ws"
-
-    def test_create_test_exchange_config_testnet_explicit(self) -> None:
-        """Test that create_test_exchange_config can be explicitly set to testnet."""
-        config = create_test_exchange_config(env_type="testnet")
-
-        assert config.is_mainnet_environment is False
-        assert str(config.api_base_url_mainnet) == "https://api.hyperliquid.xyz/"
-        assert str(config.ws_url_mainnet) == "wss://api.hyperliquid.xyz/ws"
-        assert str(config.api_base_url_testnet) == "https://api.hyperliquid-testnet.xyz/"
-        assert str(config.ws_url_testnet) == "wss://api.hyperliquid-testnet.xyz/ws"
-
-    def test_create_test_exchange_config_with_overrides(self) -> None:
-        """Test that create_test_exchange_config accepts kwargs overrides."""
-        config = create_test_exchange_config(
-            env_type="testnet",
-            api_base_url_testnet="https://custom-testnet.hyperliquid.xyz",
-            chain_id=42,
-        )
-
-        assert config.is_mainnet_environment is False
-        assert str(config.api_base_url_testnet) == "https://custom-testnet.hyperliquid.xyz/"
-        assert config.chain_id == 42
-
-    def test_api_environment_awareness_through_config(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI]
-    ) -> None:
-        """Test that API can be created with environment-aware config."""
-        # Test with testnet config
-        testnet_config = create_test_exchange_config(env_type="testnet")
-        api_testnet = hl_api_with_di(config=testnet_config)
-
-        assert api_testnet is not None
-        assert api_testnet.exchange_name == "hyperliquid"
-
-        # Test with mainnet config
-        mainnet_config = create_test_exchange_config(env_type="mainnet")
-        api_mainnet = hl_api_with_di(config=mainnet_config)
-
-        assert api_mainnet is not None
-        assert api_mainnet.exchange_name == "hyperliquid"
-
-
-class TestHyperliquidAPIResourceManagement:
-    """Test resource management and cleanup."""
-
-    @pytest.mark.asyncio
-    async def test_api_close_cleanup(self, hl_api_with_di: Callable[..., HyperliquidAPI]) -> None:
-        """Test that API close properly cleans up resources."""
-        api = hl_api_with_di()
-
-        # Test that close doesn't raise an error
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_context_manager_behavior(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI]
-    ) -> None:
-        """Test that API can be used as a context manager."""
-        api = hl_api_with_di()
-
-        # Test basic usage without context manager for now
-        # since HyperliquidAPI doesn't implement __aenter__/__aexit__
-        assert api.exchange_name == "hyperliquid"
-        await api.close()

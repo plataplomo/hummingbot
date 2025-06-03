@@ -83,6 +83,9 @@ addopts = [
     "--cov-fail-under=90",
 ]
 testpaths = ["tests"]
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+]
 
 # Ruff configuration for linting
 [tool.ruff]

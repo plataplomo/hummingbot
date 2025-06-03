@@ -28,7 +28,7 @@ class TestHyperliquidAssetIndexResolver:
 
     @pytest.fixture
     def mock_requester(self) -> AsyncMock:
-        """Mock for the requester callable (HyperliquidAPI._request)."""
+        """Mock for the requester callable."""
         return AsyncMock()
 
     @pytest.fixture

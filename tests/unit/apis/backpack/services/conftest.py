@@ -18,7 +18,8 @@ from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccount
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 
-# from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService  # Removed in refactor
+# from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
+# Removed in refactor
 from cyberdelta.core.models.enums import InternalWithdrawalStatus
 from cyberdelta.core.models.operations import Withdrawal
 

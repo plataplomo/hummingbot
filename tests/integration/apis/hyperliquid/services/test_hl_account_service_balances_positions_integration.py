@@ -1,5 +1,5 @@
 """
-Unit tests for HyperliquidAccountService balance and position management functionality.
+Integration tests for HyperliquidAccountService balance and position management functionality.
 """
 
 from datetime import UTC, datetime
@@ -21,11 +21,14 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import SpotBalance
 
+# Mark all tests in this file as integration tests
+pytestmark = pytest.mark.integration
+
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.hyperliquid.services.conftest_account"]
 
 
-class TestHyperliquidAccountServiceBalancesPositions:
+class TestHyperliquidAccountServiceBalancesPositionsIntegration:
     """Tests for the HyperliquidAccountService balance and position management functionality."""
 
     @pytest.mark.asyncio

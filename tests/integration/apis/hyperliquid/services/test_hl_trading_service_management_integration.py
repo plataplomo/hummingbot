@@ -1,5 +1,5 @@
 """
-Unit tests for HyperliquidTradingService management operations.
+Integration tests for HyperliquidTradingService management operations.
 """
 
 from collections.abc import Callable
@@ -14,11 +14,14 @@ from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidT
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
+# Mark all tests in this file as integration tests
+pytestmark = pytest.mark.integration
+
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.hyperliquid.services.conftest_trading"]
 
 
-class TestHyperliquidTradingServiceManagement:
+class TestHyperliquidTradingServiceManagementIntegration:
     """Tests for the HyperliquidTradingService management operations."""
 
     @pytest.mark.asyncio

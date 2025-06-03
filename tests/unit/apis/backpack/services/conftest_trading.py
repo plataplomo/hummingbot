@@ -16,7 +16,8 @@ from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTrading
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 
-# from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService  # Removed in refactor
+# from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
+# Removed in refactor
 
 # Type alias for the HTTP client requester callable
 HttpClientRequesterSig = Callable[

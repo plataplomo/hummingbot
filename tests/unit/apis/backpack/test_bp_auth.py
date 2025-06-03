@@ -123,7 +123,9 @@ class TestBackpackEd25519Authenticator:
             )
 
     def test_initialization_missing_both_credentials_raises_value_error(self) -> None:
-        with pytest.raises(ValueError, match="API key \\(Base64 public ED25519 key\\) cannot be empty"):
+        with pytest.raises(
+            ValueError, match="API key \\(Base64 public ED25519 key\\) cannot be empty"
+        ):
             BackpackEd25519Authenticator(
                 api_key_b64_secret=SecretStr(""), private_key_b64_secret=SecretStr("")
             )

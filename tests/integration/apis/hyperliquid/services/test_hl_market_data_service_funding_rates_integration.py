@@ -1,5 +1,5 @@
 """
-Unit tests for HyperliquidMarketDataService funding rate functionality.
+Integration tests for HyperliquidMarketDataService funding rate functionality.
 """
 
 from datetime import UTC, datetime
@@ -25,11 +25,14 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import GetHistoricalFundingRatesArgs
 from cyberdelta.core.models.market import FundingRate
 
+# Mark all tests in this file as integration tests
+pytestmark = pytest.mark.integration
+
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.hyperliquid.services.conftest_market_data"]
 
 
-class TestHyperliquidMarketDataServiceFundingRates:
+class TestHyperliquidMarketDataServiceFundingRatesIntegration:
     """Tests for the HyperliquidMarketDataService funding rate functionality."""
 
     @pytest.mark.asyncio

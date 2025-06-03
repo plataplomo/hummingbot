@@ -24,6 +24,8 @@ from cyberdelta.apis.models.service_args_models import (
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
     PlaceOrderArgs,
+    TransferArgs,
+    WithdrawArgs,
 )
 
 # Correct the import to use the new typing module
@@ -46,6 +48,7 @@ from cyberdelta.core.models import (
 from cyberdelta.core.models.enums import CancelOrderResultStatus
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.core.models.operations import Transfer, Withdrawal
 
 logger = logging.getLogger(__name__)
 
@@ -988,19 +991,16 @@ class MockExchangeAPI(ExchangeAPI):
         await self._simulate_latency()
 
         # Return a mock transfer result
-        from cyberdelta.core.models.operations import Transfer, TransferStatus
+        from cyberdelta.core.models.enums import InternalTransferStatus
+        from cyberdelta.core.models.operations import Transfer
 
         return Transfer(
             id=f"mock_transfer_{args.client_transfer_id or 'auto'}",
             exchange=self.exchange_name,
             asset=args.asset,
-            amount=args.amount,
-            from_account_type=args.from_account_type,
-            to_account_type=args.to_account_type,
-            status=TransferStatus.COMPLETED,
-            created_at=datetime.now(UTC),
-            completed_at=datetime.now(UTC),
-            client_transfer_id=args.client_transfer_id,
+            quantity=args.amount,
+            status=InternalTransferStatus.COMPLETED,
+            timestamp=datetime.now(UTC),
         )
 
     async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
@@ -1009,19 +1009,17 @@ class MockExchangeAPI(ExchangeAPI):
         await self._simulate_latency()
 
         # Return a mock withdrawal result
-        from cyberdelta.core.models.operations import Withdrawal, WithdrawalStatus
+        from cyberdelta.core.models.enums import InternalWithdrawalStatus
+        from cyberdelta.core.models.operations import Withdrawal
 
         return Withdrawal(
             id=f"mock_withdrawal_{args.client_withdrawal_id or 'auto'}",
             exchange=self.exchange_name,
             asset=args.asset,
-            amount=args.amount,
+            quantity=args.amount,
             address=args.address,
-            network=args.network,
-            tag=args.tag,
-            status=WithdrawalStatus.PENDING,
-            created_at=datetime.now(UTC),
-            client_withdrawal_id=args.client_withdrawal_id,
+            status=InternalWithdrawalStatus.PENDING,
+            timestamp=datetime.now(UTC),
             fee=Decimal("0.001"),  # Mock fee
         )
 
