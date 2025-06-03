@@ -553,7 +553,8 @@ class TestSignalGenerator:
             return final_result
 
         config.get.side_effect = single_exchange_config_get
-        signal_generator._initialize_data_structures()  # Re-initialize with new config
+        # Re-initialize by creating a new signal generator instance with the updated config
+        signal_generator = SignalGenerator(config)
 
         mock_funding_data = {
             "BTC": {
@@ -606,11 +607,18 @@ class TestSignalGenerator:
             ),
         }
 
-        # Accessing protected method for targeted unit test;
-        # this is intentional for coverage and no public alternative exists.
-        opportunities = signal_generator._check_funding_rate_opportunities(
-            "BTC", funding_data, ticker_data
-        )
+        # Test opportunity detection through the public signal generation interface
+        # Add the mock data to the data handler and generate signals
+        data_handler.funding_rates = mock_funding_data  # Add funding data
+        
+        # Generate signals which should internally detect opportunities
+        signals = await signal_generator.generate_signals()
+        
+        # Extract opportunities from generated signals (signals should contain opportunity metadata)
+        opportunities = []
+        for signal in signals:
+            if signal.metadata and "opportunity" in signal.metadata:
+                opportunities.append(signal.metadata["opportunity"])
 
         assert len(opportunities) == 1
         opp = opportunities[0]

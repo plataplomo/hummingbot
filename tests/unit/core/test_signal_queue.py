@@ -430,10 +430,9 @@ async def test_clean_expired_signals_direct_patch(
             # Allow cleanup task to potentially run (interval is 1s mocked)
             await asyncio.sleep(0.1)  # Short real sleep, cleanup uses mocked time
 
-            # Explicitly call cleanup (using mocked time)
-            queue._clean_expired_signals(
-                # DEFENSIVE CHECK: [Testing protected method]. Mypy=[] Ruff=[BLE001]
-            )
+            # Wait for automatic cleanup to occur via background task
+            # The cleanup task should run automatically based on the cleanup interval
+            await asyncio.sleep(1.5)  # Wait longer than cleanup_interval (1.0s)
 
             # Assertions after explicit cleanup
             current_signals = await queue.get_signals()
@@ -446,17 +445,8 @@ async def test_clean_expired_signals_direct_patch(
             # assert queue._cleaned_count == 2 # This attribute doesn't exist, remove assertion
 
         finally:
-            # Ensure the cleanup task is cancelled
-            if (
-                hasattr(queue, "_cleanup_task")
-                and queue._cleanup_task
-                and not queue._cleanup_task.done()
-            ):
-                queue._cleanup_task.cancel()
-                try:
-                    await queue._cleanup_task
-                except asyncio.CancelledError:
-                    pass  # Expected
+            # Clean shutdown - allow any background tasks to complete naturally
+            await asyncio.sleep(0.1)
 
 
 @pytest.mark.asyncio  # Mark test as async
@@ -567,9 +557,8 @@ async def test_signal_expiration_logic(
             # --- Test Case 3: Explicitly clean and verify ---
             # Advance time further to ensure signal_not_to_expire also expires
             mock_dt_sq.now.return_value = real_current_time + timedelta(seconds=15)
-            queue._clean_expired_signals(
-                # DEFENSIVE CHECK: [Testing protected method]. Mypy=[] Ruff=[BLE001]
-            )
+            # Trigger cleanup by waiting for background cleanup task
+            await asyncio.sleep(1.5)  # Wait for cleanup to occur automatically
 
             current_signals_after_manual_clean = await queue.get_signals()
             assert not current_signals_after_manual_clean, (
@@ -578,17 +567,8 @@ async def test_signal_expiration_logic(
             assert await queue.is_empty(), "Queue should be empty"
 
     finally:
-        # Ensure the cleanup task is cancelled
-        if (
-            hasattr(queue, "_cleanup_task")
-            and queue._cleanup_task
-            and not queue._cleanup_task.done()
-        ):
-            queue._cleanup_task.cancel()
-            try:
-                await queue._cleanup_task
-            except asyncio.CancelledError:
-                pass  # Expected
+        # Clean shutdown - allow any background tasks to complete naturally
+        await asyncio.sleep(0.1)
 
 
 @pytest.mark.asyncio  # Mark as async
@@ -642,9 +622,8 @@ async def test_clean_expired_signals_with_helper(
         await queue.add_signal(signal_expired)
 
         # *** Explicitly call cleanup AFTER adding signals ***
-        queue._clean_expired_signals(
-            # DEFENSIVE CHECK: [Testing protected method]. Mypy=[] Ruff=[BLE001]
-        )
+        # Allow cleanup to occur via the background task
+        await asyncio.sleep(1.5)  # Wait for automatic cleanup
 
         # Assertions after explicit cleanup
         current_signals = await queue.get_signals()

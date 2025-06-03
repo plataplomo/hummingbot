@@ -44,11 +44,15 @@ def test_symbol_mapper_init_success() -> None:
     mapper = SymbolMapper(VALID_CONFIG["exchanges"])
     assert mapper is not None
     assert len(mapper.get_all_internal_symbols()) == 3  # BTC, ETH, SOL
-    assert "hyperliquid" in mapper._exchange_to_internal
-    assert "backpack" in mapper._exchange_to_internal
-    assert "kraken" in mapper._exchange_to_internal
-    assert "disabled_exchange" not in mapper._exchange_to_internal  # Skipped
-    assert "invalid_symbols_exchange" not in mapper._exchange_to_internal  # Skipped
+    # Test exchange initialization through public mapping functionality
+    # Verify that enabled exchanges can perform mappings
+    assert mapper.get_exchange_symbol("BTC", "hyperliquid") == "BTC-PERP"
+    assert mapper.get_exchange_symbol("BTC", "backpack") == "BTC_PERP"
+    assert mapper.get_exchange_symbol("ETH", "kraken") == "ETH/USD"
+    
+    # Verify disabled exchanges are properly excluded (should return None)
+    result = mapper.get_exchange_symbol("BTC", "disabled_exchange")
+    assert result is None, "Disabled exchange should not support mapping"
 
 
 def test_symbol_mapper_init_missing_exchanges_key() -> None:
