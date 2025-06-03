@@ -1,5 +1,5 @@
 """
-Integration tests for HyperliquidTradingService order operations.
+Unit tests for HyperliquidTradingService order operations.
 """
 
 from collections.abc import Callable
@@ -27,14 +27,14 @@ from cyberdelta.apis.models.service_args_models import CancelOrderArgs, GetOrder
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
 
-# Mark all tests in this file as integration tests
-pytestmark = pytest.mark.integration
+# Unit tests for HyperliquidTradingService (moved from mislabeled integration tests)
+# These are unit tests because they mock all dependencies and test individual methods
 
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.hyperliquid.services.conftest_trading"]
 
 
-class TestHyperliquidTradingServiceOrdersIntegration:
+class TestHyperliquidTradingServiceOrders:
     """Tests for the HyperliquidTradingService order operations."""
 
     # =============================================================================
