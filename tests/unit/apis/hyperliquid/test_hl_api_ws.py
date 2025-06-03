@@ -7,6 +7,8 @@ The detailed routing logic is tested in test_hl_ws_message_router.py.
 Integration tests for WebSocket functionality are in test_hl_api_ws_integration.py.
 """
 
+from collections.abc import Callable, Coroutine
+from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -290,8 +292,12 @@ class TestHyperliquidAPIWebSocketErrorHandling:
     async def test_subscribe_with_none_handler(self, hl_api: HyperliquidAPI) -> None:
         """Test subscribe behavior with None handler."""
         # Test that None handler is handled appropriately
+        # Cast None to the expected type to test runtime behavior
+        none_handler = cast(
+            Callable[[dict[str, Any], dict[str, Any]], Coroutine[Any, Any, None]], None
+        )
         try:
-            await hl_api.subscribe("l2Book:ETH", None)  # type: ignore[arg-type]
+            await hl_api.subscribe("l2Book:ETH", none_handler)
             # If no exception, the method handles None handler gracefully
             assert True
         except Exception as e:

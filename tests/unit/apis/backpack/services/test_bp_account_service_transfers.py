@@ -28,7 +28,8 @@ class TestBackpackAccountServiceTransfers:
         bp_account_service: BackpackAccountService,
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
-        mock_response_handler: MagicMock,    ) -> None:
+        mock_response_handler: MagicMock,
+    ) -> None:
         """Test transfer successfully initiates a transfer and returns an internal Transfer
         model."""
         asset = "USDC"
@@ -235,7 +236,8 @@ class TestBackpackAccountServiceTransfers:
         self,
         bp_account_service: BackpackAccountService,
         mock_http_client_requester: AsyncMock,
-        mock_request_builder: MagicMock,    ) -> None:
+        mock_request_builder: MagicMock,
+    ) -> None:
         """Test public transfer handles unexpected exceptions from http_client_requester
         by wrapping in APIError."""
         asset = "ETH"

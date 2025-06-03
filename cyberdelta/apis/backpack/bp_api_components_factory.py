@@ -89,8 +89,8 @@ class BackpackAPIComponentsFactory:
             )
             try:
                 return BackpackEd25519Authenticator(
-                    api_key_b64_secret=secrets.api_key,         # Pass SecretStr for public key
-                    private_key_b64_secret=secrets.api_secret   # Pass SecretStr for private key
+                    api_key_b64_secret=secrets.api_key,  # Pass SecretStr for public key
+                    private_key_b64_secret=secrets.api_secret,  # Pass SecretStr for private key
                 )
             except ValueError as e:  # Catch init errors from Authenticator
                 logger.error(f"Failed to initialize BackpackEd25519Authenticator: {e}")

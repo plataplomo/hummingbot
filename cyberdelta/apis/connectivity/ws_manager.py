@@ -540,7 +540,7 @@ class WebSocketManager:
             # Apply rate limiting if configured
             if self._outgoing_message_limiter:
                 await self._outgoing_message_limiter.acquire(1)
-                
+
             # Serialize the Pydantic model
             payload_to_send = data.model_dump(by_alias=True, exclude_none=True)
             self._logger.debug(f"[{self._exchange_name}] Sending WS JSON: {payload_to_send}")

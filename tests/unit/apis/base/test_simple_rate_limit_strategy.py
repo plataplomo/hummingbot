@@ -39,9 +39,8 @@ class TestSimpleTokenBucketStrategy:
             "action_payload": None,
         }
 
-        result = await strategy.prepare_and_acquire(request_context)  # type: ignore[func-returns-value]
-
-        assert result is None
+        await strategy.prepare_and_acquire(request_context)
+        # Method returns None as it doesn't modify the payload
         mock_limiter.acquire.assert_called_once_with(tokens_to_consume=1)
 
     @pytest.mark.asyncio
@@ -57,9 +56,8 @@ class TestSimpleTokenBucketStrategy:
             "request_weight": 5,
         }
 
-        result = await strategy.prepare_and_acquire(request_context)  # type: ignore[func-returns-value]
-
-        assert result is None
+        await strategy.prepare_and_acquire(request_context)
+        # Method returns None as it doesn't modify the payload
         mock_limiter.acquire.assert_called_once_with(tokens_to_consume=5)
 
     @pytest.mark.asyncio
@@ -74,9 +72,8 @@ class TestSimpleTokenBucketStrategy:
             "request_weight": 0,
         }
 
-        result = await strategy.prepare_and_acquire(request_context)  # type: ignore[func-returns-value]
-
-        assert result is None
+        await strategy.prepare_and_acquire(request_context)
+        # Method returns None as it doesn't modify the payload
         mock_limiter.acquire.assert_not_called()
 
     @pytest.mark.asyncio
@@ -91,9 +88,8 @@ class TestSimpleTokenBucketStrategy:
             "request_weight": -1,
         }
 
-        result = await strategy.prepare_and_acquire(request_context)  # type: ignore[func-returns-value]
-
-        assert result is None
+        await strategy.prepare_and_acquire(request_context)
+        # Method returns None as it doesn't modify the payload
         mock_limiter.acquire.assert_not_called()
 
     @pytest.mark.asyncio
@@ -107,9 +103,8 @@ class TestSimpleTokenBucketStrategy:
             "endpoint": "/api/v1/ticker",
         }
 
-        result = await strategy.prepare_and_acquire(request_context)  # type: ignore[func-returns-value]
-
-        assert result is None
+        await strategy.prepare_and_acquire(request_context)
+        # Method returns None as it doesn't modify the payload
         mock_limiter.acquire.assert_called_once_with(tokens_to_consume=1)
 
     def test_custom_default_weight(self, mock_limiter: AsyncMock) -> None:
@@ -125,9 +120,8 @@ class TestSimpleTokenBucketStrategy:
 
         request_context: dict[str, Any] = {"request_weight": 3}
 
-        result = await strategy.prepare_and_acquire(request_context)  # type: ignore[func-returns-value]
-
-        assert result is None
+        await strategy.prepare_and_acquire(request_context)
+        # Method returns None as it doesn't modify the payload
         assert real_limiter.tokens == 7.0  # 10 - 3 = 7
 
     @pytest.mark.asyncio
@@ -139,9 +133,8 @@ class TestSimpleTokenBucketStrategy:
         request_context: dict[str, Any] = {"request_weight": 2}
 
         # The strategy doesn't return wait time, but should still call limiter
-        result = await strategy.prepare_and_acquire(request_context)  # type: ignore[func-returns-value]
-
-        assert result is None
+        await strategy.prepare_and_acquire(request_context)
+        # Method returns None as it doesn't modify the payload
         mock_limiter.acquire.assert_called_once_with(tokens_to_consume=2)
 
     @pytest.mark.asyncio
@@ -165,10 +158,9 @@ class TestSimpleTokenBucketStrategy:
             "request_weight": 1,
         }
 
-        result = await strategy.prepare_and_acquire(request_context)  # type: ignore[func-returns-value]
+        await strategy.prepare_and_acquire(request_context)
 
-        # Should not modify the payload
-        assert result is None
+        # Should not modify the payload (method returns None)
         mock_limiter.acquire.assert_called_once_with(tokens_to_consume=1)
 
 

@@ -326,8 +326,7 @@ class HyperliquidTradingService:
                 order_id_int = int(args.order_id)
             except (ValueError, TypeError) as e:
                 raise ValueError(
-                    f"[{current_method}] 'order_id' must be a valid integer, "
-                    f"got '{args.order_id}'"
+                    f"[{current_method}] 'order_id' must be a valid integer, got '{args.order_id}'"
                 ) from e
 
             raw_historical_order = await self._get_order_status_raw(order_id_int)

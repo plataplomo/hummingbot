@@ -706,7 +706,8 @@ class TestBackpackTradingServiceOrderManagement:
             data={"symbol": "SOL_USDC"},
             is_signed=True,
             endpoint_group="private",
-            request_weight=1,        )
+            request_weight=1,
+        )
 
         # Verify the service builds CancelOrderResult objects correctly
         assert len(result) == 2
@@ -739,7 +740,8 @@ class TestBackpackTradingServiceOrderManagement:
             data={"symbol": "SOL_USDC"},
             is_signed=True,
             endpoint_group="private",
-            request_weight=1,        )
+            request_weight=1,
+        )
 
         # Service returns empty list when no data received
         assert result == []

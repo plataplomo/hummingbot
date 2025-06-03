@@ -31,8 +31,6 @@ def test_ed25519_keys() -> dict[str, str]:
     return {"private_key_b64": private_key_b64, "public_key_b64": public_key_b64}
 
 
-
-
 class TestBackpackEd25519Authenticator:
     def test_initialization_missing_api_key_raises_value_error(
         self, test_ed25519_keys: dict[str, str]
@@ -460,12 +458,12 @@ class TestBackpackEd25519Authenticator:
             assert "X-Timestamp" in components.headers
             assert "X-Window" in components.headers
             assert components.data == data
-            
+
             # Verify the authentication headers have expected values
             assert components.headers["X-Timestamp"] == "1678886400000"
             assert components.headers["X-Window"] == "5000"
             assert components.headers["X-API-Key"] == test_ed25519_keys["public_key_b64"]
-            
+
             # Verify signature is present and valid (non-empty)
             signature = components.headers["X-Signature"]
             assert signature
@@ -477,7 +475,7 @@ class TestBackpackEd25519Authenticator:
     ) -> None:
         """
         Test POST request authentication components for order creation.
-        
+
         This test verifies that the authenticator generates valid authentication
         components for an order creation request with multiple data fields.
         """
@@ -507,12 +505,12 @@ class TestBackpackEd25519Authenticator:
             assert "X-Timestamp" in components.headers
             assert "X-Window" in components.headers
             assert components.data == data
-            
+
             # Verify the authentication headers have expected values
             assert components.headers["X-Timestamp"] == "1678886400000"
             assert components.headers["X-Window"] == "5000"
             assert components.headers["X-API-Key"] == test_ed25519_keys["public_key_b64"]
-            
+
             # Verify signature is present and valid (non-empty)
             signature = components.headers["X-Signature"]
             assert signature
@@ -524,7 +522,7 @@ class TestBackpackEd25519Authenticator:
     ) -> None:
         """
         Test GET request authentication components without parameters.
-        
+
         This test verifies that the authenticator generates valid authentication
         components for a GET request with no parameters.
         """
@@ -544,12 +542,12 @@ class TestBackpackEd25519Authenticator:
             assert "X-API-Key" in components.headers
             assert "X-Timestamp" in components.headers
             assert "X-Window" in components.headers
-            
+
             # Verify the authentication headers have expected values
             assert components.headers["X-Timestamp"] == "1678886400000"
             assert components.headers["X-Window"] == "5000"
             assert components.headers["X-API-Key"] == test_ed25519_keys["public_key_b64"]
-            
+
             # Verify signature is present and valid (non-empty)
             signature = components.headers["X-Signature"]
             assert signature
@@ -561,7 +559,7 @@ class TestBackpackEd25519Authenticator:
     ) -> None:
         """
         Test GET request authentication components with parameters.
-        
+
         This test verifies that the authenticator generates valid authentication
         components for a GET request with query parameters.
         """
@@ -584,12 +582,12 @@ class TestBackpackEd25519Authenticator:
             assert "X-Timestamp" in components.headers
             assert "X-Window" in components.headers
             assert components.params == params
-            
+
             # Verify the authentication headers have expected values
             assert components.headers["X-Timestamp"] == "1678886400000"
             assert components.headers["X-Window"] == "5000"
             assert components.headers["X-API-Key"] == test_ed25519_keys["public_key_b64"]
-            
+
             # Verify signature is present and valid (non-empty)
             signature = components.headers["X-Signature"]
             assert signature

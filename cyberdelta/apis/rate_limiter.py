@@ -86,7 +86,7 @@ class TokenBucketRateLimiterRuntime:
     async def trigger_ip_ban(self, duration_seconds: float) -> None:
         """
         Trigger an IP ban for the specified duration.
-        
+
         Args:
             duration_seconds: Duration of the IP ban in seconds.
         """

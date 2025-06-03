@@ -1,11 +1,18 @@
 """Shared fixtures for BackpackRequestBuilder tests."""
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import SecretStr
 
+from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 @pytest.fixture
@@ -162,3 +169,103 @@ def sol_asset() -> str:
 def eth_asset() -> str:
     """ETH asset symbol."""
     return "ETH"
+
+
+@pytest.fixture
+def active_bp_config() -> ExchangeSpecificConfig:
+    """
+    Active Backpack exchange configuration for unit tests.
+    Backpack only has mainnet, no testnet.
+    """
+    return ExchangeSpecificConfig.model_validate(
+        {
+            "exchange_name": ExchangeName.BACKPACK,
+            "api_base_url_mainnet": "https://api.backpack.exchange",
+            "ws_url_mainnet": "wss://ws.backpack.exchange",
+            "api_base_url_testnet": None,  # Backpack has no testnet
+            "ws_url_testnet": None,
+            "is_mainnet_environment": True,  # Always True for Backpack
+            "chain_id": None,
+            "rate_limit_per_minute": 120,
+            "symbols": {"SOL_USDC": "SOL_USDC", "BTC_USDC": "BTC_USDC"},
+            # Backpack uses simple rate limiting, not IP weight-based
+            "ip_weight_limit_per_minute": None,
+            "info_request_type_ip_weights": None,
+            "default_info_weight": None,
+            "exchange_action_base_ip_weight": None,
+            "address_action_safety_net": None,
+            "websocket_send_rate_per_minute": None,
+        }
+    )
+
+
+@pytest.fixture
+def bp_api_with_di(
+    active_bp_config: ExchangeSpecificConfig,
+) -> Callable[..., BackpackAPI]:
+    """
+    Factory fixture to create BackpackAPI instances with all dependencies mocked.
+    This enables unit testing without accessing protected members.
+    """
+
+    def _create_api(
+        config: ExchangeSpecificConfig | None = None,
+        secrets: ApiKeyAuthSecrets | None = None,
+        **overrides: MagicMock,
+    ) -> BackpackAPI:
+        """Create BackpackAPI with mocked dependencies."""
+        final_config = config or active_bp_config
+
+        # Create default valid secrets if not provided
+        if secrets is None:
+            secrets = ApiKeyAuthSecrets(
+                api_key=SecretStr("61D/XTRs1Es8SgdZN4xO438vv1ls0aWhJSs//JDNxLk="),
+                api_secret=SecretStr("7s6pf6Xs8VJDMTNmcseiLge61XCSZeQ6GW8PP6odR1c="),
+            )
+
+        # Create BackpackAPI with standard configuration
+        api = BackpackAPI(exchange_config=final_config, exchange_secrets=secrets)
+
+        # Replace services with mocks
+        if "account_service" in overrides:
+            api.account_service = overrides["account_service"]
+        else:
+            api.account_service = MagicMock()
+            api.account_service.get_balances = AsyncMock()
+            api.account_service.get_account_info = AsyncMock()
+            api.account_service.get_positions = AsyncMock()
+            api.account_service.get_order_history = AsyncMock()
+            api.account_service.get_trade_history = AsyncMock()
+            api.account_service.transfer = AsyncMock()
+            api.account_service.withdraw = AsyncMock()
+
+        if "market_data_service" in overrides:
+            api.market_data_service = overrides["market_data_service"]
+        else:
+            api.market_data_service = MagicMock()
+            api.market_data_service.get_ticker = AsyncMock()
+            api.market_data_service.get_order_book = AsyncMock()
+            api.market_data_service.get_recent_trades = AsyncMock()
+            api.market_data_service.get_funding_rate = AsyncMock()
+            api.market_data_service.get_funding_rates = AsyncMock()
+            api.market_data_service.get_market_data = AsyncMock()
+            api.market_data_service.get_historical_funding_rates = AsyncMock()
+            api.market_data_service._http_client_requester = AsyncMock()
+            api.market_data_service._mapper = MagicMock()
+
+        if "trading_service" in overrides:
+            api.trading_service = overrides["trading_service"]
+        else:
+            api.trading_service = MagicMock()
+            api.trading_service.place_order = AsyncMock()
+            api.trading_service.cancel_order = AsyncMock()
+            api.trading_service.cancel_all_orders = AsyncMock()
+            api.trading_service.get_open_orders = AsyncMock()
+            api.trading_service.get_order = AsyncMock()
+            api.trading_service.get_order_status = AsyncMock()
+            api.trading_service.get_all_open_orders = AsyncMock()
+            api.trading_service._http_client_requester = AsyncMock()
+
+        return api
+
+    return _create_api

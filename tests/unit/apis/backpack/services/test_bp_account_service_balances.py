@@ -29,7 +29,8 @@ class TestBackpackAccountServiceBalances:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_mapper: MagicMock,    ) -> None:
+        mock_mapper: MagicMock,
+    ) -> None:
         """Test _get_raw_balances_dict successfully fetches and processes balance data,
         tested via public get_balances."""
         mock_raw_response_data_dict: RawJsonResponse = {
@@ -96,7 +97,8 @@ class TestBackpackAccountServiceBalances:
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
-        mock_mapper: MagicMock,    ) -> None:
+        mock_mapper: MagicMock,
+    ) -> None:
         """Test get_balances successfully retrieves and processes balance data."""
         mock_endpoint_path_for_get_balances = "/api/v1/capital"
         mock_params_from_builder_for_get_balances = None

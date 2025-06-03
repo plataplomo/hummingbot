@@ -33,7 +33,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
         # Get secret values and validate
         api_key_b64 = api_key_b64_secret.get_secret_value().strip()
         private_key_b64 = private_key_b64_secret.get_secret_value().strip()
-        
+
         if not api_key_b64:
             raise ValueError("API key (Base64 public ED25519 key) cannot be empty")
         if not private_key_b64:
@@ -54,72 +54,58 @@ class BackpackEd25519Authenticator(IAuthenticator):
             # Account Management endpoints
             ("GET", "/api/v1/account"): "accountQuery",
             ("POST", "/api/v1/account/convertDust"): "accountConvertDust",
-            
             # Account Limits endpoints
             ("GET", "/api/v1/account/limits/borrow"): "maxBorrowQuantity",
-            ("GET", "/api/v1/account/limits/order"): "maxOrderQuantity", 
+            ("GET", "/api/v1/account/limits/order"): "maxOrderQuantity",
             ("GET", "/api/v1/account/limits/withdrawal"): "maxWithdrawalQuantity",
-            
             # Capital and Balance endpoints
             ("GET", "/api/v1/capital"): "balanceQuery",
             ("GET", "/api/v1/capital/collateral"): "collateralQuery",
             ("GET", "/api/v1/collateral"): "collateralQuery",
-            
             # Position endpoints
             ("GET", "/api/v1/position"): "positionQuery",
             ("GET", "/api/v1/positions"): "positionQuery",
             ("GET", "/api/v1/borrowLend/positions"): "borrowLendPositionQuery",
-            
             # Order Management endpoints
             ("POST", "/api/v1/order"): "orderExecute",
             ("DELETE", "/api/v1/order"): "orderCancel",
             ("DELETE", "/api/v1/orders"): "orderCancelAll",
             ("GET", "/api/v1/order"): "orderQuery",
             ("GET", "/api/v1/orders"): "orderQueryAll",
-            
             # Deposit endpoints (wapi)
             ("GET", "/wapi/v1/capital/deposits"): "depositQueryAll",
             ("GET", "/wapi/v1/capital/deposit/address"): "depositAddressQuery",
-            
             # Withdrawal endpoints (wapi)
             ("GET", "/wapi/v1/capital/withdrawals"): "withdrawalQueryAll",
             ("POST", "/wapi/v1/capital/withdraw"): "withdraw",
-            
             # Historical Data endpoints (wapi)
             ("GET", "/wapi/v1/history/orders"): "orderHistoryQueryAll",
             ("GET", "/wapi/v1/history/fills"): "fillHistoryQueryAll",
             ("GET", "/wapi/v1/history/funding"): "fundingHistoryQueryAll",
             ("GET", "/wapi/v1/history/pnl"): "pnlHistoryQueryAll",
             ("GET", "/wapi/v1/history/settlement"): "settlementHistoryQueryAll",
-            
-            # Borrow/Lend History endpoints (wapi) 
+            # Borrow/Lend History endpoints (wapi)
             ("GET", "/wapi/v1/history/borrowLend"): "borrowHistoryQueryAll",
             ("GET", "/wapi/v1/history/borrowLend/positions"): "borrowPositionHistoryQueryAll",
             ("GET", "/wapi/v1/history/interest"): "interestHistoryQueryAll",
-            
             # Trading Data endpoints
             ("GET", "/api/v1/trades/history"): "fillHistoryQueryAll",  # Trade history
             ("GET", "/api/v1/fills"): "fillHistoryQueryAll",
-            
             # Borrow/Lend Market endpoints
             ("GET", "/api/v1/borrowLend/markets/history"): "borrowHistoryQueryAll",
             ("POST", "/api/v1/borrowLend"): "borrowLendExecute",
-            
             # RFQ (Request for Quote) endpoints
             ("GET", "/api/v1/rfq"): "rfqQueryAccount",  # Account RFQs
             ("GET", "/api/v1/rfq/all"): "rfqQueryAll",  # All open RFQs
             ("GET", "/api/v1/rfq/quote"): "quoteQueryAccount",  # Account quotes
             ("POST", "/api/v1/rfq"): "rfqSubmit",  # Submit RFQ
             ("POST", "/api/v1/rfq/quote"): "quoteSubmit",  # Submit quote
-            
             # Legacy endpoints (for backward compatibility)
             ("GET", "/api/v1/deposits"): "depositQueryAll",
             ("GET", "/api/v1/withdrawals"): "withdrawalQueryAll",
             ("POST", "/api/v1/withdraw"): "withdraw",
-            
             # System endpoints
             ("GET", "/api/v1/system"): "systemStatusQuery",
-            
             # Market data (if signed)
             ("GET", "/api/v1/trades"): "fillHistoryQueryAll",
             ("GET", "/api/v1/klines"): "klineQuery",

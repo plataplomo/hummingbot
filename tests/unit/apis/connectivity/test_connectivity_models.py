@@ -68,8 +68,10 @@ class TestProcessedResponseHeaders:
 
     def test_extra_forbid_behavior(self) -> None:
         """Test that extra fields are forbidden."""
+        # Test by creating a model with extra field using model_validate
+        invalid_data = {"content_type": "app/json", "extra_field": "bad"}
         with pytest.raises(ValidationError) as exc_info:
-            ProcessedResponseHeaders(content_type="app/json", extra_field="bad")  # type: ignore[call-arg]
+            ProcessedResponseHeaders.model_validate(invalid_data)
         assert "extra inputs are not permitted" in str(exc_info.value).lower()
 
 
@@ -145,11 +147,13 @@ class TestHttpClientConfig:
 
     def test_extra_forbid_behavior(self) -> None:
         """Test that extra fields are forbidden."""
+        # Test by creating a model with extra field using model_validate
+        invalid_data = {
+            "rest_endpoint": "https://api.example.com",
+            "unknown_field": "test",
+        }
         with pytest.raises(ValidationError) as exc_info:
-            HttpClientConfig(
-                rest_endpoint=HttpUrl("https://api.example.com"),
-                unknown_field="test",  # type: ignore[call-arg]
-            )
+            HttpClientConfig.model_validate(invalid_data)
         assert "extra inputs are not permitted" in str(exc_info.value).lower()
 
     def test_max_retries_validation(self) -> None:
@@ -242,11 +246,13 @@ class TestWebSocketManagerConfig:
 
     def test_extra_forbid_behavior(self) -> None:
         """Test that extra fields are forbidden."""
+        # Test by creating a model with extra field using model_validate
+        invalid_data = {
+            "ws_url": "wss://ws.example.com",
+            "some_other_param": "value",
+        }
         with pytest.raises(ValidationError) as exc_info:
-            WebSocketManagerConfig(
-                ws_url=AnyUrl("wss://ws.example.com"),
-                some_other_param="value",  # type: ignore[call-arg]
-            )
+            WebSocketManagerConfig.model_validate(invalid_data)
         assert "extra inputs are not permitted" in str(exc_info.value).lower()
 
     def test_max_retries_validation(self) -> None:

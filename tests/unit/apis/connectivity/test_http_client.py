@@ -228,9 +228,7 @@ class TestHttpClient:
                 session=external_session_mock,
             )
 
-            await client_with_external_session.request(
-                "GET", "/test_ext"
-            )
+            await client_with_external_session.request("GET", "/test_ext")
 
             MockAiohttpSessionClsConstruction.assert_not_called()  # Internal session ctor !called
             external_session_mock.request.assert_called_once()
@@ -741,9 +739,7 @@ class TestHttpClient:
         http_client_instance.max_retries = 0
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
-            await http_client_instance.request(
-                "GET", "/payload_error_path"
-            )
+            await http_client_instance.request("GET", "/payload_error_path")
 
         assert excinfo.value.http_status == 200
         assert excinfo.value.code == APIErrorCode.NETWORK_ISSUE.value
@@ -773,9 +769,7 @@ class TestHttpClient:
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
-            await http_client_instance.request(
-                "GET", "/invalid_content_type"
-            )
+            await http_client_instance.request("GET", "/invalid_content_type")
 
         assert excinfo.value.http_status == 200
         assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -989,9 +983,7 @@ class TestHttpClientRequestResponseParsing:
 
         http_client_instance.max_retries = 0  # Test with no retries for direct error
         with pytest.raises(HttpRequestFailedError) as excinfo:
-            await http_client_instance.request(
-                "GET", "/test_payload_err"
-            )
+            await http_client_instance.request("GET", "/test_payload_err")
 
         assert excinfo.value.http_status == 200
         assert excinfo.value.code == APIErrorCode.NETWORK_ISSUE.value
@@ -1021,9 +1013,7 @@ class TestHttpClientRequestResponseParsing:
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
-            await http_client_instance.request(
-                "GET", "/test_json_empty_body"
-            )
+            await http_client_instance.request("GET", "/test_json_empty_body")
 
         assert excinfo.value.http_status == 200
         assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value

@@ -400,7 +400,7 @@ class ExchangeAPI(ABC):
                 original_exception=e_http_failed,
             )
 
-            # Simply raise the mapped error. No further inspection or calls based on its 
+            # Simply raise the mapped error. No further inspection or calls based on its
             # content here.
             raise mapped_error from e_http_failed
 

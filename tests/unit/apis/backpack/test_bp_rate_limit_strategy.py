@@ -76,10 +76,10 @@ class TestBackpackRateLimitStrategy:
         }
 
         # Act
-        result = await strategy.prepare_and_acquire(request_context)  # type: ignore[func-returns-value]
+        await strategy.prepare_and_acquire(request_context)
 
         # Assert
-        assert result is None  # SimpleTokenBucketStrategy returns None
+        # SimpleTokenBucketStrategy returns None
         mock_limiter.acquire.assert_called_once_with(
             tokens_to_consume=2
         )  # Uses request_weight from context
@@ -98,10 +98,10 @@ class TestBackpackRateLimitStrategy:
         }
 
         # Act
-        result = await strategy.prepare_and_acquire(request_context)  # type: ignore[func-returns-value]
+        await strategy.prepare_and_acquire(request_context)
 
         # Assert
-        assert result is None
+        # Method returns None
         mock_limiter.acquire.assert_called_once_with(
             tokens_to_consume=1
         )  # Uses default_request_weight

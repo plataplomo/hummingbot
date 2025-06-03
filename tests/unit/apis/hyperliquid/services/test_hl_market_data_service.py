@@ -2,6 +2,7 @@
 Unit tests for the HyperliquidMarketDataService.
 Tests complete workflows through public interfaces with mocked HTTP responses.
 """
+
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
