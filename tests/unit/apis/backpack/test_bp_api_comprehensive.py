@@ -43,7 +43,6 @@ from cyberdelta.core.models import (
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market import Candle, OrderBook
 from cyberdelta.core.models.market.order import CancelOrderResult
-from cyberdelta.enums.exchange_names import ExchangeName
 
 pytestmark = pytest.mark.integration
 
@@ -122,7 +121,9 @@ class TestBackpackAPIPublicBehavior:
             assert result.price == Decimal("100.0")
 
     @pytest.mark.asyncio
-    async def test_get_ticker_handles_api_error(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+    async def test_get_ticker_handles_api_error(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
         """Test ticker retrieval properly propagates API errors."""
         api_error = APIError("Rate limit exceeded", APIErrorCode.RATE_LIMITED.value)
         
@@ -137,7 +138,9 @@ class TestBackpackAPIPublicBehavior:
             assert "Rate limit exceeded" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_get_ticker_converts_unexpected_errors(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+    async def test_get_ticker_converts_unexpected_errors(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
         """Test ticker retrieval propagates unexpected errors directly."""
         # Create API instance from factory
         backpack_api = bp_api_with_di()
@@ -172,7 +175,9 @@ class TestBackpackAPIPublicBehavior:
             mock_get_order_book.assert_called_once_with(symbol="SOL_USDC", limit=50)
 
     @pytest.mark.asyncio
-    async def test_get_recent_trades_success(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+    async def test_get_recent_trades_success(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
         """Test successful recent trades retrieval."""
         mock_trades = [MagicMock(spec=Trade) for _ in range(3)]
         for i, trade in enumerate(mock_trades):
@@ -192,7 +197,9 @@ class TestBackpackAPIPublicBehavior:
             assert all(trade.symbol == "SOL_USDC" for trade in result)
 
     @pytest.mark.asyncio
-    async def test_get_funding_rate_success(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+    async def test_get_funding_rate_success(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
         """Test successful funding rate retrieval."""
         mock_funding_rate = MagicMock(spec=FundingRate)
         mock_funding_rate.symbol = "SOL_USDC"
@@ -211,7 +218,9 @@ class TestBackpackAPIPublicBehavior:
             assert result.funding_rate == Decimal("0.001")
 
     @pytest.mark.asyncio
-    async def test_get_market_data_success(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+    async def test_get_market_data_success(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
         """Test successful market data retrieval."""
         mock_candles = [MagicMock(spec=Candle) for _ in range(100)]
         for i, candle in enumerate(mock_candles):
@@ -328,7 +337,9 @@ class TestBackpackAPIPublicBehavior:
                 assert result is not None
 
     @pytest.mark.asyncio
-    async def test_place_order_propagates_api_errors(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+    async def test_place_order_propagates_api_errors(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
         """Test order placement properly propagates API errors."""
         api_error = APIError("Insufficient balance", APIErrorCode.INSUFFICIENT_FUNDS.value)
         
@@ -364,7 +375,9 @@ class TestBackpackAPIPublicBehavior:
             mock_cancel.assert_called_once_with(args=cancel_args)
 
     @pytest.mark.asyncio
-    async def test_cancel_order_requires_symbol(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+    async def test_cancel_order_requires_symbol(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
         """Test that cancel_order requires symbol parameter."""
         # Create API instance from factory
         backpack_api = bp_api_with_di()
@@ -376,7 +389,9 @@ class TestBackpackAPIPublicBehavior:
         assert "'symbol' is required for Backpack" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_get_open_orders_success(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+    async def test_get_open_orders_success(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
         """Test successful open orders retrieval."""
         mock_orders = [MagicMock(spec=Order) for _ in range(3)]
         for i, order in enumerate(mock_orders):
@@ -395,7 +410,9 @@ class TestBackpackAPIPublicBehavior:
             assert len(result) == 3
 
     @pytest.mark.asyncio
-    async def test_get_funding_rates_multiple_symbols(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+    async def test_get_funding_rates_multiple_symbols(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
         """Test funding rates retrieval for multiple symbols."""
         mock_funding_rates = [MagicMock(spec=FundingRate) for _ in range(2)]
         mock_funding_rates[0].symbol = "SOL_USDC"
@@ -414,7 +431,9 @@ class TestBackpackAPIPublicBehavior:
             assert len(result) == 2
 
     @pytest.mark.asyncio
-    async def test_get_account_summary_success(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+    async def test_get_account_summary_success(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
         """Test successful account summary retrieval."""
         mock_summary = MagicMock(spec=MarginAccountSummary)
         mock_summary.total_equity = Decimal("10000.0")
@@ -480,7 +499,9 @@ class TestBackpackAPIPublicBehavior:
             assert result.asset == "USDC"
 
     @pytest.mark.asyncio
-    async def test_get_order_history_success(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+    async def test_get_order_history_success(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
         """Test successful order history retrieval."""
         mock_orders = [MagicMock(spec=Order) for _ in range(5)]
         for i, order in enumerate(mock_orders):
@@ -507,7 +528,9 @@ class TestBackpackAPIPublicBehavior:
             assert len(result) == 5
 
     @pytest.mark.asyncio
-    async def test_get_trade_history_success(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+    async def test_get_trade_history_success(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
         """Test successful trade history retrieval."""
         mock_trades = [MagicMock(spec=Trade) for _ in range(10)]
         
@@ -544,7 +567,9 @@ class TestBackpackAPIPublicBehavior:
                 assert result_order.client_order_id == "order123"
 
     @pytest.mark.asyncio
-    async def test_get_order_requires_symbol(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+    async def test_get_order_requires_symbol(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
         """Test get_order requires symbol parameter."""
         # Create API instance from factory
         backpack_api = bp_api_with_di()
@@ -555,7 +580,9 @@ class TestBackpackAPIPublicBehavior:
         assert "'symbol' parameter is required" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_get_order_status_success(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+    async def test_get_order_status_success(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
         """Test successful order status retrieval."""
         from cyberdelta.core.models.enums import OrderStatus
 
@@ -578,7 +605,9 @@ class TestBackpackAPIPublicBehavior:
             assert result.status == OrderStatus.FILLED
 
     @pytest.mark.asyncio
-    async def test_get_order_status_requires_symbol(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+    async def test_get_order_status_requires_symbol(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
         """Test get_order_status requires symbol parameter."""
         # Create API instance from factory
         backpack_api = bp_api_with_di()
@@ -589,7 +618,9 @@ class TestBackpackAPIPublicBehavior:
         assert "'symbol' parameter is required" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_get_all_open_orders_success(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+    async def test_get_all_open_orders_success(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
         """Test successful retrieval of all open orders."""
         mock_orders = [MagicMock(spec=Order) for _ in range(7)]
         
@@ -607,7 +638,9 @@ class TestBackpackAPIPublicBehavior:
             assert len(result) == 7
 
     @pytest.mark.asyncio
-    async def test_get_historical_funding_rates_success(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+    async def test_get_historical_funding_rates_success(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
         """Test successful historical funding rates retrieval."""
         mock_funding_rates = [MagicMock(spec=FundingRate) for _ in range(20)]
         start_time = datetime.now(UTC)
@@ -688,7 +721,9 @@ class TestBackpackAPIPublicBehavior:
                 assert isinstance(result, list)
 
     @pytest.mark.asyncio
-    async def test_cancel_all_orders_success(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+    async def test_cancel_all_orders_success(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
         """Test successful cancellation of all orders."""
         mock_results = [MagicMock(spec=CancelOrderResult) for _ in range(5)]
         
@@ -734,7 +769,9 @@ class TestBackpackAPIPublicBehavior:
             mock_super.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_close_delegates_to_parent(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+    async def test_close_delegates_to_parent(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
         """Test that close method delegates to parent class."""
         # Create API instance from factory
         backpack_api = bp_api_with_di()
@@ -744,7 +781,9 @@ class TestBackpackAPIPublicBehavior:
             mock_super.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_subscribe_logs_and_delegates_to_parent(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+    async def test_subscribe_logs_and_delegates_to_parent(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
         """Test that subscribe method logs and delegates to parent class."""
         mock_handler = AsyncMock()
         

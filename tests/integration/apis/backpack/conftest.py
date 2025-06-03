@@ -3,7 +3,6 @@
 
 import os
 from collections.abc import Callable
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -51,8 +50,12 @@ def active_bp_secrets() -> ApiKeyAuthSecrets:
     and NOT committed. For cassette-based integration tests, placeholders
     will be fine once requests are filtered.
     """
-    api_key = os.environ.get("BP_MAINNET_API_KEY", "B64_ENCODED_PUBLIC_KEY_PLACEHOLDER_FOR_TESTS")
-    api_secret = os.environ.get("BP_MAINNET_API_SECRET", "B64_ENCODED_PRIVATE_KEY_PLACEHOLDER_FOR_TESTS")
+    api_key = os.environ.get(
+        "BP_MAINNET_API_KEY", "B64_ENCODED_PUBLIC_KEY_PLACEHOLDER_FOR_TESTS"
+    )
+    api_secret = os.environ.get(
+        "BP_MAINNET_API_SECRET", "B64_ENCODED_PRIVATE_KEY_PLACEHOLDER_FOR_TESTS"
+    )
     return ApiKeyAuthSecrets(
         api_key=SecretStr(api_key),
         api_secret=SecretStr(api_secret)
