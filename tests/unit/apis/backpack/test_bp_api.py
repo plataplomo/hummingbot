@@ -62,6 +62,7 @@ def create_test_exchange_config(
         "is_mainnet_environment": is_mainnet_environment,
         "rate_limit_per_minute": 120,
         "symbols": {"SOL_USDC": "SOL_USDC", "BTC_USDC": "BTC_USDC"},
+        "request_timeout_seconds": 30.0,
         **kwargs,
     }
     return ExchangeSpecificConfig.model_validate(config_dict)
