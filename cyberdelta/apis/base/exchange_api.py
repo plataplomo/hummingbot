@@ -614,7 +614,7 @@ class ExchangeAPI(ABC):
 
     @abstractmethod
     async def get_ticker(self, symbol: str) -> Ticker | None:
-        """Retrieves the latest ticker information for a specific symbol."""
+        """Retrieve the latest ticker information for a specific symbol."""
         raise NotImplementedError
 
     @abstractmethod

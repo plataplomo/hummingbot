@@ -336,6 +336,7 @@ class BackpackAPI(ExchangeAPI):
 
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
         """Handle raw WebSocket message from WebSocketManager, then route it.
+
         This method is called by the WebSocketManager.
         """
         # Following the pattern from HyperliquidAPI, directly route to _route_ws_message.

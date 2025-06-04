@@ -1,4 +1,4 @@
-"""CyberDeltaEngine: Backpack API Raw Models (User Fills)
+"""CyberDeltaEngine: Backpack API Raw Models (User Fills).
 -------------------------------------------------------
 
 Strict Pydantic models for validating the *raw* structure of Backpack Exchange API responses

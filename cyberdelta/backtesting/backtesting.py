@@ -76,11 +76,11 @@ class BacktestStrategy(ABC):
 
 
 class BacktestEngine:
+    """Unified backtesting engine for multiple strategy types."""
     # Class-level annotations for mypy
     initial_capital: Decimal
     commission: Decimal
     slippage: Decimal
-    """Unified backtesting engine for multiple strategy types"""
 
     def __init__(
         self,

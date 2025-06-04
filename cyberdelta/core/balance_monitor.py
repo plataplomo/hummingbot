@@ -1,3 +1,4 @@
+"""Balance monitoring and alerting system for portfolio tracking."""
 import logging
 import os
 import uuid
@@ -285,7 +286,7 @@ class BalanceMonitor:
         return status
 
     def _load_state(self) -> None:
-        """Loads alerts and last known balances from a state file."""
+        """Load alerts and last known balances from a state file."""
         # Use default state file path since it's not in the new config structure
         self.state_file = ""
 
@@ -301,7 +302,7 @@ class BalanceMonitor:
             logger.error(f"Error loading balance state from {self.state_file}: {e}")
 
     def add_alert(self, alert: BalanceAlert) -> None:
-        """Adds a new balance alert, preventing duplicates."""
+        """Add a new balance alert, preventing duplicates."""
         # Alert properties are validated by BalanceAlert dataclass
         if not any(a.id == alert.id for a in self.active_alerts):
             self.active_alerts.append(alert)

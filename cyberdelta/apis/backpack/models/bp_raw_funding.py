@@ -1,4 +1,4 @@
-"""Backpack API Funding Rate and Mark Price Models
+"""Backpack API Funding Rate and Mark Price Models.
 ------------------------------------------
 
 This module defines strict Pydantic models for validating funding rate and mark

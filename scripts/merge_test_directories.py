@@ -98,7 +98,7 @@ def update_imports(file_path: str | Path) -> None:
 
 
 def main() -> None:
-    """Main function to merge test directories.
+    """Merge test directories.
     """
     # Initialize configuration and logging
     try:

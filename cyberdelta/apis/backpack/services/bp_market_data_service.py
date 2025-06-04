@@ -109,7 +109,7 @@ class BackpackMarketDataService:
         self._mapper = mapper or BackpackMarketDataMapper()
 
     async def get_ticker(self, symbol: str) -> Ticker:
-        """Retrieves the latest ticker information for a specific symbol."""
+        """Retrieve the latest ticker information for a specific symbol."""
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_ticker"

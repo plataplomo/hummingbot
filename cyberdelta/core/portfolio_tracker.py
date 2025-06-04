@@ -778,7 +778,7 @@ class PortfolioTracker:
 
     # --- Position Access Methods ---
     def get_position(self, exchange_id: str, symbol: str) -> DerivativePosition | None:
-        """Returns the position for a specific symbol on a specific exchange."""
+        """Return the position for a specific symbol on a specific exchange."""
         if exchange_id not in self.positions:
             return None
         position = self.positions[exchange_id].get(symbol)  # Direct access to inner dict
@@ -793,7 +793,7 @@ class PortfolioTracker:
         return [pos for pos in exchange_positions.values() if pos.symbol == symbol]
 
     def get_all_positions(self) -> Sequence[tuple[str, DerivativePosition]]:
-        """Retrieves all derivative positions across all exchanges.
+        """Retrieve all derivative positions across all exchanges.
         Conforms to PortfolioTrackerProtocol
         (DerivativePosition implements Position protocol implicitly).
         """

@@ -1,4 +1,4 @@
-"""Backpack API Market, Ticker, and Open Interest Models
+"""Backpack API Market, Ticker, and Open Interest Models.
 ----------------------------------------------------
 
 This module defines strict Pydantic models for validating market metadata, ticker, and open

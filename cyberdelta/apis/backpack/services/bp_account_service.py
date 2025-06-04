@@ -1,4 +1,4 @@
-"""CyberDeltaEngine: Backpack Account Service
+"""CyberDeltaEngine: Backpack Account Service.
 ------------------------------------------
 
 This service encapsulates the logic for fetching and managing account-specific

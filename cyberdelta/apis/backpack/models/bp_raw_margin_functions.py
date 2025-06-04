@@ -1,4 +1,4 @@
-"""CyberDeltaEngine: Backpack API Raw Models (Margin Functions)
+"""CyberDeltaEngine: Backpack API Raw Models (Margin Functions).
 ------------------------------------------------------------
 
 This module provides strict, security-focused Pydantic models for validating the *raw*
@@ -89,6 +89,7 @@ class BackpackRawPositionMmfFunction(BaseModel):
 
 class BackpackRawMarginCoverage(BaseModel):
     """Raw model for margin coverage data, indicating if current margin covers requirements.
+    
     Example: `{"type": "marginCoverage", "marginCoverage": "good"}`
     """
 

@@ -1,4 +1,4 @@
-"""CyberDeltaEngine: Backpack Trading Data Mapper
+"""CyberDeltaEngine: Backpack Trading Data Mapper.
 ---------------------------------------------
 
 This module provides the BackpackTradingDataMapper class for transforming

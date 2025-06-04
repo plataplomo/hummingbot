@@ -20,7 +20,7 @@ EXAMPLE_SCRIPT_PATH = EXAMPLES_DIR / "config_example.py"
 
 
 def get_yaml_keys(file_path: Path) -> set[str]:
-    """Loads a YAML file and returns a set of all nested keys."""
+    """Load a YAML file and return a set of all nested keys."""
     try:
         with open(file_path) as f:
             data_any = yaml.safe_load(f)
@@ -34,7 +34,7 @@ def get_yaml_keys(file_path: Path) -> set[str]:
 
 
 def get_yaml_keys_from_string(yaml_string: str) -> set[str]:
-    """Loads YAML from a string and returns a set of all nested keys."""
+    """Load YAML from a string and return a set of all nested keys."""
     try:
         data_any = yaml.safe_load(yaml_string)
         if not isinstance(data_any, dict):

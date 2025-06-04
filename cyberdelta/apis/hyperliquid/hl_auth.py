@@ -1,3 +1,4 @@
+"""Hyperliquid EIP-712 authentication implementation."""
 from __future__ import annotations
 
 import asyncio
@@ -211,6 +212,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _clean_order_type_fields(self, data: dict[str, Any]) -> None:
         """Recursively clean None values from order type structures in JSON payload.
+        
         This is specifically for Hyperliquid API which expects order types to have
         only the active field (limit OR market), not both with one as null.
         """
@@ -257,6 +259,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _lowercase_addresses_in_payload(self, data: dict[str, Any]) -> None:
         """Recursively convert Ethereum addresses to lowercase in the payload.
+        
         This ensures consistent hashing as addresses are case-sensitive in msgpack.
 
         Args:
@@ -283,7 +286,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         data: dict[str, Any] | None,
         headers: Mapping[str, Any] | None,
     ) -> AuthenticatedRequestComponents:
-        """Prepares and signs a Hyperliquid API request.
+        """Prepare and sign a Hyperliquid API request.
 
         For /exchange endpoint: Uses sign_l1_action scheme with msgpack-based action_hash
         and EIP-712 Agent signature in request body (no X-HL-* headers).
@@ -325,7 +328,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         data: dict[str, Any] | None,
         headers: Mapping[str, Any] | None,
     ) -> AuthenticatedRequestComponents:
-        """Prepares and signs a Hyperliquid /exchange request using sign_l1_action scheme.
+        """Prepare and sign a Hyperliquid /exchange request using sign_l1_action scheme.
 
         This implements the SDK's sign_l1_action flow:
         1. msgpack the action payload

@@ -1,3 +1,8 @@
+"""Backpack Exchange API authentication module.
+
+This module provides authentication functionality for the Backpack Exchange API,
+including ED25519 signature generation for REST API requests and WebSocket subscriptions.
+"""
 import base64
 import time
 import urllib.parse
@@ -155,7 +160,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
         data: dict[str, Any] | None,
         headers: Mapping[str, Any] | None,
     ) -> AuthenticatedRequestComponents:
-        """Prepares and signs a Backpack API request using ED25519.
+        """Prepare and sign a Backpack API request using ED25519.
 
         Args:
             method: The HTTP method (e.g., 'GET', 'POST').

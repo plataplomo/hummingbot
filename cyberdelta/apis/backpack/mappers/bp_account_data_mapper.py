@@ -1,4 +1,4 @@
-"""CyberDeltaEngine: Backpack Account Data Mapper
+"""CyberDeltaEngine: Backpack Account Data Mapper.
 ---------------------------------------------
 
 This module provides the BackpackAccountDataMapper class for transforming
@@ -81,7 +81,7 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def _map_side_to_internal(bp_side: str) -> OrderSide:
-        """Maps a Backpack order side string to internal OrderSide enum.
+        """Map a Backpack order side string to internal OrderSide enum.
 
         Args:
             bp_side: Raw side string from Backpack ("Buy", "Sell", "Bid", "Ask")
@@ -103,7 +103,7 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def _map_status_to_internal(bp_status: str) -> OrderStatus:
-        """Maps a Backpack order status string to internal OrderStatus enum."""
+        """Map a Backpack order status string to internal OrderStatus enum."""
         status_lower = bp_status.lower() if bp_status else ""
         if status_lower == "new":
             return OrderStatus.NEW
@@ -125,7 +125,7 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def _map_type_to_internal(bp_type: str) -> OrderType:
-        """Maps a Backpack order type string to internal OrderType enum."""
+        """Map a Backpack order type string to internal OrderType enum."""
         type_lower = bp_type.lower() if bp_type else ""
         if type_lower in ("limit", "limit_order"):
             return OrderType.LIMIT
@@ -145,7 +145,7 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def _map_tif_to_internal(bp_tif: str | None) -> TimeInForce:
-        """Maps a Backpack time in force string to internal TimeInForce enum."""
+        """Map a Backpack time in force string to internal TimeInForce enum."""
         if bp_tif is None:
             return TimeInForce.GTC  # Default to GTC
         tif_lower = bp_tif.lower()
@@ -161,7 +161,7 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def _map_trigger_by_to_internal(trigger_by: str | None) -> TriggerType | None:
-        """Maps a Backpack trigger_by string to internal TriggerType enum."""
+        """Map a Backpack trigger_by string to internal TriggerType enum."""
         if trigger_by is None:
             return None
         trigger_lower = trigger_by.lower()

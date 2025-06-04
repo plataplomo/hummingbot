@@ -1,4 +1,4 @@
-"""Backpack API Account and Balance Models
+"""Backpack API Account and Balance Models.
 --------------------------------------
 
 This module defines strict Pydantic models for validating account and balance responses from the

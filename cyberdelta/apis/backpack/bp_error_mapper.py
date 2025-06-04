@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Backpack API Error Mapper
+"""CyberDeltaEngine: Backpack API Error Mapper.
+
 -------------------------------------------
 
 This module defines the `BackpackErrorMapper` class, responsible for translating
@@ -120,7 +121,7 @@ class BackpackErrorMapper(IErrorMapper):
         return mapped_code
 
     def map_string_error(self, error_message: str, http_status: int | None = None) -> APIError:
-        """Maps a raw error string from Backpack to a standardized APIError.
+        """Map a raw error string from Backpack to a standardized APIError.
 
         Args:
             error_message: The raw error string from the exchange.
@@ -200,7 +201,7 @@ class BackpackErrorMapper(IErrorMapper):
         request_path: str | None = None,
         original_exception: Exception | None = None,
     ) -> APIError:
-        """Maps a raw Backpack error response to a standardized APIError object.
+        """Map a raw Backpack error response to a standardized APIError object.
 
         Args:
             status_code: HTTP status code.

@@ -238,7 +238,7 @@ class HyperliquidMarketDataService:
             ) from e_unexpected
 
     async def get_ticker(self, symbol: str) -> Ticker | None:
-        """Retrieves the latest ticker/context information for a specific symbol.
+        """Retrieve the latest ticker/context information for a specific symbol.
         This involves fetching all asset contexts and then finding the specific one.
 
         Args:

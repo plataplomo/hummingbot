@@ -118,6 +118,7 @@ class HttpClient:
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Provides an active aiohttp.ClientSession.
+        
         Uses an externally provided session if available and valid,
         otherwise creates and manages one internally.
         """
@@ -163,6 +164,7 @@ class HttpClient:
         CIMultiDictProxy[str],
     ]:
         """Parses the HTTP response, validates headers, and extracts content.
+        
         Returns content, status code, processed headers, and raw headers.
 
         Raises HttpRequestFailedError for issues like invalid Content-Type, body read errors,
@@ -293,6 +295,7 @@ class HttpClient:
         CIMultiDictProxy[str],
     ]:
         """Executes an HTTP request with authentication and retries.
+        
         Response parsing and validation are delegated to _parse_and_validate_response.
         Now returns content, status_code, processed_headers, and raw_headers.
 

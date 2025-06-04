@@ -74,7 +74,7 @@ class OrderStatus(Enum):
     UNKNOWN = "UNKNOWN"  # Status cannot be determined.
 
     def is_open(self) -> bool:
-        """Checks if the order status represents an open order."""
+        """Check if the order status represents an open order."""
         return self in {
             OrderStatus.NEW,
             OrderStatus.OPEN,
@@ -86,7 +86,7 @@ class OrderStatus(Enum):
         }
 
     def is_closed(self) -> bool:
-        """Checks if the order status represents a closed/terminal order."""
+        """Check if the order status represents a closed/terminal order."""
         return self in {
             OrderStatus.FILLED,
             OrderStatus.CANCELED,

@@ -1,4 +1,4 @@
-"""CyberDeltaEngine: Backpack API Raw Models (Kline/Candle)
+"""CyberDeltaEngine: Backpack API Raw Models (Kline/Candle).
 ----------------------------------------------------------
 
 Strict Pydantic model for validating the *raw* structure of Backpack Exchange API responses

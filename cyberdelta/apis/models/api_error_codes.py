@@ -1,3 +1,4 @@
+"""Standardized API error codes for exchange operations."""
 from enum import Enum
 
 

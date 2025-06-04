@@ -51,7 +51,7 @@ class BackpackResponseHandler:
         context: str,
         raw_data: RawJsonResponse,
     ) -> APIError:
-        """Helper to create a standardized APIError from a ValidationError."""
+        """Create a standardized APIError from a ValidationError."""
         logger.error(
             f"[BackpackResponseHandler] Pydantic validation failed for {context}: {e}. "
             f"Raw data: {raw_data!r}",
@@ -70,7 +70,7 @@ class BackpackResponseHandler:
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawTicker:
-        """Validates the raw response for the Get Ticker endpoint."""
+        """Validate the raw response for the Get Ticker endpoint."""
         context = f"ticker ({symbol}) - Status: {status_code}"
         if not isinstance(raw_response_content, dict):
             raise APIError(
@@ -94,7 +94,7 @@ class BackpackResponseHandler:
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawOrderBook:
-        """Validates the raw response for the Get Order Book endpoint."""
+        """Validate the raw response for the Get Order Book endpoint."""
         context = f"order book ({symbol}) - Status: {status_code}"
         if not isinstance(raw_response_content, dict):
             raise APIError(
@@ -118,7 +118,7 @@ class BackpackResponseHandler:
         status_code: int,
         headers: Mapping[str, str],
     ) -> list[BackpackRawTrade]:
-        """Validates the raw response for the Get Recent Trades endpoint."""
+        """Validate the raw response for the Get Recent Trades endpoint."""
         context = f"recent trades ({symbol}) - Status: {status_code}"
         if not isinstance(raw_response_content, list):
             raise APIError(
@@ -147,7 +147,7 @@ class BackpackResponseHandler:
     def handle_get_balances_response(
         raw_response_content: RawJsonResponse,
     ) -> dict[str, BackpackRawBalance]:
-        """Validates the raw response for the Get Balances endpoint."""
+        """Validate the raw response for the Get Balances endpoint."""
         context = "balances"
         if not isinstance(raw_response_content, dict):
             raise APIError(
@@ -184,7 +184,7 @@ class BackpackResponseHandler:
         raw_response_content: RawJsonResponse,
         symbol: str | None,
     ) -> list[BackpackRawPosition]:
-        """Validates the raw response for the Get Positions endpoint.
+        """Validate the raw response for the Get Positions endpoint.
 
         Handles a single position dictionary if a symbol is provided,
         or a list of position dictionaries if no symbol is provided.
@@ -225,7 +225,7 @@ class BackpackResponseHandler:
     def handle_place_order_response(
         raw_response_content: RawJsonResponse,
     ) -> BackpackRawOrder:
-        """Validates the raw response for the Place Order endpoint."""
+        """Validate the raw response for the Place Order endpoint."""
         context = "place order response"
         if not isinstance(raw_response_content, dict):
             raise APIError(
@@ -248,7 +248,8 @@ class BackpackResponseHandler:
         order_id: str,
         symbol: str,
     ) -> bool:
-        """Validates the raw response for the Cancel Order endpoint.
+        """Validate the raw response for the Cancel Order endpoint.
+        
         Expects no content on success.
         """
         if raw_response_content not in [None, {}]:
@@ -265,7 +266,7 @@ class BackpackResponseHandler:
         raw_response_content: RawJsonResponse,
         symbol: str | None,
     ) -> list[BackpackRawOrder]:
-        """Validates the raw response for the Get Open Orders endpoint."""
+        """Validate the raw response for the Get Open Orders endpoint."""
         context = f"open orders ({symbol or 'all'})"
         if not isinstance(raw_response_content, list):
             raise APIError(
@@ -296,7 +297,7 @@ class BackpackResponseHandler:
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawFundingRate:
-        """Validates the raw response for the Get Funding Rate endpoint."""
+        """Validate the raw response for the Get Funding Rate endpoint."""
         context = f"funding rate ({symbol}) - Status: {status_code}"
         if not isinstance(raw_response_content, dict):
             # Check if it is a list, as HL funding rate is a list
@@ -342,7 +343,7 @@ class BackpackResponseHandler:
     def handle_get_account_info_response(
         raw_response_content: RawJsonResponse,
     ) -> BackpackRawAccountSummary:
-        """Validates the raw response for the Get Account Info endpoint."""
+        """Validate the raw response for the Get Account Info endpoint."""
         context = "account info"
         if not isinstance(raw_response_content, dict):
             raise APIError(
@@ -363,7 +364,7 @@ class BackpackResponseHandler:
     def handle_withdraw_response(
         raw_response_content: RawJsonResponse,
     ) -> BackpackRawWithdrawalResponse:
-        """Validates the raw response for the Withdraw endpoint."""
+        """Validate the raw response for the Withdraw endpoint."""
         context = "withdraw response"
         if not isinstance(raw_response_content, dict):
             raise APIError(
@@ -385,7 +386,7 @@ class BackpackResponseHandler:
         raw_response_content: RawJsonResponse,
         symbol: str | None,
     ) -> list[BackpackRawOrder]:
-        """Validates the raw response for the Get Order History endpoint."""
+        """Validate the raw response for the Get Order History endpoint."""
         context = f"order history ({symbol or 'all'})"
         if not isinstance(raw_response_content, list):
             raise APIError(
@@ -414,7 +415,7 @@ class BackpackResponseHandler:
         raw_response_content: RawJsonResponse,
         symbol: str | None,
     ) -> list[BackpackRawTrade]:
-        """Validates the raw response for the Get Trade History endpoint.
+        """Validate the raw response for the Get Trade History endpoint.
 
         Now returns list[BackpackRawTrade] as per user request.
         """
@@ -449,7 +450,7 @@ class BackpackResponseHandler:
         status_code: int,
         headers: Mapping[str, str],
     ) -> list[BackpackRawKline]:  # Changed return type
-        """Validates the raw response for the Get Market Data (Klines) endpoint."""
+        """Validate the raw response for the Get Market Data (Klines) endpoint."""
         context = f"market data (klines {timeframe}) for {symbol} - Status: {status_code}"
         if not isinstance(raw_response_content, list):
             raise APIError(
@@ -500,7 +501,7 @@ class BackpackResponseHandler:
         status_code: int,
         headers: Mapping[str, str],
     ) -> list[BackpackRawTrade]:
-        """Validates the raw response for the Get Historical Trades endpoint."""
+        """Validate the raw response for the Get Historical Trades endpoint."""
         context = f"historical trades ({symbol}) - Status: {status_code}"
         if not isinstance(raw_response_content, list):
             raise APIError(
@@ -529,7 +530,7 @@ class BackpackResponseHandler:
         raw_response_content: RawJsonResponse,
         identifier: str,
     ) -> BackpackRawOrder:
-        """Validates the raw response for the Get Order Status endpoint."""
+        """Validate the raw response for the Get Order Status endpoint."""
         context = f"order status (id={identifier})"
         if raw_response_content is None:
             raise APIError(
@@ -557,7 +558,8 @@ class BackpackResponseHandler:
         raw_response_content: RawJsonResponse,
         symbol: str | None,
     ) -> list[BackpackRawOrder]:
-        """Validates the raw response for the Cancel All Orders endpoint
+        """Validate the raw response for the Cancel All Orders endpoint.
+
         (DELETE /api/v1/orders/cancelAll).
         Expects a list of successfully cancelled orders.
         """
@@ -613,7 +615,8 @@ class BackpackResponseHandler:
     def handle_transfer_response(
         raw_response_content: RawJsonResponse,
     ) -> RawJsonResponse:  # Returns the validated raw dict
-        """Validates the raw response for an internal capital transfer.
+        """Validate the raw response for an internal capital transfer.
+        
         Expects a dict with 'success' (bool), optional 'message' (str), and
         optional 'transferId' (str).
         """
@@ -671,7 +674,7 @@ class BackpackResponseHandler:
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawFundingRate:
-        """Validates the raw response for the Get Current Funding Rate endpoint."""
+        """Validate the raw response for the Get Current Funding Rate endpoint."""
         context = f"current funding rate ({symbol}) - Status: {status_code}"
         if not isinstance(raw_response_content, dict):
             raise APIError(
@@ -696,7 +699,8 @@ class BackpackResponseHandler:
         status_code: int,
         headers: Mapping[str, str],
     ) -> list[BackpackRawFundingIntervalRate]:
-        """Validates the raw response for the Get Historical Funding Rates endpoint
+        """Validate the raw response for the Get Historical Funding Rates endpoint.
+
         (/api/v1/fundingRates).
         """
         context = f"historical funding rates ({symbol}) - Status: {status_code}"

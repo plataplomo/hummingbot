@@ -1,3 +1,4 @@
+"""Market data handling and real-time data management."""
 from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio

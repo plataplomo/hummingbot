@@ -1,3 +1,4 @@
+"""Core trading engine for strategy management and signal routing."""
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
@@ -352,7 +353,7 @@ class Engine:
         logger.info(f"Engine '{self.name}' stopped. Called on_stop for {stopped_count} strategies.")
 
     def _refresh_active_symbols(self) -> None:
-        """Internal helper to update the set of symbols monitored by registered strategies."""
+        """Update the set of symbols monitored by registered strategies."""
         self.active_symbols = {s.symbol for s in self.strategies.values()}
         logger.debug(f"Engine active symbols refreshed: {self.active_symbols}")
 

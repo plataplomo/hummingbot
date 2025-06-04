@@ -1,5 +1,7 @@
-"""cyberdelta.apis.backpack.bp_rate_limit_strategy
+"""cyberdelta.apis.backpack.bp_rate_limit_strategy.
+
 ---------------------------------------------
+
 Backpack-specific rate limiting strategy that extends SimpleTokenBucketStrategy
 to handle exchange-advised retry delays.
 

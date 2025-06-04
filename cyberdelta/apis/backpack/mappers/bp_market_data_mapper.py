@@ -1,4 +1,4 @@
-"""CyberDeltaEngine: Backpack Market Data Mapper
+"""CyberDeltaEngine: Backpack Market Data Mapper.
 ---------------------------------------------
 
 This module provides the BackpackMarketDataMapper class for transforming

@@ -1,3 +1,4 @@
+"""Hyperliquid DEX API client implementation."""
 from __future__ import annotations
 
 import asyncio
@@ -354,7 +355,7 @@ class HyperliquidAPI(ExchangeAPI):
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Uses the HyperliquidEip712Authenticator to prepare request components."""
+        """Use the HyperliquidEip712Authenticator to prepare request components."""
         if not self._hl_authenticator:
             logger.error(
                 f"[{self.exchange_name}] Attempt to call signed endpoint ({method} {path}) "
@@ -599,7 +600,7 @@ class HyperliquidAPI(ExchangeAPI):
         await super().subscribe(topic, handler)
 
     async def _on_ws_connected(self) -> None:
-        """Callback for when WebSocket connects, typically to resubscribe to topics."""
+        """Handle WebSocket connection, typically to resubscribe to topics."""
         logger.info(
             f"[{self.exchange_name}] WebSocket connected. "
             f"Triggering resubscription via base ExchangeAPI.",
@@ -614,7 +615,7 @@ class HyperliquidAPI(ExchangeAPI):
         await super()._resubscribe()
 
     async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
-        """Retrieves all open orders, optionally filtered by symbol.
+        """Retrieve all open orders, optionally filtered by symbol.
 
         Args:
             args: Parameters for filtering open orders including optional symbol.
