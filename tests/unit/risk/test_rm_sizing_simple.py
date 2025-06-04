@@ -138,7 +138,7 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"] = {}
 
         # Explicitly define and type the 'risk' sub-dictionary
-        risk_config_to_update: dict[str, Any] = current_test_config_dict["risk"]
+        risk_config_to_update: dict[str, Any] = cast(dict[str, Any], current_test_config_dict["risk"])
         risk_config_to_update.update(test_risk_overrides)
 
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
@@ -173,15 +173,17 @@ class TestRiskManagerSizingSimple:
         mock_risk.use_simple_sizing_path = current_test_config_dict["risk"][
             "use_simple_sizing_path"
         ]
-        mock_risk.simple_sizing_method = current_test_config_dict["risk"]["simple_sizing_method"]
+        risk_config = cast(dict[str, Any], current_test_config_dict["risk"])
+        mock_risk.simple_sizing_method = risk_config["simple_sizing_method"]
         mock_risk.simple_fixed_fraction = Decimal(
-            current_test_config_dict["risk"]["simple_fixed_fraction"]
+            str(risk_config["simple_fixed_fraction"])
         )
 
         # Mock global risk settings
         mock_global_risk = MagicMock()
+        global_risk_config = cast(dict[str, Any], current_test_config_dict["risk"]["global"])
         mock_global_risk.max_position_usd = Decimal(
-            current_test_config_dict["risk"]["global"]["max_position_usd"]
+            str(global_risk_config["max_position_usd"])
         )
         mock_risk.global_risk = mock_global_risk
 
@@ -220,7 +222,7 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"] = {}
 
         # Explicitly define and type the 'risk' sub-dictionary
-        risk_config_to_update: dict[str, Any] = current_test_config_dict["risk"]
+        risk_config_to_update: dict[str, Any] = cast(dict[str, Any], current_test_config_dict["risk"])
         risk_config_to_update.update(test_risk_overrides)
 
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
@@ -279,7 +281,7 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"] = {}
 
         # Explicitly define and type the 'risk' sub-dictionary
-        risk_config_to_update: dict[str, Any] = current_test_config_dict["risk"]
+        risk_config_to_update: dict[str, Any] = cast(dict[str, Any], current_test_config_dict["risk"])
         risk_config_to_update.update(test_risk_overrides)
 
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
@@ -339,7 +341,7 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"] = {}
 
         # Explicitly define and type the 'risk' sub-dictionary
-        risk_config_to_update: dict[str, Any] = current_test_config_dict["risk"]
+        risk_config_to_update: dict[str, Any] = cast(dict[str, Any], current_test_config_dict["risk"])
         risk_config_to_update.update(test_risk_overrides)
 
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
@@ -398,12 +400,12 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"] = {}
 
         # Explicitly define and type the 'risk' sub-dictionary
-        risk_config_to_update_safety: dict[str, Any] = current_test_config_dict["risk"]
+        risk_config_to_update_safety: dict[str, Any] = cast(dict[str, Any], current_test_config_dict["risk"])
         risk_config_to_update_safety.update(test_risk_overrides)
 
         def config_get_side_effect(key: str, default: object | None = None) -> object:
             keys = key.split(".")
-            value = current_test_config_dict
+            value: Any = current_test_config_dict
             for k_part in keys:
                 if isinstance(value, dict) and k_part in value:
                     value = value[k_part]
@@ -464,12 +466,12 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"] = {}
 
         # Explicitly define and type the 'risk' sub-dictionary
-        risk_config_to_update: dict[str, Any] = current_test_config_dict["risk"]
+        risk_config_to_update: dict[str, Any] = cast(dict[str, Any], current_test_config_dict["risk"])
         risk_config_to_update.update(test_risk_overrides)
 
         def config_get_side_effect(key: str, default: object | None = None) -> object:
             keys = key.split(".")
-            value = current_test_config_dict
+            value: Any = current_test_config_dict
             for k_part in keys:
                 if isinstance(value, dict) and k_part in value:
                     value = value[k_part]
@@ -528,12 +530,12 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"] = {}
 
         # Explicitly define and type the 'risk' sub-dictionary
-        risk_config_to_update: dict[str, Any] = current_test_config_dict["risk"]
+        risk_config_to_update: dict[str, Any] = cast(dict[str, Any], current_test_config_dict["risk"])
         risk_config_to_update.update(test_risk_overrides)
 
         def config_get_side_effect(key: str, default: object | None = None) -> object:
             keys = key.split(".")
-            value = current_test_config_dict
+            value: Any = current_test_config_dict
             for k_part in keys:
                 if isinstance(value, dict) and k_part in value:
                     value = value[k_part]
@@ -613,7 +615,7 @@ class TestRiskManagerSizingSimple:
         # Apply initial_risk_config_overrides to the 'risk' level
         if not isinstance(live_test_config_data.get("risk"), dict):
             live_test_config_data["risk"] = {}
-        risk_config_live_update_target: dict[str, Any] = live_test_config_data["risk"]
+        risk_config_live_update_target: dict[str, Any] = cast(dict[str, Any], live_test_config_data["risk"])
         risk_config_live_update_target.update(initial_risk_config_overrides)
         # Lower min_nfd_bps for this test to allow sizing
         live_test_config_data["risk"]["min_nfd_bps"] = "1"  # Allow NFD of 0.0003 to pass
@@ -667,7 +669,7 @@ class TestRiskManagerSizingSimple:
         ):
             risk_config_dict_for_opp2["global"] = {}  # Should not be needed
         # Direct assignment to the typed dict
-        global_config_for_opp2: dict[str, Any] = risk_config_dict_for_opp2["global"]
+        global_config_for_opp2: dict[str, Any] = cast(dict[str, Any], risk_config_dict_for_opp2["global"])
         global_config_for_opp2["max_position_usd"] = "10.0"
 
         config_for_opp2 = mock_config_dict  # Use dict directly instead of Config class

@@ -107,11 +107,10 @@ class TestConfigConsistency:
                 f"Example config {EXAMPLE_CONFIG_PATH} did not load as a dictionary "
                 f"(loaded type: {type(example_config_any)}). Cannot validate."
             )
-        example_config_dict = cast(dict[str, Any], example_config_any)
 
         # Validate example against schema
         try:
-            jsonschema.validate(instance=example_config_dict, schema=schema)
+            jsonschema.validate(instance=cast(dict[str, Any], example_config_any), schema=schema)
         except jsonschema.ValidationError as e:
             pytest.fail(f"Example config {EXAMPLE_CONFIG_PATH} failed validation: {e}")
 
@@ -130,6 +129,7 @@ class TestConfigConsistency:
     def test_example_config_matches_schema(self) -> None:
         """Verify that config.example.toml matches the schema definition."""
         # Load schema
+        schema: dict[str, Any] = {}
         try:
             with open(SCHEMA_PATH) as f:
                 schema = json.load(f)
@@ -151,6 +151,8 @@ class TestConfigConsistency:
                 f"Example config {EXAMPLE_CONFIG_PATH} did not load as a dictionary "
                 f"(loaded type: {type(example_config_any)}). Cannot validate."
             )
+        
+        # Cast to proper type after isinstance check
         example_config_dict = cast(dict[str, Any], example_config_any)
 
         # Validate example against schema

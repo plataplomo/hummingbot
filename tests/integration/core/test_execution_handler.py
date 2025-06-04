@@ -724,12 +724,18 @@ class TestExecutionHandler:
 
             # Extract all necessary parameters from kwargs with proper type casting
             from typing import cast
-            execution: TradeExecution = cast(TradeExecution, kwargs["execution"])  # noqa: F841 - used implicitly
+            execution: TradeExecution = cast(TradeExecution, kwargs["execution"])
             exchange_id: str = cast(str, kwargs["exchange_id"])
-            symbol_from_kwargs: str = cast(str, kwargs["symbol"])  # noqa: F841 - For validation/debugging
+            symbol_from_kwargs: str = cast(str, kwargs["symbol"])
             side: OrderSide = cast(OrderSide, kwargs["side"])
-            order_type_from_kwargs: OrderType = cast(OrderType, kwargs["order_type"])  # noqa: F841
-            quantity_from_kwargs: Decimal = cast(Decimal, kwargs["quantity"])  # noqa: F841
+            order_type_from_kwargs: OrderType = cast(OrderType, kwargs["order_type"])
+            quantity_from_kwargs: Decimal = cast(Decimal, kwargs["quantity"])
+            
+            # Use extracted parameters for validation
+            assert execution is not None, "Execution parameter is required"
+            assert symbol_from_kwargs, "Symbol parameter is required"
+            assert order_type_from_kwargs is not None, "Order type parameter is required"
+            assert quantity_from_kwargs > 0, "Quantity must be positive"
 
             sut_generated_client_oid_raw = kwargs.get("client_order_id")
             if sut_generated_client_oid_raw is None:
@@ -884,7 +890,7 @@ class TestExecutionHandler:
     @pytest.mark.asyncio
     async def test_execute_opportunity_failed_long_order(
         self,
-        execution_handler: ExecutionHandler,
+        testable_execution_handler: TestableExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_hl_api: AsyncMock,
         mock_bp_api: AsyncMock,
@@ -1167,23 +1173,23 @@ class TestExecutionHandler:
 
         with (
             patch.object(
-                execution_handler, "_place_order_with_retry", side_effect=place_retry_side_effect
+                testable_execution_handler, "_place_order_with_retry", side_effect=place_retry_side_effect
             ) as mock_place_retry,
             patch.object(
-                execution_handler, "_get_order_status", side_effect=get_status_side_effect
+                testable_execution_handler, "_get_order_status", side_effect=get_status_side_effect
             ),
             patch.object(
-                execution_handler,
+                testable_execution_handler,
                 "_monitor_order_status",
                 new=mock_monitor_status,
             ),
             patch.object(
-                execution_handler,
-                "_compensate_position",
-                wraps=execution_handler._compensate_position,
+                testable_execution_handler,
+                "test_compensate_position",
+                wraps=testable_execution_handler.test_compensate_position,
             ) as mock_compensate,
         ):
-            execution_result = await execution_handler.execute_opportunity(sized_opportunity)
+            execution_result = await testable_execution_handler.execute_opportunity(sized_opportunity)
 
         assert execution_result is not None
         assert execution_result.status == ExecutionStatus.FAILED
