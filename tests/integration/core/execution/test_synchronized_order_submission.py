@@ -762,7 +762,8 @@ class TestSynchronizedOrderSubmissionService:
         # Verify the pre-execution check was called, but not execution or post-check
         mock_sos_verify_pre.assert_awaited_once()
         mock_sos_exec_seq.assert_not_awaited()
-        mock_sos_verify_post.assert_not_awaited()  # This was mock_verify_post, now mock_sos_verify_post
+        # This was mock_verify_post, now mock_sos_verify_post
+        mock_sos_verify_post.assert_not_awaited()
 
         # Verify coordinator interactions
         mock_ec_start_exec.assert_awaited_once()
@@ -1224,7 +1225,8 @@ class TestSynchronizedOrderSubmissionService:
                 checkpoint_found_fail_pos = True
                 break
         assert checkpoint_found_fail_pos, (
-            f"Checkpoint {expected_checkpoint_name_fail_pos} with details {expected_details_fail_pos} "
+            f"Checkpoint {expected_checkpoint_name_fail_pos} with details "
+            f"{expected_details_fail_pos} "
             f"not found in calls to add_checkpoint. "
             f"Calls: {mock_coordinator_instance.add_checkpoint.call_args_list}"
         )
@@ -1261,7 +1263,8 @@ class TestSynchronizedOrderSubmissionService:
                 checkpoint_found_fail_fill = True
                 break
         assert checkpoint_found_fail_fill, (
-            f"Checkpoint {expected_checkpoint_name_fail_fill} with details {expected_details_fail_fill} "
+            f"Checkpoint {expected_checkpoint_name_fail_fill} with details "
+            f"{expected_details_fail_fill} "
             f"not found in calls to add_checkpoint. "
             f"Calls: {mock_coordinator_instance.add_checkpoint.call_args_list}"
         )

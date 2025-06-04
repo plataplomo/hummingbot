@@ -966,15 +966,10 @@ class TestPortfolioTracker:
         total_capital = await portfolio_tracker.get_total_capital(base_currency="USDC")
 
         # --- DETAILED ASSERTIONS FOR EACH ASSET ---
-        # HyperLiquid USDC
-        hl_usdc_val = sample_balances_state["hyperliquid"]["USDC"].total_quantity * Decimal(
-            "1.0"
-        )  # Price of USDC in USDC is 1
         # Test that get_total_capital correctly handles price conversions internally
         # We verify the total result rather than individual price calculations
-
-        # Backpack USDC
-        bp_usdc_val = sample_balances_state["backpack"]["USDC"].total_quantity * Decimal("1.0")
+        # HyperLiquid USDC value: total_quantity * 1.0 (USDC price in USDC is 1)
+        # Backpack USDC value: total_quantity * 1.0 
         # Test the total capital calculation result instead of individual price lookups
         # Based on our mocked ticker data and balance quantities:
         # HyperLiquid: 100000 USDC + (5.0 ETH * 3000) = 100000 + 15000 = 115000 USDC  

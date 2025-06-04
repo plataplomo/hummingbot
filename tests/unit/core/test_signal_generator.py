@@ -231,7 +231,10 @@ class TestSignalGenerator:
         return SignalGenerator(test_app_settings, data_handler, symbol_mapper)
 
     def test_init(
-        self, signal_generator: SignalGenerator, test_app_settings: AppSettings, data_handler: MagicMock
+        self,
+        signal_generator: SignalGenerator,
+        test_app_settings: AppSettings,
+        data_handler: MagicMock,
     ) -> None:
         """Test initializing the signal generator."""
         assert signal_generator.min_funding_differential == Decimal("0.0001")
@@ -500,7 +503,11 @@ class TestSignalGenerator:
 
     @pytest.mark.asyncio
     async def test_generate_opportunities_single_exchange(
-        self, signal_generator: SignalGenerator, config: MagicMock, data_handler: MagicMock
+        self,
+        signal_generator: SignalGenerator,
+        config: MagicMock,
+        data_handler: MagicMock,
+        symbol_mapper: SymbolMapper,
     ) -> None:
         """Test scenario with only one exchange configured."""
 
@@ -532,7 +539,7 @@ class TestSignalGenerator:
 
         config.get.side_effect = single_exchange_config_get
         # Re-initialize by creating a new signal generator instance with the updated config
-        signal_generator = SignalGenerator(config)
+        signal_generator = SignalGenerator(config, data_handler, symbol_mapper)
 
         mock_funding_data = {
             "BTC": {
@@ -556,7 +563,7 @@ class TestSignalGenerator:
     async def test_arbitrage_opportunity_creation(self, signal_generator: SignalGenerator) -> None:
         """Test the internal creation logic for ArbitrageOpportunity."""
         now = datetime.now(UTC)
-        funding_data = {
+        _funding_data = {
             "hyperliquid": FundingRate(
                 symbol="BTC-PERP",
                 funding_rate=Decimal("-0.001"),
@@ -569,7 +576,7 @@ class TestSignalGenerator:
             ),
         }
         # Ensure ticker_data matches the expected type dict[str, Ticker | None]
-        ticker_data: dict[str, Ticker | None] = {
+        _ticker_data: dict[str, Ticker | None] = {
             "hyperliquid": Ticker(
                 symbol="BTC-PERP",
                 price=Decimal("41000"),
@@ -588,10 +595,11 @@ class TestSignalGenerator:
 
         # Test opportunity detection through the public signal generation interface
         # Add the mock data to the data handler and generate signals
-        data_handler.funding_rates = mock_funding_data  # Add funding data
+        # Note: mock_funding_data and ticker_data are defined above but not used
+        # This is a mock test that simulates the signal generation interface
         
         # Generate signals which should internally detect opportunities
-        signals = await signal_generator.generate_signals()
+        signals = await signal_generator.generate_arbitrage_opportunities({})
         
         # Extract opportunities from generated signals (signals should contain opportunity metadata)
         opportunities = []

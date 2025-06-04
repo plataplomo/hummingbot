@@ -279,11 +279,12 @@ def execution_handler(
 @pytest.fixture
 def funding_rate_validator() -> FundingRateValidatorProtocol:
     """Provides a protocol-compliant mock for the FundingRateValidator."""
+    from typing import cast
     from unittest.mock import create_autospec  # Local import
 
     mock_validator = create_autospec(FundingRateValidatorProtocol, instance=True)
     mock_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
-    return mock_validator
+    return cast(FundingRateValidatorProtocol, mock_validator)
 
 
 @pytest_asyncio.fixture(scope="function")  # Changed to async fixture
@@ -309,7 +310,7 @@ async def position_reconciler(
         yield reconciler
     finally:
         # Clean up if needed
-        await portfolio_tracker.shutdown()
+        pass  # PortfolioTracker doesn't have a shutdown method
 
 
 @pytest.fixture
@@ -323,11 +324,11 @@ def circuit_breaker_system(mock_config: AppSettings) -> CircuitBreakerSystem:
     mock_cb_config.recovery_timeout_seconds = 60
     mock_cb_config.half_open_max_calls = 3
 
-    # Mock the nested config access
-    mock_config.validation = MagicMock()
-    mock_config.validation.circuit_breaker = MagicMock()
-    mock_config.validation.circuit_breaker.global_config = MagicMock()
-    mock_config.validation.circuit_breaker.global_config.api_errors = mock_cb_config
+    # Mock the nested config access to match actual AppSettings structure
+    mock_config.safety_systems = MagicMock()
+    mock_config.safety_systems.circuit_breakers = MagicMock()
+    mock_config.safety_systems.circuit_breakers.global_consecutive_failures = 5
+    mock_config.safety_systems.circuit_breakers.global_reset_timeout_sec = 300
 
     return CircuitBreakerSystem(mock_config)
 

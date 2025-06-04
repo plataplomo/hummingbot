@@ -230,7 +230,7 @@ def test_order_required_fields_missing(base_order_data: dict[str, Any]) -> None:
 def test_order_invalid_core_field_values(
     base_order_data: dict[str, Any],
     field: str,
-    value: Any,  # Intentional Any for testing invalid input handling
+    value: object,  # Using object instead of Any for invalid inputs
     error_match: str,
 ) -> None:
     """Test core field validation failures for various invalid inputs."""
@@ -414,7 +414,7 @@ def test_hl_details_creation_and_immutability(
 def test_hl_details_invalid_field_values(
     valid_hl_order_details_data: dict[str, Any],
     field: str,
-    value: Any,  # Intentional Any for testing invalid input handling
+    value: object,  # Using object instead of Any for invalid inputs
     error_match: str,
 ) -> None:
     """Test validation failures for HyperliquidOrderDetails."""
@@ -506,7 +506,7 @@ def test_bp_details_creation_and_immutability(
 def test_bp_details_invalid_field_values(
     valid_bp_order_details_data: dict[str, Any],
     field: str,
-    value: Any,  # Intentional Any for testing invalid input handling
+    value: object,  # Using object instead of Any for invalid inputs
     error_match: str,
 ) -> None:
     """Test that BackpackOrderDetails rejects invalid field values."""

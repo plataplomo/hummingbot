@@ -104,8 +104,8 @@ class TestFailureScenarios:
         await real_portfolio_tracker.initialize()
         # ts = datetime.now(UTC) # Moved 'now' up
         # Ensure BOTH exchanges have valid tickers configured *before* error simulation
-        bp_symbol = str(mock_config.get(f"exchanges.{target_exchange}.symbols.BTC"))  # Cast to str
-        hl_symbol = str(mock_config.get(f"exchanges.{other_exchange}.symbols.BTC"))  # Cast to str
+        bp_symbol = str(mock_config.exchanges[target_exchange].symbols["BTC"])  # Cast to str
+        hl_symbol = str(mock_config.exchanges[other_exchange].symbols["BTC"])  # Cast to str
 
         mock_bp_api.set_mock_ticker(create_mock_ticker(bp_symbol, 30000, 30001, 30000.5, now))
         mock_hl_api.set_mock_ticker(create_mock_ticker(hl_symbol, 30010, 30011, 30010.5, now))
@@ -141,9 +141,11 @@ class TestFailureScenarios:
         max_failures_to_trip: int = api_breaker.error_threshold  # Get threshold
 
         # Correctly formatted multi-line f-string
+        breaker_name = api_breaker.name if not isinstance(api_breaker, dict) else 'dict'
+        breaker_state = api_breaker.state.name if not isinstance(api_breaker, dict) else 'unknown'
         logger.info(
-            f"Breaker '{api_breaker.name}' threshold: {max_failures_to_trip}. "
-            f"Current state: {api_breaker.state.name}"
+            f"Breaker '{breaker_name}' threshold: {max_failures_to_trip}. "
+            f"Current state: {breaker_state}"
         )
         execution_results: list[TradeExecution] = []
         for i in range(max_failures_to_trip + 1):  # Now max_failures_to_trip is int
@@ -152,18 +154,20 @@ class TestFailureScenarios:
             execution_results.append(result)
             # Small delay to allow CB state updates if needed (though sync should be fast here)
             await asyncio.sleep(0.1)
-            if breaker.state == BreakerState.OPEN:
+            if not isinstance(breaker, dict) and breaker.state == BreakerState.OPEN:
                 logger.info(f"Breaker tripped after {i + 1} attempts.")
                 break
         else:  # This else belongs to the for loop
             pytest.fail(f"Circuit breaker did not trip after {max_failures_to_trip + 1} attempts.")
 
         # 3. Verify Breaker State
-        assert breaker.state == BreakerState.OPEN, "Breaker should be OPEN"
+        assert (not isinstance(breaker, dict) and 
+                breaker.state == BreakerState.OPEN), "Breaker should be OPEN"
 
         # --- MODIFIED: Attempt execution *after* breaker is confirmed OPEN ---
+        breaker_name_for_log = api_breaker.name if not isinstance(api_breaker, dict) else 'dict'
         logger.info(
-            f"Breaker {api_breaker.name} is confirmed OPEN. Attempting one more execution..."
+            f"Breaker {breaker_name_for_log} is confirmed OPEN. Attempting one more execution..."
         )
         rejected_result = await execution_handler.execute_opportunity(sized_opportunity)
         logger.info(f"Result of execution attempt while OPEN: {rejected_result.status.name}")
@@ -192,10 +196,9 @@ class TestFailureScenarios:
         )  # Reset the tripped breaker for this check
 
         # Create an opportunity targeting the *other* exchange
-        _other_long_symbol = mock_config.get(f"exchanges.{other_exchange}.symbols.BTC")
-        _other_short_symbol = mock_config.get(
-            f"exchanges.{target_exchange}.symbols.BTC"
-        )  # Needs a symbol, even if CB might block it
+        _other_long_symbol = mock_config.exchanges[other_exchange].symbols["BTC"]
+        _other_short_symbol = mock_config.exchanges[target_exchange].symbols["BTC"]
+        # Needs a symbol, even if CB might block it
 
         # Correctly instantiate ArbitrageOpportunity with required args
         other_opportunity = ArbitrageOpportunity(
@@ -241,8 +244,8 @@ class TestFailureScenarios:
             other_exchange, target_breaker_type
         )
         assert other_breaker is not None
-        assert other_breaker.state == BreakerState.CLOSED, (
-            f"Other exchange breaker {other_breaker.name} should be CLOSED"
+        assert not isinstance(other_breaker, dict) and other_breaker.state == BreakerState.CLOSED, (
+            f"Other exchange breaker {other_breaker.name if not isinstance(other_breaker, dict) else 'dict'} should be CLOSED"
         )
 
         other_result = await execution_handler.execute_opportunity(other_sized_opportunity)
@@ -358,9 +361,8 @@ class TestFailureScenarios:
         # Handle case where breaker might not exist if loading logic changes
         if breaker is None:
             pytest.skip(f"Breaker {breaker_name} not found, skipping manual control test.")
-            return  # Add explicit return to satisfy mypy
 
-        initial_state = breaker.state  # Store initial state if needed for later comparison
+        initial_state = breaker.state if not isinstance(breaker, dict) else None  # Store initial state if needed for later comparison
         assert initial_state is BreakerState.CLOSED, (
             f"Breaker initial state was {initial_state}, expected CLOSED."
         )
@@ -368,11 +370,12 @@ class TestFailureScenarios:
         # Manual trip - Assuming force_trip doesn't exist, trip manually for test setup
         # circuit_breaker_system.force_trip(breaker_name, "Manual trip for testing")
         # Instead, directly call trip on the breaker instance for the test
-        breaker.trip("Manual trip for testing")
-        assert breaker.state is BreakerState.OPEN, (
-            f"Breaker state after trip was {breaker.state}, expected OPEN."
+        if not isinstance(breaker, dict):
+            breaker.trip("Manual trip for testing")
+        assert not isinstance(breaker, dict) and breaker.state is BreakerState.OPEN, (
+            f"Breaker state after trip was {breaker.state if not isinstance(breaker, dict) else 'dict'}, expected OPEN."
         )
-        assert breaker.trip_reason == "Manual trip for testing"
+        assert not isinstance(breaker, dict) and breaker.trip_reason == "Manual trip for testing"
 
     # Test RiskManager circuit breakers
     # TODO: Re-enable and refine these tests

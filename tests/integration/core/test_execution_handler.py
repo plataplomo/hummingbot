@@ -13,7 +13,6 @@ from cyberdelta.core.execution_handler import (
     ExecutionStatus,
     TradeExecution,
 )
-from tests.test_utils.testable_classes import TestableExecutionHandler
 from cyberdelta.core.models import (
     Order,
     OrderSide,
@@ -28,6 +27,7 @@ from cyberdelta.core.risk_manager import SizedOpportunity
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
+from tests.test_utils.testable_classes import TestableExecutionHandler
 
 
 @pytest.fixture
@@ -119,12 +119,18 @@ class TestExecutionHandler:
         execution_mock = MagicMock()
         execution_mock.max_slippage_pct = mock_config_dict.get("execution.max_slippage_pct", "0.01")
         execution_mock.max_retries = mock_config_dict.get("execution.max_retries", 3)
-        execution_mock.retry_delay_base_sec = mock_config_dict.get("execution.retry_delay_base_sec", "1.0")
+        execution_mock.retry_delay_base_sec = mock_config_dict.get(
+            "execution.retry_delay_base_sec", "1.0"
+        )
         
         # Mock compensation sub-config
         compensation_mock = MagicMock()
-        compensation_mock.use_limit_orders = mock_config_dict.get("execution.compensation.use_limit_orders", True)
-        compensation_mock.limit_price_offset_pct = mock_config_dict.get("execution.compensation.limit_price_offset_pct", "0.05")
+        compensation_mock.use_limit_orders = mock_config_dict.get(
+            "execution.compensation.use_limit_orders", True
+        )
+        compensation_mock.limit_price_offset_pct = mock_config_dict.get(
+            "execution.compensation.limit_price_offset_pct", "0.05"
+        )
         execution_mock.compensation = compensation_mock
         
         cfg.execution = execution_mock
@@ -605,7 +611,7 @@ class TestExecutionHandler:
         mock_portfolio_tracker.get_order.return_value = original_filled_order
 
         # Define an async side_effect function that raises the APIError
-        async def async_api_error_side_effect(*args: Any, **kwargs: Any) -> None:
+        async def async_api_error_side_effect(*_args: object, **_kwargs: object) -> None:
             raise APIError("Comp Failed", APIErrorCode.UNKNOWN.value)
 
         with patch.object(
@@ -711,20 +717,25 @@ class TestExecutionHandler:
         )
 
         # --- Mock for _place_order_with_retry ---
-        async def place_order_retry_side_effect(**kwargs: Any) -> Order:
+        async def place_order_retry_side_effect(
+            **kwargs: TradeExecution | str | OrderSide | OrderType | Decimal | None
+        ) -> Order:
             await asyncio.sleep(0.001)  # Simulate async call
 
-            # Extract all necessary parameters from kwargs
-            execution: TradeExecution = kwargs["execution"]  # noqa: F841 - used implicitly
-            exchange_id: str = kwargs["exchange_id"]
-            symbol_from_kwargs: str = kwargs["symbol"]  # noqa: F841 - For validation/debugging
-            side: OrderSide = kwargs["side"]
-            order_type_from_kwargs: OrderType = kwargs["order_type"]  # noqa: F841
-            quantity_from_kwargs: Decimal = kwargs["quantity"]  # noqa: F841
+            # Extract all necessary parameters from kwargs with proper type casting
+            from typing import cast
+            execution: TradeExecution = cast(TradeExecution, kwargs["execution"])  # noqa: F841 - used implicitly
+            exchange_id: str = cast(str, kwargs["exchange_id"])
+            symbol_from_kwargs: str = cast(str, kwargs["symbol"])  # noqa: F841 - For validation/debugging
+            side: OrderSide = cast(OrderSide, kwargs["side"])
+            order_type_from_kwargs: OrderType = cast(OrderType, kwargs["order_type"])  # noqa: F841
+            quantity_from_kwargs: Decimal = cast(Decimal, kwargs["quantity"])  # noqa: F841
 
-            sut_generated_client_oid = kwargs.get("client_order_id")
-            if sut_generated_client_oid is None:
+            sut_generated_client_oid_raw = kwargs.get("client_order_id")
+            if sut_generated_client_oid_raw is None:
                 sut_generated_client_oid = f"fallback-oid-{datetime.now(UTC).timestamp()}"
+            else:
+                sut_generated_client_oid = cast(str, sut_generated_client_oid_raw)
 
             if exchange_id == "hyperliquid" and side == OrderSide.BUY:
                 return base_long_order.model_copy(
@@ -1070,7 +1081,8 @@ class TestExecutionHandler:
                         "quantity_requested": quantity,  # From SUT
                         "reduce_only": reduce_only,  # Should be True from SUT
                         "post_only": post_only,  # Should be False from SUT
-                        # Ensure other fields like symbol, exchange, side are consistent or also from SUT if necessary
+                        # Ensure other fields like symbol, exchange, side are consistent
+                        # or also from SUT if necessary
                         "symbol": symbol,  # From SUT
                         "exchange": exchange_id,  # From SUT
                         "side": side,  # From SUT (SELL)
@@ -1086,7 +1098,8 @@ class TestExecutionHandler:
             # --- DEBUG --- Print received arguments before raising ValueError
             print(
                 f"DEBUG place_retry_side_effect UNEXPECTED CALL. ARGS:"
-                f" exchange_id={exchange_id!r}, symbol={symbol!r}, side={side!r}, order_type={order_type!r}, "
+                f" exchange_id={exchange_id!r}, symbol={symbol!r}, side={side!r}, "
+                f"order_type={order_type!r}, "
                 f" quantity={quantity!r}, price={price!r}, time_in_force={time_in_force!r}, "
                 f" client_order_id={client_order_id!r}, reduce_only={reduce_only!r}, "
                 f" post_only={post_only!r}, is_long_leg={is_long_leg!r}"
@@ -1205,7 +1218,8 @@ class TestExecutionHandler:
 
         # Verify call 3: Compensation leg
         comp_leg_call = place_retry_call_args_list[2]
-        # Positional arguments for compensation call from _compensate_position to _place_order_with_retry:
+        # Positional arguments for compensation call from _compensate_position
+        # to _place_order_with_retry:
         # args: (execution, exchange_id, symbol, side, quantity, order_type, price)
         # kwargs: (time_in_force, reduce_only)
         assert comp_leg_call.args[1] == "hyperliquid"  # exchange_id
@@ -1213,7 +1227,8 @@ class TestExecutionHandler:
         assert comp_leg_call.args[3] == OrderSide.SELL  # side (opposite of original long)
 
         # Calculate the expected base quantity for compensation
-        # This should match how _place_orders_for_opportunity calculates it before calling _compensate_position
+        # This should match how _place_orders_for_opportunity calculates it
+        # before calling _compensate_position
         # sized_opportunity.long_size is quote. opportunity.long_price is the target entry for long.
         assert sized_opportunity.opportunity.long_price is not None  # Ensure price is available
         expected_comp_base_quantity = (
@@ -1243,7 +1258,9 @@ class TestExecutionHandler:
         mock_portfolio_tracker.process_trade_call_tracker.clear()
 
     def test_get_execution_history(
-        self, testable_execution_handler: TestableExecutionHandler, sized_opportunity: SizedOpportunity
+        self,
+        testable_execution_handler: TestableExecutionHandler,
+        sized_opportunity: SizedOpportunity,
     ) -> None:
         """Test retrieving the execution history."""
         exec1 = TradeExecution(sized_opportunity)

@@ -493,7 +493,7 @@ def mock_config() -> AppSettings:
     cfg = MagicMock(spec=AppSettings)
 
     # Default side effect (can be overridden in tests)
-    def config_side_effect(key: str, default: Any | None = None) -> Any:
+    def config_side_effect(key: str, default: object | None = None) -> object:
         # Provide some basic defaults if needed, otherwise return the default argument
         base_configs = {
             "validation.circuit_breaker.global.api_errors.enabled": True,
@@ -559,7 +559,7 @@ def mock_config_with_exchanges() -> AppSettings:
         "other_settings": {"some_value": True},
     }
 
-    def get_side_effect(key: str, default: Any | None = None) -> Any:
+    def get_side_effect(key: str, default: object | None = None) -> object:
         # Handle the primary key used by CircuitBreakerSystem constructor
         if key == "exchanges":
             return full_config_data.get("exchanges", default if default is not None else {})
@@ -576,9 +576,15 @@ def mock_config_with_exchanges() -> AppSettings:
             try:
                 # Attempt to navigate: full_config_data["exchanges"][exchange_name]["circuit_breakers"]["defaults"]["cooldown_seconds"]
                 exchange_name_from_key = parts[1]
-                val = full_config_data["exchanges"][exchange_name_from_key]["circuit_breakers"][
-                    "defaults"
-                ]["cooldown_seconds"]
+                if isinstance(full_config_data, dict) and "exchanges" in full_config_data:
+                    exchanges_data = full_config_data["exchanges"]
+                    if isinstance(exchanges_data, dict) and exchange_name_from_key in exchanges_data:
+                        exchange_data = exchanges_data[exchange_name_from_key]
+                    else:
+                        raise KeyError(f"Exchange {exchange_name_from_key} not found")
+                else:
+                    raise KeyError("full_config_data is not a dict or missing exchanges")
+                val = exchange_data["circuit_breakers"]["defaults"]["cooldown_seconds"]
                 return val
             except KeyError:
                 pass  # Fall through to general default
@@ -633,7 +639,7 @@ class TestCircuitBreakerSystem:
         system = CircuitBreakerSystem(mock_config)
         # Use get_exchange_breaker to retrieve the correct breaker
         api_breaker = system.get_exchange_breaker("test_exchange", "api_errors")
-        if api_breaker:
+        if api_breaker and not isinstance(api_breaker, dict):
             # Trip the API breaker
             api_breaker.trip("Test trip")
 

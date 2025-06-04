@@ -51,7 +51,8 @@ class TestRiskManagerValidation:
                 short_funding_rate=Decimal("0.0001"),  # Zero NFD
                 net_funding_differential=Decimal("0.0"),  # Explicitly zero NFD
                 timestamp=sample_opportunity.timestamp,
-                # Add missing fields if ArbitrageOpportunity requires them and they affect equality/hashing for the test
+                # Add missing fields if ArbitrageOpportunity requires them and they
+                # affect equality/hashing for the test
                 expected_profit=Decimal("-1000.0"),  # Unprofitable
                 utility_score=0.1,  # Low utility
                 basis_volatility=0.05,  # Some volatility
