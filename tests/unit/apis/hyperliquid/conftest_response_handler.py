@@ -47,7 +47,7 @@ def valid_raw_meta_and_asset_ctxs() -> list[Any]:
             "universe": [
                 {"name": "BTC", "szDecimals": 5, "maxLeverage": 100, "onlyIsolated": False},
                 {"name": "ETH", "szDecimals": 4, "maxLeverage": 80, "onlyIsolated": False},
-            ]
+            ],
         },
         [
             {
@@ -88,7 +88,7 @@ def valid_raw_user_state() -> dict[str, Any]:
                     "returnOnEquity": "0.0",
                     "unrealizedPnl": "0.0",
                 },
-            }
+            },
         ],
         "crossMaintenanceMarginUsed": "30.0",
         "crossMarginSummary": {
@@ -242,7 +242,7 @@ def valid_raw_historical_order_response() -> dict[str, Any]:
             "status": "filled",
             "statusTimestamp": 1678890001000,
             "cloid": "histClient1",
-        }
+        },
     }
 
 

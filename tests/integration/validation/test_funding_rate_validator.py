@@ -237,7 +237,7 @@ class TestFundingRateValidator:
                 "predicted_rate": 0.0005,
                 "method": "api",
                 "confidence": 0.8,
-            }
+            },
         )
 
         validator.payments.append(
@@ -249,7 +249,7 @@ class TestFundingRateValidator:
                 "actual_rate": 0.0006,
                 "payment_amount": 0.6,
                 "position_size": 80.0,
-            }
+            },
         )
 
         # Verify we have 4 total records

@@ -26,7 +26,7 @@ class TestBackpackRateLimitStrategy:
 
     @pytest.mark.asyncio
     async def test_handle_exchange_retry_after(
-        self, strategy: BackpackRateLimitStrategy, mock_limiter: MagicMock
+        self, strategy: BackpackRateLimitStrategy, mock_limiter: MagicMock,
     ) -> None:
         """Test that handle_exchange_retry_after triggers IP ban on limiter."""
         # Arrange
@@ -46,7 +46,7 @@ class TestBackpackRateLimitStrategy:
 
     @pytest.mark.asyncio
     async def test_handle_exchange_retry_after_no_exchange_name(
-        self, strategy: BackpackRateLimitStrategy, mock_limiter: MagicMock
+        self, strategy: BackpackRateLimitStrategy, mock_limiter: MagicMock,
     ) -> None:
         """Test handle_exchange_retry_after with missing exchange_name in context."""
         # Arrange
@@ -64,7 +64,7 @@ class TestBackpackRateLimitStrategy:
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_inherited(
-        self, strategy: BackpackRateLimitStrategy, mock_limiter: MagicMock
+        self, strategy: BackpackRateLimitStrategy, mock_limiter: MagicMock,
     ) -> None:
         """Test that prepare_and_acquire works as inherited from SimpleTokenBucketStrategy."""
         # Arrange
@@ -81,12 +81,12 @@ class TestBackpackRateLimitStrategy:
         # Assert
         # SimpleTokenBucketStrategy returns None
         mock_limiter.acquire.assert_called_once_with(
-            tokens_to_consume=2
+            tokens_to_consume=2,
         )  # Uses request_weight from context
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_default_weight(
-        self, strategy: BackpackRateLimitStrategy, mock_limiter: MagicMock
+        self, strategy: BackpackRateLimitStrategy, mock_limiter: MagicMock,
     ) -> None:
         """Test prepare_and_acquire with default weight when not specified in context."""
         # Arrange
@@ -103,5 +103,5 @@ class TestBackpackRateLimitStrategy:
         # Assert
         # Method returns None
         mock_limiter.acquire.assert_called_once_with(
-            tokens_to_consume=1
+            tokens_to_consume=1,
         )  # Uses default_request_weight

@@ -34,7 +34,7 @@ from tests.integration.mocks.mock_exchange import MockExchangeAPI
 # Configure logging for tests
 logging.getLogger().setLevel(logging.INFO)
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -88,7 +88,7 @@ class TestFailureScenarios:
                 total_quantity=Decimal("10000"),  # Add missing
                 available_quantity=Decimal("10000"),  # Add missing
                 timestamp=now,  # Add missing
-            )
+            ),
         )
         mock_hl_api.set_mock_balance(
             SpotBalance(
@@ -99,7 +99,7 @@ class TestFailureScenarios:
                 total_quantity=Decimal("10000"),  # Add missing
                 available_quantity=Decimal("10000"),  # Add missing
                 timestamp=now,  # Add missing
-            )
+            ),
         )
         await real_portfolio_tracker.initialize()
         # ts = datetime.now(UTC) # Moved 'now' up
@@ -137,15 +137,15 @@ class TestFailureScenarios:
         breaker = circuit_breaker_system.get_exchange_breaker(target_exchange, target_breaker_type)
         assert breaker is not None, "Target exchange breaker not found"
         # Cast to specific type to access error_threshold
-        api_breaker = cast(APIErrorBreaker, breaker)
+        api_breaker = cast("APIErrorBreaker", breaker)
         max_failures_to_trip: int = api_breaker.error_threshold  # Get threshold
 
         # Correctly formatted multi-line f-string
-        breaker_name = api_breaker.name if not isinstance(api_breaker, dict) else 'dict'
-        breaker_state = api_breaker.state.name if not isinstance(api_breaker, dict) else 'unknown'
+        breaker_name = api_breaker.name if not isinstance(api_breaker, dict) else "dict"
+        breaker_state = api_breaker.state.name if not isinstance(api_breaker, dict) else "unknown"
         logger.info(
             f"Breaker '{breaker_name}' threshold: {max_failures_to_trip}. "
-            f"Current state: {breaker_state}"
+            f"Current state: {breaker_state}",
         )
         execution_results: list[TradeExecution] = []
         for i in range(max_failures_to_trip + 1):  # Now max_failures_to_trip is int
@@ -161,13 +161,13 @@ class TestFailureScenarios:
             pytest.fail(f"Circuit breaker did not trip after {max_failures_to_trip + 1} attempts.")
 
         # 3. Verify Breaker State
-        assert (not isinstance(breaker, dict) and 
+        assert (not isinstance(breaker, dict) and
                 breaker.state == BreakerState.OPEN), "Breaker should be OPEN"
 
         # --- MODIFIED: Attempt execution *after* breaker is confirmed OPEN ---
-        breaker_name_for_log = api_breaker.name if not isinstance(api_breaker, dict) else 'dict'
+        breaker_name_for_log = api_breaker.name if not isinstance(api_breaker, dict) else "dict"
         logger.info(
-            f"Breaker {breaker_name_for_log} is confirmed OPEN. Attempting one more execution..."
+            f"Breaker {breaker_name_for_log} is confirmed OPEN. Attempting one more execution...",
         )
         rejected_result = await execution_handler.execute_opportunity(sized_opportunity)
         logger.info(f"Result of execution attempt while OPEN: {rejected_result.status.name}")
@@ -192,7 +192,7 @@ class TestFailureScenarios:
         # Temporarily disable the error on the failing exchange to test the other one
         mock_bp_api.clear_error()
         circuit_breaker_system.reset_breaker(
-            f"exchange:{target_exchange}:{target_breaker_type}"
+            f"exchange:{target_exchange}:{target_breaker_type}",
         )  # Reset the tripped breaker for this check
 
         # Create an opportunity targeting the *other* exchange
@@ -237,11 +237,11 @@ class TestFailureScenarios:
         # Correctly formatted multi-line f-string
         logger.info(
             f"Attempting execution on the other exchange ({other_exchange}) "
-            f"to ensure it's unaffected..."
+            f"to ensure it's unaffected...",
         )
         # Ensure the other exchange's breaker is CLOSED before attempting
         other_breaker = circuit_breaker_system.get_exchange_breaker(
-            other_exchange, target_breaker_type
+            other_exchange, target_breaker_type,
         )
         assert other_breaker is not None
         assert not isinstance(other_breaker, dict) and other_breaker.state == BreakerState.CLOSED, (
@@ -297,7 +297,7 @@ class TestFailureScenarios:
             )
             # Successful result should ideally have no error message or one unrelated to breakers
             assert other_result.error_message is None or target_exchange not in str(
-                other_result.error_message
+                other_result.error_message,
             ), (
                 # Correctly formatted multi-line f-string
                 f"Successful execution error message '{other_result.error_message}' "
@@ -348,7 +348,7 @@ class TestFailureScenarios:
 
     @pytest.mark.asyncio
     async def test_manual_breaker_control(
-        self, circuit_breaker_system: CircuitBreakerSystem
+        self, circuit_breaker_system: CircuitBreakerSystem,
     ) -> None:
         """Tests manual tripping and resetting of breakers."""
         breaker_name = "exchange:mock_hl:api_errors"
@@ -396,7 +396,6 @@ class TestFailureScenarios:
         # Setup: Configure volatility breaker, provide volatile mock data
         # Trigger: Feed volatile data
         # Verify: Check breaker state, check execution rejection
-        pass
 
     # @pytest.mark.skip(reason="WIP: Refine Drawdown Breaker logic and testing")
     @pytest.mark.asyncio
@@ -414,7 +413,6 @@ class TestFailureScenarios:
         # Setup: Configure drawdown breaker, set initial capital
         # Trigger: Simulate losing trades until drawdown threshold is hit
         # Verify: Check breaker state, check execution rejection
-        pass
 
     # @pytest.mark.skip(reason="WIP: Refine breaker recovery logic and testing")
     @pytest.mark.asyncio
@@ -432,7 +430,6 @@ class TestFailureScenarios:
         # Setup: Trip a breaker (e.g., API errors)
         # Trigger: Simulate successful operations
         # Verify: Check breaker transitions OPEN -> HALF_OPEN -> CLOSED
-        pass
 
     @pytest.mark.asyncio
     async def test_global_api_error_breaker_trips_and_recovers(
@@ -449,7 +446,6 @@ class TestFailureScenarios:
         # Setup: Configure global API error breaker
         # Trigger: Simulate a global API error
         # Verify: Check breaker state, check execution rejection
-        pass
 
 
 # Placeholder test (commented out from original ruff output)

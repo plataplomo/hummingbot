@@ -41,7 +41,7 @@ def test_map_hl_string_error_insufficient_margin(
     """Test mapping Hyperliquid's string error for insufficient margin."""
     error_body_str = "exchange: Insufficient margin"
     error = hyperliquid_error_mapper.map_exchange_error(
-        status_code=200, error_body=error_body_str, error_data=None, request_path="/exchange"
+        status_code=200, error_body=error_body_str, error_data=None, request_path="/exchange",
     )
     assert isinstance(error, APIError)
     assert error.code == APIErrorCode.INSUFFICIENT_FUNDS.value
@@ -56,7 +56,7 @@ def test_map_hl_string_error_invalid_order_size(
     """Test mapping Hyperliquid's string error for invalid order size."""
     error_body_str = "Invalid order size"
     error = hyperliquid_error_mapper.map_exchange_error(
-        status_code=200, error_body=error_body_str, error_data=None, request_path="/exchange"
+        status_code=200, error_body=error_body_str, error_data=None, request_path="/exchange",
     )
     assert isinstance(error, APIError)
     assert error.code == APIErrorCode.INVALID_ORDER_SIZE.value
@@ -88,7 +88,7 @@ def test_map_hl_string_error_user_not_found(
     """Test mapping Hyperliquid's string error for user not found."""
     error_body_str = "User not found"
     error = hyperliquid_error_mapper.map_exchange_error(
-        status_code=200, error_body=error_body_str, error_data=None, request_path="/info"
+        status_code=200, error_body=error_body_str, error_data=None, request_path="/info",
     )
     assert isinstance(error, APIError)
     # This could be AUTHENTICATION_FAILED or a more specific USER_NOT_FOUND if we add one
@@ -102,7 +102,7 @@ def test_map_hl_unknown_string_error(hyperliquid_error_mapper: HyperliquidErrorM
     """Test mapping an unknown Hyperliquid string error."""
     error_body_str = "An unexpected problem occurred on Hyperliquid."
     error = hyperliquid_error_mapper.map_exchange_error(
-        status_code=200, error_body=error_body_str, error_data=None, request_path="/exchange"
+        status_code=200, error_body=error_body_str, error_data=None, request_path="/exchange",
     )
     assert isinstance(error, APIError)
     assert error.code == APIErrorCode.EXCHANGE_SPECIFIC.value  # Fallback for unknown strings
@@ -117,7 +117,7 @@ def test_map_hl_error_with_http_error_status(
     """Test mapping when Hyperliquid returns a non-200 status with an error string."""
     error_body_str = "Request failed due to reasons."
     error = hyperliquid_error_mapper.map_exchange_error(
-        status_code=503, error_body=error_body_str, error_data=None, request_path="/exchange"
+        status_code=503, error_body=error_body_str, error_data=None, request_path="/exchange",
     )
     assert isinstance(error, APIError)
     assert (
@@ -131,7 +131,7 @@ def test_map_hl_error_with_http_error_status(
 def test_map_hl_empty_error_body(hyperliquid_error_mapper: HyperliquidErrorMapper) -> None:
     """Test mapping when error body is empty but status code indicates error."""
     error = hyperliquid_error_mapper.map_exchange_error(
-        status_code=401, error_body="", error_data=None, request_path="/exchange"
+        status_code=401, error_body="", error_data=None, request_path="/exchange",
     )
     assert isinstance(error, APIError)
     assert error.code == APIErrorCode.AUTHENTICATION_FAILED.value

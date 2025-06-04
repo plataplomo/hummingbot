@@ -15,7 +15,7 @@ from cyberdelta.enums.exchange_names import ExchangeName
 
 @pytest.fixture(scope="session")
 def active_hl_config(
-    test_app_settings: AppSettings, hl_test_environment_from_config: str
+    test_app_settings: AppSettings, hl_test_environment_from_config: str,
 ) -> ExchangeSpecificConfig:
     """
     Get ExchangeSpecificConfig for Hyperliquid from test configuration.
@@ -25,7 +25,7 @@ def active_hl_config(
     hl_config_from_file = test_app_settings.exchanges["hyperliquid"]
     # Override is_mainnet_environment based on hl_test_environment_from_config fixture
     return hl_config_from_file.model_copy(
-        update={"is_mainnet_environment": hl_test_environment_from_config == "mainnet"}
+        update={"is_mainnet_environment": hl_test_environment_from_config == "mainnet"},
     )
 
 
@@ -54,6 +54,7 @@ def create_test_exchange_config(
     Args:
         env_type: Environment type ("mainnet" or "testnet")
         **kwargs: Additional config overrides
+
     """
     is_mainnet_env = env_type == "mainnet"
 

@@ -23,7 +23,7 @@ class TestHyperliquidSignL1Action:
     """Test suite for the sign_l1_action authentication scheme."""
 
     def verify_domain_configuration_through_behavior(
-        self, authenticator: HyperliquidEip712Authenticator
+        self, authenticator: HyperliquidEip712Authenticator,
     ) -> None:
         """Verify domain configuration indirectly through authenticator behavior."""
         # Test that the authenticator was initialized with correct chain_id
@@ -33,7 +33,7 @@ class TestHyperliquidSignL1Action:
         assert len(authenticator.wallet_address) == 42
 
     def verify_agent_types_through_behavior(
-        self, authenticator: HyperliquidEip712Authenticator
+        self, authenticator: HyperliquidEip712Authenticator,
     ) -> None:
         """Verify agent types configuration indirectly through successful signing."""
         # The fact that prepare_request succeeds with valid signatures
@@ -60,14 +60,14 @@ class TestHyperliquidSignL1Action:
                     "sz": "0.1",
                     "limit_px": "50000",
                     "order_type": {"limit": {"tif": "Gtc"}, "market": None},
-                }
+                },
             ],
             "grouping": "na",
         }
 
     @pytest.mark.asyncio
     async def test_exchange_endpoint_uses_sign_l1_action(
-        self, authenticator: HyperliquidEip712Authenticator, sample_order_action: dict[str, Any]
+        self, authenticator: HyperliquidEip712Authenticator, sample_order_action: dict[str, Any],
     ) -> None:
         """Test that /exchange endpoint uses the new sign_l1_action scheme."""
         result = await authenticator.prepare_request(
@@ -103,7 +103,7 @@ class TestHyperliquidSignL1Action:
 
     @pytest.mark.asyncio
     async def test_non_exchange_endpoint_raises_not_implemented(
-        self, authenticator: HyperliquidEip712Authenticator
+        self, authenticator: HyperliquidEip712Authenticator,
     ) -> None:
         """Test that non-/exchange endpoints raise NotImplementedError."""
         with pytest.raises(NotImplementedError, match="Only /exchange endpoint is supported"):
@@ -155,7 +155,7 @@ class TestHyperliquidSignL1Action:
                     "is_buy": False,
                     "sz": "1.0",
                     "order_type": {"limit": None, "market": {"sz_decimals": 2}},
-                }
+                },
             ],
         }
 
@@ -175,7 +175,7 @@ class TestHyperliquidSignL1Action:
 
     @pytest.mark.asyncio
     async def test_action_hash_calculation(
-        self, authenticator: HyperliquidEip712Authenticator
+        self, authenticator: HyperliquidEip712Authenticator,
     ) -> None:
         """Test that action_hash is calculated correctly using msgpack and keccak."""
         # Simple action for predictable hashing
@@ -203,7 +203,7 @@ class TestHyperliquidSignL1Action:
 
     @pytest.mark.asyncio
     async def test_eip712_domain_configuration_through_behavior(
-        self, authenticator: HyperliquidEip712Authenticator
+        self, authenticator: HyperliquidEip712Authenticator,
     ) -> None:
         """Test that EIP-712 domain is correctly configured through successful signing."""
         # Verify domain configuration indirectly through behavior
@@ -228,7 +228,7 @@ class TestHyperliquidSignL1Action:
 
     @pytest.mark.asyncio
     async def test_empty_action_payload(
-        self, authenticator: HyperliquidEip712Authenticator
+        self, authenticator: HyperliquidEip712Authenticator,
     ) -> None:
         """Test handling of empty action payload."""
         result = await authenticator.prepare_request(
@@ -246,7 +246,7 @@ class TestHyperliquidSignL1Action:
 
     @pytest.mark.asyncio
     async def test_nested_address_lowercasing(
-        self, authenticator: HyperliquidEip712Authenticator
+        self, authenticator: HyperliquidEip712Authenticator,
     ) -> None:
         """Test that addresses in deeply nested structures are lowercased."""
         action = {
@@ -284,7 +284,7 @@ class TestHyperliquidSignL1Action:
 
     @pytest.mark.asyncio
     async def test_vault_address_not_included_when_none(
-        self, authenticator: HyperliquidEip712Authenticator
+        self, authenticator: HyperliquidEip712Authenticator,
     ) -> None:
         """Test that vaultAddress is not included in response when None."""
         result = await authenticator.prepare_request(
@@ -301,7 +301,7 @@ class TestHyperliquidSignL1Action:
 
     @pytest.mark.asyncio
     async def test_custom_headers_preserved(
-        self, authenticator: HyperliquidEip712Authenticator
+        self, authenticator: HyperliquidEip712Authenticator,
     ) -> None:
         """Test that custom headers are preserved (except Content-Type)."""
         headers = {
@@ -324,7 +324,7 @@ class TestHyperliquidSignL1Action:
 
     @pytest.mark.asyncio
     async def test_nonce_strictly_increasing(
-        self, authenticator: HyperliquidEip712Authenticator
+        self, authenticator: HyperliquidEip712Authenticator,
     ) -> None:
         """Test that nonces are strictly increasing even with rapid calls."""
         nonces: list[int] = []
@@ -359,7 +359,7 @@ class TestHyperliquidSignL1Action:
 
     @pytest.mark.asyncio
     async def test_invalid_data_type_raises_error(
-        self, authenticator: HyperliquidEip712Authenticator
+        self, authenticator: HyperliquidEip712Authenticator,
     ) -> None:
         """Test that non-dict data raises ValueError."""
         with pytest.raises(ValueError, match="Must be a dictionary"):
@@ -367,13 +367,13 @@ class TestHyperliquidSignL1Action:
                 method="POST",
                 path="/exchange",
                 params=None,
-                data=cast(dict[str, Any], "not a dict"),
+                data=cast("dict[str, Any]", "not a dict"),
                 headers=None,
             )
 
     @pytest.mark.asyncio
     async def test_msgpack_serialization_used(
-        self, authenticator: HyperliquidEip712Authenticator
+        self, authenticator: HyperliquidEip712Authenticator,
     ) -> None:
         """Test that msgpack is used for serialization in action_hash calculation."""
         action = {"type": "test", "nested": {"key": "value"}}
@@ -399,7 +399,7 @@ class TestHyperliquidSignL1Action:
 
     @pytest.mark.asyncio
     async def test_agent_types_configuration_through_behavior(
-        self, authenticator: HyperliquidEip712Authenticator
+        self, authenticator: HyperliquidEip712Authenticator,
     ) -> None:
         """Test that Agent types are correctly configured through successful signing."""
         # Verify agent types configuration indirectly through behavior

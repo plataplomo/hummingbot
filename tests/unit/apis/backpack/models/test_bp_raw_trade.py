@@ -170,7 +170,7 @@ def test_BackpackRawTrade_creative_corruption_cases() -> None:
 
             pytest.fail(
                 f"Failed corruption case: {description} ("
-                f"{field}={value!r}) - ValidationError not raised"
+                f"{field}={value!r}) - ValidationError not raised",
             )
 
 
@@ -522,7 +522,7 @@ def test_BackpackRawFill_invalid_client_id_empty_string() -> None:
         BackpackRawFill.model_validate(p)
     # Check for the specific error message from the mode='after' validator
     assert "clientId cannot be an empty or whitespace-only string if provided" in str(
-        exc_info.value
+        exc_info.value,
     )
 
 

@@ -213,7 +213,7 @@ class TestEdgeCasesAndBoundaryValues:
             # Use historical raw order for other statuses
             historical_order = create_raw_historical_order(status=status_input)
             result = trading_data_mapper.transform_raw_historical_order_to_internal(
-                historical_order
+                historical_order,
             )
         assert result.status == expected_output
 
@@ -242,7 +242,7 @@ class TestUnicodeAndSpecialCharacters:
             assert result.symbol == symbol
 
     def test_unicode_client_order_ids(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
+        self, trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test transformation with Unicode characters in client order IDs."""
         unicode_cloids = [
@@ -259,7 +259,7 @@ class TestUnicodeAndSpecialCharacters:
             assert result.client_order_id == cloid
 
     def test_special_characters_in_strings(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
+        self, trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test transformation with special characters and edge cases."""
         # Test each case individually to avoid type issues
@@ -305,7 +305,7 @@ class TestErrorHandlingAndExceptions:
 
         # Mock to raise a nested exception chain
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper.parse_decimal_value"
+            "cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper.parse_decimal_value",
         )
 
         original_exception = ValueError("Original error")
@@ -353,7 +353,7 @@ class TestErrorHandlingAndExceptions:
         orders = [create_raw_order(oid=i) for i in range(5)]
 
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper.parse_decimal_value"
+            "cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper.parse_decimal_value",
         )
         mock_parse.side_effect = ValueError("Consistent error")
 
@@ -370,7 +370,7 @@ class TestPerformanceAndMemory:
     """Tests for performance and memory considerations."""
 
     def test_large_batch_transformation_stability(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
+        self, trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test that large batches of transformations remain stable."""
         # Create a large number of orders
@@ -395,7 +395,7 @@ class TestPerformanceAndMemory:
         assert all(result is not None for result in results)
 
     def test_memory_efficiency_with_large_strings(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
+        self, trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test memory efficiency with very large string values."""
         # Create order with very long strings (but within limits)
@@ -413,7 +413,7 @@ class TestPerformanceAndMemory:
         assert result.symbol == long_asset
 
     def test_high_precision_calculation_stability(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
+        self, trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test stability with high precision decimal calculations."""
         # Create orders with maximum precision decimals
@@ -443,7 +443,7 @@ class TestComplexIntegrationScenarios:
     """Tests for complex integration scenarios and real-world edge cases."""
 
     def test_rapid_status_changes_simulation(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
+        self, trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test simulation of rapid order status changes."""
         # Simulate order lifecycle: open -> partially filled -> filled
@@ -481,7 +481,7 @@ class TestComplexIntegrationScenarios:
         assert result.status == OrderStatus.FILLED
 
     def test_concurrent_transformation_consistency(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
+        self, trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test that concurrent-like transformations maintain consistency."""
         # Create identical orders to simulate concurrent processing
@@ -511,7 +511,7 @@ class TestComplexIntegrationScenarios:
             assert result.status == first_result.status
 
     def test_mixed_order_types_batch_processing(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
+        self, trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test batch processing of mixed order types and configurations."""
         mixed_orders = [

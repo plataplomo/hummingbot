@@ -583,7 +583,7 @@ def test_hl_raw_user_fill_invalid_formats(
     ],
 )
 def test_hl_raw_user_fill_missing_required(
-    valid_user_fill_data: dict[str, Any], field_to_remove: str
+    valid_user_fill_data: dict[str, Any], field_to_remove: str,
 ) -> None:
     """Test ValidationError when required fields are missing."""
     del valid_user_fill_data[field_to_remove]

@@ -240,8 +240,7 @@ def test_BackpackRawTicker_optional_fields_all_none() -> None:
 def test_BackpackRawTicker_optional_fields_omitted() -> None:
     p: dict[str, Any] = valid_ticker().copy()
     for f in ["price", "bid", "ask", "volume"]:
-        if f in p:
-            del p[f]
+        p.pop(f, None)
     obj = BackpackRawTicker.model_validate(p)
     for f in ["price", "bid", "ask", "volume"]:
         assert getattr(obj, f, "__notset__") is None
@@ -546,12 +545,7 @@ def test_BackpackRawTickerEvent_valid_event_time_formats(
 )
 def test_BackpackRawTickerEvent_invalid_fields(
     field: str,
-    value: str
-    | int
-    | float
-    | bool
-    | list[Any]
-    | None,  # Testing specific invalid types for Pydantic validation
+    value: str | float | bool | list[Any] | None,  # Testing specific invalid types for Pydantic validation
     expected_msg_part: str,
     valid_ticker_event_data: dict[str, Any],
 ) -> None:
@@ -639,12 +633,7 @@ def test_BackpackRawDepthUpdateEvent_empty_levels(valid_depth_update_data: dict[
 )
 def test_BackpackRawDepthUpdateEvent_invalid_fields(
     field: str,
-    value: str
-    | int
-    | float
-    | bool
-    | list[Any]
-    | None,  # Testing specific invalid types for Pydantic validation
+    value: str | float | bool | list[Any] | None,  # Testing specific invalid types for Pydantic validation
     expected_msg_part: str,
     valid_depth_update_data: dict[str, Any],
 ) -> None:
@@ -668,7 +657,7 @@ def test_BackpackRawDepthUpdateEvent_invalid_fields(
     if isinstance(exc_info.value, TypeError):
         assert expected_msg_part in str(exc_info.value), (
             f"Failed for field '{field}' with value {value!r}. "
-            f"Expected '{expected_msg_part}' in TypeError: {str(exc_info.value)}"
+            f"Expected '{expected_msg_part}' in TypeError: {exc_info.value!s}"
         )
     # DEFENSIVE CHECK: Distinguish exception types for assertion. Mypy=[misc]
     elif isinstance(exc_info.value, ValidationError):  # pyright: ignore[reportUnnecessaryIsInstance]

@@ -57,7 +57,7 @@ def full_signal_data(minimal_signal_data: dict[str, Any]) -> dict[str, Any]:
             "expiration": now + timedelta(minutes=5),
             "metadata": {"source_indicator": "RSI", "value": 75},
             "signal_id": str(uuid.uuid4()),  # Override default
-        }
+        },
     )
     return data
 
@@ -169,7 +169,7 @@ def test_tradesignal_extra_fields_forbidden(minimal_signal_data: dict[str, Any])
 def test_tradesignal_invalid_field_values(
     minimal_signal_data: dict[str, Any],
     field: str,
-    value: str | int | float | Decimal | list[Any] | None,
+    value: str | float | Decimal | list[Any] | None,
     error_match: str,
 ) -> None:
     """Test various invalid field inputs raise appropriate ValidationErrors."""

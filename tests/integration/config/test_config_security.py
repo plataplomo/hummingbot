@@ -251,7 +251,7 @@ logfire:
 
 @patch("pathlib.Path.home")
 def test_fallback_to_home_dir(
-    mock_home: MagicMock, secure_secrets_manager_setup: tuple[str, str, str]
+    mock_home: MagicMock, secure_secrets_manager_setup: tuple[str, str, str],
 ) -> None:
     """Test fallback to ~/.cyberdelta/secrets.yaml when env var not set"""
     _, home_dir_name, _ = secure_secrets_manager_setup

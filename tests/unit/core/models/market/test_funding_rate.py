@@ -367,16 +367,16 @@ class TestFundingRate:
         # Attempt to modify attributes - should raise ValidationError due to frozen=True
         with pytest.raises(ValidationError):
             # Using cast to bypass type checking for setattr operations on frozen objects
-            cast(Any, fr).symbol = "ETH-PERP"
+            cast("Any", fr).symbol = "ETH-PERP"
 
         with pytest.raises(ValidationError):
-            cast(Any, fr).timestamp = now + timedelta(hours=1)
+            cast("Any", fr).timestamp = now + timedelta(hours=1)
 
         with pytest.raises(ValidationError):
-            cast(Any, fr).funding_rate = Decimal("0.0002")
+            cast("Any", fr).funding_rate = Decimal("0.0002")
 
         with pytest.raises(ValidationError):
-            cast(Any, fr).mark_price = Decimal("51000.0")
+            cast("Any", fr).mark_price = Decimal("51000.0")
 
 
 class TestHyperliquidFundingDetails:
@@ -456,7 +456,7 @@ class TestHyperliquidFundingDetails:
         # Attempt to modify attributes - should raise ValidationError due to frozen=True
         with pytest.raises(ValidationError):
             # Using cast to bypass type checking for setattr operations on frozen objects
-            cast(Any, hl).hl_funding_hourly = Decimal("0.0004")
+            cast("Any", hl).hl_funding_hourly = Decimal("0.0004")
 
 
 class TestBackpackFundingDetails:
@@ -484,4 +484,4 @@ class TestBackpackFundingDetails:
         # that we can't add new attributes directly
         with pytest.raises(ValidationError):
             # Using cast to bypass type checking for setattr operations on frozen objects
-            cast(Any, bp).new_field = "value"
+            cast("Any", bp).new_field = "value"

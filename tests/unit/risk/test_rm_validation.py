@@ -18,7 +18,7 @@ class TestRiskManagerValidation:
 
     @pytest.mark.asyncio
     async def test_validate_opportunities(
-        self, risk_manager: RiskManager, sample_opportunity: ArbitrageOpportunity
+        self, risk_manager: RiskManager, sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test validating opportunities."""
         # Test with a valid opportunity (needs size_opportunity to return something)
@@ -67,8 +67,7 @@ class TestRiskManagerValidation:
         def size_side_effect(opp: ArbitrageOpportunity) -> SizedOpportunity | None:
             if opp == sample_opportunity:
                 return valid_sized
-            else:
-                return None
+            return None
 
         with patch.object(risk_manager, "size_opportunity", side_effect=size_side_effect):
             mixed_opportunities: list[ArbitrageOpportunity] = [

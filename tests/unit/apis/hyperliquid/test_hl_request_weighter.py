@@ -99,7 +99,7 @@ class TestHyperliquidRequestWeighterIPWeight:
         assert ip_weight == 2
 
     def test_exchange_endpoint_batch_formula_large(
-        self, weighter: HyperliquidRequestWeighter
+        self, weighter: HyperliquidRequestWeighter,
     ) -> None:
         """Test IP weight calculation for large batch."""
         payload = {"actions": [{"type": "order"}] * 120}  # 120 actions
@@ -308,7 +308,7 @@ class TestHyperliquidRequestWeighterEdgeCases:
 
         # This should raise ValueError due to validation
         with pytest.raises(
-            ValueError, match="HyperliquidRequestWeighter requires Hyperliquid-specific"
+            ValueError, match="HyperliquidRequestWeighter requires Hyperliquid-specific",
         ):
             HyperliquidRequestWeighter(config)
 

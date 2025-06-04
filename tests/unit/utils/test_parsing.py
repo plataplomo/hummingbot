@@ -118,14 +118,14 @@ class TestParseDatetimeUTC:
         """Should raise ValueError for unsupported type."""
         # Testing with an invalid type by using cast to bypass type checking
         from typing import cast
-        invalid_value = cast(str, [])  # Cast list to str to satisfy type checker
+        invalid_value = cast("str", [])  # Cast list to str to satisfy type checker
         with pytest.raises(ValueError, match="Unsupported datetime type"):
             parse_datetime_utc(invalid_value)
 
     def test_invalid_string(self) -> None:
         """Should raise ValueError for invalid ISO string."""
         with pytest.raises(
-            ValueError, match="Cannot parse string .* as ISO datetime .* or as numeric timestamp"
+            ValueError, match="Cannot parse string .* as ISO datetime .* or as numeric timestamp",
         ):
             parse_datetime_utc("not-a-date")
 

@@ -111,7 +111,7 @@ class TestHyperliquidMarketDataServiceCandles:
                             "startTime": start_time_ms,
                             "endTime": end_time_ms,
                         },
-                    }
+                    },
                 ),
             )
             mock_http_client_requester.return_value = (
@@ -281,7 +281,7 @@ class TestHyperliquidMarketDataServiceCandles:
 
         # Mock request builder to raise KeyError
         mock_hl_request_builder.build_candle_snapshot_payload.side_effect = KeyError(
-            "Invalid interval or missing required field"
+            "Invalid interval or missing required field",
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -395,7 +395,7 @@ class TestHyperliquidMarketDataServiceCandles:
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Invalid candle snapshot response structure" in exc_info.value.message
         mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
-            mock_malformed_response, symbol, interval, 200, {}
+            mock_malformed_response, symbol, interval, 200, {},
         )
 
     @pytest.mark.asyncio
@@ -448,7 +448,7 @@ class TestHyperliquidMarketDataServiceCandles:
         # Configure mapper to raise an error
         with patch.object(hyperliquid_market_data_service, "_mapper") as mock_mapper_instance:
             mock_mapper_instance.transform_raw_candle_snapshot_to_candles.side_effect = ValueError(
-                "Mapper processing failed for candle data"
+                "Mapper processing failed for candle data",
             )
 
             with pytest.raises(APIError) as exc_info:
@@ -466,7 +466,7 @@ class TestHyperliquidMarketDataServiceCandles:
             assert isinstance(exc_info.value.__cause__, ValueError)
             assert "Mapper processing failed for candle data" in str(exc_info.value.__cause__)
             mock_mapper_instance.transform_raw_candle_snapshot_to_candles.assert_called_once_with(
-                mock_validated_candle_snapshot, symbol, interval
+                mock_validated_candle_snapshot, symbol, interval,
             )
 
     @pytest.mark.asyncio
@@ -511,7 +511,7 @@ class TestHyperliquidMarketDataServiceCandles:
 
         # Mock response handler to return empty validated candle snapshot
         mock_empty_candle_snapshot = HyperliquidRawCandleSnapshot(
-            t=[], o=[], h=[], l=[], c=[], v=[], s="no_data"
+            t=[], o=[], h=[], l=[], c=[], v=[], s="no_data",
         )
         mock_hl_response_handler.handle_info_candle_snapshot_response.return_value = (
             mock_empty_candle_snapshot
@@ -532,10 +532,10 @@ class TestHyperliquidMarketDataServiceCandles:
 
             assert result == []
             mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
-                mock_empty_candle_response, symbol, interval, 200, {}
+                mock_empty_candle_response, symbol, interval, 200, {},
             )
             mock_mapper_instance.transform_raw_candle_snapshot_to_candles.assert_called_once_with(
-                mock_empty_candle_snapshot, symbol, interval
+                mock_empty_candle_snapshot, symbol, interval,
             )
 
     @pytest.mark.asyncio
@@ -631,7 +631,7 @@ class TestHyperliquidMarketDataServiceCandles:
             mock_http_client_requester.return_value = (mock_candle_data, 200, {})
 
             mock_candle_snapshot = HyperliquidRawCandleSnapshot(
-                t=[start_time_ms], o=["3000"], h=["3010"], l=["2990"], c=["3005"], v=["100"], s="ok"
+                t=[start_time_ms], o=["3000"], h=["3010"], l=["2990"], c=["3005"], v=["100"], s="ok",
             )
             mock_hl_response_handler.handle_info_candle_snapshot_response.return_value = (
                 mock_candle_snapshot
@@ -651,7 +651,7 @@ class TestHyperliquidMarketDataServiceCandles:
 
             with patch.object(hyperliquid_market_data_service, "_mapper") as mock_mapper_instance:
                 mock_mapper_instance.transform_raw_candle_snapshot_to_candles.return_value = [
-                    expected_candle
+                    expected_candle,
                 ]
 
                 # Use GetMarketDataArgs instead of individual parameters

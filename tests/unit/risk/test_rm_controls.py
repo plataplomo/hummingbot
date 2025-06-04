@@ -44,7 +44,7 @@ class TestRiskManagerControls:
         combined_config: dict[str, object] = {**mock_config_dict, **test_overrides}
 
         def config_get_side_effect_for_test(
-            key: str, default: object | None = None
+            key: str, default: object | None = None,
         ) -> object | None:
             return combined_config.get(key, default)
 

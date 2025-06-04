@@ -434,7 +434,7 @@ class TestBackpackRawOrder:
         # This test's logic will be determined if it fails after unmarking.
         # For now, just ensuring the decorator is removed and the class structure remains.
         # If the API defines side as mandatory for market orders, this is a valid raw check.
-        pass  # Placeholder, actual test logic might be present or added if it fails.
+        # Placeholder, actual test logic might be present or added if it fails.
 
     def test_invalid_order_bad_status(self) -> None:
         """Test that an order with an invalid status raises ValidationError."""

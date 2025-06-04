@@ -280,7 +280,7 @@ def test_derivative_position_model_validation_failures(
     data["size"] = Decimal("1.0")
     data["entry_price"] = Decimal("0")
     with pytest.raises(
-        ValidationError, match="entry_price must be positive .* if size is non-zero"
+        ValidationError, match="entry_price must be positive .* if size is non-zero",
     ):
         DerivativePosition(**data)
 
@@ -288,7 +288,7 @@ def test_derivative_position_model_validation_failures(
     data["size"] = Decimal("1.0")
     data["entry_price"] = Decimal("-10")
     with pytest.raises(
-        ValidationError, match="entry_price must be positive .* if size is non-zero"
+        ValidationError, match="entry_price must be positive .* if size is non-zero",
     ):
         DerivativePosition(**data)
 
@@ -305,7 +305,7 @@ def test_derivative_position_model_validation_failures(
     data["bp_details"] = BackpackPositionDetails(**valid_bp_details_data)
     data["hl_details"] = None
     with pytest.raises(
-        ValidationError, match="Backpack details .* must be None for a Hyperliquid position"
+        ValidationError, match="Backpack details .* must be None for a Hyperliquid position",
     ):
         DerivativePosition(**data)
 
@@ -315,7 +315,7 @@ def test_derivative_position_model_validation_failures(
     data["hl_details"] = HyperliquidPositionDetails(**valid_hl_details_data)
     data["bp_details"] = None
     with pytest.raises(
-        ValidationError, match="Hyperliquid details .* must be None for a Backpack position"
+        ValidationError, match="Hyperliquid details .* must be None for a Backpack position",
     ):
         DerivativePosition(**data)
 

@@ -39,7 +39,7 @@ class TestSetupLogging:
                     "exchange_name": "backpack",
                     "rate_limit_per_minute": 60,
                     "symbols": {"BTC": "BTC-USD"},
-                }
+                },
             },
             "strategies": {
                 "hl_perp_bp_spot": {
@@ -53,13 +53,13 @@ class TestSetupLogging:
                         "max_price_spread_pct": "0.05",
                         "min_profit_usd": "10.0",
                     },
-                }
+                },
             },
             "risk": {
                 "global": {
                     "max_position_usd": "1000.0",
                     "max_total_exposure_usd": "5000.0",
-                }
+                },
             },
             "execution": {
                 "max_slippage_pct": "0.01",
@@ -162,7 +162,7 @@ class TestSetupLogging:
         with tempfile.TemporaryDirectory() as temp_dir:
             log_file_path = Path(temp_dir) / "test.log"
             app_settings = self.create_minimal_app_settings(
-                log_level="DEBUG", log_file=str(log_file_path)
+                log_level="DEBUG", log_file=str(log_file_path),
             )
 
             root_logger = logging.getLogger()
@@ -205,7 +205,7 @@ class TestSetupLogging:
         with tempfile.TemporaryDirectory() as temp_dir:
             log_file_path = Path(temp_dir) / "subdir" / "nested" / "test.log"
             app_settings = self.create_minimal_app_settings(
-                log_level="INFO", log_file=str(log_file_path)
+                log_level="INFO", log_file=str(log_file_path),
             )
 
             root_logger = logging.getLogger()
@@ -229,7 +229,7 @@ class TestSetupLogging:
 
     @patch("os.makedirs")
     def test_file_logging_directory_creation_failure(
-        self, mock_makedirs: Mock, capsys: pytest.CaptureFixture[str]
+        self, mock_makedirs: Mock, capsys: pytest.CaptureFixture[str],
     ) -> None:
         """Test handling of directory creation failure."""
         mock_makedirs.side_effect = OSError("Permission denied")
@@ -237,7 +237,7 @@ class TestSetupLogging:
         with tempfile.TemporaryDirectory() as temp_dir:
             log_file_path = Path(temp_dir) / "subdir" / "test.log"
             app_settings = self.create_minimal_app_settings(
-                log_level="INFO", log_file=str(log_file_path)
+                log_level="INFO", log_file=str(log_file_path),
             )
 
             root_logger = logging.getLogger()
@@ -279,7 +279,7 @@ class TestSetupLogging:
             "test_module_error": "ERROR",
         }
         app_settings = self.create_minimal_app_settings(
-            log_level="INFO", module_log_levels=module_levels
+            log_level="INFO", module_log_levels=module_levels,
         )
 
         root_logger = logging.getLogger()
@@ -330,7 +330,7 @@ class TestSetupLogging:
         # Create a module name that might cause issues - use a valid but unusual name
         module_levels = {"test.module.with.dots": "DEBUG"}  # Valid module name
         app_settings = self.create_minimal_app_settings(
-            log_level="INFO", module_log_levels=module_levels
+            log_level="INFO", module_log_levels=module_levels,
         )
 
         root_logger = logging.getLogger()
@@ -374,7 +374,7 @@ class TestSetupLogging:
         with tempfile.TemporaryDirectory() as temp_dir:
             log_file_path = Path(temp_dir) / "format_test.log"
             app_settings = self.create_minimal_app_settings(
-                log_level="INFO", log_file=str(log_file_path)
+                log_level="INFO", log_file=str(log_file_path),
             )
 
             root_logger = logging.getLogger()

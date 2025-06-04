@@ -48,7 +48,7 @@ class TestBackpackAccountServiceAccountInfo:
             "triggerOrders": 10,
         }
         mock_validated_raw_account_summary = BackpackRawAccountSummary.model_validate(
-            mock_raw_account_data
+            mock_raw_account_data,
         )
         mock_empty_raw_balances: dict[str, BackpackRawBalance] = {}
         mock_empty_raw_positions: list[BackpackRawPosition] = []
@@ -139,7 +139,7 @@ class TestBackpackAccountServiceAccountInfo:
         mock_request_builder.build_get_account_info_params.return_value = None
         mock_http_client_requester.return_value = ({"invalid": "summary"}, 200, {})
         mock_response_handler.handle_get_account_info_response.side_effect = Exception(
-            "Validation failed"
+            "Validation failed",
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -160,7 +160,7 @@ class TestBackpackAccountServiceAccountInfo:
         mock_request_builder.build_get_account_info_params.return_value = None
         mock_http_client_requester.return_value = ({"equity": "100"}, 200, {})
         mock_response_handler.handle_get_account_info_response.side_effect = Exception(
-            "Unexpected error"
+            "Unexpected error",
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -181,7 +181,7 @@ class TestBackpackAccountServiceAccountInfo:
         mock_request_builder.build_get_account_info_params.return_value = None
         mock_http_client_requester.return_value = ({"invalid": "summary"}, 200, {})
         mock_response_handler.handle_get_account_info_response.side_effect = Exception(
-            "Validation failed"
+            "Validation failed",
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -202,7 +202,7 @@ class TestBackpackAccountServiceAccountInfo:
         mock_request_builder.build_get_account_info_params.return_value = None
         mock_http_client_requester.return_value = ({"equity": "100"}, 200, {})
         mock_response_handler.handle_get_account_info_response.side_effect = Exception(
-            "Unexpected error"
+            "Unexpected error",
         )
 
         with pytest.raises(APIError) as exc_info:

@@ -139,7 +139,7 @@ def test_order_all_core_fields(base_order_data: dict[str, Any]) -> None:
             "strategy_name": "TestStrat",
             "signal_id": "Sig123",
             "trades": [trade_instance],
-        }
+        },
     )
     order = Order(**data)
     assert order.exchange_order_id == "bp12345"
@@ -254,7 +254,7 @@ def test_order_model_validation_failures(base_order_data: dict[str, Any]) -> Non
     data["order_type"] = OrderType.LIMIT
     del data["price"]
     with pytest.raises(
-        ValidationError, match=r"Value error, Order type LIMIT requires a positive price"
+        ValidationError, match=r"Value error, Order type LIMIT requires a positive price",
     ):
         Order(**data)
 
@@ -271,7 +271,7 @@ def test_order_model_validation_failures(base_order_data: dict[str, Any]) -> Non
     data["order_type"] = OrderType.STOP_MARKET
     data["price"] = None
     with pytest.raises(
-        ValidationError, match=r"Value error, Order type STOP_MARKET requires a positive stop_price"
+        ValidationError, match=r"Value error, Order type STOP_MARKET requires a positive stop_price",
     ):
         Order(**data)
 
@@ -289,7 +289,7 @@ def test_order_model_validation_failures(base_order_data: dict[str, Any]) -> Non
     data["quantity_filled"] = data["quantity_requested"] + Decimal("0.01")
     data["average_fill_price"] = Decimal("50000")
     with pytest.raises(
-        ValidationError, match=r"Value error, quantity_filled .* cannot exceed quantity_requested"
+        ValidationError, match=r"Value error, quantity_filled .* cannot exceed quantity_requested",
     ):
         Order(**data)
 
@@ -349,7 +349,7 @@ def test_order_mutability(base_order_data: dict[str, Any]) -> None:
 
     # Invalid assignment (violates model validator - qty filled > requested)
     with pytest.raises(
-        ValidationError, match=r"Value error, quantity_filled .* cannot exceed quantity_requested"
+        ValidationError, match=r"Value error, quantity_filled .* cannot exceed quantity_requested",
     ):
         order.average_fill_price = new_avg_price + 1
         order.quantity_filled = order.quantity_requested + Decimal("0.01")

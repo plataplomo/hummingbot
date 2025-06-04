@@ -58,25 +58,24 @@ def set_nested_value(
             if not isinstance(current_level, dict):
                 raise TypeError(
                     f"Path element '{key_or_index}' requires a dictionary at this level, "
-                    f"but found {type(current_level).__name__} at path {path[: i + 1]}"
+                    f"but found {type(current_level).__name__} at path {path[: i + 1]}",
                 )
             # After isinstance check, explicitly cast for Pyright
-            current_dict: dict[str, Any] = cast(dict[str, Any], current_level)
+            current_dict: dict[str, Any] = cast("dict[str, Any]", current_level)
 
             if is_final_element:
                 # Final element: set the value (cast for test compatibility)
-                current_dict[key_or_index] = cast(Any, value)
+                current_dict[key_or_index] = cast("Any", value)
                 return
-            else:
-                # Traversal: get next level and validate it's a container
-                next_level_val: Any = current_dict[key_or_index]
-                # DEFENSIVE CHECK: Ensure we can traverse into next_level_val
-                if not isinstance(next_level_val, dict | list):
-                    raise TypeError(
-                        f"Cannot traverse non-container type {type(next_level_val).__name__} "
-                        f"at path {path[: i + 1]}"
-                    )
-                current_level = cast(dict[str, Any] | list[Any], next_level_val)
+            # Traversal: get next level and validate it's a container
+            next_level_val: Any = current_dict[key_or_index]
+            # DEFENSIVE CHECK: Ensure we can traverse into next_level_val
+            if not isinstance(next_level_val, dict | list):
+                raise TypeError(
+                    f"Cannot traverse non-container type {type(next_level_val).__name__} "
+                    f"at path {path[: i + 1]}",
+                )
+            current_level = cast("dict[str, Any] | list[Any]", next_level_val)
 
         # Handle integer indices (for lists)
         # DEFENSIVE CHECK: isinstance needed to distinguish int from str in Union.
@@ -86,7 +85,7 @@ def set_nested_value(
             if not isinstance(current_level, list):
                 raise TypeError(
                     f"Path index {key_or_index} requires a list at this level, "
-                    f"but found {type(current_level).__name__} at path {path[: i + 1]}"
+                    f"but found {type(current_level).__name__} at path {path[: i + 1]}",
                 )
             # After isinstance check, pyright understands the type
             # After isinstance check, we know it's a list
@@ -94,18 +93,17 @@ def set_nested_value(
 
             if is_final_element:
                 # Final element: set the value (cast for test compatibility)
-                current_list[key_or_index] = cast(Any, value)
+                current_list[key_or_index] = cast("Any", value)
                 return
-            else:
-                # Traversal: get next level and validate it's a container
-                next_level_list_val: Any = current_list[key_or_index]
-                # DEFENSIVE CHECK: Ensure we can traverse into next_level_list_val
-                if not isinstance(next_level_list_val, dict | list):
-                    raise TypeError(
-                        f"Cannot traverse non-container type {type(next_level_list_val).__name__} "
-                        f"at path {path[: i + 1]}"
-                    )
-                current_level = cast(dict[str, Any] | list[Any], next_level_list_val)
+            # Traversal: get next level and validate it's a container
+            next_level_list_val: Any = current_list[key_or_index]
+            # DEFENSIVE CHECK: Ensure we can traverse into next_level_list_val
+            if not isinstance(next_level_list_val, dict | list):
+                raise TypeError(
+                    f"Cannot traverse non-container type {type(next_level_list_val).__name__} "
+                    f"at path {path[: i + 1]}",
+                )
+            current_level = cast("dict[str, Any] | list[Any]", next_level_list_val)
         else:
             # This should be unreachable given path type annotation
             raise TypeError(f"Path element must be str or int, got {type(key_or_index).__name__}")
@@ -140,7 +138,7 @@ def test_eth_withdrawal_payload_valid() -> None:
     ],
 )
 def test_eth_withdrawal_payload_invalid_fields(
-    field: str, value: str | None, expected_error_part: str
+    field: str, value: str | None, expected_error_part: str,
 ) -> None:
     data = {"amount": VALID_DECIMAL_STR, "destination": VALID_ETH_ADDRESS}
     if value is None:
@@ -234,7 +232,7 @@ def test_order_item_spec_valid_market_no_cloid() -> None:
     ],
 )
 def test_order_item_spec_invalid_fields(
-    field_alias: str, value: object, expected_error_part: str
+    field_alias: str, value: object, expected_error_part: str,
 ) -> None:
     base_data = {
         "asset_index": 0,
@@ -248,7 +246,7 @@ def test_order_item_spec_invalid_fields(
     if value is None and field_alias in base_data:  # Test missing required field
         del base_data[field_alias]
     else:
-        base_data[field_alias] = cast(Any, value)  # Cast for test compatibility
+        base_data[field_alias] = cast("Any", value)  # Cast for test compatibility
 
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawOrderItemSpec.model_validate(base_data)
@@ -336,7 +334,7 @@ def test_batch_place_order_payload_valid() -> None:
     ],
 )
 def test_batch_place_order_payload_invalid_fields(
-    field_path: tuple[str | int, ...], value: object, expected_error_part: str
+    field_path: tuple[str | int, ...], value: object, expected_error_part: str,
 ) -> None:
     # Base valid data structure for a batch order item
     # Note: The model HyperliquidRawOrderItemSpec expects `order_type_details`
@@ -425,7 +423,7 @@ def test_l2_usd_transfer_action_details_valid() -> None:
     ],
 )
 def test_l2_usd_transfer_action_details_invalid(
-    field: str, value: object, expected_error_part: str
+    field: str, value: object, expected_error_part: str,
 ) -> None:
     base_payload_data = {
         "destination": VALID_ETH_ADDRESS,
@@ -437,7 +435,7 @@ def test_l2_usd_transfer_action_details_invalid(
     if value is None and field in base_data:
         del base_data[field]
     else:
-        base_data[field] = cast(Any, value)  # Cast for test compatibility
+        base_data[field] = cast("Any", value)  # Cast for test compatibility
 
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawL2UsdTransferActionDetails.model_validate(base_data)
@@ -480,7 +478,7 @@ def test_cancel_order_action_invalid(field: str, value: object, expected_error_p
     if value is None and field in base_data:
         del base_data[field]
     else:
-        base_data[field] = cast(Any, value)  # Cast for test compatibility
+        base_data[field] = cast("Any", value)  # Cast for test compatibility
 
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawCancelOrderAction.model_validate(base_data)

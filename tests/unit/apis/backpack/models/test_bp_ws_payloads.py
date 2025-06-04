@@ -26,7 +26,7 @@ class TestBackpackWsPayloads:
     def test_multiple_stream_subscription(self) -> None:
         """Test subscribing to multiple streams at once."""
         request = BackpackRawWsSubscriptionRequest(
-            method="SUBSCRIBE", params=["ticker.BTC_USDC", "trades.ETH_USDC", "depth.SOL_USDC"]
+            method="SUBSCRIBE", params=["ticker.BTC_USDC", "trades.ETH_USDC", "depth.SOL_USDC"],
         )
 
         assert len(request.params) == 3

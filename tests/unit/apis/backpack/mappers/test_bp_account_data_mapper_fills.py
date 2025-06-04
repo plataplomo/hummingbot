@@ -123,7 +123,7 @@ class TestFillTransformation:
     """Test cases for fill transformation functionality."""
 
     def test_transform_raw_fill_to_internal_happy_path(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test successful transformation of BackpackRawFill to internal Trade."""
         raw_fill = create_raw_fill(
@@ -155,7 +155,7 @@ class TestFillTransformation:
         assert result.bp_details is not None
 
     def test_transform_raw_fill_sell_side(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test fill transformation with sell side."""
         raw_fill = create_raw_fill(side="Sell", timestamp=test_timestamp)
@@ -168,7 +168,7 @@ class TestFillTransformation:
         assert result.side == OrderSide.SELL
 
     def test_transform_raw_fill_with_client_id(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test fill transformation with client order ID."""
         raw_fill = create_raw_fill(client_id="client123", timestamp=test_timestamp)
@@ -181,7 +181,7 @@ class TestFillTransformation:
         assert result.client_order_id == "client123"
 
     def test_transform_raw_fill_zero_price_returns_none(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test that zero price returns None."""
         raw_fill = create_raw_fill(price="0.0", timestamp=test_timestamp)
@@ -191,7 +191,7 @@ class TestFillTransformation:
         assert result is None
 
     def test_transform_raw_fill_zero_quantity_returns_none(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test that zero quantity returns None."""
         raw_fill = create_raw_fill(quantity="0.0", timestamp=test_timestamp)
@@ -201,7 +201,7 @@ class TestFillTransformation:
         assert result is None
 
     def test_transform_raw_fill_negative_values(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test fill transformation with negative values."""
         raw_fill = create_raw_fill(
@@ -215,7 +215,7 @@ class TestFillTransformation:
         assert result is None  # Should return None for invalid values
 
     def test_transform_raw_fill_transformation_error(
-        self, mapper: BackpackAccountDataMapper
+        self, mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that transformation errors are properly wrapped."""
         # Create a valid raw fill
@@ -223,17 +223,17 @@ class TestFillTransformation:
 
         # Mock parse_decimal_value to raise an error during transformation
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value"
+            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value",
         ) as mock_parse:
             mock_parse.side_effect = ValueError("Invalid decimal value")
 
             with pytest.raises(
-                TransformationError, match="Failed to transform BackpackRawFill to Trade"
+                TransformationError, match="Failed to transform BackpackRawFill to Trade",
             ):
                 mapper.transform_raw_fill_to_internal(raw_fill)
 
     def test_transform_raw_fill_boundary_values(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test fill transformation with boundary decimal values."""
         raw_fill = create_raw_fill(
@@ -285,7 +285,7 @@ class TestTradeTransformation:
     """Test cases for trade transformation functionality."""
 
     def test_transform_raw_trade_to_internal_returns_none(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test that BackpackRawTrade transformation returns None due to missing side info."""
         raw_trade = create_raw_trade(
@@ -303,7 +303,7 @@ class TestTradeTransformation:
         assert result is None
 
     def test_transform_raw_trade_missing_price_raises_error(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test trade transformation with missing price raises TransformationError."""
         # Create a valid raw trade first
@@ -311,11 +311,11 @@ class TestTradeTransformation:
 
         # Mock parse_decimal_value to return None for price
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value"
+            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value",
         ) as mock_parse:
 
             def side_effect(
-                value: str, allow_none: bool = False, field_name: str = ""
+                value: str, allow_none: bool = False, field_name: str = "",
             ) -> Decimal | None:
                 if field_name == "price":
                     return None
@@ -327,12 +327,12 @@ class TestTradeTransformation:
             mock_parse.side_effect = side_effect
 
             with pytest.raises(
-                TransformationError, match="price missing/invalid in BackpackRawTrade"
+                TransformationError, match="price missing/invalid in BackpackRawTrade",
             ):
                 mapper.transform_raw_trade_to_internal(raw_trade)
 
     def test_transform_raw_trade_missing_quantity_raises_error(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test trade transformation with missing quantity raises TransformationError."""
         # Create a valid raw trade first
@@ -340,11 +340,11 @@ class TestTradeTransformation:
 
         # Mock parse_decimal_value to return None for quantity
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value"
+            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value",
         ) as mock_parse:
 
             def side_effect(
-                value: str, allow_none: bool = False, field_name: str = ""
+                value: str, allow_none: bool = False, field_name: str = "",
             ) -> Decimal | None:
                 if field_name == "quantity":
                     return None
@@ -356,7 +356,7 @@ class TestTradeTransformation:
             mock_parse.side_effect = side_effect
 
             with pytest.raises(
-                TransformationError, match="quantity missing/invalid in BackpackRawTrade"
+                TransformationError, match="quantity missing/invalid in BackpackRawTrade",
             ):
                 mapper.transform_raw_trade_to_internal(raw_trade)
 
@@ -365,7 +365,7 @@ class TestWebSocketFillTransformation:
     """Test cases for WebSocket fill event transformation functionality."""
 
     def test_transform_ws_fill_event_to_internal_trade_happy_path(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test successful transformation of WebSocket fill event to internal Trade."""
         raw_fill = create_raw_fill(
@@ -396,7 +396,7 @@ class TestWebSocketFillTransformation:
         assert result.bp_details is not None
 
     def test_transform_ws_fill_event_zero_values_returns_none(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test that WebSocket fill with zero values returns None."""
         raw_fill = create_raw_fill(
@@ -414,7 +414,7 @@ class TestWebSocketPositionUpdateTransformation:
     """Test cases for WebSocket position update transformation functionality."""
 
     def test_transform_ws_position_update_to_internal_position_happy_path(
-        self, mapper: BackpackAccountDataMapper
+        self, mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test successful transformation of WebSocket position update to DerivativePosition."""
         raw_position_update = create_raw_position_update(
@@ -446,7 +446,7 @@ class TestWebSocketPositionUpdateTransformation:
         assert result.bp_details.mmf_base == Decimal("0.02")
 
     def test_transform_ws_position_update_short_position(
-        self, mapper: BackpackAccountDataMapper
+        self, mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test WebSocket position update transformation for short position."""
         raw_position_update = create_raw_position_update(
@@ -460,14 +460,14 @@ class TestWebSocketPositionUpdateTransformation:
         assert result.size == Decimal("-10.0")
 
     def test_transform_ws_position_update_transformation_error(
-        self, mapper: BackpackAccountDataMapper
+        self, mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that position update transformation errors are properly wrapped."""
         raw_position_update = create_raw_position_update()
 
         # Mock parse_decimal_value to raise an error during transformation
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value"
+            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value",
         ) as mock_parse:
             mock_parse.side_effect = ValueError("Invalid decimal value")
 
@@ -482,7 +482,7 @@ class TestErrorHandling:
     """Test cases for error handling and edge cases."""
 
     def test_invalid_side_raises_transformation_error(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test that invalid side values are handled by raw model validation."""
         # This test checks that Pydantic validation catches invalid sides
@@ -491,7 +491,7 @@ class TestErrorHandling:
             create_raw_fill(side="InvalidSide", timestamp=test_timestamp)
 
     def test_malformed_timestamp_handled_gracefully(
-        self, mapper: BackpackAccountDataMapper
+        self, mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that malformed timestamps are handled by raw model validation."""
         # This test checks that Pydantic validation catches invalid timestamps
@@ -500,7 +500,7 @@ class TestErrorHandling:
             create_raw_fill(timestamp="not-a-timestamp")
 
     def test_edge_case_unicode_symbols(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test transformation with Unicode symbols."""
         raw_fill = create_raw_fill(
@@ -516,7 +516,7 @@ class TestErrorHandling:
         assert result.symbol == "SOL-USDC🚀"
 
     def test_very_long_trade_ids(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test transformation with very long trade IDs."""
         long_id = 999999999999999999  # Very large trade ID

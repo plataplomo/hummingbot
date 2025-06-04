@@ -152,12 +152,7 @@ def test_timeframe_data_valid(valid_timeframe_data: dict[str, Any]) -> None:
 def test_timeframe_data_invalid(
     valid_timeframe_data: dict[str, Any],
     field: str,
-    value: str
-    | int
-    | float
-    | bool
-    | list[Any]
-    | None,  # Testing specific invalid types for Pydantic validation
+    value: str | float | bool | list[Any] | None,  # Testing specific invalid types for Pydantic validation
     is_missing_test: bool,
 ) -> None:
     data_copy = valid_timeframe_data.copy()

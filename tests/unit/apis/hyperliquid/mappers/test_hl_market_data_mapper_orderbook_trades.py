@@ -595,10 +595,10 @@ class TestOrderBookAndTradeIntegration:
     ) -> None:
         """Test that order book and trade data maintain consistency."""
         order_book = market_data_mapper.transform_raw_order_book_to_internal(
-            hyperliquid_raw_l2_book_eth_fixture
+            hyperliquid_raw_l2_book_eth_fixture,
         )
         trade = market_data_mapper.transform_raw_public_trade_to_internal(
-            hyperliquid_raw_public_trade_buy_fixture
+            hyperliquid_raw_public_trade_buy_fixture,
         )
 
         assert trade is not None

@@ -116,7 +116,7 @@ class MockExchangeAPI(ExchangeAPI):
         if isinstance(current_api_base_url, str):
             # Simple check for protocol, can be enhanced if needed
             if current_api_base_url.startswith("http://") or current_api_base_url.startswith(
-                "https://"
+                "https://",
             ):
                 is_valid_url = True
 
@@ -124,13 +124,13 @@ class MockExchangeAPI(ExchangeAPI):
             logger.warning(
                 f"[{exchange_name}] MockExchangeAPI overriding api_base_url "
                 f"'{current_api_base_url}' "
-                f"with 'http://fixedmock.exchange' for HttpClientConfig stability."
+                f"with 'http://fixedmock.exchange' for HttpClientConfig stability.",
             )
             config_copy["api_base_url"] = "http://fixedmock.exchange"  # Force a valid one
 
         mock_error_mapper = MockErrorMapper()  # Use the placeholder ErrorMapper
         super().__init__(
-            exchange_name, config_copy, secrets, error_mapper=mock_error_mapper
+            exchange_name, config_copy, secrets, error_mapper=mock_error_mapper,
         )  # Pass the modified copy
         self.full_config = config_obj  # Store the full config object if provided
         self._order_id_counter = 1
@@ -168,7 +168,7 @@ class MockExchangeAPI(ExchangeAPI):
         self._error_simulation: dict[str, Any] | None = None  # Config to simulate errors
         self._fail_on_method: str | None = None  # Method name to fail on
         self._failure_exception: Exception = MockAPIError(
-            "Simulated API failure"
+            "Simulated API failure",
         )  # Exception to raise
         self._open_orders_behavior: str = (
             "default"  # Options: default, fill_immediately, partial_fill
@@ -194,7 +194,7 @@ class MockExchangeAPI(ExchangeAPI):
 
         logger.info(
             f"Initialized MockExchangeAPI for {exchange_name} (Maker Fee: {self.maker_fee}, "
-            f"Taker Fee: {self.taker_fee}, Fee Asset: {self.fee_asset})"
+            f"Taker Fee: {self.taker_fee}, Fee Asset: {self.fee_asset})",
         )
 
     # --- Test Control Methods ADDED ---
@@ -220,7 +220,7 @@ class MockExchangeAPI(ExchangeAPI):
         if balance.exchange != self.exchange_name:
             logger.warning(
                 f"Attempted to set balance for {balance.exchange} on "
-                f"{self.exchange_name} mock. Ignoring."
+                f"{self.exchange_name} mock. Ignoring.",
             )
             return
         self._balances[balance.asset] = balance
@@ -236,7 +236,7 @@ class MockExchangeAPI(ExchangeAPI):
         self._mock_funding_rates[funding_rate.symbol] = funding_rate
         logger.debug(
             f"Mock funding rate set for {self.exchange_name} - "
-            f"{funding_rate.symbol}: {funding_rate}"
+            f"{funding_rate.symbol}: {funding_rate}",
         )
 
     def set_mock_position(self, position: DerivativePosition) -> None:
@@ -244,7 +244,7 @@ class MockExchangeAPI(ExchangeAPI):
         if position.exchange != self.exchange_name:
             logger.warning(
                 f"Attempted to set position for {position.exchange} on "
-                f"{self.exchange_name} mock. Ignoring."
+                f"{self.exchange_name} mock. Ignoring.",
             )
             return
         self._positions[position.symbol] = (
@@ -289,7 +289,7 @@ class MockExchangeAPI(ExchangeAPI):
             total_initial_margin_required=Decimal("1000"),
             total_maintenance_margin_required=Decimal("500"),
             total_unrealized_pnl=Decimal(
-                sum((pos.unrealized_pnl or Decimal(0)) for pos in self._positions.values())
+                sum((pos.unrealized_pnl or Decimal(0)) for pos in self._positions.values()),
             ),
         )
 
@@ -354,7 +354,7 @@ class MockExchangeAPI(ExchangeAPI):
         """Configure an APIError to be raised by a specific method."""
         # DEFENSIVE CHECK: Convert enum to str for APIError
         error = APIError(
-            message=message, code=str(error_code.value), exchange_code=self.exchange_name
+            message=message, code=str(error_code.value), exchange_code=self.exchange_name,
         )
         self._error_config[method_name] = (error, trigger_after_n_calls)
         self._call_counts[method_name] = 0  # Reset count when configuring
@@ -381,7 +381,7 @@ class MockExchangeAPI(ExchangeAPI):
             self._call_counts.clear()
         logger.info(
             f"MockExchange {self.exchange_name} error simulation cleared"
-            f"{'{ for ' + method_name + '}' if method_name else ''}"
+            f"{'{ for ' + method_name + '}' if method_name else ''}",
         )
 
     def _split_symbol(self, symbol: str) -> tuple[str, str]:
@@ -395,7 +395,7 @@ class MockExchangeAPI(ExchangeAPI):
             return parts[0], parts[1]
         # Default assumption if no separator
         logger.warning(
-            f"Could not determine base/quote for symbol '{symbol}', assuming '{symbol}' and 'USD'"
+            f"Could not determine base/quote for symbol '{symbol}', assuming '{symbol}' and 'USD'",
         )
         return symbol, "USD"
 
@@ -408,12 +408,12 @@ class MockExchangeAPI(ExchangeAPI):
             if trigger_after is None or current_count >= trigger_after:
                 logger.warning(
                     f"MockExchange {self.exchange_name} raising simulated error for "
-                    f"{method_name}: {error}"
+                    f"{method_name}: {error}",
                 )
                 raise error
 
     def configure_failure(
-        self, method_name: str | None = None, exception: Exception | None = None
+        self, method_name: str | None = None, exception: Exception | None = None,
     ) -> None:
         """Configure the mock to fail on a specific method call."""
         self._fail_on_method = method_name
@@ -441,12 +441,12 @@ class MockExchangeAPI(ExchangeAPI):
         return {}
 
     def _update_rate_limit_from_headers(
-        self, headers: Mapping[str, str], method: str, path: str
+        self, headers: Mapping[str, str], method: str, path: str,
     ) -> None:
         """No-op for mock. Exchanges might use this to update internal rate limit states."""
         logger.debug(
             f"_update_rate_limit_from_headers called with headers: {headers}, "
-            f"method: {method}, path: {path} (no-op)"
+            f"method: {method}, path: {path} (no-op)",
         )
 
     async def ping_websocket(self) -> None:
@@ -454,7 +454,7 @@ class MockExchangeAPI(ExchangeAPI):
         logger.debug(f"MockExchange {self.exchange_name}: Simulating WebSocket ping.")
         self._check_error("ping_websocket")
         await self._simulate_latency()
-        pass  # No actual action needed
+        # No actual action needed
 
     async def _route_ws_message(self, message: dict[str, Any]) -> None:
         """Route incoming WebSocket messages to registered handlers based on topic/type."""
@@ -472,7 +472,7 @@ class MockExchangeAPI(ExchangeAPI):
             try:
                 # Call handler with both data_payload and the full_message
                 await handler_to_call(
-                    data_payload, message
+                    data_payload, message,
                 )  # MODIFIED: Ensure two arguments are passed
             except Exception as e:
                 logger.error(f"Error in WS handler for topic {topic}: {e}", exc_info=True)
@@ -480,7 +480,7 @@ class MockExchangeAPI(ExchangeAPI):
             logger.warning(f"No handler for WS message topic/type: {topic}. Message: {message}")
 
     async def subscribe(
-        self, topic: str, handler: MessageHandler
+        self, topic: str, handler: MessageHandler,
     ) -> None:  # Ensure handler type is correct
         """Subscribe to a WebSocket topic."""
         self._ws_subscriptions[topic] = handler  # Storing in _ws_subscriptions
@@ -497,7 +497,6 @@ class MockExchangeAPI(ExchangeAPI):
         """Mock implementation for generic WebSocket message handling."""
         logger.debug(f"MockExchange {self.exchange_name}: Received generic WS message: {message}")
         # This could parse common message types if not routed by _route_ws_message
-        pass
 
     async def get_ticker(self, symbol: str) -> Ticker:
         """Return mock ticker data or raise KeyError if not found."""
@@ -561,7 +560,7 @@ class MockExchangeAPI(ExchangeAPI):
 
         if args.order_type == OrderType.LIMIT and args.price is None:
             raise APIError(
-                "Price must be specified for LIMIT orders", code=APIErrorCode.INVALID_PARAMS.value
+                "Price must be specified for LIMIT orders", code=APIErrorCode.INVALID_PARAMS.value,
             )
         if args.order_type == OrderType.MARKET and args.price is not None:
             logger.warning("Price is ignored for MARKET orders")
@@ -587,7 +586,7 @@ class MockExchangeAPI(ExchangeAPI):
                 args.price
                 if args.price
                 else self._mock_tickers.get(
-                    args.symbol, Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=now)
+                    args.symbol, Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=now),
                 ).price
                 or Decimal("0")
             )
@@ -624,7 +623,7 @@ class MockExchangeAPI(ExchangeAPI):
                 if args.order_type == OrderType.LIMIT
                 else (
                     self._mock_tickers.get(
-                        args.symbol, Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=now)
+                        args.symbol, Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=now),
                     ).price
                     or Decimal("0")
                 )
@@ -637,7 +636,7 @@ class MockExchangeAPI(ExchangeAPI):
                 if args.order_type == OrderType.LIMIT
                 else (
                     self._mock_tickers.get(
-                        args.symbol, Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=now)
+                        args.symbol, Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=now),
                     ).price
                     or Decimal("0")
                 )
@@ -682,7 +681,7 @@ class MockExchangeAPI(ExchangeAPI):
             if fill_price_for_trade is None:
                 logger.warning(
                     f"Cannot determine fill price for trade sim for order "
-                    f"{order.client_order_id}. Using 0."
+                    f"{order.client_order_id}. Using 0.",
                 )
                 fill_price_for_trade = Decimal("0")
 
@@ -711,7 +710,7 @@ class MockExchangeAPI(ExchangeAPI):
             self._update_balance_and_position(trade)
 
         logger.debug(
-            f"Mock {self.exchange_name}: Placed order {order.client_order_id}: {order.status}"
+            f"Mock {self.exchange_name}: Placed order {order.client_order_id}: {order.status}",
         )
         return order
 
@@ -733,7 +732,7 @@ class MockExchangeAPI(ExchangeAPI):
         # Optionally validate symbol if provided
         if symbol is not None and order.symbol != symbol:
             logger.warning(
-                f"Mock order {order_id} symbol mismatch: expected {symbol}, found {order.symbol}"
+                f"Mock order {order_id} symbol mismatch: expected {symbol}, found {order.symbol}",
             )
             return False
 
@@ -754,7 +753,7 @@ class MockExchangeAPI(ExchangeAPI):
         """Get order details by exchange ID or client ID."""
         logger.debug(
             f"Mock {self.exchange_name}: Getting order: ID={args.order_id}, "
-            f"Symbol={args.symbol}, ClientID={args.client_order_id}"
+            f"Symbol={args.symbol}, ClientID={args.client_order_id}",
         )
         self._check_error("get_order")
         await self._simulate_latency()
@@ -774,7 +773,7 @@ class MockExchangeAPI(ExchangeAPI):
         if args.symbol and order and order.symbol != args.symbol:
             logger.warning(
                 f"Order ID {args.order_id or args.client_order_id} found but symbol mismatch: "
-                f"req '{args.symbol}', found '{order.symbol}'"
+                f"req '{args.symbol}', found '{order.symbol}'",
             )
             return None  # Behavior for symbol mismatch can be refined.
         return order
@@ -829,14 +828,13 @@ class MockExchangeAPI(ExchangeAPI):
         """Placeholder to simulate updating balances and positions after a trade."""
         logger.info(
             f"Mock {self.exchange_name}: Simulating balance/position update for trade: {trade.id} "
-            f"({trade.side} {trade.quantity} {trade.symbol} @ {trade.price})"
+            f"({trade.side} {trade.quantity} {trade.symbol} @ {trade.price})",
         )
         # TODO: Implement actual balance and position update logic if needed for tests.
         # This would involve:
         # 1. Identifying base and quote assets from trade.symbol.
         # 2. Adjusting balances for base and quote assets based on trade side, quantity, price, fee.
         # 3. Updating or creating a position for the symbol.
-        pass
 
     async def _on_ws_connected(self) -> None:  # Added concrete implementation
         # This method is not provided in the original file or the code block
@@ -879,7 +877,7 @@ class MockExchangeAPI(ExchangeAPI):
         return rates
 
     async def get_historical_funding_rates(
-        self, args: GetHistoricalFundingRatesArgs
+        self, args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
         """Return mock historical funding rates."""
         self._check_error("get_historical_funding_rates")
@@ -887,7 +885,7 @@ class MockExchangeAPI(ExchangeAPI):
 
         # Return empty list for simplicity, or a predefined set of historical rates
         logger.debug(
-            f"MockExchange {self.exchange_name}: get_historical_funding_rates for {args.symbol}"
+            f"MockExchange {self.exchange_name}: get_historical_funding_rates for {args.symbol}",
         )
         return []
 
@@ -903,7 +901,7 @@ class MockExchangeAPI(ExchangeAPI):
 
         # Return empty list for simplicity, or a predefined set of candles
         logger.debug(
-            f"MockExchange {self.exchange_name}: get_market_data for {symbol}, {timeframe}, {limit}"
+            f"MockExchange {self.exchange_name}: get_market_data for {symbol}, {timeframe}, {limit}",
         )
         return []
 
@@ -934,13 +932,13 @@ class MockExchangeAPI(ExchangeAPI):
                     success=True,
                     message="Successfully cancelled.",
                     status=CancelOrderResultStatus.SUCCESS,
-                )
+                ),
             )
 
         logger.info(
             f"MockExchange {self.exchange_name}: Cancelled all orders "
             f"({len(orders_to_cancel_ids)})"
-            f"{' for symbol ' + symbol if symbol else ''}."
+            f"{' for symbol ' + symbol if symbol else ''}.",
         )
         return results
 
@@ -1044,7 +1042,7 @@ class MockExchangeAPI(ExchangeAPI):
         # pass # This line will be removed
 
     def set_order_book_behavior(
-        self, behavior: str, data: dict[str, str | int | float] | None = None
+        self, behavior: str, data: dict[str, str | int | float] | None = None,
     ) -> None:
         """Configures the behavior of get_order_book."""
         # ... existing code ...

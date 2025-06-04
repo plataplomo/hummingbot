@@ -41,7 +41,7 @@ def valid_status_object_error() -> dict[str, Any]:
 
 @pytest.fixture
 def valid_response_data_dict(
-    valid_status_object_resting: dict[str, Any], valid_status_object_filled: dict[str, Any]
+    valid_status_object_resting: dict[str, Any], valid_status_object_filled: dict[str, Any],
 ) -> dict[str, Any]:
     return {
         "type": "order",
@@ -195,7 +195,7 @@ def test_hl_resting_extra_fields_ignored() -> None:
     ],
 )
 def test_hl_filled_invalid(
-    invalid_data: dict[str, Any], expected_keywords: tuple[str, ...]
+    invalid_data: dict[str, Any], expected_keywords: tuple[str, ...],
 ) -> None:
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawExchangeStatusFilled.model_validate(invalid_data)
@@ -224,7 +224,7 @@ def test_hl_filled_extra_fields_ignored() -> None:
     ],
 )
 def test_hl_status_object_invalid(
-    invalid_data: dict[str, Any], expected_keywords: tuple[str, ...]
+    invalid_data: dict[str, Any], expected_keywords: tuple[str, ...],
 ) -> None:
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawExchangeStatusObject.model_validate(invalid_data)
@@ -368,5 +368,5 @@ def test_hl_response_data_statuses_validation(
         # Check that *some* error occurred. More specific message checks can be added.
         assert exc_info is not None
         print(
-            f"Input: {statuses_list}, Expected Failure, Got Error: {exc_info.value}"
+            f"Input: {statuses_list}, Expected Failure, Got Error: {exc_info.value}",
         )  # Debug print

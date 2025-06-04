@@ -119,6 +119,12 @@ select = [  # Linting rules to apply
     "B",   # bugbear
     "UP",  # upgrade
     "ANN", # annotations
+    "T",   # typing
+    "C",   # complexity
+    "D",   # docstrings
+    "Q",   # quality
+    "COM",
+    "PLR",
 ]
 # ignore = ["E501", "E402", "ANN401"]  # Ignored linting rules
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"  # Regex for dummy variable names

@@ -74,7 +74,7 @@ class TestPerformanceVisualizer:
                 "exit_time": np.random.choice(dates, 100),
                 "duration": np.random.randint(1, 1000, 100),
                 "pnl": np.random.normal(50, 200, 100),
-            }
+            },
         )
 
         # Generate sample funding rate data
@@ -84,7 +84,7 @@ class TestPerformanceVisualizer:
                 "asset": np.repeat(assets, len(dates)),
                 "date": np.tile(dates, len(assets)),
                 "funding_rate": np.random.normal(0, 0.01, len(dates) * len(assets)),
-            }
+            },
         )
         funding_data.set_index("date", inplace=True)
         self.funding_data = funding_data.pivot(columns="asset", values="funding_rate")
@@ -105,7 +105,7 @@ class TestPerformanceVisualizer:
 
         # Test with specific strategies
         fig = self.visualizer.create_returns_chart(
-            self.returns_data, strategy_names=["Strategy1", "Strategy2"]
+            self.returns_data, strategy_names=["Strategy1", "Strategy2"],
         )
         assert isinstance(fig, go.Figure)
         if isinstance(fig.data, tuple):

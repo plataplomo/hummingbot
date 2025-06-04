@@ -26,7 +26,7 @@ def get_yaml_keys(file_path: Path) -> set[str]:
             data_any = yaml.safe_load(f)
         if not isinstance(data_any, dict):
             return set()
-        return _extract_keys(cast(dict[str, Any], data_any))
+        return _extract_keys(cast("dict[str, Any]", data_any))
     except FileNotFoundError:
         pytest.fail(f"YAML file not found: {file_path}")
     except yaml.YAMLError as e:
@@ -41,7 +41,7 @@ def get_yaml_keys_from_string(yaml_string: str) -> set[str]:
             # If loaded data is not a dict (e.g., list, scalar, None), return empty set
             return set()
         # Now data is confirmed to be a dict
-        return _extract_keys(cast(dict[str, Any], data_any))
+        return _extract_keys(cast("dict[str, Any]", data_any))
     except yaml.YAMLError as e:
         pytest.fail(f"Error parsing YAML string: {e}")
 
@@ -53,7 +53,7 @@ def _extract_keys(data: dict[str, Any], prefix: str = "") -> set[str]:
         full_key = f"{prefix}.{k}" if prefix else k
         keys.add(full_key)
         if isinstance(v, dict):
-            keys.update(_extract_keys(cast(dict[str, Any], v), full_key))
+            keys.update(_extract_keys(cast("dict[str, Any]", v), full_key))
     return keys
 
 
@@ -105,12 +105,12 @@ class TestConfigConsistency:
         if not isinstance(example_config_any, dict):
             pytest.fail(
                 f"Example config {EXAMPLE_CONFIG_PATH} did not load as a dictionary "
-                f"(loaded type: {type(example_config_any)}). Cannot validate."
+                f"(loaded type: {type(example_config_any)}). Cannot validate.",
             )
 
         # Validate example against schema
         try:
-            jsonschema.validate(instance=cast(dict[str, Any], example_config_any), schema=schema)
+            jsonschema.validate(instance=cast("dict[str, Any]", example_config_any), schema=schema)
         except jsonschema.ValidationError as e:
             pytest.fail(f"Example config {EXAMPLE_CONFIG_PATH} failed validation: {e}")
 
@@ -149,11 +149,11 @@ class TestConfigConsistency:
         if not isinstance(example_config_any, dict):
             pytest.fail(
                 f"Example config {EXAMPLE_CONFIG_PATH} did not load as a dictionary "
-                f"(loaded type: {type(example_config_any)}). Cannot validate."
+                f"(loaded type: {type(example_config_any)}). Cannot validate.",
             )
 
         # Cast to proper type after isinstance check
-        example_config_dict = cast(dict[str, Any], example_config_any)
+        example_config_dict = cast("dict[str, Any]", example_config_any)
 
         # Validate example against schema
         try:

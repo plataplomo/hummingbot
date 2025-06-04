@@ -59,7 +59,7 @@ class TestBackpackTradingServiceQueryStatus:
                 "triggeredAt": None,
                 "expiryReason": None,
                 "origin": "API",
-            }
+            },
         ]
         mock_status_code = 200
         mock_headers_from_client = MagicMock()
@@ -89,7 +89,7 @@ class TestBackpackTradingServiceQueryStatus:
                 triggeredAt=None,
                 expiryReason=None,
                 origin="API",
-            )
+            ),
         ]
         mock_internal_orders = [MagicMock()]
 
@@ -116,7 +116,7 @@ class TestBackpackTradingServiceQueryStatus:
                 request_weight=1,
             )
             mock_response_handler.handle_get_open_orders_response.assert_called_once_with(
-                mock_raw_response_content, symbol
+                mock_raw_response_content, symbol,
             )
             assert mock_mapper.transform_raw_order_to_internal.call_count == len(mock_raw_orders)
             assert result == mock_internal_orders
@@ -203,7 +203,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_request_builder.build_get_open_orders_params.return_value = mock_params
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_open_orders_response.side_effect = Exception(
-            "Unexpected service failure"
+            "Unexpected service failure",
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -292,7 +292,7 @@ class TestBackpackTradingServiceQueryStatus:
             mock_mapper.transform_raw_order_to_internal.return_value = mock_internal_order
 
             result = await bp_trading_service.get_order_status(
-                args=GetOrderArgs(order_id=order_id, symbol=symbol)
+                args=GetOrderArgs(order_id=order_id, symbol=symbol),
             )
 
             mock_request_builder.build_get_order_params.assert_called_once_with(symbol=symbol)
@@ -305,7 +305,7 @@ class TestBackpackTradingServiceQueryStatus:
                 request_weight=1,
             )
             mock_response_handler.handle_get_order_status_response.assert_called_once_with(
-                mock_raw_response_content, order_id
+                mock_raw_response_content, order_id,
             )
             mock_mapper.transform_raw_order_to_internal.assert_called_once_with(mock_raw_order)
             assert result == mock_internal_order
@@ -330,7 +330,7 @@ class TestBackpackTradingServiceQueryStatus:
         with patch.object(bp_trading_service, "_trading_mapper", autospec=True) as mock_mapper:
             with pytest.raises(APIError) as exc_info:
                 await bp_trading_service.get_order_status(
-                    args=GetOrderArgs(order_id=order_id, symbol=symbol)
+                    args=GetOrderArgs(order_id=order_id, symbol=symbol),
                 )
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -373,7 +373,7 @@ class TestBackpackTradingServiceQueryStatus:
 
         with pytest.raises(APIError) as exc_info:
             await bp_trading_service.get_order_status(
-                args=GetOrderArgs(order_id=order_id, symbol=symbol)
+                args=GetOrderArgs(order_id=order_id, symbol=symbol),
             )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -396,12 +396,12 @@ class TestBackpackTradingServiceQueryStatus:
         mock_request_builder.build_get_order_params.return_value = mock_params
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_order_status_response.side_effect = Exception(
-            "Unexpected service failure"
+            "Unexpected service failure",
         )
 
         with pytest.raises(APIError) as exc_info:
             await bp_trading_service.get_order_status(
-                args=GetOrderArgs(order_id=order_id, symbol=symbol)
+                args=GetOrderArgs(order_id=order_id, symbol=symbol),
             )
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
@@ -424,7 +424,7 @@ class TestBackpackTradingServiceQueryStatus:
 
         with pytest.raises(APIError) as exc_info:
             await bp_trading_service.get_order_status(
-                args=GetOrderArgs(order_id=order_id, symbol=symbol)
+                args=GetOrderArgs(order_id=order_id, symbol=symbol),
             )
 
         assert exc_info.value.code == APIErrorCode.ORDER_NOT_FOUND.value
@@ -511,7 +511,7 @@ class TestBackpackTradingServiceQueryStatus:
             mock_mapper.transform_raw_order_to_internal.return_value = mock_internal_order
 
             result = await bp_trading_service.get_order(
-                args=GetOrderArgs(order_id=order_id, symbol=symbol, client_order_id=client_order_id)
+                args=GetOrderArgs(order_id=order_id, symbol=symbol, client_order_id=client_order_id),
             )
 
             mock_request_builder.build_get_order_params.assert_called_once_with(symbol=symbol)
@@ -524,7 +524,7 @@ class TestBackpackTradingServiceQueryStatus:
                 request_weight=1,
             )
             mock_response_handler.handle_get_order_status_response.assert_called_once_with(
-                mock_raw_response_content, order_id
+                mock_raw_response_content, order_id,
             )
             mock_mapper.transform_raw_order_to_internal.assert_called_once_with(mock_raw_order)
             assert result == mock_internal_order
@@ -549,7 +549,7 @@ class TestBackpackTradingServiceQueryStatus:
         with patch.object(bp_trading_service, "_trading_mapper", autospec=True) as mock_mapper:
             with pytest.raises(APIError) as exc_info:
                 await bp_trading_service.get_order(
-                    args=GetOrderArgs(order_id=order_id, symbol=symbol)
+                    args=GetOrderArgs(order_id=order_id, symbol=symbol),
                 )
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -742,7 +742,7 @@ class TestBackpackTradingServiceQueryStatus:
                 request_weight=1,
             )
             mock_response_handler.handle_get_open_orders_response.assert_called_once_with(
-                mock_raw_response_content, None
+                mock_raw_response_content, None,
             )
             assert mock_mapper.transform_raw_order_to_internal.call_count == len(mock_raw_orders)
             assert result == mock_internal_orders

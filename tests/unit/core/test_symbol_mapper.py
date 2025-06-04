@@ -13,27 +13,27 @@ VALID_CONFIG = {
             "symbols": {
                 "BTC": "BTC-PERP",
                 "ETH": "ETH-PERP",
-            }
+            },
         },
         "backpack": {
             "symbols": {
                 "BTC": "BTC_PERP",
                 "SOL": "SOL_PERP",
-            }
+            },
         },
         "kraken": {
             "symbols": {
                 "BTC": "BTC/USD",
                 "ETH": "ETH/USD",
-            }
+            },
         },
         "disabled_exchange": {  # Example of exchange data without symbols key
             "enabled": False,
         },
         "invalid_symbols_exchange": {  # Example with non-dict symbols
-            "symbols": ["BTC", "ETH"]
+            "symbols": ["BTC", "ETH"],
         },
-    }
+    },
 }
 
 # --- Test Initialization ---
@@ -49,7 +49,7 @@ def test_symbol_mapper_init_success() -> None:
     assert mapper.get_exchange_symbol("BTC", "hyperliquid") == "BTC-PERP"
     assert mapper.get_exchange_symbol("BTC", "backpack") == "BTC_PERP"
     assert mapper.get_exchange_symbol("ETH", "kraken") == "ETH/USD"
-    
+
     # Verify disabled exchanges are properly excluded (should return None)
     result = mapper.get_exchange_symbol("BTC", "disabled_exchange")
     assert result is None, "Disabled exchange should not support mapping"
@@ -61,9 +61,9 @@ def test_symbol_mapper_init_missing_exchanges_key() -> None:
     # SymbolMapper expects the exchanges dict directly.
     # This test should perhaps test that SymbolMapper raises if passed something other than a dict,
     with pytest.raises(SymbolMappingError, match="Invalid configuration: Expected a dictionary"):
-        SymbolMapper(cast(dict[str, Any], None))
+        SymbolMapper(cast("dict[str, Any]", None))
     with pytest.raises(SymbolMappingError, match="Invalid configuration: Expected a dictionary"):
-        SymbolMapper(cast(dict[str, Any], "not_a_dict"))
+        SymbolMapper(cast("dict[str, Any]", "not_a_dict"))
 
 
 def test_symbol_mapper_init_exchanges_not_dict() -> None:
@@ -72,7 +72,7 @@ def test_symbol_mapper_init_exchanges_not_dict() -> None:
         SymbolMappingError,
         match="Invalid configuration: Expected a dictionary of exchanges, got <class 'list'>",
     ):
-        SymbolMapper(cast(dict[str, Any], ["list", "not", "dict"]))
+        SymbolMapper(cast("dict[str, Any]", ["list", "not", "dict"]))
 
 
 def test_symbol_mapper_init_skips_invalid_entries(caplog: LogCaptureFixture) -> None:
@@ -84,7 +84,7 @@ def test_symbol_mapper_init_skips_invalid_entries(caplog: LogCaptureFixture) -> 
             "invalid_symbols_type": {"symbols": "not_a_dict"},
             "invalid_entry_type": {"symbols": {123: "BTC-INVALID"}},  # Non-string key
             "invalid_value_type": {"symbols": {"ETH": 456}},  # Non-string value
-        }
+        },
     }
     with caplog.at_level(logging.WARNING):  # Use logging.WARNING constant
         mapper = SymbolMapper(config_with_invalid["exchanges"])

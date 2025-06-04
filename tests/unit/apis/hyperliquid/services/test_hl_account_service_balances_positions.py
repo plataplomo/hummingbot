@@ -41,7 +41,6 @@ class TestHyperliquidAccountServiceBalancesPositions:
         mock_hl_account_mapper: MagicMock,
     ) -> None:
         """Test get_balances successfully retrieves and processes balance data."""
-
         # 1. Mock RequestBuilder for build_user_state_payload
         #    (called by _get_raw_clearinghouse_state)
         mock_user_state_payload_model = MagicMock()
@@ -57,10 +56,10 @@ class TestHyperliquidAccountServiceBalancesPositions:
                         "type": "erc20",
                         "asset": "USDC",
                         "position": {"type": "cross", "amount": "1000500000"},
-                    }
+                    },
                 ],
                 "marginSummary": {"accountValue": "1000500000"},
-            }
+            },
         ]
         mock_status_code = 200
         mock_headers: dict[str, str] = {}
@@ -86,7 +85,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
             unrealizedPnl="0",
         )
         mock_raw_asset_position_usdc = HyperliquidRawAssetPosition(
-            asset="USDC", position=mock_raw_position_info
+            asset="USDC", position=mock_raw_position_info,
         )
         mock_raw_margin_summary = HyperliquidRawMarginSummary(
             accountValue="1000.5",
@@ -116,7 +115,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
                 timestamp=mock_ts,
                 total_quantity=Decimal("1000.5"),
                 available_quantity=Decimal("1000.5"),
-            )
+            ),
         }
         mock_hl_account_mapper.transform_raw_clearinghouse_state_to_spot_balances.return_value = (
             expected_internal_balances
@@ -138,7 +137,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
             user_address="0xTestWalletAddress",
         )
         mock_hl_account_mapper.transform_raw_clearinghouse_state_to_spot_balances.assert_called_once_with(
-            mock_processed_raw_clearinghouse_state_model
+            mock_processed_raw_clearinghouse_state_model,
         )
         assert result_balances == expected_internal_balances
 
@@ -185,7 +184,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
         }
         mock_request_builder.build_user_state_payload.return_value = mock_user_state_payload_model
         expected_error = APIError(
-            "Failed to get raw state via HTTP", APIErrorCode.SERVER_ERROR.value
+            "Failed to get raw state via HTTP", APIErrorCode.SERVER_ERROR.value,
         )
         mock_http_client_requester.side_effect = expected_error
         with pytest.raises(APIError) as excinfo:
@@ -242,11 +241,11 @@ class TestHyperliquidAccountServiceBalancesPositions:
         mock_user_state_payload_model.model_dump.return_value = mock_user_state_payload_dict
         mock_request_builder.build_user_state_payload.return_value = mock_user_state_payload_model
         mock_raw_user_state_response_list: list[dict[str, Any]] = [
-            {"mock_state_data": "some_value"}
+            {"mock_state_data": "some_value"},
         ]
         mock_http_client_requester.return_value = (mock_raw_user_state_response_list, 200, {})
         mock_processed_raw_clearinghouse_state_model = MagicMock(
-            spec=HyperliquidRawClearinghouseState
+            spec=HyperliquidRawClearinghouseState,
         )
         mock_response_handler.handle_info_user_state_response.return_value = (
             mock_processed_raw_clearinghouse_state_model
@@ -268,7 +267,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
             user_address="0xTestWalletAddress",
         )
         mock_hl_account_mapper.transform_raw_clearinghouse_state_to_derivative_positions.assert_called_once_with(
-            mock_processed_raw_clearinghouse_state_model
+            mock_processed_raw_clearinghouse_state_model,
         )
         assert isinstance(result, list)
         assert len(result) == 2
@@ -292,7 +291,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
         mock_raw_user_state_response_list: list[dict[str, Any]] = [{"mock_state_data": "val"}]
         mock_http_client_requester.return_value = (mock_raw_user_state_response_list, 200, {})
         mock_processed_raw_clearinghouse_state_model = MagicMock(
-            spec=HyperliquidRawClearinghouseState
+            spec=HyperliquidRawClearinghouseState,
         )
         mock_response_handler.handle_info_user_state_response.return_value = (
             mock_processed_raw_clearinghouse_state_model
@@ -366,7 +365,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
         mock_raw_user_state_response_list: list[dict[str, Any]] = [{"mock_summary_data": "value"}]
         mock_http_client_requester.return_value = (mock_raw_user_state_response_list, 200, {})
         mock_processed_raw_clearinghouse_state_model = MagicMock(
-            spec=HyperliquidRawClearinghouseState
+            spec=HyperliquidRawClearinghouseState,
         )
         mock_response_handler.handle_info_user_state_response.return_value = (
             mock_processed_raw_clearinghouse_state_model
@@ -384,7 +383,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
         )
         assert result == mock_summary_object
         mock_hl_account_mapper.transform_raw_clearinghouse_state_to_margin_summary.assert_called_once_with(
-            mock_processed_raw_clearinghouse_state_model
+            mock_processed_raw_clearinghouse_state_model,
         )
 
     @pytest.mark.asyncio
@@ -404,7 +403,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
         mock_request_builder.build_user_state_payload.return_value = mock_user_state_payload_model
         # Mock raw response from HTTP client for _get_raw_clearinghouse_state
         mock_raw_user_state_response_list: list[dict[str, Any]] = [
-            {"valid_state_data": "some_value"}
+            {"valid_state_data": "some_value"},
         ]
         mock_http_client_requester.return_value = (mock_raw_user_state_response_list, 200, {})
         # Mock processed response from ResponseHandler for _get_raw_clearinghouse_state
@@ -420,7 +419,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
         # The service wraps ValueError in APIError with "Service internal logic error." message
         assert "Service internal logic error." in str(excinfo.value)
         assert isinstance(
-            excinfo.value.__cause__, ValueError
+            excinfo.value.__cause__, ValueError,
         )  # Check that original ValueError is preserved
         assert str(excinfo.value.__cause__) == "bad map"
         mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
@@ -430,7 +429,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
             user_address="0xTestWalletAddress",
         )
         mock_hl_account_mapper.transform_raw_clearinghouse_state_to_margin_summary.assert_called_once_with(
-            mock_processed_state
+            mock_processed_state,
         )
 
     @pytest.mark.asyncio

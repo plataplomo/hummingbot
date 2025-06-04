@@ -65,7 +65,7 @@ class TestPortfolioTracker:
     def pt_config(self) -> PortfolioTrackerConfig:
         """Create a PortfolioTrackerConfig for testing."""
         return PortfolioTrackerConfig(
-            data_freshness_seconds=60, initial_balances={}, initial_positions=[]
+            data_freshness_seconds=60, initial_balances={}, initial_positions=[],
         )
 
     @pytest.fixture
@@ -97,39 +97,38 @@ class TestPortfolioTracker:
             if base == "BTC" and quote == "USDC":
                 mock_logger.debug(f"SIDE_EFFECT: Returning BTC-USDC ticker price={btc_usdc_price}")
                 return Ticker(symbol=symbol, timestamp=now, price=btc_usdc_price)
-            elif base == "ETH" and quote == "USDC":
+            if base == "ETH" and quote == "USDC":
                 mock_logger.debug(f"SIDE_EFFECT: Returning ETH-USDC ticker price={eth_usdc_price}")
                 return Ticker(symbol=symbol, timestamp=now, price=eth_usdc_price)
-            elif base == "USDC" and quote == "BTC":
+            if base == "USDC" and quote == "BTC":
                 price = Decimal("1.0") / btc_usdc_price
                 mock_logger.debug(f"SIDE_EFFECT: Returning USDC-BTC ticker price={price}")
                 return Ticker(symbol=symbol, timestamp=now, price=price)
-            elif base == "USDC" and quote == "ETH":
+            if base == "USDC" and quote == "ETH":
                 price = Decimal("1.0") / eth_usdc_price
                 mock_logger.debug(f"SIDE_EFFECT: Returning USDC-ETH ticker price={price}")
                 return Ticker(symbol=symbol, timestamp=now, price=price)
             # Add case for USD <-> USDC if needed by tests
-            elif (base == "USD" and quote == "USDC") or (base == "USDC" and quote == "USD"):
+            if (base == "USD" and quote == "USDC") or (base == "USDC" and quote == "USD"):
                 mock_logger.debug(f"SIDE_EFFECT: Returning {symbol} ticker price=1.0")
                 return Ticker(symbol=symbol, timestamp=now, price=Decimal("1.0"))
-            elif symbol == "BTC-USDC":
+            if symbol == "BTC-USDC":
                 mock_logger.debug(
-                    f"SIDE_EFFECT: Returning {symbol} ticker price={Decimal('50000.0')}"
+                    f"SIDE_EFFECT: Returning {symbol} ticker price={Decimal('50000.0')}",
                 )
                 return Ticker(symbol=symbol, price=Decimal("50000.0"), timestamp=now)
-            elif symbol == "USDC-BTC":
+            if symbol == "USDC-BTC":
                 mock_logger.debug(
-                    f"SIDE_EFFECT: Returning {symbol} ticker price={Decimal('0.00002')}"
+                    f"SIDE_EFFECT: Returning {symbol} ticker price={Decimal('0.00002')}",
                 )
                 return Ticker(symbol=symbol, price=Decimal("0.00002"), timestamp=now)  # 1/50000
-            elif symbol == "ETH-BTC":  # ADD THIS CASE
+            if symbol == "ETH-BTC":  # ADD THIS CASE
                 # Assuming ETH=3000, BTC=50000 => ETH/BTC = 3000/50000 = 0.06
                 mock_logger.debug(f"SIDE_EFFECT: Returning {symbol} ticker price={Decimal('0.06')}")
                 return Ticker(symbol=symbol, price=Decimal("0.06"), timestamp=now)
             # Add other pairs as needed for tests
-            else:
-                mock_logger.warning(f"SIDE_EFFECT: Unhandled symbol '{symbol}', returning None.")
-                return None
+            mock_logger.warning(f"SIDE_EFFECT: Unhandled symbol '{symbol}', returning None.")
+            return None
 
         # Assign the side_effect to the get_ticker method of each client mock
         hyperliquid_client.get_ticker.side_effect = mock_get_ticker_side_effect
@@ -407,7 +406,7 @@ class TestPortfolioTracker:
             == sample_orders["hyperliquid"]["hl-order-2"].symbol
         )
         assert portfolio_tracker.last_reconciliation_time["hyperliquid"] > datetime.min.replace(
-            tzinfo=UTC
+            tzinfo=UTC,
         )
 
     @pytest.mark.asyncio
@@ -448,7 +447,7 @@ class TestPortfolioTracker:
 
         # Set reconciliation times to be recent so NO reconciliation is needed initially
         portfolio_tracker.last_reconciliation_time["hyperliquid"] = now_update - timedelta(
-            seconds=10
+            seconds=10,
         )
         portfolio_tracker.last_reconciliation_time["backpack"] = now_update - timedelta(seconds=10)
 
@@ -473,7 +472,7 @@ class TestPortfolioTracker:
                 (
                     portfolio_tracker.last_reconciliation_time["hyperliquid"]
                     - (now_update - timedelta(seconds=10))
-                ).total_seconds()
+                ).total_seconds(),
             )
             < 1
         )
@@ -482,7 +481,7 @@ class TestPortfolioTracker:
                 (
                     portfolio_tracker.last_reconciliation_time["backpack"]
                     - (now_update - timedelta(seconds=10))
-                ).total_seconds()
+                ).total_seconds(),
             )
             < 1
         )
@@ -490,7 +489,7 @@ class TestPortfolioTracker:
         # --- Now, test the case where reconciliation IS triggered ---
         portfolio_tracker.reconciliation_interval = 1  # seconds for quick trigger
         stale_time = datetime.now(UTC) - timedelta(
-            seconds=portfolio_tracker.reconciliation_interval + 5
+            seconds=portfolio_tracker.reconciliation_interval + 5,
         )
         portfolio_tracker.last_reconciliation_time["hyperliquid"] = stale_time
         recent_bp_recon_time_before_second_update = datetime.now(UTC) - timedelta(seconds=10)
@@ -516,14 +515,14 @@ class TestPortfolioTracker:
                 total_quantity=Decimal("12000"),  # Corrected: "12k" -> "12000"
                 available_quantity=Decimal("11000"),  # Corrected: "11k" -> "11000"
                 timestamp=datetime.now(UTC),
-            )
+            ),
         ]
         api_clients["hyperliquid"].get_balances.return_value = mock_hl_balances_reconcile
         # Similar mocks for get_positions, get_open_orders, get_account_summary
         # for hyperliquid if their data is checked
         # For backpack, only get_open_orders will be called
         mock_bp_orders_second_update = [
-            sample_orders["backpack"]["bp-order-1"]
+            sample_orders["backpack"]["bp-order-1"],
         ]  # Use a different order for clarity
         api_clients["backpack"].get_open_orders.return_value = mock_bp_orders_second_update
 
@@ -552,7 +551,7 @@ class TestPortfolioTracker:
 
     @pytest.mark.asyncio
     async def test_reconcile_portfolio_state_success(
-        self, portfolio_tracker: PortfolioTracker, api_clients: dict[str, AsyncMock]
+        self, portfolio_tracker: PortfolioTracker, api_clients: dict[str, AsyncMock],
     ) -> None:
         """Test successful reconciliation of portfolio state."""
         # ADDED: Initialize portfolio state, so last_reconciliation_time is set for all exchanges
@@ -575,7 +574,7 @@ class TestPortfolioTracker:
                 size=Decimal("1.5"),
                 entry_price=Decimal("50500"),  # Required as size is non-zero
                 timestamp=now_reconcile,
-            )
+            ),
         ]
         mock_hl_orders_rec = [
             Order(
@@ -605,7 +604,7 @@ class TestPortfolioTracker:
                 trades=[],
                 hl_details=None,
                 bp_details=None,
-            )
+            ),
         ]
         mock_hl_summary_rec = MarginAccountSummary(
             exchange="hyperliquid",
@@ -661,7 +660,7 @@ class TestPortfolioTracker:
 
     @pytest.mark.asyncio
     async def test_reconcile_portfolio_state_api_error(
-        self, portfolio_tracker: PortfolioTracker, api_clients: dict[str, AsyncMock]
+        self, portfolio_tracker: PortfolioTracker, api_clients: dict[str, AsyncMock],
     ) -> None:
         """Test reconciliation with API errors."""
         # Store initial state for comparison
@@ -674,7 +673,7 @@ class TestPortfolioTracker:
 
         # Simulate an API error for one of the calls, e.g., get_balances
         api_clients["hyperliquid"].get_balances = AsyncMock(
-            side_effect=RuntimeError("API unavailable")
+            side_effect=RuntimeError("API unavailable"),
         )
         # Other calls succeed
         now_api_error = datetime.now(UTC)
@@ -695,7 +694,7 @@ class TestPortfolioTracker:
                 signal_id=None,
                 hl_details=None,
                 bp_details=None,
-            )
+            ),
         ]
         mock_hl_orders_err = [
             Order(
@@ -726,7 +725,7 @@ class TestPortfolioTracker:
                 trades=[],  # Default but explicit
                 hl_details=None,
                 bp_details=None,
-            )
+            ),
         ]
         mock_hl_summary_err = MarginAccountSummary(
             exchange="hyperliquid",
@@ -759,7 +758,7 @@ class TestPortfolioTracker:
         # If the error occurs during update *after* a successful init, state should persist.
         # Here, initial_balances reflects the state *before* this failing update.
         assert portfolio_tracker.balances.get(
-            "hyperliquid", dict[str, SpotBalance]()
+            "hyperliquid", dict[str, SpotBalance](),
         ) == initial_balances.get("hyperliquid", dict[str, SpotBalance]())
 
         # Positions and orders should reflect the successful API calls for those parts
@@ -878,15 +877,15 @@ class TestPortfolioTracker:
             timestamp=now,
         )
 
-        # Test balance update through the public interface by simulating 
+        # Test balance update through the public interface by simulating
         # the exchange API returning the new balance data
-        with patch.object(portfolio_tracker, '_fetch_exchange_balances') as mock_fetch:
+        with patch.object(portfolio_tracker, "_fetch_exchange_balances") as mock_fetch:
             # Make the API fetch return our new balance data
             async def mock_fetch_balances(exchange_id: str) -> None:
                 portfolio_tracker.balances[exchange_id][asset_to_update] = new_balance_data
-            
+
             mock_fetch.side_effect = mock_fetch_balances
-            
+
             # Trigger update through public API which should fetch and update balances
             await portfolio_tracker.update()
 
@@ -898,7 +897,7 @@ class TestPortfolioTracker:
         assert original_total_qty != updated_balance_obj.total_quantity
 
     def test_get_exchange_balance(
-        self, portfolio_tracker: PortfolioTracker, sample_balances_state: ExchangeBalances
+        self, portfolio_tracker: PortfolioTracker, sample_balances_state: ExchangeBalances,
     ) -> None:
         """Test retrieving a specific exchange balance."""
         # Setup initial state
@@ -969,10 +968,10 @@ class TestPortfolioTracker:
         # Test that get_total_capital correctly handles price conversions internally
         # We verify the total result rather than individual price calculations
         # HyperLiquid USDC value: total_quantity * 1.0 (USDC price in USDC is 1)
-        # Backpack USDC value: total_quantity * 1.0 
+        # Backpack USDC value: total_quantity * 1.0
         # Test the total capital calculation result instead of individual price lookups
         # Based on our mocked ticker data and balance quantities:
-        # HyperLiquid: 100000 USDC + (5.0 ETH * 3000) = 100000 + 15000 = 115000 USDC  
+        # HyperLiquid: 100000 USDC + (5.0 ETH * 3000) = 100000 + 15000 = 115000 USDC
         # Backpack: 5000 USDC + (0.1 BTC * 50000) = 5000 + 5000 = 10000 USDC
         # Expected total: 115000 + 10000 = 125000 USDC
         expected_total_capital = Decimal("125000.0")
@@ -1012,14 +1011,14 @@ class TestPortfolioTracker:
         # print(f"Debug: Price UNPRICED-USDC: {unpriced_price}") # Should be None
 
         total_capital_with_unpriced = await portfolio_tracker.get_total_capital(
-            base_currency="USDC"
+            base_currency="USDC",
         )
         assert (
             total_capital_with_unpriced == expected_total_capital
         )  # Unpriced asset should not change total
 
     def test_get_position(
-        self, portfolio_tracker: PortfolioTracker, sample_positions: ExchangePositions
+        self, portfolio_tracker: PortfolioTracker, sample_positions: ExchangePositions,
     ) -> None:
         """Test retrieving a specific position."""
         portfolio_tracker.positions.update(sample_positions)  # type: ignore
@@ -1038,7 +1037,7 @@ class TestPortfolioTracker:
         assert non_existent_exchange is None
 
     def test_get_positions_by_symbol(
-        self, portfolio_tracker: PortfolioTracker, sample_positions: ExchangePositions
+        self, portfolio_tracker: PortfolioTracker, sample_positions: ExchangePositions,
     ) -> None:
         """Test retrieving positions by symbol."""
         portfolio_tracker.positions.update(sample_positions)  # type: ignore
@@ -1113,7 +1112,7 @@ class TestPortfolioTracker:
         assert eth_positions_bp[0].symbol == "ETH"
 
     def test_get_all_positions(
-        self, portfolio_tracker: PortfolioTracker, sample_positions: ExchangePositions
+        self, portfolio_tracker: PortfolioTracker, sample_positions: ExchangePositions,
     ) -> None:
         """Test retrieving all positions across all exchanges."""
         portfolio_tracker.positions.update(sample_positions)  # type: ignore
@@ -1135,7 +1134,7 @@ class TestPortfolioTracker:
         assert len(portfolio_tracker.get_all_positions()) == 0
 
     def test_get_order_by_id(
-        self, portfolio_tracker: PortfolioTracker, sample_orders: ExchangeOrders
+        self, portfolio_tracker: PortfolioTracker, sample_orders: ExchangeOrders,
     ) -> None:
         """Test retrieving a specific order by its ID."""
         portfolio_tracker.orders.update(sample_orders)
@@ -1154,7 +1153,7 @@ class TestPortfolioTracker:
         assert non_existent_exchange is None
 
     def test_get_open_orders(
-        self, portfolio_tracker: PortfolioTracker, sample_orders: ExchangeOrders
+        self, portfolio_tracker: PortfolioTracker, sample_orders: ExchangeOrders,
     ) -> None:
         """Test retrieving open orders."""
         portfolio_tracker.orders.update(sample_orders)
@@ -1213,7 +1212,7 @@ class TestPortfolioTracker:
         assert len(open_orders_hl_empty) == 0
 
     def test_get_all_orders(
-        self, portfolio_tracker: PortfolioTracker, sample_orders: ExchangeOrders
+        self, portfolio_tracker: PortfolioTracker, sample_orders: ExchangeOrders,
     ) -> None:
         """Test retrieving all orders for an exchange (open and closed)."""
         portfolio_tracker.orders.update(sample_orders)
@@ -1232,7 +1231,7 @@ class TestPortfolioTracker:
         assert len(all_btc_orders_hl) == 0  # Corrected assertion: expect 0 BTC orders
 
     def test_calculate_pnl(
-        self, portfolio_tracker: PortfolioTracker, sample_positions: ExchangePositions
+        self, portfolio_tracker: PortfolioTracker, sample_positions: ExchangePositions,
     ) -> None:
         """Test PNL calculation logic (simplified, focuses on unrealized PNL from model)."""
         # This test is simplified as full PNL calculation depends on market data
@@ -1306,4 +1305,4 @@ class TestPortfolioTracker:
         # This test should be rewritten as an async test to properly call
         # `await portfolio_tracker.get_pnl()`
         # and mock its dependencies (`_get_asset_price_in_base`).
-        pass  # Marking as pass due to need for async rewrite.
+        # Marking as pass due to need for async rewrite.

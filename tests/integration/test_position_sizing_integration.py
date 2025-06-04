@@ -149,12 +149,12 @@ async def test_position_sizing_integration(
             risk_adjusted_return=Decimal("0.15"),  # Example: risk-adjusted score
         )
         setup_dependencies["risk_manager"].size_opportunity = MagicMock(
-            return_value=mock_sized_opportunity
+            return_value=mock_sized_opportunity,
         )
 
         # Mock the opportunity checking to return our test opportunity
         with patch.object(
-            strategy_with_risk_manager, "evaluate_entry_opportunity"
+            strategy_with_risk_manager, "evaluate_entry_opportunity",
         ) as mock_evaluate:
             # Configure the mock to simulate the full workflow
             mock_evaluate.return_value = [
@@ -169,9 +169,9 @@ async def test_position_sizing_integration(
                             "short_size": Decimal("15000.0"),
                             "allocation_percentage": Decimal("0.3"),
                             "risk_adjusted_return": Decimal("0.28"),
-                        }
+                        },
                     },
-                )
+                ),
             ]
 
             # Call the method to generate a signal with position sizing
@@ -231,7 +231,7 @@ async def test_risk_manager_rejection(
 
         # Mock the evaluation to return None (rejected)
         with patch.object(
-            strategy_with_risk_manager, "evaluate_entry_opportunity"
+            strategy_with_risk_manager, "evaluate_entry_opportunity",
         ) as mock_evaluate:
             mock_evaluate.return_value = None
 

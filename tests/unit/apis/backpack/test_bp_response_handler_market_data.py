@@ -28,7 +28,7 @@ class TestHandleGetTickerResponse:
     def test_valid(self, valid_raw_ticker: dict[str, Any], symbol_spot: str) -> None:
         """Test handling a valid raw ticker response."""
         ticker: BackpackRawTicker = BackpackResponseHandler.handle_get_ticker_response(
-            cast(RawJsonResponse, valid_raw_ticker), symbol_spot, 200, {}
+            cast("RawJsonResponse", valid_raw_ticker), symbol_spot, 200, {},
         )
         assert isinstance(ticker, BackpackRawTicker)
         assert ticker.symbol == symbol_spot
@@ -43,7 +43,7 @@ class TestHandleGetTickerResponse:
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_ticker_response(
-                cast(RawJsonResponse, raw_data), symbol_spot, 400, {}
+                cast("RawJsonResponse", raw_data), symbol_spot, 400, {},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "expected dict" in exc_info.value.message
@@ -61,7 +61,7 @@ class TestHandleGetTickerResponse:
         }
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_ticker_response(
-                cast(RawJsonResponse, raw_data), symbol_spot, 200, {}
+                cast("RawJsonResponse", raw_data), symbol_spot, 200, {},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert f"Invalid ticker ({symbol_spot}) - Status: 200" in exc_info.value.message
@@ -80,7 +80,7 @@ class TestHandleGetTickerResponse:
         }
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_ticker_response(
-                cast(RawJsonResponse, raw_data), symbol_spot, 200, {}
+                cast("RawJsonResponse", raw_data), symbol_spot, 200, {},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert isinstance(exc_info.value.original_exception, ValidationError)
@@ -98,7 +98,7 @@ class TestHandleGetTickerResponse:
         }
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_ticker_response(
-                cast(RawJsonResponse, raw_data), symbol_spot, 200, {}
+                cast("RawJsonResponse", raw_data), symbol_spot, 200, {},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert isinstance(exc_info.value.original_exception, ValidationError)
@@ -110,7 +110,7 @@ class TestHandleGetOrderBookResponse:
     def test_valid(self, valid_raw_order_book: dict[str, Any], symbol_spot: str) -> None:
         """Test handling a valid raw order book response."""
         order_book: BackpackRawOrderBook = BackpackResponseHandler.handle_get_order_book_response(
-            cast(RawJsonResponse, valid_raw_order_book), symbol_spot, 200, {}
+            cast("RawJsonResponse", valid_raw_order_book), symbol_spot, 200, {},
         )
         assert isinstance(order_book, BackpackRawOrderBook)
         assert len(order_book.bids) == 2
@@ -131,7 +131,7 @@ class TestHandleGetOrderBookResponse:
             "timestamp": 1678886401000,
         }
         order_book = BackpackResponseHandler.handle_get_order_book_response(
-            cast(RawJsonResponse, raw_data), symbol_spot, 200, {}
+            cast("RawJsonResponse", raw_data), symbol_spot, 200, {},
         )
         assert len(order_book.bids) == 0
         assert len(order_book.asks) == 0
@@ -147,7 +147,7 @@ class TestHandleGetOrderBookResponse:
         }
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_order_book_response(
-                cast(RawJsonResponse, raw_data), symbol_spot, 200, {}
+                cast("RawJsonResponse", raw_data), symbol_spot, 200, {},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert f"Invalid order book ({symbol_spot}) - Status: 200" in exc_info.value.message
@@ -158,7 +158,7 @@ class TestHandleGetOrderBookResponse:
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_order_book_response(
-                cast(RawJsonResponse, raw_data), symbol_spot, 400, {}
+                cast("RawJsonResponse", raw_data), symbol_spot, 400, {},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "expected dict" in exc_info.value.message
@@ -171,7 +171,7 @@ class TestHandleGetRecentTradesResponse:
     def test_valid(self, valid_raw_recent_trades: list[dict[str, Any]], symbol_spot: str) -> None:
         """Test handling a valid raw recent trades response."""
         trades: list[BackpackRawTrade] = BackpackResponseHandler.handle_get_recent_trades_response(
-            cast(RawJsonResponse, valid_raw_recent_trades), symbol_spot, 200, {}
+            cast("RawJsonResponse", valid_raw_recent_trades), symbol_spot, 200, {},
         )
         assert len(trades) == 2
         assert isinstance(trades[0], BackpackRawTrade)
@@ -192,13 +192,13 @@ class TestHandleGetRecentTradesResponse:
         """Test handling empty recent trades response."""
         raw_data: list[Any] = []
         trades = BackpackResponseHandler.handle_get_recent_trades_response(
-            cast(RawJsonResponse, raw_data), symbol_spot, 200, {}
+            cast("RawJsonResponse", raw_data), symbol_spot, 200, {},
         )
         assert isinstance(trades, list)
         assert len(trades) == 0
 
     def test_invalid_trade_item_skipped(
-        self, symbol_spot: str, caplog: pytest.LogCaptureFixture
+        self, symbol_spot: str, caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test that invalid trade items are skipped with warning."""
         valid_trade = {
@@ -211,7 +211,7 @@ class TestHandleGetRecentTradesResponse:
         }
         raw_data = [valid_trade, "not_a_dict"]  # Invalid item
         trades = BackpackResponseHandler.handle_get_recent_trades_response(
-            cast(RawJsonResponse, raw_data), symbol_spot, 200, {}
+            cast("RawJsonResponse", raw_data), symbol_spot, 200, {},
         )
         assert len(trades) == 1  # Only valid trade processed
         assert trades[0].id == "1001"
@@ -235,7 +235,7 @@ class TestHandleGetRecentTradesResponse:
         raw_data = [invalid_trade]
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_recent_trades_response(
-                cast(RawJsonResponse, raw_data), symbol_spot, 200, {}
+                cast("RawJsonResponse", raw_data), symbol_spot, 200, {},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "single trade item" in exc_info.value.message
@@ -246,7 +246,7 @@ class TestHandleGetRecentTradesResponse:
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_recent_trades_response(
-                cast(RawJsonResponse, raw_data), symbol_spot, 400, {}
+                cast("RawJsonResponse", raw_data), symbol_spot, 400, {},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "expected list" in exc_info.value.message
@@ -259,7 +259,7 @@ class TestHandleGetMarketDataResponse:
     def test_valid(self, valid_raw_market_data: list[list[Any]], symbol_spot: str) -> None:
         """Test handling a valid raw market data (klines) response."""
         klines: list[BackpackRawKline] = BackpackResponseHandler.handle_get_market_data_response(
-            cast(RawJsonResponse, valid_raw_market_data), symbol_spot, "1m", 200, {}
+            cast("RawJsonResponse", valid_raw_market_data), symbol_spot, "1m", 200, {},
         )
         assert isinstance(klines, list)
         assert len(klines) == 2
@@ -276,13 +276,13 @@ class TestHandleGetMarketDataResponse:
         """Test handling empty market data response."""
         raw_data: list[Any] = []
         klines = BackpackResponseHandler.handle_get_market_data_response(
-            cast(RawJsonResponse, raw_data), symbol_spot, "1m", 200, {}
+            cast("RawJsonResponse", raw_data), symbol_spot, "1m", 200, {},
         )
         assert isinstance(klines, list)
         assert len(klines) == 0
 
     def test_invalid_kline_item_skipped(
-        self, symbol_spot: str, caplog: pytest.LogCaptureFixture
+        self, symbol_spot: str, caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test that invalid kline items are skipped with warning."""
         valid_kline = [
@@ -301,7 +301,7 @@ class TestHandleGetMarketDataResponse:
         ]
         raw_data = [valid_kline, {"not": "a_list"}]  # Invalid item
         klines = BackpackResponseHandler.handle_get_market_data_response(
-            cast(RawJsonResponse, raw_data), symbol_spot, "1m", 200, {}
+            cast("RawJsonResponse", raw_data), symbol_spot, "1m", 200, {},
         )
         assert len(klines) == 1  # Only valid kline processed
 
@@ -316,7 +316,7 @@ class TestHandleGetMarketDataResponse:
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_market_data_response(
-                cast(RawJsonResponse, raw_data), symbol_spot, "1m", 400, {}
+                cast("RawJsonResponse", raw_data), symbol_spot, "1m", 400, {},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "expected list" in exc_info.value.message
@@ -327,12 +327,12 @@ class TestHandleGetHistoricalTradesResponse:
     """Tests for BackpackResponseHandler.handle_get_historical_trades_response."""
 
     def test_valid(
-        self, valid_raw_historical_trades: list[dict[str, Any]], symbol_spot: str
+        self, valid_raw_historical_trades: list[dict[str, Any]], symbol_spot: str,
     ) -> None:
         """Test handling a valid raw historical trades response."""
         trades: list[BackpackRawTrade] = (
             BackpackResponseHandler.handle_get_historical_trades_response(
-                cast(RawJsonResponse, valid_raw_historical_trades), symbol_spot, 200, {}
+                cast("RawJsonResponse", valid_raw_historical_trades), symbol_spot, 200, {},
             )
         )
         assert isinstance(trades, list)
@@ -358,13 +358,13 @@ class TestHandleGetHistoricalTradesResponse:
         """Test handling empty historical trades response."""
         raw_data: list[Any] = []
         trades = BackpackResponseHandler.handle_get_historical_trades_response(
-            cast(RawJsonResponse, raw_data), symbol_spot, 200, {}
+            cast("RawJsonResponse", raw_data), symbol_spot, 200, {},
         )
         assert isinstance(trades, list)
         assert len(trades) == 0
 
     def test_invalid_trade_item_skipped(
-        self, symbol_spot: str, caplog: pytest.LogCaptureFixture
+        self, symbol_spot: str, caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test that invalid historical trade items are skipped with warning."""
         valid_trade = {
@@ -377,7 +377,7 @@ class TestHandleGetHistoricalTradesResponse:
         }
         raw_data = [valid_trade, "not_a_dict"]  # Invalid item
         trades = BackpackResponseHandler.handle_get_historical_trades_response(
-            cast(RawJsonResponse, raw_data), symbol_spot, 200, {}
+            cast("RawJsonResponse", raw_data), symbol_spot, 200, {},
         )
         assert len(trades) == 1  # Only valid trade processed
         assert trades[0].id == "1001"
@@ -401,7 +401,7 @@ class TestHandleGetHistoricalTradesResponse:
         raw_data = [invalid_trade]
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_historical_trades_response(
-                cast(RawJsonResponse, raw_data), symbol_spot, 200, {}
+                cast("RawJsonResponse", raw_data), symbol_spot, 200, {},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "single historical trade item" in exc_info.value.message
@@ -413,7 +413,7 @@ class TestHandleGetHistoricalTradesResponse:
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_historical_trades_response(
-                cast(RawJsonResponse, raw_data), symbol_spot, 400, {}
+                cast("RawJsonResponse", raw_data), symbol_spot, 400, {},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "expected list" in exc_info.value.message
@@ -434,7 +434,7 @@ class TestMarketDataEdgeCases:
             "time": 0,
         }
         ticker = BackpackResponseHandler.handle_get_ticker_response(
-            cast(RawJsonResponse, raw_data), symbol_spot, 200, {}
+            cast("RawJsonResponse", raw_data), symbol_spot, 200, {},
         )
         assert ticker.price == "0.0"
         assert ticker.volume == "0.0"
@@ -449,7 +449,7 @@ class TestMarketDataEdgeCases:
             "timestamp": 1678886401000,
         }
         order_book = BackpackResponseHandler.handle_get_order_book_response(
-            cast(RawJsonResponse, raw_data), symbol_spot, 200, {}
+            cast("RawJsonResponse", raw_data), symbol_spot, 200, {},
         )
         assert len(order_book.bids) == 1
         assert len(order_book.asks) == 1
@@ -468,7 +468,7 @@ class TestMarketDataEdgeCases:
         }
         raw_data = [trade_item]
         trades = BackpackResponseHandler.handle_get_recent_trades_response(
-            cast(RawJsonResponse, raw_data), symbol_spot, 200, {}
+            cast("RawJsonResponse", raw_data), symbol_spot, 200, {},
         )
         assert len(trades) == 1
         assert trades[0].price == "141.123456789"
@@ -493,7 +493,7 @@ class TestMarketDataEdgeCases:
         ]
         raw_data = [minimal_kline]
         klines = BackpackResponseHandler.handle_get_market_data_response(
-            cast(RawJsonResponse, raw_data), symbol_spot, "1m", 200, {}
+            cast("RawJsonResponse", raw_data), symbol_spot, "1m", 200, {},
         )
         assert len(klines) == 1
         assert klines[0].start_time_ms == 1678886400000

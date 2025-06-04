@@ -231,7 +231,7 @@ class TestBackpackAPIInitialization:
         assert hasattr(api, "market_data_service")
 
     def test_api_creation_with_custom_config(
-        self, bp_api_with_di: Callable[..., BackpackAPI]
+        self, bp_api_with_di: Callable[..., BackpackAPI],
     ) -> None:
         """Test API creation with custom configuration."""
         custom_config = create_test_exchange_config(
@@ -249,7 +249,7 @@ class TestBackpackAPIAccountOperations:
 
     @pytest.mark.asyncio
     async def test_get_balances_delegates_to_account_service(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock,
     ) -> None:
         """Test that get_balances properly delegates to account service."""
         api = bp_api_with_di()
@@ -262,7 +262,7 @@ class TestBackpackAPIAccountOperations:
                 total_quantity=Decimal("5000.0"),
                 available_quantity=Decimal("4800.0"),
                 timestamp=datetime.now(UTC),
-            )
+            ),
         }
         mock_bp_account_service.get_balances.return_value = expected_balances
 
@@ -277,7 +277,7 @@ class TestBackpackAPIAccountOperations:
 
     @pytest.mark.asyncio
     async def test_get_account_summary_delegates_to_account_service(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock,
     ) -> None:
         """Test that get_account_summary properly delegates to account service."""
         api = bp_api_with_di()
@@ -305,7 +305,7 @@ class TestBackpackAPIAccountOperations:
 
     @pytest.mark.asyncio
     async def test_get_positions_delegates_to_account_service(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock,
     ) -> None:
         """Test that get_positions properly delegates to account service."""
         api = bp_api_with_di()
@@ -325,7 +325,7 @@ class TestBackpackAPIAccountOperations:
 
     @pytest.mark.asyncio
     async def test_get_positions_with_symbol_delegates_to_account_service(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock,
     ) -> None:
         """Test that get_positions with symbol properly delegates to account service."""
         api = bp_api_with_di()
@@ -345,7 +345,7 @@ class TestBackpackAPIAccountOperations:
 
     @pytest.mark.asyncio
     async def test_get_order_history_delegates_to_account_service(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock,
     ) -> None:
         """Test that get_order_history properly delegates to account service."""
         api = bp_api_with_di()
@@ -366,7 +366,7 @@ class TestBackpackAPIAccountOperations:
 
     @pytest.mark.asyncio
     async def test_get_trade_history_delegates_to_account_service(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock,
     ) -> None:
         """Test that get_trade_history properly delegates to account service."""
         api = bp_api_with_di()
@@ -380,7 +380,7 @@ class TestBackpackAPIAccountOperations:
 
         # Verify service was called with correct parameters
         mock_bp_account_service.get_trade_history.assert_called_once_with(
-            args=GetTradeHistoryArgs(symbol="SOL", limit=50)
+            args=GetTradeHistoryArgs(symbol="SOL", limit=50),
         )
         assert result == expected_trades
 
@@ -392,7 +392,7 @@ class TestBackpackAPITradingOperations:
 
     @pytest.mark.asyncio
     async def test_place_order_delegates_to_trading_service(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock,
     ) -> None:
         """Test that place_order properly delegates to trading service."""
         api = bp_api_with_di()
@@ -442,7 +442,7 @@ class TestBackpackAPITradingOperations:
 
     @pytest.mark.asyncio
     async def test_cancel_order_delegates_to_trading_service(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock,
     ) -> None:
         """Test that cancel_order properly delegates to trading service."""
         api = bp_api_with_di()
@@ -462,7 +462,7 @@ class TestBackpackAPITradingOperations:
 
     @pytest.mark.asyncio
     async def test_get_order_delegates_to_trading_service(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock,
     ) -> None:
         """Test that get_order properly delegates to trading service."""
         api = bp_api_with_di()
@@ -497,7 +497,7 @@ class TestBackpackAPITradingOperations:
 
         # Verify service was called with correct parameters
         mock_bp_trading_service.get_order.assert_called_once_with(
-            args=GetOrderArgs(order_id="order_102", symbol="SOL")
+            args=GetOrderArgs(order_id="order_102", symbol="SOL"),
         )
         assert result == test_order
 
@@ -505,7 +505,7 @@ class TestBackpackAPITradingOperations:
 
     @pytest.mark.asyncio
     async def test_get_order_status_delegates_to_trading_service(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock,
     ) -> None:
         """Test that get_order_status properly delegates to trading service."""
         api = bp_api_with_di()
@@ -537,12 +537,12 @@ class TestBackpackAPITradingOperations:
 
         # Test delegation
         result = await api.get_order_status(
-            GetOrderArgs(order_id="order_103", symbol="SOL", client_order_id=None)
+            GetOrderArgs(order_id="order_103", symbol="SOL", client_order_id=None),
         )
 
         # Verify service was called with correct parameters
         mock_bp_trading_service.get_order_status.assert_called_once_with(
-            args=GetOrderArgs(order_id="order_103", symbol="SOL", client_order_id=None)
+            args=GetOrderArgs(order_id="order_103", symbol="SOL", client_order_id=None),
         )
         assert result == test_order
 
@@ -550,7 +550,7 @@ class TestBackpackAPITradingOperations:
 
     @pytest.mark.asyncio
     async def test_get_open_orders_delegates_to_trading_service(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock,
     ) -> None:
         """Test that get_open_orders properly delegates to trading service."""
         api = bp_api_with_di()
@@ -574,7 +574,7 @@ class TestBackpackAPIMarketDataOperations:
 
     @pytest.mark.asyncio
     async def test_get_ticker_delegates_to_market_data_service(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_market_data_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_market_data_service: MagicMock,
     ) -> None:
         """Test that get_ticker properly delegates to market data service."""
         api = bp_api_with_di()
@@ -599,7 +599,7 @@ class TestBackpackAPIMarketDataOperations:
 
     @pytest.mark.asyncio
     async def test_get_funding_rates_delegates_to_market_data_service(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_market_data_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_market_data_service: MagicMock,
     ) -> None:
         """Test that get_funding_rates properly delegates to market data service."""
         api = bp_api_with_di()
@@ -629,7 +629,7 @@ class TestBackpackAPIMarketDataOperations:
 
     @pytest.mark.asyncio
     async def test_get_ticker_empty_successful_response(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_market_data_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_market_data_service: MagicMock,
     ) -> None:
         """Test get_ticker handling of symbol not found error correctly."""
         api = bp_api_with_di()
@@ -658,7 +658,7 @@ class TestBackpackAPIErrorHandling:
 
     @pytest.mark.asyncio
     async def test_service_apierror_propagation_exact_passthrough(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock,
     ) -> None:
         """Test that APIError from service is propagated exactly without wrapping."""
         api = bp_api_with_di()
@@ -680,7 +680,7 @@ class TestBackpackAPIErrorHandling:
 
     @pytest.mark.asyncio
     async def test_service_valueerror_propagation_exact_passthrough(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_trading_service: MagicMock,
     ) -> None:
         """Test that ValueError from service is propagated exactly without wrapping."""
         api = bp_api_with_di()
@@ -760,7 +760,7 @@ class TestBackpackAPIComprehensiveErrorHandling:
 
     @pytest.mark.asyncio
     async def test_get_balances_service_validation_error(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock,
     ) -> None:
         """Test get_balances exact propagation of service validation errors."""
         api = bp_api_with_di()
@@ -772,7 +772,7 @@ class TestBackpackAPIComprehensiveErrorHandling:
             message="Invalid balance response structure",
             code=APIErrorCode.INVALID_RESPONSE.value,
             original_exception=ValidationError.from_exception_data(
-                title="BalanceModel", line_errors=[]
+                title="BalanceModel", line_errors=[],
             ),
         )
         mock_bp_account_service.get_balances.side_effect = validation_error
@@ -788,7 +788,7 @@ class TestBackpackAPIComprehensiveErrorHandling:
 
     @pytest.mark.asyncio
     async def test_get_positions_rate_limited_propagation(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock,
     ) -> None:
         """Test get_positions exact propagation of RATE_LIMITED error."""
         api = bp_api_with_di()
@@ -812,7 +812,7 @@ class TestBackpackAPIComprehensiveErrorHandling:
 
     @pytest.mark.asyncio
     async def test_get_account_summary_server_error_propagation(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock,
     ) -> None:
         """Test get_account_summary exact propagation of SERVER_ERROR."""
         api = bp_api_with_di()
@@ -836,7 +836,7 @@ class TestBackpackAPIComprehensiveErrorHandling:
 
     @pytest.mark.asyncio
     async def test_get_order_history_timeout_error_propagation(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock,
     ) -> None:
         """Test that timeout errors from get_order_history are properly propagated."""
         api = bp_api_with_di()
@@ -857,7 +857,7 @@ class TestBackpackAPIComprehensiveErrorHandling:
 
     @pytest.mark.asyncio
     async def test_get_trade_history_service_unavailable_propagation(
-        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock
+        self, bp_api_with_di: Callable[..., BackpackAPI], mock_bp_account_service: MagicMock,
     ) -> None:
         """Test get_trade_history exact propagation of SERVICE_UNAVAILABLE error."""
         api = bp_api_with_di()
@@ -883,7 +883,7 @@ class TestBackpackAPIWebSocketOperations:
 
     @pytest.mark.asyncio
     async def test_subscribe_delegates_to_ws_manager(
-        self, bp_api_with_di: Callable[..., BackpackAPI]
+        self, bp_api_with_di: Callable[..., BackpackAPI],
     ) -> None:
         """Test that subscribe works through public interface."""
         api = bp_api_with_di()
@@ -906,7 +906,7 @@ class TestBackpackAPIWebSocketOperations:
         await api.close()
 
     def test_subscription_payload_construction_public_behavior(
-        self, bp_api_with_di: Callable[..., BackpackAPI]
+        self, bp_api_with_di: Callable[..., BackpackAPI],
     ) -> None:
         """Test subscription payload construction through public behavior."""
         api = bp_api_with_di()
@@ -918,7 +918,7 @@ class TestBackpackAPIWebSocketOperations:
 
     @pytest.mark.asyncio
     async def test_websocket_message_handling_public_behavior(
-        self, bp_api_with_di: Callable[..., BackpackAPI]
+        self, bp_api_with_di: Callable[..., BackpackAPI],
     ) -> None:
         """Test WebSocket message handling through public behavior."""
         api = bp_api_with_di()
@@ -957,7 +957,7 @@ class TestBackpackAPIDependencyIsolation:
         assert api.trading_service is custom_trading_service
 
     def test_multiple_api_instances_are_isolated(
-        self, bp_api_with_di: Callable[..., BackpackAPI]
+        self, bp_api_with_di: Callable[..., BackpackAPI],
     ) -> None:
         """Test that multiple API instances don't share dependencies."""
         # Create separate mock instances for each API
@@ -987,7 +987,7 @@ class TestBackpackAPIDependencyIsolation:
         assert api1.market_data_service is not api2.market_data_service
 
     def test_dependency_injection_completeness(
-        self, bp_api_with_di: Callable[..., BackpackAPI]
+        self, bp_api_with_di: Callable[..., BackpackAPI],
     ) -> None:
         """Test that all expected dependencies are injected."""
         api = bp_api_with_di()
@@ -1024,7 +1024,7 @@ class TestBackpackAPIResourceManagement:
 
     @pytest.mark.asyncio
     async def test_context_manager_behavior(
-        self, bp_api_with_di: Callable[..., BackpackAPI]
+        self, bp_api_with_di: Callable[..., BackpackAPI],
     ) -> None:
         """Test API as context manager."""
         # Test that API can be used in a context manager

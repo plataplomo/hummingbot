@@ -78,7 +78,7 @@ class TestApiKeyAuthSecrets:
             {
                 "api_key": "secret_key",
                 "api_secret": "secret_value",
-            }
+            },
         )
 
         # SecretStr should not expose the actual value in string representation
@@ -93,7 +93,7 @@ class TestApiKeyAuthSecrets:
             {
                 "api_key": "test_key",
                 "api_secret": "test_secret",
-            }
+            },
         )
 
         with pytest.raises(ValidationError):
@@ -250,7 +250,7 @@ class TestTelegramSecrets:
                 {
                     "bot_token": "test_token",
                     "chat_id": "",
-                }
+                },
             )
         assert "chat_id" in str(exc_info.value)
 
@@ -260,7 +260,7 @@ class TestTelegramSecrets:
                 {
                     "bot_token": "test_token",
                     "chat_id": 123456789,
-                }
+                },
             )
         # Should be converted to string and validated
 
@@ -270,7 +270,7 @@ class TestTelegramSecrets:
                 {
                     "bot_token": "test_token",
                     "chat_id": "x" * 101,  # Exceeds max_length=100
-                }
+                },
             )
         assert "chat_id" in str(exc_info.value)
 
@@ -296,7 +296,7 @@ class TestNotificationsConfig:
             "telegram": {
                 "bot_token": "test_token",
                 "chat_id": "test_chat_id",
-            }
+            },
         }
 
         config = NotificationsConfig.model_validate(data)
@@ -317,7 +317,7 @@ class TestNotificationsConfig:
             "telegram": {
                 "bot_token": "test_token",
                 # Missing chat_id
-            }
+            },
         }
 
         with pytest.raises(ValidationError) as exc_info:
@@ -377,7 +377,7 @@ class TestSecretsConfig:
                 "telegram": {
                     "bot_token": "telegram_bot_token",
                     "chat_id": "telegram_chat_id",
-                }
+                },
             },
             "logfire": {
                 "write_token": "logfire_write_token",
@@ -393,13 +393,13 @@ class TestSecretsConfig:
         # Test exchanges
         assert "backpack" in config.exchanges
         assert "hyperliquid" in config.exchanges
-        
+
         # Test backpack (ApiKeyAuthSecrets)
         backpack_secrets = config.exchanges["backpack"]
         assert isinstance(backpack_secrets, ApiKeyAuthSecrets)
         assert backpack_secrets.auth_type == "api_key"
         assert backpack_secrets.api_key.get_secret_value() == "bp_api_key"
-        
+
         # Test hyperliquid (PrivateKeyAuthSecrets)
         hyperliquid_secrets = config.exchanges["hyperliquid"]
         assert isinstance(hyperliquid_secrets, PrivateKeyAuthSecrets)
@@ -482,7 +482,7 @@ class TestSecretsConfig:
     def test_backpack_empty_api_credentials(self) -> None:
         """Test Backpack validation with empty API credentials."""
         data = self.create_valid_secrets_data()
-        
+
         # Test empty api_key
         data["exchanges"]["backpack"] = {
             "auth_type": "api_key",
@@ -525,7 +525,7 @@ class TestSecretsConfig:
                 {
                     "notifications": {"telegram": {"bot_token": "token", "chat_id": "id"}},
                     "logfire": {"write_token": "token"},
-                }
+                },
             )
         assert "exchanges" in str(exc_info.value)
 
@@ -538,10 +538,10 @@ class TestSecretsConfig:
                             "auth_type": "api_key",
                             "api_key": "key",
                             "api_secret": "secret",
-                        }
+                        },
                     },
                     "logfire": {"write_token": "token"},
-                }
+                },
             )
         assert "notifications" in str(exc_info.value)
 
@@ -554,10 +554,10 @@ class TestSecretsConfig:
                             "auth_type": "api_key",
                             "api_key": "key",
                             "api_secret": "secret",
-                        }
+                        },
                     },
                     "notifications": {"telegram": {"bot_token": "token", "chat_id": "id"}},
-                }
+                },
             )
         assert "logfire" in str(exc_info.value)
 

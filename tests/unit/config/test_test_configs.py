@@ -65,7 +65,7 @@ class TestTestConfigurationFixtures:
         assert "backpack" in test_secrets_config.exchanges
 
     def test_hl_test_environment_from_config_default(
-        self, hl_test_environment_from_config: str
+        self, hl_test_environment_from_config: str,
     ) -> None:
         """Test that hl_test_environment_from_config returns correct default."""
         # Without environment variable set, should use config value
@@ -74,7 +74,7 @@ class TestTestConfigurationFixtures:
             assert hl_test_environment_from_config in ["mainnet", "testnet"]
 
     def test_hl_test_environment_from_config_with_env_var(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test that environment variable overrides config."""
         # Set environment variable

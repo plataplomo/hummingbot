@@ -63,13 +63,13 @@ class TestConfigManager:
                         "max_price_spread_pct": "0.05",
                         "min_profit_usd": "10.0",
                     },
-                }
+                },
             },
             "risk": {
                 "global": {
                     "max_position_usd": "1000.0",
                     "max_total_exposure_usd": "5000.0",
-                }
+                },
             },
             "execution": {
                 "max_slippage_pct": "0.01",
@@ -443,7 +443,7 @@ class TestConfigManager:
             from decimal import Decimal
 
             assert manager.settings.strategies.hl_perp_bp_spot.params.funding_threshold == Decimal(
-                "0.01"
+                "0.01",
             )
             assert manager.settings.risk.global_risk.max_position_usd == Decimal("1000")
             assert manager.settings.execution.max_slippage_pct == Decimal("0.01")
@@ -671,7 +671,7 @@ dangerous_tag: !!python/object/apply:os.system ["echo 'this should not execute'"
                             "max_price_spread_pct": "0.02",
                             "min_profit_usd": "5.0",
                         },
-                    }
+                    },
                 },
                 "risk": {
                     "global": {

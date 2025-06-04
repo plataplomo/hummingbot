@@ -206,7 +206,7 @@ def test_spot_balance_immutability(base_spot_balance_data: dict[str, Any]) -> No
             logger.warning(
                 f"Immutability Test Warning: object.__setattr__ modified frozen field 'asset' "
                 f"on SpotBalance instance for {balance.exchange}/{original_asset}. "
-                f"Value changed to: {balance.asset}. This might be known Pydantic behavior."
+                f"Value changed to: {balance.asset}. This might be known Pydantic behavior.",
             )
     except Exception as e:
         pytest.fail(f"object.__setattr__ raised unexpected exception on frozen model: {e}")

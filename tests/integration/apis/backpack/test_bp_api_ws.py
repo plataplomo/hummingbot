@@ -83,7 +83,7 @@ def bp_api_with_mocked_router(
                 with patch("cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder"):
                     # Patch WebSocketManager in the base module where it's imported
                     with patch(
-                        "cyberdelta.apis.base.exchange_api.WebSocketManager"
+                        "cyberdelta.apis.base.exchange_api.WebSocketManager",
                     ) as MockWSManager:
                         MockWSManager.return_value = mock_ws_manager
                         # Create API using standard constructor - no protected member access
@@ -99,22 +99,22 @@ class TestBackpackAPIWebSocketDelegation:
 
     @pytest.mark.asyncio
     async def test_websocket_subscription_public_interface(
-        self, bp_api_with_mocked_router: BackpackAPI
+        self, bp_api_with_mocked_router: BackpackAPI,
     ) -> None:
         """Test that WebSocket subscription works through public API without errors."""
         # Register a handler to verify the subscription system works
         handler = AsyncMock()
         topic = "depth.SOL_USDC"
-        
+
         # This should complete without error - testing public interface only
         await bp_api_with_mocked_router.subscribe(topic, handler)
-        
+
         # Verify the API maintains proper state after subscription
         assert bp_api_with_mocked_router.is_connected is False
 
     @pytest.mark.asyncio
     async def test_multiple_subscriptions_public_interface(
-        self, bp_api_with_mocked_router: BackpackAPI
+        self, bp_api_with_mocked_router: BackpackAPI,
     ) -> None:
         """Test that multiple subscriptions work through public interface."""
         # Test that the subscription mechanism works for multiple topics
@@ -133,7 +133,7 @@ class TestBackpackAPIWebSocketDelegation:
 
     @pytest.mark.asyncio
     async def test_websocket_connection_status_consistent(
-        self, bp_api_with_mocked_router: BackpackAPI
+        self, bp_api_with_mocked_router: BackpackAPI,
     ) -> None:
         """Test that WebSocket connection status remains consistent through public operations."""
         # Test various public operations maintain consistent connection state
@@ -142,10 +142,10 @@ class TestBackpackAPIWebSocketDelegation:
         # Test subscription operations
         await bp_api_with_mocked_router.subscribe("depth.SOL_USDC", handler)
         initial_status = bp_api_with_mocked_router.is_connected
-        
+
         await bp_api_with_mocked_router.subscribe("ticker.BTC_USDC", handler)
         after_second_sub = bp_api_with_mocked_router.is_connected
-        
+
         # Connection status should remain consistent
         assert initial_status == after_second_sub
 
@@ -155,7 +155,7 @@ class TestBackpackAPIWebSocketLifecycle:
 
     @pytest.fixture
     def bp_api(
-        self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ApiKeyAuthSecrets
+        self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ApiKeyAuthSecrets,
     ) -> BackpackAPI:
         """Create BackpackAPI instance with mocked dependencies for lifecycle tests."""
         with patch("cyberdelta.apis.backpack.bp_api.BackpackEd25519Authenticator"):
@@ -221,7 +221,7 @@ class TestBackpackAPIWebSocketIntegration:
 
     @pytest.fixture
     def bp_api(
-        self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ApiKeyAuthSecrets
+        self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ApiKeyAuthSecrets,
     ) -> BackpackAPI:
         """Create BackpackAPI instance with real router for integration tests."""
         with patch("cyberdelta.apis.backpack.bp_api.BackpackEd25519Authenticator"):
@@ -285,7 +285,7 @@ class TestBackpackAPIWebSocketEdgeCases:
 
     @pytest.fixture
     def bp_api_edge_case(
-        self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ApiKeyAuthSecrets
+        self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ApiKeyAuthSecrets,
     ) -> BackpackAPI:
         """Create BackpackAPI instance for edge case testing."""
         with patch("cyberdelta.apis.backpack.bp_api.BackpackEd25519Authenticator"):
@@ -313,7 +313,7 @@ class TestBackpackAPIWebSocketEdgeCases:
 
     @pytest.mark.asyncio
     async def test_subscription_special_characters_topic(
-        self, bp_api_edge_case: BackpackAPI
+        self, bp_api_edge_case: BackpackAPI,
     ) -> None:
         """Test subscription with special characters in topic."""
         handler = AsyncMock()
@@ -365,7 +365,7 @@ class TestBackpackAPIWebSocketEdgeCases:
 
     @pytest.mark.asyncio
     async def test_websocket_connection_status_consistency(
-        self, bp_api_edge_case: BackpackAPI
+        self, bp_api_edge_case: BackpackAPI,
     ) -> None:
         """Test that WebSocket connection status remains consistent."""
         # Test various operations maintain consistent state
@@ -420,7 +420,7 @@ class TestBackpackAPIWebSocketEdgeCases:
 
     @pytest.mark.asyncio
     async def test_api_state_consistency_across_operations(
-        self, bp_api_edge_case: BackpackAPI
+        self, bp_api_edge_case: BackpackAPI,
     ) -> None:
         """Test that API state remains consistent across various operations."""
         handler = AsyncMock()

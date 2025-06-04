@@ -232,7 +232,7 @@ def test_meta_response_happy_path() -> None:
         "universe": [
             {"name": "ETH", "szDecimals": 6, "maxLeverage": 50, "onlyIsolated": True},
             {"name": "BTC", "szDecimals": 6, "maxLeverage": 100, "onlyIsolated": False},
-        ]
+        ],
     }
     model = HyperliquidRawMetaResponse.model_validate(obj)
     assert len(model.universe) == 2
@@ -269,7 +269,7 @@ def test_meta_and_asset_ctxs_response_happy_path() -> None:
                 "markPx": "30000.0",
                 "prevDayPx": "29500.0",
                 "dayNtlVlm": "1000000.0",
-            }
+            },
         ],
     ]
     model = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(obj)

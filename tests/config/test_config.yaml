@@ -1,0 +1,53 @@
+# tests/config/test_config.yaml.example
+# Test-specific configuration for CyberDeltaEngine
+# Copy to tests/config/test_config.yaml and customize for your test environment.
+
+general:
+  # For testing, we might want a more verbose log level by default
+  log_level: DEBUG 
+  # Other general settings can be minimal or specific for tests if needed
+
+exchanges:
+  hyperliquid:
+    exchange_name: "hyperliquid"
+    enabled: true # Enable for testing
+    # Explicitly define mainnet and testnet URLs
+    api_base_url_mainnet: "https://api.hyperliquid.xyz"
+    ws_url_mainnet: "wss://api.hyperliquid.xyz/ws"
+    api_base_url_testnet: "https://api.hyperliquid-testnet.xyz"
+    ws_url_testnet: "wss://api.hyperliquid-testnet.xyz/ws"
+    # Default environment for tests using this config file
+    is_mainnet_environment: false # DEFAULT TO TESTNET FOR HYPERLIQUID
+    chain_id: 1337 # Constant for Hyperliquid EIP-712 domain
+    symbols: {"ETH": "ETH", "BTC": "BTC", "SOL": "SOL_USDC"} # Sample test symbols
+    # Test-specific rate limits (can be more lenient or specific)
+    rate_limit_per_minute: 10000 # Higher for testing if needed, or specific test values
+    ip_weight_limit_per_minute: 10000 
+    info_request_type_ip_weights: {"l2Book": 1, "allMids": 1} # Lower weights for tests
+    default_info_weight: 1
+    exchange_action_base_ip_weight: 1
+    address_action_safety_net: {"rate_per_minute": 10000}
+    websocket_send_rate_per_minute: 10000
+
+  backpack:
+    exchange_name: "backpack"
+    enabled: true # Enable for testing
+    api_base_url_mainnet: "https://api.backpack.exchange"
+    ws_url_mainnet: "wss://ws.backpack.exchange"
+    api_base_url_testnet: null # Backpack has no testnet
+    ws_url_testnet: null       # Backpack has no testnet
+    is_mainnet_environment: true # Always mainnet for Backpack
+    chain_id: null
+    rate_limit_per_minute: 10000 # Higher for testing if needed
+    symbols: {"SOL_USDC": "SOL_USDC", "PYTH_USDC": "PYTH_USDC"} # Sample test symbols
+  
+  # Add other exchanges if they need specific test configurations
+
+# Other sections like strategies, risk, etc., can be minimal or omitted
+# if not directly needed for API client testing, or include test-specific values.
+strategies: {} # Minimal
+risk: {}       # Minimal
+execution: {}  # Minimal
+safety_systems: {} # Minimal
+monitoring: {} # Minimal
+portfolio_tracker: {} # Minimal

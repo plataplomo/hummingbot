@@ -81,7 +81,7 @@ class TestBackpackMarketDataServiceFunding:
             result_funding_rate = await backpack_market_data_service.get_funding_rate(symbol)
 
             mock_request_builder.build_get_funding_rate_params.assert_called_once_with(
-                symbol=symbol
+                symbol=symbol,
             )
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
@@ -98,7 +98,7 @@ class TestBackpackMarketDataServiceFunding:
                 mock_headers_from_client,
             )
             mock_mapper.transform_raw_funding_rate_to_internal.assert_called_once_with(
-                mock_raw_funding_rate
+                mock_raw_funding_rate,
             )
             assert result_funding_rate == expected_internal_funding_rate
 
@@ -126,7 +126,7 @@ class TestBackpackMarketDataServiceFunding:
             assert "No data for funding_rate" in exc_info.value.message
 
             mock_request_builder.build_get_funding_rate_params.assert_called_once_with(
-                symbol=symbol
+                symbol=symbol,
             )
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
@@ -183,7 +183,7 @@ class TestBackpackMarketDataServiceFunding:
         mock_request_builder.build_get_funding_rate_params.return_value = mock_params
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_funding_rate_response.side_effect = Exception(
-            "Unexpected error"
+            "Unexpected error",
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -291,7 +291,7 @@ class TestBackpackMarketDataServiceFunding:
 
             # Assert calls to mapper
             assert mock_mapper.transform_raw_funding_interval_rate_to_internal.call_count == len(
-                mock_validated_funding_rates_raw
+                mock_validated_funding_rates_raw,
             )
 
             assert len(result) == len(mock_internal_funding_rates)
@@ -390,7 +390,7 @@ class TestBackpackMarketDataServiceFunding:
         mock_request_builder.build_get_historical_funding_rates_params.return_value = mock_params
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_historical_funding_rates_response.side_effect = Exception(
-            "Unexpected error"
+            "Unexpected error",
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -418,7 +418,7 @@ class TestBackpackMarketDataServiceFunding:
                 "markPrice": "100.0",
                 "indexPrice": "99.0",
                 "time": "2023-10-27T10:00:00Z",
-            }
+            },
         ]
 
         mock_request_builder.build_get_historical_funding_rates_params.return_value = mock_params

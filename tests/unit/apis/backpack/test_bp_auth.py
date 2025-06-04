@@ -33,10 +33,10 @@ def test_ed25519_keys() -> dict[str, str]:
 
 class TestBackpackEd25519Authenticator:
     def test_initialization_missing_api_key_raises_value_error(
-        self, test_ed25519_keys: dict[str, str]
+        self, test_ed25519_keys: dict[str, str],
     ) -> None:
         with pytest.raises(
-            ValueError, match="API key \\(Base64 public ED25519 key\\) cannot be empty"
+            ValueError, match="API key \\(Base64 public ED25519 key\\) cannot be empty",
         ):
             BackpackEd25519Authenticator(
                 api_key_b64_secret=SecretStr(""),
@@ -44,10 +44,10 @@ class TestBackpackEd25519Authenticator:
             )
 
     def test_initialization_missing_private_key_raises_value_error(
-        self, test_ed25519_keys: dict[str, str]
+        self, test_ed25519_keys: dict[str, str],
     ) -> None:
         with pytest.raises(
-            ValueError, match="Private key \\(Base64 private ED25519 key\\) cannot be empty"
+            ValueError, match="Private key \\(Base64 private ED25519 key\\) cannot be empty",
         ):
             BackpackEd25519Authenticator(
                 api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
@@ -55,7 +55,7 @@ class TestBackpackEd25519Authenticator:
             )
 
     def test_initialization_invalid_private_key_raises_value_error(
-        self, test_ed25519_keys: dict[str, str]
+        self, test_ed25519_keys: dict[str, str],
     ) -> None:
         with pytest.raises(ValueError, match="Invalid Base64 ED25519 private key"):
             BackpackEd25519Authenticator(
@@ -65,10 +65,10 @@ class TestBackpackEd25519Authenticator:
 
     def test_initialization_missing_both_credentials_raises_value_error(self) -> None:
         with pytest.raises(
-            ValueError, match="API key \\(Base64 public ED25519 key\\) cannot be empty"
+            ValueError, match="API key \\(Base64 public ED25519 key\\) cannot be empty",
         ):
             BackpackEd25519Authenticator(
-                api_key_b64_secret=SecretStr(""), private_key_b64_secret=SecretStr("")
+                api_key_b64_secret=SecretStr(""), private_key_b64_secret=SecretStr(""),
             )
 
     def test_initialization_success(self, test_ed25519_keys: dict[str, str]) -> None:
@@ -86,7 +86,7 @@ class TestBackpackEd25519Authenticator:
 
     @pytest.mark.asyncio
     async def test_prepare_request_get_balances(
-        self, test_ed25519_keys: dict[str, str], mock_time_patch: MagicMock
+        self, test_ed25519_keys: dict[str, str], mock_time_patch: MagicMock,
     ) -> None:
         """Test preparing a signed GET request for balance query."""
         auth = BackpackEd25519Authenticator(
@@ -95,7 +95,7 @@ class TestBackpackEd25519Authenticator:
         )
 
         components = await auth.prepare_request(
-            method="GET", path="/api/v1/capital", params=None, data=None, headers=None
+            method="GET", path="/api/v1/capital", params=None, data=None, headers=None,
         )
 
         # Verify basic structure
@@ -116,7 +116,7 @@ class TestBackpackEd25519Authenticator:
 
     @pytest.mark.asyncio
     async def test_prepare_request_get_with_params(
-        self, test_ed25519_keys: dict[str, str], mock_time_patch: MagicMock
+        self, test_ed25519_keys: dict[str, str], mock_time_patch: MagicMock,
     ) -> None:
         """Test preparing a signed GET request with query parameters."""
         auth = BackpackEd25519Authenticator(
@@ -127,7 +127,7 @@ class TestBackpackEd25519Authenticator:
         params = {"symbol": "SOL_USDC", "limit": "10"}
 
         components = await auth.prepare_request(
-            method="GET", path="/api/v1/orders", params=params, data=None, headers=None
+            method="GET", path="/api/v1/orders", params=params, data=None, headers=None,
         )
 
         # Verify signature exists and params are preserved
@@ -136,7 +136,7 @@ class TestBackpackEd25519Authenticator:
 
     @pytest.mark.asyncio
     async def test_prepare_request_post_with_data(
-        self, test_ed25519_keys: dict[str, str], mock_time_patch: MagicMock
+        self, test_ed25519_keys: dict[str, str], mock_time_patch: MagicMock,
     ) -> None:
         """Test preparing a signed POST request with JSON data."""
         auth = BackpackEd25519Authenticator(
@@ -147,7 +147,7 @@ class TestBackpackEd25519Authenticator:
         data = {"symbol": "SOL_USDC", "quantity": "1.0", "side": "buy", "orderType": "market"}
 
         components = await auth.prepare_request(
-            method="POST", path="/api/v1/order", params=None, data=data, headers=None
+            method="POST", path="/api/v1/order", params=None, data=data, headers=None,
         )
 
         # Verify signature and data preservation
@@ -156,7 +156,7 @@ class TestBackpackEd25519Authenticator:
 
     @pytest.mark.asyncio
     async def test_prepare_request_merges_existing_headers(
-        self, test_ed25519_keys: dict[str, str], mock_time_patch: MagicMock
+        self, test_ed25519_keys: dict[str, str], mock_time_patch: MagicMock,
     ) -> None:
         """Test that existing headers are preserved and merged with auth headers."""
         auth = BackpackEd25519Authenticator(
@@ -167,7 +167,7 @@ class TestBackpackEd25519Authenticator:
         existing_headers = {"X-Custom-Header": "CustomValue", "Content-Type": "application/xml"}
 
         components = await auth.prepare_request(
-            method="GET", path="/api/v1/capital", params=None, data=None, headers=existing_headers
+            method="GET", path="/api/v1/capital", params=None, data=None, headers=existing_headers,
         )
 
         # Verify existing headers are preserved
@@ -179,7 +179,7 @@ class TestBackpackEd25519Authenticator:
         assert "X-Signature" in components.headers
 
     def test_get_ws_subscription_signature_components_account_stream(
-        self, test_ed25519_keys: dict[str, str], mock_time_patch: MagicMock
+        self, test_ed25519_keys: dict[str, str], mock_time_patch: MagicMock,
     ) -> None:
         """Test WebSocket signature generation for account stream."""
         auth = BackpackEd25519Authenticator(
@@ -197,7 +197,7 @@ class TestBackpackEd25519Authenticator:
         assert len(components.signature) > 0
 
     def test_get_ws_subscription_signature_components_with_symbol(
-        self, test_ed25519_keys: dict[str, str], mock_time_patch: MagicMock
+        self, test_ed25519_keys: dict[str, str], mock_time_patch: MagicMock,
     ) -> None:
         """Test WebSocket signature generation for market data stream with symbol."""
         auth = BackpackEd25519Authenticator(
@@ -206,7 +206,7 @@ class TestBackpackEd25519Authenticator:
         )
 
         components = auth.get_ws_subscription_signature_components(
-            subscription_type="orderbook", symbol="SOL_USDC"
+            subscription_type="orderbook", symbol="SOL_USDC",
         )
 
         assert isinstance(components, BackpackWsSignatureComponents)
@@ -231,7 +231,7 @@ class TestBackpackEd25519Authenticator:
 
     @pytest.mark.asyncio
     async def test_signing_string_generation_order_cancel_example(
-        self, test_ed25519_keys: dict[str, str]
+        self, test_ed25519_keys: dict[str, str],
     ) -> None:
         """
         Test signing string generation using the orderCancel example from Backpack documentation.
@@ -252,7 +252,7 @@ class TestBackpackEd25519Authenticator:
             # We need to access the internal signing logic to verify the string_to_sign
             # Since prepare_request doesn't expose it, we'll test the components
             components = await auth.prepare_request(
-                method="DELETE", path="/api/v1/order", params=None, data=data, headers=None
+                method="DELETE", path="/api/v1/order", params=None, data=data, headers=None,
             )
 
             # Verify the request was prepared successfully
@@ -267,7 +267,7 @@ class TestBackpackEd25519Authenticator:
 
     @pytest.mark.asyncio
     async def test_signing_string_generation_json_body_query_format(
-        self, test_ed25519_keys: dict[str, str]
+        self, test_ed25519_keys: dict[str, str],
     ) -> None:
         """
         Test that JSON request bodies are converted to query string format for signing.
@@ -288,7 +288,7 @@ class TestBackpackEd25519Authenticator:
             }
 
             components = await auth.prepare_request(
-                method="POST", path="/api/v1/order", params=None, data=data, headers=None
+                method="POST", path="/api/v1/order", params=None, data=data, headers=None,
             )
 
             # Verify the request was prepared successfully
@@ -303,7 +303,7 @@ class TestBackpackEd25519Authenticator:
 
     @pytest.mark.asyncio
     async def test_signing_string_generation_with_none_values_filtered(
-        self, test_ed25519_keys: dict[str, str]
+        self, test_ed25519_keys: dict[str, str],
     ) -> None:
         """
         Test that None values are properly filtered out from the signing string.
@@ -325,7 +325,7 @@ class TestBackpackEd25519Authenticator:
             }
 
             components = await auth.prepare_request(
-                method="POST", path="/api/v1/order", params=None, data=data, headers=None
+                method="POST", path="/api/v1/order", params=None, data=data, headers=None,
             )
 
             # Verify the request was prepared successfully
@@ -338,7 +338,7 @@ class TestBackpackEd25519Authenticator:
 
     @pytest.mark.asyncio
     async def test_signing_string_generation_empty_body_no_double_ampersands(
-        self, test_ed25519_keys: dict[str, str]
+        self, test_ed25519_keys: dict[str, str],
     ) -> None:
         """
         Test that requests with no body don't create double ampersands in signing string.
@@ -351,7 +351,7 @@ class TestBackpackEd25519Authenticator:
         with patch("time.time", return_value=1678886400.0):
             # Test GET request with no params (empty content_part_str)
             components = await auth.prepare_request(
-                method="GET", path="/api/v1/capital", params=None, data=None, headers=None
+                method="GET", path="/api/v1/capital", params=None, data=None, headers=None,
             )
 
             # Verify the request was prepared successfully
@@ -365,7 +365,7 @@ class TestBackpackEd25519Authenticator:
 
     @pytest.mark.asyncio
     async def test_signing_string_generation_get_with_params_query_format(
-        self, test_ed25519_keys: dict[str, str]
+        self, test_ed25519_keys: dict[str, str],
     ) -> None:
         """
         Test that GET request parameters are properly URL-encoded and sorted for signing.
@@ -380,7 +380,7 @@ class TestBackpackEd25519Authenticator:
             params = {"symbol": "SOL_USDC", "limit": "50", "offset": "0"}
 
             components = await auth.prepare_request(
-                method="GET", path="/api/v1/orders", params=params, data=None, headers=None
+                method="GET", path="/api/v1/orders", params=params, data=None, headers=None,
             )
 
             # Verify the request was prepared successfully
@@ -394,7 +394,7 @@ class TestBackpackEd25519Authenticator:
 
     @pytest.mark.asyncio
     async def test_signing_string_generation_complex_data_types_stringified(
-        self, test_ed25519_keys: dict[str, str]
+        self, test_ed25519_keys: dict[str, str],
     ) -> None:
         """
         Test that complex data types (numbers, booleans) are properly stringified for signing.
@@ -415,7 +415,7 @@ class TestBackpackEd25519Authenticator:
             }
 
             components = await auth.prepare_request(
-                method="POST", path="/api/v1/order", params=None, data=data, headers=None
+                method="POST", path="/api/v1/order", params=None, data=data, headers=None,
             )
 
             # Verify the request was prepared successfully
@@ -429,7 +429,7 @@ class TestBackpackEd25519Authenticator:
 
     @pytest.mark.asyncio
     async def test_delete_request_authentication_components_order_cancel(
-        self, test_ed25519_keys: dict[str, str]
+        self, test_ed25519_keys: dict[str, str],
     ) -> None:
         """
         Test DELETE request authentication components for order cancellation.
@@ -448,7 +448,7 @@ class TestBackpackEd25519Authenticator:
             data = {"orderId": "28", "symbol": "BTC_USDT"}
 
             components = await auth.prepare_request(
-                method="DELETE", path="/api/v1/order", params=None, data=data, headers=None
+                method="DELETE", path="/api/v1/order", params=None, data=data, headers=None,
             )
 
             # Verify the request was prepared successfully
@@ -471,7 +471,7 @@ class TestBackpackEd25519Authenticator:
 
     @pytest.mark.asyncio
     async def test_post_request_authentication_components_order_creation(
-        self, test_ed25519_keys: dict[str, str]
+        self, test_ed25519_keys: dict[str, str],
     ) -> None:
         """
         Test POST request authentication components for order creation.
@@ -495,7 +495,7 @@ class TestBackpackEd25519Authenticator:
             }
 
             components = await auth.prepare_request(
-                method="POST", path="/api/v1/order", params=None, data=data, headers=None
+                method="POST", path="/api/v1/order", params=None, data=data, headers=None,
             )
 
             # Verify the request was prepared successfully
@@ -518,7 +518,7 @@ class TestBackpackEd25519Authenticator:
 
     @pytest.mark.asyncio
     async def test_get_request_authentication_components_no_params(
-        self, test_ed25519_keys: dict[str, str]
+        self, test_ed25519_keys: dict[str, str],
     ) -> None:
         """
         Test GET request authentication components without parameters.
@@ -533,7 +533,7 @@ class TestBackpackEd25519Authenticator:
 
         with patch("time.time", return_value=1678886400.0):
             components = await auth.prepare_request(
-                method="GET", path="/api/v1/capital", params=None, data=None, headers=None
+                method="GET", path="/api/v1/capital", params=None, data=None, headers=None,
             )
 
             # Verify the request was prepared successfully
@@ -555,7 +555,7 @@ class TestBackpackEd25519Authenticator:
 
     @pytest.mark.asyncio
     async def test_get_request_authentication_components_with_params(
-        self, test_ed25519_keys: dict[str, str]
+        self, test_ed25519_keys: dict[str, str],
     ) -> None:
         """
         Test GET request authentication components with parameters.
@@ -572,7 +572,7 @@ class TestBackpackEd25519Authenticator:
             params = {"symbol": "SOL_USDC", "limit": "50", "offset": "0"}
 
             components = await auth.prepare_request(
-                method="GET", path="/api/v1/orders", params=params, data=None, headers=None
+                method="GET", path="/api/v1/orders", params=params, data=None, headers=None,
             )
 
             # Verify the request was prepared successfully

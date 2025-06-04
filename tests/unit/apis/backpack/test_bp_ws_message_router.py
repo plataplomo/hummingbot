@@ -86,7 +86,7 @@ class TestBackpackWsMessageRouter:
         assert hasattr(router, "logger")
 
     def test_construct_subscription_payload_basic_topic(
-        self, router: BackpackWsMessageRouter
+        self, router: BackpackWsMessageRouter,
     ) -> None:
         """Test subscription payload construction for basic topics."""
         result = router.construct_subscription_payload("depth.SOL_USDC")
@@ -100,7 +100,7 @@ class TestBackpackWsMessageRouter:
         assert result.signature is None
 
     def test_construct_subscription_payload_various_topics(
-        self, router: BackpackWsMessageRouter
+        self, router: BackpackWsMessageRouter,
     ) -> None:
         """Test subscription payload construction for various topic types."""
         from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
@@ -141,7 +141,7 @@ class TestBackpackWsMessageRouter:
 
         # Verify mapper was called with correct symbol
         mock_market_data_mapper.transform_ws_depth_event_to_internal.assert_called_once_with(
-            "SOL_USDC", {"mock": "depth_data"}
+            "SOL_USDC", {"mock": "depth_data"},
         )
 
         # Verify app handler was called
@@ -165,10 +165,10 @@ class TestBackpackWsMessageRouter:
         await router.route_message(message, ws_handlers)
 
         mock_raw_ws_handler.handle_ticker_payload.assert_called_once_with(
-            {"price": "50000", "volume": "100"}
+            {"price": "50000", "volume": "100"},
         )
         mock_market_data_mapper.transform_ws_ticker_event_to_internal.assert_called_once_with(
-            {"mock": "ticker_data"}
+            {"mock": "ticker_data"},
         )
         mock_app_handler.assert_called_once()
 
@@ -190,10 +190,10 @@ class TestBackpackWsMessageRouter:
         await router.route_message(message, ws_handlers)
 
         mock_raw_ws_handler.handle_trade_event_payload.assert_called_once_with(
-            {"id": "123", "price": "50000", "quantity": "1.0"}
+            {"id": "123", "price": "50000", "quantity": "1.0"},
         )
         mock_account_data_mapper.transform_ws_fill_event_to_internal_trade.assert_called_once_with(
-            {"mock": "trade_data"}
+            {"mock": "trade_data"},
         )
         mock_app_handler.assert_called_once()
 
@@ -215,10 +215,10 @@ class TestBackpackWsMessageRouter:
         await router.route_message(message, ws_handlers)
 
         mock_raw_ws_handler.handle_order_update_payload.assert_called_once_with(
-            {"id": "order123", "status": "filled"}
+            {"id": "order123", "status": "filled"},
         )
         mock_trading_data_mapper.transform_ws_order_update_to_internal_order.assert_called_once_with(
-            {"mock": "order_data"}
+            {"mock": "order_data"},
         )
         mock_app_handler.assert_called_once()
 
@@ -240,10 +240,10 @@ class TestBackpackWsMessageRouter:
         await router.route_message(message, ws_handlers)
 
         mock_raw_ws_handler.handle_position_update_payload.assert_called_once_with(
-            {"symbol": "SOL_USDC", "size": "10.0"}
+            {"symbol": "SOL_USDC", "size": "10.0"},
         )
         mock_account_data_mapper.transform_ws_position_update_to_internal_position.assert_called_once_with(
-            {"mock": "position_data"}
+            {"mock": "position_data"},
         )
         mock_app_handler.assert_called_once()
 
@@ -341,7 +341,7 @@ class TestBackpackWsMessageRouter:
     ) -> None:
         """Test handling APIError from raw message handler."""
         mock_raw_ws_handler.handle_depth_payload.side_effect = APIError(
-            "Invalid depth data", code="INVALID_DATA"
+            "Invalid depth data", code="INVALID_DATA",
         )
 
         message = {
@@ -425,5 +425,5 @@ class TestBackpackWsMessageRouter:
             await router.route_message(message, ws_handlers)
 
             mock_market_data_mapper.transform_ws_depth_event_to_internal.assert_called_once_with(
-                expected_symbol, {"mock": "depth_data"}
+                expected_symbol, {"mock": "depth_data"},
             )

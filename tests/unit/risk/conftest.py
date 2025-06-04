@@ -100,7 +100,7 @@ def mock_portfolio_tracker() -> MagicMock:
     tracker.get_all_positions.return_value = []  # Default to no positions
     tracker.get_current_drawdown.return_value = Decimal("0.05")  # 5% drawdown
     tracker.get_total_exposure_usd = AsyncMock(
-        return_value=Decimal("0.0")
+        return_value=Decimal("0.0"),
     )  # Use AsyncMock for async method
     return tracker
 
@@ -188,7 +188,7 @@ def sample_opportunity_dict() -> dict[str, Any]:
         "timestamp": now,
         "utility_score": Decimal("0.8"),
         "expected_profit": Decimal(
-            "0.00015"
+            "0.00015",
         ),  # Changed from expected_return, using NFD value for simplicity
         "basis_volatility": Decimal("0.005"),  # Example 0.5% volatility
         "confidence_score": Decimal("0.9"),

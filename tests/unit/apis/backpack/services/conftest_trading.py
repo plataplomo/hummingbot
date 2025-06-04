@@ -21,7 +21,7 @@ from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 
 # Type alias for the HTTP client requester callable
 HttpClientRequesterSig = Callable[
-    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]]
+    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
 ]
 
 

@@ -39,7 +39,7 @@ class TestBackpackErrorMapper:
     ) -> None:
         mapper = BackpackErrorMapper()
         api_error = mapper.map_exchange_error(
-            http_status, error_body, error_data=json.loads(error_body)
+            http_status, error_body, error_data=json.loads(error_body),
         )
         assert api_error.code == expected_code.value
         assert expected_message_contains in api_error.message
@@ -72,7 +72,7 @@ class TestBackpackErrorMapper:
     ) -> None:
         mapper = BackpackErrorMapper()
         api_error = mapper.map_exchange_error(
-            http_status, error_body, error_data=json.loads(error_body)
+            http_status, error_body, error_data=json.loads(error_body),
         )
         assert api_error.code == expected_code.value
         assert expected_message_contains in api_error.message
@@ -108,7 +108,7 @@ class TestBackpackErrorMapper:
     ) -> None:
         mapper = BackpackErrorMapper()
         api_error = mapper.map_exchange_error(
-            http_status, error_body, error_data=json.loads(error_body)
+            http_status, error_body, error_data=json.loads(error_body),
         )
         assert api_error.code == expected_api_code.value
         assert expected_message_contains in api_error.message
@@ -122,7 +122,7 @@ class TestBackpackErrorMapper:
                 '{"message":"Too Many Requests","code":"TOO_MANY_REQUESTS"}',
                 APIErrorCode.RATE_LIMITED,
                 "Too Many Requests",
-            )
+            ),
         ],
     )
     def test_map_rate_limited_429_error(
@@ -134,7 +134,7 @@ class TestBackpackErrorMapper:
     ) -> None:
         mapper = BackpackErrorMapper()
         api_error = mapper.map_exchange_error(
-            http_status, error_body, error_data=json.loads(error_body)
+            http_status, error_body, error_data=json.loads(error_body),
         )
         assert api_error.code == expected_code.value
         assert expected_message_contains in api_error.message
@@ -179,7 +179,7 @@ class TestBackpackErrorMapper:
                 '{"message":"Service temporarily unavailable","code":"MAINTENANCE"}',
                 APIErrorCode.MAINTENANCE,
                 "Service temporarily unavailable",
-            )
+            ),
         ],
     )
     def test_map_service_unavailable_503(
@@ -191,7 +191,7 @@ class TestBackpackErrorMapper:
     ) -> None:
         mapper = BackpackErrorMapper()
         api_error = mapper.map_exchange_error(
-            http_status, error_body, error_data=json.loads(error_body)
+            http_status, error_body, error_data=json.loads(error_body),
         )
         assert api_error.code == expected_code.value
         assert expected_message_contains in api_error.message
@@ -296,7 +296,7 @@ class TestBackpackErrorMapper:
         expected_message_part: str,
     ) -> None:
         api_error = backpack_error_mapper.map_exchange_error(
-            status_code, error_body, error_data=None
+            status_code, error_body, error_data=None,
         )
         assert api_error.code == expected_api_code.value
         assert expected_message_part in api_error.message
@@ -331,7 +331,7 @@ class TestBackpackErrorMapper:
         assert api_error.metadata == error_data
 
     def test_map_empty_error_body_and_data(
-        self, backpack_error_mapper: BackpackErrorMapper
+        self, backpack_error_mapper: BackpackErrorMapper,
     ) -> None:
         api_error = backpack_error_mapper.map_exchange_error(500, "", error_data=None)
         assert api_error.code == APIErrorCode.EXCHANGE_SPECIFIC.value
@@ -419,7 +419,7 @@ class TestBackpackErrorMapper:
             error_body = json.dumps(error_data)
 
         api_error = backpack_error_mapper.map_exchange_error(
-            status_code, error_body, error_data=error_data
+            status_code, error_body, error_data=error_data,
         )
 
         # Check retry_after value

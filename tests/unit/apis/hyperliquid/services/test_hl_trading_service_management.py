@@ -137,7 +137,7 @@ class TestHyperliquidTradingServiceManagement:
             },
         ]
         mock_raw_response = HyperliquidRawOpenOrdersResponse.model_validate(
-            mock_raw_open_orders_data
+            mock_raw_open_orders_data,
         )
         mock_hl_response_handler.handle_info_open_orders_response.return_value = mock_raw_response
 
@@ -296,7 +296,7 @@ class TestHyperliquidTradingServiceManagement:
             },
         ]
         mock_raw_response = HyperliquidRawOpenOrdersResponse.model_validate(
-            mock_raw_open_orders_data
+            mock_raw_open_orders_data,
         )
         mock_hl_response_handler.handle_info_open_orders_response.return_value = mock_raw_response
 

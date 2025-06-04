@@ -86,13 +86,12 @@ class TestBacktestingIntegration:
 
     def test_strategy_adapter_integration(self) -> None:
         """Test that the StrategyAdapter works with actual strategies"""
-
         assert self.funding_data is not None, "funding_data was not initialized in setup_class"
 
         # Create a mock strategy
         class MockStrategy(Strategy):
             def __init__(
-                self, name: str, symbol: str, exchange_name: str = "mock_exchange"
+                self, name: str, symbol: str, exchange_name: str = "mock_exchange",
             ) -> None:
                 super().__init__(name, symbol, {})  # Use provided symbol
                 self.entry_threshold = Decimal("0")  # Initialize attribute
@@ -121,7 +120,7 @@ class TestBacktestingIntegration:
         # Instantiate with a symbol present in the test data
         target_test_symbol = TEST_SYMBOL  # Use the consistent TEST_SYMBOL
         mock_strategy = MockStrategy(
-            "MockStrategy", target_test_symbol, exchange_name="test_exchange_A"
+            "MockStrategy", target_test_symbol, exchange_name="test_exchange_A",
         )
         mock_strategy.entry_threshold = Decimal("30000.0")
 
@@ -142,7 +141,7 @@ class TestBacktestingIntegration:
         if first_close_price_column_key not in self.funding_data.columns:
             pytest.fail(
                 f"Column {first_close_price_column_key} not found in generated data. "
-                f"Available: {self.funding_data.columns}"
+                f"Available: {self.funding_data.columns}",
             )
 
         # The type of the element retrieved can vary, use Any
@@ -169,7 +168,7 @@ class TestBacktestingIntegration:
         """Test integration with the FundingRateArbitrageStrategy"""
         pytest.skip(
             "Skipping FundingRateArbitrageStrategy integration test temporarily due to "
-            "potential import/dependency issues."
+            "potential import/dependency issues.",
         )
         # try:
         #     from unittest.mock import MagicMock  # Import MagicMock
@@ -243,17 +242,17 @@ class TestBacktestingIntegration:
                             self.price_threshold = Decimal(str(mean_price))
                             logger.info(
                                 f"Initialized {self.name} with price threshold: "
-                                f"{self.price_threshold:.2f} from {TEST_SYMBOL} mean price."
+                                f"{self.price_threshold:.2f} from {TEST_SYMBOL} mean price.",
                             )
                         except (InvalidOperation, TypeError, KeyError) as e:
                             logger.warning(
                                 f"Could not calculate mean for {price_column_key}, "
-                                f"using default threshold {self.price_threshold}. Error: {e}"
+                                f"using default threshold {self.price_threshold}. Error: {e}",
                             )
                     else:
                         logger.warning(
                             f"Price column {price_column_key} not found in data, "
-                            f"using default threshold {self.price_threshold}."
+                            f"using default threshold {self.price_threshold}.",
                         )
                     self.initialized = True
                 return True
@@ -277,12 +276,11 @@ class TestBacktestingIntegration:
                 # Linter flagged isinstance(current_data, pd.DataFrame) as
                 # unnecessary, removing elif. This assumes if it's not a Series,
                 # it must be a DataFrame based on type hint.
-                else:
-                    if price_column_key in current_data.columns:
-                        # Assuming we need the first (or only) value if it's a
-                        # DataFrame slice for current step
-                        # Ignore type error for iloc on potentially complex Series/DataFrame slice
-                        price_val_raw = current_data[price_column_key].iloc[0]
+                elif price_column_key in current_data.columns:
+                    # Assuming we need the first (or only) value if it's a
+                    # DataFrame slice for current step
+                    # Ignore type error for iloc on potentially complex Series/DataFrame slice
+                    price_val_raw = current_data[price_column_key].iloc[0]
 
                 if price_val_raw is None:
                     # logger.debug(f"No price data for {TEST_SYMBOL} in current_data step.")
@@ -305,7 +303,7 @@ class TestBacktestingIntegration:
                                 "side": "buy",
                                 "price": price,
                                 "size": Decimal("0.1"),
-                            }
+                            },
                         )
                         self.position = True  # Update position status
                 elif price > self.price_threshold * Decimal("1.1"):
@@ -318,7 +316,7 @@ class TestBacktestingIntegration:
                                 "price": price,
                                 "size": Decimal("0.1"),
                                 "pnl": (price / self.price_threshold) - Decimal("1"),
-                            }
+                            },
                         )
                         self.position = False  # Update position status
 

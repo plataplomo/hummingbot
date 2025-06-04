@@ -15,14 +15,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
 
 import pytest
 
 # Third-party imports for type checking only
-if TYPE_CHECKING:
-    pass
-
 # Project-specific imports
 from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
@@ -706,7 +702,7 @@ class TestPositionAndTradeIntegration:
                 unrealizedPnl=str(10.0 + i * 5),
             )
             asset_positions.append(
-                HyperliquidRawAssetPosition(asset=symbol, position=position_info)
+                HyperliquidRawAssetPosition(asset=symbol, position=position_info),
             )
 
         raw_state = HyperliquidRawClearinghouseState(

@@ -43,7 +43,8 @@ def test_trade_minimal_valid() -> None:
 
 def test_trade_with_all_optionals() -> None:
     """Test that a Trade instance with all optional fields is accepted and values are set
-    correctly."""
+    correctly.
+    """
     price = Decimal("100.0")
     quantity = Decimal("2.0")
     hl_details = HyperliquidTradeDetails(
@@ -245,7 +246,8 @@ def test_trade_decimal_parsing() -> None:
 
 def test_trade_optional_string_fields() -> None:
     """Test that optional string fields accept None and valid strings, and reject invalid
-    strings."""
+    strings.
+    """
     # Valid
     hl_details = HyperliquidTradeDetails(
         trade_hash="hash-abc",
@@ -303,7 +305,8 @@ def test_trade_optional_string_fields() -> None:
 
 def test_trade_optional_decimal_fields() -> None:
     """Test that optional decimal fields accept None and valid decimals, and reject invalid
-    values."""
+    values.
+    """
     # Valid
     hl_details = HyperliquidTradeDetails(
         trade_hash="hash-abc",

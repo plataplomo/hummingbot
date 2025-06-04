@@ -66,7 +66,7 @@ class TestEdgeCasesAndRobustness:
     """Test cases for edge cases and robustness."""
 
     def test_boundary_decimal_values(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of boundary decimal values."""
         raw_fill = create_raw_fill(
@@ -100,7 +100,7 @@ class TestEdgeCasesAndRobustness:
         assert result is None
 
     def test_zero_price_non_zero_quantity(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of zero price with non-zero quantity."""
         raw_fill = create_raw_fill(
@@ -115,7 +115,7 @@ class TestEdgeCasesAndRobustness:
         assert result is None
 
     def test_zero_quantity_non_zero_price(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of zero quantity with non-zero price."""
         raw_fill = create_raw_fill(
@@ -130,7 +130,7 @@ class TestEdgeCasesAndRobustness:
         assert result is None
 
     def test_unicode_symbol_handling(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of unicode characters in symbols."""
         unicode_symbols = [
@@ -152,7 +152,7 @@ class TestEdgeCasesAndRobustness:
             assert result.symbol == symbol
 
     def test_unicode_fee_symbol_handling(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of unicode characters in fee symbols."""
         unicode_fee_symbols = [
@@ -186,12 +186,12 @@ class TestEdgeCasesAndRobustness:
 
         # Should raise TransformationError due to client_order_id length validation (max 64 chars)
         with pytest.raises(
-            TransformationError, match="Failed to transform BackpackRawFill to Trade"
+            TransformationError, match="Failed to transform BackpackRawFill to Trade",
         ):
             mapper.transform_raw_fill_to_internal(raw_fill)
 
     def test_maximum_decimal_precision(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of maximum decimal precision values."""
         # Test with Python Decimal's maximum useful precision
@@ -216,7 +216,7 @@ class TestEdgeCasesAndRobustness:
         assert result.fee == Decimal(max_precision_fee)
 
     def test_scientific_notation_handling(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of scientific notation in numeric fields."""
         scientific_price = "1.23e-6"  # 0.00000123
@@ -240,7 +240,7 @@ class TestEdgeCasesAndRobustness:
         assert result.fee == Decimal("0.000000025")
 
     def test_negative_values_handling(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of negative values (which should be invalid for fills)."""
         # Test negative price (invalid for fills)
@@ -251,11 +251,11 @@ class TestEdgeCasesAndRobustness:
 
         # Mock parse_decimal_value to allow negative values to test handling
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value"
+            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value",
         ) as mock_parse:
 
             def side_effect(
-                value: str, allow_none: bool = False, field_name: str = ""
+                value: str, allow_none: bool = False, field_name: str = "",
             ) -> Decimal | None:
                 try:
                     return Decimal(str(value)) if value else None
@@ -270,7 +270,7 @@ class TestEdgeCasesAndRobustness:
             assert result is None
 
     def test_whitespace_in_values(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of whitespace in numeric string values."""
         raw_fill = create_raw_fill(
@@ -291,7 +291,7 @@ class TestEdgeCasesAndRobustness:
         assert result.fee == Decimal("0.05")
 
     def test_special_characters_in_symbols(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of special characters in symbol names."""
         special_symbols = [
@@ -313,7 +313,7 @@ class TestEdgeCasesAndRobustness:
             assert result.symbol == symbol
 
     def test_transformation_error_context_preservation(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test that transformation errors preserve context information."""
         raw_fill = create_raw_fill(timestamp=test_timestamp)
@@ -322,7 +322,7 @@ class TestEdgeCasesAndRobustness:
         original_error = ValueError("Specific parsing error with detailed context")
 
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value"
+            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value",
         ) as mock_parse:
             mock_parse.side_effect = original_error
 
@@ -340,7 +340,7 @@ class TestEdgeCasesAndRobustness:
 
         # Mock parse_datetime_utc to simulate malformed timestamp parsing
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_datetime_utc"
+            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_datetime_utc",
         ) as mock_parse_datetime:
             # Return None to simulate failed timestamp parsing
             mock_parse_datetime.return_value = None
@@ -355,7 +355,7 @@ class TestEdgeCasesAndRobustness:
             assert result.executed_at is not None
 
     def test_extremely_large_trade_ids(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of extremely large trade IDs."""
         large_trade_ids = [
@@ -374,7 +374,7 @@ class TestEdgeCasesAndRobustness:
             assert result.id == str(trade_id)
 
     def test_edge_case_fee_values(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of edge case fee values."""
         edge_case_fees = [
@@ -395,7 +395,7 @@ class TestEdgeCasesAndRobustness:
             assert result.fee == Decimal(fee)
 
     def test_mixed_case_side_values(
-        self, mapper: BackpackAccountDataMapper, test_timestamp: str
+        self, mapper: BackpackAccountDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of mixed case side values."""
         # Only test side values that are actually accepted by the raw model

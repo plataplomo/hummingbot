@@ -93,13 +93,7 @@ def test_BackpackRawAccount_wrong_type_fields(field: str, value: object) -> None
 def test_BackpackRawAccount_adversarial_strings(field: str, value: object) -> None:
     p = valid_account().copy()
     p[field] = value
-    if isinstance(value, str) and value.strip() == "":
-        with pytest.raises(ValidationError):
-            BackpackRawAccount.model_validate(p)
-    elif not isinstance(value, str):
-        with pytest.raises(ValidationError):
-            BackpackRawAccount.model_validate(p)
-    elif field == "email" and len(value) > 254:
+    if (isinstance(value, str) and value.strip() == "") or not isinstance(value, str) or (field == "email" and len(value) > 254):
         with pytest.raises(ValidationError):
             BackpackRawAccount.model_validate(p)
     else:
@@ -183,10 +177,7 @@ def test_BackpackRawBalance_decimal_edge_cases(field: str, value: str, should_pa
 def test_BackpackRawBalance_adversarial_strings(field: str, value: object) -> None:
     p = valid_balance().copy()
     p[field] = value
-    if isinstance(value, str) and value.strip() == "":
-        with pytest.raises(ValidationError):
-            BackpackRawBalance.model_validate(p)
-    elif not isinstance(value, str):
+    if (isinstance(value, str) and value.strip() == "") or not isinstance(value, str):
         with pytest.raises(ValidationError):
             BackpackRawBalance.model_validate(p)
     else:
@@ -244,7 +235,7 @@ def test_BackpackRawBalance_corruption_cases() -> None:
             else:
                 pytest.fail(
                     f"Failed corruption case: {description} ("
-                    f"{field}={value!r}) - ValidationError not raised"
+                    f"{field}={value!r}) - ValidationError not raised",
                 )
 
 

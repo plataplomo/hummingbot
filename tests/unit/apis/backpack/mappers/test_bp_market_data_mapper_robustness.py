@@ -97,7 +97,7 @@ class TestBoundaryValueHandling:
     """Test cases for boundary value scenarios."""
 
     def test_decimal_precision_boundaries(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str
+        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of extreme decimal precision values."""
         # Test maximum precision supported by Decimal
@@ -113,7 +113,7 @@ class TestBoundaryValueHandling:
         assert result.price == Decimal(max_precision_price)
 
     def test_very_large_numeric_values(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str
+        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of very large numeric values."""
         large_price = "999999999999999.999999"
@@ -131,7 +131,7 @@ class TestBoundaryValueHandling:
         assert result.volume == Decimal(large_volume)
 
     def test_very_small_numeric_values(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str
+        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of very small numeric values."""
         small_price = "0.000000000000001"
@@ -149,7 +149,7 @@ class TestBoundaryValueHandling:
         assert result.volume == Decimal(small_volume)
 
     def test_zero_and_negative_value_handling(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str
+        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of zero and negative values where applicable."""
         # Test zero values
@@ -169,7 +169,7 @@ class TestBoundaryValueHandling:
         assert result_zero.volume == Decimal("0")
 
     def test_massive_order_book_levels(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str
+        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of order books with very large numbers of levels."""
         # Create 1000 bid and ask levels to test performance and memory handling
@@ -191,7 +191,7 @@ class TestBoundaryValueHandling:
         assert result.asks[-1] == (Decimal("101.999"), Decimal("1000.0"))
 
     def test_maximum_string_length_handling(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str
+        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of maximum allowed string lengths."""
         # Test with maximum trade ID length (64 characters based on model validation)
@@ -220,7 +220,7 @@ class TestUnicodeAndEncodingSupport:
     """Test cases for unicode and encoding edge cases."""
 
     def test_unicode_symbols_comprehensive(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str
+        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
     ) -> None:
         """Test comprehensive unicode symbol support."""
         unicode_symbols = [
@@ -242,7 +242,7 @@ class TestUnicodeAndEncodingSupport:
             assert result.symbol == symbol
 
     def test_unicode_in_trade_ids(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str
+        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
     ) -> None:
         """Test unicode characters in trade IDs."""
         unicode_trade_ids = [
@@ -261,7 +261,7 @@ class TestUnicodeAndEncodingSupport:
             assert result.id == trade_id
 
     def test_mixed_unicode_ascii_handling(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str
+        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
     ) -> None:
         """Test mixed unicode and ASCII character handling."""
         mixed_symbol = "SOL-USDC_测试_🚀_ABC_123"
@@ -274,7 +274,7 @@ class TestUnicodeAndEncodingSupport:
         assert result.symbol == mixed_symbol
 
     def test_special_characters_in_values(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str
+        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of special characters in various fields."""
         # Test symbols with special characters commonly used in trading
@@ -299,14 +299,14 @@ class TestErrorHandlingAndRecovery:
     """Test cases for error handling and recovery scenarios."""
 
     def test_malformed_decimal_recovery(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str
+        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
     ) -> None:
         """Test recovery from malformed decimal values."""
         raw_ticker = create_raw_ticker(time=test_timestamp)
 
         # Mock parse_decimal_value to simulate malformed data
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value"
+            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value",
         ) as mock_parse:
             mock_parse.side_effect = ValueError("Invalid decimal format")
 
@@ -319,12 +319,12 @@ class TestErrorHandlingAndRecovery:
         raw_ticker = create_raw_ticker()
 
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_datetime_utc"
+            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_datetime_utc",
         ) as mock_parse_datetime:
             mock_parse_datetime.return_value = None
 
             with patch(
-                "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.datetime"
+                "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.datetime",
             ) as mock_datetime:
                 mock_now = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
                 mock_datetime.now.return_value = mock_now
@@ -335,7 +335,7 @@ class TestErrorHandlingAndRecovery:
                 assert result.timestamp == mock_now
 
     def test_partial_data_handling(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str
+        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of partial/incomplete data."""
         # Test ticker with minimal data
@@ -358,7 +358,7 @@ class TestErrorHandlingAndRecovery:
         assert result.volume is None
 
     def test_empty_order_book_handling(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str
+        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
     ) -> None:
         """Test handling of completely empty order books."""
         empty_book = create_raw_order_book(
@@ -374,7 +374,7 @@ class TestErrorHandlingAndRecovery:
         assert result.symbol == "SOL-USDC"
 
     def test_transformation_error_context_preservation(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str
+        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
     ) -> None:
         """Test that transformation errors preserve context information."""
         raw_ticker = create_raw_ticker(time=test_timestamp)
@@ -383,7 +383,7 @@ class TestErrorHandlingAndRecovery:
         original_error = ValueError("Specific parsing error with context")
 
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value"
+            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value",
         ) as mock_parse:
             mock_parse.side_effect = original_error
 
@@ -399,7 +399,7 @@ class TestPerformanceAndMemoryConsiderations:
     """Test cases for performance and memory efficiency."""
 
     def test_large_dataset_transformation(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str
+        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
     ) -> None:
         """Test transformation of large datasets efficiently."""
         # Create a large number of tickers to test batch processing efficiency
@@ -425,7 +425,7 @@ class TestPerformanceAndMemoryConsiderations:
             assert result.price == Decimal(f"{100 + i * 0.01:.2f}")
 
     def test_memory_efficient_order_book_processing(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str
+        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
     ) -> None:
         """Test memory-efficient processing of large order books."""
         # Create order book with many levels but reasonable memory usage
@@ -449,7 +449,7 @@ class TestPerformanceAndMemoryConsiderations:
         assert result.asks[0] == (Decimal("101.00"), Decimal("1.5"))
 
     def test_concurrent_transformation_safety(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str
+        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
     ) -> None:
         """Test that transformations are safe for concurrent usage."""
         # This test verifies that the mapper doesn't have mutable state
@@ -459,10 +459,10 @@ class TestPerformanceAndMemoryConsiderations:
         ticker1 = create_raw_ticker(symbol="BTC-USDC", price="50000.00", time=test_timestamp)
         ticker2 = create_raw_ticker(symbol="ETH-USDC", price="3000.00", time=test_timestamp)
         trade1 = create_raw_trade(
-            id="trade1", symbol="SOL-USDC", price="100.00", time=test_timestamp
+            id="trade1", symbol="SOL-USDC", price="100.00", time=test_timestamp,
         )
         trade2 = create_raw_trade(
-            id="trade2", symbol="DOGE-USDC", price="0.50", time=test_timestamp
+            id="trade2", symbol="DOGE-USDC", price="0.50", time=test_timestamp,
         )
 
         # Transform in interleaved pattern
@@ -486,7 +486,7 @@ class TestDataConsistencyAndValidation:
     """Test cases for data consistency and validation."""
 
     def test_cross_field_consistency_validation(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str
+        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
     ) -> None:
         """Test validation of cross-field consistency."""
         # Test order book with bid higher than ask (invalid market condition)
@@ -522,7 +522,7 @@ class TestDataConsistencyAndValidation:
         assert book_result.timestamp == expected_datetime
 
     def test_decimal_precision_consistency(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str
+        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
     ) -> None:
         """Test that decimal precision is consistently maintained."""
         high_precision_value = "123.123456789012345"

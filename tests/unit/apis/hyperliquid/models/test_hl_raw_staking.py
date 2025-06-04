@@ -104,10 +104,10 @@ def test_delegation_item_valid(valid_delegation_item_data: dict[str, Any]) -> No
 
 
 @pytest.mark.parametrize(
-    "field,val", [("validator", "short"), ("amount", "nan"), ("lockedUntilTimestamp", -1)]
+    "field,val", [("validator", "short"), ("amount", "nan"), ("lockedUntilTimestamp", -1)],
 )
 def test_delegation_item_invalid(
-    valid_delegation_item_data: dict[str, Any], field: str, val: object
+    valid_delegation_item_data: dict[str, Any], field: str, val: object,
 ) -> None:
     d = valid_delegation_item_data.copy()
     d[field] = val
@@ -136,10 +136,10 @@ def test_delegator_summary_valid(valid_delegator_summary_data: dict[str, Any]) -
 
 
 @pytest.mark.parametrize(
-    "field,val", [("delegated", "nan"), ("nPendingWithdrawals", "abc"), ("undelegated", None)]
+    "field,val", [("delegated", "nan"), ("nPendingWithdrawals", "abc"), ("undelegated", None)],
 )
 def test_delegator_summary_invalid(
-    valid_delegator_summary_data: dict[str, Any], field: str, val: object | None
+    valid_delegator_summary_data: dict[str, Any], field: str, val: object | None,
 ) -> None:
     d = valid_delegator_summary_data.copy()
     if val is None:
@@ -153,7 +153,7 @@ def test_delegator_summary_invalid(
 # HyperliquidRawDelegatorHistoryDelegateDelta
 def test_hist_delegate_delta_valid(valid_history_delegate_delta_data: dict[str, Any]) -> None:
     item = HyperliquidRawDelegatorHistoryDelegateDelta.model_validate(
-        valid_history_delegate_delta_data
+        valid_history_delegate_delta_data,
     )
     assert item.validator == valid_history_delegate_delta_data["validator"]
     assert item.is_undelegate == valid_history_delegate_delta_data["isUndelegate"]
@@ -192,7 +192,7 @@ class TestHyperliquidRawDelegatorHistoryItem:
         ],
     )
     def test_hist_item_invalid(
-        self, valid_history_item_data: dict[str, Any], field: str, val: object
+        self, valid_history_item_data: dict[str, Any], field: str, val: object,
     ) -> None:
         d = valid_history_item_data.copy()
         if field == "delta" and isinstance(d.get("delta"), dict):

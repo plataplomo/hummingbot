@@ -195,7 +195,7 @@ def active_bp_config() -> ExchangeSpecificConfig:
             "exchange_action_base_ip_weight": None,
             "address_action_safety_net": None,
             "websocket_send_rate_per_minute": None,
-        }
+        },
     )
 
 

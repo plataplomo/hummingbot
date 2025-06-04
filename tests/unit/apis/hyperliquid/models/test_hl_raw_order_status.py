@@ -111,7 +111,7 @@ def test_order_field_not_a_dictionary() -> None:
     with pytest.raises(ValidationError) as exc_info_none:
         HyperliquidRawOrderStatusResponse.model_validate(invalid_data_none)
     assert "Input should be a valid dictionary or instance of HyperliquidRawOrder" in str(
-        exc_info_none.value
+        exc_info_none.value,
     )
     assert "order" in str(exc_info_none.value)
     assert "input_type=NoneType" in str(exc_info_none.value)

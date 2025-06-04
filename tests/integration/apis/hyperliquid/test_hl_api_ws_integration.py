@@ -91,7 +91,7 @@ def mock_hl_ws_router() -> Mock:
     """Mock the HyperliquidWsMessageRouter."""
     router = Mock(spec=HyperliquidWsMessageRouter)
     router.construct_subscription_payload = Mock(
-        return_value={"method": "subscribe", "subscription": {"type": "test"}}
+        return_value={"method": "subscribe", "subscription": {"type": "test"}},
     )
     router.route_message = AsyncMock()
     return router
@@ -134,7 +134,7 @@ class TestHyperliquidAPIWebSocketDelegationIntegration:
 
     @pytest.mark.asyncio
     async def test_handle_websocket_message_delegates_to_router(
-        self, hl_api_with_mocked_router: HyperliquidAPI, mock_hl_ws_router: Mock
+        self, hl_api_with_mocked_router: HyperliquidAPI, mock_hl_ws_router: Mock,
     ) -> None:
         """Test that WebSocket message handling delegates to router."""
         message: dict[str, Any] = {"channel": "l2Book", "data": {"coin": "ETH", "levels": []}}
@@ -142,7 +142,7 @@ class TestHyperliquidAPIWebSocketDelegationIntegration:
         # Use object.__getattribute__ to access protected method for integration testing
         # This tests the integration between the API and router components
         handle_method = object.__getattribute__(
-            hl_api_with_mocked_router, "_handle_websocket_message"
+            hl_api_with_mocked_router, "_handle_websocket_message",
         )
         await handle_method(message)
 
@@ -152,7 +152,7 @@ class TestHyperliquidAPIWebSocketDelegationIntegration:
 
     @pytest.mark.asyncio
     async def test_route_ws_message_delegates_to_router(
-        self, hl_api_with_mocked_router: HyperliquidAPI, mock_hl_ws_router: Mock
+        self, hl_api_with_mocked_router: HyperliquidAPI, mock_hl_ws_router: Mock,
     ) -> None:
         """Test that _route_ws_message delegates to router."""
         message: dict[str, Any] = {"channel": "trades", "data": [{"coin": "BTC", "px": "50000"}]}
@@ -166,7 +166,7 @@ class TestHyperliquidAPIWebSocketDelegationIntegration:
         mock_hl_ws_router.route_message.assert_called_once_with(message, ws_handlers)
 
     def test_construct_subscription_payload_creates_valid_payload(
-        self, hl_api_with_mocked_router: HyperliquidAPI, mock_hl_ws_router: Mock
+        self, hl_api_with_mocked_router: HyperliquidAPI, mock_hl_ws_router: Mock,
     ) -> None:
         """Test that subscription payload construction delegates to router."""
         from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
@@ -185,7 +185,7 @@ class TestHyperliquidAPIWebSocketDelegationIntegration:
 
         # Use object.__getattribute__ to access protected method for integration testing
         construct_method = object.__getattribute__(
-            hl_api_with_mocked_router, "_construct_subscription_payload"
+            hl_api_with_mocked_router, "_construct_subscription_payload",
         )
         result = construct_method(topic)
 
@@ -200,7 +200,7 @@ class TestHyperliquidAPIWebSocketDelegationIntegration:
 
     @pytest.mark.asyncio
     async def test_router_delegation_preserves_ws_handlers(
-        self, hl_api_with_mocked_router: HyperliquidAPI, mock_hl_ws_router: Mock
+        self, hl_api_with_mocked_router: HyperliquidAPI, mock_hl_ws_router: Mock,
     ) -> None:
         """Test that router receives the correct ws_handlers dictionary."""
         # Register some handlers using the public subscribe method
@@ -213,7 +213,7 @@ class TestHyperliquidAPIWebSocketDelegationIntegration:
 
         # Use object.__getattribute__ to access protected method for integration testing
         handle_method = object.__getattribute__(
-            hl_api_with_mocked_router, "_handle_websocket_message"
+            hl_api_with_mocked_router, "_handle_websocket_message",
         )
         await handle_method(message)
 
@@ -292,7 +292,7 @@ class TestHyperliquidAPIWebSocketSubscriptionIntegration:
     ) -> HyperliquidAPI:
         """Create HyperliquidAPI instance with mocked dependencies."""
         with patch(
-            "cyberdelta.apis.connectivity.ws_manager.WebSocketManager", return_value=mock_ws_manager
+            "cyberdelta.apis.connectivity.ws_manager.WebSocketManager", return_value=mock_ws_manager,
         ):
             api = HyperliquidAPI(exchange_config=hl_config, exchange_secrets=hl_secrets)
             # Use object.__setattr__ to bypass protection for integration testing setup
@@ -301,7 +301,7 @@ class TestHyperliquidAPIWebSocketSubscriptionIntegration:
 
     @pytest.mark.asyncio
     async def test_subscribe_l2book_sends_correct_payload(
-        self, hl_api: HyperliquidAPI, mock_ws_manager: AsyncMock
+        self, hl_api: HyperliquidAPI, mock_ws_manager: AsyncMock,
     ) -> None:
         """Test that subscribing to L2Book sends correct payload."""
         handler = AsyncMock()
@@ -321,7 +321,7 @@ class TestHyperliquidAPIWebSocketSubscriptionIntegration:
 
     @pytest.mark.asyncio
     async def test_subscribe_user_events_with_wallet_address(
-        self, hl_api: HyperliquidAPI, mock_ws_manager: AsyncMock
+        self, hl_api: HyperliquidAPI, mock_ws_manager: AsyncMock,
     ) -> None:
         """Test that subscribing to userEvents sends correct payload when wallet address is set."""
         handler = AsyncMock()
@@ -342,7 +342,7 @@ class TestHyperliquidAPIWebSocketSubscriptionIntegration:
 
     @pytest.mark.asyncio
     async def test_subscribe_user_events_without_wallet_address(
-        self, hl_api: HyperliquidAPI, mock_ws_manager: AsyncMock
+        self, hl_api: HyperliquidAPI, mock_ws_manager: AsyncMock,
     ) -> None:
         """Test that userEvents without wallet address handles gracefully."""
         handler = AsyncMock()
@@ -359,7 +359,7 @@ class TestHyperliquidAPIWebSocketSubscriptionIntegration:
 
     @pytest.mark.asyncio
     async def test_multiple_subscriptions_integration(
-        self, hl_api: HyperliquidAPI, mock_ws_manager: AsyncMock
+        self, hl_api: HyperliquidAPI, mock_ws_manager: AsyncMock,
     ) -> None:
         """Test multiple subscriptions work correctly in integration."""
         handler1 = AsyncMock()

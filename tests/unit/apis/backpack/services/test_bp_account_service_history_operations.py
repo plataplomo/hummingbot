@@ -110,7 +110,7 @@ class TestBackpackAccountServiceHistoryOperations:
 
         with patch.object(bp_account_service, "_mapper", mock_mapper):
             args = GetOrderHistoryArgs(
-                symbol=symbol, limit=limit, start_time=start_time, end_time=end_time
+                symbol=symbol, limit=limit, start_time=start_time, end_time=end_time,
             )
             result = await bp_account_service.get_order_history(args)
 
@@ -131,10 +131,10 @@ class TestBackpackAccountServiceHistoryOperations:
             request_weight=1,
         )
         mock_response_handler.handle_get_order_history_response.assert_called_once_with(
-            mock_raw_response_list, symbol
+            mock_raw_response_list, symbol,
         )
         mock_mapper.transform_raw_order_to_internal.assert_called_once_with(
-            mock_validated_raw_orders[0]
+            mock_validated_raw_orders[0],
         )
         assert len(result) == len(expected_internal_orders_list)
         for actual, expected in zip(result, expected_internal_orders_list, strict=False):
@@ -182,7 +182,7 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_request_builder.build_get_order_history_params.return_value = mock_built_params
         mock_http_client_requester.return_value = (mock_raw_response_list, mock_status_code, {})
         handler_api_error = APIError(
-            "Invalid raw order history", APIErrorCode.INVALID_RESPONSE.value
+            "Invalid raw order history", APIErrorCode.INVALID_RESPONSE.value,
         )
         mock_response_handler.handle_get_order_history_response.side_effect = handler_api_error
 
@@ -191,7 +191,7 @@ class TestBackpackAccountServiceHistoryOperations:
             await bp_account_service.get_order_history(args)
         assert excinfo.value is handler_api_error
         mock_response_handler.handle_get_order_history_response.assert_called_once_with(
-            mock_raw_response_list, symbol
+            mock_raw_response_list, symbol,
         )
 
     @pytest.mark.asyncio
@@ -337,7 +337,7 @@ class TestBackpackAccountServiceHistoryOperations:
 
         with pytest.raises(APIError) as exc_info:
             withdraw_args = WithdrawArgs(
-                asset=asset, amount=amount, address=address, network=network
+                asset=asset, amount=amount, address=address, network=network,
             )
             await bp_account_service.withdraw(withdraw_args)
 
@@ -362,12 +362,12 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_request_builder.build_withdraw_payload.return_value = mock_payload
         mock_http_client_requester.return_value = (mock_response, 200, {})
         mock_response_handler.handle_withdraw_response.side_effect = ValidationError(
-            "Validation failed", []
+            "Validation failed", [],
         )
 
         with pytest.raises(APIError):
             withdraw_args = WithdrawArgs(
-                asset=asset, amount=amount, address=address, network=network
+                asset=asset, amount=amount, address=address, network=network,
             )
             await bp_account_service.withdraw(withdraw_args)
 
@@ -441,11 +441,11 @@ class TestBackpackAccountServiceHistoryOperations:
 
         with patch.object(bp_account_service, "_mapper", mock_mapper):
             result = await bp_account_service.get_trade_history(
-                args=GetTradeHistoryArgs(symbol=symbol, limit=limit)
+                args=GetTradeHistoryArgs(symbol=symbol, limit=limit),
             )
 
         mock_request_builder.build_get_trade_history_params.assert_called_once_with(
-            symbol=symbol, limit=limit, start_time_ms=None, end_time_ms=None, from_id=None
+            symbol=symbol, limit=limit, start_time_ms=None, end_time_ms=None, from_id=None,
         )
         mock_http_client_requester.assert_called_once_with(
             method="GET",
@@ -456,10 +456,10 @@ class TestBackpackAccountServiceHistoryOperations:
             request_weight=1,
         )
         mock_response_handler.handle_get_trade_history_response.assert_called_once_with(
-            mock_raw_response, symbol
+            mock_raw_response, symbol,
         )
         mock_mapper.transform_raw_trade_to_internal.assert_called_once_with(
-            mock_validated_raw_trades[0]
+            mock_validated_raw_trades[0],
         )
 
         assert len(result) == 1
@@ -492,7 +492,7 @@ class TestBackpackAccountServiceHistoryOperations:
 
         with pytest.raises(APIError) as exc_info:
             await bp_account_service.get_trade_history(
-                args=GetTradeHistoryArgs(symbol=symbol, limit=limit)
+                args=GetTradeHistoryArgs(symbol=symbol, limit=limit),
             )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -524,7 +524,7 @@ class TestBackpackAccountServiceHistoryOperations:
 
         with pytest.raises(APIError) as exc_info:
             await bp_account_service.get_trade_history(
-                args=GetTradeHistoryArgs(symbol=symbol, limit=limit)
+                args=GetTradeHistoryArgs(symbol=symbol, limit=limit),
             )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -547,7 +547,7 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_request_builder.build_get_trade_history_params.return_value = mock_params
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_trade_history_response.side_effect = Exception(
-            "Unexpected error"
+            "Unexpected error",
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -593,7 +593,7 @@ class TestBackpackAccountServiceHistoryOperations:
             {},
         )
         mock_response_handler.handle_get_balances_response.return_value = {
-            "USDC": {"available": "100.0", "total": "100.0"}
+            "USDC": {"available": "100.0", "total": "100.0"},
         }
 
         with patch.object(service, "_mapper", custom_mapper):
@@ -630,7 +630,7 @@ class TestBackpackAccountServiceHistoryOperations:
             {},
         )
         mock_response_handler.handle_get_balances_response.return_value = {
-            "USDC": {"available": "100.0", "total": "100.0"}
+            "USDC": {"available": "100.0", "total": "100.0"},
         }
 
         # Mock the mapper behavior since we can't access it directly

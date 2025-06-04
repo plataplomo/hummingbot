@@ -125,8 +125,8 @@ class TestHyperliquidRawOrderType:
         # Raw models should accept data without business logic validation
         # The builder/service layer should ensure only one is set
         order_type = HyperliquidRawOrderType(
-            limit=cast(HyperliquidRawLimitOrderTypeDetails, VALID_LIMIT_ORDER_DATA),
-            market=cast(HyperliquidRawMarketOrderTypeDetails, VALID_MARKET_ORDER_DATA),
+            limit=cast("HyperliquidRawLimitOrderTypeDetails", VALID_LIMIT_ORDER_DATA),
+            market=cast("HyperliquidRawMarketOrderTypeDetails", VALID_MARKET_ORDER_DATA),
         )
         assert order_type.limit is not None
         assert order_type.market is not None
@@ -144,7 +144,7 @@ class TestHyperliquidRawOrderType:
             match=r"Invalid value 'InvalidTif'\. Expected one of \['Alo', 'Gtc', 'Ioc'\]",
         ):
             HyperliquidRawOrderType(
-                limit=cast(HyperliquidRawLimitOrderTypeDetails, {"tif": "InvalidTif"})
+                limit=cast("HyperliquidRawLimitOrderTypeDetails", {"tif": "InvalidTif"}),
             )
 
 
@@ -195,7 +195,7 @@ class TestHyperliquidRawTriggerDetails:
         data = VALID_TRIGGER_DETAILS_TP_MARKET_DATA.copy()
         data["tpsl"] = "stop"
         with pytest.raises(
-            ValidationError, match=r"Invalid value 'stop'\. Expected one of \['sl', 'tp'\]"
+            ValidationError, match=r"Invalid value 'stop'\. Expected one of \['sl', 'tp'\]",
         ):
             HyperliquidRawTriggerDetails(**data)
 
@@ -226,8 +226,8 @@ class TestHyperliquidRawPlaceOrderAction:
         parsed = HyperliquidRawPlaceOrderAction(**data)
         assert_common_place_order_fields(parsed, data, self.EXPECTED_PYTHON_TYPES_AFTER_PARSING)
         assert parsed.order_type.limit is not None
-        order_type_data = cast(dict[str, Any], data["orderType"])
-        limit_data = cast(dict[str, Any], order_type_data.get("limit"))
+        order_type_data = cast("dict[str, Any]", data["orderType"])
+        limit_data = cast("dict[str, Any]", order_type_data.get("limit"))
         assert parsed.order_type.limit.tif == limit_data.get("tif")
         assert parsed.trigger is None
 
@@ -237,12 +237,12 @@ class TestHyperliquidRawPlaceOrderAction:
         assert_common_place_order_fields(parsed, data, self.EXPECTED_PYTHON_TYPES_AFTER_PARSING)
 
         assert parsed.order_type.limit is not None
-        order_type_data = cast(dict[str, Any], data["orderType"])
-        limit_data = cast(dict[str, Any], order_type_data.get("limit"))
+        order_type_data = cast("dict[str, Any]", data["orderType"])
+        limit_data = cast("dict[str, Any]", order_type_data.get("limit"))
         assert parsed.order_type.limit.tif == limit_data.get("tif")
 
         assert parsed.trigger is not None
-        trigger_data = cast(dict[str, Any], data["trigger"])
+        trigger_data = cast("dict[str, Any]", data["trigger"])
         assert parsed.trigger.trigger_px == str(trigger_data.get("triggerPx"))
         assert parsed.trigger.is_market == trigger_data.get("isMarket")
         assert parsed.trigger.tpsl == trigger_data.get("tpsl")

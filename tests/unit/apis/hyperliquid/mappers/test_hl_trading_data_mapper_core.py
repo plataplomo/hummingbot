@@ -212,7 +212,7 @@ class TestOrderStatusMapping:
             # only allows "open"
             historical_order = create_raw_historical_order(status=hl_status)
             result = trading_data_mapper.transform_raw_historical_order_to_internal(
-                historical_order
+                historical_order,
             )
 
         assert result.status == expected_status
@@ -375,7 +375,7 @@ class TestCoreValidationLogic:
     """Tests for core validation logic in trading data transformations."""
 
     def test_consistent_transformation_across_methods(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
+        self, trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test that transformation methods produce consistent results."""
         # Use historical order for filled status since HyperliquidRawOrder only allows "open"
@@ -401,7 +401,7 @@ class TestCoreValidationLogic:
         assert result.quantity_filled == Decimal("5.0")
 
     def test_symbol_consistency_across_transformations(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
+        self, trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test that symbol names are consistently handled across different transformations."""
         test_symbols = [
@@ -418,14 +418,14 @@ class TestCoreValidationLogic:
 
             raw_result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
             historical_result = trading_data_mapper.transform_raw_historical_order_to_internal(
-                historical_order
+                historical_order,
             )
 
             assert raw_result.symbol == symbol
             assert historical_result.symbol == symbol
 
     def test_decimal_precision_handling(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
+        self, trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test that decimal precision is maintained consistently."""
         high_precision_price = "1234.123456789012345"
@@ -444,7 +444,7 @@ class TestCoreValidationLogic:
         assert result.quantity_requested == Decimal(high_precision_size)
 
     def test_exchange_assignment_consistency(
-        self, trading_data_mapper: HyperliquidTradingDataMapper
+        self, trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test that exchange name is consistently assigned."""
         from cyberdelta.enums.exchange_names import ExchangeName
@@ -454,7 +454,7 @@ class TestCoreValidationLogic:
 
         raw_result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
         historical_result = trading_data_mapper.transform_raw_historical_order_to_internal(
-            historical_order
+            historical_order,
         )
 
         assert raw_result.exchange == ExchangeName.HYPERLIQUID.value

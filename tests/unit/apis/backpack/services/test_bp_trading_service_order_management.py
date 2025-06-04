@@ -228,7 +228,7 @@ class TestBackpackTradingServiceOrderManagement:
         """Test get_order_status raises ValueError for None symbol."""
         with pytest.raises(ValueError) as exc_info:
             await bp_trading_service.get_order_status(
-                args=GetOrderArgs(order_id="12345", symbol=None)  # None symbol should be rejected
+                args=GetOrderArgs(order_id="12345", symbol=None),  # None symbol should be rejected
             )
 
         assert "'symbol' parameter is required" in str(exc_info.value)
@@ -363,7 +363,7 @@ class TestBackpackTradingServiceOrderManagement:
                 request_weight=1,
             )
             mock_response_handler.handle_place_order_response.assert_called_once_with(
-                mock_raw_response_content
+                mock_raw_response_content,
             )
             mock_mapper.transform_raw_order_to_internal.assert_called_once_with(mock_raw_order)
             assert result == mock_order_result
@@ -501,7 +501,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_request_builder.build_place_order_payload.return_value = mock_payload
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_place_order_response.side_effect = Exception(
-            "Unexpected error"
+            "Unexpected error",
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -555,7 +555,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_response_handler.handle_cancel_order_response.return_value = mock_cancel_result
 
         result = await bp_trading_service.cancel_order(
-            args=CancelOrderArgs(order_id=order_id, symbol=symbol)
+            args=CancelOrderArgs(order_id=order_id, symbol=symbol),
         )
 
         mock_request_builder.build_cancel_order_payload.assert_called_once_with(
@@ -597,7 +597,7 @@ class TestBackpackTradingServiceOrderManagement:
 
         with pytest.raises(APIError) as exc_info:
             await bp_trading_service.cancel_order(
-                args=CancelOrderArgs(order_id=order_id, symbol=symbol)
+                args=CancelOrderArgs(order_id=order_id, symbol=symbol),
             )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -607,7 +607,7 @@ class TestBackpackTradingServiceOrderManagement:
         )
 
         mock_request_builder.build_cancel_order_payload.assert_called_once_with(
-            symbol=symbol, order_id=order_id
+            symbol=symbol, order_id=order_id,
         )
         mock_http_client_requester.assert_called_once_with(
             method="DELETE",
@@ -646,7 +646,7 @@ class TestBackpackTradingServiceOrderManagement:
 
         with pytest.raises(APIError) as exc_info:
             await bp_trading_service.cancel_order(
-                args=CancelOrderArgs(order_id=order_id, symbol=symbol)
+                args=CancelOrderArgs(order_id=order_id, symbol=symbol),
             )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -670,12 +670,12 @@ class TestBackpackTradingServiceOrderManagement:
         mock_request_builder.build_cancel_order_payload.return_value = mock_payload
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_cancel_order_response.side_effect = Exception(
-            "Unexpected error"
+            "Unexpected error",
         )
 
         with pytest.raises(APIError) as exc_info:
             await bp_trading_service.cancel_order(
-                args=CancelOrderArgs(order_id=order_id, symbol=symbol)
+                args=CancelOrderArgs(order_id=order_id, symbol=symbol),
             )
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value

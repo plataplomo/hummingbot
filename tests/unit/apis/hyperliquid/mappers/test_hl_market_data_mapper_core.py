@@ -15,14 +15,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING
 
 import pytest
 
 # Third-party imports for type checking only
-if TYPE_CHECKING:
-    pass
-
 # Project-specific imports
 from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
@@ -164,7 +160,7 @@ class TestTransformRawAssetCtxToTicker:
         tickers: list[Ticker] = []
         for _ in range(5):
             ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(
-                hyperliquid_raw_asset_ctx_eth_fixture
+                hyperliquid_raw_asset_ctx_eth_fixture,
             )
             tickers.append(ticker)
 
@@ -295,7 +291,7 @@ class TestTransformRawAssetCtxToFundingRate:
     ) -> None:
         """Test that next funding time is calculated correctly."""
         funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(
-            hyperliquid_raw_asset_ctx_eth_fixture
+            hyperliquid_raw_asset_ctx_eth_fixture,
         )
 
         assert funding_rate is not None
@@ -310,7 +306,7 @@ class TestTransformRawAssetCtxToFundingRate:
         ) + timedelta(hours=1)
 
         time_diff = abs(
-            (funding_rate.next_funding_time - expected_next_funding_time_approx).total_seconds()
+            (funding_rate.next_funding_time - expected_next_funding_time_approx).total_seconds(),
         )
         assert time_diff < 120, (
             f"Next funding time {funding_rate.next_funding_time} not close to "
@@ -407,10 +403,10 @@ class TestCoreBusinessLogicValidation:
     ) -> None:
         """Test that transformations are consistent (exchange info handled by mapper internally)."""
         ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(
-            hyperliquid_raw_asset_ctx_eth_fixture
+            hyperliquid_raw_asset_ctx_eth_fixture,
         )
         funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(
-            hyperliquid_raw_asset_ctx_eth_fixture
+            hyperliquid_raw_asset_ctx_eth_fixture,
         )
 
         # Both should be valid transformations
@@ -456,10 +452,10 @@ class TestCoreBusinessLogicValidation:
     ) -> None:
         """Test that timestamps generated for different transformations are close to each other."""
         ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(
-            hyperliquid_raw_asset_ctx_eth_fixture
+            hyperliquid_raw_asset_ctx_eth_fixture,
         )
         funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(
-            hyperliquid_raw_asset_ctx_eth_fixture
+            hyperliquid_raw_asset_ctx_eth_fixture,
         )
 
         assert funding_rate is not None

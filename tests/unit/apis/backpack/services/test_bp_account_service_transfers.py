@@ -31,7 +31,8 @@ class TestBackpackAccountServiceTransfers:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test transfer successfully initiates a transfer and returns an internal Transfer
-        model."""
+        model.
+        """
         asset = "USDC"
         amount = Decimal("100.0")
         from_account = "SPOT"
@@ -97,7 +98,7 @@ class TestBackpackAccountServiceTransfers:
         )
 
         mock_response_handler.handle_transfer_response.assert_called_once_with(
-            mock_raw_response_content
+            mock_raw_response_content,
         )
 
         assert actual_transfer.id == expected_internal_transfer.id
@@ -175,7 +176,8 @@ class TestBackpackAccountServiceTransfers:
         mock_request_builder: MagicMock,
     ) -> None:
         """Test public transfer handles None response from http_client_requester by
-        raising APIError."""
+        raising APIError.
+        """
         asset = "BTC"
         amount = Decimal("0.1")
         from_account = "SPOT"
@@ -239,7 +241,8 @@ class TestBackpackAccountServiceTransfers:
         mock_request_builder: MagicMock,
     ) -> None:
         """Test public transfer handles unexpected exceptions from http_client_requester
-        by wrapping in APIError."""
+        by wrapping in APIError.
+        """
         asset = "ETH"
         amount = Decimal("1.0")
         from_account = "MARGIN"

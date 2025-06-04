@@ -92,7 +92,7 @@ class TestPositionReconciliationSystem:
                 mark_price=Decimal("51000"),
                 liquidation_price=Decimal("55000.0"),
                 unrealized_pnl=Decimal("-1000.0"),
-            )
+            ),
         ]
 
         # Setup the get_position method
@@ -111,7 +111,7 @@ class TestPositionReconciliationSystem:
         def get_positions_by_exchange(exchange: str) -> list[DerivativePosition]:
             if exchange == "hyperliquid":
                 return hyper_positions
-            elif exchange == "backpack":
+            if exchange == "backpack":
                 return backpack_positions
             return []
 
@@ -137,7 +137,7 @@ class TestPositionReconciliationSystem:
                 symbol="ETH",
                 side=OrderSide.SELL,
                 size=Decimal(
-                    "-10.0"
+                    "-10.0",
                 ),  # Corrected: size should be negative for SELL. Matches local.
                 entry_price=Decimal("3000"),
                 timestamp=datetime.now(UTC),
@@ -158,7 +158,7 @@ class TestPositionReconciliationSystem:
                 mark_price=Decimal("51000"),
                 liquidation_price=Decimal("55000.0"),
                 unrealized_pnl=Decimal("-1000.0"),
-            )
+            ),
         ]
 
         # Mock execution handlers for fill history
@@ -238,7 +238,7 @@ class TestPositionReconciliationSystem:
         def get_execution_handler(exchange: str) -> MagicMock:
             if exchange == "hyperliquid":
                 return execution_handler_hyper
-            elif exchange == "backpack":
+            if exchange == "backpack":
                 return execution_handler_backpack
             return execution_handler_hyper  # Default
 
@@ -246,7 +246,7 @@ class TestPositionReconciliationSystem:
         def _get_exchange_positions(exchange: str) -> list[DerivativePosition]:
             if exchange == "hyperliquid":
                 return hyper_api_positions
-            elif exchange == "backpack":
+            if exchange == "backpack":
                 return backpack_api_positions
             return []
 
@@ -259,7 +259,7 @@ class TestPositionReconciliationSystem:
 
     @pytest.fixture
     def reconciliation_system(
-        self, config: MagicMock, portfolio_tracker: MagicMock
+        self, config: MagicMock, portfolio_tracker: MagicMock,
     ) -> PositionReconciliationSystem:
         """Create a PositionReconciliationSystem instance for testing."""
         # Ensure the portfolio_tracker mock has the api_clients attribute expected by the system
@@ -291,7 +291,7 @@ class TestPositionReconciliationSystem:
         assert reconciliation_system._action_mode == "log"
 
     def test_register_portfolio_tracker(
-        self, reconciliation_system: PositionReconciliationSystem, portfolio_tracker: MagicMock
+        self, reconciliation_system: PositionReconciliationSystem, portfolio_tracker: MagicMock,
     ) -> None:
         """Test registering a portfolio tracker."""
         new_tracker = MagicMock()
@@ -305,7 +305,7 @@ class TestPositionReconciliationSystem:
 
     @pytest.mark.asyncio
     async def test_check_positions_interval(
-        self, reconciliation_system: PositionReconciliationSystem
+        self, reconciliation_system: PositionReconciliationSystem,
     ) -> None:
         """Test position check interval logic."""
         portfolio_tracker_mock = reconciliation_system._portfolio_tracker
@@ -350,7 +350,7 @@ class TestPositionReconciliationSystem:
         reconciliation_system.check_interval = timedelta(seconds=300)  # Ensure interval is longer
         reconciliation_system.reconciliation_interval = timedelta(seconds=300)
         reconciliation_system.last_check_time = datetime.now(UTC) - timedelta(
-            seconds=100
+            seconds=100,
         )  # Only 100s passed
 
         reconcile_exchange_calls_s2 = []
@@ -410,12 +410,12 @@ class TestPositionReconciliationSystem:
 
     @pytest.mark.asyncio
     async def test_check_positions(
-        self, reconciliation_system: PositionReconciliationSystem
+        self, reconciliation_system: PositionReconciliationSystem,
     ) -> None:
         """Test checking positions and identifying discrepancies."""
         # Mock the portfolio tracker method using patch.object
         with patch.object(
-            reconciliation_system._portfolio_tracker, "get_positions_by_exchange", return_value=[]
+            reconciliation_system._portfolio_tracker, "get_positions_by_exchange", return_value=[],
         ):
             now = datetime.now(UTC)
             api_positions_hyper = [
@@ -444,7 +444,7 @@ class TestPositionReconciliationSystem:
                 size=Decimal("5.0"),
                 entry_price=Decimal("20"),
                 timestamp=now,
-            )
+            ),
         ]
 
         mock_hl_api_client = AsyncMock(spec=ExchangeAPI)
@@ -486,7 +486,6 @@ class TestPositionReconciliationSystem:
     @pytest.mark.asyncio
     async def test_auto_correct(self, portfolio_tracker: MagicMock) -> None:
         """Test auto-correcting positions (conceptual)."""
-
         # Create a mock config with auto_correct enabled
         mock_pos_recon_config = MagicMock()
         mock_pos_recon_config.enabled = True
@@ -529,7 +528,7 @@ class TestPositionReconciliationSystem:
                         "local_value": "1.0",  # Local has 1.0
                         "discrepancy": "0.1",
                         "action_taken": "logged",  # or "corrected" if auto_correct was to run
-                    }
+                    },
                 )
 
             return {
@@ -653,7 +652,7 @@ class TestPositionReconciliationSystem:
             pytest.fail("Test setup error: results['discrepancies'] is empty.")
 
     def test_get_discrepancy_history(
-        self, reconciliation_system: PositionReconciliationSystem
+        self, reconciliation_system: PositionReconciliationSystem,
     ) -> None:
         """Test getting history filtered by time."""
         now = datetime.now(UTC)
@@ -662,7 +661,7 @@ class TestPositionReconciliationSystem:
 
         # Create DiscrepancyDetail instances first
         detail_old = DiscrepancyDetail(
-            symbol="BTC_OLD", discrepancy_type="size", exchange_value="1", local_value="0.9"
+            symbol="BTC_OLD", discrepancy_type="size", exchange_value="1", local_value="0.9",
         )
         detail_recent = DiscrepancyDetail(
             symbol="ETH_RECENT",
@@ -699,7 +698,7 @@ class TestPositionReconciliationSystem:
         assert history[0].is_corrected is True
 
     def test_get_reconciliation_report(
-        self, reconciliation_system: PositionReconciliationSystem
+        self, reconciliation_system: PositionReconciliationSystem,
     ) -> None:
         """Test generating a reconciliation report."""
         now_utc = datetime.now(UTC)
@@ -709,13 +708,13 @@ class TestPositionReconciliationSystem:
 
         # Create DiscrepancyDetail instances
         detail1 = DiscrepancyDetail(
-            symbol="BTC", discrepancy_type="size", exchange_value="1.0", local_value="0.95"
+            symbol="BTC", discrepancy_type="size", exchange_value="1.0", local_value="0.95",
         )
         detail2 = DiscrepancyDetail(
-            symbol="ETH", discrepancy_type="entry_price", exchange_value="10.0", local_value="9.8"
+            symbol="ETH", discrepancy_type="entry_price", exchange_value="10.0", local_value="9.8",
         )
         detail3 = DiscrepancyDetail(
-            symbol="SOL", discrepancy_type="size", exchange_value="50.0", local_value="0.0"
+            symbol="SOL", discrepancy_type="size", exchange_value="50.0", local_value="0.0",
         )
 
         # Populate history with HistoricalDiscrepancyRecord instances
@@ -739,7 +738,7 @@ class TestPositionReconciliationSystem:
                     recorded_at=recent_time_utc,
                     is_corrected=False,
                 ),
-            ]
+            ],
         )
 
         # Set some recent results (latest_results still uses dicts with DiscrepancyDetail list)
@@ -836,12 +835,12 @@ class TestPositionReconciliationSystem:
 
     @pytest.mark.asyncio
     async def test_check_positions_mismatch_triggers_reconciliation_and_logs_error(
-        self, reconciliation_system: PositionReconciliationSystem
+        self, reconciliation_system: PositionReconciliationSystem,
     ) -> None:
         """Test checking positions and identifying discrepancies."""
         # Mock the portfolio tracker method using patch.object
         with patch.object(
-            reconciliation_system._portfolio_tracker, "get_positions_by_exchange", return_value=[]
+            reconciliation_system._portfolio_tracker, "get_positions_by_exchange", return_value=[],
         ):
             now = datetime.now(UTC)
             api_positions_hyper = [
@@ -870,7 +869,7 @@ class TestPositionReconciliationSystem:
                     size=Decimal("5.0"),
                     entry_price=Decimal("20"),
                     timestamp=now,
-                )
+                ),
             ]
 
             mock_hl_api_client = AsyncMock(spec=ExchangeAPI)

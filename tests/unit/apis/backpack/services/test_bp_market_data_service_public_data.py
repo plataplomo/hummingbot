@@ -84,7 +84,7 @@ class TestBackpackMarketDataServicePublicData:
         """Test get_recent_trades raises ValueError for empty symbol."""
         with pytest.raises(ValueError) as exc_info:
             await backpack_market_data_service.get_recent_trades(
-                ""
+                "",
             )  # Empty symbol should be rejected
 
         assert "'symbol' must be a non-empty string" in str(exc_info.value)
@@ -181,7 +181,7 @@ class TestBackpackMarketDataServicePublicData:
                 request_weight=1,
             )
             mock_mapper.transform_raw_ticker_to_internal.assert_called_once_with(
-                mock_raw_ticker, symbol_override=symbol
+                mock_raw_ticker, symbol_override=symbol,
             )
             mock_response_handler.handle_get_ticker_response.assert_called_once_with(
                 mock_raw_response_content,
@@ -309,7 +309,7 @@ class TestBackpackMarketDataServicePublicData:
             result = await backpack_market_data_service.get_order_book(symbol, limit=depth)
 
             mock_request_builder.build_get_order_book_params.assert_called_once_with(
-                symbol=symbol, limit=depth
+                symbol=symbol, limit=depth,
             )
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
@@ -321,7 +321,7 @@ class TestBackpackMarketDataServicePublicData:
             )
             mock_response_handler.handle_get_order_book_response.assert_called_once()
             mock_mapper.transform_raw_order_book_to_internal.assert_called_once_with(
-                symbol, mock_validated_book
+                symbol, mock_validated_book,
             )
             assert result == mock_internal_book
 
@@ -349,7 +349,7 @@ class TestBackpackMarketDataServicePublicData:
         )
 
         mock_request_builder.build_get_order_book_params.assert_called_once_with(
-            symbol=symbol, limit=depth
+            symbol=symbol, limit=depth,
         )
         mock_http_client_requester.assert_called_once_with(
             method="GET",
@@ -408,7 +408,7 @@ class TestBackpackMarketDataServicePublicData:
         }
         mock_http_client_requester.return_value = ({"mock": "response"}, 200, {})
         mock_response_handler.handle_get_order_book_response.side_effect = Exception(
-            "Unexpected error"
+            "Unexpected error",
         )
 
         # Act & Assert: Call the service method and verify the exception
@@ -419,7 +419,7 @@ class TestBackpackMarketDataServicePublicData:
         assert "Unexpected error occurred." in exc_info.value.message
 
         mock_request_builder.build_get_order_book_params.assert_called_once_with(
-            symbol=symbol, limit=depth
+            symbol=symbol, limit=depth,
         )
         mock_http_client_requester.assert_called_once_with(
             method="GET",
@@ -481,7 +481,7 @@ class TestBackpackMarketDataServicePublicData:
             result = await backpack_market_data_service.get_recent_trades(symbol, limit=limit)
 
             mock_request_builder.build_get_recent_trades_params.assert_called_once_with(
-                symbol=symbol, limit=limit
+                symbol=symbol, limit=limit,
             )
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
@@ -498,7 +498,7 @@ class TestBackpackMarketDataServicePublicData:
                 mock_headers_from_client,
             )
             assert mock_mapper.transform_raw_trade_to_internal.call_count == len(
-                mock_raw_response_content
+                mock_raw_response_content,
             )
             assert result == mock_internal_trades
 
@@ -529,7 +529,7 @@ class TestBackpackMarketDataServicePublicData:
             )
 
             mock_request_builder.build_get_recent_trades_params.assert_called_once_with(
-                symbol=symbol, limit=limit
+                symbol=symbol, limit=limit,
             )
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
@@ -591,13 +591,13 @@ class TestBackpackMarketDataServicePublicData:
                 "price": "100.0",
                 "qty": "1.0",
                 "time": 123,
-            }
+            },
         ]
 
         mock_request_builder.build_get_recent_trades_params.return_value = mock_params
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_recent_trades_response.side_effect = Exception(
-            "Unexpected error"
+            "Unexpected error",
         )
 
         with pytest.raises(APIError) as exc_info:

@@ -97,7 +97,7 @@ class TestGeneralSettings:
                 "module1": "DEBUG",
                 "module.with.dots": "INFO",
                 "another_module": "WARNING",
-            }
+            },
         }
         settings = GeneralSettings.model_validate(valid_data)
         assert settings.module_log_levels == valid_data["module_log_levels"]
@@ -119,7 +119,7 @@ class TestGeneralSettings:
             {
                 "state_save_interval": 1,
                 "state_backup_count": 1,
-            }
+            },
         )
         assert settings.state_save_interval == 1
         assert settings.state_backup_count == 1
@@ -281,7 +281,7 @@ class TestStrategyParamsHLPerpBPSpot:
                 "funding_threshold": "0.01",
                 "max_price_spread_pct": "0.05",
                 "min_profit_usd": "10.0",
-            }
+            },
         )
         assert isinstance(params.funding_threshold, Decimal)
 
@@ -291,7 +291,7 @@ class TestStrategyParamsHLPerpBPSpot:
                 "funding_threshold": 1,
                 "max_price_spread_pct": 0.5,
                 "min_profit_usd": 10,
-            }
+            },
         )
         assert params.funding_threshold == Decimal("1")
 
@@ -301,7 +301,7 @@ class TestStrategyParamsHLPerpBPSpot:
                 "funding_threshold": 0.01,
                 "max_price_spread_pct": 0.05,
                 "min_profit_usd": 10.0,
-            }
+            },
         )
         assert params.funding_threshold == Decimal("0.01")
 
@@ -337,7 +337,7 @@ class TestStrategyParamsHLPerpBPSpot:
                 "funding_threshold": "0.01",
                 "max_price_spread_pct": "0.99",
                 "min_profit_usd": "10.0",
-            }
+            },
         )
         assert params.max_price_spread_pct == Decimal("0.99")
 
@@ -348,7 +348,7 @@ class TestStrategyParamsHLPerpBPSpot:
                     "funding_threshold": "0.01",
                     "max_price_spread_pct": "1.0",
                     "min_profit_usd": "10.0",
-                }
+                },
             )
         assert "max_price_spread_pct" in str(exc_info.value)
 
@@ -359,7 +359,7 @@ class TestStrategyParamsHLPerpBPSpot:
                     "funding_threshold": "0.01",
                     "max_price_spread_pct": "1.5",
                     "min_profit_usd": "10.0",
-                }
+                },
             )
         assert "max_price_spread_pct" in str(exc_info.value)
 
@@ -401,7 +401,7 @@ class TestRiskSettings:
             "global": {
                 "max_position_usd": "1000.0",
                 "max_total_exposure_usd": "5000.0",
-            }
+            },
         }
 
         settings = RiskSettings.model_validate(data)
@@ -418,7 +418,7 @@ class TestRiskSettings:
             "global": {
                 "max_position_usd": "1000.0",
                 "max_total_exposure_usd": "5000.0",
-            }
+            },
         }
         settings = RiskSettings.model_validate(data)
         assert settings.global_risk.max_position_usd == Decimal("1000.0")
@@ -428,7 +428,7 @@ class TestRiskSettings:
             "global_risk": {
                 "max_position_usd": "1000.0",
                 "max_total_exposure_usd": "5000.0",
-            }
+            },
         }
         settings = RiskSettings.model_validate(data)
         assert settings.global_risk.max_position_usd == Decimal("1000.0")
@@ -529,7 +529,7 @@ class TestBalanceMonitoringSettings:
             BalanceMonitoringSettings.model_validate(
                 {
                     "min_balance_thresholds_usd": {"": "100.0"},
-                }
+                },
             )
         assert "min_balance_thresholds_usd" in str(exc_info.value)
 
@@ -538,7 +538,7 @@ class TestBalanceMonitoringSettings:
             BalanceMonitoringSettings.model_validate(
                 {
                     "min_balance_thresholds_usd": {"exchange": "0"},
-                }
+                },
             )
         assert "min_balance_thresholds_usd" in str(exc_info.value)
 
@@ -547,7 +547,7 @@ class TestBalanceMonitoringSettings:
             BalanceMonitoringSettings.model_validate(
                 {
                     "min_balance_thresholds_usd": {"exchange": "-100"},
-                }
+                },
             )
         assert "min_balance_thresholds_usd" in str(exc_info.value)
 
@@ -639,13 +639,13 @@ class TestAppSettings:
                         "max_price_spread_pct": "0.05",
                         "min_profit_usd": "10.0",
                     },
-                }
+                },
             },
             "risk": {
                 "global": {
                     "max_position_usd": "1000.0",
                     "max_total_exposure_usd": "5000.0",
-                }
+                },
             },
             "execution": {
                 "max_slippage_pct": "0.01",
@@ -658,7 +658,7 @@ class TestAppSettings:
                     "min_balance_thresholds_usd": {
                         "backpack": "100.0",
                         "hyperliquid": "200.0",
-                    }
+                    },
                 },
             },
             "monitoring": {},
@@ -859,7 +859,7 @@ class TestExecutionSettings:
             {
                 "max_slippage_pct": "0.5",
                 "compensation": {},
-            }
+            },
         )
         assert settings.max_slippage_pct == Decimal("0.5")
 
@@ -869,7 +869,7 @@ class TestExecutionSettings:
                 {
                     "max_slippage_pct": "1.0",
                     "compensation": {},
-                }
+                },
             )
         assert "max_slippage_pct" in str(exc_info.value)
 
@@ -879,7 +879,7 @@ class TestExecutionSettings:
                 {
                     "max_slippage_pct": "1.5",
                     "compensation": {},
-                }
+                },
             )
         assert "max_slippage_pct" in str(exc_info.value)
 
@@ -914,7 +914,7 @@ class TestExecutionCompensationSettings:
         settings = ExecutionCompensationSettings.model_validate(
             {
                 "limit_price_offset_pct": "0.0",
-            }
+            },
         )
         assert settings.limit_price_offset_pct == Decimal("0.0")
 
@@ -923,6 +923,6 @@ class TestExecutionCompensationSettings:
             ExecutionCompensationSettings.model_validate(
                 {
                     "limit_price_offset_pct": "-0.01",
-                }
+                },
             )
         assert "limit_price_offset_pct" in str(exc_info.value)

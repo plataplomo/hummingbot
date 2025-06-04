@@ -294,7 +294,7 @@ class TestHyperliquidAPIWebSocketErrorHandling:
         # Test that None handler is handled appropriately
         # Cast None to the expected type to test runtime behavior
         none_handler = cast(
-            Callable[[dict[str, Any], dict[str, Any]], Coroutine[Any, Any, None]], None
+            "Callable[[dict[str, Any], dict[str, Any]], Coroutine[Any, Any, None]]", None,
         )
         try:
             await hl_api.subscribe("l2Book:ETH", none_handler)

@@ -60,11 +60,11 @@ def mock_ws_manager() -> MagicMock:
 
 @pytest.fixture
 def bp_api(
-    bp_config: ExchangeSpecificConfig, bp_secrets: ApiKeyAuthSecrets, mock_ws_manager: MagicMock
+    bp_config: ExchangeSpecificConfig, bp_secrets: ApiKeyAuthSecrets, mock_ws_manager: MagicMock,
 ) -> BackpackAPI:
     """Create BackpackAPI instance with mocked dependencies using public interfaces only."""
     with patch(
-        "cyberdelta.apis.connectivity.ws_manager.WebSocketManager", return_value=mock_ws_manager
+        "cyberdelta.apis.connectivity.ws_manager.WebSocketManager", return_value=mock_ws_manager,
     ):
         # Create API using standard constructor - no protected member access
         api = BackpackAPI(exchange_config=bp_config, exchange_secrets=bp_secrets)

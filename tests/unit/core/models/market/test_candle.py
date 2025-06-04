@@ -79,7 +79,7 @@ class TestCandle:
     # --- Field Validation Tests --- #
 
     @pytest.mark.parametrize(
-        "field", ["symbol", "interval", "open_time", "open", "high", "low", "close", "volume"]
+        "field", ["symbol", "interval", "open_time", "open", "high", "low", "close", "volume"],
     )
     def test_required_fields(self, field: str) -> None:
         """Test that required fields raise errors if missing."""

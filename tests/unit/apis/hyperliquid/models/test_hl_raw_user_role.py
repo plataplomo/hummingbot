@@ -29,7 +29,7 @@ VALID_USER_ROLE_MISSING: dict[str, Any] = {"role": "missing"}
 
 VALID_ROLE_DATA_AGENT: dict[str, str | None] = {"user": "0xagentuseraddress1234567890abcdef123456"}
 VALID_ROLE_DATA_SUBACCOUNT: dict[str, str | None] = {
-    "master": "0xmasteraddress1234567890abcdef12345678"
+    "master": "0xmasteraddress1234567890abcdef12345678",
 }
 
 # --- Fixtures --- #
@@ -42,10 +42,10 @@ VALID_ROLE_DATA_SUBACCOUNT: dict[str, str | None] = {
         VALID_USER_ROLE_VAULT,
         VALID_USER_ROLE_SUBACCOUNT,
         VALID_USER_ROLE_MISSING,
-    ]
+    ],
 )
 def valid_user_role_data(request: FixtureRequest) -> dict[str, Any]:
-    return cast(dict[str, Any], request.param).copy()  # Ensure individual test data is copied
+    return cast("dict[str, Any]", request.param).copy()  # Ensure individual test data is copied
 
 
 @pytest.fixture(
@@ -54,17 +54,17 @@ def valid_user_role_data(request: FixtureRequest) -> dict[str, Any]:
         VALID_ROLE_DATA_SUBACCOUNT,
         {"user": None, "master": None},  # Both None
         {},  # Empty data
-    ]
+    ],
 )
 def valid_role_data_params(request: FixtureRequest) -> dict[str, str | None]:
-    return cast(dict[str, str | None], request.param).copy()
+    return cast("dict[str, str | None]", request.param).copy()
 
 
 @pytest.fixture
 def valid_raw_user_role_data() -> dict[str, Any]:
     """Return a valid raw user role data dictionary."""
     return cast(
-        dict[str, Any],
+        "dict[str, Any]",
         {
             "roles": [
                 {"role": "withdraw", "maxAmount": "100000000000"},
@@ -78,7 +78,7 @@ def valid_raw_user_role_data() -> dict[str, Any]:
 def valid_raw_create_user_role_payload() -> dict[str, str | None]:
     """Return a valid raw create user role payload dictionary."""
     return cast(
-        dict[str, str | None],
+        "dict[str, str | None]",
         {
             "vaultAddress": "0x1234567890123456789012345678901234567890",
             "signature": "0xabcdef",
@@ -153,7 +153,7 @@ def test_user_role_response_valid(valid_user_role_data: dict[str, Any]) -> None:
     ],
 )
 def test_user_role_response_invalid(
-    valid_user_role_data: dict[str, Any], field: str, value: object, is_missing_test: bool
+    valid_user_role_data: dict[str, Any], field: str, value: object, is_missing_test: bool,
 ) -> None:
     # Use a copy of one of the valid scenarios for manipulation
     data_copy = valid_user_role_data.copy()
@@ -180,7 +180,7 @@ def test_user_role_data_none_valid() -> None:
         {
             "role": "user",
             "data": None,
-        }
+        },
     )
     assert response_with_none_data.data is None
 

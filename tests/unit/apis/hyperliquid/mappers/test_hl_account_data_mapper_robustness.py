@@ -15,15 +15,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
 
 import pytest
 from pydantic import ValidationError
 
 # Third-party imports for type checking only
-if TYPE_CHECKING:
-    pass
-
 # Project-specific imports
 from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
@@ -644,7 +640,7 @@ class TestPerformanceAndMemory:
                 unrealizedPnl=str(10.0 + i),
             )
             asset_positions.append(
-                HyperliquidRawAssetPosition(asset=symbol, position=position_info)
+                HyperliquidRawAssetPosition(asset=symbol, position=position_info),
             )
 
         raw_state = HyperliquidRawClearinghouseState(
@@ -732,7 +728,7 @@ class TestPerformanceAndMemory:
         )
 
         spot_balances = account_data_mapper.transform_raw_clearinghouse_state_to_spot_balances(
-            raw_state
+            raw_state,
         )
 
         positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
@@ -832,7 +828,7 @@ class TestErrorRecoveryScenarios:
                 unrealizedPnl="50.0",
             )
             asset_positions.append(
-                HyperliquidRawAssetPosition(asset=symbol, position=position_info)
+                HyperliquidRawAssetPosition(asset=symbol, position=position_info),
             )
 
         raw_state = HyperliquidRawClearinghouseState(

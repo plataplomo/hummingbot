@@ -74,10 +74,10 @@ def mock_config(mock_config_dict: dict[str, Any]) -> MagicMock:
     # Mock global risk settings
     mock_global_risk = MagicMock()
     mock_global_risk.max_position_usd = Decimal(
-        mock_config_dict["risk"]["global"]["max_position_usd"]
+        mock_config_dict["risk"]["global"]["max_position_usd"],
     )
     mock_global_risk.max_total_exposure_usd = Decimal(
-        mock_config_dict["risk"]["global"]["max_total_exposure_usd"]
+        mock_config_dict["risk"]["global"]["max_total_exposure_usd"],
     )
     mock_risk.global_risk = mock_global_risk
 
@@ -138,12 +138,12 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"] = {}
 
         # Explicitly define and type the 'risk' sub-dictionary
-        risk_config_to_update: dict[str, Any] = cast(dict[str, Any], current_test_config_dict["risk"])
+        risk_config_to_update: dict[str, Any] = cast("dict[str, Any]", current_test_config_dict["risk"])
         risk_config_to_update.update(test_risk_overrides)
 
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
         if "global" not in current_test_config_dict["risk"] or not isinstance(
-            current_test_config_dict["risk"]["global"], dict
+            current_test_config_dict["risk"]["global"], dict,
         ):
             current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "5000.0"
@@ -162,7 +162,7 @@ class TestRiskManagerSizingSimple:
             available_quantity=Decimal("50000"),
         )
         mock_funding_validator.get_symbol_metrics = MagicMock(
-            return_value={"rmse": 0.0, "bias": 0.0}
+            return_value={"rmse": 0.0, "bias": 0.0},
         )
 
         # Create a mock AppSettings object for this test
@@ -173,17 +173,17 @@ class TestRiskManagerSizingSimple:
         mock_risk.use_simple_sizing_path = current_test_config_dict["risk"][
             "use_simple_sizing_path"
         ]
-        risk_config = cast(dict[str, Any], current_test_config_dict["risk"])
+        risk_config = cast("dict[str, Any]", current_test_config_dict["risk"])
         mock_risk.simple_sizing_method = risk_config["simple_sizing_method"]
         mock_risk.simple_fixed_fraction = Decimal(
-            str(risk_config["simple_fixed_fraction"])
+            str(risk_config["simple_fixed_fraction"]),
         )
 
         # Mock global risk settings
         mock_global_risk = MagicMock()
-        global_risk_config = cast(dict[str, Any], current_test_config_dict["risk"]["global"])
+        global_risk_config = cast("dict[str, Any]", current_test_config_dict["risk"]["global"])
         mock_global_risk.max_position_usd = Decimal(
-            str(global_risk_config["max_position_usd"])
+            str(global_risk_config["max_position_usd"]),
         )
         mock_risk.global_risk = mock_global_risk
 
@@ -222,12 +222,12 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"] = {}
 
         # Explicitly define and type the 'risk' sub-dictionary
-        risk_config_to_update: dict[str, Any] = cast(dict[str, Any], current_test_config_dict["risk"])
+        risk_config_to_update: dict[str, Any] = cast("dict[str, Any]", current_test_config_dict["risk"])
         risk_config_to_update.update(test_risk_overrides)
 
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
         if "global" not in current_test_config_dict["risk"] or not isinstance(
-            current_test_config_dict["risk"]["global"], dict
+            current_test_config_dict["risk"]["global"], dict,
         ):
             current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "5000.0"
@@ -246,7 +246,7 @@ class TestRiskManagerSizingSimple:
         )
         # For happy path, validation factor should be 1.0
         mock_funding_validator.get_validation_factor = AsyncMock(
-            return_value=(Decimal("1.0"), Decimal("1.0"))
+            return_value=(Decimal("1.0"), Decimal("1.0")),
         )
 
         risk_manager = RiskManager(
@@ -281,12 +281,12 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"] = {}
 
         # Explicitly define and type the 'risk' sub-dictionary
-        risk_config_to_update: dict[str, Any] = cast(dict[str, Any], current_test_config_dict["risk"])
+        risk_config_to_update: dict[str, Any] = cast("dict[str, Any]", current_test_config_dict["risk"])
         risk_config_to_update.update(test_risk_overrides)
 
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
         if "global" not in current_test_config_dict["risk"] or not isinstance(
-            current_test_config_dict["risk"]["global"], dict
+            current_test_config_dict["risk"]["global"], dict,
         ):
             current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "10000.0"
@@ -304,7 +304,7 @@ class TestRiskManagerSizingSimple:
             available_quantity=Decimal("50000"),
         )
         mock_funding_validator.get_symbol_metrics = MagicMock(
-            return_value={"rmse": 0.0, "bias": 0.0}
+            return_value={"rmse": 0.0, "bias": 0.0},
         )
 
         risk_manager = RiskManager(
@@ -341,12 +341,12 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"] = {}
 
         # Explicitly define and type the 'risk' sub-dictionary
-        risk_config_to_update: dict[str, Any] = cast(dict[str, Any], current_test_config_dict["risk"])
+        risk_config_to_update: dict[str, Any] = cast("dict[str, Any]", current_test_config_dict["risk"])
         risk_config_to_update.update(test_risk_overrides)
 
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
         if "global" not in current_test_config_dict["risk"] or not isinstance(
-            current_test_config_dict["risk"]["global"], dict
+            current_test_config_dict["risk"]["global"], dict,
         ):
             current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "3000.0"
@@ -364,7 +364,7 @@ class TestRiskManagerSizingSimple:
             available_quantity=Decimal("50000"),
         )
         mock_funding_validator.get_symbol_metrics = MagicMock(
-            return_value={"rmse": 0.0, "bias": 0.0}
+            return_value={"rmse": 0.0, "bias": 0.0},
         )
 
         risk_manager = RiskManager(
@@ -400,7 +400,7 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"] = {}
 
         # Explicitly define and type the 'risk' sub-dictionary
-        risk_config_to_update_safety: dict[str, Any] = cast(dict[str, Any], current_test_config_dict["risk"])
+        risk_config_to_update_safety: dict[str, Any] = cast("dict[str, Any]", current_test_config_dict["risk"])
         risk_config_to_update_safety.update(test_risk_overrides)
 
         def config_get_side_effect(key: str, default: object | None = None) -> object:
@@ -417,7 +417,7 @@ class TestRiskManagerSizingSimple:
             return value
 
         low_nfd_opportunity = sample_opportunity.model_copy(
-            update={"net_funding_differential": Decimal("0.00005")}  # 0.5 bps
+            update={"net_funding_differential": Decimal("0.00005")},  # 0.5 bps
         )
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("10000.0"))
@@ -466,7 +466,7 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"] = {}
 
         # Explicitly define and type the 'risk' sub-dictionary
-        risk_config_to_update: dict[str, Any] = cast(dict[str, Any], current_test_config_dict["risk"])
+        risk_config_to_update: dict[str, Any] = cast("dict[str, Any]", current_test_config_dict["risk"])
         risk_config_to_update.update(test_risk_overrides)
 
         def config_get_side_effect(key: str, default: object | None = None) -> object:
@@ -493,7 +493,7 @@ class TestRiskManagerSizingSimple:
             available_quantity=Decimal("1000"),
         )
         mock_funding_validator.get_symbol_metrics = MagicMock(
-            return_value={"rmse": 0.0, "bias": 0.0}
+            return_value={"rmse": 0.0, "bias": 0.0},
         )
 
         with patch.object(mock_config, "get", side_effect=config_get_side_effect):
@@ -530,7 +530,7 @@ class TestRiskManagerSizingSimple:
             current_test_config_dict["risk"] = {}
 
         # Explicitly define and type the 'risk' sub-dictionary
-        risk_config_to_update: dict[str, Any] = cast(dict[str, Any], current_test_config_dict["risk"])
+        risk_config_to_update: dict[str, Any] = cast("dict[str, Any]", current_test_config_dict["risk"])
         risk_config_to_update.update(test_risk_overrides)
 
         def config_get_side_effect(key: str, default: object | None = None) -> object:
@@ -547,7 +547,7 @@ class TestRiskManagerSizingSimple:
             return value
 
         mock_portfolio_tracker.get_total_capital = AsyncMock(
-            return_value=Decimal("100.0")
+            return_value=Decimal("100.0"),
         )  # Only $100 capital
         mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
         mock_portfolio_tracker.get_exchange_balance.return_value = SpotBalance(
@@ -558,7 +558,7 @@ class TestRiskManagerSizingSimple:
             available_quantity=Decimal("100"),
         )
         mock_funding_validator.get_symbol_metrics = MagicMock(
-            return_value={"rmse": 0.0, "bias": 0.0}
+            return_value={"rmse": 0.0, "bias": 0.0},
         )
 
         with patch.object(mock_config, "get", side_effect=config_get_side_effect):
@@ -607,7 +607,7 @@ class TestRiskManagerSizingSimple:
         if not isinstance(live_test_config_data.get("risk"), dict):
             live_test_config_data["risk"] = {}
         if "global" not in live_test_config_data["risk"] or not isinstance(
-            live_test_config_data["risk"]["global"], dict
+            live_test_config_data["risk"]["global"], dict,
         ):
             live_test_config_data["risk"]["global"] = {}
         # Set initial max_position_usd high enough for the first trade to pass this constraint
@@ -615,7 +615,7 @@ class TestRiskManagerSizingSimple:
         # Apply initial_risk_config_overrides to the 'risk' level
         if not isinstance(live_test_config_data.get("risk"), dict):
             live_test_config_data["risk"] = {}
-        risk_config_live_update_target: dict[str, Any] = cast(dict[str, Any], live_test_config_data["risk"])
+        risk_config_live_update_target: dict[str, Any] = cast("dict[str, Any]", live_test_config_data["risk"])
         risk_config_live_update_target.update(initial_risk_config_overrides)
         # Lower min_nfd_bps for this test to allow sizing
         live_test_config_data["risk"]["min_nfd_bps"] = "1"  # Allow NFD of 0.0003 to pass
@@ -661,15 +661,15 @@ class TestRiskManagerSizingSimple:
         # The problematic isinstance check was removed from here previously, which was correct.
         # live_test_config_data["risk"] is now ensured to be a dict.
         risk_config_dict_for_opp2: dict[str, Any] = cast(
-            dict[str, Any], live_test_config_data["risk"]
+            "dict[str, Any]", live_test_config_data["risk"],
         )
 
         if "global" not in risk_config_dict_for_opp2 or not isinstance(
-            risk_config_dict_for_opp2["global"], dict
+            risk_config_dict_for_opp2["global"], dict,
         ):
             risk_config_dict_for_opp2["global"] = {}  # Should not be needed
         # Direct assignment to the typed dict
-        global_config_for_opp2: dict[str, Any] = cast(dict[str, Any], risk_config_dict_for_opp2["global"])
+        global_config_for_opp2: dict[str, Any] = cast("dict[str, Any]", risk_config_dict_for_opp2["global"])
         global_config_for_opp2["max_position_usd"] = "10.0"
 
         config_for_opp2 = mock_config_dict  # Use dict directly instead of Config class
@@ -721,7 +721,7 @@ class TestRiskManagerSizingSimple:
         current_test_config_dict["risk"].update(test_risk_overrides)
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
         if "global" not in current_test_config_dict["risk"] or not isinstance(
-            current_test_config_dict["risk"]["global"], dict
+            current_test_config_dict["risk"]["global"], dict,
         ):
             current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "10000.0"
@@ -778,7 +778,7 @@ class TestRiskManagerSizingSimple:
         current_test_config_dict["risk"].update(test_risk_overrides)
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
         if "global" not in current_test_config_dict["risk"] or not isinstance(
-            current_test_config_dict["risk"]["global"], dict
+            current_test_config_dict["risk"]["global"], dict,
         ):
             current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "10000.0"
@@ -802,7 +802,7 @@ class TestRiskManagerSizingSimple:
         def mock_get_symbol_metrics_side_effect(exchange: str, symbol: str) -> dict[str, Decimal]:
             print(
                 f"MOCK_GSYM_METRICS CALLED: exchange={exchange}, symbol={symbol}, "
-                f"returning {expected_metrics}"
+                f"returning {expected_metrics}",
             )
             return expected_metrics
 

@@ -262,7 +262,7 @@ class TestBackpackTradingServiceAccountMisc:
 
         # Test that the service can query order status
         result = await bp_trading_service.get_order_status(
-            args=GetOrderArgs(order_id=order_id, symbol=symbol)
+            args=GetOrderArgs(order_id=order_id, symbol=symbol),
         )
 
         # Verify the query request was made correctly
@@ -298,7 +298,7 @@ class TestBackpackTradingServiceAccountMisc:
 
         # Test that the service can cancel orders
         result = await bp_trading_service.cancel_order(
-            args=CancelOrderArgs(order_id=order_id, symbol=symbol)
+            args=CancelOrderArgs(order_id=order_id, symbol=symbol),
         )
 
         # Verify the cancellation request was made correctly
@@ -457,7 +457,7 @@ class TestBackpackTradingServiceAccountMisc:
         mock_response_handler.handle_cancel_order_response.return_value = True
 
         cancelled = await bp_trading_service.cancel_order(
-            args=CancelOrderArgs(order_id="123", symbol=symbol)
+            args=CancelOrderArgs(order_id="123", symbol=symbol),
         )
         assert cancelled is True
 

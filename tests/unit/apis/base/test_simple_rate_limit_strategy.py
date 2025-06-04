@@ -29,7 +29,7 @@ class TestSimpleTokenBucketStrategy:
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_default_weight(
-        self, strategy: SimpleTokenBucketStrategy, mock_limiter: AsyncMock
+        self, strategy: SimpleTokenBucketStrategy, mock_limiter: AsyncMock,
     ) -> None:
         """Test acquiring with default request weight."""
         request_context: dict[str, Any] = {
@@ -45,7 +45,7 @@ class TestSimpleTokenBucketStrategy:
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_custom_weight(
-        self, strategy: SimpleTokenBucketStrategy, mock_limiter: AsyncMock
+        self, strategy: SimpleTokenBucketStrategy, mock_limiter: AsyncMock,
     ) -> None:
         """Test acquiring with custom request weight from context."""
         request_context: dict[str, Any] = {
@@ -62,7 +62,7 @@ class TestSimpleTokenBucketStrategy:
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_zero_weight(
-        self, strategy: SimpleTokenBucketStrategy, mock_limiter: AsyncMock
+        self, strategy: SimpleTokenBucketStrategy, mock_limiter: AsyncMock,
     ) -> None:
         """Test acquiring with zero weight (should not call limiter)."""
         request_context: dict[str, Any] = {
@@ -78,7 +78,7 @@ class TestSimpleTokenBucketStrategy:
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_negative_weight(
-        self, strategy: SimpleTokenBucketStrategy, mock_limiter: AsyncMock
+        self, strategy: SimpleTokenBucketStrategy, mock_limiter: AsyncMock,
     ) -> None:
         """Test acquiring with negative weight (should not call limiter)."""
         request_context: dict[str, Any] = {
@@ -94,7 +94,7 @@ class TestSimpleTokenBucketStrategy:
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_missing_weight(
-        self, strategy: SimpleTokenBucketStrategy, mock_limiter: AsyncMock
+        self, strategy: SimpleTokenBucketStrategy, mock_limiter: AsyncMock,
     ) -> None:
         """Test acquiring when request_weight is missing from context."""
         request_context: dict[str, Any] = {
@@ -150,7 +150,7 @@ class TestSimpleTokenBucketStrategy:
 
     @pytest.mark.asyncio
     async def test_strategy_does_not_modify_payload(
-        self, strategy: SimpleTokenBucketStrategy, mock_limiter: AsyncMock
+        self, strategy: SimpleTokenBucketStrategy, mock_limiter: AsyncMock,
     ) -> None:
         """Test that strategy returns None (does not modify payload)."""
         request_context: dict[str, Any] = {

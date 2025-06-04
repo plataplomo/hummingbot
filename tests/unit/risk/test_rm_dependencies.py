@@ -28,7 +28,7 @@ def config_get_side_effect_combined(key: str, combined_config: Mapping[str, obje
 
 
 def apply_portfolio_exposure_management_passthrough(
-    opp: ArbitrageOpportunity, size: Decimal
+    opp: ArbitrageOpportunity, size: Decimal,
 ) -> Decimal:
     """Return the size unchanged (passthrough for patching)."""
     return size
@@ -39,7 +39,7 @@ class TestRiskManagerDependencyFailures:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "bad_capital", [Decimal("0"), Decimal("-100"), None, "invalid_decimal"]
+        "bad_capital", [Decimal("0"), Decimal("-100"), None, "invalid_decimal"],
     )
     async def test_size_opportunity_bad_total_capital(
         self,
@@ -128,7 +128,7 @@ class TestRiskManagerDependencyFailures:
             mock_portfolio_tracker.get_total_capital.side_effect = Exception("Simulated PT Error")
             mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
             with patch.object(
-                risk_manager, "_apply_portfolio_exposure_management", return_value=None
+                risk_manager, "_apply_portfolio_exposure_management", return_value=None,
             ):
                 with pytest.raises(Exception) as excinfo:
                     await risk_manager.size_opportunity(sample_opportunity)
@@ -178,11 +178,11 @@ class TestRiskManagerDependencyFailures:
                 mock_funding_validator.get_symbol_metrics = MagicMock(return_value=None)
                 risk_manager.funding_rate_validator = mock_funding_validator
                 with patch.object(
-                    risk_manager, "_check_portfolio_constraints", return_value=(True, None)
+                    risk_manager, "_check_portfolio_constraints", return_value=(True, None),
                 ):
 
                     def can_execute_side_effect(
-                        scope: str, symbol: str | None = None
+                        scope: str, symbol: str | None = None,
                     ) -> tuple[bool, str | None]:
                         if scope_to_trip == "global":
                             if (
@@ -240,7 +240,7 @@ class TestRiskManagerDependencyFailures:
                 side_effect=apply_portfolio_exposure_management_passthrough,
             ):
                 with patch.object(
-                    risk_manager, "_check_portfolio_constraints", return_value=(True, None)
+                    risk_manager, "_check_portfolio_constraints", return_value=(True, None),
                 ):
                     risk_manager.funding_rate_validator = None
                     mock_circuit_breaker.can_execute.side_effect = Exception("Simulated CB Error")

@@ -115,7 +115,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
                 mock_headers_from_client,
             )
             assert mock_mapper.transform_raw_kline_to_internal.call_count == len(
-                mock_validated_klines_raw
+                mock_validated_klines_raw,
             )
             assert result == mock_internal_candles
 
@@ -212,7 +212,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
         mock_request_builder.build_get_market_data_params.return_value = mock_params
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_market_data_response.side_effect = Exception(
-            "Unexpected error"
+            "Unexpected error",
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -258,7 +258,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
                 "60.0",
                 "180000.0",
                 "0",
-            ]
+            ],
         ]
         mock_validated_klines_raw = [BackpackRawKline.model_validate(mock_raw_kline_data[0])]
 
@@ -304,13 +304,13 @@ class TestBackpackMarketDataServiceKlinesMisc:
                 {},
             )
             assert mock_mapper.transform_raw_kline_to_internal.call_count == len(
-                mock_validated_klines_raw
+                mock_validated_klines_raw,
             )
             assert result == mock_internal_candles
 
     @pytest.mark.asyncio
     async def test_get_all_tickers_not_implemented(
-        self, backpack_market_data_service: BackpackMarketDataService
+        self, backpack_market_data_service: BackpackMarketDataService,
     ) -> None:
         """Test that get_all_tickers raises APIError for not implemented functionality."""
         with pytest.raises(APIError) as exc_info:
@@ -372,7 +372,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
 
         # Mock the static method on the class
         with patch.object(
-            BackpackMarketDataMapper, "transform_raw_ticker_to_internal"
+            BackpackMarketDataMapper, "transform_raw_ticker_to_internal",
         ) as mock_transform:
             mock_transform.return_value = MagicMock()
             await service.get_ticker("TEST")

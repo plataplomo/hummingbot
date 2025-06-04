@@ -36,7 +36,8 @@ class TestBackpackAccountServicePositions:
         mock_mapper: MagicMock,
     ) -> None:
         """Test _get_raw_positions_list successfully fetches and processes position data,
-        tested via public get_positions."""
+        tested via public get_positions.
+        """
         symbol_arg = "SOL-PERP"
         mock_raw_positions_data_item_dict = {
             "symbol": "SOL-PERP",
@@ -60,7 +61,7 @@ class TestBackpackAccountServicePositions:
             "cumulativeInterest": "-0.1",
         }
         mock_validated_raw_positions = [
-            BackpackRawPosition.model_validate(mock_raw_positions_data_item_dict)
+            BackpackRawPosition.model_validate(mock_raw_positions_data_item_dict),
         ]
 
         mock_internal_derivative_position = DerivativePosition(
@@ -115,10 +116,10 @@ class TestBackpackAccountServicePositions:
             request_weight=1,
         )
         mock_response_handler.handle_get_positions_response.assert_called_with(
-            mock_raw_positions_data_item_dict, None
+            mock_raw_positions_data_item_dict, None,
         )
         mock_mapper.transform_raw_position_to_internal.assert_called_with(
-            mock_validated_raw_positions[0]
+            mock_validated_raw_positions[0],
         )
         assert len(result_no_symbol) == len(expected_positions_result)
         for actual, expected in zip(result_no_symbol, expected_positions_result, strict=False):
@@ -159,10 +160,10 @@ class TestBackpackAccountServicePositions:
             request_weight=1,
         )
         mock_response_handler.handle_get_positions_response.assert_called_with(
-            mock_raw_positions_data_item_dict, symbol_arg
+            mock_raw_positions_data_item_dict, symbol_arg,
         )
         mock_mapper.transform_raw_position_to_internal.assert_called_with(
-            mock_validated_raw_positions[0]
+            mock_validated_raw_positions[0],
         )
         assert len(result_with_symbol) == len(expected_positions_result)
         for actual, expected in zip(result_with_symbol, expected_positions_result, strict=False):
@@ -236,7 +237,7 @@ class TestBackpackAccountServicePositions:
         mock_request_builder.build_get_positions_params.return_value = None
         mock_http_client_requester.return_value = ([{"symbol": "SOL_USDC"}], 200, {})
         mock_response_handler.handle_get_positions_response.side_effect = Exception(
-            "Unexpected error"
+            "Unexpected error",
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -315,7 +316,8 @@ class TestBackpackAccountServicePositions:
         mock_mapper: MagicMock,
     ) -> None:
         """Test get_positions with comprehensive scenarios including
-        proper DerivativePosition construction."""
+        proper DerivativePosition construction.
+        """
         mock_raw_position_data = {
             "symbol": "SOL_USDC",
             "breakEvenPrice": "100.0",
@@ -404,7 +406,7 @@ class TestBackpackAccountServicePositions:
         mock_request_builder.build_get_positions_params.return_value = None
         mock_http_client_requester.return_value = ([{"symbol": "SOL_USDC"}], 200, {})
         mock_response_handler.handle_get_positions_response.side_effect = Exception(
-            "Unexpected error"
+            "Unexpected error",
         )
 
         with pytest.raises(APIError) as exc_info:

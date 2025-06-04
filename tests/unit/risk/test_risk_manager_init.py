@@ -14,7 +14,7 @@ class TestRiskManagerInit:
     """Test suite for RiskManager initialization."""
 
     def test_init(
-        self, risk_manager: RiskManager, mock_config: MagicMock, mock_portfolio_tracker: MagicMock
+        self, risk_manager: RiskManager, mock_config: MagicMock, mock_portfolio_tracker: MagicMock,
     ) -> None:
         """Test initializing the risk manager."""
         # Verify risk parameters were loaded and converted to Decimal
@@ -25,7 +25,7 @@ class TestRiskManagerInit:
         assert risk_manager.min_exchange_balance == Decimal("50.0")
         assert risk_manager.min_nfd_for_sizing == Decimal("0.0001")
         assert risk_manager.min_nfd_for_sizing == Decimal(
-            "0.0001"
+            "0.0001",
         )  # Used by is_opportunity_profitable
         # Verify references to dependencies
         assert risk_manager.app_settings == mock_config

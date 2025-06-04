@@ -147,7 +147,7 @@ class TestHyperliquidAssetIndexResolver:
 
         # Assert response handler was called
         mock_response_handler.handle_info_meta_and_asset_ctxs_response.assert_called_once_with(
-            mock_raw_json_response
+            mock_raw_json_response,
         )
 
         # Assert correct index returned
@@ -161,7 +161,7 @@ class TestHyperliquidAssetIndexResolver:
 
     @pytest.mark.asyncio
     async def test_invalid_symbol_empty_string(
-        self, asset_indexer: HyperliquidAssetIndexResolver
+        self, asset_indexer: HyperliquidAssetIndexResolver,
     ) -> None:
         """Test that empty string symbol raises APIError."""
         with pytest.raises(APIError) as exc_info:
@@ -418,5 +418,5 @@ class TestHyperliquidAssetIndexResolver:
             mock_request_builder.build_info_request_payload.return_value.model_dump.return_value
         )
         mock_requester.assert_called_once_with(
-            method="POST", endpoint="/info", data=expected_payload
+            method="POST", endpoint="/info", data=expected_payload,
         )

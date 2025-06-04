@@ -75,7 +75,7 @@ class TestOrderVerifier:
 
         # Initialize orders ; type is inferred from spec=PortfolioTracker
         mock_tracker.orders = defaultdict(
-            lambda: dict[str, Order]()
+            lambda: dict[str, Order](),
         )  # More precise default factory
 
         # Define a sample filled order for mocking
@@ -131,8 +131,8 @@ class TestOrderVerifier:
                         price=Decimal("50000.0"),
                         quantity=Decimal("1.0"),
                         timestamp=int(datetime.now(UTC).timestamp() * 1000),
-                    )
-                ]
+                    ),
+                ],
             ),
         )
 
@@ -204,7 +204,7 @@ class TestOrderVerifier:
         # This check might be redundant if the fixture guarantees the type, but casting helps.
         typed_orders: defaultdict[str, dict[str, Order]]
         # Directly cast the attribute from the mock, assuming the fixture sets it up correctly.
-        typed_orders = cast(defaultdict[str, dict[str, Order]], portfolio_tracker.orders)
+        typed_orders = cast("defaultdict[str, dict[str, Order]]", portfolio_tracker.orders)
 
         if exchange_id not in typed_orders:
             typed_orders[exchange_id] = {}
@@ -223,7 +223,7 @@ class TestOrderVerifier:
         # Instead, rely on the mock_get_order_by_id logic in the fixture for missing orders
 
         result_fail = await verifier.verify_order_placement(
-            "hyperliquid", "missing-order", expected_details
+            "hyperliquid", "missing-order", expected_details,
         )
 
         assert result_fail.get("success") is False
@@ -311,7 +311,7 @@ class TestExecutionCoordinator:
     def coordinator(self) -> ExecutionCoordinator:
         """Create an execution coordinator."""
         config: dict[str, Any] = {
-            "execution.context_retention_seconds": 1  # Short retention for testing
+            "execution.context_retention_seconds": 1,  # Short retention for testing
         }
         return ExecutionCoordinator(config)
 
@@ -527,7 +527,7 @@ class TestSynchronizedOrderSubmissionService:
 
     @pytest.mark.asyncio
     @patch.object(
-        SynchronizedOrderSubmissionService, "verify_pre_execution", new_callable=AsyncMock
+        SynchronizedOrderSubmissionService, "verify_pre_execution", new_callable=AsyncMock,
     )
     @patch.object(
         SynchronizedOrderSubmissionService,
@@ -535,7 +535,7 @@ class TestSynchronizedOrderSubmissionService:
         new_callable=AsyncMock,
     )
     @patch.object(
-        SynchronizedOrderSubmissionService, "verify_post_execution", new_callable=AsyncMock
+        SynchronizedOrderSubmissionService, "verify_post_execution", new_callable=AsyncMock,
     )
     async def test_submit_orders_sequential(
         self,
@@ -577,7 +577,7 @@ class TestSynchronizedOrderSubmissionService:
 
         # Call the SUT
         result_obj: ExecutionResult = await service_instance.submit_orders(
-            mock_opportunity, "sequential_lock_in"
+            mock_opportunity, "sequential_lock_in",
         )
 
         # Assert based on the expected dictionary structure returned by submit_orders
@@ -594,7 +594,7 @@ class TestSynchronizedOrderSubmissionService:
 
     @pytest.mark.asyncio
     @patch.object(
-        SynchronizedOrderSubmissionService, "verify_pre_execution", new_callable=AsyncMock
+        SynchronizedOrderSubmissionService, "verify_pre_execution", new_callable=AsyncMock,
     )
     @patch.object(
         SynchronizedOrderSubmissionService,
@@ -602,7 +602,7 @@ class TestSynchronizedOrderSubmissionService:
         new_callable=AsyncMock,
     )
     @patch.object(
-        SynchronizedOrderSubmissionService, "verify_post_execution", new_callable=AsyncMock
+        SynchronizedOrderSubmissionService, "verify_post_execution", new_callable=AsyncMock,
     )
     async def test_submit_orders_simultaneous(
         self,
@@ -645,7 +645,7 @@ class TestSynchronizedOrderSubmissionService:
 
         # Call the SUT
         result_obj: ExecutionResult = await service_instance.submit_orders(
-            mock_opportunity, "simultaneous"
+            mock_opportunity, "simultaneous",
         )
 
         # Assert based on the expected dictionary structure
@@ -662,7 +662,7 @@ class TestSynchronizedOrderSubmissionService:
 
     @pytest.mark.asyncio
     @patch.object(
-        SynchronizedOrderSubmissionService, "verify_pre_execution", new_callable=AsyncMock
+        SynchronizedOrderSubmissionService, "verify_pre_execution", new_callable=AsyncMock,
     )
     @patch.object(
         SynchronizedOrderSubmissionService,
@@ -670,7 +670,7 @@ class TestSynchronizedOrderSubmissionService:
         new_callable=AsyncMock,
     )
     @patch.object(
-        SynchronizedOrderSubmissionService, "verify_post_execution", new_callable=AsyncMock
+        SynchronizedOrderSubmissionService, "verify_post_execution", new_callable=AsyncMock,
     )
     @patch.object(
         SynchronizedOrderSubmissionService,
@@ -752,7 +752,7 @@ class TestSynchronizedOrderSubmissionService:
 
         # Submit orders
         result_obj: ExecutionResult = await service_instance.submit_orders(
-            mock_opportunity, strategy
+            mock_opportunity, strategy,
         )
 
         # Verify status is REJECTED and error is propagated correctly in ExecutionResult
@@ -775,7 +775,7 @@ class TestSynchronizedOrderSubmissionService:
 
     @pytest.mark.asyncio
     @patch.object(
-        SynchronizedOrderSubmissionService, "verify_pre_execution", new_callable=AsyncMock
+        SynchronizedOrderSubmissionService, "verify_pre_execution", new_callable=AsyncMock,
     )
     @patch.object(
         SynchronizedOrderSubmissionService,
@@ -783,7 +783,7 @@ class TestSynchronizedOrderSubmissionService:
         new_callable=AsyncMock,
     )
     @patch.object(
-        SynchronizedOrderSubmissionService, "verify_post_execution", new_callable=AsyncMock
+        SynchronizedOrderSubmissionService, "verify_post_execution", new_callable=AsyncMock,
     )
     @patch.object(
         SynchronizedOrderSubmissionService,
@@ -894,7 +894,7 @@ class TestSynchronizedOrderSubmissionService:
 
     @pytest.mark.asyncio
     @patch.object(
-        SynchronizedOrderSubmissionService, "verify_market_conditions", new_callable=AsyncMock
+        SynchronizedOrderSubmissionService, "verify_market_conditions", new_callable=AsyncMock,
     )
     @patch.object(SynchronizedOrderSubmissionService, "verify_balances", new_callable=AsyncMock)
     @patch(
@@ -959,15 +959,15 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_balances.return_value = {"verified": True, "error": None, "details": {}}
 
         result_dict_all_pass = await service_instance.verify_pre_execution(
-            mock_exec_context, mock_opportunity
+            mock_exec_context, mock_opportunity,
         )
         assert result_dict_all_pass.get("verified") is True
         assert result_dict_all_pass.get("error") is None
         mock_cb_system.can_execute.assert_any_call(
-            mock_opportunity.long_exchange, mock_opportunity.symbol
+            mock_opportunity.long_exchange, mock_opportunity.symbol,
         )
         mock_cb_system.can_execute.assert_any_call(
-            mock_opportunity.short_exchange, mock_opportunity.symbol
+            mock_opportunity.short_exchange, mock_opportunity.symbol,
         )
         mock_verify_market_conditions.assert_awaited_once_with(mock_opportunity)
         mock_verify_balances.assert_awaited_once_with(mock_opportunity)
@@ -995,12 +995,12 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_balances.return_value = {"verified": True, "error": None, "details": {}}
 
         result_dict_fail_long_cb = await service_instance.verify_pre_execution(
-            mock_exec_context, mock_opportunity
+            mock_exec_context, mock_opportunity,
         )
         assert result_dict_fail_long_cb.get("verified") is False
         assert "Long leg CB tripped" in result_dict_fail_long_cb.get("error", "")
         mock_cb_system.can_execute.assert_called_once_with(
-            mock_opportunity.long_exchange, mock_opportunity.symbol
+            mock_opportunity.long_exchange, mock_opportunity.symbol,
         )  # Only long check
         mock_verify_market_conditions.assert_not_awaited()
         mock_verify_balances.assert_not_awaited()
@@ -1028,7 +1028,7 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_balances.return_value = {"verified": True, "error": None, "details": {}}
 
         result_dict_fail_short_cb = await service_instance.verify_pre_execution(
-            mock_exec_context, mock_opportunity
+            mock_exec_context, mock_opportunity,
         )
         assert result_dict_fail_short_cb.get("verified") is False
         assert "Short leg CB tripped" in result_dict_fail_short_cb.get("error", "")
@@ -1058,7 +1058,7 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_balances.return_value = {"verified": True, "error": None, "details": {}}
 
         result_dict_fail_market = await service_instance.verify_pre_execution(
-            mock_exec_context, mock_opportunity
+            mock_exec_context, mock_opportunity,
         )
         assert result_dict_fail_market.get("verified") is False
         assert "Market spread too wide" in result_dict_fail_market.get("error", "")
@@ -1094,7 +1094,7 @@ class TestSynchronizedOrderSubmissionService:
         }
 
         result_dict_fail_balance = await service_instance.verify_pre_execution(
-            mock_exec_context, mock_opportunity
+            mock_exec_context, mock_opportunity,
         )
         assert result_dict_fail_balance.get("verified") is False
         assert "Insufficient balance on long leg" in result_dict_fail_balance.get("error", "")
@@ -1166,7 +1166,7 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_orders.return_value = {"verified": True, "details": "Orders OK"}
 
         result_pass = await service_instance.verify_post_execution(
-            mock_exec_context, mock_opportunity, mock_execution_result
+            mock_exec_context, mock_opportunity, mock_execution_result,
         )
         assert result_pass["verified"] is True
         mock_verify_positions.assert_awaited_once_with(mock_opportunity, mock_execution_result)
@@ -1208,7 +1208,7 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_orders.return_value = {"verified": True}
 
         result_fail_pos = await service_instance.verify_post_execution(
-            mock_exec_context, mock_opportunity, mock_execution_result
+            mock_exec_context, mock_opportunity, mock_execution_result,
         )
         assert result_fail_pos["verified"] is False
         checkpoint_found_fail_pos = False
@@ -1243,7 +1243,7 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_orders.return_value = {"verified": True}
 
         result_fail_fill = await service_instance.verify_post_execution(
-            mock_exec_context, mock_opportunity, mock_execution_result
+            mock_exec_context, mock_opportunity, mock_execution_result,
         )
         assert result_fail_fill["verified"] is False
         checkpoint_found_fail_fill = False

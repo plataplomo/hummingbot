@@ -98,7 +98,7 @@ class TestHttpClient:
         mock_response1 = AsyncMock(spec=aiohttp.ClientResponse)
         mock_response1.status = 200
         mock_response1.headers = CIMultiDictProxy(
-            CIMultiDict[str]({"Content-Type": "application/json"})
+            CIMultiDict[str]({"Content-Type": "application/json"}),
         )
         mock_response1.text = AsyncMock(return_value="{}")
         mock_session_instance1.request.return_value.__aenter__.return_value = mock_response1
@@ -129,7 +129,7 @@ class TestHttpClient:
         mock_response2 = AsyncMock(spec=aiohttp.ClientResponse)
         mock_response2.status = 200
         mock_response2.headers = CIMultiDictProxy(
-            CIMultiDict[str]({"Content-Type": "application/json"})
+            CIMultiDict[str]({"Content-Type": "application/json"}),
         )
         mock_response2.text = AsyncMock(return_value="{}")
         mock_session_instance2.request.return_value.__aenter__.return_value = mock_response2
@@ -155,7 +155,7 @@ class TestHttpClient:
         mock_session_instance.closed = False
         mock_response = AsyncMock(spec=aiohttp.ClientResponse, status=200)
         mock_response.headers = CIMultiDictProxy(
-            CIMultiDict[str]({"Content-Type": "application/json"})
+            CIMultiDict[str]({"Content-Type": "application/json"}),
         )
         mock_response.text = AsyncMock(return_value="{}")
         mock_session_instance.request.return_value.__aenter__.return_value = mock_response
@@ -185,7 +185,7 @@ class TestHttpClient:
         mock_session_instance.closed = False
         mock_response = AsyncMock(spec=aiohttp.ClientResponse, status=200)
         mock_response.headers = CIMultiDictProxy(
-            CIMultiDict[str]({"Content-Type": "application/json"})
+            CIMultiDict[str]({"Content-Type": "application/json"}),
         )
         mock_response.text = AsyncMock(return_value="{}")
         mock_session_instance.request.return_value.__aenter__.return_value = mock_response
@@ -196,7 +196,7 @@ class TestHttpClient:
         }
 
         async with HttpClient(
-            exchange_name="test_ctx", config=default_http_client_config
+            exchange_name="test_ctx", config=default_http_client_config,
         ) as _:  # Changed 'client' to '_' as it's unused
             MockAiohttpSession.assert_called_once_with(headers=expected_headers)
 
@@ -213,14 +213,14 @@ class TestHttpClient:
         external_session_mock.closed = False
         mock_response = AsyncMock(spec=aiohttp.ClientResponse, status=200)
         mock_response.headers = CIMultiDictProxy(
-            CIMultiDict[str]({"Content-Type": "application/json"})
+            CIMultiDict[str]({"Content-Type": "application/json"}),
         )
         mock_response.text = AsyncMock(return_value="{}")
         external_session_mock.request.return_value.__aenter__.return_value = mock_response
 
         # Patching aiohttp.ClientSession to ensure it's NOT called when an external one is provided
         with patch(
-            "cyberdelta.apis.connectivity.http_client.aiohttp.ClientSession"
+            "cyberdelta.apis.connectivity.http_client.aiohttp.ClientSession",
         ) as MockAiohttpSessionClsConstruction:
             client_with_external_session = HttpClient(
                 exchange_name="test_external",
@@ -238,7 +238,7 @@ class TestHttpClient:
 
         # Verify context manager also doesn't close external session
         with patch(
-            "cyberdelta.apis.connectivity.http_client.aiohttp.ClientSession"
+            "cyberdelta.apis.connectivity.http_client.aiohttp.ClientSession",
         ) as MockAiohttpSessionClsConstructionCtx:
             async with HttpClient(
                 exchange_name="test_external_ctx",
@@ -263,14 +263,14 @@ class TestHttpClient:
         mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_aio_response.status = 200
         mock_aio_response.headers = CIMultiDictProxy(
-            CIMultiDict[str]({"Content-Type": "application/json; charset=utf-8"})
+            CIMultiDict[str]({"Content-Type": "application/json; charset=utf-8"}),
         )
         expected_body_dict = {"data": "success"}
         mock_aio_response.text = AsyncMock(return_value=json.dumps(expected_body_dict))
         mock_session_request_method.return_value.__aenter__.return_value = mock_aio_response
 
         content, status_code, processed_headers, raw_headers = await http_client_instance.request(
-            method="GET", endpoint_path="/test"
+            method="GET", endpoint_path="/test",
         )
 
         assert content == expected_body_dict
@@ -308,14 +308,14 @@ class TestHttpClient:
         mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_aio_response.status = 200
         mock_aio_response.headers = CIMultiDictProxy(
-            CIMultiDict[str]({"Content-Type": "text/plain"})
+            CIMultiDict[str]({"Content-Type": "text/plain"}),
         )
         expected_text_content = "Hello World"
         mock_aio_response.text = AsyncMock(return_value=expected_text_content)
         mock_session_request_method.return_value.__aenter__.return_value = mock_aio_response
 
         content, status_code, processed_headers, raw_headers = await http_client_instance.request(
-            method="GET", endpoint_path="/text"
+            method="GET", endpoint_path="/text",
         )
 
         assert content == expected_text_content
@@ -336,10 +336,10 @@ class TestHttpClient:
         mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_aio_response.status = 204
         mock_aio_response.headers = CIMultiDictProxy(
-            CIMultiDict[str]()
+            CIMultiDict[str](),
         )  # No content-type typically
         mock_aio_response.text = AsyncMock(
-            return_value=""
+            return_value="",
         )  # Should not be called by parser for 204
         mock_session_request_method.return_value.__aenter__.return_value = mock_aio_response
 
@@ -375,7 +375,7 @@ class TestHttpClient:
         mock_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_response.status = 200
         mock_response.headers = CIMultiDictProxy(
-            CIMultiDict[str]({"Content-Type": "application/json"})
+            CIMultiDict[str]({"Content-Type": "application/json"}),
         )
         mock_response.text = AsyncMock(return_value='{"status": "ok"}')
         mock_session_request_method.return_value.__aenter__.return_value = mock_response
@@ -387,13 +387,13 @@ class TestHttpClient:
         # Patch aiohttp.ClientSession to get hold of the session instance
         # and its headers, so we can verify the authenticator's behavior.
         with patch(
-            "cyberdelta.apis.connectivity.http_client.aiohttp.ClientSession"
+            "cyberdelta.apis.connectivity.http_client.aiohttp.ClientSession",
         ) as MockAiohttpSessionCls:
             mock_created_session_instance = AsyncMock(spec=RealAiohttpClientSession)
             mock_created_session_instance.closed = False
             mock_created_session_instance.request = mock_session_request_method
             initial_session_headers = {
-                "User-Agent": f"CyberDeltaEngine/{http_client_instance.exchange_name}"
+                "User-Agent": f"CyberDeltaEngine/{http_client_instance.exchange_name}",
             }
             mock_created_session_instance.headers = initial_session_headers.copy()
             MockAiohttpSessionCls.return_value = mock_created_session_instance
@@ -426,7 +426,7 @@ class TestHttpClient:
         # we must cast to inform the type checker of its true runtime nature as an AsyncMock.
         # This cast is safe because the object *is* an AsyncMock here.
         # [CAST-REVIEW-REQUIRED]
-        prepare_request_mock_signed = cast(AsyncMock, mock_authenticator.prepare_request)
+        prepare_request_mock_signed = cast("AsyncMock", mock_authenticator.prepare_request)
         assert isinstance(prepare_request_mock_signed, AsyncMock)
         prepare_request_mock_signed.assert_called_once_with(
             method="POST",
@@ -466,7 +466,7 @@ class TestHttpClient:
 
     @pytest.mark.asyncio
     async def test_request_signed_no_authenticator_raises_api_error(
-        self, http_client_instance: HttpClient
+        self, http_client_instance: HttpClient,
     ) -> None:
         """Test signed request raises APIError if no authenticator is provided."""
         with pytest.raises(APIError) as excinfo:
@@ -491,7 +491,7 @@ class TestHttpClient:
         # We need to cast to AsyncMock to assign to its .side_effect attribute.
         # This cast is safe because the object *is* an AsyncMock here.
         # [CAST-REVIEW-REQUIRED]
-        prepare_request_mock_error = cast(AsyncMock, mock_authenticator.prepare_request)
+        prepare_request_mock_error = cast("AsyncMock", mock_authenticator.prepare_request)
         assert isinstance(prepare_request_mock_error, AsyncMock)
         prepare_request_mock_error.side_effect = auth_error
 
@@ -700,7 +700,7 @@ class TestHttpClient:
         mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_aio_response.status = 200
         mock_aio_response.headers = CIMultiDictProxy(
-            CIMultiDict[str]({"Content-Type": "application/json"})
+            CIMultiDict[str]({"Content-Type": "application/json"}),
         )
         invalid_json_text = "this is not json{"
         mock_aio_response.text = AsyncMock(return_value=invalid_json_text)
@@ -730,7 +730,7 @@ class TestHttpClient:
         mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_aio_response.status = 200
         mock_aio_response.headers = CIMultiDictProxy(
-            CIMultiDict[str]({"Content-Type": "application/json"})
+            CIMultiDict[str]({"Content-Type": "application/json"}),
         )
         payload_error_cause = aiohttp.ClientPayloadError("Simulated payload read failure")
         mock_aio_response.text = AsyncMock(side_effect=payload_error_cause)
@@ -763,7 +763,7 @@ class TestHttpClient:
         mock_aio_response.status = 200
         invalid_ct_header = "a" * (MAX_CONTENT_TYPE_LENGTH + 5)
         mock_aio_response.headers = CIMultiDictProxy(
-            CIMultiDict[str]({"Content-Type": invalid_ct_header})
+            CIMultiDict[str]({"Content-Type": invalid_ct_header}),
         )
         mock_aio_response.text = AsyncMock(return_value='{"key": "value"}')
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
@@ -796,12 +796,12 @@ class TestHttpClientRequestResponseParsing:
         expected_data = {"key": "value", "num": 123}
         headers = {"Content-Type": "application/json; charset=utf-8"}
         mock_aio_response = mock_aiohttp_response_factory(
-            status_code=200, json_body=expected_data, headers_dict=headers
+            status_code=200, json_body=expected_data, headers_dict=headers,
         )
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         content, status_code, processed_headers, raw_headers = await http_client_instance.request(
-            "GET", "/test_json"
+            "GET", "/test_json",
         )
         assert status_code == 200
 
@@ -825,12 +825,12 @@ class TestHttpClientRequestResponseParsing:
         expected_text = "Hello, World!"
         headers = {"Content-Type": "text/plain"}
         mock_aio_response = mock_aiohttp_response_factory(
-            status_code=200, body_text=expected_text, headers_dict=headers
+            status_code=200, body_text=expected_text, headers_dict=headers,
         )
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         content, status_code, processed_headers, raw_headers = await http_client_instance.request(
-            "GET", "/test_text"
+            "GET", "/test_text",
         )
         assert status_code == 200
 
@@ -852,7 +852,7 @@ class TestHttpClientRequestResponseParsing:
         MockAiohttpSession.return_value = mock_session_instance
 
         mock_aio_response = mock_aiohttp_response_factory(
-            status_code=204, headers_dict={}
+            status_code=204, headers_dict={},
         )  # Empty headers for 204
         # For 204, text() should ideally not be called by the client code,
         # but if it were, factory provides "" by default for body_text=None.
@@ -860,7 +860,7 @@ class TestHttpClientRequestResponseParsing:
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         content, status_code, processed_headers, raw_headers = await http_client_instance.request(
-            "POST", "/test_204", data={}
+            "POST", "/test_204", data={},
         )
         assert status_code == 204
 
@@ -924,7 +924,7 @@ class TestHttpClientRequestResponseParsing:
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         content, status_code, processed_headers, _ = await http_client_instance.request(
-            "GET", "/test_ct_missing"
+            "GET", "/test_ct_missing",
         )
         assert status_code == 200
         assert content == expected_text  # Should be treated as text
@@ -946,7 +946,7 @@ class TestHttpClientRequestResponseParsing:
         malformed_json = "not valid json{"
         headers = {"Content-Type": "application/json"}
         mock_aio_response = mock_aiohttp_response_factory(
-            status_code=200, headers_dict=headers, body_text=malformed_json
+            status_code=200, headers_dict=headers, body_text=malformed_json,
         )
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
@@ -1032,4 +1032,3 @@ class TestRateLimiterIntegration:  # This class can remain as is or be expanded
         # e.g. by patching asyncio.sleep within the rate limiter or by using a real
         # rate limiter with a very small token bucket and fast refill to observe delays.
         # Rate limiting integration is tested elsewhere in the API clients that use HttpClient.
-        pass

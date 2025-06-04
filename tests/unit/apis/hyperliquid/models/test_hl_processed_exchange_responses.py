@@ -148,7 +148,7 @@ class TestHyperliquidSuccessfulOrderStatus:
         data: dict[str, Any] = {"status_type": "resting", "oid": 12345}
         model = HyperliquidSuccessfulOrderStatus(**data)
         with pytest.raises(
-            ValidationError
+            ValidationError,
         ) as exc_info:  # Pydantic v2 raises ValidationError for frozen
             model.oid = 54321
         assert "Instance is frozen" in str(exc_info.value)
@@ -178,7 +178,7 @@ class TestHyperliquidErrorStatus:
     def test_missing_message(self) -> None:
         """Test missing message field."""
         with pytest.raises(ValidationError) as exc_info:
-            HyperliquidErrorStatus(**cast(dict[str, Any], {}))  # Simplified cast
+            HyperliquidErrorStatus(**cast("dict[str, Any]", {}))  # Simplified cast
         assert "message" in str(exc_info.value)
         assert "Field required" in str(exc_info.value)
 
@@ -195,7 +195,7 @@ class TestHyperliquidErrorStatus:
         data: dict[str, Any] = {"message": "Initial error"}
         model = HyperliquidErrorStatus(**data)
         with pytest.raises(
-            ValidationError
+            ValidationError,
         ) as exc_info:  # Pydantic v2 raises ValidationError for frozen
             model.message = "New error"
         assert "Instance is frozen" in str(exc_info.value)

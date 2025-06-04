@@ -49,7 +49,7 @@ class TestRiskManagerSizingStandard:
 
         with (
             patch.object(
-                risk_manager, "_calculate_kelly_size", return_value=Decimal("1500.0")
+                risk_manager, "_calculate_kelly_size", return_value=Decimal("1500.0"),
             ) as mock_kelly,
             patch.object(
                 risk_manager,
@@ -57,7 +57,7 @@ class TestRiskManagerSizingStandard:
                 side_effect=portfolio_level_controls_side_effect,
             ) as mock_portfolio,
             patch.object(
-                risk_manager, "_check_portfolio_constraints", return_value=(True, None)
+                risk_manager, "_check_portfolio_constraints", return_value=(True, None),
             ) as mock_constraints,
         ):
             # --- Act ---

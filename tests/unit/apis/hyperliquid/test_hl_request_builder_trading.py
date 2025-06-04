@@ -209,7 +209,7 @@ class TestHyperliquidRequestBuilderTrading:
     def test_build_cancel_order_payload(self, asset_index: int) -> None:
         """Test build_cancel_order_payload with valid inputs."""
         request_model = HyperliquidRequestBuilder.build_cancel_order_payload(
-            asset_index=asset_index + 1, order_id=12345
+            asset_index=asset_index + 1, order_id=12345,
         )
         assert isinstance(request_model, HyperliquidApiCancelOrderRequest)
         assert request_model.type == "cancel"
@@ -221,7 +221,7 @@ class TestHyperliquidRequestBuilderTrading:
     def test_build_order_status_payload(self, valid_wallet_address: str) -> None:
         """Test build_order_status_payload with valid inputs."""
         request_model = HyperliquidRequestBuilder.build_order_status_payload(
-            wallet_address=valid_wallet_address, order_id=67890
+            wallet_address=valid_wallet_address, order_id=67890,
         )
         assert isinstance(request_model, HyperliquidRawOrderStatusRequestPayload)
         assert request_model.type == "orderStatus"
@@ -299,14 +299,14 @@ class TestHyperliquidRequestBuilderTrading:
         """Test build_cancel_order_payload with various asset indices."""
         # Test with asset index 0
         request_0 = HyperliquidRequestBuilder.build_cancel_order_payload(
-            asset_index=0, order_id=1001
+            asset_index=0, order_id=1001,
         )
         assert request_0.action.asset == 0
         assert request_0.action.oid == 1001
 
         # Test with larger asset index
         request_high = HyperliquidRequestBuilder.build_cancel_order_payload(
-            asset_index=99, order_id=9999
+            asset_index=99, order_id=9999,
         )
         assert request_high.action.asset == 99
         assert request_high.action.oid == 9999
@@ -315,12 +315,12 @@ class TestHyperliquidRequestBuilderTrading:
         """Test build_order_status_payload with edge case order IDs."""
         # Test with small order ID
         request_small = HyperliquidRequestBuilder.build_order_status_payload(
-            wallet_address=valid_wallet_address, order_id=1
+            wallet_address=valid_wallet_address, order_id=1,
         )
         assert request_small.oid == 1
 
         # Test with large order ID
         request_large = HyperliquidRequestBuilder.build_order_status_payload(
-            wallet_address=valid_wallet_address, order_id=999999999
+            wallet_address=valid_wallet_address, order_id=999999999,
         )
         assert request_large.oid == 999999999

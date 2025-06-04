@@ -45,7 +45,7 @@ class TestSecretsManager:
                 "telegram": {
                     "bot_token": "telegram_bot_token",
                     "chat_id": "telegram_chat_id",
-                }
+                },
             },
             "logfire": {
                 "write_token": "logfire_write_token",
@@ -134,8 +134,8 @@ class TestSecretsManager:
                     "test": {
                         "api_key": "key",
                         # Missing api_secret
-                    }
-                }
+                    },
+                },
                 # Missing notifications and logfire
             }
 

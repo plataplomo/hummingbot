@@ -51,7 +51,6 @@ def create_async_mock_task_for_side_effect(
 
 async def completed_dummy_coro() -> None:
     """A dummy coroutine that completes immediately."""
-    pass
 
 
 @pytest.fixture
@@ -144,7 +143,7 @@ def mock_ws_connection_factory() -> Callable[..., AsyncMock]:
                 test_logger.info(
                     f"[TestAnextBlockIndefinitely::{task_name_anext}] Entering: await "
                     f"asyncio.Future(). Cancelled state: "
-                    f"{current_task_anext.cancelled() if current_task_anext else 'N/A'}"
+                    f"{current_task_anext.cancelled() if current_task_anext else 'N/A'}",
                 )
                 try:
                     await asyncio.Future()
@@ -153,15 +152,15 @@ def mock_ws_connection_factory() -> Callable[..., AsyncMock]:
                     test_logger.warning(
                         f"[TestAnextBlockIndefinitely::{task_name_anext}] asyncio.Future() "
                         f"COMPLETED "
-                        "WITHOUT CancelledError. This is unexpected."
+                        "WITHOUT CancelledError. This is unexpected.",
                     )
                     raise StopAsyncIteration(
-                        "Future unblocked unexpectedly in block_indefinitely mode"
+                        "Future unblocked unexpectedly in block_indefinitely mode",
                     )
                 except asyncio.CancelledError:
                     test_logger.info(
                         f"[TestAnextBlockIndefinitely::{task_name_anext}] asyncio.Future() "
-                        f"was CANCELLED as expected. About to re-raise."
+                        f"was CANCELLED as expected. About to re-raise.",
                     )
                     raise  # Crucial re-raise
                 except Exception as e_anext:
@@ -185,7 +184,7 @@ def mock_ws_connection_factory() -> Callable[..., AsyncMock]:
                     # are overly complex for this test mock.
                     # The developer is certain mock_receive_internal returns WSMessage.
                     # #[CAST-REVIEW-REQUIRED]
-                    msg = cast(WSMessage, msg_any)
+                    msg = cast("WSMessage", msg_any)
                     assert isinstance(msg, WSMessage)  # Runtime verification
 
                     if msg.type in (WSMsgType.CLOSE, WSMsgType.CLOSED, WSMsgType.CLOSING):
@@ -229,7 +228,8 @@ async def patched_ws_connect(
     mock_ws_connection_factory: Callable[..., AsyncMock],
 ) -> AsyncGenerator[tuple[AsyncMock, AsyncMock]]:
     """Patches aiohttp.ClientSession.ws_connect globally and provides a default mock
-    WS connection."""
+    WS connection.
+    """
     default_mock_conn = mock_ws_connection_factory(closed=False, block_indefinitely=False)
 
     async def default_connect_side_effect() -> AsyncMock:  # Removed *args, **kwargs
@@ -256,7 +256,7 @@ class TestWebSocketManager:
         establish_conn_coro_mock = AsyncMock(return_value=None)
 
         with patch.object(
-            ws_manager_instance, "_establish_connection", side_effect=establish_conn_coro_mock
+            ws_manager_instance, "_establish_connection", side_effect=establish_conn_coro_mock,
         ) as mock_establish_connection_method:
             connection_task = ws_manager_instance.connect()
             assert connection_task is not None
@@ -278,7 +278,7 @@ class TestWebSocketManager:
 
             establish_conn_coro_mock_2 = AsyncMock(return_value=None)
             with patch.object(
-                ws_manager_instance, "_establish_connection", side_effect=establish_conn_coro_mock_2
+                ws_manager_instance, "_establish_connection", side_effect=establish_conn_coro_mock_2,
             ) as mock_establish_connection_method_2:
                 new_connection_task = ws_manager_instance.connect()
                 assert new_connection_task is not None
@@ -362,7 +362,7 @@ class TestWebSocketManager:
 
         mock_ws_connect_method.side_effect = actual_mock_ws_connect_side_effect_failure
         retry_test_config = default_ws_manager_config.model_copy(
-            update={"max_reconnect_attempts": 1, "reconnect_delay": 0.01}
+            update={"max_reconnect_attempts": 1, "reconnect_delay": 0.01},
         )
         retry_manager = WebSocketManager(
             exchange_name="retry_test_ws",
@@ -436,7 +436,7 @@ class TestWebSocketManager:
                 await connection_establishment_task
             except Exception as e:
                 pytest.fail(
-                    f"_establish_connection call via connect() failed during test setup: {e}"
+                    f"_establish_connection call via connect() failed during test setup: {e}",
                 )
             mock_aiohttp_session_ws_connect_method.assert_called_once()
             await asyncio.sleep(0.01)
@@ -513,7 +513,7 @@ class TestWebSocketManager:
         _mock_ws_connect_method, _mock_ws_connection = patched_ws_connect
 
         with patch(
-            "cyberdelta.apis.connectivity.ws_manager.aiohttp.ClientSession"
+            "cyberdelta.apis.connectivity.ws_manager.aiohttp.ClientSession",
         ) as MockAiohttpSessionConstructor:
             mock_internal_session_instance = AsyncMock(spec=RealAiohttpCliSession)
             mock_internal_session_instance.closed = False
@@ -578,7 +578,7 @@ class TestWebSocketManager:
         #     test_case_logger.addHandler(handler)
 
         test_case_logger.info(
-            "--- Test: test_listen_loop_processes_message_and_reconnects_on_close starting ---"
+            "--- Test: test_listen_loop_processes_message_and_reconnects_on_close starting ---",
         )
 
         # test_message_payload = {"type": "data", "value": "test_data"} # No longer used
@@ -612,26 +612,26 @@ class TestWebSocketManager:
             nonlocal connect_attempt_count
             connect_attempt_count += 1
             test_case_logger.info(
-                f"[dynamic_ws_connect_side_effect] Called. Attempt: {connect_attempt_count}"
+                f"[dynamic_ws_connect_side_effect] Called. Attempt: {connect_attempt_count}",
             )
             if connect_attempt_count == 1:
                 test_case_logger.info(
-                    "[dynamic_ws_connect_side_effect] Attempt 1: Raising ClientConnectorError."
+                    "[dynamic_ws_connect_side_effect] Attempt 1: Raising ClientConnectorError.",
                 )
                 raise aiohttp.ClientConnectorError(
-                    MagicMock(), OSError("Simulated immediate connection failure for attempt 1")
+                    MagicMock(), OSError("Simulated immediate connection failure for attempt 1"),
                 )
 
             test_case_logger.info(
                 f"[dynamic_ws_connect_side_effect] Attempt {connect_attempt_count}: "
-                f"Returning second_connection_mock."
+                f"Returning second_connection_mock.",
             )
             return second_connection_mock
 
         mock_aiohttp_session_ws_connect_method.side_effect = dynamic_ws_connect_side_effect
         mock_user_message_handler = AsyncMock()  # Will not be called
         test_config = default_ws_manager_config.model_copy(
-            update={"max_reconnect_attempts": 2, "reconnect_delay": 0.01}
+            update={"max_reconnect_attempts": 2, "reconnect_delay": 0.01},
         )
         test_case_logger.info(f"Creating WebSocketManager with config: {test_config}")
         manager = WebSocketManager(
@@ -665,13 +665,13 @@ class TestWebSocketManager:
                 initial_connect_task = manager.connect()
                 assert initial_connect_task is not None
                 test_case_logger.info(
-                    f"Initial connect task created: {initial_connect_task.get_name()}"
+                    f"Initial connect task created: {initial_connect_task.get_name()}",
                 )
                 await initial_connect_task
                 test_case_logger.info(
                     f"Initial connect task awaited. State: "
                     f"done={initial_connect_task.done()}, "
-                    f"cancelled={initial_connect_task.cancelled()}"
+                    f"cancelled={initial_connect_task.cancelled()}",
                 )
                 await asyncio.sleep(0.05)
                 test_case_logger.info("Slept 0.05s after initial connect.")
@@ -769,18 +769,18 @@ class TestWebSocketManager:
                         await asyncio.wait_for(restarted_listen_task, timeout=0.5)
                     except TimeoutError:
                         test_case_logger.warning(
-                            "[TEST] Restarted listener task timed out waiting for completion."
+                            "[TEST] Restarted listener task timed out waiting for completion.",
                         )
                         restarted_listen_task.cancel()
                         await asyncio.gather(restarted_listen_task, return_exceptions=True)
                     except Exception as e_wait:
                         test_case_logger.error(
-                            f"[TEST] Error awaiting restarted_listen_task: {e_wait!r}"
+                            f"[TEST] Error awaiting restarted_listen_task: {e_wait!r}",
                         )
 
                 await asyncio.sleep(0.1)
                 test_case_logger.info(
-                    "Slept 0.1s after awaiting restarted_listen_task potentially."
+                    "Slept 0.1s after awaiting restarted_listen_task potentially.",
                 )
 
                 assert manager.is_connected is False
@@ -789,7 +789,7 @@ class TestWebSocketManager:
             # This ensures that the finally block in _listen_loop is reached upon cancellation
             test_case_logger.info(
                 "--- Test: test_listen_loop_processes_message_and_reconnects_on_close "
-                "entering finally block ---"
+                "entering finally block ---",
             )
             print("\n--- Captured logs for listen_reconnect_test ---")
             for record in caplog.records:
@@ -798,7 +798,7 @@ class TestWebSocketManager:
             await manager.close()
 
     def test_config_validation_invalid_url(
-        self, default_ws_manager_config: WebSocketManagerConfig
+        self, default_ws_manager_config: WebSocketManagerConfig,
     ) -> None:
         valid_base_data_for_url_test: dict[str, Any] = {
             "connection_timeout": default_ws_manager_config.connection_timeout,
@@ -838,7 +838,7 @@ class TestWebSocketManager:
         assert error_part.lower() in str(exc_info.value).lower()
 
     def test_config_frozen_and_extra_forbid(
-        self, default_ws_manager_config: WebSocketManagerConfig
+        self, default_ws_manager_config: WebSocketManagerConfig,
     ) -> None:
         assert default_ws_manager_config.model_config.get("frozen") is True
         assert default_ws_manager_config.model_config.get("extra") == "forbid"
@@ -963,7 +963,7 @@ class TestWebSocketManagerComprehensiveErrorHandling:
                 (WSMsgType.TEXT, '{"test": "message1"}', None),
                 (WSMsgType.TEXT, '{"test": "message2"}', None),
                 (WSMsgType.CLOSE, None, None),
-            ]
+            ],
         )
         # Make ws_connect properly awaitable using side_effect
         mock_ws_connect.side_effect = AsyncMock(return_value=mock_conn)
@@ -996,7 +996,6 @@ class TestWebSocketManagerComprehensiveErrorHandling:
         caplog: LogCaptureFixture,
     ) -> None:
         """Test handling of malformed JSON messages."""
-
         # Track processed messages
         processed_messages: list[dict[str, Any]] = []
 
@@ -1010,7 +1009,7 @@ class TestWebSocketManagerComprehensiveErrorHandling:
                 (WSMsgType.TEXT, "{invalid json}", None),  # Malformed
                 (WSMsgType.TEXT, '{"another": "valid"}', None),
                 (WSMsgType.CLOSE, None, None),
-            ]
+            ],
         )
         # Make ws_connect properly awaitable using side_effect
         mock_ws_connect.side_effect = AsyncMock(return_value=mock_conn)
@@ -1046,7 +1045,6 @@ class TestWebSocketManagerComprehensiveErrorHandling:
         caplog: LogCaptureFixture,
     ) -> None:
         """Test send operation when WebSocket is not connected."""
-
         manager = WebSocketManager(
             exchange_name="test_exchange",
             message_handler=dummy_message_handler,
@@ -1072,7 +1070,6 @@ class TestWebSocketManagerComprehensiveErrorHandling:
         default_ws_manager_config: WebSocketManagerConfig,
     ) -> None:
         """Test that calling close() multiple times is safe."""
-
         manager = WebSocketManager(
             exchange_name="test_exchange",
             message_handler=dummy_message_handler,
@@ -1100,7 +1097,6 @@ class TestWebSocketManagerComprehensiveErrorHandling:
         caplog: LogCaptureFixture,
     ) -> None:
         """Test behavior with zero max reconnect attempts."""
-
         config = WebSocketManagerConfig(
             ws_url=AnyUrl("ws://test.websocket.api/ws"),
             connection_timeout=1.0,

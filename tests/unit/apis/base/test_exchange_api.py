@@ -76,7 +76,7 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     ) -> None:
         """Initialize with dependency injection support for testing."""
         super().__init__(
-            exchange_name, config, secrets, error_mapper, loop, authenticator=authenticator
+            exchange_name, config, secrets, error_mapper, loop, authenticator=authenticator,
         )
 
         # Store test-specific dependencies as public attributes for test access
@@ -84,7 +84,7 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
         self.test_http_client = http_client
         self.test_ws_manager = ws_manager
         self.test_rate_limiter_service = rate_limiter_service
-        
+
         # Override injected dependencies if provided
         if http_client is not None:
             self._http_client = http_client
@@ -105,18 +105,15 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
         return {}
 
     def _update_rate_limit_from_headers(
-        self, headers: Mapping[str, str], method: str, path: str
+        self, headers: Mapping[str, str], method: str, path: str,
     ) -> None:
         """Mock implementation of rate limit header processing."""
-        pass
 
     async def _route_ws_message(self, message: dict[str, Any]) -> None:
         """Mock implementation of WebSocket message routing."""
-        pass
 
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
         """Mock implementation of WebSocket message handling."""
-        pass
 
     # Implement all abstract methods with simple mocks
     async def get_ticker(self, symbol: str) -> Ticker:
@@ -129,7 +126,7 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
         return [MagicMock(spec=FundingRate)]
 
     async def get_historical_funding_rates(
-        self, args: GetHistoricalFundingRatesArgs
+        self, args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
         return [MagicMock(spec=FundingRate)]
 
@@ -196,10 +193,10 @@ def mock_error_mapper() -> MagicMock:
     mock_mapper = MagicMock(spec=IErrorMapper)
     # Configure the mock to return proper APIError instances
     mock_mapper.map_string_error.return_value = APIError(
-        message="Mock error", code=APIErrorCode.UNKNOWN.value
+        message="Mock error", code=APIErrorCode.UNKNOWN.value,
     )
     mock_mapper.map_exchange_error.return_value = APIError(
-        message="Mock exchange error", code=APIErrorCode.UNKNOWN.value
+        message="Mock exchange error", code=APIErrorCode.UNKNOWN.value,
     )
     return mock_mapper
 
@@ -300,7 +297,7 @@ class TestExchangeAPIInitialization:
     """Test ExchangeAPI initialization and setup."""
 
     def test_api_creation_with_di_fixture(
-        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test that the DI fixture creates a valid API instance."""
         api = exchange_api_with_di()
@@ -309,7 +306,7 @@ class TestExchangeAPIInitialization:
         assert api.exchange_name == "test_exchange"
 
     def test_api_creation_with_custom_config(
-        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test API creation with custom configuration."""
         custom_config = {
@@ -321,7 +318,7 @@ class TestExchangeAPIInitialization:
         assert api is not None
 
     def test_api_creation_with_custom_exchange_name(
-        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test API creation with custom exchange name."""
         api = exchange_api_with_di(exchange_name="custom_exchange")
@@ -333,7 +330,7 @@ class TestExchangeAPIWebSocketOperations:
 
     @pytest.mark.asyncio
     async def test_connect_websocket_delegates_to_ws_manager(
-        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test that connect_websocket delegates to WebSocket manager."""
         mock_ws = MagicMock()
@@ -349,7 +346,7 @@ class TestExchangeAPIWebSocketOperations:
 
     @pytest.mark.asyncio
     async def test_subscribe_sends_payload_when_connected(
-        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test that subscribe sends subscription payload when connected."""
         mock_ws = MagicMock()
@@ -401,7 +398,7 @@ class TestExchangeAPIWebSocketOperations:
         await api.close()
 
     def test_is_connected_property_delegates_to_ws_manager(
-        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test that is_connected property delegates to WebSocket manager."""
         mock_ws = MagicMock()
@@ -415,7 +412,7 @@ class TestExchangeAPIWebSocketOperations:
 
     @pytest.mark.asyncio
     async def test_construct_subscription_payload_integration(
-        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test that _construct_subscription_payload is properly integrated with subscribe."""
         mock_ws = MagicMock()
@@ -442,7 +439,7 @@ class TestExchangeAPIWebSocketOperations:
 
     @pytest.mark.asyncio
     async def test_websocket_reconnection_triggers_resubscription(
-        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test that WebSocket reconnection triggers resubscription to existing topics."""
         mock_ws = MagicMock()
@@ -479,7 +476,7 @@ class TestExchangeAPIWebSocketOperations:
 
     @pytest.mark.asyncio
     async def test_subscription_payload_construction_integration(
-        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test that subscription payload construction is properly integrated."""
         mock_ws = MagicMock()
@@ -556,7 +553,7 @@ class TestExchangeAPIResourceManagement:
 
     @pytest.mark.asyncio
     async def test_api_close_cleanup_http_client(
-        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test that close properly cleans up HTTP client."""
         mock_http = MagicMock()
@@ -569,7 +566,7 @@ class TestExchangeAPIResourceManagement:
 
     @pytest.mark.asyncio
     async def test_api_close_cleanup_websocket_manager(
-        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test that close properly cleans up WebSocket manager."""
         mock_ws = MagicMock()
@@ -582,7 +579,7 @@ class TestExchangeAPIResourceManagement:
 
     @pytest.mark.asyncio
     async def test_api_close_handles_missing_dependencies(
-        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test that close handles missing dependencies gracefully."""
         api = exchange_api_with_di(
@@ -599,7 +596,7 @@ class TestExchangeAPIErrorHandling:
 
     @pytest.mark.asyncio
     async def test_http_client_error_mapping(
-        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test that HTTP client errors are properly mapped."""
         mock_http = MagicMock()
@@ -635,7 +632,7 @@ class TestExchangeAPIDependencyIsolation:
     """Test that dependency injection provides proper isolation."""
 
     def test_custom_dependency_override(
-        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test that specific dependencies can be overridden."""
         custom_http_client = MagicMock()
@@ -651,7 +648,7 @@ class TestExchangeAPIDependencyIsolation:
         assert api is not None
 
     def test_multiple_api_instances_are_isolated(
-        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test that multiple API instances don't share dependencies."""
         api1 = exchange_api_with_di(exchange_name="exchange1")
@@ -662,7 +659,7 @@ class TestExchangeAPIDependencyIsolation:
         assert api1.exchange_name != api2.exchange_name
 
     def test_dependency_injection_completeness(
-        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test that all expected dependencies can be injected."""
         custom_error_mapper = MagicMock(spec=IErrorMapper)
@@ -689,7 +686,7 @@ class TestExchangeAPIPublicInterface:
 
     @pytest.mark.asyncio
     async def test_abstract_methods_implemented(
-        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test that all abstract methods are properly implemented."""
         api = exchange_api_with_di()
@@ -722,7 +719,7 @@ class TestExchangeAPIPublicInterface:
         await api.close()
 
     def test_subscription_payload_construction(
-        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test subscription payload construction through public behavior."""
         api = exchange_api_with_di()
@@ -734,7 +731,7 @@ class TestExchangeAPIPublicInterface:
 
     @pytest.mark.asyncio
     async def test_websocket_connection_interface(
-        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI]
+        self, exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test WebSocket connection interface."""
         api = exchange_api_with_di()

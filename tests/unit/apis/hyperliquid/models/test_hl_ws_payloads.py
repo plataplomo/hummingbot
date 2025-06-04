@@ -44,7 +44,7 @@ class TestHyperliquidWsPayloads:
     def test_candle_subscription_payload(self) -> None:
         """Test candle subscription payload construction."""
         payload = HyperliquidRawWsCandleSubscriptionPayload(
-            type="candle", coin="ETH", interval="1m"
+            type="candle", coin="ETH", interval="1m",
         )
         assert payload.type == "candle"
         assert payload.coin == "ETH"
@@ -71,7 +71,7 @@ class TestHyperliquidWsPayloads:
         """Test complete subscription request with userEvents payload."""
         wallet = "0x1234567890abcdef1234567890abcdef12345678"
         inner_payload = HyperliquidRawWsUserEventsSubscriptionPayload(
-            type="userEvents", user=wallet
+            type="userEvents", user=wallet,
         )
         request = HyperliquidRawWsSubscribeRequest(method="subscribe", subscription=inner_payload)
 

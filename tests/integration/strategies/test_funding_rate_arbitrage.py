@@ -4,7 +4,7 @@ import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, TypedDict, Unpack, cast
+from typing import Any, TypedDict, Unpack, cast
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
@@ -25,9 +25,6 @@ from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
-
-if TYPE_CHECKING:
-    pass
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -181,14 +178,14 @@ async def fake_get_funding_rate(exchange_id: str, symbol: str) -> FundingRate | 
 @pytest.mark.asyncio
 @patch("asyncio.create_task", new_callable=lambda: MagicMock(return_value=asyncio.Future()))
 async def test_process_data_scheduling(
-    mock_create_task: MagicMock, strategy: FundingRateArbitrageStrategy
+    mock_create_task: MagicMock, strategy: FundingRateArbitrageStrategy,
 ) -> None:
     mock_create_task.return_value.set_result(None)
     mock_data: Candle = create_mock_candle()
     strategy.last_opportunity_check = None
-    cast(AsyncMock, strategy.data_handler).get_latest_ticker.side_effect = fake_get_ticker
+    cast("AsyncMock", strategy.data_handler).get_latest_ticker.side_effect = fake_get_ticker
     cast(
-        AsyncMock, strategy.data_handler
+        "AsyncMock", strategy.data_handler,
     ).get_latest_funding_rate.side_effect = fake_get_funding_rate
 
     with patch.object(strategy.portfolio_tracker, "get_position", return_value=None) as _:
@@ -199,16 +196,16 @@ async def test_process_data_scheduling(
 @pytest.mark.asyncio
 @patch("asyncio.create_task", new_callable=lambda: MagicMock(return_value=asyncio.Future()))
 async def test_process_data_no_scheduling_if_recent_check(
-    mock_create_task: MagicMock, strategy: FundingRateArbitrageStrategy
+    mock_create_task: MagicMock, strategy: FundingRateArbitrageStrategy,
 ) -> None:
     mock_create_task.return_value.set_result(None)
     strategy.last_opportunity_check = datetime.now(UTC) - timedelta(
-        seconds=strategy.check_interval - 10
+        seconds=strategy.check_interval - 10,
     )
     mock_data: Candle = create_mock_candle()
-    cast(AsyncMock, strategy.data_handler).get_latest_ticker.side_effect = fake_get_ticker
+    cast("AsyncMock", strategy.data_handler).get_latest_ticker.side_effect = fake_get_ticker
     cast(
-        AsyncMock, strategy.data_handler
+        "AsyncMock", strategy.data_handler,
     ).get_latest_funding_rate.side_effect = fake_get_funding_rate
 
     with patch.object(strategy.portfolio_tracker, "get_position", return_value=None) as _:
@@ -219,7 +216,7 @@ async def test_process_data_no_scheduling_if_recent_check(
 @pytest.mark.asyncio
 @patch("asyncio.create_task", new_callable=lambda: MagicMock(return_value=asyncio.Future()))
 async def test_process_data_rebalance_signal_generation(
-    mock_create_task: MagicMock, strategy: FundingRateArbitrageStrategy
+    mock_create_task: MagicMock, strategy: FundingRateArbitrageStrategy,
 ) -> None:
     mock_create_task.return_value.set_result(None)
     strategy.active_opportunities = [create_mock_opportunity(symbol="BTC-PERP")]
@@ -246,19 +243,19 @@ async def test_process_data_rebalance_signal_generation(
             )
         return None
 
-    cast(AsyncMock, strategy.data_handler).get_latest_ticker.side_effect = rebalance_ticker_prices
+    cast("AsyncMock", strategy.data_handler).get_latest_ticker.side_effect = rebalance_ticker_prices
     cast(
-        AsyncMock, strategy.data_handler
+        "AsyncMock", strategy.data_handler,
     ).get_latest_funding_rate.side_effect = fake_get_funding_rate
     strategy.rebalance_threshold = Decimal("0.01")
     strategy.last_opportunity_check = datetime.now(UTC) - timedelta(
-        seconds=strategy.check_interval + 1
+        seconds=strategy.check_interval + 1,
     )
 
     mock_data: Candle = create_mock_candle()
     with (
         patch.object(
-            strategy.portfolio_tracker, "get_position", side_effect=fake_get_position
+            strategy.portfolio_tracker, "get_position", side_effect=fake_get_position,
         ) as _,
         patch.object(strategy, "_should_rebalance", return_value=True) as mock_should_rebalance,
         patch.object(
@@ -267,7 +264,7 @@ async def test_process_data_rebalance_signal_generation(
             return_value=[create_mock_signal(symbol="BTC-PERP", signal_type=SignalType.REBALANCE)],
         ) as mock_gen_rebal_signal,
         patch.object(
-            strategy, "evaluate_entry_opportunity", new_callable=AsyncMock, return_value=None
+            strategy, "evaluate_entry_opportunity", new_callable=AsyncMock, return_value=None,
         ) as mock_eval_entry_opp,
     ):
         signals = await strategy.process_data(mock_data)
@@ -284,15 +281,15 @@ async def test_process_data_rebalance_signal_generation(
 @pytest.mark.asyncio
 @patch("cyberdelta.strategies.funding_rate_arbitrage.logger")
 async def test_evaluate_entry_opportunity_found(
-    mock_logger: MagicMock, strategy: FundingRateArbitrageStrategy
+    mock_logger: MagicMock, strategy: FundingRateArbitrageStrategy,
 ) -> None:
-    cast(AsyncMock, strategy.data_handler).get_latest_ticker.side_effect = fake_get_ticker
+    cast("AsyncMock", strategy.data_handler).get_latest_ticker.side_effect = fake_get_ticker
     cast(
-        AsyncMock, strategy.data_handler
+        "AsyncMock", strategy.data_handler,
     ).get_latest_funding_rate.side_effect = fake_get_funding_rate
 
     mock_opportunity = create_mock_opportunity(symbol="BTC-PERP", expected_profit=Decimal("100"))
-    ep = cast(Decimal, mock_opportunity.expected_profit)
+    ep = cast("Decimal", mock_opportunity.expected_profit)
     mock_sized_opportunity = SizedOpportunity(
         opportunity=mock_opportunity,
         long_size=Decimal("10000"),
@@ -306,13 +303,13 @@ async def test_evaluate_entry_opportunity_found(
     with (
         patch.object(strategy.portfolio_tracker, "get_position", return_value=None) as _,
         patch.object(
-            strategy, "_check_opportunity", new_callable=AsyncMock, return_value=mock_opportunity
+            strategy, "_check_opportunity", new_callable=AsyncMock, return_value=mock_opportunity,
         ) as mock_check_internal,
         patch.object(
-            strategy.risk_manager, "calculate_position_size", return_value=mock_sized_opportunity
+            strategy.risk_manager, "calculate_position_size", return_value=mock_sized_opportunity,
         ) as mock_calc_size,
         patch.object(
-            strategy, "_generate_entry_signal", return_value=[create_mock_signal(symbol="BTC-PERP")]
+            strategy, "_generate_entry_signal", return_value=[create_mock_signal(symbol="BTC-PERP")],
         ) as mock_gen_signal,
     ):
         signals = await strategy.evaluate_entry_opportunity()
@@ -331,17 +328,17 @@ async def test_evaluate_entry_opportunity_found(
 @pytest.mark.asyncio
 @patch("cyberdelta.strategies.funding_rate_arbitrage.logger")
 async def test_evaluate_entry_opportunity_no_opportunity(
-    mock_logger: MagicMock, strategy: FundingRateArbitrageStrategy
+    mock_logger: MagicMock, strategy: FundingRateArbitrageStrategy,
 ) -> None:
-    cast(AsyncMock, strategy.data_handler).get_latest_ticker.side_effect = fake_get_ticker
+    cast("AsyncMock", strategy.data_handler).get_latest_ticker.side_effect = fake_get_ticker
     cast(
-        AsyncMock, strategy.data_handler
+        "AsyncMock", strategy.data_handler,
     ).get_latest_funding_rate.side_effect = fake_get_funding_rate
 
     with (
         patch.object(strategy.portfolio_tracker, "get_position", return_value=None) as _,
         patch.object(
-            strategy, "_check_opportunity", new_callable=AsyncMock, return_value=None
+            strategy, "_check_opportunity", new_callable=AsyncMock, return_value=None,
         ) as mock_check_internal,
         patch.object(strategy.risk_manager, "calculate_position_size") as mock_calc_size,
         patch.object(strategy, "_generate_entry_signal") as mock_gen_signal,
@@ -382,7 +379,7 @@ def create_mock_candle(**kwargs: Unpack[CandleKwargs]) -> Candle:
     return Candle(
         symbol=str(merged_args["symbol"]),
         interval=str(merged_args["interval"]),
-        open_time=cast(datetime, merged_args["open_time"]),
+        open_time=cast("datetime", merged_args["open_time"]),
         open=Decimal(str(merged_args["open"])),
         high=Decimal(str(merged_args["high"])),
         low=Decimal(str(merged_args["low"])),
@@ -412,7 +409,7 @@ def create_mock_ticker(**kwargs: Unpack[TickerKwargs]) -> Ticker:
     merged_args = {**defaults, **kwargs}
     return Ticker(
         symbol=str(merged_args["symbol"]),
-        timestamp=cast(datetime, merged_args["timestamp"]),
+        timestamp=cast("datetime", merged_args["timestamp"]),
         price=Decimal(str(merged_args["price"])) if merged_args.get("price") is not None else None,
         bid=Decimal(str(merged_args["bid"])) if merged_args.get("bid") is not None else None,
         ask=Decimal(str(merged_args["ask"])) if merged_args.get("ask") is not None else None,
@@ -450,12 +447,12 @@ def create_mock_funding_rate(**kwargs: Unpack[FundingRateKwargs]) -> FundingRate
 
     if "symbol" not in merged_args or merged_args["symbol"] is None:
         raise ValueError(
-            "Missing or invalid value for required field: symbol in create_mock_funding_rate"
+            "Missing or invalid value for required field: symbol in create_mock_funding_rate",
         )
     ts_val = merged_args.get("timestamp")
     if ts_val is None or not isinstance(ts_val, datetime):
         raise ValueError(
-            "Missing or invalid value for required field: timestamp in create_mock_funding_rate"
+            "Missing or invalid value for required field: timestamp in create_mock_funding_rate",
         )
 
     return FundingRate(
@@ -473,7 +470,7 @@ def create_mock_funding_rate(**kwargs: Unpack[FundingRateKwargs]) -> FundingRate
         index_price=Decimal(str(merged_args["index_price"]))
         if merged_args.get("index_price") is not None
         else None,
-        next_funding_time=cast(datetime | None, merged_args.get("next_funding_time")),
-        hl_details=cast(HyperliquidFundingDetails | None, merged_args.get("hl_details")),
-        bp_details=cast(BackpackFundingDetails | None, merged_args.get("bp_details")),
+        next_funding_time=cast("datetime | None", merged_args.get("next_funding_time")),
+        hl_details=cast("HyperliquidFundingDetails | None", merged_args.get("hl_details")),
+        bp_details=cast("BackpackFundingDetails | None", merged_args.get("bp_details")),
     )

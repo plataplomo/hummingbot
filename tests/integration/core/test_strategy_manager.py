@@ -159,7 +159,7 @@ def test_get_strategies_for_symbol(
     mock_strategy_btc_instance = MockStrategy(name="BTCStrategy", symbol="BTC/USDT", enabled=True)
     mock_strategy_eth_instance = MockStrategy(name="ETHStrategy", symbol="ETH/USDT", enabled=True)
     mock_strategy_disabled_instance = MockStrategy(
-        name="DisabledBTCStrategy", symbol="BTC/USDT", enabled=False
+        name="DisabledBTCStrategy", symbol="BTC/USDT", enabled=False,
     )
 
     strategy_manager_for_test.strategies = {
@@ -316,7 +316,7 @@ async def test_process_market_data_no_enabled_strategies(
     )
 
     with patch.object(
-        mock_strategy_instance, "process_data", new_callable=AsyncMock
+        mock_strategy_instance, "process_data", new_callable=AsyncMock,
     ) as mock_process_data:
         await strategy_manager_for_test.process_market_data(market_data)
 
@@ -651,7 +651,7 @@ async def test_signal_handler_update_historical_data_exception(
         signal_queue=mock_signal_queue,
     )
     mock_strategy_instance = MockStrategy(
-        name="TestStrategyHistEx", symbol="SYM/USDT", enabled=True
+        name="TestStrategyHistEx", symbol="SYM/USDT", enabled=True,
     )
     strategy_manager.register_strategy(mock_strategy_instance)
     strategy_manager.enable_strategy("TestStrategyHistEx")
@@ -674,7 +674,7 @@ async def test_signal_handler_update_historical_data_exception(
             side_effect=ValueError("Hist Data Error"),
         ) as mock_update_hist,
         patch.object(
-            mock_strategy_instance, "process_data", new_callable=AsyncMock
+            mock_strategy_instance, "process_data", new_callable=AsyncMock,
         ) as mock_process_data,
     ):
         with pytest.raises(ValueError, match="Hist Data Error"):
@@ -702,7 +702,7 @@ async def test_process_market_data_malformed_signal(
         signal_queue=mock_signal_queue,
     )
     mock_strategy_instance = MockStrategy(
-        name="TestStrategyMalformed", symbol="SYM/USDT", enabled=True
+        name="TestStrategyMalformed", symbol="SYM/USDT", enabled=True,
     )
     malformed_signal_dict: dict[str, Any] = {
         "signal_id": "malformed_123",

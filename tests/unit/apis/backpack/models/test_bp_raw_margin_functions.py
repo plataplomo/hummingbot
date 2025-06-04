@@ -42,7 +42,7 @@ def test_bp_raw_imf_function_invalid_type() -> None:
     with pytest.raises(ValidationError, match="base: Validation failed - base: Expected string"):
         BackpackRawImfFunction.model_validate({"base": 1.0, "factor": "0.1"})
     with pytest.raises(
-        ValidationError, match="factor: Validation failed - factor: Expected string"
+        ValidationError, match="factor: Validation failed - factor: Expected string",
     ):
         BackpackRawImfFunction.model_validate({"base": "0.1", "factor": None})
 
@@ -60,7 +60,7 @@ def test_bp_raw_imf_function_invalid_decimal_format() -> None:
 def test_bp_raw_imf_function_empty_string() -> None:
     """Test validation failure for empty string fields."""
     with pytest.raises(
-        ValidationError, match="base: Validation failed - base: String cannot be empty"
+        ValidationError, match="base: Validation failed - base: String cannot be empty",
     ):
         BackpackRawImfFunction.model_validate({"base": "", "factor": "0.1"})
 
@@ -109,7 +109,7 @@ def test_bp_raw_mmf_function_invalid_decimal_format() -> None:
 def test_bp_raw_mmf_function_empty_string() -> None:
     """Test validation failure for empty string fields."""
     with pytest.raises(
-        ValidationError, match="factor: Validation failed - factor: String cannot be empty"
+        ValidationError, match="factor: Validation failed - factor: String cannot be empty",
     ):
         BackpackRawMmfFunction.model_validate({"base": "0.1", "factor": ""})
 

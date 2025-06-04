@@ -170,7 +170,7 @@ class TestOrderBook:
             invalid_price_type_obj: Any = [({"a": 1}, "1")]
             OrderBook(symbol="T", timestamp=now, bids=invalid_price_type_obj, asks=[])
         with pytest.raises(
-            ValidationError, match=r"Value error, Invalid price value.*Cannot convert"
+            ValidationError, match=r"Value error, Invalid price value.*Cannot convert",
         ):
             invalid_price_parse: Any = [("not_a_number", "1")]
             OrderBook(symbol="T", timestamp=now, bids=invalid_price_parse, asks=[])
@@ -195,7 +195,7 @@ class TestOrderBook:
             invalid_qty_type_obj: Any = [("10", ["1"])]
             OrderBook(symbol="T", timestamp=now, bids=invalid_qty_type_obj, asks=[])
         with pytest.raises(
-            ValidationError, match=r"Value error, Invalid quantity value.*Cannot convert"
+            ValidationError, match=r"Value error, Invalid quantity value.*Cannot convert",
         ):
             invalid_qty_parse: Any = [("10", "not_a_number")]
             OrderBook(symbol="T", timestamp=now, bids=invalid_qty_parse, asks=[])
@@ -212,7 +212,7 @@ class TestOrderBook:
             nan_qty: Any = [("10", Decimal("NaN"))]
             OrderBook(symbol="T", timestamp=now, bids=nan_qty, asks=[])
         with pytest.raises(
-            ValidationError, match=r"Value error, Invalid quantity value.*Must be non-negative"
+            ValidationError, match=r"Value error, Invalid quantity value.*Must be non-negative",
         ):
             negative_qty: Any = [("10", "-1")]
             OrderBook(symbol="T", timestamp=now, bids=negative_qty, asks=[])

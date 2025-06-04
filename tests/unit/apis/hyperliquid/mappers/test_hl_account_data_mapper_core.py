@@ -15,14 +15,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import pytest
 
 # Third-party imports for type checking only
-if TYPE_CHECKING:
-    pass
-
 # Project-specific imports
 from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
@@ -182,7 +179,7 @@ class TestMapRawClearinghouseStateToMarginSummary:
         )
 
         summary = HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_margin_summary(
-            current_raw_state
+            current_raw_state,
         )
 
         assert isinstance(summary, MarginAccountSummary)
@@ -388,7 +385,7 @@ class TestMapRawClearinghouseStateToSpotBalances:
         )
 
         spot_balances = account_data_mapper.transform_raw_clearinghouse_state_to_spot_balances(
-            raw_state_for_usdc_test
+            raw_state_for_usdc_test,
         )
 
         assert "USDC" in spot_balances
@@ -436,7 +433,7 @@ class TestMapRawClearinghouseStateToSpotBalances:
         )
 
         spot_balances = account_data_mapper.transform_raw_clearinghouse_state_to_spot_balances(
-            raw_state_high_precision
+            raw_state_high_precision,
         )
 
         usdc_balance = spot_balances["USDC"]
@@ -503,7 +500,7 @@ class TestMapRawClearinghouseStateToSpotBalances:
 
         spot_balances = (
             HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_spot_balances(
-                raw_state_with_multiple_spot
+                raw_state_with_multiple_spot,
             )
         )
 
@@ -535,11 +532,11 @@ class TestMapRawClearinghouseStateToSpotBalances:
             totalNtlPos="0",
         )
         raw_state_with_balance = raw_user_state_empty_positions_no_balances.model_copy(
-            update={"marginSummary": margin_summary_with_balance}
+            update={"marginSummary": margin_summary_with_balance},
         )
 
         spot_balances = account_data_mapper.transform_raw_clearinghouse_state_to_spot_balances(
-            raw_state_with_balance
+            raw_state_with_balance,
         )
 
         if spot_balances:
@@ -604,7 +601,7 @@ class TestCoreBusinessLogicValidation:
         raw_state = HyperliquidRawClearinghouseState.model_validate(updated_data)
 
         summary = HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_margin_summary(
-            raw_state
+            raw_state,
         )
 
         # Expected total unrealized PnL: 150.25 + (-75.50) = 74.75
@@ -627,7 +624,7 @@ class TestCoreBusinessLogicValidation:
         raw_state = HyperliquidRawClearinghouseState.model_validate(updated_data)
 
         summary = HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_margin_summary(
-            raw_state
+            raw_state,
         )
 
         # Total maintenance margin should be cross + isolated
@@ -642,11 +639,11 @@ class TestCoreBusinessLogicValidation:
         # Set a specific withdrawable amount
         test_withdrawable = "5000.0"
         raw_state = raw_clearinghouse_state_base_fixture.model_copy(
-            update={"withdrawable": test_withdrawable}
+            update={"withdrawable": test_withdrawable},
         )
 
         summary = HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_margin_summary(
-            raw_state
+            raw_state,
         )
 
         # Available equity should equal withdrawable amount
@@ -661,7 +658,7 @@ class TestCoreBusinessLogicValidation:
         # Test margin summary
         margin_summary = (
             HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_margin_summary(
-                raw_clearinghouse_state_base_fixture
+                raw_clearinghouse_state_base_fixture,
             )
         )
         assert margin_summary.exchange == ExchangeName.HYPERLIQUID.value
@@ -674,11 +671,11 @@ class TestCoreBusinessLogicValidation:
             totalNtlPos="0",
         )
         raw_state_with_usdc = raw_clearinghouse_state_base_fixture.model_copy(
-            update={"marginSummary": margin_summary_with_usdc}
+            update={"marginSummary": margin_summary_with_usdc},
         )
 
         spot_balances = account_data_mapper.transform_raw_clearinghouse_state_to_spot_balances(
-            raw_state_with_usdc
+            raw_state_with_usdc,
         )
 
         for balance in spot_balances.values():

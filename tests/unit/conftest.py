@@ -32,7 +32,7 @@ from cyberdelta.enums.exchange_names import ExchangeName
 
 def create_test_url(url_str: str) -> Any:
     """Create a URL for tests that satisfies both runtime and type checking.
-    
+
     This function returns a string that will be properly converted by Pydantic's
     validators, while also satisfying static type checkers that expect URL types.
     """
@@ -77,7 +77,7 @@ class MockResponse:
         self._raise_for_status_called = True
         if self.status >= 400:
             raise aiohttp.ClientResponseError(
-                request_info=MagicMock(), history=(), status=self.status
+                request_info=MagicMock(), history=(), status=self.status,
             )
 
 
@@ -108,8 +108,8 @@ class MockClientSession:
         for pattern, response in (self.responses or {}).items():
             if (
                 (method, url) == pattern
-                or (method, pattern[1]) == pattern
-                and url.startswith(pattern[1])
+                or ((method, pattern[1]) == pattern
+                and url.startswith(pattern[1]))
             ):
                 return response
 
@@ -260,7 +260,7 @@ def mock_config() -> Callable[..., AppSettings]:
                     "global": GlobalRiskSettings(
                         max_position_usd=Decimal("200.0"),
                         max_total_exposure_usd=Decimal("1000.0"),
-                    )
+                    ),
                 },
                 use_simple_sizing_path=True,
                 simple_sizing_method="fixed_fraction",
@@ -380,14 +380,14 @@ def test_app_settings() -> AppSettings:
                     max_price_spread_pct=Decimal("0.002"),
                     min_profit_usd=Decimal("1.0"),
                 ),
-            )
+            ),
         ),
         risk=RiskSettings(
             **{
                 "global": GlobalRiskSettings(
                     max_position_usd=Decimal("200.0"),
                     max_total_exposure_usd=Decimal("1000.0"),
-                )
+                ),
             },
             use_simple_sizing_path=True,
             simple_sizing_method="fixed_fraction",
@@ -478,7 +478,7 @@ def test_config_dict() -> dict[str, Any]:
                 "slippage_sensitivity": "0.5",
                 "liquidity_threshold_usd": "10000",
                 "max_slippage_percent": "0.01",
-            }
+            },
         },
         "risk": {
             "global": {

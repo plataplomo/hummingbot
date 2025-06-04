@@ -32,7 +32,7 @@ class TestHandleInfoUserStateResponse:
         raw_data = valid_raw_user_state
         response: HyperliquidRawClearinghouseState = (
             HyperliquidResponseHandler.handle_info_user_state_response(
-                cast(RawJsonResponse, raw_data), user_address=user_address
+                cast("RawJsonResponse", raw_data), user_address=user_address,
             )
         )
         assert isinstance(response, HyperliquidRawClearinghouseState)
@@ -48,7 +48,7 @@ class TestHandleInfoUserStateResponse:
         }  # Missing assetPositions
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_user_state_response(
-                cast(RawJsonResponse, raw_data), user_address=user_address
+                cast("RawJsonResponse", raw_data), user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
@@ -68,7 +68,7 @@ class TestHandleInfoUserStateResponse:
         }
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_user_state_response(
-                cast(RawJsonResponse, raw_data), user_address=user_address
+                cast("RawJsonResponse", raw_data), user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
@@ -82,7 +82,7 @@ class TestHandleInfoUserStateResponse:
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_user_state_response(
-                cast(RawJsonResponse, raw_data), user_address=user_address
+                cast("RawJsonResponse", raw_data), user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
@@ -100,7 +100,7 @@ class TestHandleInfoOpenOrdersResponse:
         raw_data = [valid_raw_open_order_item, valid_raw_open_order_item.copy()]
         response: HyperliquidRawOpenOrdersResponse = (
             HyperliquidResponseHandler.handle_info_open_orders_response(
-                cast(RawJsonResponse, raw_data), user_address=user_address
+                cast("RawJsonResponse", raw_data), user_address=user_address,
             )
         )
         assert isinstance(response, HyperliquidRawOpenOrdersResponse)
@@ -112,7 +112,7 @@ class TestHandleInfoOpenOrdersResponse:
         """Test handling empty open orders response."""
         raw_data: list[Any] = []
         response = HyperliquidResponseHandler.handle_info_open_orders_response(
-            cast(RawJsonResponse, raw_data), user_address=user_address
+            cast("RawJsonResponse", raw_data), user_address=user_address,
         )
         assert isinstance(response, HyperliquidRawOpenOrdersResponse)
         assert len(response.items) == 0
@@ -123,7 +123,7 @@ class TestHandleInfoOpenOrdersResponse:
         raw_data = [invalid_order]
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_open_orders_response(
-                cast(RawJsonResponse, raw_data), user_address=user_address
+                cast("RawJsonResponse", raw_data), user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
@@ -137,7 +137,7 @@ class TestHandleInfoOpenOrdersResponse:
         raw_data = ["not_an_order_dict"]
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_open_orders_response(
-                cast(RawJsonResponse, raw_data), user_address=user_address
+                cast("RawJsonResponse", raw_data), user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
@@ -151,7 +151,7 @@ class TestHandleInfoOpenOrdersResponse:
         raw_data = {"invalid": "data"}
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_open_orders_response(
-                cast(RawJsonResponse, raw_data), user_address=user_address
+                cast("RawJsonResponse", raw_data), user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
@@ -161,7 +161,7 @@ class TestHandleInfoOpenOrdersResponse:
         assert "expected list, got dict" in exc_info.value.message
 
     def test_open_orders_with_mixed_valid_invalid_items(
-        self, user_address: str, valid_raw_open_order_item: dict[str, Any]
+        self, user_address: str, valid_raw_open_order_item: dict[str, Any],
     ) -> None:
         """Test open orders response with mix of valid and invalid items."""
         invalid_order = {"asset": "ETH-PERP"}  # Missing required fields
@@ -171,7 +171,7 @@ class TestHandleInfoOpenOrdersResponse:
         ]
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_open_orders_response(
-                cast(RawJsonResponse, raw_data), user_address=user_address
+                cast("RawJsonResponse", raw_data), user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
@@ -189,7 +189,7 @@ class TestHandleInfoUserFillsResponse:
         raw_data = [valid_raw_user_fill, valid_raw_user_fill.copy()]
         response: HyperliquidRawUserFillsResponse = (
             HyperliquidResponseHandler.handle_info_user_fills_response(
-                cast(RawJsonResponse, raw_data), user_address=user_address
+                cast("RawJsonResponse", raw_data), user_address=user_address,
             )
         )
         assert isinstance(response, HyperliquidRawUserFillsResponse)
@@ -202,7 +202,7 @@ class TestHandleInfoUserFillsResponse:
         """Test handling empty user fills response."""
         raw_data: list[Any] = []
         response = HyperliquidResponseHandler.handle_info_user_fills_response(
-            cast(RawJsonResponse, raw_data), user_address=user_address
+            cast("RawJsonResponse", raw_data), user_address=user_address,
         )
         assert isinstance(response, HyperliquidRawUserFillsResponse)
         assert len(response.root) == 0
@@ -213,7 +213,7 @@ class TestHandleInfoUserFillsResponse:
         raw_data = [invalid_fill]
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_user_fills_response(
-                cast(RawJsonResponse, raw_data), user_address=user_address
+                cast("RawJsonResponse", raw_data), user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
@@ -227,7 +227,7 @@ class TestHandleInfoUserFillsResponse:
         raw_data = ["not_a_fill_dict"]
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_user_fills_response(
-                cast(RawJsonResponse, raw_data), user_address=user_address
+                cast("RawJsonResponse", raw_data), user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
@@ -241,7 +241,7 @@ class TestHandleInfoUserFillsResponse:
         raw_data = {"invalid": "data"}
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_user_fills_response(
-                cast(RawJsonResponse, raw_data), user_address=user_address
+                cast("RawJsonResponse", raw_data), user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
@@ -281,7 +281,7 @@ class TestUserAccountEdgeCases:
             "withdrawable": "5000.0",
         }
         response = HyperliquidResponseHandler.handle_info_user_state_response(
-            cast(RawJsonResponse, raw_data), user_address=user_address
+            cast("RawJsonResponse", raw_data), user_address=user_address,
         )
         assert len(response.asset_positions) == 0
         assert response.withdrawable == "5000.0"
@@ -313,13 +313,13 @@ class TestUserAccountEdgeCases:
             "withdrawable": "1000.0",
         }
         response = HyperliquidResponseHandler.handle_info_user_state_response(
-            cast(RawJsonResponse, raw_data), user_address=user_address
+            cast("RawJsonResponse", raw_data), user_address=user_address,
         )
         assert response.withdrawable == "1000.0"
         assert response.cross_maintenance_margin_used == "0.0"
 
     def test_user_fills_with_mixed_valid_invalid_items(
-        self, user_address: str, valid_raw_user_fill: dict[str, Any]
+        self, user_address: str, valid_raw_user_fill: dict[str, Any],
     ) -> None:
         """Test user fills response with mix of valid and invalid items."""
         invalid_fill = {"coin": "ETH"}  # Missing required fields
@@ -329,7 +329,7 @@ class TestUserAccountEdgeCases:
         ]
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_user_fills_response(
-                cast(RawJsonResponse, raw_data), user_address=user_address
+                cast("RawJsonResponse", raw_data), user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
@@ -396,7 +396,7 @@ class TestUserAccountEdgeCases:
             "withdrawable": "12000.0",
         }
         response = HyperliquidResponseHandler.handle_info_user_state_response(
-            cast(RawJsonResponse, raw_data), user_address=user_address
+            cast("RawJsonResponse", raw_data), user_address=user_address,
         )
         assert len(response.asset_positions) == 2
         assert response.asset_positions[0].asset == "BTC-PERP"
@@ -428,7 +428,7 @@ class TestUserAccountEdgeCases:
         }
         raw_data = [trigger_order]
         response = HyperliquidResponseHandler.handle_info_open_orders_response(
-            cast(RawJsonResponse, raw_data), user_address=user_address
+            cast("RawJsonResponse", raw_data), user_address=user_address,
         )
         assert len(response.items) == 1
         assert response.items[0].order.asset == "BTC-PERP"

@@ -88,7 +88,7 @@ class TestHyperliquidWsMessageRouter:
         assert hasattr(router, "logger")
 
     def test_construct_subscription_payload_l2book(
-        self, router: HyperliquidWsMessageRouter
+        self, router: HyperliquidWsMessageRouter,
     ) -> None:
         """Test subscription payload construction for l2Book."""
         result = router.construct_subscription_payload("l2Book:SOL", None)
@@ -104,7 +104,7 @@ class TestHyperliquidWsMessageRouter:
         assert result.subscription.coin == "SOL"
 
     def test_construct_subscription_payload_trades(
-        self, router: HyperliquidWsMessageRouter
+        self, router: HyperliquidWsMessageRouter,
     ) -> None:
         """Test subscription payload construction for trades."""
         result = router.construct_subscription_payload("trades:BTC", None)
@@ -119,7 +119,7 @@ class TestHyperliquidWsMessageRouter:
         assert result.subscription.coin == "BTC"
 
     def test_construct_subscription_payload_user_events(
-        self, router: HyperliquidWsMessageRouter
+        self, router: HyperliquidWsMessageRouter,
     ) -> None:
         """Test subscription payload construction for userEvents."""
         wallet_address = "0x1234567890abcdef"
@@ -135,16 +135,16 @@ class TestHyperliquidWsMessageRouter:
         assert result.subscription.user == wallet_address
 
     def test_construct_subscription_payload_user_events_no_wallet(
-        self, router: HyperliquidWsMessageRouter
+        self, router: HyperliquidWsMessageRouter,
     ) -> None:
         """Test subscription payload construction for userEvents without wallet address."""
         with pytest.raises(
-            ValueError, match="Cannot subscribe to userEvents without wallet address"
+            ValueError, match="Cannot subscribe to userEvents without wallet address",
         ):
             router.construct_subscription_payload("userEvents", None)
 
     def test_construct_subscription_payload_candle(
-        self, router: HyperliquidWsMessageRouter
+        self, router: HyperliquidWsMessageRouter,
     ) -> None:
         """Test subscription payload construction for candle."""
         result = router.construct_subscription_payload("candle:ETH:1m", None)
@@ -160,7 +160,7 @@ class TestHyperliquidWsMessageRouter:
         assert result.subscription.interval == "1m"
 
     def test_construct_subscription_payload_invalid_topic(
-        self, router: HyperliquidWsMessageRouter
+        self, router: HyperliquidWsMessageRouter,
     ) -> None:
         """Test subscription payload construction for invalid topic."""
         from cyberdelta.apis.models.api_error import APIError
@@ -186,7 +186,7 @@ class TestHyperliquidWsMessageRouter:
         await router.route_message(message, ws_handlers)
 
         mock_raw_ws_handler.handle_l2book_payload.assert_called_once_with(
-            {"coin": "SOL", "levels": []}
+            {"coin": "SOL", "levels": []},
         )
         mock_market_data_mapper.transform_ws_book_update_to_internal.assert_called_once()
         mock_app_handler.assert_called_once()
@@ -209,7 +209,7 @@ class TestHyperliquidWsMessageRouter:
         await router.route_message(message, ws_handlers)
 
         mock_raw_ws_handler.handle_public_trades_payload.assert_called_once_with(
-            [{"coin": "BTC", "px": "50000", "sz": "1.0"}]
+            [{"coin": "BTC", "px": "50000", "sz": "1.0"}],
         )
         mock_market_data_mapper.transform_ws_trade_event_to_internal.assert_called_once()
         mock_app_handler.assert_called_once()
@@ -295,7 +295,7 @@ class TestHyperliquidWsMessageRouter:
         await router.route_message(message, ws_handlers)
 
         mock_raw_ws_handler.handle_all_mids_payload.assert_called_once_with(
-            {"mids": {"SOL": "100.5", "BTC": "50000"}}
+            {"mids": {"SOL": "100.5", "BTC": "50000"}},
         )
         mock_app_handler.assert_called_once()
 
@@ -317,11 +317,11 @@ class TestHyperliquidWsMessageRouter:
             assert mock_logger.debug.call_count == 2
             mock_logger.debug.assert_any_call(
                 "[Hyperliquid] Control message on 'pong': "
-                "{'channel': 'pong', 'data': {'status': 'ok'}}"
+                "{'channel': 'pong', 'data': {'status': 'ok'}}",
             )
             mock_logger.debug.assert_any_call(
                 "[Hyperliquid] Control message on 'subscriptionResponse': "
-                "{'channel': 'subscriptionResponse', 'data': {'status': 'ok'}}"
+                "{'channel': 'subscriptionResponse', 'data': {'status': 'ok'}}",
             )
         mock_app_handler.assert_not_called()
 
@@ -379,7 +379,7 @@ class TestHyperliquidWsMessageRouter:
     ) -> None:
         """Test handling APIError from raw message handler."""
         mock_raw_ws_handler.handle_l2book_payload.side_effect = APIError(
-            "Invalid l2Book data", code="INVALID_DATA"
+            "Invalid l2Book data", code="INVALID_DATA",
         )
 
         message: dict[str, Any] = {
@@ -434,7 +434,7 @@ class TestHyperliquidWsMessageRouter:
                     "input": {"invalid": "data"},  # The input data causing the error
                     # No 'msg' here, Pydantic generates it. Add 'ctx' if needed for the error type.
                     "ctx": {"error": "Simulated value error"},  # Added context for value_error
-                }
+                },
             ],
         )
         mock_raw_ws_handler.handle_user_fill_event_payload.side_effect = validation_error

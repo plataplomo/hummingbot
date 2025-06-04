@@ -542,16 +542,16 @@ def mock_config_with_exchanges() -> AppSettings:
                         "symbols": ["BTC-PERP", "ETH-PERP"],
                     },
                     "defaults": {  # Add default cooldown here
-                        "cooldown_seconds": 300
+                        "cooldown_seconds": 300,
                     },
-                }
+                },
             },
             "another_exchange": {
                 "circuit_breakers": {
                     "global": {"enabled": False},
                     "api_error": {"enabled": True, "error_threshold": 3},
                     "defaults": {"cooldown_seconds": 300},
-                }
+                },
             },
         },
         "portfolio": {"reconciliation_interval": 300},
@@ -622,17 +622,14 @@ class TestCircuitBreakerSystem:
     def test_register_and_get_breaker(self, mock_config: AppSettings) -> None:
         """Test registering and retrieving a breaker."""
         # Test logic to be implemented when needed
-        pass
 
     def test_get_exchange_breaker(self, mock_config: AppSettings) -> None:
         """Test getting an exchange-specific breaker."""
         # Test logic to be implemented when needed
-        pass
 
     def test_can_execute_no_trips(self, mock_config: AppSettings) -> None:
         """Test can_execute when no breakers are tripped."""
         # Test logic to be implemented when needed
-        pass
 
     def test_can_execute_with_trip(self, mock_config: AppSettings) -> None:
         """Test can_execute when a breaker is tripped."""
@@ -657,44 +654,35 @@ class TestCircuitBreakerSystem:
     def test_record_api_error(self, mock_config: AppSettings) -> None:
         """Test recording an API error."""
         # Test logic to be implemented when needed
-        pass
 
     def test_update_price(self, mock_config: AppSettings) -> None:
         """Test updating price for volatility breakers."""
         # Test logic to be implemented when needed
-        pass
 
     def test_update_portfolio_value(self, mock_config: AppSettings) -> None:
         """Test updating portfolio value for drawdown breakers."""
         # Test logic to be implemented when needed
-        pass
 
     def test_update_liquidity(self, mock_config: AppSettings) -> None:
         """Test updating liquidity for liquidity breakers."""
         # Test logic to be implemented when needed
-        pass
 
     def test_reset_breaker(self, mock_config: AppSettings) -> None:
         """Test resetting a specific breaker."""
         # Test logic to be implemented when needed
-        pass
 
     def test_reset_nonexistent_breaker(self, mock_config: AppSettings) -> None:
         """Test resetting a non-existent breaker."""
         # Test logic to be implemented when needed
-        pass
 
     def test_reset_exchange_breakers(self, mock_config: AppSettings) -> None:
         """Test resetting all breakers for an exchange."""
         # Test logic to be implemented when needed
-        pass
 
     def test_get_status(self, mock_config: AppSettings) -> None:
         """Test getting status of all breakers."""
         # Test logic to be implemented when needed
-        pass
 
     def test_get_tripped_breakers(self, mock_config: AppSettings) -> None:
         """Test getting all tripped breakers."""
         # Test logic to be implemented when needed
-        pass

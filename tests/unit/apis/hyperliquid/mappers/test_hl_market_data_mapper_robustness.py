@@ -177,7 +177,7 @@ class TestBoundaryValueConditions:
 
         ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(large_value_asset_ctx)
         funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(
-            large_value_asset_ctx
+            large_value_asset_ctx,
         )
 
         # Should handle large values without error
@@ -201,7 +201,7 @@ class TestBoundaryValueConditions:
 
         ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(small_value_asset_ctx)
         funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(
-            small_value_asset_ctx
+            small_value_asset_ctx,
         )
 
         # Should handle small values without error
@@ -256,7 +256,7 @@ class TestBoundaryValueConditions:
 
         ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(negative_funding_asset_ctx)
         funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(
-            negative_funding_asset_ctx
+            negative_funding_asset_ctx,
         )
 
         assert ticker.symbol == "NEGATIVE-FUNDING-PERP"
@@ -551,7 +551,7 @@ class TestErrorRecoveryScenarios:
 
         # Transform should raise TransformationError when side mapping fails
         with pytest.raises(
-            TransformationError, match="Failed to transform HyperliquidRawPublicTrade"
+            TransformationError, match="Failed to transform HyperliquidRawPublicTrade",
         ):
             market_data_mapper.transform_raw_public_trade_to_internal(valid_trade)
 

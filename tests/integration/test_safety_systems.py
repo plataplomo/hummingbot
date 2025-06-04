@@ -40,7 +40,7 @@ from tests.integration.mocks.mock_exchange import MockExchangeAPI  # Added MockE
 # === FORCE ROOT LOGGER LEVEL ===
 logging.getLogger().setLevel(logging.INFO)
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)  # ADD logger instance
 # ============================
@@ -80,7 +80,7 @@ async def test_circuit_breaker_global_halts_execution(
             total_quantity=Decimal("10000"),
             available_quantity=Decimal("10000"),
             timestamp=datetime.now(UTC),
-        )
+        ),
     )
     mock_bp_api.set_mock_balance(
         SpotBalance(
@@ -89,7 +89,7 @@ async def test_circuit_breaker_global_halts_execution(
             total_quantity=Decimal("10000"),
             available_quantity=Decimal("10000"),
             timestamp=datetime.now(UTC),
-        )
+        ),
     )
     mock_hl_api.set_mock_balance(
         SpotBalance(
@@ -98,7 +98,7 @@ async def test_circuit_breaker_global_halts_execution(
             total_quantity=Decimal("10000"),
             available_quantity=Decimal("10000"),
             timestamp=datetime.now(UTC),
-        )
+        ),
     )
     await real_portfolio_tracker.initialize()
     ts_dt = datetime.now(UTC)
@@ -134,14 +134,14 @@ async def test_circuit_breaker_global_halts_execution(
         risk_adjusted_return=Decimal("0.01"),  # Placeholder float
     )
     execution_result = await execution_handler.execute_opportunity(
-        sized_opportunity_for_test
+        sized_opportunity_for_test,
     )  # Pass SizedOpportunity
 
     # 4. Verify Rejection (Restored Assertions)
     assert isinstance(execution_result, TradeExecution), "Expected a TradeExecution result object"
     logger.info(
         f"Received execution result: Status={execution_result.status}, "
-        f"Error='{execution_result.error_message}'"
+        f"Error='{execution_result.error_message}'",
     )
 
     assert execution_result.status == ExecutionStatus.REJECTED, (
@@ -190,7 +190,7 @@ async def test_circuit_breaker_exchange_halts_execution(
             total_quantity=Decimal("10000"),
             available_quantity=Decimal("10000"),
             timestamp=datetime.now(UTC),
-        )
+        ),
     )
     mock_bp_api.set_mock_balance(
         SpotBalance(
@@ -199,7 +199,7 @@ async def test_circuit_breaker_exchange_halts_execution(
             total_quantity=Decimal("10000"),
             available_quantity=Decimal("10000"),
             timestamp=datetime.now(UTC),
-        )
+        ),
     )
     mock_hl_api.set_mock_balance(
         SpotBalance(
@@ -208,7 +208,7 @@ async def test_circuit_breaker_exchange_halts_execution(
             total_quantity=Decimal("10000"),
             available_quantity=Decimal("10000"),
             timestamp=datetime.now(UTC),
-        )
+        ),
     )
     await real_portfolio_tracker.initialize()
     ts_dt = datetime.now(UTC)
@@ -256,14 +256,14 @@ async def test_circuit_breaker_exchange_halts_execution(
         risk_adjusted_return=Decimal("0.01"),  # Placeholder float
     )
     execution_result = await execution_handler.execute_opportunity(
-        sized_opportunity_for_test
+        sized_opportunity_for_test,
     )  # Pass SizedOpportunity
 
     # 4. Verify Rejection (Restored Assertions)
     assert isinstance(execution_result, TradeExecution), "Expected a TradeExecution result object"
     logger.info(
         f"Received execution result: Status={execution_result.status}, "
-        f"Error='{execution_result.error_message}'"
+        f"Error='{execution_result.error_message}'",
     )
 
     assert execution_result.status == ExecutionStatus.REJECTED, (
@@ -309,7 +309,7 @@ async def test_funding_rate_validator_accepts_safe_opportunity(
             total_quantity=Decimal("10000"),
             available_quantity=Decimal("10000"),
             timestamp=now,
-        )
+        ),
     )
     mock_bp_api.set_mock_balance(
         SpotBalance(
@@ -318,7 +318,7 @@ async def test_funding_rate_validator_accepts_safe_opportunity(
             total_quantity=Decimal("10000"),
             available_quantity=Decimal("10000"),
             timestamp=now,
-        )
+        ),
     )
     await real_portfolio_tracker.initialize()
     await real_portfolio_tracker.update()  # Ensure total capital is calculated
@@ -336,7 +336,7 @@ async def test_funding_rate_validator_accepts_safe_opportunity(
         basis_volatility=0.1,  # Very high volatility for safe sizing
         utility_score=None,
     )
-    opp = cast(Any, opp)
+    opp = cast("Any", opp)
     opp.expected_profit = Decimal("0.0005")
     # Temporarily disable validator influence for baseline
     risk_manager.funding_rate_validator = None
@@ -371,7 +371,7 @@ async def test_funding_rate_validator_rejects_oversized_opportunity(
             total_quantity=Decimal("10000"),
             available_quantity=Decimal("10000"),
             timestamp=now,
-        )
+        ),
     )
     mock_bp_api.set_mock_balance(
         SpotBalance(
@@ -380,7 +380,7 @@ async def test_funding_rate_validator_rejects_oversized_opportunity(
             total_quantity=Decimal("10000"),
             available_quantity=Decimal("10000"),
             timestamp=now,
-        )
+        ),
     )
     await real_portfolio_tracker.initialize()
     await real_portfolio_tracker.update()  # Ensure total capital is calculated
@@ -398,7 +398,7 @@ async def test_funding_rate_validator_rejects_oversized_opportunity(
         basis_volatility=0.001,  # Low volatility
         utility_score=None,
     )
-    opp = cast(Any, opp)
+    opp = cast("Any", opp)
     opp.expected_profit = Decimal("0.01")
     # Temporarily disable validator influence for baseline
     risk_manager.funding_rate_validator = None
@@ -478,7 +478,7 @@ async def test_position_reconciler_detects_discrepancy(
         if disc.detail.symbol == "BTC-PERP" and disc.detail.discrepancy_type == "size":
             found_unexpected_btc_discrepancy_bp = True
             logger.error(
-                f"Found unexpected BTC-PERP size discrepancy on mock_bp: {disc.detail}"
+                f"Found unexpected BTC-PERP size discrepancy on mock_bp: {disc.detail}",
             )  # Only logs on unexpected finding (test failure path)
     assert not found_unexpected_btc_discrepancy_bp, (
         f"Found unexpected BTC-PERP size discrepancy for mock_bp. Details: {discrepancies_bp}"
@@ -519,7 +519,7 @@ async def test_position_reconciler_detects_discrepancy(
     # Force the check to bypass interval caching
     discrepancies_reverse_result = await position_reconciler.check_positions(force=True)
     discrepancies_reverse = discrepancies_reverse_result.get(exchange_id, {}).get(
-        "discrepancies", []
+        "discrepancies", [],
     )
 
     # 5. Verify Reverse Discrepancy Detection
@@ -590,7 +590,7 @@ async def test_kelly_size_exactly_at_max_position_size(
         basis_volatility=0.1,
         utility_score=None,
     )
-    opp = cast(Any, opp)
+    opp = cast("Any", opp)
     opp.expected_profit = Decimal("30.001")
     risk_manager.funding_rate_validator = None
     sized_opps = await risk_manager.validate_opportunities([opp])
@@ -623,7 +623,7 @@ async def test_kelly_size_just_below_max_position_size(
         basis_volatility=0.10005,
         utility_score=None,
     )
-    opp = cast(Any, opp)
+    opp = cast("Any", opp)
     opp.expected_profit = Decimal("29.986")
     risk_manager.funding_rate_validator = None
     sized_opps = await risk_manager.validate_opportunities([opp])
@@ -656,7 +656,7 @@ async def test_kelly_size_just_above_max_position_size(
         basis_volatility=0.09995,
         utility_score=None,
     )
-    opp = cast(Any, opp)
+    opp = cast("Any", opp)
     opp.expected_profit = Decimal("30.046")
     risk_manager.funding_rate_validator = None
     sized_opps = await risk_manager.validate_opportunities([opp])
@@ -689,7 +689,7 @@ async def test_kelly_size_near_zero(
         basis_volatility=1000,
         utility_score=None,
     )
-    opp = cast(Any, opp)
+    opp = cast("Any", opp)
     opp.expected_profit = Decimal("0.01")
     risk_manager.funding_rate_validator = None
     sized_opps = await risk_manager.validate_opportunities([opp])
@@ -722,7 +722,7 @@ async def test_kelly_negative_expected_return(
         basis_volatility=0.1,
         utility_score=None,
     )
-    opp = cast(Any, opp)
+    opp = cast("Any", opp)
     opp.expected_profit = Decimal("-0.01")
     risk_manager.funding_rate_validator = None
     sized_opps = await risk_manager.validate_opportunities([opp])
@@ -755,7 +755,7 @@ async def test_kelly_zero_or_negative_volatility(
         basis_volatility=0,
         utility_score=None,
     )
-    opp = cast(Any, opp)
+    opp = cast("Any", opp)
     opp.expected_profit = Decimal("0.01")
     risk_manager.funding_rate_validator = None
     sized_opps = await risk_manager.validate_opportunities([opp])
@@ -774,7 +774,7 @@ async def test_kelly_zero_or_negative_volatility(
         basis_volatility=-1,
         utility_score=None,
     )
-    opp2 = cast(Any, opp2)
+    opp2 = cast("Any", opp2)
     opp2.expected_profit = Decimal("0.01")
     sized_opps2 = await risk_manager.validate_opportunities([opp2])
     assert len(sized_opps2) == 0, "Negative volatility should be rejected."
@@ -806,7 +806,7 @@ async def test_kelly_insufficient_balance(
         basis_volatility=0.1,
         utility_score=None,
     )
-    opp = cast(Any, opp)
+    opp = cast("Any", opp)
     opp.expected_profit = Decimal("0.01")
     # Set balances to $500 (less than Kelly size)
     mock_bp_api.set_mock_balance(
@@ -816,7 +816,7 @@ async def test_kelly_insufficient_balance(
             total_quantity=Decimal("500"),
             available_quantity=Decimal("500"),
             timestamp=datetime.now(UTC),
-        )
+        ),
     )
     mock_hl_api.set_mock_balance(
         SpotBalance(
@@ -825,7 +825,7 @@ async def test_kelly_insufficient_balance(
             total_quantity=Decimal("500"),
             available_quantity=Decimal("500"),
             timestamp=datetime.now(UTC),
-        )
+        ),
     )
     await real_portfolio_tracker.initialize()
     await real_portfolio_tracker.update()  # Ensure total capital is calculated
@@ -854,7 +854,7 @@ async def test_kelly_zero_total_capital(
             total_quantity=Decimal("0"),
             available_quantity=Decimal("0"),
             timestamp=datetime.now(UTC),
-        )
+        ),
     )
     mock_hl_api.set_mock_balance(
         SpotBalance(
@@ -863,7 +863,7 @@ async def test_kelly_zero_total_capital(
             total_quantity=Decimal("0"),
             available_quantity=Decimal("0"),
             timestamp=datetime.now(UTC),
-        )
+        ),
     )
     await real_portfolio_tracker.initialize()
     await real_portfolio_tracker.update()  # Ensure total capital is calculated
@@ -881,7 +881,7 @@ async def test_kelly_zero_total_capital(
         basis_volatility=0.1,
         utility_score=None,
     )
-    opp = cast(Any, opp)
+    opp = cast("Any", opp)
     opp.expected_profit = Decimal("0.01")
     risk_manager.funding_rate_validator = None
     sized_opps = await risk_manager.validate_opportunities([opp])
@@ -915,7 +915,7 @@ async def test_kelly_max_position_size_zero(
         basis_volatility=0.1,
         utility_score=None,
     )
-    opp = cast(Any, opp)
+    opp = cast("Any", opp)
     opp.expected_profit = Decimal("0.01")
     risk_manager.funding_rate_validator = None
     sized_opps = await risk_manager.validate_opportunities([opp])
@@ -949,7 +949,7 @@ async def test_kelly_max_position_size_very_large(
         basis_volatility=0.1,
         utility_score=None,
     )
-    opp = cast(Any, opp)
+    opp = cast("Any", opp)
     opp.expected_profit = Decimal("0.01")
     risk_manager.funding_rate_validator = None
     sized_opps = await risk_manager.validate_opportunities([opp])
@@ -1010,17 +1010,17 @@ async def test_max_total_exposure_constraint_prevents_trade(
         f"Test: RM Configs: max_total_exposure_usd={risk_manager.max_total_exposure_usd}, "
         f"max_position_size={risk_manager.max_position_size}, "
         f"kelly_fraction={risk_manager.kelly_fraction_config}, "
-        f"max_single_position_exposure_ratio={risk_manager.max_single_position_exposure_ratio}"
+        f"max_single_position_exposure_ratio={risk_manager.max_single_position_exposure_ratio}",
     )
     logger.info(
         f"Test: PT mock total_capital: "
         f"{risk_manager.portfolio_tracker.get_total_capital.return_value}, "
         f"PT mock total_exposure: "
-        f"{risk_manager.portfolio_tracker.get_total_exposure_usd.return_value}"
+        f"{risk_manager.portfolio_tracker.get_total_exposure_usd.return_value}",
     )
     logger.info(
         f"Test: Sizing opportunity "
-        f"(volatility={basic_opportunity.basis_volatility}): {basic_opportunity}"
+        f"(volatility={basic_opportunity.basis_volatility}): {basic_opportunity}",
     )
 
     sized_opportunity = await risk_manager.size_opportunity(basic_opportunity)
@@ -1062,7 +1062,7 @@ async def test_min_trade_size_constraint_prevents_trade(
     )
 
     risk_manager.portfolio_tracker.get_total_capital.return_value = Decimal(
-        "1000"
+        "1000",
     )  # Capital is 1000
 
     # ADDED: Ensure get_total_exposure_usd is also mocked
@@ -1077,7 +1077,7 @@ async def test_min_trade_size_constraint_prevents_trade(
 
     logger.info(
         f"Test: RM Config max_total_exposure_usd: {risk_manager.max_total_exposure_usd}, "
-        f"PT mock total_capital: {risk_manager.portfolio_tracker.get_total_capital.return_value}"
+        f"PT mock total_capital: {risk_manager.portfolio_tracker.get_total_capital.return_value}",
     )
     logger.info(f"Test: Sizing opportunity: {basic_opportunity}")
 
