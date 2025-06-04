@@ -1,5 +1,4 @@
-"""Tests for the multi-tier funding rate provider.
-"""
+"""Tests for the multi-tier funding rate provider."""
 
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock

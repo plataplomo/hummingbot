@@ -40,7 +40,8 @@ class HyperliquidAssetIndexResolver:
     def __init__(
         self,
         requester: Callable[
-            ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
+            ...,
+            Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
         ],
         response_handler: HyperliquidResponseHandler,
         request_builder: HyperliquidRequestBuilder,
@@ -102,7 +103,8 @@ class HyperliquidAssetIndexResolver:
         # Build request
         request_payload_model = self._request_builder.build_info_request_payload()
         request_payload_data_dict = request_payload_model.model_dump(
-            by_alias=True, exclude_none=True,
+            by_alias=True,
+            exclude_none=True,
         )
 
         # Make API call

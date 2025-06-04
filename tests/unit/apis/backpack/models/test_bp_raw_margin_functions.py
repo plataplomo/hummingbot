@@ -1,5 +1,4 @@
-"""Unit tests for Backpack Raw Margin Function models.
-"""
+"""Unit tests for Backpack Raw Margin Function models."""
 
 import pytest
 from pydantic import ValidationError

@@ -1,3 +1,9 @@
+"""Symbol Mapping System.
+
+This module provides the SymbolMapper class for translating between internal trading symbols
+and exchange-specific symbol formats across different trading platforms.
+"""
+
 from __future__ import annotations
 
 import logging  # Use standard logging
@@ -37,7 +43,7 @@ class SymbolMapper:
     """
 
     def __init__(self, exchanges_config: dict[str, Any]) -> None:
-        """Initializes the SymbolMapper and loads mappings from the provided config.
+        """Initialize the SymbolMapper and load mappings from the provided config.
 
         Args:
             exchanges_config: A dictionary where keys are exchange_ids and values are
@@ -49,10 +55,12 @@ class SymbolMapper:
 
         """
         self._internal_to_exchange: dict[
-            str, dict[str, str],
+            str,
+            dict[str, str],
         ] = {}  # {internal: {exchange: exchange_symbol}}
         self._exchange_to_internal: dict[
-            str, dict[str, str],
+            str,
+            dict[str, str],
         ] = {}  # {exchange: {exchange_symbol: internal}}
         self._all_internal_symbols: set[str] = set()
         self.raw_config = exchanges_config  # Store for debugging
@@ -128,7 +136,8 @@ class SymbolMapper:
         )
 
     def _validate_config(self) -> None:
-        """Performs validation checks on the loaded symbol mapping configuration.
+        """Perform validation checks on the loaded symbol mapping configuration.
+
         (Placeholder for more complex validation, e.g., checking for required symbols).
         """
         # Example validation: Ensure every internal symbol is mapped somewhere?
@@ -186,14 +195,18 @@ class SymbolMapper:
         return self._internal_to_exchange.get(internal_symbol, {}).copy()  # Return a copy
 
     def get_internal_symbols_for_exchange(self, exchange_id: str) -> dict[str, str]:
-        """Get a dictionary mapping exchange-specific symbols to internal symbols for a given exchange.
+        """Get a dictionary mapping exchange-specific symbols to internal symbols.
+
+        This method maps exchange-specific symbols to internal symbols for a given exchange.
 
         Args:
-            exchange_id: The ID of the exchange.
+            exchange_id: The exchange identifier
 
         Returns:
-            A dictionary where keys are exchange-specific symbols and values are the
-            corresponding internal symbols. Returns an empty dict if the exchange ID is unknown.
+            Dictionary mapping exchange symbols to internal symbols
+
+        Raises:
+            SymbolMappingError: If exchange_id is not found in the configuration
 
         """
         return self._exchange_to_internal.get(exchange_id, {}).copy()  # Return a copy

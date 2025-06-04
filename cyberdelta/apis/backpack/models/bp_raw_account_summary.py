@@ -42,5 +42,8 @@ class BackpackRawAccountSummary(BaseModel):
     trigger_orders: RawBpNonNegativeInt = Field(..., alias="triggerOrders")
 
     model_config = ConfigDict(
-        populate_by_name=True, extra="forbid", frozen=True, validate_assignment=True,
+        populate_by_name=True,
+        extra="forbid",
+        frozen=True,
+        validate_assignment=True,
     )

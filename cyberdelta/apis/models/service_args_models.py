@@ -39,7 +39,10 @@ class PlaceOrderArgs(BaseModel):
         """Validate symbol is a non-empty string with max length 64."""
         # field_name is guaranteed by Pydantic to be correct here.
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=64, allow_empty=False,
+            v,
+            field_name=str(info.field_name),
+            max_length=64,
+            allow_empty=False,
         )
 
     @field_validator("client_order_id", mode="before")
@@ -49,13 +52,18 @@ class PlaceOrderArgs(BaseModel):
         if v is None:
             return None
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=64, allow_empty=False,
+            v,
+            field_name=str(info.field_name),
+            max_length=64,
+            allow_empty=False,
         )
 
     @field_validator("quantity", "price", "stop_price", mode="before")
     @classmethod
     def parse_decimal_fields(
-        cls, v: str | int | float | Decimal | None, info: ValidationInfo,
+        cls,
+        v: str | int | float | Decimal | None,
+        info: ValidationInfo,
     ) -> Decimal | None:
         """Parse decimal fields and ensure they are finite."""
         field_name = str(info.field_name)
@@ -109,7 +117,10 @@ class TransferArgs(BaseModel):
     def validate_required_strings(cls, v: str, info: ValidationInfo) -> str:
         """Validate required string fields are non-empty with max length 64."""
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=64, allow_empty=False,
+            v,
+            field_name=str(info.field_name),
+            max_length=64,
+            allow_empty=False,
         )
 
     @field_validator("client_transfer_id", mode="before")
@@ -119,7 +130,10 @@ class TransferArgs(BaseModel):
         if v is None:
             return None
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=128, allow_empty=False,
+            v,
+            field_name=str(info.field_name),
+            max_length=128,
+            allow_empty=False,
         )
 
     @field_validator("amount", mode="before")
@@ -167,7 +181,10 @@ class WithdrawArgs(BaseModel):
     def validate_required_strings(cls, v: str, info: ValidationInfo) -> str:
         """Validate required string fields."""
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=128, allow_empty=False,
+            v,
+            field_name=str(info.field_name),
+            max_length=128,
+            allow_empty=False,
         )
 
     @field_validator("network", "tag", "client_withdrawal_id", "two_factor_token", mode="before")
@@ -178,7 +195,10 @@ class WithdrawArgs(BaseModel):
             return None
         # Shorter max_length for network/tag unless specific exchanges require longer
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=64, allow_empty=False,
+            v,
+            field_name=str(info.field_name),
+            max_length=64,
+            allow_empty=False,
         )
 
     @field_validator("amount", mode="before")
@@ -218,20 +238,27 @@ class GetOrderHistoryArgs(BaseModel):
     @field_validator("symbol", "order_id", "client_order_id", mode="before")
     @classmethod
     def validate_optional_strings(
-        cls, v: str | int | float | None, info: ValidationInfo,
+        cls,
+        v: str | int | float | None,
+        info: ValidationInfo,
     ) -> str | None:
         """Validate optional string fields are non-empty with reasonable max length."""
         if v is None:
             return None
         # Assuming generic string validation for these, max_length can be adjusted
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=64, allow_empty=False,
+            v,
+            field_name=str(info.field_name),
+            max_length=64,
+            allow_empty=False,
         )
 
     @field_validator("start_time", "end_time", mode="before")
     @classmethod
     def parse_optional_datetime_utc(
-        cls, v: str | int | float | datetime | None, info: ValidationInfo,
+        cls,
+        v: str | int | float | datetime | None,
+        info: ValidationInfo,
     ) -> datetime | None:
         """Parse optional datetime fields to UTC."""
         if v is None:
@@ -285,7 +312,10 @@ class GetMarketDataArgs(BaseModel):
     def validate_required_strings(cls, v: object, info: ValidationInfo) -> str:
         """Validate required string fields are non-empty with reasonable max length."""
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=64, allow_empty=False,
+            v,
+            field_name=str(info.field_name),
+            max_length=64,
+            allow_empty=False,
         )
 
     @field_validator("limit", mode="before")
@@ -438,7 +468,10 @@ class GetTradeHistoryArgs(BaseModel):
         if v is None:
             return None
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=64, allow_empty=False,
+            v,
+            field_name=str(info.field_name),
+            max_length=64,
+            allow_empty=False,
         )
 
     @field_validator("limit", mode="before")
@@ -477,7 +510,10 @@ class GetAllOpenOrdersArgs(BaseModel):
         if v is None:
             return None
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=64, allow_empty=False,
+            v,
+            field_name=str(info.field_name),
+            max_length=64,
+            allow_empty=False,
         )
 
 
@@ -551,13 +587,18 @@ class GetHistoricalFundingRatesArgs(BaseModel):
     def validate_symbol_str(cls, v: object, info: ValidationInfo) -> str:
         """Validate symbol is a non-empty string with max length."""
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=64, allow_empty=False,
+            v,
+            field_name=str(info.field_name),
+            max_length=64,
+            allow_empty=False,
         )
 
     @field_validator("start_time", "end_time", mode="before")
     @classmethod
     def parse_optional_datetime_utc(
-        cls, v: datetime | int | float | str | None, info: ValidationInfo,
+        cls,
+        v: datetime | int | float | str | None,
+        info: ValidationInfo,
     ) -> datetime | None:
         """Parse optional datetime fields to UTC."""
         if v is None:

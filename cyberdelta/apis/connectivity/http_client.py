@@ -1,3 +1,9 @@
+"""HTTP Client for Exchange API Communication.
+
+This module provides a robust HTTP client implementation for communicating with
+exchange APIs, including rate limiting, retry logic, and error handling.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -151,7 +157,10 @@ class HttpClient:
         response: aiohttp.ClientResponse,
         full_url: str,  # For logging context
     ) -> tuple[
-        ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str],
+        ParsedJsonResponse | str | None,
+        int,
+        ProcessedResponseHeaders,
+        CIMultiDictProxy[str],
     ]:
         """Parses the HTTP response, validates headers, and extracts content.
         Returns content, status code, processed headers, and raw headers.
@@ -278,7 +287,10 @@ class HttpClient:
         request_timeout: float | None = None,
         serialize_none_as_null: bool = False,
     ) -> tuple[
-        ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str],
+        ParsedJsonResponse | str | None,
+        int,
+        ProcessedResponseHeaders,
+        CIMultiDictProxy[str],
     ]:
         """Executes an HTTP request with authentication and retries.
         Response parsing and validation are delegated to _parse_and_validate_response.
@@ -484,7 +496,8 @@ class HttpClient:
                 # Check if the specific last_exception should prevent a retry
                 # (e.g., non-retryable HttpRequestFailedError already raised and caught)
                 if isinstance(
-                    last_exception, HttpRequestFailedError,
+                    last_exception,
+                    HttpRequestFailedError,
                 ) and last_exception.http_status in [400, 401, 403, 404, 405, 406, 415]:
                     # This should have been raised and exited loop already
                     logger.debug(

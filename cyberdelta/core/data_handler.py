@@ -202,12 +202,15 @@ class DataHandler:
                 symbols_for_exchange = list(exchange_config.symbols.keys())
 
                 if client and hasattr(
-                    client, "connect_websocket",
+                    client,
+                    "connect_websocket",
                 ):  # Checking connect_websocket is enough for basic WS capability
                     # Schedule _maintain_websocket_connection, not _connect_and_subscribe directly
                     connect_tasks.append(
                         self._maintain_websocket_connection(
-                            exchange_id, client, symbols_for_exchange,
+                            exchange_id,
+                            client,
+                            symbols_for_exchange,
                         ),
                     )
                 elif not client:
@@ -244,7 +247,10 @@ class DataHandler:
             logger.warning("No WebSocket connections configured or enabled.")
 
     async def _connect_and_subscribe(
-        self, exchange_id: str, client: ExchangeAPI, symbols: list[str],
+        self,
+        exchange_id: str,
+        client: ExchangeAPI,
+        symbols: list[str],
     ) -> None:
         """Connect to WebSocket and subscribe to required data feeds."""
         try:
@@ -260,22 +266,26 @@ class DataHandler:
                 # Use the standard subscribe method from ExchangeAPI base class
                 # Define message handlers for different data types
                 async def ticker_handler(
-                    data_payload: dict[str, Any], full_message: dict[str, Any],
+                    data_payload: dict[str, Any],
+                    full_message: dict[str, Any],
                 ) -> None:
                     await self._handle_ticker_message(exchange_id, data_payload, full_message)
 
                 async def orderbook_handler(
-                    data_payload: dict[str, Any], full_message: dict[str, Any],
+                    data_payload: dict[str, Any],
+                    full_message: dict[str, Any],
                 ) -> None:
                     await self._handle_orderbook_message(exchange_id, data_payload, full_message)
 
                 async def funding_handler(
-                    data_payload: dict[str, Any], full_message: dict[str, Any],
+                    data_payload: dict[str, Any],
+                    full_message: dict[str, Any],
                 ) -> None:
                     await self._handle_funding_message(exchange_id, data_payload, full_message)
 
                 async def user_events_handler(
-                    data_payload: dict[str, Any], full_message: dict[str, Any],
+                    data_payload: dict[str, Any],
+                    full_message: dict[str, Any],
                 ) -> None:
                     await self._handle_user_events_message(exchange_id, data_payload, full_message)
 
@@ -343,7 +353,10 @@ class DataHandler:
                 await client.close_websocket()
 
     async def _handle_ticker_message(
-        self, exchange_id: str, data_payload: dict[str, Any], full_message: dict[str, Any],
+        self,
+        exchange_id: str,
+        data_payload: dict[str, Any],
+        full_message: dict[str, Any],
     ) -> None:
         """Handle ticker/price update messages."""
         try:
@@ -379,7 +392,10 @@ class DataHandler:
             logger.error(f"[{exchange_id}] Error handling ticker message: {e}")
 
     async def _handle_orderbook_message(
-        self, exchange_id: str, data_payload: dict[str, Any], full_message: dict[str, Any],
+        self,
+        exchange_id: str,
+        data_payload: dict[str, Any],
+        full_message: dict[str, Any],
     ) -> None:
         """Handle order book update messages."""
         try:
@@ -406,7 +422,10 @@ class DataHandler:
             logger.error(f"[{exchange_id}] Error handling order book message: {e}")
 
     async def _handle_funding_message(
-        self, exchange_id: str, data_payload: dict[str, Any], full_message: dict[str, Any],
+        self,
+        exchange_id: str,
+        data_payload: dict[str, Any],
+        full_message: dict[str, Any],
     ) -> None:
         """Handle funding rate update messages."""
         try:
@@ -430,7 +449,10 @@ class DataHandler:
             logger.error(f"[{exchange_id}] Error handling funding message: {e}")
 
     async def _handle_user_events_message(
-        self, exchange_id: str, data_payload: dict[str, Any], full_message: dict[str, Any],
+        self,
+        exchange_id: str,
+        data_payload: dict[str, Any],
+        full_message: dict[str, Any],
     ) -> None:
         """Handle user account events (fills, orders, positions)."""
         try:
@@ -477,7 +499,9 @@ class DataHandler:
                 del self.ws_tasks[exchange_id]
 
     async def _update_and_notify(
-        self, exchange_id: str, message: dict[str, object] | list[object] | str,
+        self,
+        exchange_id: str,
+        message: dict[str, object] | list[object] | str,
     ) -> None:
         """Parse raw message and update internal state / notify observers."""
         # This method is no longer needed since message parsing and handling
@@ -487,7 +511,11 @@ class DataHandler:
     # --- Internal Update Methods ---
 
     def _update_ticker(
-        self, exchange_id: str, symbol: str, data: Ticker, timestamp: dt_real,
+        self,
+        exchange_id: str,
+        symbol: str,
+        data: Ticker,
+        timestamp: dt_real,
     ) -> None:
         """Update the ticker data for a given exchange and symbol."""
         if exchange_id not in self.tickers or symbol not in self.tickers[exchange_id]:
@@ -503,7 +531,11 @@ class DataHandler:
         logger.debug(f"Updated ticker: {exchange_id}/{symbol} - {data.price}")
 
     def _update_order_book(
-        self, exchange_id: str, symbol: str, data: OrderBook, timestamp: dt_real,
+        self,
+        exchange_id: str,
+        symbol: str,
+        data: OrderBook,
+        timestamp: dt_real,
     ) -> None:
         """Update the order book data."""
         if exchange_id not in self.order_books or symbol not in self.order_books[exchange_id]:
@@ -518,7 +550,11 @@ class DataHandler:
         logger.debug(f"Updated order book: {exchange_id}/{symbol}")
 
     def _update_funding_rate(
-        self, exchange_id: str, symbol: str, data: FundingRate, timestamp: dt_real,
+        self,
+        exchange_id: str,
+        symbol: str,
+        data: FundingRate,
+        timestamp: dt_real,
     ) -> None:
         """Update the latest funding rate for a symbol on an exchange."""
         if exchange_id not in self.funding_rates or symbol not in self.funding_rates[exchange_id]:
@@ -633,7 +669,8 @@ class DataHandler:
         # Check if data is stale
         # Use the timestamp from the FundingRate object for staleness check
         if timestamp < dt_real.now(UTC) - self.staleness_thresholds.get(
-            f"{exchange_id}_funding", self.default_staleness_threshold,
+            f"{exchange_id}_funding",
+            self.default_staleness_threshold,
         ):
             logger.warning(
                 f"Funding rate data for {exchange_id} - {symbol} is stale. Last update: {timestamp}",
@@ -799,7 +836,10 @@ class DataHandler:
         return is_stale_result
 
     async def _maintain_websocket_connection(
-        self, exchange_id: str, client: ExchangeAPI, symbols: list[str],
+        self,
+        exchange_id: str,
+        client: ExchangeAPI,
+        symbols: list[str],
     ) -> None:
         # TODO: Add websocket configuration to ExchangeSpecificConfig when needed
         # For now, use hardcoded defaults

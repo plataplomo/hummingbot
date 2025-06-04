@@ -41,7 +41,9 @@ class BackpackErrorMapper(IErrorMapper):
 
     @staticmethod
     def _map_backpack_error_code_to_api_error_code(
-        error_body: str, error_data: dict[str, Any] | None = None, status_code: int | None = None,
+        error_body: str,
+        error_data: dict[str, Any] | None = None,
+        status_code: int | None = None,
     ) -> APIErrorCode:
         """Map Backpack error responses (body, data, status) to standardized APIErrorCode.
 
@@ -217,7 +219,9 @@ class BackpackErrorMapper(IErrorMapper):
         # _map_backpack_error_code_to_api_error_code will return EXCHANGE_SPECIFIC
         # if error_data is unparseable or contains an unmapped Backpack code.
         api_error_code_enum = self._map_backpack_error_code_to_api_error_code(
-            error_body=effective_error_body, error_data=error_data, status_code=status_code,
+            error_body=effective_error_body,
+            error_data=error_data,
+            status_code=status_code,
         )
 
         bp_code_str: str | None = None

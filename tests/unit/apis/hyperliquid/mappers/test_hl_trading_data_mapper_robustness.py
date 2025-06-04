@@ -1,4 +1,4 @@
-"""CyberDeltaEngine: Hyperliquid Trading Data Mapper Robustness Tests
+"""CyberDeltaEngine: Hyperliquid Trading Data Mapper Robustness Tests.
 ------------------------------------------------------------------
 
 Comprehensive test suite for HyperliquidTradingDataMapper robustness and edge cases.

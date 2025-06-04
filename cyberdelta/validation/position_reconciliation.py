@@ -459,8 +459,7 @@ class PositionReconciliationSystem:
         return self.latest_results
 
     def get_reconciliation_report(self) -> dict[str, Any]:
-        """Generate a summary report of position reconciliation.
-        """
+        """Generate a summary report of position reconciliation."""
         now = datetime.now(UTC)
         # Get historical records for the last 24 hours (1 day)
         recent_historical_records: list[HistoricalDiscrepancyRecord] = self.get_discrepancy_history(
@@ -591,7 +590,8 @@ class PositionReconciliationSystem:
         for result_item in results:
             if isinstance(result_item, Exception):
                 logger.error(
-                    f"Exception during exchange reconciliation: {result_item}", exc_info=result_item,
+                    f"Exception during exchange reconciliation: {result_item}",
+                    exc_info=result_item,
                 )
                 overall_results["success"] = False
                 continue  # Move to the next result item
@@ -601,7 +601,8 @@ class PositionReconciliationSystem:
                 if not result_item.get("success", False):  # Check if 'success' is False
                     overall_results["success"] = False
                     overall_results["error"] = result_item.get(
-                        "error", "Unknown error during exchange reconciliation",
+                        "error",
+                        "Unknown error during exchange reconciliation",
                     )
                     overall_results["discrepancies"].extend(result_item.get("discrepancies", []))
                     if result_item.get("discrepancies"):
@@ -676,7 +677,9 @@ class PositionReconciliationSystem:
             # Call the method that takes maps and iterates symbols
             # This method returns a dict similar to overall_results in its own scope.
             current_exchange_results = await self.reconcile_positions(
-                exchange, api_positions_map, local_positions_map,
+                exchange,
+                api_positions_map,
+                local_positions_map,
             )
 
             # Auto-correct if enabled and discrepancies found
@@ -748,7 +751,10 @@ class PositionReconciliationSystem:
         return positions
 
     def _parse_local_position(
-        self, exchange_id: str, symbol: str, pos_data: DerivativePosition | None,
+        self,
+        exchange_id: str,
+        symbol: str,
+        pos_data: DerivativePosition | None,
     ) -> ParsedPosition | ErrorDict | None:
         if pos_data is None:
             return None
@@ -807,7 +813,10 @@ class PositionReconciliationSystem:
             )
 
     def _parse_api_position(
-        self, exchange_id: str, symbol: str, pos_data: DerivativePosition | None,
+        self,
+        exchange_id: str,
+        symbol: str,
+        pos_data: DerivativePosition | None,
     ) -> ParsedPosition | ErrorDict:
         if pos_data is None:
             return cast(
@@ -888,7 +897,10 @@ class PositionReconciliationSystem:
             )
 
     async def reconcile_positions(
-        self, exchange_id: str, api_positions: dict[str, Any], local_positions: dict[str, Any],
+        self,
+        exchange_id: str,
+        api_positions: dict[str, Any],
+        local_positions: dict[str, Any],
     ) -> dict[str, Any]:
         """Reconcile positions for a given exchange."""
         now = datetime.now(UTC)
@@ -930,10 +942,14 @@ class PositionReconciliationSystem:
                 )
 
             parsed_api_pos = self._parse_api_position(
-                exchange_id, symbol_key, cast(DerivativePosition | None, api_pos_raw),
+                exchange_id,
+                symbol_key,
+                cast(DerivativePosition | None, api_pos_raw),
             )
             parsed_local_pos = self._parse_local_position(
-                exchange_id, symbol_key, parsed_local_pos_input,
+                exchange_id,
+                symbol_key,
+                parsed_local_pos_input,
             )
 
             # Type-safe check for errors in parsed_api_pos and parsed_local_pos for logging
@@ -993,7 +1009,8 @@ class PositionReconciliationSystem:
                 continue
 
             if not isinstance(
-                res_item, list,
+                res_item,
+                list,
             ):  # _reconcile_symbol returns list[HistoricalDiscrepancyRecord]
                 self.logger.error(
                     f"PRS.reconcile_positions: Unexpected result type in symbol_results_list "
@@ -1054,7 +1071,9 @@ class PositionReconciliationSystem:
                 and self._portfolio_tracker
             ):
                 self._apply_corrections(
-                    exchange_id, overall_results, api_positions_map_for_correction,
+                    exchange_id,
+                    overall_results,
+                    api_positions_map_for_correction,
                 )
             elif not api_positions_map_for_correction:
                 self.logger.warning(
@@ -1228,7 +1247,9 @@ class PositionReconciliationSystem:
         return discrepancy_records
 
     async def _compare_positions(
-        self, api_positions: dict[str, Any], local_positions: dict[str, Any],
+        self,
+        api_positions: dict[str, Any],
+        local_positions: dict[str, Any],
     ) -> dict[str, Any]:
         """Compare positions between API and local state."""
         now = datetime.now(UTC)
@@ -1267,12 +1288,16 @@ class PositionReconciliationSystem:
                 )
 
             parsed_api = self._parse_api_position(
-                exchange_id_placeholder, symbol_key, cast(DerivativePosition | None, api_pos_raw),
+                exchange_id_placeholder,
+                symbol_key,
+                cast(DerivativePosition | None, api_pos_raw),
             )
             # Assuming local_pos_raw is DerivativePosition | None for _parse_local_position
             # If local_positions can contain other types, this cast might be problematic
             parsed_local = self._parse_local_position(
-                exchange_id_placeholder, symbol_key, parsed_local_pos_input,
+                exchange_id_placeholder,
+                symbol_key,
+                parsed_local_pos_input,
             )
 
             reconciliation_tasks.append(
@@ -1308,7 +1333,8 @@ class PositionReconciliationSystem:
                 continue
 
             if not isinstance(
-                res_item, list,
+                res_item,
+                list,
             ):  # _reconcile_symbol returns list[HistoricalDiscrepancyRecord]
                 self.logger.error(
                     f"PRS._compare_positions: Unexpected result type from _reconcile_symbol: "

@@ -301,7 +301,8 @@ class RealTimeDashboard:
             options: list[dict[str, str]] = [{"label": s, "value": s} for s in strategies]
             # Keep current selection if available
             current_selection: list[str] = dash.callback_context.states.get(
-                "strategy-selector.value", [],
+                "strategy-selector.value",
+                [],
             )
             valid_selection: list[str] = [s for s in current_selection if s in strategies]
             return options, valid_selection
@@ -450,7 +451,8 @@ class RealTimeDashboard:
             ]
 
             return self.visualizer.create_trade_analysis_chart(
-                trade_data=filtered_data, title="Trade Analysis (PnL vs Duration)",
+                trade_data=filtered_data,
+                title="Trade Analysis (PnL vs Duration)",
             )
 
         # Update funding rate heatmap
@@ -469,7 +471,8 @@ class RealTimeDashboard:
                 )
 
             return self.visualizer.create_funding_rate_heatmap(
-                funding_data=funding_data, title="Funding Rate Heatmap",
+                funding_data=funding_data,
+                title="Funding Rate Heatmap",
             )
 
         # Update performance metrics table
@@ -505,7 +508,8 @@ class RealTimeDashboard:
                     )
 
                     metrics: dict[str, Any] = self.metrics_calculator.calculate_all_metrics(
-                        returns=strategy_returns, trades=strategy_trades,
+                        returns=strategy_returns,
+                        trades=strategy_trades,
                     )
 
                     metrics_rows.append(
@@ -585,7 +589,9 @@ class RealTimeDashboard:
 
         # Get returns data from performance tracker
         returns_data = self.performance_tracker.get_returns_dataframe(
-            strategy_names=strategies, start_time=start_time, end_time=end_time,
+            strategy_names=strategies,
+            start_time=start_time,
+            end_time=end_time,
         )
 
         # Cache the data
@@ -626,7 +632,9 @@ class RealTimeDashboard:
 
         # Get trade data from performance tracker
         trade_data = self.performance_tracker.get_trades_dataframe(
-            strategy_names=strategies, start_time=start_time, end_time=end_time,
+            strategy_names=strategies,
+            start_time=start_time,
+            end_time=end_time,
         )
 
         # Cache the data
@@ -666,7 +674,8 @@ class RealTimeDashboard:
 
         # Get funding rate data from performance tracker
         funding_data = self.performance_tracker.get_funding_rates_dataframe(
-            start_time=start_time, end_time=end_time,
+            start_time=start_time,
+            end_time=end_time,
         )
 
         # Cache the data

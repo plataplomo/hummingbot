@@ -1,3 +1,9 @@
+"""CyberDeltaEngine: Hyperliquid API Request Builder.
+
+This module provides the HyperliquidRequestBuilder class for constructing
+request payloads and parameters for all Hyperliquid API endpoints.
+"""
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -70,7 +76,7 @@ class HyperliquidRequestBuilder:
 
     @staticmethod
     def _map_time_in_force_to_hyperliquid(tif: TimeInForce) -> str:
-        """Maps internal TimeInForce enum values to Hyperliquid-specific format.
+        """Map internal TimeInForce enum values to Hyperliquid-specific format.
 
         Our internal enum uses all uppercase (GTC, IOC, ALO, FOK),
         but Hyperliquid expects specific capitalization (Gtc, Ioc, Alo).
@@ -102,14 +108,16 @@ class HyperliquidRequestBuilder:
 
     @staticmethod
     def build_info_request_payload() -> HyperliquidRawMetaAndAssetCtxsRequestPayload:
-        """Builds the Pydantic model for fetching meta and asset contexts via /info.
+        """Build the Pydantic model for fetching meta and asset contexts via /info.
+
         Payload: {"type": "metaAndAssetCtxs"}
         """
         return HyperliquidRawMetaAndAssetCtxsRequestPayload(type="metaAndAssetCtxs")
 
     @staticmethod
     def build_l2_book_request_payload(symbol: str) -> HyperliquidRawL2BookRequestPayload:
-        """Builds the Pydantic model for fetching L2 order book data.
+        """Build the Pydantic model for fetching L2 order book data.
+
         Payload: {"type": "l2Book", "coin": "SYMBOL"}
         """
         return HyperliquidRawL2BookRequestPayload(type="l2Book", coin=symbol.upper())
@@ -118,57 +126,71 @@ class HyperliquidRequestBuilder:
     def build_recent_trades_request_payload(
         symbol: str,
     ) -> HyperliquidRawRecentTradesRequestPayload:
-        """Builds the Pydantic model for fetching recent public trades.
+        """Build the Pydantic model for fetching recent public trades.
+
         Payload: {"type": "recentTrades", "coin": "SYMBOL"}
         """
         return HyperliquidRawRecentTradesRequestPayload(type="recentTrades", coin=symbol.upper())
 
     @staticmethod
     def build_l2_usd_transfer_payload(
-        destination_address: str, amount: Decimal,
+        destination_address: str,
+        amount: Decimal,
     ) -> HyperliquidApiL2UsdTransferRequest:
-        """Builds the Pydantic model for an L2 USD transfer request.
+        """Build the Pydantic model for an L2 USD transfer request.
 
         Assumes all business validation has been done by the service layer.
         """
         transfer_payload_model = HyperliquidRawL2UsdTransferPayload(
-            destination=destination_address, token="USDC", amount=str(amount),
+            destination=destination_address,
+            token="USDC",
+            amount=str(amount),
         )
         action_details_model = HyperliquidRawL2UsdTransferActionDetails(
-            chain="L2", payload=transfer_payload_model,
+            chain="L2",
+            payload=transfer_payload_model,
         )
         return HyperliquidApiL2UsdTransferRequest(type="usdTransfer", action=action_details_model)
 
     @staticmethod
     def build_withdrawal_payload(
-        asset: str, amount: Decimal, destination_address: str,
+        asset: str,
+        amount: Decimal,
+        destination_address: str,
     ) -> HyperliquidApiEthWithdrawalRequest | HyperliquidApiTokenWithdrawalRequest:
-        """Builds the Pydantic model for a withdrawal to L1 request.
+        """Build the Pydantic model for a withdrawal to L1 request.
+
         Returns a specific model based on whether the asset is ETH or another token.
 
         Assumes all business validation has been done by the service layer.
         """
         if asset.upper() == "ETH":
             eth_withdrawal_model = HyperliquidRawEthWithdrawalActionPayload(
-                amount=str(amount), destination=destination_address,
+                amount=str(amount),
+                destination=destination_address,
             )
             return HyperliquidApiEthWithdrawalRequest(
-                type="withdrawEth", action=eth_withdrawal_model,
+                type="withdrawEth",
+                action=eth_withdrawal_model,
             )
         else:
             withdrawal_payload_model = HyperliquidRawWithdrawalToL1ActionPayload(
-                token=asset.upper(), amount=str(amount), destination=destination_address,
+                token=asset.upper(),
+                amount=str(amount),
+                destination=destination_address,
             )
             return HyperliquidApiTokenWithdrawalRequest(
-                type="withdraw", action=withdrawal_payload_model,
+                type="withdraw",
+                action=withdrawal_payload_model,
             )
 
     @staticmethod
     def build_order_history_payload(
-        wallet_address: str, start_time_ms: int, end_time_ms: int,
+        wallet_address: str,
+        start_time_ms: int,
+        end_time_ms: int,
     ) -> HyperliquidRawQueryOrderHistoryRequestPayload:
-        """Builds the Pydantic model for querying order history.
-        """
+        """Build the Pydantic model for querying order history."""
         return HyperliquidRawQueryOrderHistoryRequestPayload(
             type="queryOrderHistory",
             user=wallet_address,
@@ -178,10 +200,12 @@ class HyperliquidRequestBuilder:
 
     @staticmethod
     def build_candle_snapshot_payload(
-        symbol: str, timeframe: str, start_time_ms: int, end_time_ms: int,
+        symbol: str,
+        timeframe: str,
+        start_time_ms: int,
+        end_time_ms: int,
     ) -> HyperliquidRawCandleSnapshotRequestPayload:
-        """Builds the Pydantic model for fetching candle snapshots.
-        """
+        """Build the Pydantic model for fetching candle snapshots."""
         req_details = HyperliquidRawCandleRequestDetails(
             coin=symbol.upper(),
             interval=timeframe,
@@ -203,7 +227,8 @@ class HyperliquidRequestBuilder:
         reduce_only: bool = False,
         post_only: bool = False,
     ) -> HyperliquidApiPlaceOrderRequest:
-        """Builds the Pydantic model for placing orders.
+        """Build the Pydantic model for placing orders.
+
         Returns HyperliquidApiPlaceOrderRequest with full field structure and trigger support.
 
         Assumes all business validation has been done by the service layer.
@@ -267,28 +292,30 @@ class HyperliquidRequestBuilder:
 
     @staticmethod
     def build_cancel_order_payload(
-        asset_index: int, order_id: int,
+        asset_index: int,
+        order_id: int,
     ) -> HyperliquidApiCancelOrderRequest:
-        """Builds the Pydantic model for cancelling an order.
-        """
+        """Build the Pydantic model for cancelling an order."""
         action_model = HyperliquidRawCancelOrderAction(asset=asset_index, oid=order_id)
         return HyperliquidApiCancelOrderRequest(type="cancel", action=action_model)
 
     @staticmethod
     def build_order_status_payload(
-        wallet_address: str, order_id: int,
+        wallet_address: str,
+        order_id: int,
     ) -> HyperliquidRawOrderStatusRequestPayload:
-        """Builds the payload for querying the status of a specific order.
-        """
+        """Build the payload for querying the status of a specific order."""
         return HyperliquidRawOrderStatusRequestPayload(
-            type="orderStatus", user=wallet_address, oid=order_id,
+            type="orderStatus",
+            user=wallet_address,
+            oid=order_id,
         )
 
     @staticmethod
     def build_user_state_payload(
         wallet_address: str,
     ) -> HyperliquidRawUserStateRequestPayload:
-        """Builds the Pydantic model for fetching user state information.
+        """Build the Pydantic model for fetching user state information.
 
         Assumes all business validation has been done by the service layer.
         """
@@ -300,7 +327,8 @@ class HyperliquidRequestBuilder:
     def build_user_fills_request_payload(
         wallet_address: str,
     ) -> HyperliquidRawUserFillsRequestPayload:
-        """Builds the Pydantic model for fetching user fills (trade history).
+        """Build the Pydantic model for fetching user fills (trade history).
+
         Payload: {"type": "userFills", "user": "WALLET_ADDRESS"}
         """
         return HyperliquidRawUserFillsRequestPayload(type="userFills", user=wallet_address)
@@ -309,7 +337,8 @@ class HyperliquidRequestBuilder:
     def build_open_orders_payload(
         wallet_address: str,
     ) -> HyperliquidRawOpenOrdersRequestPayload:
-        """Builds the Pydantic model for fetching open orders.
+        """Build the Pydantic model for fetching open orders.
+
         Payload: {"type": "openOrders", "user": "WALLET_ADDRESS"}
         """
         return HyperliquidRawOpenOrdersRequestPayload(type="openOrders", user=wallet_address)
@@ -320,7 +349,7 @@ class HyperliquidRequestBuilder:
         start_time_ms: int,
         end_time_ms: int | None,
     ) -> HyperliquidRawFundingHistoryRequestPayload:
-        """Builds the Pydantic model for fetching historical funding rates for a specific coin.
+        """Build the Pydantic model for fetching historical funding rates for a specific coin.
 
         Args:
             symbol: The coin symbol (e.g., "ETH").

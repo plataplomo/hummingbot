@@ -87,7 +87,8 @@ class HyperliquidRawPlaceOrderAction(BaseModel):
     order_type: HyperliquidRawOrderType = Field(..., alias="orderType")
     trigger: HyperliquidRawTriggerDetails | None = Field(default=None)
     cloid: RawOptionalNonEmptyString64HL | None = Field(
-        default=None, description="Client Order ID (string, e.g., user-defined or 0x...)",
+        default=None,
+        description="Client Order ID (string, e.g., user-defined or 0x...)",
     )
 
 

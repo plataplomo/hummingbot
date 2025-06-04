@@ -8,6 +8,7 @@ from cyberdelta.apis.backpack.models.bp_raw_error import BackpackRawApiError
 
 
 def valid_api_error() -> dict[str, Any]:
+    """Return valid api error for testing."""
     return {
         "code": "INVALID_SIGNATURE",
         "message": "Signature is invalid or expired.",
@@ -15,12 +16,14 @@ def valid_api_error() -> dict[str, Any]:
 
 
 def test_BackpackRawApiError_happy_path() -> None:
+    """Test BackpackRawApiError happy path."""
     obj = BackpackRawApiError.model_validate(valid_api_error())
     assert obj.code == "INVALID_SIGNATURE"
     assert obj.message.startswith("Signature")
 
 
 def test_BackpackRawApiError_missing_required_fields() -> None:
+    """Test BackpackRawApiError missing required fields."""
     for field in ["code", "message"]:
         p: dict[str, Any] = valid_api_error().copy()
         del p[field]
@@ -29,6 +32,7 @@ def test_BackpackRawApiError_missing_required_fields() -> None:
 
 
 def test_BackpackRawApiError_wrong_type_fields() -> None:
+    """Test BackpackRawApiError wrong type fields."""
     p: dict[str, Any] = valid_api_error().copy()
     p["code"] = 123
     with pytest.raises(ValidationError):
@@ -40,6 +44,7 @@ def test_BackpackRawApiError_wrong_type_fields() -> None:
 
 
 def test_BackpackRawApiError_invalid_format_fields() -> None:
+    """Test BackpackRawApiError invalid format fields."""
     p: dict[str, Any] = valid_api_error().copy()
     p["code"] = ""
     with pytest.raises(ValidationError):
@@ -55,6 +60,7 @@ def test_BackpackRawApiError_invalid_format_fields() -> None:
 
 
 def test_BackpackRawApiError_extra_field() -> None:
+    """Test BackpackRawApiError extra field."""
     p: dict[str, Any] = valid_api_error().copy()
     p["foo"] = 1
     with pytest.raises(ValidationError):
@@ -62,6 +68,7 @@ def test_BackpackRawApiError_extra_field() -> None:
 
 
 def test_BackpackRawApiError_corruption_cases() -> None:
+    """Test BackpackRawApiError corruption cases."""
     # Null required
     p: dict[str, Any] = valid_api_error().copy()
     p["code"] = None

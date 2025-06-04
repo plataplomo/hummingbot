@@ -1,4 +1,6 @@
+"""Module docstring."""
 import json
+import logging
 from typing import Any
 
 import pytest
@@ -10,9 +12,12 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawTradeEvent,
 )
 
+logger = logging.getLogger(__name__)
+
 
 # --- BackpackRawTrade ---
 def valid_trade() -> dict[str, Any]:
+    """Return valid trade for testing."""
     return {
         "id": "trade123",
         "orderId": "order456",
@@ -24,6 +29,7 @@ def valid_trade() -> dict[str, Any]:
 
 
 def test_BackpackRawTrade_happy_path() -> None:
+    """Test BackpackRawTrade happy path."""
     obj = BackpackRawTrade.model_validate(valid_trade())
     assert obj.id == "trade123"
     assert obj.symbol == "BTC_USDC"
@@ -33,6 +39,7 @@ def test_BackpackRawTrade_happy_path() -> None:
 
 
 def test_BackpackRawTrade_missing_required_fields() -> None:
+    """Test BackpackRawTrade missing required fields."""
     for field in ["id", "orderId", "symbol", "price", "qty", "time"]:
         p: dict[str, Any] = valid_trade().copy()
         del p[field]
@@ -41,6 +48,7 @@ def test_BackpackRawTrade_missing_required_fields() -> None:
 
 
 def test_BackpackRawTrade_wrong_type_fields() -> None:
+    """Test BackpackRawTrade wrong type fields."""
     p: dict[str, Any] = valid_trade().copy()
     p["price"] = [50000.0]
     with pytest.raises(ValidationError):
@@ -52,6 +60,7 @@ def test_BackpackRawTrade_wrong_type_fields() -> None:
 
 
 def test_BackpackRawTrade_invalid_format_fields() -> None:
+    """Test BackpackRawTrade invalid format fields."""
     p: dict[str, Any] = valid_trade().copy()
     p["price"] = "1..0"
     with pytest.raises(ValidationError):
@@ -63,6 +72,7 @@ def test_BackpackRawTrade_invalid_format_fields() -> None:
 
 
 def test_BackpackRawTrade_extra_field() -> None:
+    """Test BackpackRawTrade extra field."""
     p: dict[str, Any] = valid_trade().copy()
     p["foo"] = 1
     with pytest.raises(ValidationError):
@@ -70,6 +80,7 @@ def test_BackpackRawTrade_extra_field() -> None:
 
 
 def test_BackpackRawTrade_corruption_cases() -> None:
+    """Test BackpackRawTrade corruption cases."""
     # Garbled numerics
     p: dict[str, Any] = valid_trade().copy()
     p["qty"] = "notanumber"
@@ -129,7 +140,8 @@ def test_BackpackRawTrade_real_json_examples() -> None:
 
 
 def test_BackpackRawTrade_creative_corruption_cases() -> None:
-    """Test BackpackRawTrade with 10 creative corruption cases simulating hostile or malformed input.
+    """Test BackpackRawTrade with 10 creative corruption cases simulating hostile or
+    malformed input.
     Each case is described and should raise a ValidationError (unless otherwise noted).
     """
     base: dict[str, object] = {
@@ -231,6 +243,7 @@ def test_BackpackRawTrade_corruption_garbled_unicode_symbol() -> None:
 
 # --- BackpackRawTradeEvent ---
 def valid_trade_event() -> dict[str, Any]:
+    """Return valid trade event for testing."""
     return {
         "e": "trade",
         "E": 1234567890,
@@ -246,6 +259,7 @@ def valid_trade_event() -> dict[str, Any]:
 
 
 def test_BackpackRawTradeEvent_happy_path() -> None:
+    """Test BackpackRawTradeEvent happy path."""
     obj = BackpackRawTradeEvent.model_validate(valid_trade_event())
     assert obj.event_type == "trade"
     assert obj.symbol == "BTC_USDC"
@@ -254,6 +268,7 @@ def test_BackpackRawTradeEvent_happy_path() -> None:
 
 
 def test_BackpackRawTradeEvent_missing_required_fields() -> None:
+    """Test BackpackRawTradeEvent missing required fields."""
     for field in ["e", "E", "s", "p", "q", "b", "a", "t", "T", "m"]:
         p: dict[str, Any] = valid_trade_event().copy()
         del p[field]
@@ -262,6 +277,7 @@ def test_BackpackRawTradeEvent_missing_required_fields() -> None:
 
 
 def test_BackpackRawTradeEvent_wrong_type_fields() -> None:
+    """Test BackpackRawTradeEvent wrong type fields."""
     p: dict[str, Any] = valid_trade_event().copy()
     p["m"] = "notabool"
     with pytest.raises(ValidationError):
@@ -273,6 +289,7 @@ def test_BackpackRawTradeEvent_wrong_type_fields() -> None:
 
 
 def test_BackpackRawTradeEvent_invalid_format_fields() -> None:
+    """Test BackpackRawTradeEvent invalid format fields."""
     p: dict[str, Any] = valid_trade_event().copy()
     p["p"] = "1..0"
     with pytest.raises(ValidationError):
@@ -284,6 +301,7 @@ def test_BackpackRawTradeEvent_invalid_format_fields() -> None:
 
 
 def test_BackpackRawTradeEvent_extra_field() -> None:
+    """Test BackpackRawTradeEvent extra field."""
     p: dict[str, Any] = valid_trade_event().copy()
     p["foo"] = 1
     with pytest.raises(ValidationError):
@@ -291,6 +309,7 @@ def test_BackpackRawTradeEvent_extra_field() -> None:
 
 
 def test_BackpackRawTradeEvent_corruption_cases() -> None:
+    """Test BackpackRawTradeEvent corruption cases."""
     # Garbled numerics
     p: dict[str, Any] = valid_trade_event().copy()
     p["q"] = "notanumber"
@@ -507,7 +526,7 @@ def test_BackpackRawFill_invalid_formats_and_values() -> None:
             try:
                 BackpackRawFill.model_validate(data)
             except ValidationError as e:
-                print(f"Field: {field}, Value: {value!r}, Error: {e}")  # Debug print
+                logger.debug(f"Field: {field}, Value: {value!r}, Error: {e}")
                 # Simple assertion that *an* error occurred is sufficient here
                 raise  # Re-raise the expected ValidationError
 

@@ -1,4 +1,4 @@
-"""CyberDeltaEngine: Hyperliquid Market Data Mapper Order Book & Trades Tests
+"""CyberDeltaEngine: Hyperliquid Market Data Mapper Order Book & Trades Tests.
 --------------------------------------------------------------------------
 
 Comprehensive test suite for HyperliquidMarketDataMapper order book and
@@ -540,6 +540,7 @@ class TestTransformRawTrades:
         original_transform = HyperliquidMarketDataMapper.transform_raw_public_trade_to_internal
 
         def mock_transform_side_effect(raw_trade: HyperliquidRawPublicTrade) -> Trade | None:
+            """Return mock transform side effect for testing."""
             if raw_trade.coin == "ERROR-PERP":
                 raise ValueError("Simulated transformation error")
             return original_transform(raw_trade)

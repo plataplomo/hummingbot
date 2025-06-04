@@ -50,7 +50,8 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 HttpClientRequesterSig = Callable[
-    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
+    ...,
+    Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
 ]
 
 
@@ -316,7 +317,8 @@ class BackpackAccountService:
                     # which should ensure str keys.
                     internal_balances[asset_symbol] = (
                         self._mapper.transform_raw_balance_to_internal(
-                            asset_symbol, raw_balance_model,
+                            asset_symbol,
+                            raw_balance_model,
                         )
                     )
                 except (ValidationError, ValueError) as e_map_item:

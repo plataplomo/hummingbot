@@ -176,6 +176,7 @@ def mock_client_session() -> Callable[
     def create_session(
         responses: dict[tuple[str, str], MockResponse] | None = None,
     ) -> MockClientSession:
+        """Create session for testing."""
         return MockClientSession(responses)
 
     return create_session
@@ -510,6 +511,7 @@ def mock_secrets_manager_with_missing() -> MagicMock:
         _deep_get: bool = False,
         getter: Callable[..., object] | None = None,
     ) -> object:
+        """Return mock get for testing."""
         # Simulate missing keys for testing
         missing_keys = ["optional_key_1", "optional_key_2"]
         if key in missing_keys:
@@ -703,6 +705,7 @@ def create_mock_response(
     text_data: str | None = None,
     headers: dict[str, str] | None = None,
 ) -> MockResponse:
+    """Create mock response for testing."""
     mock_resp = MockResponse(
         json_data,
         status,
@@ -800,7 +803,8 @@ def test_secrets_config(test_secrets_file_path: Path) -> SecretsConfig:
     """Load test-specific SecretsConfig from test_secrets.yaml."""
     if not test_secrets_file_path.exists():
         pytest.skip(
-            f"Test secrets file not found at {test_secrets_file_path}, skipping tests that need it.",
+            f"Test secrets file not found at {test_secrets_file_path}, "
+            "skipping tests that need it.",
         )
     try:
         manager = SecretsManager(str(test_secrets_file_path))
@@ -845,13 +849,14 @@ def vcr_config() -> dict[str, Any]:
     timestamps, and personal information.
     """
 
-    def filter_request_body(request: object) -> object:
+    def filter_request_body(request: Any) -> Any:
         """Custom filter to sanitize request body content."""
-        if hasattr(request, "body") and request.body:
+        if hasattr(request, "body") and getattr(request, "body", None):
             # Filter known sensitive patterns in request bodies
+            request_body = request.body
             body_str = (
-                request.body.decode("utf-8") if isinstance(request.body, bytes)
-                else str(request.body)
+                request_body.decode("utf-8") if isinstance(request_body, bytes)
+                else str(request_body)
             )
 
             # Replace common sensitive patterns
@@ -871,12 +876,12 @@ def vcr_config() -> dict[str, Any]:
             # Filter timestamps to make tests more deterministic
             body_str = re.sub(r'"timestamp":\s*\d+', '"timestamp": 1234567890', body_str)
 
-            request.body = body_str.encode("utf-8") if isinstance(request.body, bytes) else body_str
+            request.body = body_str.encode("utf-8") if isinstance(request_body, bytes) else body_str
         return request
 
-    def filter_response_body(response: object) -> object:
+    def filter_response_body(response: Any) -> Any:
         """Custom filter to sanitize response body content."""
-        if hasattr(response, "body") and response.body:
+        if hasattr(response, "body") and getattr(response, "body", None):
             # For now, we don't filter response bodies as they typically don't contain
             # user credentials, but this hook is available for future use
             pass

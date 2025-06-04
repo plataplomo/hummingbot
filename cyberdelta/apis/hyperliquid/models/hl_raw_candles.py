@@ -110,8 +110,7 @@ class HyperliquidRawCandleSnapshot(BaseModel):
 
 
 class HyperliquidRawCandleRequestDetails(BaseModel):
-    """Details for a candle snapshot request, nested under 'req' field.
-    """
+    """Details for a candle snapshot request, nested under 'req' field."""
 
     coin: RawDefaultString = Field(..., min_length=1, max_length=24)
     interval: RawDefaultString = Field(..., min_length=1, max_length=8)  # e.g., "1m", "1h", "1d"

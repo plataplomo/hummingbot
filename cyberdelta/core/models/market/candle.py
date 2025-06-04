@@ -79,7 +79,9 @@ class Candle(BaseModel):
     @field_validator("open", "high", "low", "close", "volume", mode="before")
     @classmethod
     def validate_and_parse_decimal_required(
-        cls, v: str | int | float | Decimal | None, info: ValidationInfo,
+        cls,
+        v: str | int | float | Decimal | None,
+        info: ValidationInfo,
     ) -> Decimal:
         """Validate, parse, and check finiteness for required Decimal fields (OHLCV).
 
@@ -117,8 +119,7 @@ class Candle(BaseModel):
 
     @model_validator(mode="after")
     def check_ohlc_consistency(self) -> Self:
-        """Validate the logical consistency of OHLC prices (high >= low, etc.).
-        """
+        """Validate the logical consistency of OHLC prices (high >= low, etc.)."""
         if self.high < self.low:
             raise ValueError(f"high ({self.high}) must be >= low ({self.low})")
         if self.high < self.open:

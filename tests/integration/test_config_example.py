@@ -37,7 +37,7 @@ def example_test_setup() -> Generator[tuple[str, str]]:
 
 
 def test_create_example(example_test_setup: tuple[str, str]) -> None:
-    """Test that the script creates example files"""
+    """Test that the script creates example files."""
     temp_dir_name, example_script = example_test_setup
     # Create a temporary directory for the config files
     config_dir = os.path.join(temp_dir_name, "config")
@@ -74,7 +74,7 @@ def test_create_example(example_test_setup: tuple[str, str]) -> None:
 
 
 def test_benchmark(example_test_setup: tuple[str, str]) -> None:
-    """Test that the benchmark function runs"""
+    """Test that the benchmark function runs."""
     temp_dir_name, example_script = example_test_setup
     config_path = os.path.join(temp_dir_name, "config.yaml")
     secrets_path = os.path.join(temp_dir_name, "secrets.yaml")
@@ -134,7 +134,7 @@ exchanges:
 
 
 def test_display_config(example_test_setup: tuple[str, str]) -> None:
-    """Test that the script displays configuration correctly"""
+    """Test that the script displays configuration correctly."""
     temp_dir_name, example_script = example_test_setup
     config_path = os.path.join(temp_dir_name, "config.yaml")
     secrets_path = os.path.join(temp_dir_name, "secrets.yaml")

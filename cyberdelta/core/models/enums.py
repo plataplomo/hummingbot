@@ -265,8 +265,7 @@ class Blockchain(Enum):
 
 
 class CancelOrderResultStatus(Enum):
-    """Enum representing the status of a cancel order operation for a single order or a batch.
-    """
+    """Enum representing the status of a cancel order operation for a single order or a batch."""
 
     SUCCESS = "SUCCESS"  # All specified orders were successfully canceled.
     PARTIAL = "PARTIAL"  # Some orders were canceled, some failed or were not found.
@@ -285,8 +284,7 @@ class CancelOrderResultStatus(Enum):
 
 
 class InternalTransferStatus(Enum):
-    """Enum representing the internal, standardized status of a funds transfer operation.
-    """
+    """Enum representing the internal, standardized status of a funds transfer operation."""
 
     PENDING = "PENDING"  # Transfer initiated but not yet confirmed/failed.
     COMPLETED = "COMPLETED"  # Transfer successfully processed.
@@ -296,8 +294,7 @@ class InternalTransferStatus(Enum):
 
 
 class InternalWithdrawalStatus(Enum):
-    """Enum representing the internal, standardized status of a withdrawal operation.
-    """
+    """Enum representing the internal, standardized status of a withdrawal operation."""
 
     PENDING = "PENDING"  # Withdrawal request received, awaiting processing.
     PROCESSING = "PROCESSING"  # Withdrawal is being processed by the exchange.

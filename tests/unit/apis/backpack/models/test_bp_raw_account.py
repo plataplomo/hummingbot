@@ -7,6 +7,7 @@ from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawAccount, B
 
 
 def valid_account() -> dict[str, Any]:
+    """Return valid account for testing."""
     # Example based on OpenAPI required fields and types
     return {
         "id": "user_123",
@@ -16,6 +17,7 @@ def valid_account() -> dict[str, Any]:
 
 
 def test_BackpackRawAccount_happy_path() -> None:
+    """Test BackpackRawAccount happy path."""
     obj = BackpackRawAccount.model_validate(valid_account())
     assert obj.id == "user_123"
     assert obj.email == "user@example.com"
@@ -25,6 +27,7 @@ def test_BackpackRawAccount_happy_path() -> None:
 # Schema-driven: Required fields
 @pytest.mark.parametrize("missing_field", ["id", "email", "status"])
 def test_BackpackRawAccount_missing_required_fields(missing_field: str) -> None:
+    """Test BackpackRawAccount missing required fields."""
     p: dict[str, Any] = valid_account().copy()
     del p[missing_field]
     with pytest.raises(ValidationError):
@@ -34,6 +37,7 @@ def test_BackpackRawAccount_missing_required_fields(missing_field: str) -> None:
 # Schema-driven: Enum values for status
 @pytest.mark.parametrize("status", ["active", "suspended", "pending"])
 def test_BackpackRawAccount_status_enum_valid(status: str) -> None:
+    """Test BackpackRawAccount status enum valid."""
     p = valid_account().copy()
     p["status"] = status
     obj = BackpackRawAccount.model_validate(p)
@@ -55,6 +59,7 @@ def test_BackpackRawAccount_status_enum_valid(status: str) -> None:
     ],
 )
 def test_BackpackRawAccount_status_enum_invalid(status: str) -> None:
+    """Test BackpackRawAccount status enum invalid."""
     p = valid_account().copy()
     p["status"] = status
     with pytest.raises(ValidationError):
@@ -71,6 +76,7 @@ def test_BackpackRawAccount_status_enum_invalid(status: str) -> None:
     ],
 )
 def test_BackpackRawAccount_wrong_type_fields(field: str, value: object) -> None:
+    """Test BackpackRawAccount wrong type fields."""
     p = valid_account().copy()
     p[field] = value
     with pytest.raises(ValidationError):
@@ -91,9 +97,14 @@ def test_BackpackRawAccount_wrong_type_fields(field: str, value: object) -> None
     ],
 )
 def test_BackpackRawAccount_adversarial_strings(field: str, value: object) -> None:
+    """Test BackpackRawAccount adversarial strings."""
     p = valid_account().copy()
     p[field] = value
-    if (isinstance(value, str) and value.strip() == "") or not isinstance(value, str) or (field == "email" and len(value) > 254):
+    if (
+        (isinstance(value, str) and value.strip() == "")
+        or not isinstance(value, str)
+        or (field == "email" and len(value) > 254)
+    ):
         with pytest.raises(ValidationError):
             BackpackRawAccount.model_validate(p)
     else:
@@ -103,6 +114,7 @@ def test_BackpackRawAccount_adversarial_strings(field: str, value: object) -> No
 
 # Schema-driven: Extra field
 def test_BackpackRawAccount_extra_field() -> None:
+    """Test BackpackRawAccount extra field."""
     p: dict[str, Any] = valid_account().copy()
     p["foo"] = 1
     with pytest.raises(ValidationError):
@@ -110,6 +122,7 @@ def test_BackpackRawAccount_extra_field() -> None:
 
 
 def valid_balance() -> dict[str, Any]:
+    """Return valid balance for testing."""
     return {
         "asset": "USDC",
         "available": "1000.0",
@@ -118,6 +131,7 @@ def valid_balance() -> dict[str, Any]:
 
 
 def test_BackpackRawBalance_happy_path() -> None:
+    """Test BackpackRawBalance happy path."""
     obj = BackpackRawBalance.model_validate(valid_balance())
     assert obj.asset == "USDC"
     assert obj.available == "1000.0"
@@ -127,6 +141,7 @@ def test_BackpackRawBalance_happy_path() -> None:
 # Schema-driven: Required fields
 @pytest.mark.parametrize("missing_field", ["asset", "available", "total"])
 def test_BackpackRawBalance_missing_required_fields(missing_field: str) -> None:
+    """Test BackpackRawBalance missing required fields."""
     p: dict[str, Any] = valid_balance().copy()
     del p[missing_field]
     with pytest.raises(ValidationError):
@@ -152,6 +167,7 @@ def test_BackpackRawBalance_missing_required_fields(missing_field: str) -> None:
     ],
 )
 def test_BackpackRawBalance_decimal_edge_cases(field: str, value: str, should_pass: bool) -> None:
+    """Test BackpackRawBalance decimal edge cases."""
     # Scientific notation is allowed for decimal fields (project policy)
     p = valid_balance().copy()
     p[field] = value
@@ -175,6 +191,7 @@ def test_BackpackRawBalance_decimal_edge_cases(field: str, value: str, should_pa
     ],
 )
 def test_BackpackRawBalance_adversarial_strings(field: str, value: object) -> None:
+    """Test BackpackRawBalance adversarial strings."""
     p = valid_balance().copy()
     p[field] = value
     if (isinstance(value, str) and value.strip() == "") or not isinstance(value, str):
@@ -187,6 +204,7 @@ def test_BackpackRawBalance_adversarial_strings(field: str, value: object) -> No
 
 # Schema-driven: Extra field
 def test_BackpackRawBalance_extra_field() -> None:
+    """Test BackpackRawBalance extra field."""
     p: dict[str, Any] = valid_balance().copy()
     p["foo"] = 1
     with pytest.raises(ValidationError):
@@ -194,7 +212,8 @@ def test_BackpackRawBalance_extra_field() -> None:
 
 
 def test_BackpackRawBalance_corruption_cases() -> None:
-    """Test BackpackRawBalance with a variety of creative corruption cases to ensure robust validation.
+    """Test BackpackRawBalance with a variety of creative corruption cases to ensure
+    robust validation.
     Each case simulates a different form of data corruption or hostile input.
     """
     base = valid_balance()

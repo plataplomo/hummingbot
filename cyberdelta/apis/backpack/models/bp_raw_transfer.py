@@ -66,7 +66,10 @@ class BackpackRawWithdrawal(BaseModel):
     to_address: RawBpOptionalNonEmptyString = Field(None, alias="to_address")
     transaction_hash: RawBpOptionalNonEmptyString = Field(None, alias="transaction_hash")
     model_config = ConfigDict(
-        populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True,
+        populate_by_name=True,
+        extra="forbid",
+        validate_by_name=True,
+        frozen=True,
     )
 
 
@@ -101,7 +104,10 @@ class BackpackRawDeposit(BaseModel):
     transaction_hash: RawBpOptionalNonEmptyString = Field(None, alias="transaction_hash")
     confirmation_block_number: int | None = Field(None, alias="confirmation_block_number")
     model_config = ConfigDict(
-        populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True,
+        populate_by_name=True,
+        extra="forbid",
+        validate_by_name=True,
+        frozen=True,
     )
 
 
@@ -128,5 +134,8 @@ class BackpackRawLiquidation(BaseModel):
     time: RawBpStringToDatetime | None = Field(None, alias="time")
     liquidation_id: RawBpNonEmptyStringMax64 | None = Field(None, alias="liquidation_id")
     model_config = ConfigDict(
-        populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True,
+        populate_by_name=True,
+        extra="forbid",
+        validate_by_name=True,
+        frozen=True,
     )

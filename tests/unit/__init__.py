@@ -1,1 +1,5 @@
-# This file makes Python treat the 'unit' directory as a package.
+"""Unit tests package.
+
+This package contains isolated unit tests for individual components
+of the CyberDeltaEngine system without external dependencies.
+"""

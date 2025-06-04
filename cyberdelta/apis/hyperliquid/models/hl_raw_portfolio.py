@@ -36,7 +36,9 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
     @field_validator("root", mode="before")
     @classmethod
     def validate_history_entry_tuple_structure(
-        cls, v: object, info: ValidationInfo,
+        cls,
+        v: object,
+        info: ValidationInfo,
     ) -> list[int | str]:  # Return list for Pydantic to map to tuple elements
         """Ensures input is a 2-element list/tuple or a dict {0: ts, 1: val}.
         Pydantic handles element validation against RawTimestampMsInt and RawFiniteDecimalStr.
@@ -91,7 +93,8 @@ class HyperliquidRawPortfolioTimeframeData(BaseModel):
     """Raw boundary model for portfolio data within a specific timeframe."""
 
     account_value_history: list[HyperliquidRawPortfolioHistoryEntry] = Field(
-        ..., alias="accountValueHistory",
+        ...,
+        alias="accountValueHistory",
     )
     pnl_history: list[HyperliquidRawPortfolioHistoryEntry] = Field(..., alias="pnlHistory")
     vlm: RawNonNegativeFiniteDecimalStr = Field(..., alias="vlm")
@@ -109,7 +112,9 @@ class HyperliquidRawPortfolioTupleItem(
     @field_validator("root", mode="before")
     @classmethod
     def validate_portfolio_tuple_item_structure(
-        cls, v: object, info: ValidationInfo,
+        cls,
+        v: object,
+        info: ValidationInfo,
     ) -> tuple[object, dict[str, object]] | list[object]:
         """Ensures input is a 2-element list/tuple. Pydantic handles element validation."""
         field_name = info.field_name or "portfolio_tuple_item"

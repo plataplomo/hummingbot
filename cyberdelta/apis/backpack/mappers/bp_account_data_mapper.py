@@ -215,7 +215,9 @@ class BackpackAccountDataMapper:
             # Parse price and quantity
             price = parse_decimal_value(raw_fill.price, allow_none=False, field_name="price")
             quantity = parse_decimal_value(
-                raw_fill.quantity, allow_none=False, field_name="quantity",
+                raw_fill.quantity,
+                allow_none=False,
+                field_name="quantity",
             )
 
             if price is None or quantity is None:
@@ -265,7 +267,9 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def transform_balance_data_to_spot_balance(
-        asset: str, total_balance: str, available_balance: str,
+        asset: str,
+        total_balance: str,
+        available_balance: str,
     ) -> SpotBalance:
         """Transforms balance data to an Internal SpotBalance model.
 
@@ -285,7 +289,9 @@ class BackpackAccountDataMapper:
             # Parse balances
             total = parse_decimal_value(total_balance, allow_none=False, field_name="total_balance")
             available = parse_decimal_value(
-                available_balance, allow_none=False, field_name="available_balance",
+                available_balance,
+                allow_none=False,
+                field_name="available_balance",
             )
 
             if total is None or available is None:
@@ -310,7 +316,8 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def transform_raw_balance_to_internal(
-        asset_symbol: str, raw: BackpackRawBalance,
+        asset_symbol: str,
+        raw: BackpackRawBalance,
     ) -> SpotBalance:
         """Transforms a validated `BackpackRawBalance` object for a specific asset into an
         internal `SpotBalance` domain model.
@@ -329,10 +336,14 @@ class BackpackAccountDataMapper:
         try:
             # Defensive parsing of numeric strings
             parsed_total = parse_decimal_value(
-                raw.total, allow_none=False, field_name=f"{asset_symbol}_total",
+                raw.total,
+                allow_none=False,
+                field_name=f"{asset_symbol}_total",
             )
             parsed_available = parse_decimal_value(
-                raw.available, allow_none=False, field_name=f"{asset_symbol}_available",
+                raw.available,
+                allow_none=False,
+                field_name=f"{asset_symbol}_available",
             )
 
             if parsed_total is None:
@@ -375,7 +386,9 @@ class BackpackAccountDataMapper:
         try:
             # Parse core numeric fields defensively
             size_dec = parse_decimal_value(
-                raw.net_quantity, allow_none=False, field_name="net_quantity",
+                raw.net_quantity,
+                allow_none=False,
+                field_name="net_quantity",
             )
             if size_dec is None:
                 raise TransformationError("net_quantity missing/invalid in BackpackRawPosition")
@@ -399,7 +412,8 @@ class BackpackAccountDataMapper:
             mmf_base_dec = parse_decimal_value(raw.mmf_function.base, allow_none=True)
             mmf_factor_dec = parse_decimal_value(raw.mmf_function.factor, allow_none=True)
             cumulative_funding_dec = parse_decimal_value(
-                raw.cumulative_funding_payment, allow_none=True,
+                raw.cumulative_funding_payment,
+                allow_none=True,
             )
 
             bp_details = BackpackPositionDetails(
@@ -677,7 +691,9 @@ class BackpackAccountDataMapper:
                 client_id=client_withdrawal_id or raw_response.client_id,
                 identifier=raw_response.identifier,
                 fiat_fee=parse_decimal_value(
-                    raw_response.fiat_fee, field_name="fiat_fee", allow_none=True,
+                    raw_response.fiat_fee,
+                    field_name="fiat_fee",
+                    allow_none=True,
                 )
                 if raw_response.fiat_fee is not None
                 else None,
@@ -737,7 +753,8 @@ class BackpackAccountDataMapper:
 
             # Create BackpackOrderDetails with available data
             executed_quote_quantity = parse_decimal_value(
-                raw.executedQuoteQuantity, allow_none=True,
+                raw.executedQuoteQuantity,
+                allow_none=True,
             )
 
             # Map self trade prevention string to enum if available
@@ -853,7 +870,9 @@ class BackpackAccountDataMapper:
         try:
             price_dec = parse_decimal_value(raw.price, allow_none=False, field_name="price")
             quantity_dec = parse_decimal_value(
-                raw.quantity, allow_none=False, field_name="quantity",
+                raw.quantity,
+                allow_none=False,
+                field_name="quantity",
             )
             timestamp = parse_datetime_utc(raw.time, field_name="time")
 
@@ -912,7 +931,9 @@ class BackpackAccountDataMapper:
             # Parse core numeric fields defensively
             if raw_position_update.net_quantity:
                 size_dec = parse_decimal_value(
-                    raw_position_update.net_quantity, allow_none=False, field_name="net_quantity",
+                    raw_position_update.net_quantity,
+                    allow_none=False,
+                    field_name="net_quantity",
                 )
                 # DEFENSIVE CHECK: Ensure size_dec is not None after parsing.
                 # Mypy=[unreachable] Ruff=[unreachable]
@@ -943,7 +964,8 @@ class BackpackAccountDataMapper:
             timestamp = datetime.now(UTC)
             if raw_position_update.event_time:
                 event_timestamp = parse_datetime_utc(
-                    raw_position_update.event_time, field_name="event_time",
+                    raw_position_update.event_time,
+                    field_name="event_time",
                 )
                 if event_timestamp is not None:
                     timestamp = event_timestamp
@@ -952,13 +974,15 @@ class BackpackAccountDataMapper:
             imf_dec = None
             if raw_position_update.initial_margin_fraction:
                 imf_dec = parse_decimal_value(
-                    raw_position_update.initial_margin_fraction, allow_none=True,
+                    raw_position_update.initial_margin_fraction,
+                    allow_none=True,
                 )
 
             mmf_dec = None
             if raw_position_update.maintenance_margin_fraction:
                 mmf_dec = parse_decimal_value(
-                    raw_position_update.maintenance_margin_fraction, allow_none=True,
+                    raw_position_update.maintenance_margin_fraction,
+                    allow_none=True,
                 )
 
             bp_details = BackpackPositionDetails(

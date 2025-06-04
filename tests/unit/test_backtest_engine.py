@@ -19,6 +19,7 @@ class TradingStrategy:
         self.name = name
 
     def analyze_market(self, market_data: dict[str, Any]) -> dict[str, int]:
+        """Helper function for analyze market."""
         raise NotImplementedError
 
     def execute_trades(
@@ -27,6 +28,7 @@ class TradingStrategy:
         market_data: dict[str, Any],
         current_positions: dict[str, float],
     ) -> dict[str, dict[str, Any]]:
+        """Helper function for execute trades."""
         raise NotImplementedError
 
     def calculate_metrics(
@@ -34,6 +36,7 @@ class TradingStrategy:
         trades: dict[str, dict[str, Any]],
         market_data: dict[str, Any],
     ) -> dict[str, Any]:
+        """Helper function for calculate metrics."""
         raise NotImplementedError
 
 
@@ -46,6 +49,7 @@ class BacktestEngine:
         self.trade_history: list[dict[str, Any]] = []
 
     def run_backtest(self, market_data: dict[str, Any]) -> dict[str, Any]:
+        """Helper function for run backtest."""
         signals = self.strategy.analyze_market(market_data)
         trades = self.strategy.execute_trades(signals, market_data, self.current_positions)
         metrics = self.strategy.calculate_metrics(trades, market_data)
@@ -56,6 +60,7 @@ class BacktestEngine:
         }
 
     def calculate_performance_metrics(self) -> dict[str, Any]:
+        """Helper function for calculate performance metrics."""
         # Simplified calculation for testing
         profit_loss = 0
         # Sum the actual transaction values, not just the product
@@ -94,6 +99,7 @@ class BacktestEngine:
         }
 
     def update_positions(self, trades: dict[str, dict[str, Any]]) -> None:
+        """Helper function for update positions."""
         for asset, trade in trades.items():
             if asset in self.current_positions:
                 self.current_positions[asset] += trade["size"]
@@ -114,6 +120,7 @@ class MockTradingStrategy(TradingStrategy):
         self.calculate_metrics_called = False
 
     def analyze_market(self, market_data: dict[str, Any]) -> dict[str, int]:
+        """Helper function for analyze market."""
         self.analyze_market_called = True
         # Simple mock implementation that returns buy signals for specific assets
         signals: dict[str, int] = {}
@@ -129,6 +136,7 @@ class MockTradingStrategy(TradingStrategy):
         market_data: dict[str, Any],
         current_positions: dict[str, float],
     ) -> dict[str, dict[str, Any]]:
+        """Helper function for execute trades."""
         self.execute_trades_called = True
         # Mock implementation that simulates trade execution
         trades: dict[str, dict[str, Any]] = {}
@@ -146,6 +154,7 @@ class MockTradingStrategy(TradingStrategy):
         trades: dict[str, dict[str, Any]],
         market_data: dict[str, Any],  # market_data is unused in this mock
     ) -> dict[str, Any]:
+        """Helper function for calculate metrics."""
         self.calculate_metrics_called = True
         # Mock implementation that returns basic metrics
         return {

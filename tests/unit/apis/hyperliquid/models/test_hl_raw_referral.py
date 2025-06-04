@@ -52,16 +52,19 @@ VALID_REFERRAL_RESPONSE: dict[str, Any] = {
 
 @pytest.fixture
 def valid_referred_by_data() -> dict[str, str]:
+    """Return valid referred by data for testing."""
     return VALID_REFERRED_BY.copy()
 
 
 @pytest.fixture
 def valid_referral_state_item_data() -> dict[str, Any]:
+    """Return valid referral state item data for testing."""
     return VALID_REFERRAL_STATE_ITEM.copy()
 
 
 @pytest.fixture
 def valid_referrer_data_data(valid_referral_state_item_data: dict[str, Any]) -> dict[str, Any]:
+    """Return valid referrer data data for testing."""
     data = VALID_REFERRER_DATA.copy()
     data["referralStates"] = [valid_referral_state_item_data]
     return data
@@ -69,6 +72,7 @@ def valid_referrer_data_data(valid_referral_state_item_data: dict[str, Any]) -> 
 
 @pytest.fixture
 def valid_referrer_state_data(valid_referrer_data_data: dict[str, Any]) -> dict[str, Any]:
+    """Return valid referrer state data for testing."""
     data = VALID_REFERRER_STATE.copy()
     data["data"] = valid_referrer_data_data
     return data
@@ -78,6 +82,7 @@ def valid_referrer_state_data(valid_referrer_data_data: dict[str, Any]) -> dict[
 def valid_referral_response_data(
     valid_referred_by_data: dict[str, Any], valid_referrer_state_data: dict[str, Any],
 ) -> dict[str, Any]:
+    """Return valid referral response data for testing."""
     data = VALID_REFERRAL_RESPONSE.copy()
     data["referredBy"] = valid_referred_by_data
     data["referrerState"] = valid_referrer_state_data
@@ -90,6 +95,7 @@ def valid_referral_response_data(
 
 # HyperliquidRawReferredBy
 def test_referred_by_valid(valid_referred_by_data: dict[str, str]) -> None:
+    """Test referred by valid."""
     item = HyperliquidRawReferredBy.model_validate(valid_referred_by_data)
     assert item.referrer == valid_referred_by_data["referrer"]
     assert item.code == valid_referred_by_data["code"]
@@ -101,6 +107,7 @@ def test_referred_by_valid(valid_referred_by_data: dict[str, str]) -> None:
 def test_referred_by_invalid(
     valid_referred_by_data: dict[str, str], field: str, value: str | None,
 ) -> None:
+    """Test referred by invalid."""
     data_copy = valid_referred_by_data.copy()
     if value is None:
         del data_copy[field]
@@ -112,6 +119,7 @@ def test_referred_by_invalid(
 
 # HyperliquidRawReferralState (item)
 def test_referral_state_item_valid(valid_referral_state_item_data: dict[str, Any]) -> None:
+    """Test referral state item valid."""
     item = HyperliquidRawReferralState.model_validate(valid_referral_state_item_data)
     assert item.cum_vlm == valid_referral_state_item_data["cumVlm"]
     assert item.user == valid_referral_state_item_data["user"]
@@ -129,8 +137,9 @@ def test_referral_state_item_valid(valid_referral_state_item_data: dict[str, Any
 def test_referral_state_item_invalid(
     valid_referral_state_item_data: dict[str, Any],
     field: str,
-    value: str | float | bool | list[Any] | dict[str, Any] | None,  # Testing specific invalid types for Pydantic validation
+    value: str | float | bool | list[Any] | dict[str, Any] | None,  # Invalid types for Pydantic
 ) -> None:
+    """Test referral state item invalid."""
     data_copy = valid_referral_state_item_data.copy()
     if value is None:
         del data_copy[field]
@@ -142,6 +151,7 @@ def test_referral_state_item_invalid(
 
 # HyperliquidRawReferrerData
 def test_referrer_data_valid(valid_referrer_data_data: dict[str, Any]) -> None:
+    """Test referrer data valid."""
     item = HyperliquidRawReferrerData.model_validate(valid_referrer_data_data)
     assert item.code == valid_referrer_data_data["code"]
     assert len(item.referral_states) == len(valid_referrer_data_data["referralStates"])
@@ -154,8 +164,9 @@ def test_referrer_data_valid(valid_referrer_data_data: dict[str, Any]) -> None:
 def test_referrer_data_invalid(
     valid_referrer_data_data: dict[str, Any],
     field: str,
-    value: str | float | bool | list[Any] | dict[str, Any] | None,  # Testing specific invalid types for Pydantic validation
+    value: str | float | bool | list[Any] | dict[str, Any] | None,  # Invalid types for Pydantic
 ) -> None:
+    """Test referrer data invalid."""
     data_copy = valid_referrer_data_data.copy()
     if value is None:
         del data_copy[field]
@@ -167,6 +178,7 @@ def test_referrer_data_invalid(
 
 # HyperliquidRawReferrerState
 def test_referrer_state_valid(valid_referrer_state_data: dict[str, Any]) -> None:
+    """Test referrer state valid."""
     item = HyperliquidRawReferrerState.model_validate(valid_referrer_state_data)
     assert item.stage == valid_referrer_state_data["stage"]
     assert item.data.code == valid_referrer_state_data["data"]["code"]
@@ -183,8 +195,9 @@ def test_referrer_state_valid(valid_referrer_state_data: dict[str, Any]) -> None
 def test_referrer_state_invalid(
     valid_referrer_state_data: dict[str, Any],
     field: str,
-    value: str | float | bool | list[Any] | dict[str, Any] | None,  # Testing specific invalid types for Pydantic validation
+    value: str | float | bool | list[Any] | dict[str, Any] | None,  # Invalid types for Pydantic
 ) -> None:
+    """Test referrer state invalid."""
     data_copy = valid_referrer_state_data.copy()
     if value is None:
         del data_copy[field]
@@ -196,6 +209,7 @@ def test_referrer_state_invalid(
 
 # HyperliquidRawReferralResponse
 def test_referral_response_valid(valid_referral_response_data: dict[str, Any]) -> None:
+    """Test referral response valid."""
     item = HyperliquidRawReferralResponse.model_validate(valid_referral_response_data)
     assert item.cum_vlm == valid_referral_response_data["cumVlm"]
     assert item.referred_by.code == valid_referral_response_data["referredBy"]["code"]
@@ -220,9 +234,10 @@ def test_referral_response_valid(valid_referral_response_data: dict[str, Any]) -
 def test_referral_response_invalid(
     valid_referral_response_data: dict[str, Any],
     field: str,
-    value: str | float | bool | list[Any] | dict[str, Any] | None,  # Testing specific invalid types for Pydantic validation
+    value: str | float | bool | list[Any] | dict[str, Any] | None,  # Invalid types for Pydantic
     is_missing_test: bool,
 ) -> None:
+    """Test referral response invalid."""
     data_copy = valid_referral_response_data.copy()
     if is_missing_test:
         if field in data_copy:

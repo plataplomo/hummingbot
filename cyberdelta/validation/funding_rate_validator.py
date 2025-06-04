@@ -1,4 +1,4 @@
-"""Funding Rate Validation System
+"""Funding Rate Validation System.
 
 This module implements the validation system for funding rate predictions
 against actual payments received/paid.
@@ -15,7 +15,8 @@ from cyberdelta.config.config_models import AppSettings  # Correct path
 
 
 class HistorySeries(TypedDict):
-    """Represents a time series of funding rate predictions or actuals.
+    """Represent a time series of funding rate predictions or actuals.
+
     - timestamps: List of integer timestamps (ms since epoch)
     - datetimes: List of ISO-formatted datetime strings
     - rates: List of predicted or actual funding rates (float)
@@ -28,6 +29,7 @@ class HistorySeries(TypedDict):
 
 class PredictionHistory(TypedDict):
     """Structure for prediction history, containing both predictions and actuals.
+
     - predictions: HistorySeries of predicted rates
     - actuals: HistorySeries of actual rates
     """
@@ -37,8 +39,7 @@ class PredictionHistory(TypedDict):
 
 
 class MergedDataEntry(TypedDict):
-    """Represents a merged prediction-payment pair for metric calculation.
-    """
+    """Represents a merged prediction-payment pair for metric calculation."""
 
     timestamp: int
     predicted_rate: float
@@ -49,7 +50,8 @@ class MergedDataEntry(TypedDict):
 
 
 class FundingRateValidator:
-    """Validates funding rate data and predictions against actual payments.
+    """Validate funding rate data and predictions against actual payments.
+
     Tracks accuracy and provides metrics for improving predictions.
     """
 
@@ -140,7 +142,10 @@ class FundingRateValidator:
         )
 
     def calculate_metrics(
-        self, exchange: str, symbol: str, days: int = 7,
+        self,
+        exchange: str,
+        symbol: str,
+        days: int = 7,
     ) -> dict[str, float | None]:
         """Calculate prediction accuracy metrics.
 
@@ -283,7 +288,10 @@ class FundingRateValidator:
         return report
 
     def get_recent_predictions(
-        self, exchange: str | None = None, symbol: str | None = None, limit: int = 100,
+        self,
+        exchange: str | None = None,
+        symbol: str | None = None,
+        limit: int = 100,
     ) -> list[dict[str, Any]]:
         """Get recent funding rate predictions.
 
@@ -307,12 +315,17 @@ class FundingRateValidator:
 
         # Sort by timestamp (newest first) and apply limit
         sorted_predictions = sorted(
-            filtered_predictions, key=lambda x: x["timestamp"], reverse=True,
+            filtered_predictions,
+            key=lambda x: x["timestamp"],
+            reverse=True,
         )
         return sorted_predictions[:limit]
 
     def get_recent_payments(
-        self, exchange: str | None = None, symbol: str | None = None, limit: int = 100,
+        self,
+        exchange: str | None = None,
+        symbol: str | None = None,
+        limit: int = 100,
     ) -> list[dict[str, Any]]:
         """Get recent funding payments.
 
@@ -339,7 +352,10 @@ class FundingRateValidator:
         return sorted_payments[:limit]
 
     def get_prediction_history(
-        self, exchange: str, symbol: str, days: int = 30,
+        self,
+        exchange: str,
+        symbol: str,
+        days: int = 30,
     ) -> PredictionHistory:
         """Get prediction history for a specific exchange and symbol.
 

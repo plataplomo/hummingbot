@@ -106,7 +106,8 @@ class HyperliquidErrorMapper(IErrorMapper):
         if HyperliquidErrorMapper._regex_match(msg, r"invalid twap duration"):
             return HyperliquidAPIErrorCategory.INVALID_TWAP_DURATION
         if HyperliquidErrorMapper._regex_match(
-            msg, [r"twap was never placed", r"twap already canceled", r"twap already filled"],
+            msg,
+            [r"twap was never placed", r"twap already canceled", r"twap already filled"],
         ):
             return HyperliquidAPIErrorCategory.TWAP_NOT_FOUND_OR_FILLED
         return HyperliquidAPIErrorCategory.UNKNOWN
@@ -245,7 +246,8 @@ class HyperliquidErrorMapper(IErrorMapper):
             # If error_body provides a more specific reason, map_string_error might refine it.
             # However, if error_body is empty or generic, this status code is a strong indicator.
             specific_error_from_string = self.map_string_error(
-                error_body or "", http_status=status_code,
+                error_body or "",
+                http_status=status_code,
             )
             if (
                 specific_error_from_string.code != APIErrorCode.EXCHANGE_SPECIFIC.value

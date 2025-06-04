@@ -69,7 +69,8 @@ class PrivateKeyAuthSecrets(BaseExchangeSecrets):
 
 # Discriminated union for all exchange secret types
 AnyExchangeSecrets = Annotated[
-    ApiKeyAuthSecrets | PrivateKeyAuthSecrets, Field(discriminator="auth_type"),
+    ApiKeyAuthSecrets | PrivateKeyAuthSecrets,
+    Field(discriminator="auth_type"),
 ]
 
 
@@ -133,7 +134,9 @@ class SecretsConfig(BaseModel):
     @field_validator("exchanges", mode="after")
     @classmethod
     def validate_exchanges(
-        cls, v: dict[str, AnyExchangeSecrets], info: ValidationInfo,
+        cls,
+        v: dict[str, AnyExchangeSecrets],
+        info: ValidationInfo,
     ) -> dict[str, AnyExchangeSecrets]:
         """Validate exchange dictionary keys are valid strings."""
         validated_exchanges: dict[str, AnyExchangeSecrets] = {}

@@ -335,6 +335,7 @@ def circuit_breaker_system(mock_config: AppSettings) -> CircuitBreakerSystem:
 # Find opportunity creation/mocking
 @pytest.fixture
 def mock_opportunity() -> ArbitrageOpportunity:
+    """Return mock opportunity for testing."""
     return ArbitrageOpportunity(
         symbol="BTC-PERP",
         long_exchange="mock_hl",

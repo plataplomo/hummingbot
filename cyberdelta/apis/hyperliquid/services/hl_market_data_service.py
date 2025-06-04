@@ -56,7 +56,8 @@ logger = get_logger(__name__)
 
 # Type alias for the HTTP client requester callable that the service will use.
 HttpClientRequesterSig = Callable[
-    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
+    ...,
+    Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
 ]
 
 if TYPE_CHECKING:
@@ -375,7 +376,8 @@ class HyperliquidMarketDataService:
                 ) from e
 
             request_payload_data: dict[str, Any] = request_payload_model.model_dump(
-                by_alias=True, exclude_none=True,
+                by_alias=True,
+                exclude_none=True,
             )
 
             raw_response_content_parsed: ParsedJsonResponse | None = None
@@ -509,7 +511,8 @@ class HyperliquidMarketDataService:
                 symbol=symbol,
             )
             request_payload_data: dict[str, Any] = request_payload_model.model_dump(
-                by_alias=True, exclude_none=True,
+                by_alias=True,
+                exclude_none=True,
             )
 
             raw_response_content_parsed: ParsedJsonResponse | None = None
@@ -847,7 +850,8 @@ class HyperliquidMarketDataService:
             ) from e_unexpected
 
     async def get_historical_funding_rates(
-        self, args: GetHistoricalFundingRatesArgs,
+        self,
+        args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
         """Retrieves historical funding rates for a specific symbol and time range."""
         # Service Input Parameter Validation
@@ -889,7 +893,9 @@ class HyperliquidMarketDataService:
 
             endpoint_path = "/info"
             payload = self._request_builder.build_historical_funding_rates_payload(
-                symbol=args.symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms,
+                symbol=args.symbol,
+                start_time_ms=start_time_ms,
+                end_time_ms=end_time_ms,
             )
 
             raw_response_content, status_code, headers = await self._http_client_requester(
@@ -1086,7 +1092,8 @@ class HyperliquidMarketDataService:
                 method="POST",
                 endpoint=endpoint_path,
                 data=payload.model_dump(
-                    by_alias=True, exclude_none=True,
+                    by_alias=True,
+                    exclude_none=True,
                 ),  # Payload itself is a dict[str, Any]
                 is_signed=False,
                 endpoint_group="public",
@@ -1115,10 +1122,16 @@ class HyperliquidMarketDataService:
             # The handler expects raw JSON, not already Pydantic validated models typically
             # For candles, it might be list of lists or list of dicts
             raw_candles = self._response_handler.handle_info_candle_snapshot_response(
-                raw_response_content_parsed, symbol, interval, status_code, headers,
+                raw_response_content_parsed,
+                symbol,
+                interval,
+                status_code,
+                headers,
             )
             return self._mapper.transform_raw_candle_snapshot_to_candles(
-                raw_candles, symbol, interval,
+                raw_candles,
+                symbol,
+                interval,
             )
 
         except APIError:

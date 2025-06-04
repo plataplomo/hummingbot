@@ -71,6 +71,7 @@ class MockErrorMapper(IErrorMapper):
         request_path: str | None = None,
         original_exception: Exception | None = None,
     ) -> APIError:
+        """Helper function for map exchange error."""
         exchange_code = getattr(self, "exchange_name", "MockExchange")
         return APIError(
             message=error_body or "Mock API Error",
@@ -79,6 +80,7 @@ class MockErrorMapper(IErrorMapper):
         )
 
     def map_string_error(self, error_message: str, http_status: int | None = None) -> APIError:
+        """Helper function for map string error."""
         exchange_code = getattr(self, "exchange_name", "MockExchange")
         api_error_code_val = APIErrorCode.EXCHANGE_SPECIFIC.value  # Default
         if http_status == 404:  # MODIFIED: Simplified condition
@@ -778,8 +780,7 @@ class MockExchangeAPI(ExchangeAPI):
         return order
 
     async def get_order_status(self, args: GetOrderArgs) -> Order | None:
-        """Get a specific order by ID, returning None if not found.
-        """
+        """Get a specific order by ID, returning None if not found."""
         self._check_error("get_order_status")
         await self._simulate_latency()
         order = self._orders.get(args.order_id)
@@ -899,7 +900,8 @@ class MockExchangeAPI(ExchangeAPI):
 
         # Return empty list for simplicity, or a predefined set of candles
         logger.debug(
-            f"MockExchange {self.exchange_name}: get_market_data for {symbol}, {timeframe}, {limit}",
+            f"MockExchange {self.exchange_name}: get_market_data for {symbol}, "
+            f"{timeframe}, {limit}",
         )
         return []
 

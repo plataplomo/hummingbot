@@ -15,6 +15,7 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
 
 # --- BackpackRawMarket ---
 def valid_market() -> dict[str, Any]:
+    """Return valid market for testing."""
     return {
         "symbol": "BTC_USDC",
         "baseAsset": "BTC",
@@ -33,6 +34,7 @@ def valid_market() -> dict[str, Any]:
 
 
 def test_BackpackRawMarket_happy_path() -> None:
+    """Test BackpackRawMarket happy path."""
     obj = BackpackRawMarket.model_validate(valid_market())
     assert obj.symbol == "BTC_USDC"
     assert obj.base_asset == "BTC"
@@ -40,6 +42,7 @@ def test_BackpackRawMarket_happy_path() -> None:
 
 
 def test_BackpackRawMarket_missing_required_fields() -> None:
+    """Test BackpackRawMarket missing required fields."""
     for field in ["symbol", "baseAsset", "quoteAsset"]:
         p: dict[str, Any] = valid_market().copy()
         del p[field]
@@ -48,6 +51,7 @@ def test_BackpackRawMarket_missing_required_fields() -> None:
 
 
 def test_BackpackRawMarket_wrong_type_fields() -> None:
+    """Test BackpackRawMarket wrong type fields."""
     p: dict[str, Any] = valid_market().copy()
     p["symbol"] = 123
     with pytest.raises(ValidationError):
@@ -59,6 +63,7 @@ def test_BackpackRawMarket_wrong_type_fields() -> None:
 
 
 def test_BackpackRawMarket_invalid_format_fields() -> None:
+    """Test BackpackRawMarket invalid format fields."""
     p: dict[str, Any] = valid_market().copy()
     p["symbol"] = ""
     with pytest.raises(ValidationError):
@@ -70,6 +75,7 @@ def test_BackpackRawMarket_invalid_format_fields() -> None:
 
 
 def test_BackpackRawMarket_extra_field() -> None:
+    """Test BackpackRawMarket extra field."""
     p: dict[str, Any] = valid_market().copy()
     p["foo"] = "bar"
     with pytest.raises(ValidationError):
@@ -77,6 +83,7 @@ def test_BackpackRawMarket_extra_field() -> None:
 
 
 def test_BackpackRawMarket_corruption_cases() -> None:
+    """Test BackpackRawMarket corruption cases."""
     # Null required
     p: dict[str, Any] = valid_market().copy()
     p["symbol"] = None
@@ -165,6 +172,7 @@ def test_BackpackRawMarket_corruption_garbled_unicode_symbol() -> None:
 
 # --- BackpackRawTicker ---
 def valid_ticker() -> dict[str, Any]:
+    """Return valid ticker for testing."""
     return {
         "symbol": "BTC_USDC",
         "price": "50000.0",
@@ -176,6 +184,7 @@ def valid_ticker() -> dict[str, Any]:
 
 
 def test_BackpackRawTicker_happy_path() -> None:
+    """Test BackpackRawTicker happy path."""
     obj = BackpackRawTicker.model_validate(valid_ticker())
     assert obj.symbol == "BTC_USDC"
     assert obj.price == "50000.0"
@@ -186,6 +195,7 @@ def test_BackpackRawTicker_happy_path() -> None:
 
 
 def test_BackpackRawTicker_missing_required_fields() -> None:
+    """Test BackpackRawTicker missing required fields."""
     for field in ["symbol", "time"]:
         p: dict[str, Any] = valid_ticker().copy()
         del p[field]
@@ -194,6 +204,7 @@ def test_BackpackRawTicker_missing_required_fields() -> None:
 
 
 def test_BackpackRawTicker_wrong_type_fields() -> None:
+    """Test BackpackRawTicker wrong type fields."""
     p: dict[str, Any] = valid_ticker().copy()
     p["price"] = [50000.0]
     with pytest.raises(ValidationError):
@@ -205,6 +216,7 @@ def test_BackpackRawTicker_wrong_type_fields() -> None:
 
 
 def test_BackpackRawTicker_invalid_format_fields() -> None:
+    """Test BackpackRawTicker invalid format fields."""
     p: dict[str, Any] = valid_ticker().copy()
     p["price"] = "1..0"
     with pytest.raises(ValidationError):
@@ -221,6 +233,7 @@ def test_BackpackRawTicker_invalid_format_fields() -> None:
 
 
 def test_BackpackRawTicker_extra_field() -> None:
+    """Test BackpackRawTicker extra field."""
     p: dict[str, Any] = valid_ticker().copy()
     p["foo"] = 1
     with pytest.raises(ValidationError):
@@ -228,6 +241,7 @@ def test_BackpackRawTicker_extra_field() -> None:
 
 
 def test_BackpackRawTicker_optional_fields_all_none() -> None:
+    """Test BackpackRawTicker optional fields all none."""
     p: dict[str, Any] = valid_ticker().copy()
     for f in ["price", "bid", "ask", "volume"]:
         p[f] = None
@@ -237,6 +251,7 @@ def test_BackpackRawTicker_optional_fields_all_none() -> None:
 
 
 def test_BackpackRawTicker_optional_fields_omitted() -> None:
+    """Test BackpackRawTicker optional fields omitted."""
     p: dict[str, Any] = valid_ticker().copy()
     for f in ["price", "bid", "ask", "volume"]:
         p.pop(f, None)
@@ -246,6 +261,7 @@ def test_BackpackRawTicker_optional_fields_omitted() -> None:
 
 
 def test_BackpackRawTicker_corruption_cases() -> None:
+    """Test BackpackRawTicker corruption cases."""
     # Garbled numerics
     p: dict[str, Any] = valid_ticker().copy()
     p["bid"] = "notanumber"
@@ -330,6 +346,7 @@ def test_BackpackRawTicker_corruption_garbled_unicode_symbol() -> None:
 
 # --- BackpackRawOpenInterest ---
 def valid_open_interest() -> dict[str, Any]:
+    """Return valid open interest for testing."""
     return {
         "symbol": "BTC_USDC",
         "openInterest": "12345.6789",
@@ -337,12 +354,14 @@ def valid_open_interest() -> dict[str, Any]:
 
 
 def test_BackpackRawOpenInterest_happy_path() -> None:
+    """Test BackpackRawOpenInterest happy path."""
     obj = BackpackRawOpenInterest.model_validate(valid_open_interest())
     assert obj.symbol == "BTC_USDC"
     assert obj.open_interest == "12345.6789"
 
 
 def test_BackpackRawOpenInterest_missing_required_fields() -> None:
+    """Test BackpackRawOpenInterest missing required fields."""
     for field in ["symbol", "openInterest"]:
         p: dict[str, Any] = valid_open_interest().copy()
         del p[field]
@@ -351,6 +370,7 @@ def test_BackpackRawOpenInterest_missing_required_fields() -> None:
 
 
 def test_BackpackRawOpenInterest_wrong_type_fields() -> None:
+    """Test BackpackRawOpenInterest wrong type fields."""
     p: dict[str, Any] = valid_open_interest().copy()
     p["openInterest"] = [12345.6789]
     with pytest.raises(ValidationError):
@@ -358,6 +378,7 @@ def test_BackpackRawOpenInterest_wrong_type_fields() -> None:
 
 
 def test_BackpackRawOpenInterest_invalid_format_fields() -> None:
+    """Test BackpackRawOpenInterest invalid format fields."""
     p: dict[str, Any] = valid_open_interest().copy()
     p["openInterest"] = "1..0"
     with pytest.raises(ValidationError):
@@ -369,6 +390,7 @@ def test_BackpackRawOpenInterest_invalid_format_fields() -> None:
 
 
 def test_BackpackRawOpenInterest_extra_field() -> None:
+    """Test BackpackRawOpenInterest extra field."""
     p: dict[str, Any] = valid_open_interest().copy()
     p["foo"] = 1
     with pytest.raises(ValidationError):
@@ -376,6 +398,7 @@ def test_BackpackRawOpenInterest_extra_field() -> None:
 
 
 def test_BackpackRawOpenInterest_corruption_cases() -> None:
+    """Test BackpackRawOpenInterest corruption cases."""
     # Garbled numerics
     p: dict[str, Any] = valid_open_interest().copy()
     p["openInterest"] = "notanumber"
@@ -455,6 +478,7 @@ def test_BackpackRawOpenInterest_corruption_garbled_unicode_symbol() -> None:
 
 @pytest.fixture
 def valid_ticker_event_data() -> dict[str, Any]:
+    """Return valid ticker event data for testing."""
     return {
         "s": "SOL_USDC",
         "lastPrice": "23.50",
@@ -470,6 +494,7 @@ def valid_ticker_event_data() -> dict[str, Any]:
 
 @pytest.fixture
 def valid_depth_update_data() -> dict[str, Any]:
+    """Return valid depth update data for testing."""
     return {
         "lastUpdateId": "update12345",
         "bids": [["23.49", "10.5"], ["23.48", "5.2"]],
@@ -483,6 +508,7 @@ def valid_depth_update_data() -> dict[str, Any]:
 
 
 def test_BackpackRawTickerEvent_valid(valid_ticker_event_data: dict[str, Any]) -> None:
+    """Test BackpackRawTickerEvent valid."""
     ticker = BackpackRawTickerEvent.model_validate(valid_ticker_event_data)
     assert ticker.symbol == "SOL_USDC"
     assert ticker.last_price == "23.50"
@@ -500,6 +526,7 @@ def test_BackpackRawTickerEvent_valid(valid_ticker_event_data: dict[str, Any]) -
 def test_BackpackRawTickerEvent_optional_fields_none(
     valid_ticker_event_data: dict[str, Any],
 ) -> None:
+    """Test BackpackRawTickerEvent optional fields none."""
     data = valid_ticker_event_data
     del data["e"]
     del data["E"]
@@ -511,6 +538,7 @@ def test_BackpackRawTickerEvent_optional_fields_none(
 def test_BackpackRawTickerEvent_valid_event_time_formats(
     valid_ticker_event_data: dict[str, Any],
 ) -> None:
+    """Test BackpackRawTickerEvent valid event time formats."""
     data = valid_ticker_event_data
     data["E"] = "1678886400123"
     ticker = BackpackRawTickerEvent.model_validate(data)
@@ -542,10 +570,11 @@ def test_BackpackRawTickerEvent_valid_event_time_formats(
 )
 def test_BackpackRawTickerEvent_invalid_fields(
     field: str,
-    value: str | float | bool | list[Any] | None,  # Testing specific invalid types for Pydantic validation
+    value: str | float | bool | list[Any] | None,  # Invalid types for Pydantic
     expected_msg_part: str,
     valid_ticker_event_data: dict[str, Any],
 ) -> None:
+    """Test BackpackRawTickerEvent invalid fields."""
     data = valid_ticker_event_data
     data[field] = value
     with pytest.raises(ValidationError) as exc_info:
@@ -558,6 +587,7 @@ def test_BackpackRawTickerEvent_invalid_fields(
 def test_BackpackRawTickerEvent_extra_field_ignored(
     valid_ticker_event_data: dict[str, Any],
 ) -> None:
+    """Test BackpackRawTickerEvent extra field ignored."""
     data = valid_ticker_event_data
     data["extraField"] = 123
     ticker = BackpackRawTickerEvent.model_validate(data)
@@ -565,6 +595,7 @@ def test_BackpackRawTickerEvent_extra_field_ignored(
 
 
 def test_BackpackRawTickerEvent_frozen(valid_ticker_event_data: dict[str, Any]) -> None:
+    """Test BackpackRawTickerEvent frozen."""
     ticker = BackpackRawTickerEvent.model_validate(valid_ticker_event_data)
     with pytest.raises(ValidationError, match="Instance is frozen"):
         ticker.symbol = "new_symbol"
@@ -574,6 +605,7 @@ def test_BackpackRawTickerEvent_frozen(valid_ticker_event_data: dict[str, Any]) 
 
 
 def test_BackpackRawDepthUpdateEvent_valid(valid_depth_update_data: dict[str, Any]) -> None:
+    """Test BackpackRawDepthUpdateEvent valid."""
     depth = BackpackRawDepthUpdateEvent.model_validate(valid_depth_update_data)
     assert depth.last_update_id == "update12345"
     assert depth.bids == [("23.49", "10.5"), ("23.48", "5.2")]
@@ -587,6 +619,7 @@ def test_BackpackRawDepthUpdateEvent_valid(valid_depth_update_data: dict[str, An
 def test_BackpackRawDepthUpdateEvent_optional_fields_none(
     valid_depth_update_data: dict[str, Any],
 ) -> None:
+    """Test BackpackRawDepthUpdateEvent optional fields none."""
     data = valid_depth_update_data
     del data["e"]
     del data["E"]
@@ -596,6 +629,7 @@ def test_BackpackRawDepthUpdateEvent_optional_fields_none(
 
 
 def test_BackpackRawDepthUpdateEvent_empty_levels(valid_depth_update_data: dict[str, Any]) -> None:
+    """Test BackpackRawDepthUpdateEvent empty levels."""
     data = valid_depth_update_data
     data["bids"] = []
     data["asks"] = []
@@ -630,10 +664,11 @@ def test_BackpackRawDepthUpdateEvent_empty_levels(valid_depth_update_data: dict[
 )
 def test_BackpackRawDepthUpdateEvent_invalid_fields(
     field: str,
-    value: str | float | bool | list[Any] | None,  # Testing specific invalid types for Pydantic validation
+    value: str | float | bool | list[Any] | None,  # Invalid types for Pydantic
     expected_msg_part: str,
     valid_depth_update_data: dict[str, Any],
 ) -> None:
+    """Test BackpackRawDepthUpdateEvent invalid fields."""
     data = valid_depth_update_data
     data[field] = value
 
@@ -672,6 +707,7 @@ def test_BackpackRawDepthUpdateEvent_invalid_fields(
 def test_BackpackRawDepthUpdateEvent_extra_field_ignored(
     valid_depth_update_data: dict[str, Any],
 ) -> None:
+    """Test BackpackRawDepthUpdateEvent extra field ignored."""
     data = valid_depth_update_data
     data["anotherField"] = "test"
     depth = BackpackRawDepthUpdateEvent.model_validate(data)
@@ -679,6 +715,7 @@ def test_BackpackRawDepthUpdateEvent_extra_field_ignored(
 
 
 def test_BackpackRawDepthUpdateEvent_frozen(valid_depth_update_data: dict[str, Any]) -> None:
+    """Test BackpackRawDepthUpdateEvent frozen."""
     depth = BackpackRawDepthUpdateEvent.model_validate(valid_depth_update_data)
     with pytest.raises(ValidationError, match="Instance is frozen"):
         depth.last_update_id = "new_id"

@@ -1,4 +1,4 @@
-"""CyberDeltaEngine: Backpack Account Data Mapper Account Operations Tests
+"""CyberDeltaEngine: Backpack Account Data Mapper Account Operations Tests.
 -----------------------------------------------------------------------
 
 Comprehensive test suite for BackpackAccountDataMapper account operations methods.
@@ -537,6 +537,7 @@ class TestWithdrawalTransformation:
             def side_effect(
                 value: str, allow_none: bool = False, field_name: str = "",
             ) -> Decimal | None:
+                """Helper function for side effect."""
                 if field_name == "fee":
                     return None
                 # For other parsing calls, return a valid decimal

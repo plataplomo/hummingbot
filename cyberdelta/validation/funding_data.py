@@ -12,7 +12,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any, Self
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
@@ -186,9 +186,11 @@ class HistoricalTrade:
 
 
 class ArbitrageOpportunity(BaseModel):
-    """ArbitrageOpportunity represents a funding rate arbitrage opportunity between two exchanges for a
-    given symbol. This model is mutable because it may be updated with analytics, sizing, or
-    confidence scores after initial creation.
+    """Represent a funding rate arbitrage opportunity between two exchanges.
+
+    ArbitrageOpportunity represents a funding rate arbitrage opportunity between
+    two exchanges for a given symbol. This model is mutable because it may be updated
+    with analytics, sizing, or confidence scores after initial creation.
 
     Fields:
         symbol (str): Trading symbol.
@@ -234,7 +236,9 @@ class ArbitrageOpportunity(BaseModel):
     basis_volatility: float | None = None
     utility_score: float | None = None
     optimal_size: Decimal | None = Field(
-        default=None, gt=0, description="Optimal size, if calculated by risk/position sizing.",
+        default=None,
+        gt=0,
+        description="Optimal size, if calculated by risk/position sizing.",
     )
     confidence_score: float | None = None
     integrated_funding_data: IntegratedFundingData | None = None
@@ -251,19 +255,41 @@ class ArbitrageOpportunity(BaseModel):
         "long_funding_rate",
         "short_funding_rate",
         "net_funding_differential",
-        "optimal_size",
         "expected_profit",
+        "optimal_size",
         mode="before",
     )
     @classmethod
     def parse_decimal_fields(
-        cls, v: str | int | float | Decimal | None, info: object,
+        cls,
+        v: str | int | float | Decimal | None,
+        info: ValidationInfo,
     ) -> Decimal | None:
+        """Parse and validate decimal fields ensuring finite values.
+
+        Args:
+            v: Value to parse
+            info: Validation context information
+
+        Returns:
+            Parsed Decimal value or None
+
+        """
         return parse_decimal_value(v)
 
     @field_validator("timestamp", mode="before")
     @classmethod
     def parse_timestamp(cls, v: str | int | float | datetime | None, info: object) -> datetime:
+        """Parse and validate timestamp fields.
+
+        Args:
+            v: Value to parse as datetime
+            info: Validation context information
+
+        Returns:
+            Parsed datetime in UTC
+
+        """
         dt = parse_datetime_utc(v)
         if dt is None:
             raise ValueError("timestamp cannot be None")
@@ -271,25 +297,31 @@ class ArbitrageOpportunity(BaseModel):
 
     @model_validator(mode="after")
     def set_expiration(self) -> Self:
-        """Set expiration_timestamp to 1 hour after timestamp (UTC).
-        """
+        """Set expiration_timestamp to 1 hour after timestamp (UTC)."""
         if self.timestamp.tzinfo:
             object.__setattr__(self, "expiration_timestamp", self.timestamp.timestamp() + 3600)
         else:
             object.__setattr__(
-                self, "expiration_timestamp", self.timestamp.replace(tzinfo=UTC).timestamp() + 3600,
+                self,
+                "expiration_timestamp",
+                self.timestamp.replace(tzinfo=UTC).timestamp() + 3600,
             )
         return self
 
     @model_validator(mode="after")
     def validate_required_fields(self) -> Self:
+        """Validate that all required fields are properly set.
+
+        Returns:
+            Self if validation passes
+
+        """
         # All required fields are enforced by Pydantic; no need to check for None.
         return self
 
     @model_validator(mode="after")
     def check_arbitrage_logic(self) -> Self:
-        """Ensure all required financial fields are positive where appropriate.
-        """
+        """Ensure all required financial fields are positive where appropriate."""
         if self.long_price <= 0:
             raise ValueError("Long price must be positive.")
         if self.short_price <= 0:

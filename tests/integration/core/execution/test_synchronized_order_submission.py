@@ -1,5 +1,4 @@
-"""Tests for the synchronize order submission module.
-"""
+"""Tests for the synchronize order submission module."""
 
 from __future__ import annotations
 
@@ -45,6 +44,7 @@ class MockOpportunity(NamedTuple):
     expected_profit: Decimal = Decimal("1.0")
 
     def to_dict(self) -> dict[str, Any]:
+        """Helper function for to dict."""
         return {
             "symbol": self.symbol,
             "long_exchange": self.long_exchange,
@@ -150,6 +150,7 @@ class TestOrderVerifier:
         # Mock the get_order_by_id method used by OrderVerifier
         # This needs to be flexible based on what OrderVerifier tries to fetch
         def mock_get_order_by_id(exchange_id: str, order_id_param: str) -> Order | None:
+            """Return mock get order by id for testing."""
             # Simulate fetching the sample_filled_order if ids match
             # This part of the mock might need to be more sophisticated if tests
             # rely on different orders being returned.

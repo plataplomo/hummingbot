@@ -12,6 +12,7 @@ from cyberdelta.apis.backpack.models.bp_raw_transfer import (
 
 
 def valid_withdrawal() -> dict[str, Any]:
+    """Return valid withdrawal for testing."""
     return {
         "id": "wd_123",
         "asset": "USDC",
@@ -21,6 +22,7 @@ def valid_withdrawal() -> dict[str, Any]:
 
 
 def test_BackpackRawWithdrawal_happy_path() -> None:
+    """Test BackpackRawWithdrawal happy path."""
     obj = BackpackRawWithdrawal.model_validate(valid_withdrawal())
     assert obj.id == "wd_123"
     assert obj.asset == "USDC"
@@ -29,6 +31,7 @@ def test_BackpackRawWithdrawal_happy_path() -> None:
 
 
 def test_BackpackRawWithdrawal_missing_required_fields() -> None:
+    """Test BackpackRawWithdrawal missing required fields."""
     for field in ["id", "asset", "amount", "status"]:
         p: dict[str, Any] = valid_withdrawal().copy()
         del p[field]
@@ -37,6 +40,7 @@ def test_BackpackRawWithdrawal_missing_required_fields() -> None:
 
 
 def test_BackpackRawWithdrawal_wrong_type_fields() -> None:
+    """Test BackpackRawWithdrawal wrong type fields."""
     p: dict[str, Any] = valid_withdrawal().copy()
     p["amount"] = 100.0
     with pytest.raises(ValidationError):
@@ -48,6 +52,7 @@ def test_BackpackRawWithdrawal_wrong_type_fields() -> None:
 
 
 def test_BackpackRawWithdrawal_invalid_format_fields() -> None:
+    """Test BackpackRawWithdrawal invalid format fields."""
     p: dict[str, Any] = valid_withdrawal().copy()
     p["amount"] = "1..0"
     with pytest.raises(ValidationError, match=r"Cannot convert '1\.\.0' to Decimal"):
@@ -63,6 +68,7 @@ def test_BackpackRawWithdrawal_invalid_format_fields() -> None:
 
 
 def test_BackpackRawWithdrawal_extra_field() -> None:
+    """Test BackpackRawWithdrawal extra field."""
     p: dict[str, Any] = valid_withdrawal().copy()
     p["foo"] = 1
     with pytest.raises(ValidationError):
@@ -70,6 +76,7 @@ def test_BackpackRawWithdrawal_extra_field() -> None:
 
 
 def test_BackpackRawWithdrawal_corruption_cases() -> None:
+    """Test BackpackRawWithdrawal corruption cases."""
     # Null required
     p: dict[str, Any] = valid_withdrawal().copy()
     p["asset"] = None
@@ -136,6 +143,7 @@ def test_BackpackRawWithdrawal_frozen() -> None:
 
 
 def valid_deposit() -> dict[str, Any]:
+    """Return valid deposit for testing."""
     return {
         "id": "dp_456",
         "asset": "BTC",
@@ -145,6 +153,7 @@ def valid_deposit() -> dict[str, Any]:
 
 
 def test_BackpackRawDeposit_happy_path() -> None:
+    """Test BackpackRawDeposit happy path."""
     obj = BackpackRawDeposit.model_validate(valid_deposit())
     assert obj.id == "dp_456"
     assert obj.asset == "BTC"
@@ -153,6 +162,7 @@ def test_BackpackRawDeposit_happy_path() -> None:
 
 
 def test_BackpackRawDeposit_missing_required_fields() -> None:
+    """Test BackpackRawDeposit missing required fields."""
     for field in ["id", "asset", "amount", "status"]:
         p: dict[str, Any] = valid_deposit().copy()
         del p[field]
@@ -161,6 +171,7 @@ def test_BackpackRawDeposit_missing_required_fields() -> None:
 
 
 def test_BackpackRawDeposit_wrong_type_fields() -> None:
+    """Test BackpackRawDeposit wrong type fields."""
     p: dict[str, Any] = valid_deposit().copy()
     p["amount"] = 0.5
     with pytest.raises(ValidationError):
@@ -172,6 +183,7 @@ def test_BackpackRawDeposit_wrong_type_fields() -> None:
 
 
 def test_BackpackRawDeposit_invalid_format_fields() -> None:
+    """Test BackpackRawDeposit invalid format fields."""
     p: dict[str, Any] = valid_deposit().copy()
     p["amount"] = "1..0"
     with pytest.raises(ValidationError, match=r"Cannot convert '1\.\.0' to Decimal"):
@@ -187,6 +199,7 @@ def test_BackpackRawDeposit_invalid_format_fields() -> None:
 
 
 def test_BackpackRawDeposit_extra_field() -> None:
+    """Test BackpackRawDeposit extra field."""
     p: dict[str, Any] = valid_deposit().copy()
     p["foo"] = 1
     with pytest.raises(ValidationError):
@@ -194,6 +207,7 @@ def test_BackpackRawDeposit_extra_field() -> None:
 
 
 def test_BackpackRawDeposit_corruption_cases() -> None:
+    """Test BackpackRawDeposit corruption cases."""
     # Null required
     p: dict[str, Any] = valid_deposit().copy()
     p["asset"] = None
@@ -260,6 +274,7 @@ def test_BackpackRawDeposit_frozen() -> None:
 
 
 def valid_liquidation() -> dict[str, Any]:
+    """Return valid liquidation for testing."""
     return {
         "symbol": "BTC_USDC",
         "price": "45000.0",
@@ -269,6 +284,7 @@ def valid_liquidation() -> dict[str, Any]:
 
 
 def test_BackpackRawLiquidation_happy_path() -> None:
+    """Test BackpackRawLiquidation happy path."""
     obj = BackpackRawLiquidation.model_validate(valid_liquidation())
     assert obj.symbol == "BTC_USDC"
     assert obj.price == "45000.0"
@@ -277,6 +293,7 @@ def test_BackpackRawLiquidation_happy_path() -> None:
 
 
 def test_BackpackRawLiquidation_missing_required_fields() -> None:
+    """Test BackpackRawLiquidation missing required fields."""
     for field in ["symbol", "price", "quantity", "side"]:
         p: dict[str, Any] = valid_liquidation().copy()
         del p[field]
@@ -285,6 +302,7 @@ def test_BackpackRawLiquidation_missing_required_fields() -> None:
 
 
 def test_BackpackRawLiquidation_wrong_type_fields() -> None:
+    """Test BackpackRawLiquidation wrong type fields."""
     p: dict[str, Any] = valid_liquidation().copy()
     p["price"] = 45000.0
     with pytest.raises(ValidationError):
@@ -296,6 +314,7 @@ def test_BackpackRawLiquidation_wrong_type_fields() -> None:
 
 
 def test_BackpackRawLiquidation_invalid_format_fields() -> None:
+    """Test BackpackRawLiquidation invalid format fields."""
     p: dict[str, Any] = valid_liquidation().copy()
     p["price"] = "1..0"
     with pytest.raises(ValidationError, match=r"Cannot convert '1\.\.0' to Decimal"):
@@ -319,6 +338,7 @@ def test_BackpackRawLiquidation_invalid_format_fields() -> None:
 
 
 def test_BackpackRawLiquidation_extra_field() -> None:
+    """Test BackpackRawLiquidation extra field."""
     p: dict[str, Any] = valid_liquidation().copy()
     p["foo"] = 1
     with pytest.raises(ValidationError):
@@ -326,6 +346,7 @@ def test_BackpackRawLiquidation_extra_field() -> None:
 
 
 def test_BackpackRawLiquidation_corruption_cases() -> None:
+    """Test BackpackRawLiquidation corruption cases."""
     # Null required
     p: dict[str, Any] = valid_liquidation().copy()
     p["symbol"] = None

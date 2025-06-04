@@ -94,7 +94,8 @@ class HyperliquidTradingDataMapper:
 
     @staticmethod
     def _map_type_to_internal(
-        order_type: dict[str, Any], trigger: HyperliquidRawTriggerInfo | None,
+        order_type: dict[str, Any],
+        trigger: HyperliquidRawTriggerInfo | None,
     ) -> OrderType:
         """Maps a Hyperliquid order type dict to internal OrderType enum.
 
@@ -179,20 +180,25 @@ class HyperliquidTradingDataMapper:
             # Map enums
             side = HyperliquidTradingDataMapper._map_side_to_internal(raw_order.side)
             order_type = HyperliquidTradingDataMapper._map_type_to_internal(
-                raw_order.order_type, trigger,
+                raw_order.order_type,
+                trigger,
             )
             status = HyperliquidTradingDataMapper._map_status_to_internal(raw_order.status)
             time_in_force = HyperliquidTradingDataMapper._map_time_in_force(raw_order.order_type)
 
             # Parse quantities
             quantity_requested = parse_decimal_value(
-                raw_order.sz, allow_none=False, field_name="sz",
+                raw_order.sz,
+                allow_none=False,
+                field_name="sz",
             )
             if quantity_requested is None:
                 raise TransformationError("quantity_requested (sz) is required")
 
             remaining_sz = parse_decimal_value(
-                str(raw_order.remaining_sz), allow_none=True, field_name="remainingSz",
+                str(raw_order.remaining_sz),
+                allow_none=True,
+                field_name="remainingSz",
             )
             if remaining_sz is None:
                 remaining_sz = Decimal("0")
@@ -201,7 +207,9 @@ class HyperliquidTradingDataMapper:
 
             # Parse price - handle market orders correctly
             price = parse_decimal_value(
-                str(raw_order.limit_px), allow_none=True, field_name="limitPx",
+                str(raw_order.limit_px),
+                allow_none=True,
+                field_name="limitPx",
             )
             # For market orders, Hyperliquid uses limit_px="0", but internal Order
             # expects price=None
@@ -214,7 +222,8 @@ class HyperliquidTradingDataMapper:
                 raise TransformationError("created_at (timestamp) is required")
 
             updated_at = parse_datetime_utc(
-                raw_order.status_timestamp, field_name="statusTimestamp",
+                raw_order.status_timestamp,
+                field_name="statusTimestamp",
             )
             if updated_at is None:
                 updated_at = created_at
@@ -224,7 +233,9 @@ class HyperliquidTradingDataMapper:
             trigger_by = None
             if trigger:
                 stop_price = parse_decimal_value(
-                    str(getattr(trigger, "trigger_px", "")), allow_none=True, field_name="triggerPx",
+                    str(getattr(trigger, "trigger_px", "")),
+                    allow_none=True,
+                    field_name="triggerPx",
                 )
 
                 # Map trigger type if available
@@ -327,7 +338,8 @@ class HyperliquidTradingDataMapper:
             # Map enums
             side = HyperliquidTradingDataMapper._map_side_to_internal(raw_historical_order.side)
             order_type = HyperliquidTradingDataMapper._map_type_to_internal(
-                raw_historical_order.order_type, trigger,
+                raw_historical_order.order_type,
+                trigger,
             )
             status = HyperliquidTradingDataMapper._map_status_to_internal(
                 raw_historical_order.status,
@@ -338,7 +350,9 @@ class HyperliquidTradingDataMapper:
 
             # Parse quantities
             quantity_requested = parse_decimal_value(
-                raw_historical_order.sz, allow_none=False, field_name="sz",
+                raw_historical_order.sz,
+                allow_none=False,
+                field_name="sz",
             )
             if quantity_requested is None:
                 raise TransformationError("quantity_requested (sz) is required")
@@ -356,7 +370,9 @@ class HyperliquidTradingDataMapper:
 
             # Parse price - handle market orders correctly
             price = parse_decimal_value(
-                str(raw_historical_order.limit_px), allow_none=True, field_name="limitPx",
+                str(raw_historical_order.limit_px),
+                allow_none=True,
+                field_name="limitPx",
             )
             # For market orders, Hyperliquid uses limit_px="0", but internal Order
             # expects price=None
@@ -382,7 +398,9 @@ class HyperliquidTradingDataMapper:
             trigger_by = None
             if trigger:
                 stop_price = parse_decimal_value(
-                    str(getattr(trigger, "trigger_px", "")), allow_none=True, field_name="triggerPx",
+                    str(getattr(trigger, "trigger_px", "")),
+                    allow_none=True,
+                    field_name="triggerPx",
                 )
 
                 # Map trigger type if available

@@ -1,3 +1,9 @@
+"""Base Exchange API Implementation.
+
+This module provides the abstract base class and common functionality
+for exchange-specific API implementations in the CyberDeltaEngine.
+"""
+
 from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
@@ -170,10 +176,12 @@ class ExchangeAPI(ABC):
                 rate_per_second = exchange_config.rate_limit_per_minute / 60.0
                 bucket_size = max(1, int(rate_per_second * 2))  # 2-second bucket
                 default_limiter_primitive = TokenBucketRateLimiterRuntime(
-                    rate=rate_per_second, bucket_size=bucket_size,
+                    rate=rate_per_second,
+                    bucket_size=bucket_size,
                 )
                 self.rate_limit_strategy = SimpleTokenBucketStrategy(
-                    limiter=default_limiter_primitive, default_request_weight=1,
+                    limiter=default_limiter_primitive,
+                    default_request_weight=1,
                 )
                 logger.info(f"[{self.exchange_name}] Created default simple rate limit strategy")
             else:
@@ -258,7 +266,8 @@ class ExchangeAPI(ABC):
                     ws_rate_per_second = ws_rate_per_minute / 60.0
                     ws_bucket_size = max(1, int(ws_rate_per_second * 2))
                     outgoing_message_limiter = TokenBucketRateLimiterRuntime(
-                        rate=ws_rate_per_second, bucket_size=ws_bucket_size,
+                        rate=ws_rate_per_second,
+                        bucket_size=ws_bucket_size,
                     )
                     logger.info(
                         f"[{self.exchange_name}] Created WebSocket outgoing message limiter: "
@@ -327,7 +336,8 @@ class ExchangeAPI(ABC):
         data_dict_for_http_client: dict[str, Any] | None
         if isinstance(data, BaseModel):
             data_dict_for_http_client = data.model_dump(
-                by_alias=True, exclude_none=not serialize_none_as_null,
+                by_alias=True,
+                exclude_none=not serialize_none_as_null,
             )
         elif isinstance(data, dict) or data is None:
             data_dict_for_http_client = data
@@ -439,7 +449,10 @@ class ExchangeAPI(ABC):
 
     @abstractmethod
     def _update_rate_limit_from_headers(
-        self, headers: Mapping[str, str], method: str, path: str,
+        self,
+        headers: Mapping[str, str],
+        method: str,
+        path: str,
     ) -> None:
         """Update rate limit information based on response headers.
         This allows dynamic adaptation to exchange-reported limits.
@@ -616,7 +629,8 @@ class ExchangeAPI(ABC):
 
     @abstractmethod
     async def get_historical_funding_rates(
-        self, args: GetHistoricalFundingRatesArgs,
+        self,
+        args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
         """Fetch historical funding rates for a specific symbol.
 

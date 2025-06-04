@@ -1,3 +1,5 @@
-"""Unit tests for Hyperliquid API services."""
+"""Unit tests for Hyperliquid services.
 
-# Required for package recognition
+This package contains unit tests for Hyperliquid service modules,
+including market data, trading, and account management services.
+"""

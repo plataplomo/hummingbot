@@ -43,7 +43,9 @@ class RateLimitStrategy(ABC):
 
     @abstractmethod
     async def handle_exchange_retry_after(
-        self, duration_seconds: float, request_context: dict[str, Any],
+        self,
+        duration_seconds: float,
+        request_context: dict[str, Any],
     ) -> None:
         """Optional method for strategies to react to an explicit 'retry_after'
         directive received from the exchange after a request has failed with

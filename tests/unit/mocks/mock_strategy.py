@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 from cyberdelta.core.models import TradeSignal
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.strategy import Strategy
+
+logger = logging.getLogger(__name__)
 
 
 class MockStrategy(Strategy):
@@ -30,17 +33,17 @@ class MockStrategy(Strategy):
     async def start_async(self) -> None:
         """Mock start method."""
         self.start_async_called = True
-        print(f"{self.name} started (mock)")
+        logger.debug(f"{self.name} started (mock)")
         await asyncio.sleep(0)  # Yield control
 
     async def stop_async(self) -> None:
         """Mock stop method."""
         self.stop_async_called = True
-        print(f"{self.name} stopped (mock)")
+        logger.debug(f"{self.name} stopped (mock)")
         await asyncio.sleep(0)  # Yield control
 
     async def process_data(self, data: Candle) -> list[TradeSignal] | None:
         """Mock data processing method."""
         self.process_data_async_called_with = data
-        print(f"{self.name} processed data: {data.symbol} (mock)")
+        logger.debug(f"{self.name} processed data: {data.symbol} (mock)")
         return None

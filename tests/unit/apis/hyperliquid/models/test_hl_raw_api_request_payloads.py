@@ -18,6 +18,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
 
 class TestHyperliquidApiL2UsdTransferRequest:
     def test_valid_l2_usd_transfer(self) -> None:
+        """Test valid l2 usd transfer."""
         payload_data: dict[str, Any] = {
             "destination": "0x1234567890abcdef1234567890abcdef12345670",  # ETH-like
             "token": "USDC",  # Added token
@@ -38,6 +39,7 @@ class TestHyperliquidApiL2UsdTransferRequest:
         # assert req.action.payload.time == 1678886400000 # Removed time assertion
 
     def test_l2_usd_transfer_invalid_payload_values(self) -> None:
+        """Test l2 usd transfer invalid payload values."""
         payload_data: dict[str, Any] = {
             "destination": "0x1234567890abcdef1234567890abcdef12345670",
             "token": "USDC",
@@ -51,6 +53,7 @@ class TestHyperliquidApiL2UsdTransferRequest:
             HyperliquidApiL2UsdTransferRequest(type="usdTransfer", action=action_details_model)
 
     def test_l2_usd_transfer_missing_amount_in_payload(self) -> None:  # Renamed test for clarity
+        """Test l2 usd transfer missing amount in payload."""
         payload_data: dict[str, Any] = {
             "destination": "0x1234567890abcdef1234567890abcdef12345670",
             "token": "USDC",
@@ -65,6 +68,7 @@ class TestHyperliquidApiL2UsdTransferRequest:
             HyperliquidApiL2UsdTransferRequest(type="usdTransfer", action=action_details_model)
 
     def test_l2_usd_transfer_explicit_type_provided_direct_unpack(self) -> None:
+        """Test l2 usd transfer explicit type provided direct unpack."""
         # For direct unpacking, ensure inner models are instantiated correctly
         # or the dict is precise
         payload_dict: dict[str, Any] = {
@@ -90,6 +94,7 @@ class TestHyperliquidApiL2UsdTransferRequest:
         assert req.action.payload.token == "USDC"
 
     def test_l2_usd_transfer_incorrect_outer_type(self) -> None:
+        """Test l2 usd transfer incorrect outer type."""
         payload_dict: dict[str, Any] = {
             "destination": "0x1234567890abcdef1234567890abcdef12345670",
             "token": "USDC",
@@ -110,6 +115,7 @@ class TestHyperliquidApiL2UsdTransferRequest:
 
 class TestHyperliquidApiEthWithdrawalRequest:
     def test_valid_eth_withdrawal(self) -> None:
+        """Test valid eth withdrawal."""
         action_payload_data: dict[str, Any] = {
             "destination": "0x1234567890abcdef1234567890abcdef12345678",
             "amount": "1.234",
@@ -121,6 +127,7 @@ class TestHyperliquidApiEthWithdrawalRequest:
         assert req.action.amount == "1.234"
 
     def test_eth_withdrawal_invalid_address(self) -> None:
+        """Test eth withdrawal invalid address."""
         action_payload_data: dict[str, Any] = {
             "destination": "invalid-eth-address",  # Expected to fail RawStrictEthereumAddressStrHL
             "amount": "1.234",
@@ -130,6 +137,7 @@ class TestHyperliquidApiEthWithdrawalRequest:
             HyperliquidApiEthWithdrawalRequest(type="withdrawEth", action=action_model)
 
     def test_eth_withdrawal_invalid_amount(self) -> None:
+        """Test eth withdrawal invalid amount."""
         action_payload_data: dict[str, Any] = {
             "destination": "0x1234567890abcdef1234567890abcdef12345678",
             "amount": "not-a-number",  # Expected to fail RawFiniteDecimalStr
@@ -139,6 +147,7 @@ class TestHyperliquidApiEthWithdrawalRequest:
             HyperliquidApiEthWithdrawalRequest(type="withdrawEth", action=action_model)
 
     def test_eth_withdrawal_explicit_type_provided_direct_unpack(self) -> None:
+        """Test eth withdrawal explicit type provided direct unpack."""
         action_payload_model = HyperliquidRawEthWithdrawalActionPayload(
             destination="0x1234567890abcdef1234567890abcdef12345678", amount="1.234",
         )
@@ -152,6 +161,7 @@ class TestHyperliquidApiEthWithdrawalRequest:
         assert req.action.amount == "1.234"
 
     def test_eth_withdrawal_incorrect_outer_type(self) -> None:
+        """Test eth withdrawal incorrect outer type."""
         action_payload_model = HyperliquidRawEthWithdrawalActionPayload(
             destination="0x1234567890abcdef1234567890abcdef12345678", amount="1.234",
         )

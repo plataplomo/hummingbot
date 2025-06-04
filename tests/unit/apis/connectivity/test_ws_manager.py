@@ -23,6 +23,8 @@ from cyberdelta.apis.connectivity.ws_manager import (
     WebSocketManager,
 )
 
+logger = logging.getLogger(__name__)
+
 
 # Define a dummy message handler for tests
 async def dummy_message_handler(message: dict[str, Any]) -> None:
@@ -277,7 +279,9 @@ class TestWebSocketManager:
 
             establish_conn_coro_mock_2 = AsyncMock(return_value=None)
             with patch.object(
-                ws_manager_instance, "_establish_connection", side_effect=establish_conn_coro_mock_2,
+                ws_manager_instance,
+                "_establish_connection",
+                side_effect=establish_conn_coro_mock_2,
             ) as mock_establish_connection_method_2:
                 new_connection_task = ws_manager_instance.connect()
                 assert new_connection_task is not None
@@ -341,8 +345,8 @@ class TestWebSocketManager:
             if default_ws_manager_config.ping_interval > 0:
                 mock_ws_connection.ping.assert_called_once()
         finally:
-            print("\nCaptured logs for test_connection_success_flow:")
-            print(caplog.text)
+            logger.debug("\nCaptured logs for test_connection_success_flow:")
+            logger.debug(caplog.text)
             await manager.close()
 
     @pytest.mark.asyncio
@@ -407,6 +411,7 @@ class TestWebSocketManager:
             name: str | None = None,
             **kwargs_capture: object,
         ) -> asyncio.Task[Any]:
+            """Helper function for side effect for create task capture."""
             task = original_asyncio_create_task(coro, name=name)
             if name:
                 created_tasks_map[name] = task
@@ -649,6 +654,7 @@ class TestWebSocketManager:
             name: str | None = None,
             **kwargs_capture: object,
         ) -> asyncio.Task[Any]:
+            """Helper function for side effect for create task capture listen test."""
             task = original_asyncio_create_task_listen_test(coro, name=name)
             if name:
                 created_tasks_map_listen_test[name] = task
@@ -790,15 +796,16 @@ class TestWebSocketManager:
                 "--- Test: test_listen_loop_processes_message_and_reconnects_on_close "
                 "entering finally block ---",
             )
-            print("\n--- Captured logs for listen_reconnect_test ---")
+            logger.debug("\n--- Captured logs for listen_reconnect_test ---")
             for record in caplog.records:
-                print(f"{record.levelname}: {record.name}: {record.getMessage()}")
-            print("--- End captured logs ---")
+                logger.debug(f"{record.levelname}: {record.name}: {record.getMessage()}")
+            logger.debug("--- End captured logs ---")
             await manager.close()
 
     def test_config_validation_invalid_url(
         self, default_ws_manager_config: WebSocketManagerConfig,
     ) -> None:
+        """Test that config validation fails with invalid WebSocket URL."""
         valid_base_data_for_url_test: dict[str, Any] = {
             "connection_timeout": default_ws_manager_config.connection_timeout,
             "max_reconnect_attempts": default_ws_manager_config.max_reconnect_attempts,
@@ -828,6 +835,7 @@ class TestWebSocketManager:
         error_part: str,
         default_ws_manager_config: WebSocketManagerConfig,
     ) -> None:
+        """Test that config validation enforces numeric bounds on fields."""
         valid_data = default_ws_manager_config.model_dump()
         if field not in valid_data:
             pytest.skip(f"Field {field} not in WebSocketManagerConfig model keys.")
@@ -839,6 +847,7 @@ class TestWebSocketManager:
     def test_config_frozen_and_extra_forbid(
         self, default_ws_manager_config: WebSocketManagerConfig,
     ) -> None:
+        """Test that config model is frozen and forbids extra fields."""
         assert default_ws_manager_config.model_config.get("frozen") is True
         assert default_ws_manager_config.model_config.get("extra") == "forbid"
         with pytest.raises(ValidationError, match="frozen"):
@@ -862,6 +871,7 @@ class TestWebSocketManager:
 # Temporary simple async test to check pytest-asyncio functionality
 @pytest.mark.asyncio
 async def test_simple_async_works_in_this_file() -> None:
+    """Simple test to verify pytest-asyncio functionality."""
     await asyncio.sleep(0.001)
     assert True
 

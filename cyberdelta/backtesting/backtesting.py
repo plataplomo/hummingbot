@@ -199,7 +199,8 @@ class BacktestEngine:
         self.trades: list[dict[str, Any]] = []  # Store trade details
         self.positions: list[dict[str, Any]] = []  # Store open positions details
         self.metrics: dict[
-            str, Decimal | int | str,
+            str,
+            Decimal | int | str,
         ] = {}  # Allow string for potential error messages, use Decimal for financial metrics
 
         # Create results directory if it doesn't exist
@@ -558,7 +559,8 @@ class StrategyAdapter(BacktestStrategy):
 
             # 3. Convert core TradeSignal objects back to backtester's signal format (dict)
             backtest_signals: list[dict[str, Any]] = self._convert_signals(
-                trade_signals, current_data,
+                trade_signals,
+                current_data,
             )
 
             self._logger.debug(f"Generated {len(backtest_signals)} backtest signals.")
@@ -677,7 +679,9 @@ class StrategyAdapter(BacktestStrategy):
         return candle_list
 
     def _convert_signals(
-        self, signals: list[TradeSignal], current_data: pd.Series | pd.DataFrame,
+        self,
+        signals: list[TradeSignal],
+        current_data: pd.Series | pd.DataFrame,
     ) -> list[dict[str, Any]]:
         """Converts TradeSignal objects to dictionary format for backtesting trades."""
         signals_out: list[dict[str, Any]] = []
@@ -768,7 +772,8 @@ class StrategyAdapter(BacktestStrategy):
 
             # Pydantic's model_dump() is preferred for robust serialization
             signal_dict = signal.model_dump(
-                mode="python", exclude_none=True,
+                mode="python",
+                exclude_none=True,
             )  # Use mode="python" for Decimal etc.
 
             # --- Legacy fields for BacktestEngine compatibility (if needed) ---
@@ -826,7 +831,10 @@ class StrategyAdapter(BacktestStrategy):
         return signals_out
 
     def _convert_row_to_candle(
-        self, row_data: pd.Series, symbol: str, timestamp: datetime,
+        self,
+        row_data: pd.Series,
+        symbol: str,
+        timestamp: datetime,
     ) -> Candle | None:
         try:
             # Ensure timestamp is timezone-aware (UTC)
@@ -880,7 +888,9 @@ class StrategyAdapter(BacktestStrategy):
 
 
 def generate_synthetic_data(
-    days: int = 10, volatility: float = 0.02, symbols: list[str] | None = None,
+    days: int = 10,
+    volatility: float = 0.02,
+    symbols: list[str] | None = None,
 ) -> pd.DataFrame:
     """Generate synthetic market data for backtesting.
 

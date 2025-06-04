@@ -1,5 +1,4 @@
-"""Unit Tests for HyperliquidRawCandleSnapshot Model
-"""
+"""Unit Tests for HyperliquidRawCandleSnapshot Model."""
 
 from __future__ import annotations
 
@@ -110,7 +109,7 @@ def test_extra_field_forbidden() -> None:
 )
 def test_invalid_field_type_or_missing(
     field_to_invalidate: str,
-    invalid_value: str | float | bool | list[Any] | None,  # Testing specific invalid types for Pydantic validation
+    invalid_value: str | float | bool | list[Any] | None,  # Invalid types for Pydantic
     expected_msg_part: str,
 ) -> None:
     """Test validation fails if a field has an incorrect type or is missing."""
@@ -155,7 +154,7 @@ def test_missing_field() -> None:
 def test_invalid_list_item_type_or_format(
     list_field: str,
     item_index: int,
-    invalid_item: str | float | bool | dict[str, Any] | None,  # Testing specific invalid types for Pydantic validation
+    invalid_item: str | float | bool | dict[str, Any] | None,  # Invalid types for Pydantic
     expected_key_terms: tuple[str, ...],
 ) -> None:
     """Test validation fails if an item within a list has an incorrect type or format."""

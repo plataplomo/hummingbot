@@ -407,7 +407,9 @@ class TestProcessFirstExchangeStatus:
         assert "Unknown status structure" in exc_info.value.message
 
         # Test dict with multiple keys (should use first recognized one)
-        multi_key_status = cast("RawJsonResponse", {"resting": {"oid": 999}, "filled": {"oid": 888}})
+        multi_key_status = cast(
+            "RawJsonResponse", {"resting": {"oid": 999}, "filled": {"oid": 888}},
+        )
         result = HyperliquidResponseHandler.process_first_exchange_status(
             multi_key_status, action_description=self.ACTION_DESC,
         )

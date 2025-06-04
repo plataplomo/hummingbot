@@ -42,10 +42,12 @@ class HyperliquidRawReferralState(BaseModel):
 
     cum_vlm: RawNonNegativeFiniteDecimalStr = Field(..., alias="cumVlm")
     cum_rewarded_fees_since_referred: RawNonNegativeFiniteDecimalStr = Field(
-        ..., alias="cumRewardedFeesSinceReferred",
+        ...,
+        alias="cumRewardedFeesSinceReferred",
     )
     cum_fees_rewarded_to_referrer: RawNonNegativeFiniteDecimalStr = Field(
-        ..., alias="cumFeesRewardedToReferrer",
+        ...,
+        alias="cumFeesRewardedToReferrer",
     )
     time_joined: RawTimestampMsInt = Field(..., alias="timeJoined")
     user: RawLaxEthereumAddressStrHL = Field(..., alias="user")
@@ -84,8 +86,7 @@ class HyperliquidRawReferrerState(BaseModel):
 
 
 class HyperliquidRawReferralResponse(BaseModel):
-    """Raw boundary model for the user referral information response.
-    """
+    """Raw boundary model for the user referral information response."""
 
     referred_by: HyperliquidRawReferredBy = Field(..., alias="referredBy")
     cum_vlm: RawNonNegativeFiniteDecimalStr = Field(..., alias="cumVlm")
@@ -94,7 +95,8 @@ class HyperliquidRawReferralResponse(BaseModel):
     builder_rewards: RawNonNegativeFiniteDecimalStr = Field(..., alias="builderRewards")
     referrer_state: HyperliquidRawReferrerState = Field(..., alias="referrerState")
     reward_history: list[object] = Field(
-        ..., alias="rewardHistory",
+        ...,
+        alias="rewardHistory",
     )  # Changed Any to object, structure unknown
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)

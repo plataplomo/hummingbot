@@ -1,5 +1,4 @@
-"""Unit tests for Backpack Raw Fill model.
-"""
+"""Unit tests for Backpack Raw Fill model."""
 
 from typing import Any
 

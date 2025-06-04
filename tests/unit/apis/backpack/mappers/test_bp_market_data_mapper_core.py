@@ -498,6 +498,7 @@ class TestTradeTransformation:
             def mock_parse_side_effect(
                 value: object, allow_none: bool = False, field_name: str = "",
             ) -> Decimal | None:
+                """Return mock parse side effect for testing."""
                 if field_name == "quantity":
                     return None
                 return Decimal("100.50")  # Valid for price

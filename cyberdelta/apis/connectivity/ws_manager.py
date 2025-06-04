@@ -33,8 +33,7 @@ TaskFactory = Callable[..., asyncio.Task[Any]]  # Type alias for our task factor
 
 
 class WebSocketManager:
-    """Manages a WebSocket connection, including automatic reconnections and keep-alive pings.
-    """
+    """Manages a WebSocket connection, including automatic reconnections and keep-alive pings."""
 
     DEFAULT_PING_INTERVAL: float = 30.0
     DEFAULT_RECONNECT_DELAY: float = 5.0
@@ -139,7 +138,8 @@ class WebSocketManager:
         try:
             connection_coroutine = self._establish_connection()
             self._connection_task = self._task_factory(
-                connection_coroutine, name=f"{self._exchange_name}_ws_establish_conn",
+                connection_coroutine,
+                name=f"{self._exchange_name}_ws_establish_conn",
             )
             return self._connection_task
         except RuntimeError as e:
@@ -259,11 +259,13 @@ class WebSocketManager:
                         self._ping_task.cancel()
 
                     self._listener_task = self._task_factory(
-                        self._listen(), name=f"{self._exchange_name}_ws_listen",
+                        self._listen(),
+                        name=f"{self._exchange_name}_ws_listen",
                     )
                     if self._ping_interval > 0:
                         self._ping_task = self._task_factory(
-                            self._keep_alive(), name=f"{self._exchange_name}_ws_ping",
+                            self._keep_alive(),
+                            name=f"{self._exchange_name}_ws_ping",
                         )
 
                     if self._on_connected_callback:
@@ -273,7 +275,8 @@ class WebSocketManager:
                             self._logger.info("on_connected_callback executed successfully.")
                         except Exception as cb_exc:
                             self._logger.error(
-                                f"Error during on_connected_callback: {cb_exc}", exc_info=True,
+                                f"Error during on_connected_callback: {cb_exc}",
+                                exc_info=True,
                             )
                     return
 
@@ -562,8 +565,7 @@ class WebSocketManager:
             return False
 
     async def close(self) -> None:
-        """Gracefully closes the WebSocket connection and cleans up resources.
-        """
+        """Gracefully closes the WebSocket connection and cleans up resources."""
         self._logger.info(f"Close requested for WebSocket connection to {self._ws_url}.")
         self._should_reconnect = False
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """Integration tests for the Backtesting Framework
-Tests the integration of the backtesting framework with actual strategies
+Tests the integration of the backtesting framework with actual strategies.
 """
 
 import logging
@@ -50,7 +50,7 @@ class TestBacktestingIntegration:
 
     @classmethod
     def setup_class(cls) -> None:
-        """Set up the test class"""
+        """Set up the test class."""
         # Use class attributes for paths
         cls.test_data_dir = TEST_DATA_DIR
         cls.test_results_dir = TEST_RESULTS_DIR
@@ -72,19 +72,19 @@ class TestBacktestingIntegration:
             # and causes a linter warning. If generate_synthetic_data can return None,
             # its type hint should be pd.DataFrame | None.
             cls.funding_data.to_csv(cls.data_file_path)
-            print(f"Saved test data to {cls.data_file_path}")
+            logger.debug(f"Saved test data to {cls.data_file_path}")
 
     @classmethod
     def teardown_class(cls) -> None:
-        """Clean up after tests"""
+        """Clean up after tests."""
         if cls.test_data_dir and cls.test_data_dir.exists():
             shutil.rmtree(cls.test_data_dir)
         if cls.test_results_dir and cls.test_results_dir.exists():
             shutil.rmtree(cls.test_results_dir)
-        print("Cleaned up test data and results directories.")
+        logger.debug("Cleaned up test data and results directories.")
 
     def test_strategy_adapter_integration(self) -> None:
-        """Test that the StrategyAdapter works with actual strategies"""
+        """Test that the StrategyAdapter works with actual strategies."""
         assert self.funding_data is not None, "funding_data was not initialized in setup_class"
 
         # Create a mock strategy
@@ -129,8 +129,8 @@ class TestBacktestingIntegration:
         assert init_success
 
         # first_row_data is a Series, potentially with complex index/dtypes
-        first_row_data: pd.Series[Any] = self.funding_data.iloc[0]
-        # Ignore type error for adapter.update which depends on complex Series type
+        first_row_data: Any = self.funding_data.iloc[0]
+        # Update method takes Series and returns dict
         result: dict[str, Any] = adapter.update(first_row_data)
 
         assert "signals" in result
@@ -144,8 +144,9 @@ class TestBacktestingIntegration:
             )
 
         # The type of the element retrieved can vary, use Any
-        # Ignore type error for iloc on potentially complex Series/DataFrame slice
-        first_close_price: Any = self.funding_data[first_close_price_column_key].iloc[0]
+        # Access the close price data using iloc
+        price_series: Any = self.funding_data[first_close_price_column_key]
+        first_close_price: Any = price_series.iloc[0]
 
         expected_signal_count = 0
         try:
@@ -164,7 +165,7 @@ class TestBacktestingIntegration:
             assert result["signals"][0]["action"] == "ENTER_LONG"
 
     def test_funding_rate_strategy_integration(self) -> None:
-        """Test integration with the FundingRateArbitrageStrategy"""
+        """Test integration with the FundingRateArbitrageStrategy."""
         pytest.skip(
             "Skipping FundingRateArbitrageStrategy integration test temporarily due to "
             "potential import/dependency issues.",
@@ -213,7 +214,7 @@ class TestBacktestingIntegration:
         #     pytest.fail(f"Integration test failed: {e}")
 
     def test_custom_backtest_strategy(self) -> None:
-        """Test with a custom BacktestStrategy implementation"""
+        """Test with a custom BacktestStrategy implementation."""
         assert self.funding_data is not None, (
             "funding_data not initialized for custom strategy test"
         )
@@ -221,7 +222,7 @@ class TestBacktestingIntegration:
         assert self.test_results_dir is not None, "test_results_dir not initialized"
 
         class SimpleTestStrategy(BacktestStrategy):
-            """Simple test strategy that buys when price is below threshold"""
+            """Simple test strategy that buys when price is below threshold."""
 
             def __init__(self, price_threshold: Decimal = Decimal("30000")) -> None:
                 super().__init__("SimpleTestStrategy")
@@ -230,6 +231,7 @@ class TestBacktestingIntegration:
                 self.initialized = False
 
             def initialize(self, data: pd.DataFrame) -> bool:
+                """Helper function for initialize."""
                 if not self.initialized:  # Check if already initialized
                     # Try to find the price column for TEST_SYMBOL
                     price_column_key = ("close", TEST_SYMBOL)
@@ -260,6 +262,7 @@ class TestBacktestingIntegration:
                 self,
                 current_data: pd.Series[Any] | pd.DataFrame,
             ) -> dict[str, list[dict[str, Any]]]:
+                """Helper function for update."""
                 signals: list[dict[str, Any]] = []
 
                 # Determine the price for TEST_SYMBOL from current_data
@@ -350,7 +353,7 @@ class TestBacktestingIntegration:
         assert os.path.exists(results_file)
 
     def test_backtest_results_format(self) -> None:
-        """Test that backtest results are properly formatted"""
+        """Test that backtest results are properly formatted."""
         assert self.data_file_path is not None, "data_file_path not initialized"
         assert self.test_results_dir is not None, "test_results_dir not initialized"
 
@@ -359,12 +362,14 @@ class TestBacktestingIntegration:
                 super().__init__("SimpleStrategy")
 
             def initialize(self, data: pd.DataFrame) -> bool:
+                """Helper function for initialize."""
                 return True
 
             def update(
                 self,
                 current_data: pd.Series[Any] | pd.DataFrame,
             ) -> dict[str, list[Any]]:  # Add Any
+                """Helper function for update."""
                 return {"signals": []}
 
         strategy = SimpleStrategy()
@@ -406,6 +411,7 @@ class TestBacktestingIntegration:
             assert isinstance(loaded_results["metrics"]["sharpe_ratio"], int | float)
 
     def test_basic_backtest_run(self) -> None:
+        """Test basic backtest run."""
         assert self.data_file_path is not None, "data_file_path not initialized in setup_class"
         assert self.test_results_dir is not None, "test_results_dir not initialized in setup_class"
 
@@ -414,12 +420,14 @@ class TestBacktestingIntegration:
                 super().__init__("MinimalStrategy")
 
             def initialize(self, data: pd.DataFrame) -> bool:
+                """Helper function for initialize."""
                 return True
 
             def update(
                 self,
                 current_data: pd.Series[Any] | pd.DataFrame,
             ) -> dict[str, list[Any]]:  # Add Any
+                """Helper function for update."""
                 return {"signals": []}  # Return no signals
 
         strategy = MinimalStrategy()

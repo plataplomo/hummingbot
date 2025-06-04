@@ -1,1 +1,5 @@
-# This file makes Python treat the 'hyperliquid' test directory as a package.
+"""Unit tests for Hyperliquid API.
+
+This package contains unit tests for the Hyperliquid exchange API client,
+including authentication, rate limiting, request handling, and response parsing.
+"""

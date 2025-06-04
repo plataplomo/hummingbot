@@ -192,8 +192,7 @@ class CircuitBreaker(ABC):
 
 
 class VolatilityBreaker(CircuitBreaker):
-    """Circuit breaker that trips when asset volatility exceeds thresholds.
-    """
+    """Circuit breaker that trips when asset volatility exceeds thresholds."""
 
     def __init__(
         self,
@@ -284,8 +283,7 @@ class VolatilityBreaker(CircuitBreaker):
 
 
 class DrawdownBreaker(CircuitBreaker):
-    """Circuit breaker that trips when drawdown exceeds thresholds.
-    """
+    """Circuit breaker that trips when drawdown exceeds thresholds."""
 
     def __init__(
         self,
@@ -348,8 +346,7 @@ class DrawdownBreaker(CircuitBreaker):
 
 
 class APIErrorBreaker(CircuitBreaker):
-    """Circuit breaker that trips when API errors exceed threshold in a time window.
-    """
+    """Circuit breaker that trips when API errors exceed threshold in a time window."""
 
     def __init__(
         self,
@@ -407,7 +404,8 @@ class APIErrorBreaker(CircuitBreaker):
         # If we're in half-open state and have enough consecutive successes,
         # this could help determine if recovery should happen
         if self.state == BreakerState.HALF_OPEN and self.consecutive_success_count >= max(
-            3, self.error_threshold,
+            3,
+            self.error_threshold,
         ):
             # Consider this a strong signal for recovery
             logger.info(
@@ -483,8 +481,7 @@ class APIErrorBreaker(CircuitBreaker):
 
 
 class LiquidityBreaker(CircuitBreaker):
-    """Circuit breaker that trips when market liquidity drops below thresholds.
-    """
+    """Circuit breaker that trips when market liquidity drops below thresholds."""
 
     def __init__(
         self,
@@ -532,8 +529,9 @@ class LiquidityBreaker(CircuitBreaker):
 
 
 class CircuitBreakerSystem:
-    """Manages a collection of circuit breakers and provides a central
-    interface for checking and controlling them.
+    """Manage a collection of circuit breakers and provide a central interface.
+
+    This class provides a central interface for checking and controlling circuit breakers.
     """
 
     def __init__(self, config: AppSettings) -> None:
@@ -546,7 +544,8 @@ class CircuitBreakerSystem:
         self.config = config
         self.breakers: dict[str, CircuitBreaker] = {}
         self.exchange_breakers: dict[
-            str, dict[str, CircuitBreaker | dict[str, CircuitBreaker]],
+            str,
+            dict[str, CircuitBreaker | dict[str, CircuitBreaker]],
         ] = {}
         self.last_status: dict[str, Any] = {}
 
@@ -631,7 +630,9 @@ class CircuitBreakerSystem:
         return self.breakers.get(name)
 
     def get_exchange_breaker(
-        self, exchange: str, breaker_type: str,
+        self,
+        exchange: str,
+        breaker_type: str,
     ) -> CircuitBreaker | dict[str, CircuitBreaker] | None:
         """Get an exchange-specific circuit breaker or a dictionary of symbol-specific breakers.
 
@@ -767,6 +768,7 @@ class CircuitBreakerSystem:
 
     def record_api_success(self, exchange: str, context: str = "") -> None:
         """Record a successful API interaction for an exchange.
+
         This can help reset error counts or test recovery in HALF_OPEN state.
 
         Args:
@@ -876,14 +878,16 @@ class CircuitBreakerSystem:
         # If we have any exchange-specific volatility breakers, trip those too
         # as a critical failure might indicate market conditions are unstable
         for _breaker_key, breaker_item_val in self.exchange_breakers.get(
-            exchange, {},
+            exchange,
+            {},
         ).items():  # Renamed breaker_type to _breaker_key
             if isinstance(breaker_item_val, VolatilityBreaker):
                 breaker_item_val.trip(
                     f"Critical failure triggered volatility breaker: {error_message}",
                 )
             elif isinstance(
-                breaker_item_val, dict,
+                breaker_item_val,
+                dict,
             ):  # It's a dict of symbol-specific VolatilityBreakers
                 for sym_breaker in breaker_item_val.values():
                     if isinstance(sym_breaker, VolatilityBreaker):
@@ -1014,6 +1018,7 @@ class CircuitBreakerSystem:
 
     def update_critical_systems_status(self, status_updates: dict[str, bool]) -> None:
         """Update status for critical external systems (e.g., database, message queue).
+
         This method is intended to be called by monitoring components that check these systems.
         If a critical system is reported as down, relevant breakers might trip.
 
@@ -1081,8 +1086,7 @@ class CircuitBreakerSystem:
         return reset_count
 
     def check_all_breakers(self) -> None:
-        """Check all circuit breakers and update their states based on their checks.
-        """
+        """Check all circuit breakers and update their states based on their checks."""
         for breaker_key, breaker_instance in self.breakers.items():
             # Assuming breaker_instance is now the actual breaker, not a list/dict
             # The original code `for breaker in breaker:` suggested nesting which seems incorrect.
@@ -1132,7 +1136,8 @@ class CircuitBreakerSystem:
             if breaker_class == APIErrorBreaker:
                 error_threshold = int(breaker_specific_config.get("error_threshold", 5))
                 window_seconds_val = breaker_specific_config.get(
-                    "time_window_seconds", breaker_specific_config.get("window_seconds", 60),
+                    "time_window_seconds",
+                    breaker_specific_config.get("window_seconds", 60),
                 )
                 window_seconds = int(window_seconds_val)
                 return APIErrorBreaker(name, error_threshold, window_seconds, cooldown)
@@ -1154,7 +1159,8 @@ class CircuitBreakerSystem:
 
             elif breaker_class == LiquidityBreaker:
                 min_liquidity_val = breaker_specific_config.get(
-                    "min_liquidity_usd", breaker_specific_config.get("min_liquidity", 1000.0),
+                    "min_liquidity_usd",
+                    breaker_specific_config.get("min_liquidity", 1000.0),
                 )
                 min_liquidity = float(min_liquidity_val)
                 return LiquidityBreaker(name, min_liquidity, cooldown)

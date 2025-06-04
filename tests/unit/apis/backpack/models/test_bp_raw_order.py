@@ -15,6 +15,7 @@ from cyberdelta.apis.backpack.models import (
 
 # --- BackpackRawOrder ---
 def valid_order() -> dict[str, object]:
+    """Return valid order for testing."""
     return {
         "id": "123",
         "symbol": "BTC_USDC",
@@ -27,6 +28,7 @@ def valid_order() -> dict[str, object]:
 
 
 def test_BackpackRawOrder_happy_path() -> None:
+    """Test BackpackRawOrder happy path."""
     obj = BackpackRawOrder.model_validate(valid_order())
     assert obj.symbol == "BTC_USDC"
     assert obj.side == "buy"
@@ -34,6 +36,7 @@ def test_BackpackRawOrder_happy_path() -> None:
 
 
 def test_BackpackRawOrder_missing_required_id() -> None:
+    """Test BackpackRawOrder missing required id."""
     p = valid_order()
     del p["id"]
     with pytest.raises(ValidationError):
@@ -41,6 +44,7 @@ def test_BackpackRawOrder_missing_required_id() -> None:
 
 
 def test_BackpackRawOrder_missing_required_symbol() -> None:
+    """Test BackpackRawOrder missing required symbol."""
     p = valid_order()
     del p["symbol"]
     with pytest.raises(ValidationError):
@@ -48,6 +52,7 @@ def test_BackpackRawOrder_missing_required_symbol() -> None:
 
 
 def test_BackpackRawOrder_missing_required_side() -> None:
+    """Test BackpackRawOrder missing required side."""
     p = valid_order()
     del p["side"]
     with pytest.raises(ValidationError):
@@ -55,6 +60,7 @@ def test_BackpackRawOrder_missing_required_side() -> None:
 
 
 def test_BackpackRawOrder_missing_required_orderType() -> None:
+    """Test BackpackRawOrder missing required orderType."""
     p = valid_order()
     del p["orderType"]
     with pytest.raises(ValidationError):
@@ -62,6 +68,7 @@ def test_BackpackRawOrder_missing_required_orderType() -> None:
 
 
 def test_BackpackRawOrder_missing_required_status() -> None:
+    """Test BackpackRawOrder missing required status."""
     p = valid_order()
     del p["status"]
     with pytest.raises(ValidationError):
@@ -69,6 +76,7 @@ def test_BackpackRawOrder_missing_required_status() -> None:
 
 
 def test_BackpackRawOrder_missing_required_quantity() -> None:
+    """Test BackpackRawOrder missing required quantity."""
     p = valid_order()
     del p["quantity"]
     with pytest.raises(ValidationError):
@@ -76,6 +84,7 @@ def test_BackpackRawOrder_missing_required_quantity() -> None:
 
 
 def test_BackpackRawOrder_missing_required_createdAt() -> None:
+    """Test BackpackRawOrder missing required createdAt."""
     p = valid_order()
     del p["createdAt"]
     with pytest.raises(ValidationError):
@@ -83,6 +92,7 @@ def test_BackpackRawOrder_missing_required_createdAt() -> None:
 
 
 def test_BackpackRawOrder_wrong_type_quantity() -> None:
+    """Test BackpackRawOrder wrong type quantity."""
     p = valid_order()
     p["quantity"] = [1.0]
     with pytest.raises(ValidationError):
@@ -90,6 +100,7 @@ def test_BackpackRawOrder_wrong_type_quantity() -> None:
 
 
 def test_BackpackRawOrder_wrong_type_side() -> None:
+    """Test BackpackRawOrder wrong type side."""
     p = valid_order()
     p["side"] = 123
     with pytest.raises(ValidationError):
@@ -97,6 +108,7 @@ def test_BackpackRawOrder_wrong_type_side() -> None:
 
 
 def test_BackpackRawOrder_invalid_decimal_quantity() -> None:
+    """Test BackpackRawOrder invalid decimal quantity."""
     p = valid_order()
     p["quantity"] = "1..0"
     with pytest.raises(ValidationError):
@@ -109,6 +121,7 @@ def test_BackpackRawOrder_invalid_decimal_quantity() -> None:
 
 
 def test_BackpackRawOrder_invalid_enum_side() -> None:
+    """Test BackpackRawOrder invalid enum side."""
     p = valid_order()
     p["side"] = "Diagonal"
     with pytest.raises(ValidationError):
@@ -116,6 +129,7 @@ def test_BackpackRawOrder_invalid_enum_side() -> None:
 
 
 def test_BackpackRawOrder_invalid_timestamp_createdAt() -> None:
+    """Test BackpackRawOrder invalid timestamp createdAt."""
     p = valid_order()
     p["createdAt"] = "not-a-timestamp"
     with pytest.raises(ValidationError):
@@ -123,6 +137,7 @@ def test_BackpackRawOrder_invalid_timestamp_createdAt() -> None:
 
 
 def test_BackpackRawOrder_extra_field() -> None:
+    """Test BackpackRawOrder extra field."""
     p = valid_order()
     p["foo"] = "bar"
     with pytest.raises(ValidationError):
@@ -130,6 +145,7 @@ def test_BackpackRawOrder_extra_field() -> None:
 
 
 def test_BackpackRawOrder_optional_fields_all_none() -> None:
+    """Test BackpackRawOrder optional fields all none."""
     p = valid_order()
     for f in [
         "clientId",
@@ -173,6 +189,7 @@ def test_BackpackRawOrder_optional_fields_all_none() -> None:
 
 
 def test_BackpackRawOrder_optional_fields_omitted() -> None:
+    """Test BackpackRawOrder optional fields omitted."""
     p = valid_order()
     for f in [
         "clientId",
@@ -217,6 +234,7 @@ def test_BackpackRawOrder_optional_fields_omitted() -> None:
 
 
 def test_BackpackRawOrder_corruption_garbled_quantity() -> None:
+    """Test BackpackRawOrder corruption garbled quantity."""
     p = valid_order()
     p["quantity"] = "NaN"
     with pytest.raises(ValidationError):
@@ -224,6 +242,7 @@ def test_BackpackRawOrder_corruption_garbled_quantity() -> None:
 
 
 def test_BackpackRawOrder_corruption_null_required_symbol() -> None:
+    """Test BackpackRawOrder corruption null required symbol."""
     p = valid_order()
     p["symbol"] = None
     with pytest.raises(ValidationError):
@@ -231,6 +250,7 @@ def test_BackpackRawOrder_corruption_null_required_symbol() -> None:
 
 
 def test_BackpackRawOrder_corruption_unicode_symbol() -> None:
+    """Test BackpackRawOrder corruption unicode symbol."""
     p = valid_order()
     p["symbol"] = "BTC_USDC\x00"
     obj = BackpackRawOrder.model_validate(p)
@@ -238,6 +258,7 @@ def test_BackpackRawOrder_corruption_unicode_symbol() -> None:
 
 
 def test_BackpackRawOrder_corruption_nested_bids_in_orderbook() -> None:
+    """Test BackpackRawOrder corruption nested bids in orderbook."""
     book = {
         "symbol": "BTC_USDC",
         "bids": [["50000.0", "1.0"], ["bad", "1..0"]],
@@ -249,6 +270,7 @@ def test_BackpackRawOrder_corruption_nested_bids_in_orderbook() -> None:
 
 
 def test_BackpackRawOrder_truncated_json() -> None:
+    """Test BackpackRawOrder truncated json."""
     bad_json = '{"id": "123", "symbol": "BTC_USDC", "side": "buy"'
     with pytest.raises(json.JSONDecodeError):
         json.loads(bad_json)
@@ -256,6 +278,7 @@ def test_BackpackRawOrder_truncated_json() -> None:
 
 # --- BackpackRawOrderBook ---
 def valid_orderbook() -> dict[str, object]:
+    """Return valid orderbook for testing."""
     return {
         "symbol": "BTC_USDC",
         "bids": [["50000.0", "1.0"], ["49900.0", "2.0"]],
@@ -265,12 +288,14 @@ def valid_orderbook() -> dict[str, object]:
 
 
 def test_BackpackRawOrderBook_happy_path() -> None:
+    """Test BackpackRawOrderBook happy path."""
     obj = BackpackRawOrderBook.model_validate(valid_orderbook())
     assert obj.symbol == "BTC_USDC"
     assert obj.bids[0][0] == "50000.0"
 
 
 def test_BackpackRawOrderBook_missing_required_fields() -> None:
+    """Test BackpackRawOrderBook missing required fields."""
     for field in ["symbol", "bids", "asks", "time"]:
         p = valid_orderbook().copy()
         del p[field]
@@ -279,6 +304,7 @@ def test_BackpackRawOrderBook_missing_required_fields() -> None:
 
 
 def test_BackpackRawOrderBook_wrong_type_fields() -> None:
+    """Test BackpackRawOrderBook wrong type fields."""
     p = valid_orderbook().copy()
     p["bids"] = "notalist"
     with pytest.raises(ValidationError):
@@ -294,6 +320,7 @@ def test_BackpackRawOrderBook_wrong_type_fields() -> None:
 
 
 def test_BackpackRawOrderBook_invalid_format_validators() -> None:
+    """Test BackpackRawOrderBook invalid format validators."""
     p = valid_orderbook().copy()
     p["bids"] = [["bad", "1..0"]]
     with pytest.raises(ValidationError):
@@ -305,6 +332,7 @@ def test_BackpackRawOrderBook_invalid_format_validators() -> None:
 
 
 def test_BackpackRawOrderBook_extra_field() -> None:
+    """Test BackpackRawOrderBook extra field."""
     p = valid_orderbook().copy()
     p["foo"] = 1
     with pytest.raises(ValidationError):
@@ -312,12 +340,14 @@ def test_BackpackRawOrderBook_extra_field() -> None:
 
 
 def test_BackpackRawOrderBook_optional_fields() -> None:
+    """Test BackpackRawOrderBook optional fields."""
     # No optional fields in this model
     obj = BackpackRawOrderBook.model_validate(valid_orderbook())
     assert obj.symbol == "BTC_USDC"
 
 
 def test_BackpackRawOrderBook_corruption_cases() -> None:
+    """Test BackpackRawOrderBook corruption cases."""
     # Nested corruption
     p = valid_orderbook().copy()
     p["bids"] = [["50000.0", "1.0"], ["bad", "notanumber"]]
@@ -336,6 +366,7 @@ def test_BackpackRawOrderBook_corruption_cases() -> None:
 
 # --- BackpackRawOrderUpdate ---
 def valid_orderupdate() -> dict[str, object]:
+    """Return valid orderupdate for testing."""
     return {
         "e": "orderAccepted",
         "E": 1234567890,
@@ -347,6 +378,7 @@ def valid_orderupdate() -> dict[str, object]:
 
 
 def test_BackpackRawOrderUpdate_happy_path() -> None:
+    """Test BackpackRawOrderUpdate happy path."""
     obj = BackpackRawOrderUpdate.model_validate(valid_orderupdate())
     assert obj.event_type == "orderAccepted"
     assert obj.symbol == "BTC_USDC"
@@ -354,6 +386,7 @@ def test_BackpackRawOrderUpdate_happy_path() -> None:
 
 
 def test_BackpackRawOrderUpdate_missing_required_fields() -> None:
+    """Test BackpackRawOrderUpdate missing required fields."""
     for field in ["e", "E", "s", "S", "o", "X"]:
         p = valid_orderupdate().copy()
         del p[field]
@@ -362,6 +395,7 @@ def test_BackpackRawOrderUpdate_missing_required_fields() -> None:
 
 
 def test_BackpackRawOrderUpdate_wrong_type_fields() -> None:
+    """Test BackpackRawOrderUpdate wrong type fields."""
     p = valid_orderupdate().copy()
     p["E"] = "notanint"
     with pytest.raises(ValidationError):
@@ -373,6 +407,7 @@ def test_BackpackRawOrderUpdate_wrong_type_fields() -> None:
 
 
 def test_BackpackRawOrderUpdate_invalid_format_validators() -> None:
+    """Test BackpackRawOrderUpdate invalid format validators."""
     p = valid_orderupdate().copy()
     p["S"] = "Diagonal"
     with pytest.raises(ValidationError):
@@ -384,6 +419,7 @@ def test_BackpackRawOrderUpdate_invalid_format_validators() -> None:
 
 
 def test_BackpackRawOrderUpdate_extra_field() -> None:
+    """Test BackpackRawOrderUpdate extra field."""
     p = valid_orderupdate().copy()
     p["foo"] = 1
     with pytest.raises(ValidationError):
@@ -391,6 +427,7 @@ def test_BackpackRawOrderUpdate_extra_field() -> None:
 
 
 def test_BackpackRawOrderUpdate_optional_fields() -> None:
+    """Test BackpackRawOrderUpdate optional fields."""
     # All optional fields omitted
     obj = BackpackRawOrderUpdate.model_validate(valid_orderupdate())
     assert obj.client_order_id is None
@@ -404,6 +441,7 @@ def test_BackpackRawOrderUpdate_optional_fields() -> None:
 
 
 def test_BackpackRawOrderUpdate_corruption_cases() -> None:
+    """Test BackpackRawOrderUpdate corruption cases."""
     # Garbled numerics
     p = valid_orderupdate().copy()
     p["quantity"] = "notanumber"

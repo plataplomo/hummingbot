@@ -20,6 +20,7 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 @fixture
 def mock_config_dict() -> dict[str, Any]:
+    """Return mock config dict for testing."""
     return {
         "risk": {
             "global": {
@@ -72,6 +73,7 @@ def mock_config(mock_config_dict: dict[str, Any]) -> MagicMock:
 
     # Mock the get method to return values from the config dict
     def get_side_effect(key: str, default: object = None) -> object:
+        """Get side effect for testing."""
         keys = key.split(".")
         value = mock_config_dict
         try:
@@ -87,6 +89,7 @@ def mock_config(mock_config_dict: dict[str, Any]) -> MagicMock:
 
 @fixture
 def mock_portfolio_tracker() -> MagicMock:
+    """Return mock portfolio tracker for testing."""
     tracker = MagicMock(spec=PortfolioTrackerProtocol)
     tracker.get_total_capital.return_value = Decimal("10000")
     # Update to return SpotBalance
@@ -107,6 +110,7 @@ def mock_portfolio_tracker() -> MagicMock:
 
 @fixture
 def mock_circuit_breaker_system() -> MagicMock:
+    """Return mock circuit breaker system for testing."""
     system = MagicMock(spec=CircuitBreakerSystemProtocol)
     system.can_execute.return_value = (True, None)  # Default to can execute
     # Mock get_exchange_breaker to return a MagicMock with a state attribute
@@ -136,6 +140,7 @@ def mock_funding_validator() -> MagicMock:
 
     # Always return high-confidence metrics for any call
     def symbol_metrics_side_effect(exchange: str, symbol: str) -> dict[str, float]:
+        """Helper function for symbol metrics side effect."""
         return {"rmse": 0.0, "bias": 0.0}
 
     fv.get_symbol_metrics.side_effect = symbol_metrics_side_effect
@@ -175,6 +180,7 @@ def risk_manager(
 
 @fixture
 def sample_opportunity_dict() -> dict[str, Any]:
+    """Helper function for sample opportunity dict."""
     now = datetime.now(UTC)
     return {
         "symbol": "BTC-PERP",
@@ -197,6 +203,7 @@ def sample_opportunity_dict() -> dict[str, Any]:
 
 @fixture
 def sample_opportunity(sample_opportunity_dict: dict[str, Any]) -> ArbitrageOpportunity:
+    """Helper function for sample opportunity."""
     return ArbitrageOpportunity(**sample_opportunity_dict)
 
 

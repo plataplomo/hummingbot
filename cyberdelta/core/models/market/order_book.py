@@ -92,7 +92,9 @@ class OrderBook(BaseModel):
     @field_validator("bids", "asks", mode="before")
     @classmethod
     def validate_and_parse_levels(
-        cls, v: object, info: ValidationInfo,
+        cls,
+        v: object,
+        info: ValidationInfo,
     ) -> list[tuple[Decimal, Decimal]]:
         """Validate structure, parse types, and validate content for 'bids' and 'asks' fields.
 

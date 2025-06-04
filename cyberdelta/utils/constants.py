@@ -13,12 +13,16 @@ DEFAULT_STATE_FILE = "state.json"
 
 # Exchange identifiers
 class Exchange(Enum):
+    """Exchange identifier enumeration."""
+
     HYPERLIQUID = "hyperliquid"
     BACKPACK = "backpack"
 
 
 # Position status
 class PositionStatus(Enum):
+    """Position status enumeration."""
+
     OPEN = auto()
     CLOSED = auto()
     PENDING_OPEN = auto()
@@ -28,6 +32,8 @@ class PositionStatus(Enum):
 
 # Position side
 class PositionSide(Enum):
+    """Position side enumeration."""
+
     LONG = "long"
     SHORT = "short"
     NONE = "none"
@@ -35,6 +41,8 @@ class PositionSide(Enum):
 
 # Event types
 class EventType(Enum):
+    """Event type enumeration."""
+
     MARKET_DATA = auto()
     ORDER_UPDATE = auto()
     POSITION_UPDATE = auto()
@@ -45,6 +53,8 @@ class EventType(Enum):
 
 # Market data types
 class MarketDataType(Enum):
+    """Market data type enumeration."""
+
     TRADE = auto()
     ORDERBOOK = auto()
     TICKER = auto()
@@ -54,6 +64,8 @@ class MarketDataType(Enum):
 
 # Timeframes
 class Timeframe(Enum):
+    """Timeframe enumeration."""
+
     MINUTE_1 = "1m"
     MINUTE_5 = "5m"
     MINUTE_15 = "15m"
@@ -67,6 +79,8 @@ class Timeframe(Enum):
 
 # Strategy signals
 class Signal(Enum):
+    """Strategy signal enumeration."""
+
     BUY = auto()
     SELL = auto()
     HOLD = auto()

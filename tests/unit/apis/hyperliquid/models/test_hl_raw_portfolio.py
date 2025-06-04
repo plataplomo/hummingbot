@@ -44,16 +44,19 @@ VALID_PORTFOLIO_RESPONSE: list[list[Any]] = [
 
 @pytest.fixture
 def valid_history_entry_dict_data() -> dict[int | str, Any]:
+    """Return valid history entry dict data for testing."""
     return VALID_HISTORY_ENTRY_DICT.copy()
 
 
 @pytest.fixture
 def valid_history_entry_list_data() -> list[Any]:
+    """Return valid history entry list data for testing."""
     return VALID_HISTORY_ENTRY_LIST[:]  # Use slicing for list copy
 
 
 @pytest.fixture
 def valid_timeframe_data() -> dict[str, Any]:
+    """Return valid timeframe data for testing."""
     data = VALID_TIMEFRAME_DATA.copy()
     # accountValueHistory and pnlHistory items are lists, copy them properly
     data["accountValueHistory"] = [item[:] for item in data["accountValueHistory"]]
@@ -63,6 +66,7 @@ def valid_timeframe_data() -> dict[str, Any]:
 
 @pytest.fixture
 def valid_portfolio_tuple_item_data() -> list[Any]:
+    """Return valid portfolio tuple item data for testing."""
     item_copy = [VALID_PORTFOLIO_TUPLE_ITEM[0]]
     timeframe_data_original = VALID_PORTFOLIO_TUPLE_ITEM[1]
     timeframe_data_copy = timeframe_data_original.copy()  # shallow copy of the dict
@@ -80,12 +84,14 @@ def valid_portfolio_tuple_item_data() -> list[Any]:
 
 # HyperliquidRawPortfolioHistoryEntry Tests
 def test_history_entry_valid_from_list(valid_history_entry_list_data: list[Any]) -> None:
+    """Test history entry valid from list."""
     item = HyperliquidRawPortfolioHistoryEntry.model_validate(valid_history_entry_list_data)
     assert item.root[0] == valid_history_entry_list_data[0]
     assert item.root[1] == valid_history_entry_list_data[1]
 
 
 def test_history_entry_valid_from_dict(valid_history_entry_dict_data: dict[int | str, Any]) -> None:
+    """Test history entry valid from dict."""
     item = HyperliquidRawPortfolioHistoryEntry.model_validate(valid_history_entry_dict_data)
     assert item.root[0] == valid_history_entry_dict_data[0]
     assert item.root[1] == valid_history_entry_dict_data[1]
@@ -105,12 +111,14 @@ def test_history_entry_valid_from_dict(valid_history_entry_dict_data: dict[int |
     ],
 )
 def test_history_entry_invalid_list_input(value_list: list[Any]) -> None:
+    """Test history entry invalid list input."""
     with pytest.raises(ValidationError):
         HyperliquidRawPortfolioHistoryEntry.model_validate(value_list)
 
 
 @pytest.mark.parametrize("key_alias, value", [(0, "not-an-int"), (1, "not-a-decimal"), (0, -123)])
 def test_history_entry_invalid_dict_input(key_alias: int, value: str | int) -> None:
+    """Test history entry invalid dict input."""
     data: dict[int | str, Any] = {0: 1741886630493, 1: "0.0"}
     data[key_alias] = value
     with pytest.raises(ValidationError):
@@ -120,6 +128,7 @@ def test_history_entry_invalid_dict_input(key_alias: int, value: str | int) -> N
 def test_history_entry_extra_field_dict_input(
     valid_history_entry_dict_data: dict[int | str, Any],
 ) -> None:
+    """Test history entry extra field dict input."""
     data_copy = valid_history_entry_dict_data.copy()
     data_copy[2] = "extra"  # Integer key due to aliases
     with pytest.raises(ValidationError):
@@ -128,6 +137,7 @@ def test_history_entry_extra_field_dict_input(
 
 # HyperliquidRawPortfolioTimeframeData Tests
 def test_timeframe_data_valid(valid_timeframe_data: dict[str, Any]) -> None:
+    """Test timeframe data valid."""
     data = HyperliquidRawPortfolioTimeframeData.model_validate(valid_timeframe_data)
     assert len(data.account_value_history) == len(valid_timeframe_data["accountValueHistory"])
     assert (
@@ -151,9 +161,10 @@ def test_timeframe_data_valid(valid_timeframe_data: dict[str, Any]) -> None:
 def test_timeframe_data_invalid(
     valid_timeframe_data: dict[str, Any],
     field: str,
-    value: str | float | bool | list[Any] | None,  # Testing specific invalid types for Pydantic validation
+    value: str | float | bool | list[Any] | None,  # Invalid types for Pydantic
     is_missing_test: bool,
 ) -> None:
+    """Test timeframe data invalid."""
     data_copy = valid_timeframe_data.copy()
     if is_missing_test:
         if field in data_copy:
@@ -165,6 +176,7 @@ def test_timeframe_data_invalid(
 
 
 def test_timeframe_data_extra_field(valid_timeframe_data: dict[str, Any]) -> None:
+    """Test timeframe data extra field."""
     data_copy = valid_timeframe_data.copy()
     data_copy["extra"] = "field"
     with pytest.raises(ValidationError):
@@ -173,6 +185,7 @@ def test_timeframe_data_extra_field(valid_timeframe_data: dict[str, Any]) -> Non
 
 # HyperliquidRawPortfolioTupleItem Tests
 def test_portfolio_tuple_item_valid(valid_portfolio_tuple_item_data: list[Any]) -> None:
+    """Test portfolio tuple item valid."""
     item = HyperliquidRawPortfolioTupleItem.model_validate(valid_portfolio_tuple_item_data)
     assert item.root[0] == valid_portfolio_tuple_item_data[0]
     # Accessing nested data correctly based on fixture structure
@@ -193,12 +206,14 @@ def test_portfolio_tuple_item_valid(valid_portfolio_tuple_item_data: list[Any]) 
     ],
 )
 def test_portfolio_tuple_item_invalid(value_list: list[Any]) -> None:
+    """Test portfolio tuple item invalid."""
     with pytest.raises(ValidationError):
         HyperliquidRawPortfolioTupleItem.model_validate(value_list)
 
 
 # HyperliquidRawPortfolioResponse (RootModel) Tests
 def test_portfolio_response_valid() -> None:
+    """Test portfolio response valid."""
     response = HyperliquidRawPortfolioResponse.model_validate(VALID_PORTFOLIO_RESPONSE)
     assert len(response.root) == len(VALID_PORTFOLIO_RESPONSE)
     assert response.root[0].root[0] == VALID_PORTFOLIO_RESPONSE[0][0]
@@ -218,10 +233,12 @@ def test_portfolio_response_valid() -> None:
     ],
 )
 def test_portfolio_response_invalid(invalid_root_data: str | int | list[Any] | None) -> None:
+    """Test portfolio response invalid."""
     with pytest.raises(ValidationError):
         HyperliquidRawPortfolioResponse.model_validate(invalid_root_data)
 
 
 def test_portfolio_response_empty_list_valid() -> None:
+    """Test portfolio response empty list valid."""
     response = HyperliquidRawPortfolioResponse.model_validate([])
     assert response.root == []

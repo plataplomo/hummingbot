@@ -79,8 +79,7 @@ class HyperliquidRawBatchPlaceOrderActionPayload(BaseModel):
 
 
 class HyperliquidRawL2UsdTransferActionDetails(BaseModel):
-    """Represents the 'action' details for an L2 USD transfer.
-    """
+    """Represents the 'action' details for an L2 USD transfer."""
 
     chain: Literal["L2"]
     payload: HyperliquidRawL2UsdTransferPayload
@@ -89,8 +88,7 @@ class HyperliquidRawL2UsdTransferActionDetails(BaseModel):
 
 
 class HyperliquidRawCancelOrderAction(BaseModel):
-    """Represents the 'action' payload for cancelling an order.
-    """
+    """Represents the 'action' payload for cancelling an order."""
 
     asset: RawNonNegativeInt
     oid: RawNonNegativeInt

@@ -1,5 +1,4 @@
-"""Handles persistence (saving and loading) of performance tracking data.
-"""
+"""Handles persistence (saving and loading) of performance tracking data."""
 
 from __future__ import annotations
 
@@ -146,17 +145,21 @@ class PerformanceDataPersistence:
             if isinstance(value, datetime):
                 serializable_item[key] = value.isoformat()
             elif isinstance(value, dict):
-                # DEFENSIVE CHECK: Recursively handle nested dicts. Pyright=[reportUnknownArgumentType]
+                # DEFENSIVE CHECK: Recursively handle nested dicts.
+                # Pyright=[reportUnknownArgumentType]
                 serializable_item[key] = self._make_dict_serializable(value)
             elif isinstance(value, list):
-                # DEFENSIVE CHECK: Recursively handle nested lists. Pyright=[reportUnknownArgumentType]
+                # DEFENSIVE CHECK: Recursively handle nested lists.
+                # Pyright=[reportUnknownArgumentType]
                 serializable_item[key] = self._make_serializable(value)
             else:
                 serializable_item[key] = value
         return serializable_item
 
     def post_process_loaded_data(
-        self, data_type: str, loaded_data: dict[str, Any] | list[Any] | None,
+        self,
+        data_type: str,
+        loaded_data: dict[str, Any] | list[Any] | None,
     ) -> dict[str, Any] | list[Any] | None:
         """Post-process loaded data to convert datetime strings back to datetime objects.
 
@@ -178,7 +181,8 @@ class PerformanceDataPersistence:
                 for strategy_name, strategy_data in loaded_data.items():
                     if isinstance(strategy_data, dict):
                         processed_strategy_data: dict[datetime, float] = {}
-                        # DEFENSIVE CHECK: Handle unknown types from JSON. Pyright=[reportUnknownVariableType, reportUnknownArgumentType]
+                        # DEFENSIVE CHECK: Handle unknown types from JSON.
+                        # Pyright=[reportUnknownVariableType, reportUnknownArgumentType]
                         for ts_str, val in strategy_data.items():
                             try:
                                 timestamp = datetime.fromisoformat(str(ts_str))
@@ -199,7 +203,8 @@ class PerformanceDataPersistence:
                 processed_list: list[dict[str, Any]] = []
                 for item in loaded_data:
                     if isinstance(item, dict):
-                        # DEFENSIVE CHECK: Handle unknown dict types from JSON. Pyright=[reportUnknownArgumentType]
+                        # DEFENSIVE CHECK: Handle unknown dict types from JSON.
+                        # Pyright=[reportUnknownArgumentType]
                         processed_list.append(self._post_process_dict(item))
                     else:
                         processed_list.append(item)
@@ -274,11 +279,13 @@ class PerformanceDataPersistence:
                     if strategy_name in loaded_data:
                         strategy_data = loaded_data[strategy_name]
                         if isinstance(strategy_data, dict):
-                            # DEFENSIVE CHECK: Type conversion for loaded data. Pyright=[reportArgumentType]
+                            # DEFENSIVE CHECK: Type conversion for loaded data.
+                            # Pyright=[reportArgumentType]
                             all_returns[strategy_name] = strategy_data  # type: ignore[assignment]
                     else:
                         # If the file contains the strategy data directly
-                        # DEFENSIVE CHECK: Type conversion for loaded data. Pyright=[reportArgumentType]
+                        # DEFENSIVE CHECK: Type conversion for loaded data.
+                        # Pyright=[reportArgumentType]
                         all_returns[strategy_name] = loaded_data  # type: ignore[assignment]
 
         except Exception as e:

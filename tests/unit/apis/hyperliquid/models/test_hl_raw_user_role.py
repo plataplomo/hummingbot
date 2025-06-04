@@ -44,6 +44,7 @@ VALID_ROLE_DATA_SUBACCOUNT: dict[str, str | None] = {
     ],
 )
 def valid_user_role_data(request: FixtureRequest) -> dict[str, Any]:
+    """Return valid user role data for testing."""
     return cast("dict[str, Any]", request.param).copy()  # Ensure individual test data is copied
 
 
@@ -56,6 +57,7 @@ def valid_user_role_data(request: FixtureRequest) -> dict[str, Any]:
     ],
 )
 def valid_role_data_params(request: FixtureRequest) -> dict[str, str | None]:
+    """Return valid role data params for testing."""
     return cast("dict[str, str | None]", request.param).copy()
 
 
@@ -94,6 +96,7 @@ def valid_raw_create_user_role_payload() -> dict[str, str | None]:
 
 
 def test_role_data_valid(valid_role_data_params: dict[str, str | None]) -> None:
+    """Test role data valid."""
     data = HyperliquidRawUserRoleData.model_validate(valid_role_data_params)
     if "user" in valid_role_data_params:
         assert data.user == valid_role_data_params["user"]
@@ -110,12 +113,14 @@ def test_role_data_valid(valid_role_data_params: dict[str, str | None]) -> None:
     ],
 )
 def test_role_data_invalid_address(field: str, value: object) -> None:
+    """Test role data invalid address."""
     data_payload = {field: value}
     with pytest.raises(ValidationError):
         HyperliquidRawUserRoleData.model_validate(data_payload)
 
 
 def test_role_data_allows_extra_fields() -> None:
+    """Test role data allows extra fields."""
     # extra='allow' is set on HyperliquidRawUserRoleData
     data_payload = {"user": "0xagentuseraddress1234567890abcdef123456", "extra": "allowed"}
     role_data = HyperliquidRawUserRoleData.model_validate(data_payload)
@@ -129,6 +134,7 @@ def test_role_data_allows_extra_fields() -> None:
 
 
 def test_user_role_response_valid(valid_user_role_data: dict[str, Any]) -> None:
+    """Test user role response valid."""
     response = HyperliquidRawUserRoleResponse.model_validate(valid_user_role_data)
     assert response.role == valid_user_role_data["role"]
     if "data" in valid_user_role_data and valid_user_role_data["data"] is not None:
@@ -154,6 +160,7 @@ def test_user_role_response_valid(valid_user_role_data: dict[str, Any]) -> None:
 def test_user_role_response_invalid(
     valid_user_role_data: dict[str, Any], field: str, value: object, is_missing_test: bool,
 ) -> None:
+    """Test user role response invalid."""
     # Use a copy of one of the valid scenarios for manipulation
     data_copy = valid_user_role_data.copy()
     if is_missing_test:
@@ -167,6 +174,7 @@ def test_user_role_response_invalid(
 
 
 def test_user_role_response_extra_field() -> None:
+    """Test user role response extra field."""
     data_copy = VALID_USER_ROLE_USER.copy()
     data_copy["extraField"] = "value"
     with pytest.raises(ValidationError):
@@ -174,6 +182,7 @@ def test_user_role_response_extra_field() -> None:
 
 
 def test_user_role_data_none_valid() -> None:
+    """Test user role data none valid."""
     # Test when 'data' is explicitly None or missing, which is valid
     response_with_none_data = HyperliquidRawUserRoleResponse.model_validate(
         {

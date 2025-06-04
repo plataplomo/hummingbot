@@ -34,6 +34,7 @@ VALID_FRONTEND_ORDER: dict[str, Any] = {
 
 @pytest.fixture
 def valid_frontend_order_data() -> dict[str, Any]:
+    """Return valid frontend order data for testing."""
     return VALID_FRONTEND_ORDER.copy()
 
 
@@ -41,6 +42,7 @@ def valid_frontend_order_data() -> dict[str, Any]:
 
 
 def test_frontend_order_valid(valid_frontend_order_data: dict[str, Any]) -> None:
+    """Test frontend order valid."""
     order = HyperliquidRawFrontendOpenOrder.model_validate(valid_frontend_order_data)
     assert order.coin == valid_frontend_order_data["coin"]
     assert order.is_position_tpsl == valid_frontend_order_data["isPositionTpsl"]
@@ -88,6 +90,7 @@ def test_frontend_order_invalid_fields(
     value: object,
     is_missing_test: bool,
 ) -> None:
+    """Test frontend order invalid fields."""
     data_copy = valid_frontend_order_data.copy()
     if is_missing_test:
         if field in data_copy:
@@ -100,6 +103,7 @@ def test_frontend_order_invalid_fields(
 
 
 def test_frontend_order_missing_required_fields() -> None:
+    """Test frontend order missing required fields."""
     required_fields = VALID_FRONTEND_ORDER.keys()
     for field in required_fields:
         data_copy = VALID_FRONTEND_ORDER.copy()
@@ -113,6 +117,7 @@ def test_frontend_order_missing_required_fields() -> None:
 
 
 def test_frontend_order_extra_field(valid_frontend_order_data: dict[str, Any]) -> None:
+    """Test frontend order extra field."""
     data_copy = valid_frontend_order_data.copy()
     data_copy["extraField"] = "someValue"
     with pytest.raises(ValidationError) as exc_info:
@@ -127,6 +132,7 @@ def test_frontend_order_extra_field(valid_frontend_order_data: dict[str, Any]) -
 
 
 def test_frontend_orders_list_valid() -> None:
+    """Test frontend orders list valid."""
     orders_list_data = [VALID_FRONTEND_ORDER.copy(), VALID_FRONTEND_ORDER.copy()]
     validated_orders = [HyperliquidRawFrontendOpenOrder.model_validate(o) for o in orders_list_data]
     assert len(validated_orders) == 2
@@ -134,6 +140,7 @@ def test_frontend_orders_list_valid() -> None:
 
 
 def test_frontend_orders_list_invalid_item() -> None:
+    """Test frontend orders list invalid item."""
     invalid_order_item = VALID_FRONTEND_ORDER.copy()
     invalid_order_item["oid"] = "not-an-int"
     orders_list_data = [VALID_FRONTEND_ORDER.copy(), invalid_order_item]
@@ -142,6 +149,7 @@ def test_frontend_orders_list_invalid_item() -> None:
 
 
 def test_frontend_orders_list_not_a_list() -> None:
+    """Test frontend orders list not a list."""
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawFrontendOpenOrder.model_validate("not a list")
     error_str = str(exc_info.value).lower()

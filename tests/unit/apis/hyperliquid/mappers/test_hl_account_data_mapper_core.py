@@ -1,4 +1,4 @@
-"""CyberDeltaEngine: Hyperliquid Account Data Mapper Core Tests
+"""CyberDeltaEngine: Hyperliquid Account Data Mapper Core Tests.
 -----------------------------------------------------------
 
 Comprehensive test suite for HyperliquidAccountDataMapper core transformations.

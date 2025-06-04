@@ -1,5 +1,4 @@
-"""Shared fixtures for BackpackTradingService tests.
-"""
+"""Shared fixtures for BackpackTradingService tests."""
 
 from __future__ import annotations
 

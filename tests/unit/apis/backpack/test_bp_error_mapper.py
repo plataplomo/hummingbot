@@ -37,6 +37,7 @@ class TestBackpackErrorMapper:
         expected_code: APIErrorCode,
         expected_message_contains: str,
     ) -> None:
+        """Test map generic 400 error."""
         mapper = BackpackErrorMapper()
         api_error = mapper.map_exchange_error(
             http_status, error_body, error_data=json.loads(error_body),
@@ -70,6 +71,7 @@ class TestBackpackErrorMapper:
         expected_code: APIErrorCode,
         expected_message_contains: str,
     ) -> None:
+        """Test map authentication failed 401 error."""
         mapper = BackpackErrorMapper()
         api_error = mapper.map_exchange_error(
             http_status, error_body, error_data=json.loads(error_body),
@@ -106,6 +108,7 @@ class TestBackpackErrorMapper:
         expected_api_code: APIErrorCode,
         expected_message_contains: str,
     ) -> None:
+        """Test map insufficient funds error."""
         mapper = BackpackErrorMapper()
         api_error = mapper.map_exchange_error(
             http_status, error_body, error_data=json.loads(error_body),
@@ -132,6 +135,7 @@ class TestBackpackErrorMapper:
         expected_code: APIErrorCode,
         expected_message_contains: str,
     ) -> None:
+        """Test map rate limited 429 error."""
         mapper = BackpackErrorMapper()
         api_error = mapper.map_exchange_error(
             http_status, error_body, error_data=json.loads(error_body),
@@ -159,6 +163,7 @@ class TestBackpackErrorMapper:
         expected_code: APIErrorCode,
         expected_message_contains: str,
     ) -> None:
+        """Test map server error 500."""
         mapper = BackpackErrorMapper()
         # error_data might not be parsable if body is not JSON
         error_data = None
@@ -189,6 +194,7 @@ class TestBackpackErrorMapper:
         expected_code: APIErrorCode,
         expected_message_contains: str,
     ) -> None:
+        """Test map service unavailable 503."""
         mapper = BackpackErrorMapper()
         api_error = mapper.map_exchange_error(
             http_status, error_body, error_data=json.loads(error_body),
@@ -215,6 +221,7 @@ class TestBackpackErrorMapper:
         error_code_enum: APIErrorCode,
         expected_message_contains: str,
     ) -> None:
+        """Test map order not found error."""
         error_data = json.loads(error_body)
         api_error = backpack_error_mapper.map_exchange_error(status_code, error_body, error_data)
         assert api_error.code == error_code_enum.value
@@ -241,6 +248,7 @@ class TestBackpackErrorMapper:
         error_code_enum: APIErrorCode,
         expected_message_contains: str,
     ) -> None:
+        """Test map invalid symbol error."""
         error_data = json.loads(error_body)
         api_error = backpack_error_mapper.map_exchange_error(status_code, error_body, error_data)
         assert api_error.code == error_code_enum.value
@@ -295,6 +303,7 @@ class TestBackpackErrorMapper:
         expected_api_code: APIErrorCode,
         expected_message_part: str,
     ) -> None:
+        """Test map non json error body."""
         api_error = backpack_error_mapper.map_exchange_error(
             status_code, error_body, error_data=None,
         )
@@ -322,6 +331,7 @@ class TestBackpackErrorMapper:
         expected_api_code: APIErrorCode,
         expected_message_part: str,
     ) -> None:
+        """Test map unknown error code in json."""
         error_data = json.loads(error_body)
         api_error = backpack_error_mapper.map_exchange_error(status_code, error_body, error_data)
         assert api_error.code == expected_api_code.value
@@ -333,6 +343,7 @@ class TestBackpackErrorMapper:
     def test_map_empty_error_body_and_data(
         self, backpack_error_mapper: BackpackErrorMapper,
     ) -> None:
+        """Test map empty error body and data."""
         api_error = backpack_error_mapper.map_exchange_error(500, "", error_data=None)
         assert api_error.code == APIErrorCode.EXCHANGE_SPECIFIC.value
         assert api_error.http_status == 500

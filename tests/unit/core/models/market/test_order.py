@@ -270,7 +270,8 @@ def test_order_model_validation_failures(base_order_data: dict[str, Any]) -> Non
     data["order_type"] = OrderType.STOP_MARKET
     data["price"] = None
     with pytest.raises(
-        ValidationError, match=r"Value error, Order type STOP_MARKET requires a positive stop_price",
+        ValidationError,
+        match=r"Value error, Order type STOP_MARKET requires a positive stop_price",
     ):
         Order(**data)
 
@@ -573,7 +574,9 @@ class TestOrderModel:
 
 
 # Example of how you might test with details (adjust based on actual fixture availability)
-# @pytest.mark.xfail(reason="Fixture 'base_order_data' might not be available here or needs adjustment")
+# @pytest.mark.xfail(
+#     reason="Fixture 'base_order_data' might not be available here or needs adjustment"
+# )
 # def test_order_with_hl_details(
 # base_order_data: dict[str, Any],
 # valid_hl_order_details_data: dict[str, Any]

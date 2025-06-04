@@ -23,7 +23,9 @@ class SimpleTokenBucketStrategy(RateLimitStrategy):
     """
 
     def __init__(
-        self, limiter: TokenBucketRateLimiterRuntime, default_request_weight: int = 1,
+        self,
+        limiter: TokenBucketRateLimiterRuntime,
+        default_request_weight: int = 1,
     ) -> None:
         """Initialize the simple token bucket strategy.
 
@@ -52,7 +54,9 @@ class SimpleTokenBucketStrategy(RateLimitStrategy):
         return None  # Does not modify data payload
 
     async def handle_exchange_retry_after(
-        self, duration_seconds: float, request_context: dict[str, Any],
+        self,
+        duration_seconds: float,
+        request_context: dict[str, Any],
     ) -> None:
         """Reacts to an exchange-advised retry_after directive.
         For this simple strategy, it means temporarily pausing its limiter.

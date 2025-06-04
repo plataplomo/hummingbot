@@ -79,73 +79,119 @@ class BackpackRawOrder(BaseModel):
     """
 
     clientId: RawBpOptionalNonEmptyStringMax64 = Field(
-        None, alias="clientId", description="Client-generated unique order ID (UUID). Alias: 'c'",
+        None,
+        alias="clientId",
+        description="Client-generated unique order ID (UUID). Alias: 'c'",
     )
     id: RawBpNonEmptyStringMax64 = Field(
-        ..., alias="id", description="Exchange-provided order ID. Alias: 'i'",
+        ...,
+        alias="id",
+        description="Exchange-provided order ID. Alias: 'i'",
     )
     relatedOrderId: RawBpOptionalNonEmptyStringMax64 = Field(
-        None, alias="relatedOrderId", description="ID of related order. Alias: 'I'",
+        None,
+        alias="relatedOrderId",
+        description="ID of related order. Alias: 'I'",
     )
     symbol: RawBpNonEmptyStringMax64 = Field(
-        ..., alias="symbol", description="Trading symbol. Alias: 's'",
+        ...,
+        alias="symbol",
+        description="Trading symbol. Alias: 's'",
     )
     side: RawBpExtendedOrderSideString = Field(
-        ..., alias="side", description="Order side ('buy', 'sell', 'Bid', 'Ask'). Alias: 'S'",
+        ...,
+        alias="side",
+        description="Order side ('buy', 'sell', 'Bid', 'Ask'). Alias: 'S'",
     )
     orderType: RawBpOrderTypeString = Field(
-        ..., alias="orderType", description="Order type ('LIMIT', 'MARKET', etc.). Alias: 'o'",
+        ...,
+        alias="orderType",
+        description="Order type ('LIMIT', 'MARKET', etc.). Alias: 'o'",
     )
     status: RawBpOrderStatusString = Field(
-        ..., alias="status", description="Order status ('NEW', 'FILLED', etc.). Alias: 'X'",
+        ...,
+        alias="status",
+        description="Order status ('NEW', 'FILLED', etc.). Alias: 'X'",
     )
     quantity: RawBpParsableFiniteDecimalString = Field(
-        ..., alias="quantity", description="Requested order quantity. Alias: 'q'",
+        ...,
+        alias="quantity",
+        description="Requested order quantity. Alias: 'q'",
     )
     executedQuantity: RawBpOptionalParsableFiniteDecimalString = Field(
-        None, alias="executedQuantity", description="Total filled quantity. Alias: 'z'",
+        None,
+        alias="executedQuantity",
+        description="Total filled quantity. Alias: 'z'",
     )
     executedQuoteQuantity: RawBpOptionalParsableFiniteDecimalString = Field(
-        None, alias="executedQuoteQuantity", description="Filled quote quantity. Alias: 'Z'",
+        None,
+        alias="executedQuoteQuantity",
+        description="Filled quote quantity. Alias: 'Z'",
     )
     price: RawBpOptionalParsableFiniteDecimalString = Field(
-        None, alias="price", description="Limit price. Alias: 'p'",
+        None,
+        alias="price",
+        description="Limit price. Alias: 'p'",
     )
     triggerPrice: RawBpOptionalParsableFiniteDecimalString = Field(
-        None, alias="triggerPrice", description="Stop/trigger price. Alias: 'P'",
+        None,
+        alias="triggerPrice",
+        description="Stop/trigger price. Alias: 'P'",
     )
     avgFillPrice: RawBpOptionalParsableFiniteDecimalString = Field(
-        None, alias="avgFillPrice", description="Weighted average fill price. Alias: 'L'",
+        None,
+        alias="avgFillPrice",
+        description="Weighted average fill price. Alias: 'L'",
     )
     triggerBy: RawBpOptionalNonEmptyStringMax32 = Field(
-        None, alias="triggerBy", description="Reference price type for triggers. Alias: 'B'",
+        None,
+        alias="triggerBy",
+        description="Reference price type for triggers. Alias: 'B'",
     )
     timeInForce: RawBpOptionalNonEmptyStringMax32 = Field(
-        None, alias="timeInForce", description="Time in force. Alias: 'f'",
+        None,
+        alias="timeInForce",
+        description="Time in force. Alias: 'f'",
     )
     reduceOnly: RawBpOptionalStrictBool = Field(
-        None, alias="reduceOnly", description="Reduce-only flag. Alias: 'r'",
+        None,
+        alias="reduceOnly",
+        description="Reduce-only flag. Alias: 'r'",
     )
     postOnly: RawBpOptionalStrictBool = Field(
-        None, alias="postOnly", description="Post-only flag (REST only)",
+        None,
+        alias="postOnly",
+        description="Post-only flag (REST only)",
     )
     selfTradePrevention: RawBpOptionalNonEmptyStringMax32 = Field(
-        None, alias="selfTradePrevention", description="Self-trade prevention behavior. Alias: 'V'",
+        None,
+        alias="selfTradePrevention",
+        description="Self-trade prevention behavior. Alias: 'V'",
     )
     createdAt: RawBpFlexibleTimestamp = Field(
-        ..., alias="createdAt", description="Order creation time (UTC). Aliases: 'E', 'T', 'time'",
+        ...,
+        alias="createdAt",
+        description="Order creation time (UTC). Aliases: 'E', 'T', 'time'",
     )
     updatedAt: RawBpOptionalFlexibleTimestamp = Field(
-        None, alias="updatedAt", description="Last update time.",
+        None,
+        alias="updatedAt",
+        description="Last update time.",
     )
     triggeredAt: RawBpOptionalFlexibleTimestamp = Field(
-        None, alias="triggeredAt", description="Time the conditional order was triggered.",
+        None,
+        alias="triggeredAt",
+        description="Time the conditional order was triggered.",
     )
     expiryReason: RawBpOptionalNonEmptyStringMax64 = Field(
-        None, alias="expiryReason", description="Reason for expiry/cancellation. Alias: 'R'",
+        None,
+        alias="expiryReason",
+        description="Reason for expiry/cancellation. Alias: 'R'",
     )
     origin: RawBpOptionalNonEmptyStringMax64 = Field(
-        None, alias="origin", description="Origin of the last update. Alias: 'O'",
+        None,
+        alias="origin",
+        description="Origin of the last update. Alias: 'O'",
     )
 
     model_config = ConfigDict(extra="forbid", validate_by_name=True)
@@ -254,5 +300,8 @@ class BackpackRawOrderUpdate(BaseModel):
     price: RawBpOptionalParsableFiniteDecimalString = Field(None, alias="p")
     order_status: RawBpOrderStatusString = Field(..., alias="X")
     model_config = ConfigDict(
-        populate_by_name=True, extra="forbid", frozen=True, validate_assignment=True,
+        populate_by_name=True,
+        extra="forbid",
+        frozen=True,
+        validate_assignment=True,
     )

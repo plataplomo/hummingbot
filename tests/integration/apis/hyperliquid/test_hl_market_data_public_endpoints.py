@@ -109,13 +109,15 @@ async def test_hyperliquid_info_meta_and_asset_ctxs_public_endpoint(
             # For a real API call, we expect some assets to be available
             # Extract universe list and validate structure
             assert "universe" in meta, "Meta should have universe key"
-            raw_universe = meta["universe"]
-            assert isinstance(raw_universe, list), "Universe should be a list"
+            raw_universe_data = meta["universe"]
+            assert isinstance(raw_universe_data, list), "Universe should be a list"
 
-            # Validate universe structure more explicitly
-            for universe_item in raw_universe:
+            # Cast to proper types for type checker compliance
+            raw_universe: list[dict[str, Any]] = []
+            for universe_item in raw_universe_data:
                 assert isinstance(universe_item, dict), "Each universe item should be a dict"
                 assert "name" in universe_item, "Each universe item should have a 'name' field"
+                raw_universe.append(universe_item)
 
             # Now we can safely work with the validated data
             assert len(raw_universe) > 0, "Should have at least one asset in universe"

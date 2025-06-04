@@ -21,8 +21,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
 
 
 class HyperliquidRawFrontendOpenOrder(BaseModel):
-    """Raw boundary model for a single open order with frontend-specific fields.
-    """
+    """Raw boundary model for a single open order with frontend-specific fields."""
 
     coin: RawAssetString64HL = Field(..., alias="coin")
     is_position_tpsl: RawStrictBool = Field(..., alias="isPositionTpsl")

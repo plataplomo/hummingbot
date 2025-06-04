@@ -46,7 +46,9 @@ class HyperliquidWsRawMessageHandler:
 
     @staticmethod
     def _validate_payload(
-        payload: dict[str, Any], model_class: type[_BM], event_type_description: str,
+        payload: dict[str, Any],
+        model_class: type[_BM],
+        event_type_description: str,
     ) -> _BM:
         """Perform generic validation of a payload against a Pydantic model.
 
@@ -98,7 +100,9 @@ class HyperliquidWsRawMessageHandler:
 
         """
         return HyperliquidWsRawMessageHandler._validate_payload(
-            payload, HyperliquidRawWsBookUpdate, "L2 book update",
+            payload,
+            HyperliquidRawWsBookUpdate,
+            "L2 book update",
         )
 
     @staticmethod
@@ -129,7 +133,9 @@ class HyperliquidWsRawMessageHandler:
             try:
                 validated_trades.append(
                     HyperliquidWsRawMessageHandler._validate_payload(
-                        trade_payload, HyperliquidRawWsTradeEvent, f"public trade item #{i}",
+                        trade_payload,
+                        HyperliquidRawWsTradeEvent,
+                        f"public trade item #{i}",
                     ),
                 )
             except APIError as e:
@@ -163,7 +169,9 @@ class HyperliquidWsRawMessageHandler:
 
         """
         return HyperliquidWsRawMessageHandler._validate_payload(
-            payload, HyperliquidRawWsFillEvent, "user fill event",
+            payload,
+            HyperliquidRawWsFillEvent,
+            "user fill event",
         )
 
     @staticmethod
@@ -186,7 +194,9 @@ class HyperliquidWsRawMessageHandler:
 
         """
         return HyperliquidWsRawMessageHandler._validate_payload(
-            payload, HyperliquidRawOrder, "user order event (inner detail)",
+            payload,
+            HyperliquidRawOrder,
+            "user order event (inner detail)",
         )
 
     @staticmethod
@@ -210,7 +220,9 @@ class HyperliquidWsRawMessageHandler:
 
         """
         return HyperliquidWsRawMessageHandler._validate_payload(
-            payload, HyperliquidRawWsOrderUpdate, "user order update wrapper",
+            payload,
+            HyperliquidRawWsOrderUpdate,
+            "user order update wrapper",
         )
 
     @staticmethod
@@ -234,7 +246,9 @@ class HyperliquidWsRawMessageHandler:
 
         """
         return HyperliquidWsRawMessageHandler._validate_payload(
-            payload, HyperliquidRawWsPositionUpdateEvent, "user position update event",
+            payload,
+            HyperliquidRawWsPositionUpdateEvent,
+            "user position update event",
         )
 
     @staticmethod

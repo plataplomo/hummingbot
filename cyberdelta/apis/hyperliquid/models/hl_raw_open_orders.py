@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Raw Models (Open Orders Group)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Open Orders Group).
+
 ---------------------------------------------------------------
 
 This module defines Pydantic models for validating the *raw* structure of all major
@@ -82,6 +83,7 @@ class HyperliquidRawTriggerInfo(BaseModel):
 
 class HyperliquidRawTriggerSpec(BaseModel):
     """Trigger spec for conditional orders.
+
     Fields:
         trigger_px (RawFiniteDecimalStr): Trigger price (str)
         is_market (RawStrictBool): Is market order (bool)
@@ -97,6 +99,7 @@ class HyperliquidRawTriggerSpec(BaseModel):
 # --- Time-in-Force for Limit Orders ---
 class HyperliquidRawTifLimit(BaseModel):
     """Time-in-force for limit orders.
+
     Fields:
         tif (RawTifStr): Time in force (str: 'Gtc', 'Ioc', 'Alo')
     """
@@ -108,6 +111,7 @@ class HyperliquidRawTifLimit(BaseModel):
 # --- Order Types ---
 class HyperliquidRawOrderTypeLimit(BaseModel):
     """Limit order type for orderType field.
+
     Fields:
         limit: HyperliquidRawTifLimit
     """
@@ -118,6 +122,7 @@ class HyperliquidRawOrderTypeLimit(BaseModel):
 
 class HyperliquidRawOrderTypeMarket(BaseModel):
     """Market order type for orderType field.
+
     Fields:
         market: dict (empty object)
     """
@@ -129,6 +134,7 @@ class HyperliquidRawOrderTypeMarket(BaseModel):
 # --- Core Order Models ---
 class HyperliquidRawOrder(BaseModel):
     """Core order details from open orders or order status.
+
     Fields:
         oid (RawNonNegativeInt): Order ID.
         cloid (RawOptionalNonEmptyString64HL | None): Client order ID.
@@ -161,6 +167,7 @@ class HyperliquidRawOrder(BaseModel):
 
 class HyperliquidRawOpenOrder(BaseModel):
     """Structure for one open order (with optional trigger).
+
     Fields:
         order: Order details (HyperliquidRawOrder)
         trigger: Trigger info (HyperliquidRawTriggerInfo | None)
@@ -173,6 +180,7 @@ class HyperliquidRawOpenOrder(BaseModel):
 
 class HyperliquidRawOpenOrdersResponse(RootModel[list[HyperliquidRawOpenOrder]]):
     """Array of open orders from openOrders response.
+
     Fields:
         __root__: List of HyperliquidRawOpenOrder
     """
@@ -181,7 +189,8 @@ class HyperliquidRawOpenOrdersResponse(RootModel[list[HyperliquidRawOpenOrder]])
 
     @property
     def items(self) -> list[HyperliquidRawOpenOrder]:
-        """Returns the validated list of open orders with full type safety.
+        """Return the validated list of open orders with full type safety.
+
         This is the preferred way to access the root data in Pydantic v2.
         """
         return self.root
@@ -191,7 +200,7 @@ class HyperliquidRawOpenOrdersResponse(RootModel[list[HyperliquidRawOpenOrder]])
     @field_validator("root", mode="before")
     @classmethod
     def validate_open_orders_list(cls, v: object, info: ValidationInfo) -> list[dict[str, object]]:
-        """Ensures the root input is a list of dictionaries for open orders."""
+        """Ensure the root input is a list of dictionaries for open orders."""
         field_name = info.field_name or "open_orders_list"
 
         if not isinstance(v, list):
@@ -222,6 +231,7 @@ class HyperliquidRawOpenOrdersResponse(RootModel[list[HyperliquidRawOpenOrder]])
 
 class HyperliquidRawOpenOrdersRequestPayload(BaseModel):
     """Request payload for 'openOrders' info type.
+
     Fields:
         type: Must be 'openOrders' (Literal['openOrders'])
         user: Wallet address (RawLaxEthereumAddressStrHL)
@@ -238,6 +248,7 @@ class HyperliquidRawOpenOrdersRequestPayload(BaseModel):
 # --- Order Spec (for placement/modify) ---
 class HyperliquidRawOrderSpec(BaseModel):
     """Order spec for placing an order (exchange action request).
+
     Fields:
         asset: Asset index (RawNonNegativeInt).
         is_buy: Is buy (RawStrictBool).
@@ -282,6 +293,7 @@ class HyperliquidRawOrderSpec(BaseModel):
 
 class HyperliquidRawModifyOrderRequest(BaseModel):
     """Modify order request payload.
+
     Fields:
         oid: Order ID (RawNonNegativeInt)
         order: HyperliquidRawOrderSpec
@@ -295,6 +307,7 @@ class HyperliquidRawModifyOrderRequest(BaseModel):
 # --- Cancel Requests ---
 class HyperliquidRawCancelRequest(BaseModel):
     """Cancel request payload (by exchange OID).
+
     Fields:
         asset: Asset index (RawNonNegativeInt).
         oid: Order ID (RawNonNegativeInt).
@@ -307,6 +320,7 @@ class HyperliquidRawCancelRequest(BaseModel):
 
 class HyperliquidRawCancelByCloidRequest(BaseModel):
     """Cancel request payload (by client OID).
+
     Fields:
         asset: Asset index (RawNonNegativeInt)
         cloid: Client order ID (RawCloidString64HL)
@@ -327,8 +341,9 @@ class HyperliquidRawCancelByCloidRequest(BaseModel):
 
 
 class HyperliquidRawOrderStatusResponse(BaseModel):
-    """Pydantic model for the response structure from Hyperliquid's /info endpoint
-    when querying order status (type='orderStatus').
+    """Pydantic model for the response structure from Hyperliquid's /info endpoint.
+
+    When querying order status (type='orderStatus').
 
     Ensures the presence of the 'order' field and that it conforms to the
     HyperliquidRawOrder model. Enforces immutability and forbids extra fields.

@@ -81,7 +81,8 @@ class BackpackMarketDataMapper:
 
     @staticmethod
     def transform_raw_ticker_to_internal(
-        raw_ticker: BackpackRawTicker, symbol_override: str | None = None,
+        raw_ticker: BackpackRawTicker,
+        symbol_override: str | None = None,
     ) -> Ticker:
         """Transforms a BackpackRawTicker to an Internal Ticker model.
 
@@ -105,7 +106,9 @@ class BackpackMarketDataMapper:
             bid_price = parse_decimal_value(raw_ticker.bid, allow_none=True, field_name="bid")
             ask_price = parse_decimal_value(raw_ticker.ask, allow_none=True, field_name="ask")
             volume_24h = parse_decimal_value(
-                raw_ticker.volume, allow_none=True, field_name="volume",
+                raw_ticker.volume,
+                allow_none=True,
+                field_name="volume",
             )
 
             # Parse timestamp
@@ -129,7 +132,8 @@ class BackpackMarketDataMapper:
 
     @staticmethod
     def transform_raw_order_book_to_internal(
-        symbol: str, raw_book: BackpackRawOrderBook,
+        symbol: str,
+        raw_book: BackpackRawOrderBook,
     ) -> OrderBook:
         """Transforms a BackpackRawOrderBook to an Internal OrderBook model.
 
@@ -201,7 +205,9 @@ class BackpackMarketDataMapper:
                 raise TransformationError("price is required for trade")
 
             quantity = parse_decimal_value(
-                raw_trade.quantity, allow_none=False, field_name="quantity",
+                raw_trade.quantity,
+                allow_none=False,
+                field_name="quantity",
             )
             if quantity is None:
                 raise TransformationError("quantity is required for trade")
@@ -246,7 +252,9 @@ class BackpackMarketDataMapper:
         try:
             # Parse funding rate
             funding_rate = parse_decimal_value(
-                raw_funding.funding_rate, allow_none=False, field_name="fundingRate",
+                raw_funding.funding_rate,
+                allow_none=False,
+                field_name="fundingRate",
             )
             if funding_rate is None:
                 raise TransformationError("funding_rate is required")
@@ -258,10 +266,14 @@ class BackpackMarketDataMapper:
 
             # Parse mark price and index price
             mark_price = parse_decimal_value(
-                raw_funding.mark_price, allow_none=True, field_name="markPrice",
+                raw_funding.mark_price,
+                allow_none=True,
+                field_name="markPrice",
             )
             index_price = parse_decimal_value(
-                raw_funding.index_price, allow_none=True, field_name="indexPrice",
+                raw_funding.index_price,
+                allow_none=True,
+                field_name="indexPrice",
             )
 
             # Create BP-specific details
@@ -283,7 +295,8 @@ class BackpackMarketDataMapper:
 
     @staticmethod
     def transform_raw_funding_interval_rate_to_internal(
-        raw_funding: BackpackRawFundingIntervalRate, symbol: str,
+        raw_funding: BackpackRawFundingIntervalRate,
+        symbol: str,
     ) -> FundingRate:
         """Transforms a BackpackRawFundingIntervalRate to an Internal FundingRate model.
 
@@ -301,7 +314,9 @@ class BackpackMarketDataMapper:
         try:
             # Parse funding rate
             funding_rate = parse_decimal_value(
-                raw_funding.rate, allow_none=False, field_name="rate",
+                raw_funding.rate,
+                allow_none=False,
+                field_name="rate",
             )
             if funding_rate is None:
                 raise TransformationError("funding_rate is required")
@@ -326,7 +341,9 @@ class BackpackMarketDataMapper:
 
     @staticmethod
     def transform_raw_kline_to_internal(
-        symbol: str, interval: str, raw_kline: BackpackRawKline,
+        symbol: str,
+        interval: str,
+        raw_kline: BackpackRawKline,
     ) -> Candle:
         """Transforms a BackpackRawKline to an Internal Candle model.
 
@@ -345,16 +362,24 @@ class BackpackMarketDataMapper:
         try:
             # Parse OHLCV data using correct field names
             open_price = parse_decimal_value(
-                raw_kline.open_price, allow_none=False, field_name="open_price",
+                raw_kline.open_price,
+                allow_none=False,
+                field_name="open_price",
             )
             high_price = parse_decimal_value(
-                raw_kline.high_price, allow_none=False, field_name="high_price",
+                raw_kline.high_price,
+                allow_none=False,
+                field_name="high_price",
             )
             low_price = parse_decimal_value(
-                raw_kline.low_price, allow_none=False, field_name="low_price",
+                raw_kline.low_price,
+                allow_none=False,
+                field_name="low_price",
             )
             close_price = parse_decimal_value(
-                raw_kline.close_price, allow_none=False, field_name="close_price",
+                raw_kline.close_price,
+                allow_none=False,
+                field_name="close_price",
             )
             volume = parse_decimal_value(raw_kline.volume, allow_none=False, field_name="volume")
 
@@ -402,10 +427,14 @@ class BackpackMarketDataMapper:
         try:
             # Parse core ticker fields
             last_price = parse_decimal_value(
-                raw_ticker.last_price, allow_none=True, field_name="lastPrice",
+                raw_ticker.last_price,
+                allow_none=True,
+                field_name="lastPrice",
             )
             volume_24h = parse_decimal_value(
-                raw_ticker.volume, allow_none=True, field_name="volume",
+                raw_ticker.volume,
+                allow_none=True,
+                field_name="volume",
             )
 
             # Parse timestamp from event_time
@@ -429,7 +458,8 @@ class BackpackMarketDataMapper:
 
     @staticmethod
     def transform_ws_depth_event_to_internal(
-        symbol: str, raw_depth: BackpackRawDepthUpdateEvent,
+        symbol: str,
+        raw_depth: BackpackRawDepthUpdateEvent,
     ) -> OrderBook:
         """Transforms a BackpackRawDepthUpdateEvent to an Internal OrderBook model.
 
@@ -501,7 +531,9 @@ class BackpackMarketDataMapper:
                 raise TransformationError("price is required for trade")
 
             quantity = parse_decimal_value(
-                raw_trade.quantity, allow_none=False, field_name="quantity",
+                raw_trade.quantity,
+                allow_none=False,
+                field_name="quantity",
             )
             if quantity is None:
                 raise TransformationError("quantity is required for trade")

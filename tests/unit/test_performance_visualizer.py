@@ -2,7 +2,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go  # type: ignore
+import plotly.graph_objects as go
 import pytest
 
 from cyberdelta.visualization.performance_visualizer import (
@@ -13,10 +13,10 @@ from cyberdelta.visualization.performance_visualizer import (
 
 
 class TestVisualizationConfig:
-    """Tests for the VisualizationConfig class"""
+    """Tests for the VisualizationConfig class."""
 
     def test_default_initialization(self) -> None:
-        """Test that default configuration initializes correctly"""
+        """Test that default configuration initializes correctly."""
         config = VisualizationConfig()
         assert config.theme == "light"
         assert config.default_height == 600
@@ -26,7 +26,7 @@ class TestVisualizationConfig:
         assert config.color_palette is not None
 
     def test_custom_initialization(self) -> None:
-        """Test that custom configuration parameters are applied correctly"""
+        """Test that custom configuration parameters are applied correctly."""
         config = VisualizationConfig(
             theme="dark",
             default_height=800,
@@ -43,11 +43,11 @@ class TestVisualizationConfig:
 
 
 class TestPerformanceVisualizer:
-    """Tests for the PerformanceVisualizer class"""
+    """Tests for the PerformanceVisualizer class."""
 
     @pytest.fixture(autouse=True)
     def setup_method(self) -> None:
-        """Set up test environment with sample data"""
+        """Set up test environment with sample data."""
         self.config = VisualizationConfig()
         self.visualizer = PerformanceVisualizer(config=self.config)
 
@@ -90,11 +90,11 @@ class TestPerformanceVisualizer:
         self.funding_data = funding_data.pivot(columns="asset", values="funding_rate")
 
     def test_initialization(self) -> None:
-        """Test that visualizer initializes correctly"""
+        """Test that visualizer initializes correctly."""
         assert self.visualizer.config == self.config
 
     def test_create_returns_chart(self) -> None:
-        """Test returns chart generation"""
+        """Test returns chart generation."""
         fig: go.Figure = self.visualizer.create_returns_chart(self.returns_data)
         assert isinstance(fig, go.Figure)
         if isinstance(fig.data, tuple):
@@ -115,7 +115,7 @@ class TestPerformanceVisualizer:
             raise TypeError("fig.data is not a tuple as expected")
 
     def test_create_drawdown_chart(self) -> None:
-        """Test drawdown chart generation"""
+        """Test drawdown chart generation."""
         fig: go.Figure = self.visualizer.create_drawdown_chart(self.returns_data)
         assert isinstance(fig, go.Figure)
         if isinstance(fig.data, tuple):
@@ -125,7 +125,7 @@ class TestPerformanceVisualizer:
             raise TypeError("fig.data is not a tuple as expected")
 
     def test_create_trade_analysis_chart(self) -> None:
-        """Test trade analysis chart generation"""
+        """Test trade analysis chart generation."""
         fig: go.Figure = self.visualizer.create_trade_analysis_chart(self.trade_data)
         assert isinstance(fig, go.Figure)
         if isinstance(fig.data, tuple):
@@ -136,7 +136,7 @@ class TestPerformanceVisualizer:
             raise TypeError("fig.data is not a tuple as expected")
 
     def test_create_funding_rate_heatmap(self) -> None:
-        """Test funding rate heatmap generation"""
+        """Test funding rate heatmap generation."""
         fig: go.Figure = self.visualizer.create_funding_rate_heatmap(self.funding_data)
         assert isinstance(fig, go.Figure)
         if isinstance(fig.data, tuple):
@@ -146,7 +146,7 @@ class TestPerformanceVisualizer:
             raise TypeError("fig.data is not a tuple as expected")
 
     def test_create_performance_dashboard(self) -> None:
-        """Test performance dashboard generation"""
+        """Test performance dashboard generation."""
         fig: go.Figure = self.visualizer.create_performance_dashboard(
             returns_data=self.returns_data,
             trade_data=self.trade_data,
@@ -162,11 +162,11 @@ class TestPerformanceVisualizer:
 
 
 class TestPerformanceMetricsCalculator:
-    """Tests for the PerformanceMetricsCalculator class"""
+    """Tests for the PerformanceMetricsCalculator class."""
 
     @pytest.fixture(autouse=True)
     def setup_method(self) -> None:
-        """Set up test environment with sample data"""
+        """Set up test environment with sample data."""
         self.calculator = PerformanceMetricsCalculator()
 
         # Generate sample return data
@@ -177,40 +177,40 @@ class TestPerformanceMetricsCalculator:
         self.trades = pd.DataFrame({"pnl": np.random.normal(50, 200, 100)})
 
     def test_calculate_sharpe_ratio(self) -> None:
-        """Test Sharpe ratio calculation"""
+        """Test Sharpe ratio calculation."""
         sharpe = self.calculator.calculate_sharpe_ratio(self.returns)
         assert isinstance(sharpe, float)
 
     def test_calculate_sortino_ratio(self) -> None:
-        """Test Sortino ratio calculation"""
+        """Test Sortino ratio calculation."""
         sortino = self.calculator.calculate_sortino_ratio(self.returns)
         assert isinstance(sortino, float)
 
     def test_calculate_max_drawdown(self) -> None:
-        """Test maximum drawdown calculation"""
+        """Test maximum drawdown calculation."""
         max_dd = self.calculator.calculate_max_drawdown(self.returns)
         assert isinstance(max_dd, float)
         assert 0 <= max_dd <= 100
 
     def test_calculate_calmar_ratio(self) -> None:
-        """Test Calmar ratio calculation"""
+        """Test Calmar ratio calculation."""
         calmar = self.calculator.calculate_calmar_ratio(self.returns)
         assert isinstance(calmar, float)
 
     def test_calculate_win_rate(self) -> None:
-        """Test win rate calculation"""
+        """Test win rate calculation."""
         win_rate = self.calculator.calculate_win_rate(self.trades)
         assert isinstance(win_rate, float)
         assert 0 <= win_rate <= 100
 
     def test_calculate_profit_factor(self) -> None:
-        """Test profit factor calculation"""
+        """Test profit factor calculation."""
         profit_factor = self.calculator.calculate_profit_factor(self.trades)
         assert isinstance(profit_factor, float)
         assert profit_factor >= 0
 
     def test_calculate_all_metrics(self) -> None:
-        """Test calculation of all metrics"""
+        """Test calculation of all metrics."""
         metrics = self.calculator.calculate_all_metrics(self.returns, self.trades)
         assert isinstance(metrics, dict)
 

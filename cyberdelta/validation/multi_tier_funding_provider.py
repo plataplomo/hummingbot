@@ -83,13 +83,19 @@ class MultiTierFundingProvider:
         weights_typed: dict[str, Any] = weights
 
         self.historical_accuracy_weight = self._validate_float_config(
-            weights_typed, "historical", default=0.4,
+            weights_typed,
+            "historical",
+            default=0.4,
         )
         self.source_count_weight = self._validate_float_config(
-            weights_typed, "source_count", default=0.2,
+            weights_typed,
+            "source_count",
+            default=0.2,
         )
         self.dispersion_weight = self._validate_float_config(
-            weights_typed, "dispersion", default=0.3,
+            weights_typed,
+            "dispersion",
+            default=0.3,
         )
         self.freshness_weight = self._validate_float_config(weights_typed, "freshness", default=0.1)
 
@@ -109,19 +115,27 @@ class MultiTierFundingProvider:
         thresholds_typed: dict[str, Any] = thresholds
 
         self.min_confidence_score = self._validate_float_config(
-            thresholds_typed, "min_confidence_score", default=0.6,
+            thresholds_typed,
+            "min_confidence_score",
+            default=0.6,
         )
         # max_staleness_hours: Needs careful handling if converting to seconds
         max_staleness_hours = self._validate_float_config(
-            thresholds_typed, "max_staleness_hours", default=1.0,
+            thresholds_typed,
+            "max_staleness_hours",
+            default=1.0,
         )
         self.max_staleness_seconds = max_staleness_hours * 3600.0
 
         self.max_dispersion_std_dev = self._validate_float_config(
-            thresholds_typed, "max_dispersion_std_dev", default=0.0005,
+            thresholds_typed,
+            "max_dispersion_std_dev",
+            default=0.0005,
         )
         self.min_source_count = self._validate_int_config(
-            thresholds_typed, "min_source_count", default=2,
+            thresholds_typed,
+            "min_source_count",
+            default=2,
         )
 
         logger.info("Initialized multi-tier funding rate provider")
@@ -201,12 +215,18 @@ class MultiTierFundingProvider:
 
             # Integrate data from multiple sources
             integrated_data = self._integrate_funding_data(
-                exchange, symbol, primary_data, secondary_data, tertiary_data,
+                exchange,
+                symbol,
+                primary_data,
+                secondary_data,
+                tertiary_data,
             )
 
             # Calculate confidence score
             confidence_factors = self._calculate_confidence_factors(
-                integrated_data, exchange, symbol,
+                integrated_data,
+                exchange,
+                symbol,
             )
 
             confidence_score = confidence_factors.get_weighted_score(
@@ -580,7 +600,10 @@ class MultiTierFundingProvider:
         return integrated_data
 
     def _calculate_confidence_factors(
-        self, integrated_data: IntegratedFundingData, exchange: str, symbol: str,
+        self,
+        integrated_data: IntegratedFundingData,
+        exchange: str,
+        symbol: str,
     ) -> ConfidenceFactors:
         """Calculate confidence factors based on integrated data.
 
@@ -688,7 +711,10 @@ class MultiTierFundingProvider:
         return len(stale_keys)
 
     def _validate_float_config(
-        self, config_dict: dict[str, Any], key: str, default: float,
+        self,
+        config_dict: dict[str, Any],
+        key: str,
+        default: float,
     ) -> float:
         """Safely get and validate a float config value."""
         value = config_dict.get(key, default)

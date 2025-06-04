@@ -30,8 +30,7 @@ class HyperliquidRawUserRoleData(BaseModel):
 
 
 class HyperliquidRawUserRoleResponse(BaseModel):
-    """Raw boundary model for the user role response.
-    """
+    """Raw boundary model for the user role response."""
 
     role: RawUserRoleString = Field(..., alias="role")
     data: HyperliquidRawUserRoleData | None = Field(None, alias="data")

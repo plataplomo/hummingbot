@@ -118,7 +118,9 @@ class DerivativePosition(BaseModel):
     @field_validator("size", mode="before")
     @classmethod
     def parse_required_decimal(
-        cls, v: str | int | float | Decimal | None, info: ValidationInfo,
+        cls,
+        v: str | int | float | Decimal | None,
+        info: ValidationInfo,
     ) -> Decimal:
         """Parse required decimal ('size'), ensuring finite."""
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
@@ -144,7 +146,9 @@ class DerivativePosition(BaseModel):
     )
     @classmethod
     def parse_optional_decimal(
-        cls, v: str | int | float | Decimal | None, info: ValidationInfo,
+        cls,
+        v: str | int | float | Decimal | None,
+        info: ValidationInfo,
     ) -> Decimal | None:
         """Parse optional decimals, ensuring finite if present."""
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
@@ -160,7 +164,9 @@ class DerivativePosition(BaseModel):
     @field_validator("timestamp", mode="before")
     @classmethod
     def parse_required_datetime(
-        cls, v: str | int | float | datetime | None, info: ValidationInfo,
+        cls,
+        v: str | int | float | datetime | None,
+        info: ValidationInfo,
     ) -> datetime:
         """Parse required datetime, ensuring UTC."""
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
@@ -263,7 +269,9 @@ class HyperliquidPositionDetails(BaseModel):
     @field_validator("margin_used", mode="before")
     @classmethod
     def parse_optional_decimal_finite(  # Renamed for clarity
-        cls, v: str | int | float | Decimal | None, info: ValidationInfo,
+        cls,
+        v: str | int | float | Decimal | None,
+        info: ValidationInfo,
     ) -> Decimal | None:
         """Parse optional decimal, ensuring finite if present."""
         field_name = info.field_name
@@ -290,11 +298,18 @@ class BackpackPositionDetails(BaseModel):
 
     # Use single validator for all optional decimals
     @field_validator(
-        "imf_base", "imf_factor", "mmf_base", "mmf_factor", "cumulative_funding", mode="before",
+        "imf_base",
+        "imf_factor",
+        "mmf_base",
+        "mmf_factor",
+        "cumulative_funding",
+        mode="before",
     )
     @classmethod
     def parse_optional_decimal_finite(  # Renamed for clarity and consistency
-        cls, v: str | int | float | Decimal | None, info: ValidationInfo,
+        cls,
+        v: str | int | float | Decimal | None,
+        info: ValidationInfo,
     ) -> Decimal | None:
         """Parse optional decimal, ensuring finite if present."""
         field_name = info.field_name

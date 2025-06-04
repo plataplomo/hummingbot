@@ -36,16 +36,19 @@ def mock_config_dict() -> dict[str, Any]:
 # Mock dependencies needed by StrategyManager
 @pytest.fixture
 def mock_execution_handler() -> MagicMock:
+    """Return mock execution handler for testing."""
     return MagicMock(spec=ExecutionHandler)
 
 
 @pytest.fixture
 def mock_portfolio_tracker() -> MagicMock:
+    """Return mock portfolio tracker for testing."""
     return MagicMock(spec=PortfolioTracker)
 
 
 @pytest.fixture
 def mock_risk_manager() -> AsyncMock:
+    """Return mock risk manager for testing."""
     # Mock the RiskManager, ensuring the method called is async
     mock = AsyncMock(spec=RiskManager)
 
@@ -61,6 +64,7 @@ def mock_risk_manager() -> AsyncMock:
 
 @pytest.fixture
 def mock_signal_queue() -> MagicMock:
+    """Return mock signal queue for testing."""
     return MagicMock(spec=PrioritySignalQueue)
 
 

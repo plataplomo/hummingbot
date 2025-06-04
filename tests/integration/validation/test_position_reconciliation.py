@@ -1,5 +1,4 @@
-"""Tests for the PositionReconciliationSystem class.
-"""
+"""Tests for the PositionReconciliationSystem class."""
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -96,6 +95,7 @@ class TestPositionReconciliationSystem:
 
         # Setup the get_position method
         def get_position(exchange: str, symbol: str) -> DerivativePosition | None:
+            """Get position for testing."""
             if exchange == "hyperliquid":
                 for pos in hyper_positions:
                     if pos.symbol == symbol:
@@ -108,6 +108,7 @@ class TestPositionReconciliationSystem:
 
         # Setup get_positions_by_exchange method
         def get_positions_by_exchange(exchange: str) -> list[DerivativePosition]:
+            """Get positions by exchange for testing."""
             if exchange == "hyperliquid":
                 return hyper_positions
             if exchange == "backpack":
@@ -235,6 +236,7 @@ class TestPositionReconciliationSystem:
         }
 
         def get_execution_handler(exchange: str) -> MagicMock:
+            """Get execution handler for testing."""
             if exchange == "hyperliquid":
                 return execution_handler_hyper
             if exchange == "backpack":
@@ -340,7 +342,8 @@ class TestPositionReconciliationSystem:
             await reconciliation_system.check_positions(force=False)
 
             assert mock_check_s1_method.call_count == 2, (
-                f"Scenario 1: Expected _reconcile_exchange to be called 2 times, got {mock_check_s1_method.call_count}"
+                f"Scenario 1: Expected _reconcile_exchange to be called 2 times, "
+                f"got {mock_check_s1_method.call_count}"
             )
             assert "hyperliquid" in reconcile_exchange_calls
             assert "backpack" in reconcile_exchange_calls
@@ -459,7 +462,8 @@ class TestPositionReconciliationSystem:
         }
 
         # Patch _reconcile_exchange to return a known structure to avoid internal errors
-        # This helps test check_positions's aggregation logic rather than _reconcile_exchange itself here.
+        # This helps test check_positions's aggregation logic rather than _reconcile_exchange
+        # itself here.
         mock_reconcile_result = {
             "success": True,
             "discrepancies": [],
@@ -546,15 +550,18 @@ class TestPositionReconciliationSystem:
             mock_hl_api_client = AsyncMock(spec=ExchangeAPI)
             mock_bp_api_client = AsyncMock(spec=ExchangeAPI)
 
-            # Configure mock API clients (get_positions is called by the real _reconcile_exchange,
-            # but _reconcile_exchange itself is mocked here, so get_positions won't be hit via this path)
-            # However, portfolio_tracker.api_clients itself needs to be set for check_positions to iterate
+            # Configure mock API clients (get_positions is called by the real
+            # _reconcile_exchange, but _reconcile_exchange itself is mocked here,
+            # so get_positions won't be hit via this path)
+            # However, portfolio_tracker.api_clients itself needs to be set for
+            # check_positions to iterate
             portfolio_tracker.api_clients = {
                 "hyperliquid": mock_hl_api_client,
                 "backpack": mock_bp_api_client,
             }
 
-            # Mock methods on portfolio_tracker that auto_correct might call if discrepancies were processed
+            # Mock methods on portfolio_tracker that auto_correct might call if
+            # discrepancies were processed
             portfolio_tracker.update_position = AsyncMock()
             portfolio_tracker.create_position_from_exchange_data = AsyncMock()
 
@@ -585,9 +592,12 @@ class TestPositionReconciliationSystem:
             # Await the coroutine to get its result (the dictionary)
             reconcile_result_hyperliquid = await mock_side_effect_reconcile_exchange("hyperliquid")
             if any(d["symbol"] == "BTC" for d in reconcile_result_hyperliquid["discrepancies"]):
-                # This part of assertion depends on _apply_corrections being called by _reconcile_exchange
-                # Since _reconcile_exchange is fully mocked, _apply_corrections is not called by our mock.
-                # To test auto-correction fully, one might need to mock _apply_corrections or
+                # This part of assertion depends on _apply_corrections being called by
+                # _reconcile_exchange
+                # Since _reconcile_exchange is fully mocked, _apply_corrections is not
+                # called by our mock.
+                # To test auto-correction fully, one might need to mock _apply_corrections
+                # or
                 # make the _reconcile_exchange mock more complex to call it.
                 # For now, we've confirmed _reconcile_exchange is called.
                 pass
@@ -640,8 +650,10 @@ class TestPositionReconciliationSystem:
             recorded_item_from_history = reconciliation_system.discrepancy_history[0]
             assert recorded_item_from_history is recorded_historical_item
             assert recorded_item_from_history.exchange_id == exchange
-            # The recorded_at timestamp is set inside _record_discrepancy, so we can't easily compare with now_ts
-            # We can check it's a datetime and reasonably close if needed, or just trust it's set.
+            # The recorded_at timestamp is set inside _record_discrepancy, so we can't
+            # easily compare with now_ts
+            # We can check it's a datetime and reasonably close if needed, or just
+            # trust it's set.
             assert isinstance(recorded_item_from_history.recorded_at, datetime)
             assert (
                 recorded_item_from_history.detail == detail_to_record
@@ -884,7 +896,8 @@ class TestPositionReconciliationSystem:
             }
 
             # Patch _reconcile_exchange to return a known structure to avoid internal errors
-            # This helps test check_positions's aggregation logic rather than _reconcile_exchange itself here.
+            # This helps test check_positions's aggregation logic rather than
+            # _reconcile_exchange itself here.
             mock_reconcile_result = {
                 "success": True,
                 "discrepancies": [],

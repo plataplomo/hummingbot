@@ -1,5 +1,4 @@
-"""Unit tests for BackpackMarketDataService public data functionality.
-"""
+"""Unit tests for BackpackMarketDataService public data functionality."""
 
 from __future__ import annotations
 

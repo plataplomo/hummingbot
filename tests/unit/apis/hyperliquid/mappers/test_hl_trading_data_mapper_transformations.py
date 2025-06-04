@@ -283,6 +283,7 @@ class TestTransformRawOrderToInternal:
         def mock_parse_side_effect(
             value: object, allow_none: bool = False, field_name: str = "",
         ) -> Decimal | None:
+            """Return mock parse side effect for testing."""
             if field_name == "remaining_sz":
                 return None
             # Return valid decimals for other fields
@@ -311,6 +312,7 @@ class TestTransformRawOrderToInternal:
         def mock_parse_side_effect(
             value: object, allow_none: bool = False, field_name: str = "",
         ) -> Decimal | None:
+            """Return mock parse side effect for testing."""
             if field_name == "limit_px":
                 return None
             # Return valid decimals for other fields
@@ -452,6 +454,7 @@ class TestTransformRawHistoricalOrderToInternal:
         raw_order = create_raw_historical_order()
 
         def mock_parse_side_effect(value: object, field_name: str = "") -> datetime | None:
+            """Return mock parse side effect for testing."""
             if field_name == "status_timestamp":
                 return None
             # Return valid datetime for created_at/timestamp

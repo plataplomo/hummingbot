@@ -1,3 +1,16 @@
+"""Funding Rate Arbitrage Strategy for CyberDeltaEngine.
+
+This module implements the funding rate arbitrage strategy that identifies
+and executes arbitrage opportunities between different exchanges based on
+funding rate differentials.
+
+Primary approach for v0.0.1: Hyperliquid-Perp vs Backpack-Spot strategy
+This strategy:
+- Takes a position on Hyperliquid perpetual contracts
+- Hedges with opposite position in Backpack spot markets
+- Profits from funding rate payments while maintaining delta neutrality
+"""
+
 from __future__ import annotations
 
 import logging
@@ -63,14 +76,17 @@ class FundingRateArbitrageStrategy(Strategy):
 
         # Use helpers for config-derived parameters
         self.min_funding_differential: Decimal = self._get_decimal_param(
-            "min_funding_differential", Decimal("0.0001"),
+            "min_funding_differential",
+            Decimal("0.0001"),
         )
         self.min_profit_threshold: Decimal = self._get_decimal_param(
-            "min_profit_threshold", Decimal("5.0"),
+            "min_profit_threshold",
+            Decimal("5.0"),
         )
         self.risk_aversion: Decimal = self._get_decimal_param("risk_aversion", Decimal("1.0"))
         self.rebalance_threshold: Decimal = self._get_decimal_param(
-            "rebalance_threshold", Decimal("0.05"),
+            "rebalance_threshold",
+            Decimal("0.05"),
         )
         self.check_interval: int = self._get_int_param("check_interval", 600)
 
@@ -354,7 +370,8 @@ class FundingRateArbitrageStrategy(Strategy):
         spot_ticker_live: Ticker | None = None
         if spot_symbol_mapped:
             spot_ticker_live = self.data_handler.get_latest_ticker(
-                self.spot_exchange, spot_symbol_mapped,
+                self.spot_exchange,
+                spot_symbol_mapped,
             )
 
         if self._should_rebalance(perp_ticker_live, spot_ticker_live):
@@ -383,7 +400,8 @@ class FundingRateArbitrageStrategy(Strategy):
         spot_ticker_live: Ticker | None = None
         if spot_symbol_mapped:
             spot_ticker_live = self.data_handler.get_latest_ticker(
-                self.spot_exchange, spot_symbol_mapped,
+                self.spot_exchange,
+                spot_symbol_mapped,
             )
 
         # Check for rebalancing first
@@ -412,7 +430,10 @@ class FundingRateArbitrageStrategy(Strategy):
             ):
                 self.sized_opportunities[opportunity.id] = sized_opportunity
                 entry_signals = self._generate_entry_signal(
-                    opportunity, sized_opportunity, perp_ticker_live, spot_ticker_live,
+                    opportunity,
+                    sized_opportunity,
+                    perp_ticker_live,
+                    spot_ticker_live,
                 )
                 if entry_signals:
                     signals.extend(entry_signals)
@@ -427,7 +448,9 @@ class FundingRateArbitrageStrategy(Strategy):
         return signals if signals else None
 
     def _should_rebalance(
-        self, perp_ticker_live: Ticker | None, spot_ticker_live: Ticker | None,
+        self,
+        perp_ticker_live: Ticker | None,
+        spot_ticker_live: Ticker | None,
     ) -> bool:
         """Determine if rebalancing is needed based on current positions and market prices."""
         # The portfolio_tracker is guaranteed non-None by __init__.
@@ -622,7 +645,9 @@ class FundingRateArbitrageStrategy(Strategy):
         return signals
 
     def _generate_rebalance_signal(
-        self, perp_ticker_live: Ticker | None, spot_ticker_live: Ticker | None,
+        self,
+        perp_ticker_live: Ticker | None,
+        spot_ticker_live: Ticker | None,
     ) -> list[TradeSignal]:
         """Generate rebalancing signals based on current positions and target delta."""
         signals: list[TradeSignal] = []
@@ -755,11 +780,11 @@ class FundingRateArbitrageStrategy(Strategy):
         return signals
 
     def on_start(self) -> None:
-        """Called when the strategy is started."""
+        """Start the strategy and initialize any required state."""
         logger.info(f"Strategy {self.name} started for symbol {self.symbol}.")
         # Potentially load historical data or prime initial state
 
     def on_stop(self) -> None:
-        """Called when the strategy is stopped."""
+        """Stop the strategy and perform cleanup operations."""
         logger.info(f"Strategy {self.name} stopped for symbol {self.symbol}.")
         # Perform any cleanup, like cancelling open orders (if strategy manages them directly)

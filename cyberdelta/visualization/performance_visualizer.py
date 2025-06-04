@@ -675,7 +675,10 @@ class PerformanceMetricsCalculator:
         return float(sharpe * np.sqrt(self.annualization_factor))
 
     def calculate_sortino_ratio(
-        self, returns: pd.Series, risk_free_rate: float = 0.0, target_return: float = 0.0,
+        self,
+        returns: pd.Series,
+        risk_free_rate: float = 0.0,
+        target_return: float = 0.0,
     ) -> float:
         """Calculate the Sortino ratio.
 
@@ -881,7 +884,9 @@ class PerformanceMetricsCalculator:
         return filtered_trades["pnl"].mean()
 
     def calculate_all_metrics(
-        self, returns: pd.Series, trades: pd.DataFrame | None = None,
+        self,
+        returns: pd.Series,
+        trades: pd.DataFrame | None = None,
     ) -> dict[str, float]:
         """Calculate all performance metrics.
 

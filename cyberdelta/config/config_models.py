@@ -30,7 +30,8 @@ from cyberdelta.utils.parsing import (
 
 
 def _parse_yaml_input_to_required_decimal(
-    v: str | int | float | Decimal, info: ValidationInfo,
+    v: str | int | float | Decimal,
+    info: ValidationInfo,
 ) -> Decimal:
     """Pydantic 'before' validator to parse input to a required, finite Decimal."""
     field_name = info.field_name if info.field_name else "decimal_field"
@@ -47,7 +48,9 @@ def _parse_yaml_input_to_required_decimal(
 def _validate_string_for_literal_check(v: str | int | float | bool, info: ValidationInfo) -> str:
     """Pydantic 'before' validator to ensure v is a string before Literal check."""
     return validate_str_field(
-        v, field_name=info.field_name or "literal_str_field", allow_empty=False,
+        v,
+        field_name=info.field_name or "literal_str_field",
+        allow_empty=False,
     )
 
 
@@ -145,17 +148,21 @@ class ExchangeSpecificConfig(BaseModel):
     enabled: bool = True
     # Mainnet URLs (renamed from api_base_url and ws_url)
     api_base_url_mainnet: HttpUrl = Field(
-        ..., description="Base URL for the exchange's mainnet REST API.",
+        ...,
+        description="Base URL for the exchange's mainnet REST API.",
     )
     ws_url_mainnet: AnyUrl = Field(
-        ..., description="Base URL for the exchange's mainnet WebSocket API.",
+        ...,
+        description="Base URL for the exchange's mainnet WebSocket API.",
     )
     # Testnet URLs (optional)
     api_base_url_testnet: HttpUrl | None = Field(
-        default=None, description="Optional base URL for the exchange's testnet REST API.",
+        default=None,
+        description="Optional base URL for the exchange's testnet REST API.",
     )
     ws_url_testnet: AnyUrl | None = Field(
-        default=None, description="Optional base URL for the exchange's testnet WebSocket API.",
+        default=None,
+        description="Optional base URL for the exchange's testnet WebSocket API.",
     )
     # Environment flag
     is_mainnet_environment: bool = Field(
@@ -165,11 +172,14 @@ class ExchangeSpecificConfig(BaseModel):
         ),
     )
     rate_limit_per_minute: int | None = Field(
-        default=None, gt=0, description="For simple exchanges: total requests per minute.",
+        default=None,
+        gt=0,
+        description="For simple exchanges: total requests per minute.",
     )
     symbols: dict[str, str]
     exchange_name: ExchangeName = Field(
-        ..., description="Canonical exchange name, must match a value from ExchangeName enum.",
+        ...,
+        description="Canonical exchange name, must match a value from ExchangeName enum.",
     )
 
     # Hyperliquid-specific rate limiting configuration
@@ -183,7 +193,9 @@ class ExchangeSpecificConfig(BaseModel):
         description="Hyperliquid: IP weights for /info request types. Keys are API 'type' strings.",
     )
     default_info_weight: int | None = Field(
-        default=None, ge=1, description="Hyperliquid: Default IP weight for unlisted /info types.",
+        default=None,
+        ge=1,
+        description="Hyperliquid: Default IP weight for unlisted /info types.",
     )
     exchange_action_base_ip_weight: int | None = Field(
         default=None,
@@ -191,7 +203,8 @@ class ExchangeSpecificConfig(BaseModel):
         description="Hyperliquid: Base IP weight for one /exchange action.",
     )
     address_action_safety_net: AddressActionSafetyNetConfig | None = Field(
-        default=None, description="Hyperliquid: Config for address action safety net limiter.",
+        default=None,
+        description="Hyperliquid: Config for address action safety net limiter.",
     )
     websocket_send_rate_per_minute: int | None = Field(
         default=None,
@@ -261,7 +274,9 @@ class ExchangeSpecificConfig(BaseModel):
     )
     @classmethod
     def _validate_url_strings(
-        cls, v: str | int | float | bool | None, info: ValidationInfo,
+        cls,
+        v: str | int | float | bool | None,
+        info: ValidationInfo,
     ) -> str | None:
         # Testnet URLs can be None
         if v is None and info.field_name and "testnet" in info.field_name:
@@ -272,7 +287,9 @@ class ExchangeSpecificConfig(BaseModel):
     @field_validator("symbols", mode="before")
     @classmethod
     def _validate_symbols_dict(
-        cls, v: dict[str, str] | list[str] | str | int | float | bool, info: ValidationInfo,
+        cls,
+        v: dict[str, str] | list[str] | str | int | float | bool,
+        info: ValidationInfo,
     ) -> dict[str, str]:
         if not isinstance(v, dict):
             raise ValueError(
@@ -282,10 +299,14 @@ class ExchangeSpecificConfig(BaseModel):
         validated_symbols: dict[str, str] = {}
         for raw_key, raw_value in v.items():
             validated_key = validate_str_field(
-                raw_key, field_name=f"{info.field_name or 'symbols'}.key", allow_empty=False,
+                raw_key,
+                field_name=f"{info.field_name or 'symbols'}.key",
+                allow_empty=False,
             )
             validated_value = validate_str_field(
-                raw_value, field_name=f"{info.field_name or 'symbols'}.{raw_key}", allow_empty=False,
+                raw_value,
+                field_name=f"{info.field_name or 'symbols'}.{raw_key}",
+                allow_empty=False,
             )
             validated_symbols[validated_key] = validated_value
 
@@ -471,7 +492,9 @@ class BalanceMonitoringSettings(BaseModel):
     @field_validator("min_balance_thresholds_usd", mode="after")
     @classmethod
     def _validate_balance_thresholds_values(
-        cls, v: dict[str, Decimal], info: ValidationInfo,
+        cls,
+        v: dict[str, Decimal],
+        info: ValidationInfo,
     ) -> dict[str, Decimal]:
         """Validate that all Decimal values are positive after ConfigDecimal parsing."""
         for key, value in v.items():
@@ -509,7 +532,9 @@ class MonitoringSettings(BaseModel):
     @field_validator("alert_methods", mode="before")
     @classmethod
     def _validate_alert_methods(
-        cls, v: list[str | int | float | bool] | str | int | float | bool, info: ValidationInfo,
+        cls,
+        v: list[str | int | float | bool] | str | int | float | bool,
+        info: ValidationInfo,
     ) -> list[str]:
         if not isinstance(v, list):
             raise ValueError(
@@ -584,7 +609,9 @@ class AppSettings(BaseModel):
         for raw_key, raw_value in v.items():
             # Type checker knows raw_key is str after isinstance check above
             validated_key = validate_str_field(
-                raw_key, field_name=f"{info.field_name or 'exchanges'}.key", allow_empty=False,
+                raw_key,
+                field_name=f"{info.field_name or 'exchanges'}.key",
+                allow_empty=False,
             )
             validated_exchanges[validated_key] = raw_value
 

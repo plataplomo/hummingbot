@@ -39,6 +39,7 @@ def create_mock_order(
     strategy_name: str | None = None,
     signal_id: str | None = None,
 ) -> Order:
+    """Create mock order for testing."""
     # Determine order_type if not provided
     actual_order_type = (
         order_type if order_type is not None else (OrderType.LIMIT if price else OrderType.MARKET)
@@ -96,6 +97,7 @@ def create_mock_order_with_details(
     strategy_name: str | None,
     signal_id: str | None,
 ) -> Order:
+    """Create mock order with details for testing."""
     return Order(
         client_order_id=client_order_id,
         exchange=exchange,
@@ -116,6 +118,7 @@ def create_mock_order_with_details(
 
 
 def test_execution_handler() -> None:
+    """Test basic ExecutionHandler initialization and functionality."""
     # Create mock Order - This instance was unused, removing it.
     # mock_order = Order(
     #     client_order_id="test_order_123",

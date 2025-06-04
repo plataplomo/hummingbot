@@ -59,21 +59,25 @@ VALID_REWARDS_RESPONSE: list[dict[str, Any]] = [VALID_REWARD_ITEM.copy()]
 
 @pytest.fixture
 def valid_delegation_item_data() -> dict[str, Any]:
+    """Return valid delegation item data for testing."""
     return VALID_DELEGATION_ITEM.copy()
 
 
 @pytest.fixture
 def valid_delegator_summary_data() -> dict[str, Any]:
+    """Return valid delegator summary data for testing."""
     return VALID_DELEGATOR_SUMMARY.copy()
 
 
 @pytest.fixture
 def valid_history_delegate_delta_data() -> dict[str, Any]:
+    """Return valid history delegate delta data for testing."""
     return VALID_HISTORY_DELEGATE_DELTA.copy()
 
 
 @pytest.fixture
 def valid_history_delta_data(valid_history_delegate_delta_data: dict[str, Any]) -> dict[str, Any]:
+    """Return valid history delta data for testing."""
     data = VALID_HISTORY_DELTA.copy()
     data["delegate"] = valid_history_delegate_delta_data
     return data
@@ -81,6 +85,7 @@ def valid_history_delta_data(valid_history_delegate_delta_data: dict[str, Any]) 
 
 @pytest.fixture
 def valid_history_item_data(valid_history_delta_data: dict[str, Any]) -> dict[str, Any]:
+    """Return valid history item data for testing."""
     data = VALID_HISTORY_ITEM.copy()
     data["delta"] = valid_history_delta_data
     return data
@@ -88,6 +93,7 @@ def valid_history_item_data(valid_history_delta_data: dict[str, Any]) -> dict[st
 
 @pytest.fixture
 def valid_reward_item_data() -> dict[str, Any]:
+    """Return valid reward item data for testing."""
     return VALID_REWARD_ITEM.copy()
 
 
@@ -96,6 +102,7 @@ def valid_reward_item_data() -> dict[str, Any]:
 
 # HyperliquidRawDelegationItem
 def test_delegation_item_valid(valid_delegation_item_data: dict[str, Any]) -> None:
+    """Test delegation item valid."""
     item = HyperliquidRawDelegationItem.model_validate(valid_delegation_item_data)
     assert item.validator == valid_delegation_item_data["validator"]
     assert item.amount == valid_delegation_item_data["amount"]
@@ -108,6 +115,7 @@ def test_delegation_item_valid(valid_delegation_item_data: dict[str, Any]) -> No
 def test_delegation_item_invalid(
     valid_delegation_item_data: dict[str, Any], field: str, val: object,
 ) -> None:
+    """Test delegation item invalid."""
     d = valid_delegation_item_data.copy()
     d[field] = val
     with pytest.raises(ValidationError):
@@ -116,6 +124,7 @@ def test_delegation_item_invalid(
 
 # HyperliquidRawDelegationsResponse (RootModel)
 def test_delegations_response_valid() -> None:
+    """Test delegations response valid."""
     resp = HyperliquidRawDelegationsResponse.model_validate(VALID_DELEGATIONS_RESPONSE)
     assert len(resp.root) == 1
     assert resp.root[0].validator == VALID_DELEGATION_ITEM["validator"]
@@ -123,12 +132,14 @@ def test_delegations_response_valid() -> None:
 
 @pytest.mark.parametrize("data", ["not-list", [{"validator": "invalid"}]])
 def test_delegations_response_invalid(data: object) -> None:
+    """Test delegations response invalid."""
     with pytest.raises(ValidationError):
         HyperliquidRawDelegationsResponse.model_validate(data)
 
 
 # HyperliquidRawDelegatorSummaryResponse
 def test_delegator_summary_valid(valid_delegator_summary_data: dict[str, Any]) -> None:
+    """Test delegator summary valid."""
     item = HyperliquidRawDelegatorSummaryResponse.model_validate(valid_delegator_summary_data)
     assert item.delegated == valid_delegator_summary_data["delegated"]
     assert item.n_pending_withdrawals == valid_delegator_summary_data["nPendingWithdrawals"]
@@ -140,6 +151,7 @@ def test_delegator_summary_valid(valid_delegator_summary_data: dict[str, Any]) -
 def test_delegator_summary_invalid(
     valid_delegator_summary_data: dict[str, Any], field: str, val: object | None,
 ) -> None:
+    """Test delegator summary invalid."""
     d = valid_delegator_summary_data.copy()
     if val is None:
         del d[field]
@@ -151,6 +163,7 @@ def test_delegator_summary_invalid(
 
 # HyperliquidRawDelegatorHistoryDelegateDelta
 def test_hist_delegate_delta_valid(valid_history_delegate_delta_data: dict[str, Any]) -> None:
+    """Test hist delegate delta valid."""
     item = HyperliquidRawDelegatorHistoryDelegateDelta.model_validate(
         valid_history_delegate_delta_data,
     )
@@ -161,6 +174,7 @@ def test_hist_delegate_delta_valid(valid_history_delegate_delta_data: dict[str, 
 # HyperliquidRawDelegatorHistoryDelta
 class TestHyperliquidRawDelegatorHistoryDelta:
     def test_hist_delta_valid(self, valid_history_delegate_delta_data: dict[str, Any]) -> None:
+        """Test hist delta valid."""
         data = {"delegate": valid_history_delegate_delta_data}
         delta = HyperliquidRawDelegatorHistoryDelta.model_validate(data)
         assert delta.delegate is not None
@@ -172,6 +186,7 @@ class TestHyperliquidRawDelegatorHistoryItem:
     """Test suite for HyperliquidRawDelegatorHistoryItem."""
 
     def test_hist_item_valid(self, valid_history_item_data: dict[str, Any]) -> None:
+        """Test hist item valid."""
         item = HyperliquidRawDelegatorHistoryItem.model_validate(valid_history_item_data)
         assert item.time == valid_history_item_data["time"]
         assert item.hash == valid_history_item_data["hash"]
@@ -193,6 +208,7 @@ class TestHyperliquidRawDelegatorHistoryItem:
     def test_hist_item_invalid(
         self, valid_history_item_data: dict[str, Any], field: str, val: object,
     ) -> None:
+        """Test hist item invalid."""
         d = valid_history_item_data.copy()
         if field == "delta" and isinstance(d.get("delta"), dict):
             d["delta"] = d["delta"].copy()
@@ -211,6 +227,7 @@ class TestHyperliquidRawDelegatorHistoryItem:
 
 # HyperliquidRawDelegatorHistoryResponse (RootModel)
 def test_history_response_valid() -> None:
+    """Test history response valid."""
     resp = HyperliquidRawDelegatorHistoryResponse.model_validate(VALID_HISTORY_RESPONSE)
     assert len(resp.root) == 1
     assert resp.root[0].hash == VALID_HISTORY_ITEM["hash"]
@@ -218,6 +235,7 @@ def test_history_response_valid() -> None:
 
 # HyperliquidRawDelegatorRewardItem
 def test_reward_item_valid(valid_reward_item_data: dict[str, Any]) -> None:
+    """Test reward item valid."""
     item = HyperliquidRawDelegatorRewardItem.model_validate(valid_reward_item_data)
     assert item.source == valid_reward_item_data["source"]
     assert item.total_amount == valid_reward_item_data["totalAmount"]
@@ -225,6 +243,7 @@ def test_reward_item_valid(valid_reward_item_data: dict[str, Any]) -> None:
 
 # HyperliquidRawDelegatorRewardsResponse (RootModel)
 def test_rewards_response_valid() -> None:
+    """Test rewards response valid."""
     resp = HyperliquidRawDelegatorRewardsResponse.model_validate(VALID_REWARDS_RESPONSE)
     assert len(resp.root) == 1
     assert resp.root[0].source == VALID_REWARD_ITEM["source"]

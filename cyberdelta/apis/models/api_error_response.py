@@ -33,21 +33,26 @@ class APIErrorResponse(BaseModel):
 
     message: str = Field(..., description="Human-readable error message.")
     code: int | str = Field(
-        ..., description="Canonical error code (int, or raw exchange code as str).",
+        ...,
+        description="Canonical error code (int, or raw exchange code as str).",
     )
     http_status: int | None = Field(None, description="HTTP status code, if available.")
     exchange_code: str | int | None = Field(
-        None, description="Raw error code from the exchange, if present.",
+        None,
+        description="Raw error code from the exchange, if present.",
     )
     exchange_message: str | None = Field(
-        None, description="Raw error message from the exchange, if present.",
+        None,
+        description="Raw error message from the exchange, if present.",
     )
     retry_after: float | None = Field(
-        None, description="Seconds to wait before retrying (for rate limits, etc.).",
+        None,
+        description="Seconds to wait before retrying (for rate limits, etc.).",
     )
     metadata: dict[str, Any] | None = Field(None, description="Additional context or diagnostics.")
     original_exception: Exception | None = Field(
-        None, description="Original exception, if chained.",
+        None,
+        description="Original exception, if chained.",
     )
 
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)

@@ -1,3 +1,5 @@
-"""Unit tests for Backpack API services."""
+"""Unit tests for Backpack services.
 
-# Required for package recognition
+This package contains unit tests for Backpack service modules,
+including market data, trading, and account management services.
+"""

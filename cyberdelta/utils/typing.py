@@ -1,4 +1,5 @@
-"""Typing Utilities and TypeGuards
+"""Typing Utilities and TypeGuards.
+
 -------------------------------
 
 This module provides custom typing utilities, including TypeGuards,
@@ -17,7 +18,7 @@ LevelSequence = Sequence[Any]  # Using Sequence for broader compatibility
 
 
 def is_sequence_of_any(val: object) -> TypeGuard[Sequence[Any]]:
-    """Checks if the value is a Sequence (like list or tuple).
+    """Check if the value is a Sequence (like list or tuple).
 
     Used as a TypeGuard to narrow the type for static analysis after validation,
     allowing subsequent checks like len().
@@ -34,7 +35,7 @@ def is_sequence_of_any(val: object) -> TypeGuard[Sequence[Any]]:
 
 
 def is_potential_decimal_input(val: object) -> TypeGuard[PotentialDecimalInput]:
-    """Checks if the value's type is suitable for attempting Decimal parsing.
+    """Check if the value's type is suitable for attempting Decimal parsing.
 
     Args:
         val: The value to check.

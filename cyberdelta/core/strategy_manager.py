@@ -1,3 +1,9 @@
+"""Strategy Management System.
+
+This module provides the StrategyManager class for coordinating multiple trading strategies,
+including lifecycle management, market data distribution, and signal collection.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -19,9 +25,9 @@ logger = structlog.get_logger(__name__)
 
 
 class StrategyManager:
-    """Manages multiple trading strategies, controlling their lifecycle,
-    configuration, and execution. Acts as a central coordinator for
-    strategy operations including:
+    """Manage multiple trading strategies and control their lifecycle.
+
+    Acts as a central coordinator for strategy operations including:
 
     - Registration/deregistration of strategies
     - Enabling/disabling strategies
@@ -38,6 +44,16 @@ class StrategyManager:
         risk_manager: RiskManager,
         signal_queue: PrioritySignalQueue,
     ) -> None:
+        """Initialize the StrategyManager.
+
+        Args:
+            config: Application configuration settings
+            execution_handler: Handler for executing trading strategies
+            portfolio_tracker: Tracker for managing trading portfolios
+            risk_manager: Manager for risk management
+            signal_queue: Queue for managing trade signals
+
+        """
         self.logger = logging.getLogger(__name__)
         self.config = config
         self.execution_handler = execution_handler
@@ -255,12 +271,19 @@ class StrategyManager:
                     )
 
     async def on_market_data(self, market_data: Candle) -> None:
-        """Entry point for market data. Processes data via relevant strategies.
-        """
+        """Entry point for market data. Processes data via relevant strategies."""
         await self.process_market_data(market_data)
 
     def get_strategies_for_symbol(self, symbol: str) -> list[Strategy]:
-        """Returns a list of enabled strategies for a given symbol."""
+        """Get a list of enabled strategies for a given symbol.
+
+        Args:
+            symbol: Trading symbol to filter strategies
+
+        Returns:
+            List of enabled strategies for the symbol
+
+        """
         return [
             strategy
             for name, strategy in self.strategies.items()
@@ -268,14 +291,24 @@ class StrategyManager:
         ]
 
     def get_enabled_strategies(self) -> list[Strategy]:
-        """Returns a list of all currently enabled strategies."""
+        """Get a list of all currently enabled strategies.
+
+        Returns:
+            List of all enabled strategies
+
+        """
         return [
             self.strategies[name] for name in self.enabled_strategies if name in self.strategies
         ]
 
     def get_strategy_performance(self) -> dict[str, dict[str, Any]]:
-        """Retrieves performance metrics for all registered strategies.
+        """Retrieve performance metrics for all registered strategies.
+
         Delegates to each strategy's performance_metrics property.
+
+        Returns:
+            Dictionary mapping strategy names to their performance metrics
+
         """
         performance_data: dict[str, dict[str, Any]] = {}
         for name, strategy in self.strategies.items():
@@ -285,13 +318,14 @@ class StrategyManager:
                 performance_data[name] = strategy.performance_metrics
             except Exception as e:
                 logger.error(
-                    f"Error getting performance metrics from strategy '{name}'", error=str(e),
+                    f"Error getting performance metrics from strategy '{name}'",
+                    error=str(e),
                 )
                 performance_data[name] = {"error": "Failed to retrieve metrics"}
         return performance_data
 
     def start_all(self) -> None:
-        """Starts all enabled strategies by calling their start_async method."""
+        """Start all enabled strategies by calling their start_async method."""
         logger.info("Starting all enabled strategies...")
         for name in self.enabled_strategies:
             if name in self.strategies:
@@ -303,7 +337,7 @@ class StrategyManager:
                     logger.error(f"Error starting strategy '{name}'", error=str(e), exc_info=True)
 
     def stop_all(self) -> None:
-        """Stops all running strategies by calling their stop_async method."""
+        """Stop all running strategies by calling their stop_async method."""
         logger.info("Stopping all strategies...")
         for name in list(self.strategies.keys()):
             if name in self.strategies:

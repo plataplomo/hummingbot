@@ -1,4 +1,4 @@
-"""CyberDeltaEngine: Backpack Market Data Mapper WebSocket Tests
+"""CyberDeltaEngine: Backpack Market Data Mapper WebSocket Tests.
 ------------------------------------------------------------
 
 Comprehensive test suite for BackpackMarketDataMapper WebSocket event transformations.

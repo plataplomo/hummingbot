@@ -611,7 +611,7 @@ dangerous_tag: !!python/object/apply:os.system ["echo 'this should not execute'"
     def test_complex_config_validation(self) -> None:
         """Test complex configuration with all features."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            complex_config = {
+            complex_config: dict[str, Any] = {
                 "general": {
                     "log_level": "DEBUG",
                     "log_file": "/var/log/cyberdelta.log",

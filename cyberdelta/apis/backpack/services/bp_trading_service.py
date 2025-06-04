@@ -41,13 +41,13 @@ logger = get_logger(__name__)
 
 # Type alias for the HTTP client requester callable that the service will use.
 HttpClientRequesterSig = Callable[
-    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
+    ...,
+    Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
 ]
 
 
 class BackpackTradingService:
-    """Service class for Backpack trading operations. Returns Internal Domain Models.
-    """
+    """Service class for Backpack trading operations. Returns Internal Domain Models."""
 
     def __init__(
         self,
@@ -261,7 +261,8 @@ class BackpackTradingService:
             # Core operational logic
             endpoint = "/api/v1/order"
             payload = self._request_builder.build_cancel_order_payload(
-                symbol=symbol, order_id=order_id,
+                symbol=symbol,
+                order_id=order_id,
             )
 
             raw_data, status_code, _ = await self._http_client_requester(
@@ -292,7 +293,9 @@ class BackpackTradingService:
                 )
 
             return self._response_handler.handle_cancel_order_response(
-                raw_response_content=raw_data, order_id=order_id, symbol=symbol,
+                raw_response_content=raw_data,
+                order_id=order_id,
+                symbol=symbol,
             )
 
         except APIError:
@@ -766,7 +769,8 @@ class BackpackTradingService:
                 if isinstance(raw_data, dict) and raw_data.get("error"):  # Check for explicit error
                     raise APIError(
                         raw_data.get("error", {}).get(
-                            "message", "Failed to cancel all orders due to API error response.",
+                            "message",
+                            "Failed to cancel all orders due to API error response.",
                         ),
                         APIErrorCode.UNKNOWN.value,  # Using UNKNOWN as OPERATION_FAILED
                         # is not available

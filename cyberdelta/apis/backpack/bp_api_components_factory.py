@@ -29,7 +29,8 @@ logger = get_logger(__name__)
 # Type alias for the HTTP client requester callable that the factory will use.
 # This should match the signature of ExchangeAPI._request
 HttpClientRequesterSig = Callable[
-    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
+    ...,
+    Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
 ]
 
 
@@ -42,7 +43,9 @@ class BackpackAPIComponentsFactory:
     """
 
     def __init__(
-        self, exchange_config: ExchangeSpecificConfig, exchange_secrets: AnyExchangeSecrets,
+        self,
+        exchange_config: ExchangeSpecificConfig,
+        exchange_secrets: AnyExchangeSecrets,
     ) -> None:
         """Initialize the factory with configuration and secrets.
 

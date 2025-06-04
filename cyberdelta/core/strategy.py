@@ -53,7 +53,7 @@ class Strategy(ABC):
         pass
 
     def update_historical_data(self, data: Candle, max_bars: int = 1000) -> None:
-        """Update the strategy's historical data cache
+        """Update the strategy's historical data cache.
 
         Args:
             data: New Candle object to add.
@@ -71,21 +71,21 @@ class Strategy(ABC):
             self._historical_data = self._historical_data[-max_bars:]
 
     def enable(self) -> None:
-        """Enable the strategy"""
+        """Enable the strategy."""
         self.enabled = True
         logger.info(f"Enabled strategy '{self.name}'")
 
     def disable(self) -> None:
-        """Disable the strategy"""
+        """Disable the strategy."""
         self.enabled = False
         logger.info(f"Disabled strategy '{self.name}'")
 
     def on_start(self) -> None:
-        """Called when the strategy is started"""
+        """Start the strategy lifecycle."""
         logger.info(f"Strategy '{self.name}' started")
 
     def on_stop(self) -> None:
-        """Called when the strategy is stopped"""
+        """Stop the strategy lifecycle."""
         logger.info(f"Strategy '{self.name}' stopped")
 
     # Ensure correct indentation for methods within the class
@@ -114,7 +114,7 @@ class Strategy(ABC):
         logger.info(f"Strategy '{self.name}' parameter '{name}' set to {value}")
 
     def get_strategy_info(self) -> dict[str, Any]:
-        """Get information about the strategy's current state
+        """Get information about the strategy's current state.
 
         Returns:
             Dictionary with strategy information
@@ -133,6 +133,7 @@ class Strategy(ABC):
     @property
     def performance_metrics(self) -> dict[str, Any]:
         """Return default performance metrics for the strategy.
+
         Subclasses can override to provide richer metrics.
         """
         return {

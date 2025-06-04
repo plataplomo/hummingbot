@@ -1,5 +1,4 @@
-"""Tests for the CircuitBreaker system.
-"""
+"""Tests for the CircuitBreaker system."""
 
 import time
 from datetime import UTC, datetime, timedelta
@@ -34,6 +33,7 @@ class TestCircuitBreakerBase:
             return self.recovery_check_result
 
         def check(self, *args: object, **kwargs: object) -> None:
+            """Helper function for check."""
             pass
 
     def test_init(self) -> None:
@@ -493,6 +493,7 @@ def mock_config() -> AppSettings:
 
     # Default side effect (can be overridden in tests)
     def config_side_effect(key: str, default: object | None = None) -> object:
+        """Helper function for config side effect."""
         # Provide some basic defaults if needed, otherwise return the default argument
         base_configs = {
             "validation.circuit_breaker.global.api_errors.enabled": True,
@@ -559,6 +560,7 @@ def mock_config_with_exchanges() -> AppSettings:
     }
 
     def get_side_effect(key: str, default: object | None = None) -> object:
+        """Get side effect for testing."""
         # Handle the primary key used by CircuitBreakerSystem constructor
         if key == "exchanges":
             return full_config_data.get("exchanges", default if default is not None else {})
@@ -573,11 +575,16 @@ def mock_config_with_exchanges() -> AppSettings:
             and parts[-2] == "defaults"
         ):
             try:
-                # Attempt to navigate: full_config_data["exchanges"][exchange_name]["circuit_breakers"]["defaults"]["cooldown_seconds"]
+                # Attempt to navigate:
+                # full_config_data["exchanges"][exchange_name]["circuit_breakers"]
+                # ["defaults"]["cooldown_seconds"]
                 exchange_name_from_key = parts[1]
                 if isinstance(full_config_data, dict) and "exchanges" in full_config_data:
                     exchanges_data = full_config_data["exchanges"]
-                    if isinstance(exchanges_data, dict) and exchange_name_from_key in exchanges_data:
+                    if (
+                        isinstance(exchanges_data, dict)
+                        and exchange_name_from_key in exchanges_data
+                    ):
                         exchange_data = exchanges_data[exchange_name_from_key]
                     else:
                         raise KeyError(f"Exchange {exchange_name_from_key} not found")
@@ -588,7 +595,8 @@ def mock_config_with_exchanges() -> AppSettings:
             except KeyError:
                 pass  # Fall through to general default
 
-        # For any other key, try a direct lookup on the top level of full_config_data or return default
+        # For any other key, try a direct lookup on the top level of full_config_data
+        # or return default
         # This is a simplification; real Config might have deeper structure via get
         return full_config_data.get(key, default)
 

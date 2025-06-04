@@ -33,7 +33,10 @@ class SignalGenerator:
     """
 
     def __init__(
-        self, app_settings: AppSettings, data_handler: DataHandler, symbol_mapper: SymbolMapper,
+        self,
+        app_settings: AppSettings,
+        data_handler: DataHandler,
+        symbol_mapper: SymbolMapper,
     ) -> None:
         """Initialize the signal generator.
 
@@ -105,7 +108,8 @@ class SignalGenerator:
             for internal_symbol in all_internal_symbols:
                 # Check if this exchange has a mapping for the internal symbol
                 exchange_symbol = self.symbol_mapper.get_exchange_symbol(
-                    internal_symbol, exchange_id,
+                    internal_symbol,
+                    exchange_id,
                 )
                 if exchange_symbol:
                     self.historical_funding_rates[exchange_id][internal_symbol] = deque(
@@ -162,7 +166,8 @@ class SignalGenerator:
             for internal_symbol in expected_internal_symbols:
                 # Get the corresponding exchange symbol using the mapper
                 exchange_symbol = self.symbol_mapper.get_exchange_symbol(
-                    internal_symbol, exchange_id,
+                    internal_symbol,
+                    exchange_id,
                 )
 
                 if not exchange_symbol:
@@ -176,7 +181,8 @@ class SignalGenerator:
 
                 # Fetch data using the exchange-specific symbol
                 funding_data = self.data_handler.get_latest_funding_rate(
-                    exchange_id, exchange_symbol,
+                    exchange_id,
+                    exchange_symbol,
                 )
                 if not isinstance(funding_data, FundingRate):
                     continue
@@ -213,7 +219,8 @@ class SignalGenerator:
             for exchange_id in enabled_exchanges:
                 # Get exchange symbol using mapper
                 exchange_symbol = self.symbol_mapper.get_exchange_symbol(
-                    internal_symbol, exchange_id,
+                    internal_symbol,
+                    exchange_id,
                 )
 
                 if exchange_symbol:  # Check if mapping exists
@@ -224,7 +231,8 @@ class SignalGenerator:
                     # and get_latest_ticker returns Ticker | None
                     ticker_data: Ticker | None = (
                         self.data_handler.get_latest_ticker(  # Changed method name
-                            exchange_id, exchange_symbol,
+                            exchange_id,
+                            exchange_symbol,
                         )
                     )
 
@@ -444,7 +452,8 @@ class SignalGenerator:
         return base_slippage * sensitivity
 
     async def generate_arbitrage_opportunities(
-        self, funding_data: dict[str, dict[str, FundingRate | None]],
+        self,
+        funding_data: dict[str, dict[str, FundingRate | None]],
     ) -> list[ArbitrageOpportunity]:
         """Checks for arbitrage opportunities based on the latest funding rates and market data.
 
@@ -491,7 +500,8 @@ class SignalGenerator:
             current_tickers: dict[str, Ticker | None] = {}
             for exchange_id in relevant_exchanges:
                 exchange_specific_symbol = self.symbol_mapper.get_exchange_symbol(
-                    internal_symbol, exchange_id,
+                    internal_symbol,
+                    exchange_id,
                 )
                 if not exchange_specific_symbol:
                     logger.warning(
@@ -555,7 +565,9 @@ class SignalGenerator:
             # Now call _check_funding_rate_opportunities with the correctly gathered tickers
             # and the correctly typed funding data
             symbol_opportunities = self._check_funding_rate_opportunities(
-                internal_symbol, current_funding_on_exchanges, current_tickers,
+                internal_symbol,
+                current_funding_on_exchanges,
+                current_tickers,
             )
             opportunities.extend(symbol_opportunities)
 

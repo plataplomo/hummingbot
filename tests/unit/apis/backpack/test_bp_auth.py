@@ -13,6 +13,7 @@ from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestCom
 
 @pytest.fixture
 def mock_time_patch() -> Generator[MagicMock]:
+    """Return mock time patch for testing."""
     with patch("time.time", return_value=1678886400.0) as mock_time:
         yield mock_time
 
@@ -35,6 +36,7 @@ class TestBackpackEd25519Authenticator:
     def test_initialization_missing_api_key_raises_value_error(
         self, test_ed25519_keys: dict[str, str],
     ) -> None:
+        """Test that initialization fails when API key is missing."""
         with pytest.raises(
             ValueError, match="API key \\(Base64 public ED25519 key\\) cannot be empty",
         ):
@@ -46,6 +48,7 @@ class TestBackpackEd25519Authenticator:
     def test_initialization_missing_private_key_raises_value_error(
         self, test_ed25519_keys: dict[str, str],
     ) -> None:
+        """Test that initialization fails when private key is missing."""
         with pytest.raises(
             ValueError, match="Private key \\(Base64 private ED25519 key\\) cannot be empty",
         ):
@@ -57,6 +60,7 @@ class TestBackpackEd25519Authenticator:
     def test_initialization_invalid_private_key_raises_value_error(
         self, test_ed25519_keys: dict[str, str],
     ) -> None:
+        """Test that initialization fails with invalid private key format."""
         with pytest.raises(ValueError, match="Invalid Base64 ED25519 private key"):
             BackpackEd25519Authenticator(
                 api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
@@ -64,6 +68,7 @@ class TestBackpackEd25519Authenticator:
             )
 
     def test_initialization_missing_both_credentials_raises_value_error(self) -> None:
+        """Test that initialization fails when both credentials are missing."""
         with pytest.raises(
             ValueError, match="API key \\(Base64 public ED25519 key\\) cannot be empty",
         ):
@@ -268,8 +273,7 @@ class TestBackpackEd25519Authenticator:
     async def test_signing_string_generation_json_body_query_format(
         self, test_ed25519_keys: dict[str, str],
     ) -> None:
-        """Test that JSON request bodies are converted to query string format for signing.
-        """
+        """Test that JSON request bodies are converted to query string format for signing."""
         auth = BackpackEd25519Authenticator(
             api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
             private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
@@ -303,8 +307,7 @@ class TestBackpackEd25519Authenticator:
     async def test_signing_string_generation_with_none_values_filtered(
         self, test_ed25519_keys: dict[str, str],
     ) -> None:
-        """Test that None values are properly filtered out from the signing string.
-        """
+        """Test that None values are properly filtered out from the signing string."""
         auth = BackpackEd25519Authenticator(
             api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
             private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
@@ -337,8 +340,7 @@ class TestBackpackEd25519Authenticator:
     async def test_signing_string_generation_empty_body_no_double_ampersands(
         self, test_ed25519_keys: dict[str, str],
     ) -> None:
-        """Test that requests with no body don't create double ampersands in signing string.
-        """
+        """Test that requests with no body don't create double ampersands in signing string."""
         auth = BackpackEd25519Authenticator(
             api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
             private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
@@ -363,8 +365,7 @@ class TestBackpackEd25519Authenticator:
     async def test_signing_string_generation_get_with_params_query_format(
         self, test_ed25519_keys: dict[str, str],
     ) -> None:
-        """Test that GET request parameters are properly URL-encoded and sorted for signing.
-        """
+        """Test that GET request parameters are properly URL-encoded and sorted for signing."""
         auth = BackpackEd25519Authenticator(
             api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
             private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
@@ -391,8 +392,7 @@ class TestBackpackEd25519Authenticator:
     async def test_signing_string_generation_complex_data_types_stringified(
         self, test_ed25519_keys: dict[str, str],
     ) -> None:
-        """Test that complex data types (numbers, booleans) are properly stringified for signing.
-        """
+        """Test that complex data types (numbers, booleans) are properly stringified for signing."""
         auth = BackpackEd25519Authenticator(
             api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
             private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),

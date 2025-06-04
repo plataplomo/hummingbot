@@ -113,6 +113,7 @@ def set_nested_value(
 
 
 def test_eth_withdrawal_payload_valid() -> None:
+    """Test eth withdrawal payload valid."""
     data = {"amount": VALID_DECIMAL_STR, "destination": VALID_ETH_ADDRESS}
     payload = HyperliquidRawEthWithdrawalActionPayload.model_validate(data)
     assert payload.amount == VALID_DECIMAL_STR
@@ -140,6 +141,7 @@ def test_eth_withdrawal_payload_valid() -> None:
 def test_eth_withdrawal_payload_invalid_fields(
     field: str, value: str | None, expected_error_part: str,
 ) -> None:
+    """Test eth withdrawal payload invalid fields."""
     data = {"amount": VALID_DECIMAL_STR, "destination": VALID_ETH_ADDRESS}
     if value is None:
         del data[field]
@@ -154,6 +156,7 @@ def test_eth_withdrawal_payload_invalid_fields(
 
 
 def test_eth_withdrawal_payload_extra_field() -> None:
+    """Test eth withdrawal payload extra field."""
     data = {"amount": VALID_DECIMAL_STR, "destination": VALID_ETH_ADDRESS, "extra": "field"}
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         HyperliquidRawEthWithdrawalActionPayload.model_validate(data)
@@ -163,6 +166,7 @@ def test_eth_withdrawal_payload_extra_field() -> None:
 
 
 def test_order_item_spec_valid_limit() -> None:
+    """Test order item spec valid limit."""
     data = {
         "asset_index": 0,
         "is_buy": True,
@@ -188,6 +192,7 @@ def test_order_item_spec_valid_limit() -> None:
 
 
 def test_order_item_spec_valid_market_no_cloid() -> None:
+    """Test order item spec valid market no cloid."""
     data = {
         "asset_index": 1,
         "is_buy": False,
@@ -234,6 +239,7 @@ def test_order_item_spec_valid_market_no_cloid() -> None:
 def test_order_item_spec_invalid_fields(
     field_alias: str, value: object, expected_error_part: str,
 ) -> None:
+    """Test order item spec invalid fields."""
     base_data = {
         "asset_index": 0,
         "is_buy": True,
@@ -257,6 +263,7 @@ def test_order_item_spec_invalid_fields(
 
 
 def test_order_item_spec_extra_field() -> None:
+    """Test order item spec extra field."""
     data = {
         "asset_index": 0,
         "is_buy": True,
@@ -274,6 +281,7 @@ def test_order_item_spec_extra_field() -> None:
 
 
 def test_batch_place_order_payload_valid() -> None:
+    """Test batch place order payload valid."""
     order_item_data = {
         "asset_index": 0,
         "is_buy": True,
@@ -336,6 +344,7 @@ def test_batch_place_order_payload_valid() -> None:
 def test_batch_place_order_payload_invalid_fields(
     field_path: tuple[str | int, ...], value: object, expected_error_part: str,
 ) -> None:
+    """Test batch place order payload invalid fields."""
     # Base valid data structure for a batch order item
     # Note: The model HyperliquidRawOrderItemSpec expects `order_type_details`
     # (alias for field `t`) as the JSON key for order type information.
@@ -373,12 +382,14 @@ def test_batch_place_order_payload_invalid_fields(
 
 
 def test_batch_place_order_payload_orders_empty_list_valid() -> None:
+    """Test batch place order payload orders empty list valid."""
     data: dict[str, str | list[dict[str, Any]]] = {"type": "order", "grouping": "na", "orders": []}
     payload = HyperliquidRawBatchPlaceOrderActionPayload.model_validate(data)
     assert payload.orders == []
 
 
 def test_batch_place_order_payload_extra_field() -> None:
+    """Test batch place order payload extra field."""
     data: dict[str, str | list[dict[str, Any]] | Any] = {
         "type": "order",
         "grouping": "na",
@@ -393,6 +404,7 @@ def test_batch_place_order_payload_extra_field() -> None:
 
 
 def test_l2_usd_transfer_action_details_valid() -> None:
+    """Test l2 usd transfer action details valid."""
     payload_data = {
         "destination": VALID_ETH_ADDRESS,
         "token": "USDC",
@@ -425,6 +437,7 @@ def test_l2_usd_transfer_action_details_valid() -> None:
 def test_l2_usd_transfer_action_details_invalid(
     field: str, value: object, expected_error_part: str,
 ) -> None:
+    """Test l2 usd transfer action details invalid."""
     base_payload_data = {
         "destination": VALID_ETH_ADDRESS,
         "token": "USDC",
@@ -446,6 +459,7 @@ def test_l2_usd_transfer_action_details_invalid(
 
 
 def test_l2_usd_transfer_action_details_extra_field() -> None:
+    """Test l2 usd transfer action details extra field."""
     data: dict[str, str | dict[str, Any] | Any] = {"chain": "L2", "payload": {}, "extra": "field"}
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         HyperliquidRawL2UsdTransferActionDetails.model_validate(data)
@@ -455,6 +469,7 @@ def test_l2_usd_transfer_action_details_extra_field() -> None:
 
 
 def test_cancel_order_action_valid() -> None:
+    """Test cancel order action valid."""
     data = {"asset": 0, "oid": 12345}
     action = HyperliquidRawCancelOrderAction.model_validate(data)
     assert action.asset == 0
@@ -474,6 +489,7 @@ def test_cancel_order_action_valid() -> None:
     ],
 )
 def test_cancel_order_action_invalid(field: str, value: object, expected_error_part: str) -> None:
+    """Test cancel order action invalid."""
     base_data: dict[str, Any] = {"asset": 0, "oid": 12345}
     if value is None and field in base_data:
         del base_data[field]
@@ -489,6 +505,7 @@ def test_cancel_order_action_invalid(field: str, value: object, expected_error_p
 
 
 def test_cancel_order_action_extra_field() -> None:
+    """Test cancel order action extra field."""
     data = {"asset": 0, "oid": 12345, "extra": "field"}
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         HyperliquidRawCancelOrderAction.model_validate(data)

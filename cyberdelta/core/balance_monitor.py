@@ -135,7 +135,8 @@ class BalanceMonitor:
             for asset, min_balance in min_balances.items():
                 # Use the correct type hint: SpotBalance
                 current_balance: SpotBalance | None = self.portfolio_tracker.get_exchange_balance(
-                    exchange_id, asset,
+                    exchange_id,
+                    asset,
                 )
                 available_balance = (
                     current_balance.available_quantity  # Direct attribute access
@@ -185,7 +186,10 @@ class BalanceMonitor:
         return new_alerts
 
     def check_balance_for_opportunity(
-        self, exchange: str, asset: str, required_amount: Decimal,
+        self,
+        exchange: str,
+        asset: str,
+        required_amount: Decimal,
     ) -> BalanceAlert | None:
         """Check if a specific exchange has sufficient balance for a potential trade.
 
@@ -200,7 +204,8 @@ class BalanceMonitor:
         """
         # Use the correct type hint: SpotBalance
         current_balance: SpotBalance | None = self.portfolio_tracker.get_exchange_balance(
-            exchange, asset,
+            exchange,
+            asset,
         )
         available_balance = (
             current_balance.available_quantity  # Direct attribute access
@@ -257,7 +262,8 @@ class BalanceMonitor:
             for asset in min_balances:
                 # Use the correct type hint: SpotBalance
                 current_balance: SpotBalance | None = self.portfolio_tracker.get_exchange_balance(
-                    exchange_id, asset,
+                    exchange_id,
+                    asset,
                 )
                 available_balance = (
                     current_balance.available_quantity  # Direct attribute access

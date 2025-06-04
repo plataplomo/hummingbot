@@ -1,5 +1,4 @@
-"""Handles calculation, plotting, and saving of backtest results.
-"""
+"""Handles calculation, plotting, and saving of backtest results."""
 
 import logging
 import os
@@ -75,7 +74,8 @@ class BacktestResultsHandler:
                 self.equity_df = self.equity_df.set_index("timestamp")
                 # Ensure capital is numeric (float for analysis)
                 self.equity_df["capital"] = pd.to_numeric(
-                    self.equity_df["capital"], errors="coerce",
+                    self.equity_df["capital"],
+                    errors="coerce",
                 )
             except Exception as e:
                 logger.error(f"Error creating equity DataFrame: {e}", exc_info=True)
@@ -265,7 +265,11 @@ class BacktestResultsHandler:
 
         try:
             fig, axes = plt.subplots(
-                2, 1, figsize=figsize, sharex=True, gridspec_kw={"height_ratios": [3, 1]},
+                2,
+                1,
+                figsize=figsize,
+                sharex=True,
+                gridspec_kw={"height_ratios": [3, 1]},
             )  # Give more space to equity
             fig.suptitle(f"{self.strategy_name} Backtest Results", fontsize=16)
 
@@ -300,7 +304,8 @@ class BacktestResultsHandler:
 
             # Save plot
             plot_filename = os.path.join(
-                self.results_dir, f"{self.strategy_name}_backtest_plot.png",
+                self.results_dir,
+                f"{self.strategy_name}_backtest_plot.png",
             )
             plt.savefig(plot_filename)
             logger.info(f"Result plot saved to {plot_filename}")

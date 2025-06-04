@@ -67,7 +67,8 @@ class HyperliquidRawFundingHistoryRequestPayload(BaseModel):
     coin: RawHlCoinName
 
     start_time: RawHlTimestampMsInt = Field(
-        alias="startTime", description="Start time in milliseconds since Unix epoch",
+        alias="startTime",
+        description="Start time in milliseconds since Unix epoch",
     )
 
     end_time: RawHlTimestampMsInt | None = Field(

@@ -35,6 +35,7 @@ class TestRiskManagerInit:
         assert hasattr(risk_manager, "funding_rate_validator")
 
     def test_config_error_missing_values(self, mock_config: MagicMock) -> None:
+        """Test config error missing values."""
         # This test case is not provided in the original file or the code block
         # It's assumed to exist as it's called in the test_init method
         pass

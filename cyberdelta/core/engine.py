@@ -333,7 +333,8 @@ class Engine:
                     stopped_count += 1
                 except Exception as e:
                     logger.error(
-                        f"Error calling on_stop for strategy '{strategy.name}': {e}", exc_info=True,
+                        f"Error calling on_stop for strategy '{strategy.name}': {e}",
+                        exc_info=True,
                     )
                 # Always disable after stopping, even if on_stop failed
                 self.disable_strategy(strategy_name)

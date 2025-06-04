@@ -38,11 +38,13 @@ This pattern is enforced for all Raw models in the CyberDeltaEngine project.
 
 @pytest.fixture
 def valid_imf_function_data() -> dict[str, str]:
+    """Return valid imf function data for testing."""
     return {"base": "0.1", "factor": "0.5"}
 
 
 @pytest.fixture
 def valid_mmf_function_data() -> dict[str, str]:
+    """Return valid mmf function data for testing."""
     return {"base": "0.05", "factor": "0.25"}
 
 
@@ -50,6 +52,7 @@ def valid_mmf_function_data() -> dict[str, str]:
 def valid_position_data(
     valid_imf_function_data: dict[str, str], valid_mmf_function_data: dict[str, str],
 ) -> dict[str, Any]:
+    """Return valid position data for testing."""
     # Fixture now correctly depends on imf/mmf data fixtures
     return {
         "breakEvenPrice": "20000.50",
@@ -76,6 +79,7 @@ def valid_position_data(
 
 @pytest.fixture
 def valid_position_update_data() -> dict[str, Any]:
+    """Return valid position update data for testing."""
     return {
         "e": "positionUpdate",
         "E": 1678886400000,  # Example timestamp
@@ -96,6 +100,7 @@ def valid_position_update_data() -> dict[str, Any]:
 
 
 def test_BackpackRawPosition_valid(valid_position_data: dict[str, Any]) -> None:
+    """Test BackpackRawPosition valid."""
     pos = BackpackRawPosition.model_validate(valid_position_data)
     assert pos.symbol == "BTC_USDC"
     assert pos.user_id == 123456789
@@ -117,6 +122,7 @@ def test_BackpackRawPosition_valid_int_user_id_str(
     valid_imf_function_data: dict[str, str],  # Add fixture dependency
     valid_mmf_function_data: dict[str, str],  # Add fixture dependency
 ) -> None:
+    """Test BackpackRawPosition valid int user id str."""
     # Note: valid_position_data fixture already includes imf/mmf data
     data = valid_position_data  # Use the injected fixture directly
     data["userId"] = "987654321"
@@ -157,12 +163,13 @@ def test_BackpackRawPosition_valid_int_user_id_str(
 )
 def test_BackpackRawPosition_invalid_fields(
     field: str,
-    value: str | float | bool | dict[str, Any] | None,  # Testing specific invalid types for Pydantic validation
+    value: str | float | bool | dict[str, Any] | None,  # Invalid types for Pydantic
     expected_msg_part: str,
     valid_position_data: dict[str, Any],  # Add fixture dependency
     valid_imf_function_data: dict[str, str],  # Add fixture dependency
     valid_mmf_function_data: dict[str, str],  # Add fixture dependency
 ) -> None:
+    """Test BackpackRawPosition invalid fields."""
     # Note: valid_position_data fixture already includes imf/mmf data
     data = valid_position_data  # Use the injected fixture directly
     # Special handling for nested dicts
@@ -185,6 +192,7 @@ def test_BackpackRawPosition_extra_field(
     valid_imf_function_data: dict[str, str],  # Add fixture dependency
     valid_mmf_function_data: dict[str, str],  # Add fixture dependency
 ) -> None:
+    """Test BackpackRawPosition extra field."""
     # Note: valid_position_data fixture already includes imf/mmf data
     data = valid_position_data  # Use the injected fixture directly
     data["extraField"] = "some_value"
@@ -197,6 +205,7 @@ def test_BackpackRawPosition_frozen(
     valid_imf_function_data: dict[str, str],  # Add fixture dependency
     valid_mmf_function_data: dict[str, str],  # Add fixture dependency
 ) -> None:
+    """Test BackpackRawPosition frozen."""
     # Note: valid_position_data fixture already includes imf/mmf data
     pos = BackpackRawPosition.model_validate(
         valid_position_data,
@@ -209,6 +218,7 @@ def test_BackpackRawPosition_frozen(
 
 
 def test_BackpackRawPositionUpdate_valid(valid_position_update_data: dict[str, Any]) -> None:
+    """Test BackpackRawPositionUpdate valid."""
     update = BackpackRawPositionUpdate.model_validate(valid_position_update_data)
     assert update.event_type == "positionUpdate"
     assert update.event_time == 1678886400000
@@ -229,6 +239,7 @@ def test_BackpackRawPositionUpdate_valid(valid_position_update_data: dict[str, A
 def test_BackpackRawPositionUpdate_valid_optional_fields_none(
     valid_position_update_data: dict[str, Any],  # Add fixture dependency
 ) -> None:
+    """Test BackpackRawPositionUpdate valid optional fields none."""
     data = valid_position_update_data  # Use the injected fixture directly
     # Set all optional fields to None
     optional_fields = ["b", "B", "l", "f", "M", "m", "q", "Q", "n"]
@@ -250,6 +261,7 @@ def test_BackpackRawPositionUpdate_valid_optional_fields_none(
 def test_BackpackRawPositionUpdate_valid_timestamp_formats(
     valid_position_update_data: dict[str, Any],  # Add fixture dependency
 ) -> None:
+    """Test BackpackRawPositionUpdate valid timestamp formats."""
     data = valid_position_update_data  # Use the injected fixture directly
     data["E"] = "2023-03-15T12:00:00Z"
     update = BackpackRawPositionUpdate.model_validate(data)
@@ -299,10 +311,11 @@ def test_BackpackRawPositionUpdate_valid_timestamp_formats(
 )
 def test_BackpackRawPositionUpdate_invalid_fields(
     field: str,
-    value: str | float | bool | list[Any] | None,  # Testing specific invalid types for Pydantic validation
+    value: str | float | bool | list[Any] | None,  # Invalid types for Pydantic
     expected_msg_part: str,
     valid_position_update_data: dict[str, Any],  # Add fixture dependency
 ) -> None:
+    """Test BackpackRawPositionUpdate invalid fields."""
     data = valid_position_update_data  # Use the injected fixture directly
     data[field] = value
     with pytest.raises(ValidationError) as exc_info:
@@ -315,6 +328,7 @@ def test_BackpackRawPositionUpdate_invalid_fields(
 def test_BackpackRawPositionUpdate_extra_field(
     valid_position_update_data: dict[str, Any],  # Add fixture dependency
 ) -> None:
+    """Test BackpackRawPositionUpdate extra field."""
     data = valid_position_update_data  # Use the injected fixture directly
     data["extra"] = 123
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
@@ -324,6 +338,7 @@ def test_BackpackRawPositionUpdate_extra_field(
 def test_BackpackRawPositionUpdate_frozen(
     valid_position_update_data: dict[str, Any],  # Add fixture dependency
 ) -> None:
+    """Test BackpackRawPositionUpdate frozen."""
     data = valid_position_update_data  # Use the injected fixture directly
     pos_update = BackpackRawPositionUpdate.model_validate(data)
     with pytest.raises(ValidationError, match="Instance is frozen"):

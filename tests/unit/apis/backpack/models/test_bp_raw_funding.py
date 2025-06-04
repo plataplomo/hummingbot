@@ -14,6 +14,7 @@ from cyberdelta.apis.backpack.models.bp_raw_funding import (
 
 # --- BackpackRawFundingRate ---
 def valid_funding_rate() -> dict[str, Any]:
+    """Return valid funding rate for testing."""
     return {
         "symbol": "BTC_USDC",
         "rate": "0.0001",
@@ -24,6 +25,7 @@ def valid_funding_rate() -> dict[str, Any]:
 
 
 def test_BackpackRawFundingRate_happy_path() -> None:
+    """Test BackpackRawFundingRate happy path."""
     obj = BackpackRawFundingRate.model_validate(valid_funding_rate())
     assert obj.symbol == "BTC_USDC"
     assert obj.funding_rate == "0.0001"
@@ -33,6 +35,7 @@ def test_BackpackRawFundingRate_happy_path() -> None:
 
 
 def test_BackpackRawFundingRate_missing_required_fields() -> None:
+    """Test BackpackRawFundingRate missing required fields."""
     for field in ["symbol", "rate", "markPrice", "indexPrice", "time"]:
         p: dict[str, Any] = valid_funding_rate().copy()
         del p[field]
@@ -41,6 +44,7 @@ def test_BackpackRawFundingRate_missing_required_fields() -> None:
 
 
 def test_BackpackRawFundingRate_wrong_type_fields() -> None:
+    """Test BackpackRawFundingRate wrong type fields."""
     p: dict[str, Any] = valid_funding_rate().copy()
     p["rate"] = [0.0001]
     with pytest.raises(ValidationError):
@@ -52,6 +56,7 @@ def test_BackpackRawFundingRate_wrong_type_fields() -> None:
 
 
 def test_BackpackRawFundingRate_invalid_format_fields() -> None:
+    """Test BackpackRawFundingRate invalid format fields."""
     p: dict[str, Any] = valid_funding_rate().copy()
     p["rate"] = "1..0"
     with pytest.raises(ValidationError):
@@ -68,6 +73,7 @@ def test_BackpackRawFundingRate_invalid_format_fields() -> None:
 
 
 def test_BackpackRawFundingRate_extra_field() -> None:
+    """Test BackpackRawFundingRate extra field."""
     p: dict[str, Any] = valid_funding_rate().copy()
     p["foo"] = 1
     with pytest.raises(ValidationError):
@@ -75,6 +81,7 @@ def test_BackpackRawFundingRate_extra_field() -> None:
 
 
 def test_BackpackRawFundingRate_corruption_cases() -> None:
+    """Test BackpackRawFundingRate corruption cases."""
     # Garbled numerics
     p: dict[str, Any] = valid_funding_rate().copy()
     p["markPrice"] = "notanumber"
@@ -152,6 +159,7 @@ def test_BackpackRawFundingRate_corruption_garbled_unicode_symbol() -> None:
 
 # --- BackpackRawMarkPrice ---
 def valid_mark_price() -> dict[str, Any]:
+    """Return valid mark price for testing."""
     return {
         "symbol": "BTC_USDC",
         "markPrice": "50000.0",
@@ -160,6 +168,7 @@ def valid_mark_price() -> dict[str, Any]:
 
 
 def test_BackpackRawMarkPrice_happy_path() -> None:
+    """Test BackpackRawMarkPrice happy path."""
     obj = BackpackRawMarkPrice.model_validate(valid_mark_price())
     assert obj.symbol == "BTC_USDC"
     assert obj.mark_price == "50000.0"
@@ -167,6 +176,7 @@ def test_BackpackRawMarkPrice_happy_path() -> None:
 
 
 def test_BackpackRawMarkPrice_missing_required_fields() -> None:
+    """Test BackpackRawMarkPrice missing required fields."""
     for field in ["symbol", "markPrice", "fundingRate"]:
         p: dict[str, Any] = valid_mark_price().copy()
         del p[field]
@@ -175,6 +185,7 @@ def test_BackpackRawMarkPrice_missing_required_fields() -> None:
 
 
 def test_BackpackRawMarkPrice_wrong_type_fields() -> None:
+    """Test BackpackRawMarkPrice wrong type fields."""
     p: dict[str, Any] = valid_mark_price().copy()
     p["markPrice"] = [50000.0]
     with pytest.raises(ValidationError):
@@ -182,6 +193,7 @@ def test_BackpackRawMarkPrice_wrong_type_fields() -> None:
 
 
 def test_BackpackRawMarkPrice_invalid_format_fields() -> None:
+    """Test BackpackRawMarkPrice invalid format fields."""
     p: dict[str, Any] = valid_mark_price().copy()
     p["markPrice"] = "1..0"
     with pytest.raises(ValidationError):
@@ -193,6 +205,7 @@ def test_BackpackRawMarkPrice_invalid_format_fields() -> None:
 
 
 def test_BackpackRawMarkPrice_extra_field() -> None:
+    """Test BackpackRawMarkPrice extra field."""
     p: dict[str, Any] = valid_mark_price().copy()
     p["foo"] = 1
     with pytest.raises(ValidationError):
@@ -200,6 +213,7 @@ def test_BackpackRawMarkPrice_extra_field() -> None:
 
 
 def test_BackpackRawMarkPrice_corruption_cases() -> None:
+    """Test BackpackRawMarkPrice corruption cases."""
     # Garbled numerics
     p: dict[str, Any] = valid_mark_price().copy()
     p["fundingRate"] = "notanumber"

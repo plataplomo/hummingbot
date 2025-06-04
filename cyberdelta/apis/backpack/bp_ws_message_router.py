@@ -63,7 +63,9 @@ class BackpackWsMessageRouter:
         self.logger = get_logger(__name__)
 
     def construct_subscription_payload(
-        self, topic: str, signature_components: BackpackWsSignatureComponents | None = None,
+        self,
+        topic: str,
+        signature_components: BackpackWsSignatureComponents | None = None,
     ) -> BackpackRawWsSubscriptionRequest:
         """Construct the subscription payload for a given topic for Backpack.
 
@@ -109,7 +111,9 @@ class BackpackWsMessageRouter:
         # Create the subscription request
         try:
             return BackpackRawWsSubscriptionRequest(
-                method=method_val, params=params_val, signature=signature_val_tuple,
+                method=method_val,
+                params=params_val,
+                signature=signature_val_tuple,
             )
         except Exception as e:
             # Wrap unexpected exceptions
@@ -118,7 +122,9 @@ class BackpackWsMessageRouter:
             ) from e
 
     async def route_message(
-        self, message: dict[str, Any], ws_handlers: dict[str, MessageHandler],
+        self,
+        message: dict[str, Any],
+        ws_handlers: dict[str, MessageHandler],
     ) -> None:
         """Route incoming WebSocket messages to the appropriate handler based on topic.
 
@@ -193,7 +199,8 @@ class BackpackWsMessageRouter:
                 # Extract symbol from topic (e.g., "depth.SOL_USDC" -> "SOL_USDC")
                 symbol_from_topic = topic_str.split(".", 1)[1] if "." in topic_str else "UNKNOWN"
                 internal_model = self._market_data_mapper.transform_ws_depth_event_to_internal(
-                    symbol_from_topic, validated_payload,
+                    symbol_from_topic,
+                    validated_payload,
                 )
             elif base_topic == "ticker":
                 validated_payload = self._raw_ws_handler.handle_ticker_payload(data_payload)

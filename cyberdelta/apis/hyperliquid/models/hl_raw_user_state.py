@@ -113,11 +113,13 @@ class HyperliquidRawClearinghouseState(BaseModel):
     asset_positions: list[HyperliquidRawAssetPosition] = Field(..., alias="assetPositions")
     margin_summary: HyperliquidRawMarginSummary = Field(..., alias="marginSummary")
     cross_maintenance_margin_used: RawNonNegativeFiniteDecimalStr = Field(
-        ..., alias="crossMaintenanceMarginUsed",
+        ...,
+        alias="crossMaintenanceMarginUsed",
     )
     cross_margin_summary: HyperliquidRawMarginSummary = Field(..., alias="crossMarginSummary")
     isolated_maintenance_margin_used: RawNonNegativeFiniteDecimalStr = Field(
-        ..., alias="isolatedMaintenanceMarginUsed",
+        ...,
+        alias="isolatedMaintenanceMarginUsed",
     )
     isolated_margin_summary: HyperliquidRawMarginSummary = Field(..., alias="isolatedMarginSummary")
     withdrawable: RawNonNegativeFiniteDecimalStr = Field(..., alias="withdrawable")
@@ -126,8 +128,7 @@ class HyperliquidRawClearinghouseState(BaseModel):
 
 # --- User State Request Payload ---
 class HyperliquidRawUserStateRequestPayload(BaseModel):
-    """Represents the request payload for the 'clearinghouseState' info type.
-    """
+    """Represents the request payload for the 'clearinghouseState' info type."""
 
     type: Annotated[
         Literal["clearinghouseState"],

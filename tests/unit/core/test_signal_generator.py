@@ -65,6 +65,7 @@ class TestSignalGenerator:
 
         # Define side effect using nested function with type hints
         def config_get_side_effect(key: str, default: object | None = None) -> object | None:
+            """Helper function for config get side effect."""
             if "." in key:
                 parts = key.split(".")
                 base = parts[0]
@@ -194,16 +195,19 @@ class TestSignalGenerator:
         }
 
         def get_funding_rate_side_effect(exchange: str, symbol: str) -> FundingRate | None:
+            """Get funding rate side effect for testing."""
             return funding_rates.get(exchange, {}).get(symbol)
 
         # get_ticker side effect is no longer directly used by SignalGenerator for opportunities,
         # as it uses handler.tickers. However, other parts of tests might still use it.
         # For safety, ensure it returns Ticker if something still calls it.
         def get_ticker_side_effect(exchange: str, symbol: str) -> Ticker | None:
+            """Get ticker side effect for testing."""
             ticker = handler.tickers.get(exchange, {}).get(symbol)
             return ticker if ticker is None or isinstance(ticker, Ticker) else None
 
         def get_orderbook_side_effect(exchange: str, symbol: str) -> OrderBook | None:
+            """Get orderbook side effect for testing."""
             return orderbooks.get(exchange, {}).get(symbol)
 
         handler.get_latest_funding_rate.side_effect = get_funding_rate_side_effect
@@ -272,6 +276,7 @@ class TestSignalGenerator:
         def get_funding_iter(
             exchange: str, symbol: str, rate_chg: Decimal = Decimal(0),
         ) -> FundingRate | None:
+            """Get funding iter for testing."""
             base_rate = Decimal("-0.001") if exchange == "hyperliquid" else Decimal("0.002")
             return FundingRate(
                 symbol=symbol, funding_rate=base_rate + rate_chg, timestamp=fixed_now,
@@ -280,6 +285,7 @@ class TestSignalGenerator:
         def get_ticker_iter(
             exchange: str, symbol: str, price_chg: Decimal = Decimal(0),
         ) -> Ticker | None:
+            """Get ticker iter for testing."""
             base_price = Decimal("30000") if exchange == "hyperliquid" else Decimal("30010")
             return Ticker(symbol=symbol, price=base_price + price_chg, timestamp=fixed_now)
 
@@ -451,6 +457,7 @@ class TestSignalGenerator:
 
         # Define side effect with type hints, adding mark_price and timestamp
         def mock_low_funding(exchange: str, symbol: str) -> FundingRate | None:
+            """Return mock low funding for testing."""
             hl_sym = (
                 signal_generator.symbol_mapper.get_exchange_symbol("BTC", "hyperliquid")
                 or "BTC-PERP"
@@ -513,6 +520,7 @@ class TestSignalGenerator:
         # now = datetime.now(UTC) # Unused variable
         # Define side effect with type hints
         def single_exchange_config_get(key: str, default: object | None = None) -> object | None:
+            """Helper function for single exchange config get."""
             mock_single_config_dict: dict[str, Any] = {
                 "exchanges": {"hyperliquid": {"enabled": True, "symbols": {"BTC": "BTC-PERP"}}},
                 "strategy.funding_rate.min_funding_differential": "0.0002",

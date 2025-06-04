@@ -52,27 +52,32 @@ VALID_VAULT_DETAILS_RESPONSE: dict[str, Any] = {
 
 @pytest.fixture
 def valid_perf_history_data() -> dict[str, Any]:
+    """Return valid perf history data for testing."""
     return VALID_PERFORMANCE_HISTORY_ITEM.copy()
 
 
 @pytest.fixture
 def valid_user_equity_data() -> dict[str, Any]:
+    """Return valid user equity data for testing."""
     return VALID_USER_EQUITY_ITEM.copy()
 
 
 @pytest.fixture
 def valid_relationship_data() -> dict[str, list[str]]:
+    """Return valid relationship data for testing."""
     return VALID_RELATIONSHIP_DATA_PARENT.copy()
 
 
 @pytest.fixture
 def valid_relationship() -> dict[str, Any]:
+    """Return valid relationship for testing."""
     data = VALID_RELATIONSHIP["data"].copy()
     return {"type": VALID_RELATIONSHIP["type"], "data": data}
 
 
 @pytest.fixture
 def valid_vault_details_data() -> dict[str, Any]:
+    """Return valid vault details data for testing."""
     data = VALID_VAULT_DETAILS_RESPONSE.copy()
     data["performanceHistory"] = [
         ph.copy() for ph in VALID_VAULT_DETAILS_RESPONSE["performanceHistory"]
@@ -89,6 +94,7 @@ def valid_vault_details_data() -> dict[str, Any]:
 
 # HyperliquidRawVaultPerformanceHistoryItem Tests
 def test_perf_history_item_valid(valid_perf_history_data: dict[str, Any]) -> None:
+    """Test perf history item valid."""
     item = HyperliquidRawVaultPerformanceHistoryItem.model_validate(valid_perf_history_data)
     assert item.time == valid_perf_history_data["time"]
     assert item.pnl == valid_perf_history_data["pnl"]
@@ -107,6 +113,7 @@ def test_perf_history_item_valid(valid_perf_history_data: dict[str, Any]) -> Non
 def test_perf_history_item_invalid_fields(
     valid_perf_history_data: dict[str, Any], field: str, value: object,
 ) -> None:
+    """Test perf history item invalid fields."""
     data_copy = valid_perf_history_data.copy()
     if value is None:
         if field in data_copy:
@@ -118,6 +125,7 @@ def test_perf_history_item_invalid_fields(
 
 
 def test_perf_history_item_extra_field(valid_perf_history_data: dict[str, Any]) -> None:
+    """Test perf history item extra field."""
     data_copy = valid_perf_history_data.copy()
     data_copy["extra"] = "field"
     with pytest.raises(ValidationError):
@@ -126,6 +134,7 @@ def test_perf_history_item_extra_field(valid_perf_history_data: dict[str, Any]) 
 
 # HyperliquidRawVaultUserEquity Tests
 def test_user_equity_valid(valid_user_equity_data: dict[str, Any]) -> None:
+    """Test user equity valid."""
     item = HyperliquidRawVaultUserEquity.model_validate(valid_user_equity_data)
     assert item.user == valid_user_equity_data["user"]
     assert item.equity == valid_user_equity_data["equity"]
@@ -147,6 +156,7 @@ def test_user_equity_valid(valid_user_equity_data: dict[str, Any]) -> None:
 def test_user_equity_invalid_fields(
     valid_user_equity_data: dict[str, Any], field: str, value: object,
 ) -> None:
+    """Test user equity invalid fields."""
     data_copy = valid_user_equity_data.copy()
     if value is None:
         if field in data_copy:
@@ -158,6 +168,7 @@ def test_user_equity_invalid_fields(
 
 
 def test_user_equity_extra_field(valid_user_equity_data: dict[str, Any]) -> None:
+    """Test user equity extra field."""
     data_copy = valid_user_equity_data.copy()
     data_copy["extra"] = "data"
     with pytest.raises(ValidationError):
@@ -166,6 +177,7 @@ def test_user_equity_extra_field(valid_user_equity_data: dict[str, Any]) -> None
 
 # HyperliquidRawVaultRelationshipData Tests
 def test_relationship_data_valid(valid_relationship_data: dict[str, list[str]]) -> None:
+    """Test relationship data valid."""
     data = HyperliquidRawVaultRelationshipData.model_validate(valid_relationship_data)
     assert data.child_addresses == valid_relationship_data["childAddresses"]
 
@@ -181,6 +193,7 @@ def test_relationship_data_valid(valid_relationship_data: dict[str, list[str]]) 
 def test_relationship_data_invalid(
     valid_relationship_data: dict[str, list[str]], field: str, value: object,
 ) -> None:
+    """Test relationship data invalid."""
     data_copy = valid_relationship_data.copy()
     data_copy.pop("master", None)
     data_copy[field] = value  # type: ignore[assignment]
@@ -190,6 +203,7 @@ def test_relationship_data_invalid(
 
 # HyperliquidRawVaultRelationship Tests
 def test_relationship_valid(valid_relationship: dict[str, Any]) -> None:
+    """Test relationship valid."""
     rel = HyperliquidRawVaultRelationship.model_validate(valid_relationship)
     assert rel.type == valid_relationship["type"]
     assert rel.data.child_addresses == valid_relationship["data"]["childAddresses"]
@@ -206,6 +220,7 @@ def test_relationship_valid(valid_relationship: dict[str, Any]) -> None:
 def test_relationship_invalid(
     valid_relationship: dict[str, Any], field: str, value: object,
 ) -> None:
+    """Test relationship invalid."""
     data_copy = valid_relationship.copy()
     if value is None:
         if field in data_copy:
@@ -217,6 +232,7 @@ def test_relationship_invalid(
 
 
 def test_relationship_extra_field(valid_relationship: dict[str, Any]) -> None:
+    """Test relationship extra field."""
     data_copy = valid_relationship.copy()
     data_copy["unexpected"] = 1
     with pytest.raises(ValidationError):
@@ -225,6 +241,7 @@ def test_relationship_extra_field(valid_relationship: dict[str, Any]) -> None:
 
 # HyperliquidRawVaultDetailsResponse Tests
 def test_vault_details_valid(valid_vault_details_data: dict[str, Any]) -> None:
+    """Test vault details valid."""
     resp = HyperliquidRawVaultDetailsResponse.model_validate(valid_vault_details_data)
     assert resp.name == valid_vault_details_data["name"]
     assert resp.allow_deposits == valid_vault_details_data["allowDeposits"]
@@ -259,6 +276,7 @@ def test_vault_details_valid(valid_vault_details_data: dict[str, Any]) -> None:
 def test_vault_details_invalid(
     valid_vault_details_data: dict[str, Any], field: str, value: object, is_missing_test: bool,
 ) -> None:
+    """Test vault details invalid."""
     data_copy = valid_vault_details_data.copy()
     if is_missing_test:
         if field in data_copy:
@@ -270,6 +288,7 @@ def test_vault_details_invalid(
 
 
 def test_vault_details_extra_field(valid_vault_details_data: dict[str, Any]) -> None:
+    """Test vault details extra field."""
     data_copy = valid_vault_details_data.copy()
     data_copy["surprise"] = "field"
     with pytest.raises(ValidationError):

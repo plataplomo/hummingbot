@@ -1,5 +1,4 @@
-"""Unit tests for BackpackTradingService order management functionality.
-"""
+"""Unit tests for BackpackTradingService order management functionality."""
 
 from __future__ import annotations
 

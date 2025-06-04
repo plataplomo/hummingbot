@@ -21,6 +21,7 @@ VALID_SUBACCOUNTS_RESPONSE: list[str] = [
 
 
 def test_subaccounts_valid() -> None:
+    """Test subaccounts valid."""
     response = HyperliquidRawSubAccountsResponse.model_validate(VALID_SUBACCOUNTS_RESPONSE)
     assert response.root == VALID_SUBACCOUNTS_RESPONSE
 
@@ -41,11 +42,13 @@ def test_subaccounts_valid() -> None:
 def test_subaccounts_invalid_root_list(
     invalid_list_data: str | int | dict[str, Any] | None,
 ) -> None:
+    """Test subaccounts invalid root list."""
     with pytest.raises(ValidationError):
         HyperliquidRawSubAccountsResponse.model_validate(invalid_list_data)
 
 
 def test_subaccounts_empty_list_valid() -> None:
+    """Test subaccounts empty list valid."""
     response = HyperliquidRawSubAccountsResponse.model_validate([])
     assert response.root == []
 

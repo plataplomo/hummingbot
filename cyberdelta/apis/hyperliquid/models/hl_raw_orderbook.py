@@ -140,7 +140,8 @@ class HyperliquidRawL2Book(BaseModel):
         # will be handled by Pydantic when it parses into list[list[HyperliquidRawBookLevel]].
         # This validator ensures the basic [list, list] structure.
         return cast(
-            list[list[object]], v,
+            list[list[object]],
+            v,
         )  # Return the raw validated structure for Pydantic to process further
 
 

@@ -1,5 +1,4 @@
-"""Unit tests for HyperliquidMarketDataService funding rate functionality.
-"""
+"""Unit tests for HyperliquidMarketDataService funding rate functionality."""
 
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -535,6 +534,7 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
 
         # Configure mapper to succeed for first, fail for second
         def mapper_side_effect(item: HyperliquidRawFundingHistoryItem) -> FundingRate:
+            """Helper function for mapper side effect."""
             if item.time == 1672531200000:
                 return FundingRate(
                     symbol=symbol,

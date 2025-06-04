@@ -60,7 +60,8 @@ class HyperliquidApiTokenWithdrawalRequest(BaseModel):
     """Top-level request payload for a generic token withdrawal (to L1)."""
 
     type: Annotated[
-        Literal["withdraw"], BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32)),
+        Literal["withdraw"],
+        BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32)),
     ] = Field("withdraw")
     action: HyperliquidRawWithdrawalToL1ActionPayload  # From hl_raw_transfer_withdrawal
 
@@ -77,7 +78,8 @@ class HyperliquidApiPlaceOrderRequest(BaseModel):
     """Top-level request payload for placing one or more orders."""
 
     type: Annotated[
-        Literal["order"], BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32)),
+        Literal["order"],
+        BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32)),
     ] = Field("order")
     # The `HyperliquidRawBatchPlaceOrderActionPayload` has 'type', 'grouping', and 'orders'
     # It seems this top-level request *is* the HyperliquidRawBatchPlaceOrderActionPayload.
@@ -96,7 +98,8 @@ class HyperliquidApiCancelOrderRequest(BaseModel):
     """Top-level request payload for cancelling an order."""
 
     type: Annotated[
-        Literal["cancel"], BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32)),
+        Literal["cancel"],
+        BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32)),
     ] = Field("cancel")
     action: HyperliquidRawCancelOrderAction
 

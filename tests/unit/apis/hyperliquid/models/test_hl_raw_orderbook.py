@@ -17,10 +17,12 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
 
 # --- Helper: Valid minimal payloads for each model ---
 def valid_book_level() -> dict[str, object]:
+    """Return valid book level for testing."""
     return {"px": "123.45", "sz": "1.0", "n": 1}
 
 
 def valid_l2book() -> dict[str, object]:
+    """Return valid l2book for testing."""
     return {
         "coin": "ETH",
         "levels": [[valid_book_level()], [valid_book_level()]],
@@ -29,11 +31,13 @@ def valid_l2book() -> dict[str, object]:
 
 
 def valid_l2book_request_payload() -> dict[str, object]:
+    """Return valid l2book request payload for testing."""
     return {"type": "l2Book", "coin": "ETH"}
 
 
 # --- Tests for HyperliquidRawBookLevel ---
 def test_book_level_happy_path() -> None:
+    """Test book level happy path."""
     obj = HyperliquidRawBookLevel.model_validate(valid_book_level())
     assert obj.px == "123.45"
     assert obj.sz == "1.0"
@@ -41,6 +45,7 @@ def test_book_level_happy_path() -> None:
 
 
 def test_book_level_missing_required() -> None:
+    """Test book level missing required."""
     for field in ["px", "sz", "n"]:
         d = valid_book_level().copy()
         del d[field]
@@ -49,6 +54,7 @@ def test_book_level_missing_required() -> None:
 
 
 def test_book_level_type_errors() -> None:
+    """Test book level type errors."""
     d = valid_book_level().copy()
     d["px"] = 123.45
     with pytest.raises(ValidationError):
@@ -60,6 +66,7 @@ def test_book_level_type_errors() -> None:
 
 
 def test_book_level_format_errors() -> None:
+    """Test book level format errors."""
     for field in ["px", "sz"]:
         d = valid_book_level().copy()
         d[field] = ""
@@ -75,6 +82,7 @@ def test_book_level_format_errors() -> None:
 
 
 def test_book_level_extra_field() -> None:
+    """Test book level extra field."""
     d = valid_book_level().copy()
     d["foo"] = 1
     with pytest.raises(ValidationError):
@@ -82,6 +90,7 @@ def test_book_level_extra_field() -> None:
 
 
 def test_book_level_adversarial_strings() -> None:
+    """Test book level adversarial strings."""
     d = valid_book_level().copy()
     d["px"] = "1e6"
     obj = HyperliquidRawBookLevel.model_validate(d)
@@ -90,6 +99,7 @@ def test_book_level_adversarial_strings() -> None:
 
 # --- Tests for HyperliquidRawL2Book ---
 def test_l2book_happy_path() -> None:
+    """Test l2book happy path."""
     obj = HyperliquidRawL2Book.model_validate(valid_l2book())
     assert obj.coin == "ETH"
     assert isinstance(obj.levels, list)
@@ -97,6 +107,7 @@ def test_l2book_happy_path() -> None:
 
 
 def test_l2book_missing_required() -> None:
+    """Test l2book missing required."""
     for field in ["coin", "levels", "time"]:
         d = valid_l2book().copy()
         del d[field]
@@ -105,6 +116,7 @@ def test_l2book_missing_required() -> None:
 
 
 def test_l2book_type_errors() -> None:
+    """Test l2book type errors."""
     d = valid_l2book().copy()
     d["coin"] = 123
     with pytest.raises(ValidationError):
@@ -120,6 +132,7 @@ def test_l2book_type_errors() -> None:
 
 
 def test_l2book_levels_structure() -> None:
+    """Test l2book levels structure."""
     d = valid_l2book().copy()
     d["levels"] = []
     with pytest.raises(ValidationError):
@@ -133,6 +146,7 @@ def test_l2book_levels_structure() -> None:
 
 
 def test_l2book_nested_model_error() -> None:
+    """Test l2book nested model error."""
     d = valid_l2book().copy()
     # mypy: ignore-next-line (we know the structure is correct for this test)
     d["levels"][0][0]["px"] = "notanumber"  # type: ignore[index]
@@ -141,6 +155,7 @@ def test_l2book_nested_model_error() -> None:
 
 
 def test_l2book_extra_field() -> None:
+    """Test l2book extra field."""
     d = valid_l2book().copy()
     d["foo"] = 1
     with pytest.raises(ValidationError):
@@ -148,6 +163,7 @@ def test_l2book_extra_field() -> None:
 
 
 def test_l2book_adversarial_strings() -> None:
+    """Test l2book adversarial strings."""
     d = valid_l2book().copy()
     d["coin"] = "💣"
     obj = HyperliquidRawL2Book.model_validate(d)
@@ -156,12 +172,14 @@ def test_l2book_adversarial_strings() -> None:
 
 # --- Tests for HyperliquidRawL2BookRequestPayload ---
 def test_l2book_request_payload_happy_path() -> None:
+    """Test l2book request payload happy path."""
     obj = HyperliquidRawL2BookRequestPayload.model_validate(valid_l2book_request_payload())
     assert obj.type == "l2Book"
     assert obj.coin == "ETH"
 
 
 def test_l2book_request_payload_type_errors() -> None:
+    """Test l2book request payload type errors."""
     d = valid_l2book_request_payload().copy()
     d["coin"] = 123
     with pytest.raises(ValidationError):
@@ -173,6 +191,7 @@ def test_l2book_request_payload_type_errors() -> None:
 
 
 def test_l2book_request_payload_format_errors() -> None:
+    """Test l2book request payload format errors."""
     d = valid_l2book_request_payload().copy()
     d["coin"] = ""
     with pytest.raises(ValidationError):
@@ -183,6 +202,7 @@ def test_l2book_request_payload_format_errors() -> None:
 
 
 def test_l2book_request_payload_extra_field() -> None:
+    """Test l2book request payload extra field."""
     d = valid_l2book_request_payload().copy()
     d["foo"] = 1
     with pytest.raises(ValidationError):
@@ -191,6 +211,7 @@ def test_l2book_request_payload_extra_field() -> None:
 
 # --- Additional edge case tests (OpenAPI/SDK/real-world) ---
 def test_l2book_coin_edge_cases() -> None:
+    """Test l2book coin edge cases."""
     # Emoji, whitespace, symbols, bidi text
     for coin in ["ETH 💎", "   BTC   ", "COIN-123!@#", "\u202eABC\u202c"]:
         d = valid_l2book().copy()
@@ -200,6 +221,7 @@ def test_l2book_coin_edge_cases() -> None:
 
 
 def test_l2book_levels_structure_edge_cases() -> None:
+    """Test l2book levels structure edge cases."""
     # Not a list, wrong number of sublists, empty sublists, wrong type, excessive levels
     d = valid_l2book().copy()
     d["levels"] = "notalist"
@@ -220,6 +242,7 @@ def test_l2book_levels_structure_edge_cases() -> None:
 
 
 def test_book_level_field_edge_cases() -> None:
+    """Test book level field edge cases."""
     # Missing fields, wrong types, negative/zero/large n, px/sz as above
     for field in ["px", "sz", "n"]:
         d = valid_book_level().copy()
@@ -252,6 +275,7 @@ def test_book_level_field_edge_cases() -> None:
 
 
 def test_l2book_time_field_edge_cases() -> None:
+    """Test l2book time field edge cases."""
     # Negative, zero, very large, string instead of int
     d = valid_l2book().copy()
     d["time"] = -1
@@ -269,6 +293,7 @@ def test_l2book_time_field_edge_cases() -> None:
 
 
 def test_l2book_extra_fields() -> None:
+    """Test l2book extra fields."""
     # Extra fields at all levels
     d = valid_l2book().copy()
     d["extra"] = 123

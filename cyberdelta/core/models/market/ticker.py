@@ -61,7 +61,9 @@ class Ticker(BaseModel):
     @field_validator("price", "bid", "ask", "volume", mode="before")
     @classmethod
     def validate_and_parse_decimal_optional(
-        cls, v: str | int | float | Decimal | None, info: ValidationInfo,
+        cls,
+        v: str | int | float | Decimal | None,
+        info: ValidationInfo,
     ) -> Decimal | None:
         """Validate, parse, and check finiteness for optional Decimal fields (price, bid, ask, volume).
 

@@ -21,7 +21,7 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture
 def setup_dependencies() -> dict[str, MagicMock]:
-    """Set up test dependencies"""
+    """Set up test dependencies."""
     data_handler = MagicMock()
     portfolio_tracker = MagicMock()
     config = MagicMock(spec=AppSettings)
@@ -39,7 +39,7 @@ def setup_dependencies() -> dict[str, MagicMock]:
 def strategy_with_risk_manager(
     setup_dependencies: dict[str, MagicMock],
 ) -> FundingRateArbitrageStrategy:
-    """Create strategy instance with risk manager"""
+    """Create strategy instance with risk manager."""
     return FundingRateArbitrageStrategy(
         name="test_funding_arb",
         symbol="BTC-PERP",
@@ -61,7 +61,7 @@ def strategy_with_risk_manager(
 def strategy_without_risk_manager(
     setup_dependencies: dict[str, MagicMock],
 ) -> FundingRateArbitrageStrategy:
-    """Create strategy instance without risk manager"""
+    """Create strategy instance without risk manager."""
     return FundingRateArbitrageStrategy(
         name="test_no_rm",
         symbol="BTC-PERP",
@@ -81,7 +81,7 @@ def strategy_without_risk_manager(
 
 @pytest.fixture
 def mock_opportunity() -> ArbitrageOpportunity:
-    """Create a mock opportunity for testing"""
+    """Create a mock opportunity for testing."""
     return ArbitrageOpportunity(
         symbol="BTC/USDT",
         long_exchange="ExchangeA",
@@ -102,7 +102,7 @@ def test_strategy_initialization_with_risk_manager(
     strategy_with_risk_manager: FundingRateArbitrageStrategy,
     setup_dependencies: dict[str, MagicMock],
 ) -> None:
-    """Test that strategy initializes properly with risk manager"""
+    """Test that strategy initializes properly with risk manager."""
     assert strategy_with_risk_manager.risk_manager == setup_dependencies["risk_manager"]
     assert strategy_with_risk_manager.sized_opportunities == {}
 
@@ -115,7 +115,7 @@ async def test_position_sizing_integration(
     setup_dependencies: dict[str, MagicMock],
     mock_opportunity: ArbitrageOpportunity,
 ) -> None:
-    """Test integration between strategy and risk manager"""
+    """Test integration between strategy and risk manager."""
     # Setup mocks
     mock_logger.info = MagicMock()
     mock_logger.warning = MagicMock()
@@ -204,7 +204,7 @@ async def test_risk_manager_rejection(
     setup_dependencies: dict[str, MagicMock],
     mock_opportunity: ArbitrageOpportunity,
 ) -> None:
-    """Test case where risk manager rejects an opportunity"""
+    """Test case where risk manager rejects an opportunity."""
     # Setup mocks
     mock_logger.info = MagicMock()
     mock_logger.warning = MagicMock()
@@ -246,7 +246,7 @@ def test_fallback_without_risk_manager(
     setup_dependencies: dict[str, MagicMock],
     strategy_without_risk_manager: FundingRateArbitrageStrategy,
 ) -> None:
-    """Test fallback to default sizing when no risk manager is provided"""
+    """Test fallback to default sizing when no risk manager is provided."""
     # Test that the strategy correctly uses fallback configuration
     assert strategy_without_risk_manager.risk_manager is None
     assert strategy_without_risk_manager.params["default_position_size"] == Decimal("100.0")

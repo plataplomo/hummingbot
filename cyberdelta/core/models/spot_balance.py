@@ -47,7 +47,9 @@ class BackpackSpotBalanceDetails(BaseModel):
     @field_validator("open_order_quantity", "lend_quantity", "collateral_weight", mode="before")
     @classmethod
     def parse_optional_decimal_finite(
-        cls, v: str | int | float | Decimal | None, info: ValidationInfo,
+        cls,
+        v: str | int | float | Decimal | None,
+        info: ValidationInfo,
     ) -> Decimal | None:
         """Parse optional decimal, allowing None but ensuring finite if present."""
         field_name = info.field_name
@@ -114,7 +116,9 @@ class SpotBalance(BaseModel):
     @field_validator("timestamp", mode="before")
     @classmethod
     def parse_required_datetime_utc(
-        cls, v: str | int | float | datetime, info: ValidationInfo,
+        cls,
+        v: str | int | float | datetime,
+        info: ValidationInfo,
     ) -> datetime:
         """Parse required datetime, ensuring UTC."""
         field_name = info.field_name
@@ -130,7 +134,9 @@ class SpotBalance(BaseModel):
     @field_validator("total_quantity", "available_quantity", mode="before")
     @classmethod
     def parse_required_decimal_finite(
-        cls, v: str | int | float | Decimal, info: ValidationInfo,
+        cls,
+        v: str | int | float | Decimal,
+        info: ValidationInfo,
     ) -> Decimal:
         """Parse required decimal, ensuring finite and non-negative via Field."""
         field_name = info.field_name

@@ -86,7 +86,8 @@ class SecretsManager:
 
         except ValidationError as e:
             logger.critical(
-                f"Secrets validation failed for {self.secrets_path}: {e}", exc_info=True,
+                f"Secrets validation failed for {self.secrets_path}: {e}",
+                exc_info=True,
             )
             self.secrets_data = None
             self.secrets_loaded = False

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -28,6 +29,8 @@ from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 from tests.test_utils.testable_classes import TestableExecutionHandler
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
@@ -73,10 +76,12 @@ class TestTradeExecution:
         return TradeExecution(sized_opportunity)
 
     def test_initial_state(self, trade_execution: TradeExecution) -> None:
+        """Test initial state."""
         assert trade_execution.status == ExecutionStatus.PENDING
         assert trade_execution.realized_pnl is None
 
     def test_to_dict(self, trade_execution: TradeExecution) -> None:
+        """Test to dict."""
         trade_execution.status = ExecutionStatus.EXECUTING
         trade_execution.long_order_id = "order123"
         trade_execution.start_time = datetime.now(UTC)
@@ -86,6 +91,7 @@ class TestTradeExecution:
         assert execution_dict["realized_pnl"] == "10.50"
 
     def test_str_representation(self, trade_execution: TradeExecution) -> None:
+        """Test str representation."""
         string_rep = str(trade_execution)
         assert "TradeExecution" in string_rep
         assert "PENDING" in string_rep
@@ -138,6 +144,7 @@ class TestExecutionHandler:
 
     @pytest.fixture
     def mock_portfolio_tracker(self) -> MagicMock:
+        """Return mock portfolio tracker for testing."""
         tracker = MagicMock(spec=PortfolioTracker)
         tracker.update_order = MagicMock()
 
@@ -145,8 +152,10 @@ class TestExecutionHandler:
         process_trade_call_tracker: list[tuple[str, Trade]] = []  # Explicitly typed
 
         def process_trade_side_effect(exchange_id: str, trade: Trade) -> None:
-            print(
-                f"DEBUG: mock_portfolio_tracker.process_trade called with: {exchange_id}, {trade!r}",
+            """Helper function for process trade side effect."""
+            logger.debug(
+                f"mock_portfolio_tracker.process_trade called with: "
+                f"{exchange_id}, {trade!r}",
             )
             process_trade_call_tracker.append((exchange_id, trade))
             # original_process_trade_behavior_if_any() # If it had real behavior to mimic
@@ -160,9 +169,11 @@ class TestExecutionHandler:
 
     @pytest.fixture
     def mock_symbol_mapper(self) -> MagicMock:
+        """Return mock symbol mapper for testing."""
         mapper = MagicMock(spec=SymbolMapper)
 
         def get_exchange_symbol_side_effect(internal_symbol: str, ex_id: str) -> str | None:
+            """Get exchange symbol side effect for testing."""
             mapping = {
                 ("BTC", "hyperliquid"): "BTC-PERP",
                 ("BTC", "backpack"): "BTC_USDC",
@@ -172,6 +183,7 @@ class TestExecutionHandler:
             return mapping.get((internal_symbol, ex_id))
 
         def get_internal_symbol_side_effect(ex_sym: str, ex_id: str) -> str | None:
+            """Get internal symbol side effect for testing."""
             mapping = {
                 ("BTC-PERP", "hyperliquid"): "BTC",
                 ("BTC_USDC", "backpack"): "BTC",
@@ -186,6 +198,7 @@ class TestExecutionHandler:
 
     @pytest.fixture
     def mock_circuit_breaker_system(self) -> MagicMock:
+        """Return mock circuit breaker system for testing."""
         system = MagicMock(spec=CircuitBreakerSystem)
         system.can_execute = MagicMock(return_value=(True, None))
         system.record_api_error = MagicMock()
@@ -195,6 +208,7 @@ class TestExecutionHandler:
 
     @pytest.fixture
     def mock_hl_api(self) -> AsyncMock:
+        """Return mock hl api for testing."""
         api = AsyncMock(spec=ExchangeAPI)
         api.exchange_name = "hyperliquid"
         api.get_order = AsyncMock()
@@ -205,6 +219,7 @@ class TestExecutionHandler:
 
     @pytest.fixture
     def mock_bp_api(self) -> AsyncMock:
+        """Return mock bp api for testing."""
         api = AsyncMock(spec=ExchangeAPI)
         api.exchange_name = "backpack"
         api.get_order = AsyncMock()
@@ -223,6 +238,7 @@ class TestExecutionHandler:
         mock_hl_api: AsyncMock,
         mock_bp_api: AsyncMock,
     ) -> ExecutionHandler:
+        """Helper function for execution handler."""
         handler = ExecutionHandler(
             app_settings=mock_config,
             portfolio_tracker=mock_portfolio_tracker,
@@ -258,6 +274,7 @@ class TestExecutionHandler:
     def sized_opportunity(
         self, mock_arbitrage_opportunity: ArbitrageOpportunity,
     ) -> SizedOpportunity:
+        """Helper function for sized opportunity."""
         return SizedOpportunity(
             opportunity=mock_arbitrage_opportunity,
             long_size=Decimal("1.0"),
@@ -269,6 +286,7 @@ class TestExecutionHandler:
         )
 
     def test_register_api_client(self, execution_handler: ExecutionHandler) -> None:
+        """Test register api client."""
         new_api = AsyncMock(spec=ExchangeAPI)
         new_api.exchange_name = "new_exchange"
         execution_handler.register_api_client(new_api.exchange_name, new_api)
@@ -298,6 +316,7 @@ class TestExecutionHandler:
         mock_bp_api: AsyncMock,
     ) -> None:
         def get_symbol_side_effect(internal_symbol: str, ex_id: str) -> str | None:
+            """Get symbol side effect for testing."""
             return "BTC-PERP" if ex_id == "hyperliquid" else None
 
         mock_symbol_mapper.get_exchange_symbol.side_effect = get_symbol_side_effect
@@ -904,6 +923,7 @@ class TestExecutionHandler:
         def config_get_side_effect_comp_failed_leg(
             key: str, default: object | None = None,
         ) -> object | None:
+            """Helper function for config get side effect comp failed leg."""
             values = {
                 "execution.order_placement_type": "concurrent",
                 "execution.compensation.use_limit_orders": True,
@@ -1060,9 +1080,9 @@ class TestExecutionHandler:
             if (
                 exchange_id == "hyperliquid" and side == OrderSide.SELL and reduce_only is True
             ):  # Compensation leg
-                # --- DEBUG --- Print mock arguments for compensation leg
-                print(
-                    f"DEBUG MOCK place_retry_side_effect COMP LEG RECEIVED:"
+                # --- DEBUG --- Log mock arguments for compensation leg
+                logger.debug(
+                    f"MOCK place_retry_side_effect COMP LEG RECEIVED:"
                     f" exchange_id={exchange_id!r}, symbol={symbol!r}, side={side!r}, "
                     f" order_type={order_type!r} (type: {type(order_type)}), "
                     f" quantity={quantity!r} (type: {type(quantity)}), "
@@ -1070,7 +1090,6 @@ class TestExecutionHandler:
                     f" client_order_id={client_order_id!r}, reduce_only={reduce_only!r}, "
                     f" post_only={post_only!r}, is_long_leg={is_long_leg!r}",
                 )
-                # --- END DEBUG ---
 
                 # Use the parameters passed by the SUT for the compensation order
                 # The `comp_order` fixture can serve as a base for any non-overridden fields
@@ -1100,16 +1119,15 @@ class TestExecutionHandler:
                 )
                 return Order(**compensation_details)
 
-            # --- DEBUG --- Print received arguments before raising ValueError
-            print(
-                f"DEBUG place_retry_side_effect UNEXPECTED CALL. ARGS:"
+            # --- DEBUG --- Log received arguments before raising ValueError
+            logger.debug(
+                f"place_retry_side_effect UNEXPECTED CALL. ARGS:"
                 f" exchange_id={exchange_id!r}, symbol={symbol!r}, side={side!r}, "
                 f"order_type={order_type!r}, "
                 f" quantity={quantity!r}, price={price!r}, time_in_force={time_in_force!r}, "
                 f" client_order_id={client_order_id!r}, reduce_only={reduce_only!r}, "
                 f" post_only={post_only!r}, is_long_leg={is_long_leg!r}",
             )
-            # --- END DEBUG ---
             raise ValueError(
                 f"Unexpected place call: {exchange_id=} {side=} {reduce_only=} {is_long_leg=}",
             )
@@ -1172,7 +1190,9 @@ class TestExecutionHandler:
 
         with (
             patch.object(
-                testable_execution_handler, "_place_order_with_retry", side_effect=place_retry_side_effect,
+                testable_execution_handler,
+                "_place_order_with_retry",
+                side_effect=place_retry_side_effect,
             ) as mock_place_retry,
             patch.object(
                 testable_execution_handler, "_get_order_status", side_effect=get_status_side_effect,
@@ -1188,7 +1208,9 @@ class TestExecutionHandler:
                 wraps=testable_execution_handler.test_compensate_position,
             ) as mock_compensate,
         ):
-            execution_result = await testable_execution_handler.execute_opportunity(sized_opportunity)
+            execution_result = await testable_execution_handler.execute_opportunity(
+                sized_opportunity,
+            )
 
         assert execution_result is not None
         assert execution_result.status == ExecutionStatus.FAILED

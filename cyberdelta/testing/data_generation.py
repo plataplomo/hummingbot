@@ -1,5 +1,4 @@
-"""Utilities for generating synthetic market data for testing purposes.
-"""
+"""Utilities for generating synthetic market data for testing purposes."""
 
 import logging
 from datetime import UTC, datetime, timedelta
@@ -75,16 +74,22 @@ def generate_synthetic_data(
             # Derive OHLC from base_prices with some noise
             price_variation = volatility * base_prices * 0.1  # Smaller variation for OHLC
             df_symbol[("open", symbol)] = base_prices - rng.normal(
-                0, price_variation / 2, num_points,
+                0,
+                price_variation / 2,
+                num_points,
             )
             df_symbol[("close", symbol)] = base_prices + rng.normal(
-                0, price_variation / 2, num_points,
+                0,
+                price_variation / 2,
+                num_points,
             )
             df_symbol[("high", symbol)] = np.maximum(
-                df_symbol[("open", symbol)], df_symbol[("close", symbol)],
+                df_symbol[("open", symbol)],
+                df_symbol[("close", symbol)],
             ) + rng.exponential(price_variation, num_points)
             df_symbol[("low", symbol)] = np.minimum(
-                df_symbol[("open", symbol)], df_symbol[("close", symbol)],
+                df_symbol[("open", symbol)],
+                df_symbol[("close", symbol)],
             ) - rng.exponential(price_variation, num_points)
             # Ensure low <= open/close <= high
             df_symbol[("low", symbol)] = np.minimum(
@@ -130,7 +135,8 @@ def generate_synthetic_data(
                 # DEFENSIVE CHECK: Check if columns are iterable but not strings.
                 # Mypy=[unreachable] Ruff=[]
                 if hasattr(combined_df.columns[0], "__iter__") and not isinstance(
-                    combined_df.columns[0], str,
+                    combined_df.columns[0],
+                    str,
                 ):
                     combined_df.columns = pd.MultiIndex.from_tuples(combined_df.columns)
                 else:

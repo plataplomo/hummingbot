@@ -1,5 +1,4 @@
-"""Tests for the Priority Signal Queue functionality.
-"""
+"""Tests for the Priority Signal Queue functionality."""
 
 import asyncio
 from datetime import UTC, datetime, timedelta
@@ -225,6 +224,7 @@ async def test_add_signal_with_circuit_breaker_open(
 
     # Define the side_effect function with type hints
     def can_execute_side_effect(exchange_id: str, symbol: str) -> tuple[bool, str | None]:
+        """Helper function for can execute side effect."""
         if exchange_id == target_exchange:
             return (False, "Test trip")
         return (True, None)
@@ -387,6 +387,7 @@ async def test_clean_expired_signals_direct_patch(
 
         # Override config values for the test
         def specific_get_for_cleanup_test(key: str, default: object = None) -> object:
+            """Helper function for specific get for cleanup test."""
             if key == "queue_cleanup_interval":
                 return 1.0  # Short interval for testing
             if key == "default_signal_expiration_seconds":

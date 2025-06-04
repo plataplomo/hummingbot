@@ -82,6 +82,7 @@ class TestBackpackAccountServicePositions:
         def build_get_positions_params_side_effect(
             symbol: str | None = None,
         ) -> dict[str, str] | None:
+            """Helper function for build get positions params side effect."""
             if symbol is None:
                 return None
             return {"symbol": symbol}

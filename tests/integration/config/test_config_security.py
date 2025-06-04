@@ -135,7 +135,7 @@ general:
 def test_config_validation_success(
     secure_config_manager_setup: tuple[ConfigManager, str, str],
 ) -> None:
-    """Test that a valid config passes validation"""
+    """Test that a valid config passes validation."""
     config_manager, _, _ = secure_config_manager_setup
     assert config_manager.loaded
     assert config_manager.settings is not None
@@ -144,7 +144,7 @@ def test_config_validation_success(
 def test_config_validation_failure(
     secure_config_manager_setup: tuple[ConfigManager, str, str],
 ) -> None:
-    """Test that an invalid config fails validation"""
+    """Test that an invalid config fails validation."""
     from cyberdelta.config.config_manager import ConfigurationError
 
     _, _, invalid_config_path = secure_config_manager_setup
@@ -155,7 +155,7 @@ def test_config_validation_failure(
 def test_env_variable_config_path(
     secure_config_manager_setup: tuple[ConfigManager, str, str],
 ) -> None:
-    """Test that environment variable overrides default config path"""
+    """Test that environment variable overrides default config path."""
     _, config_path, _ = secure_config_manager_setup
     with patch.dict("os.environ", {"CYBERDELTA_CONFIG_PATH": config_path}):
         config_manager_env = ConfigManager()
@@ -163,7 +163,7 @@ def test_env_variable_config_path(
 
 
 def test_deep_nested_access(secure_config_manager_setup: tuple[ConfigManager, str, str]) -> None:
-    """Test accessing deeply nested configuration values"""
+    """Test accessing deeply nested configuration values."""
     config_manager, _, _ = secure_config_manager_setup
     # Access through the AppSettings object directly
     assert config_manager.settings is not None
@@ -171,7 +171,7 @@ def test_deep_nested_access(secure_config_manager_setup: tuple[ConfigManager, st
 
 
 def test_missing_nested_access(secure_config_manager_setup: tuple[ConfigManager, str, str]) -> None:
-    """Test that missing nested paths return default value"""
+    """Test that missing nested paths return default value."""
     config_manager, _, _ = secure_config_manager_setup
     # Access through the AppSettings object directly
     assert config_manager.settings is not None
@@ -180,7 +180,7 @@ def test_missing_nested_access(secure_config_manager_setup: tuple[ConfigManager,
 
 
 def test_reload_after_change(secure_config_manager_setup: tuple[ConfigManager, str, str]) -> None:
-    """Test that configuration changes are detected on reload"""
+    """Test that configuration changes are detected on reload."""
     config_manager, config_path, _ = secure_config_manager_setup
     with open(config_path) as f:
         config_data = yaml.safe_load(f)
@@ -252,7 +252,7 @@ logfire:
 def test_fallback_to_home_dir(
     mock_home: MagicMock, secure_secrets_manager_setup: tuple[str, str, str],
 ) -> None:
-    """Test fallback to ~/.cyberdelta/secrets.yaml when env var not set"""
+    """Test fallback to ~/.cyberdelta/secrets.yaml when env var not set."""
     _, home_dir_name, _ = secure_secrets_manager_setup
     mock_home.return_value = Path(home_dir_name)
 
@@ -273,7 +273,7 @@ def test_fallback_to_home_dir(
 
 
 def test_env_variable_override(secure_secrets_manager_setup: tuple[str, str, str]) -> None:
-    """Test that environment variable overrides default secrets path"""
+    """Test that environment variable overrides default secrets path."""
     secrets_path, _, _ = secure_secrets_manager_setup
     with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": secrets_path}):
         secrets_manager = SecretsManager()
@@ -285,7 +285,7 @@ def test_env_variable_override(secure_secrets_manager_setup: tuple[str, str, str
 
 
 def test_nonexistent_secrets_file(secure_secrets_manager_setup: tuple[str, str, str]) -> None:
-    """Test handling of nonexistent secrets file"""
+    """Test handling of nonexistent secrets file."""
     _, _, temp_dir_name = secure_secrets_manager_setup
     nonexistent_path = os.path.join(temp_dir_name, "nonexistent.yaml")
     with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": nonexistent_path}):
@@ -296,7 +296,7 @@ def test_nonexistent_secrets_file(secure_secrets_manager_setup: tuple[str, str, 
 
 
 def test_secrets_deep_nested_access(secure_secrets_manager_setup: tuple[str, str, str]) -> None:
-    """Test accessing deeply nested secrets values"""
+    """Test accessing deeply nested secrets values."""
     secrets_path, _, _ = secure_secrets_manager_setup
     with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": secrets_path}):
         secrets_manager = SecretsManager()
@@ -309,7 +309,7 @@ def test_secrets_deep_nested_access(secure_secrets_manager_setup: tuple[str, str
 
 
 def test_automatic_loading_on_get(secure_secrets_manager_setup: tuple[str, str, str]) -> None:
-    """Test that secrets are automatically loaded on get if not already loaded"""
+    """Test that secrets are automatically loaded on get if not already loaded."""
     secrets_path, _, _ = secure_secrets_manager_setup
     with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": secrets_path}):
         secrets_manager = SecretsManager()

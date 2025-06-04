@@ -54,8 +54,7 @@ class ExecutionStatus(Enum):
 
 
 class TradeExecution:
-    """Represents a trade execution across multiple exchanges.
-    """
+    """Represents a trade execution across multiple exchanges."""
 
     def __init__(self, opportunity: SizedOpportunity) -> None:
         """Initialize a trade execution.
@@ -252,10 +251,12 @@ class ExecutionHandler:
 
             # Get exchange-specific symbols
             long_symbol = self.symbol_mapper.get_exchange_symbol(
-                opportunity.opportunity.symbol, opportunity.opportunity.long_exchange,
+                opportunity.opportunity.symbol,
+                opportunity.opportunity.long_exchange,
             )
             short_symbol = self.symbol_mapper.get_exchange_symbol(
-                opportunity.opportunity.symbol, opportunity.opportunity.short_exchange,
+                opportunity.opportunity.symbol,
+                opportunity.opportunity.short_exchange,
             )
             if not long_symbol or not short_symbol:
                 missing_leg = "long" if not long_symbol else "short"
@@ -379,7 +380,10 @@ class ExecutionHandler:
         return execution
 
     async def _place_orders_for_opportunity(
-        self, execution: TradeExecution, long_symbol: str, short_symbol: str,
+        self,
+        execution: TradeExecution,
+        long_symbol: str,
+        short_symbol: str,
     ) -> None:
         """Places orders for both legs of the opportunity.
         Handles sequential placement and compensation.
@@ -503,7 +507,8 @@ class ExecutionHandler:
             # Ensure circuit breaker for short leg is also recorded here.
             if self.circuit_breaker_system:
                 self.circuit_breaker_system.record_api_error(
-                    opportunity.short_exchange, str(e_short_leg.code),
+                    opportunity.short_exchange,
+                    str(e_short_leg.code),
                 )
 
         if short_order_result is None or short_order_result.status != OrderStatus.FILLED:
@@ -617,7 +622,11 @@ class ExecutionHandler:
                 )
 
     async def _handle_api_error(
-        self, e: APIError, exchange_id: str, context: str, is_retryable: bool = True,
+        self,
+        e: APIError,
+        exchange_id: str,
+        context: str,
+        is_retryable: bool = True,
     ) -> bool:
         """Centralized handling of API errors, including circuit breaker recording.
 
@@ -717,7 +726,8 @@ class ExecutionHandler:
                 # Record success with circuit breaker if configured
                 if self.circuit_breaker_system:
                     self.circuit_breaker_system.record_api_success(
-                        exchange_id, context=f"Order {order_result.exchange_order_id} placed",
+                        exchange_id,
+                        context=f"Order {order_result.exchange_order_id} placed",
                     )
                 return order_result
             except APIError as e:
@@ -859,7 +869,8 @@ class ExecutionHandler:
                     if self.circuit_breaker_system:
                         # Use record_api_error method from CircuitBreakerSystem
                         self.circuit_breaker_system.record_api_error(
-                            exchange_id, f"Authentication failed: {e.message}",
+                            exchange_id,
+                            f"Authentication failed: {e.message}",
                         )
                     return None
                 elif e.code == APIErrorCode.INVALID_REQUEST.value:
@@ -1357,7 +1368,8 @@ class ExecutionHandler:
         start_time = time.monotonic()
         symbol = (
             self.symbol_mapper.get_exchange_symbol(
-                execution.opportunity.opportunity.symbol, exchange_id,
+                execution.opportunity.opportunity.symbol,
+                exchange_id,
             )
             if execution.opportunity
             else None

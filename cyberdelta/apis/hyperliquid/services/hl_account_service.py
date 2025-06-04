@@ -75,7 +75,8 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 HttpClientRequesterSig = Callable[
-    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
+    ...,
+    Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
 ]
 
 
@@ -181,7 +182,8 @@ class HyperliquidAccountService:
 
             return self._response_handler.handle_info_user_state_response(
                 raw_response_content=cast(
-                    dict[str, Any], state_data_dict,
+                    dict[str, Any],
+                    state_data_dict,
                 ),  # Cast to dict[str, Any]
                 user_address=self._wallet_address,
             )
@@ -730,7 +732,8 @@ class HyperliquidAccountService:
             # and user_address
             validated_fills_response = self._response_handler.handle_info_user_fills_response(
                 raw_response_content=cast(
-                    RawJsonResponse, raw_fills_list_of_dicts,
+                    RawJsonResponse,
+                    raw_fills_list_of_dicts,
                 ),  # Cast to satisfy handler
                 user_address=self._wallet_address,  # Add missing user_address
             )
@@ -1044,7 +1047,8 @@ class HyperliquidAccountService:
             raw_orders_list: list[HyperliquidRawOpenOrder] = []  # Initialize
             validated_response: HyperliquidRawOpenOrdersResponse = (
                 self._response_handler.handle_info_open_orders_response(
-                    raw_response_content=raw_data, user_address=self._wallet_address,
+                    raw_response_content=raw_data,
+                    user_address=self._wallet_address,
                 )
             )
             if validated_response and validated_response.items:

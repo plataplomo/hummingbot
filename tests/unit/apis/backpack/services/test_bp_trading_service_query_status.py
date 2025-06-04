@@ -1,5 +1,4 @@
-"""Unit tests for BackpackTradingService query and status functionality.
-"""
+"""Unit tests for BackpackTradingService query and status functionality."""
 
 from __future__ import annotations
 
@@ -510,7 +509,9 @@ class TestBackpackTradingServiceQueryStatus:
             mock_mapper.transform_raw_order_to_internal.return_value = mock_internal_order
 
             result = await bp_trading_service.get_order(
-                args=GetOrderArgs(order_id=order_id, symbol=symbol, client_order_id=client_order_id),
+                args=GetOrderArgs(
+                    order_id=order_id, symbol=symbol, client_order_id=client_order_id,
+                ),
             )
 
             mock_request_builder.build_get_order_params.assert_called_once_with(symbol=symbol)

@@ -48,8 +48,7 @@ def address_to_bytes(address: str) -> bytes:
 
 
 class HyperliquidEip712Authenticator(IAuthenticator):
-    """Authenticator for Hyperliquid API using EIP-712 Agent signatures.
-    """
+    """Authenticator for Hyperliquid API using EIP-712 Agent signatures."""
 
     def __init__(
         self,
@@ -103,7 +102,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
             except ValueError as e:
                 self.logger.error(
-                    f"HyperliquidEip712Authenticator: Invalid private key: {e}", exc_info=True,
+                    f"HyperliquidEip712Authenticator: Invalid private key: {e}",
+                    exc_info=True,
                 )
                 raise ValueError(f"Invalid private key: {e}") from e
 
@@ -139,7 +139,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
                 except ValueError as e:
                     self.logger.error(
-                        f"HyperliquidEip712Authenticator: Invalid passphrase: {e}", exc_info=True,
+                        f"HyperliquidEip712Authenticator: Invalid passphrase: {e}",
+                        exc_info=True,
                     )
                     raise ValueError(f"Invalid passphrase: {e}") from e
 
@@ -199,8 +200,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         return self._chain_id
 
     async def _get_next_nonce_ms(self) -> int:
-        """Atomically generates a strictly increasing millisecond timestamp nonce.
-        """
+        """Atomically generates a strictly increasing millisecond timestamp nonce."""
         async with self._nonce_lock:
             current_ms = int(time.time() * 1000)
             if current_ms <= self._last_nonce_ms:

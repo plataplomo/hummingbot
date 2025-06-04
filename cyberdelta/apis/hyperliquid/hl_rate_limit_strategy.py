@@ -58,7 +58,8 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
         ip_rate_rps = ip_rate_rpm / 60.0
         ip_bucket = max(1, int(ip_rate_rps * 2))  # 2-second bucket
         self._ip_weight_limiter = TokenBucketRateLimiterRuntime(
-            rate=ip_rate_rps, bucket_size=ip_bucket,
+            rate=ip_rate_rps,
+            bucket_size=ip_bucket,
         )
         logger.info(
             f"Hyperliquid IP weight limiter initialized: "
@@ -73,7 +74,8 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
         aa_rate_rps = aa_rate_rpm / 60.0
         aa_bucket = max(1, int(aa_rate_rps * 2))  # 2-second bucket
         self._address_action_limiter = TokenBucketRateLimiterRuntime(
-            rate=aa_rate_rps, bucket_size=aa_bucket,
+            rate=aa_rate_rps,
+            bucket_size=aa_bucket,
         )
         logger.info(
             f"Hyperliquid address action limiter initialized: "
@@ -109,7 +111,8 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
         # Calculate costs using the weighter
         ip_cost = self._request_weighter.get_ip_weight(endpoint, action_payload)
         address_action_cost = self._request_weighter.get_address_action_count(
-            endpoint, action_payload,
+            endpoint,
+            action_payload,
         )
 
         logger.debug(
@@ -143,7 +146,9 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
         await self._ip_weight_limiter.trigger_ip_ban(duration_seconds)
 
     async def handle_exchange_retry_after(
-        self, duration_seconds: float, request_context: dict[str, Any],
+        self,
+        duration_seconds: float,
+        request_context: dict[str, Any],
     ) -> None:
         """Handles exchange-advised retry_after directives.
 

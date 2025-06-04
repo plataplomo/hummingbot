@@ -29,11 +29,13 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
 @pytest.fixture
 def default_http_client_config() -> HttpClientConfig:
+    """Helper function for default http client config."""
     return HttpClientConfig(rest_endpoint=HttpUrl("http://test.api"))
 
 
 @pytest.fixture
 def mock_authenticator() -> IAuthenticator:
+    """Return mock authenticator for testing."""
     auth = AsyncMock(spec=IAuthenticator)
     auth.prepare_request.return_value = AuthenticatedRequestComponents(
         headers={"X-Auth": "dummy_sig"},

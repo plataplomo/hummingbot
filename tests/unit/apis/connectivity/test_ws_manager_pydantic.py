@@ -1,5 +1,4 @@
-"""Tests for WebSocketManager Pydantic BaseModel integration.
-"""
+"""Tests for WebSocketManager Pydantic BaseModel integration."""
 
 from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -189,7 +188,9 @@ class TestWebSocketManagerPydanticIntegration:
             timestamp: int | None = None
 
         model = ComplexModel(
-            method="subscribe", subscription=NestedParams(coin="ETH", interval="1m"), timestamp=None,
+            method="subscribe",
+            subscription=NestedParams(coin="ETH", interval="1m"),
+            timestamp=None,
         )
 
         await ws_manager.send_json(model)

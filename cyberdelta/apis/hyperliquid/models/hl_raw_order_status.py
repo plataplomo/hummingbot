@@ -9,8 +9,7 @@ from .common_raw_types import RawLaxEthereumAddressStrHL, RawNonNegativeInt
 
 
 class HyperliquidRawOrderStatusRequestPayload(BaseModel):
-    """Request payload for the 'orderStatus' info type.
-    """
+    """Request payload for the 'orderStatus' info type."""
 
     type: Annotated[
         Literal["orderStatus"],

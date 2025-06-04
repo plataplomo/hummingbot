@@ -68,7 +68,8 @@ logger = get_logger(__name__)
 # Type alias for the HTTP client requester callable that the service will use.
 # This should match the signature of ExchangeAPI._request
 HttpClientRequesterSig = Callable[
-    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
+    ...,
+    Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
 ]
 
 
@@ -156,10 +157,14 @@ class BackpackMarketDataService:
                 )
 
             raw_ticker_model: BackpackRawTicker = self._response_handler.handle_get_ticker_response(
-                raw_data, symbol, status_code, headers,
+                raw_data,
+                symbol,
+                status_code,
+                headers,
             )
             internal_ticker = self._mapper.transform_raw_ticker_to_internal(
-                raw_ticker_model, symbol_override=symbol,
+                raw_ticker_model,
+                symbol_override=symbol,
             )
             logger.debug(
                 f"[{self._exchange_name}] Mapped internal ticker for {symbol}: {internal_ticker}",
@@ -355,11 +360,15 @@ class BackpackMarketDataService:
 
             raw_order_book_model: BackpackRawOrderBook = (
                 self._response_handler.handle_get_order_book_response(
-                    raw_data, symbol, status_code, headers,
+                    raw_data,
+                    symbol,
+                    status_code,
+                    headers,
                 )
             )
             internal_order_book = self._mapper.transform_raw_order_book_to_internal(
-                symbol, raw_order_book_model,
+                symbol,
+                raw_order_book_model,
             )
             logger.debug(
                 f"[{self._exchange_name}] Mapped order_book for {symbol}: {internal_order_book}",
@@ -441,7 +450,8 @@ class BackpackMarketDataService:
         try:
             # Core operational logic
             params = self._request_builder.build_get_recent_trades_params(
-                symbol=symbol, limit=limit,
+                symbol=symbol,
+                limit=limit,
             )
             endpoint_path = "/api/v1/trades"
             logger.debug(
@@ -476,7 +486,10 @@ class BackpackMarketDataService:
 
             raw_trade_models: list[BackpackRawTrade] = (
                 self._response_handler.handle_get_recent_trades_response(
-                    raw_data_list, symbol, status_code, headers,
+                    raw_data_list,
+                    symbol,
+                    status_code,
+                    headers,
                 )
             )
             internal_trades: list[Trade] = []
@@ -608,7 +621,10 @@ class BackpackMarketDataService:
 
             raw_funding_rate_model: BackpackRawFundingRate = (
                 self._response_handler.handle_get_funding_rate_response(
-                    raw_data, symbol, status_code, headers,
+                    raw_data,
+                    symbol,
+                    status_code,
+                    headers,
                 )
             )
             internal_funding_rate = self._mapper.transform_raw_funding_rate_to_internal(
@@ -780,7 +796,8 @@ class BackpackMarketDataService:
             ) from e_unexpected
 
     async def get_historical_funding_rates(
-        self, args: GetHistoricalFundingRatesArgs,
+        self,
+        args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
         """Retrieves historical funding rates for a symbol within a given time range.
 
@@ -879,7 +896,10 @@ class BackpackMarketDataService:
 
             raw_funding_interval_rates: list[BackpackRawFundingIntervalRate] = (
                 self._response_handler.handle_get_historical_funding_rates_response(
-                    raw_data, args.symbol, status_code, headers,
+                    raw_data,
+                    args.symbol,
+                    status_code,
+                    headers,
                 )
             )
 
@@ -960,8 +980,7 @@ class BackpackMarketDataService:
             ) from e_unexpected
 
     async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
-        """Retrieves market data (K-lines/candlesticks) for a specific symbol and timeframe.
-        """
+        """Retrieves market data (K-lines/candlesticks) for a specific symbol and timeframe."""
         # Service Input Parameter Validation is now handled by GetMarketDataArgs Pydantic model
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_market_data"
@@ -1067,7 +1086,11 @@ class BackpackMarketDataService:
             # Handler now returns list[BackpackRawKline]
             raw_kline_models: list[BackpackRawKline] = (
                 self._response_handler.handle_get_market_data_response(
-                    raw_data_list, args.symbol, args.timeframe, status_code, headers,
+                    raw_data_list,
+                    args.symbol,
+                    args.timeframe,
+                    status_code,
+                    headers,
                 )
             )
             internal_candles: list[Candle] = []
@@ -1077,7 +1100,9 @@ class BackpackMarketDataService:
                 try:
                     # No need to validate to BackpackRawKline here anymore
                     candle = self._mapper.transform_raw_kline_to_internal(
-                        args.symbol, args.timeframe, raw_kline_model,
+                        args.symbol,
+                        args.timeframe,
+                        raw_kline_model,
                     )
                     internal_candles.append(candle)
                 except (ValidationError, ValueError) as e_map_item:

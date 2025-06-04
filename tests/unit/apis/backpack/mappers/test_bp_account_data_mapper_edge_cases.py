@@ -256,6 +256,7 @@ class TestEdgeCasesAndRobustness:
             def side_effect(
                 value: str, allow_none: bool = False, field_name: str = "",
             ) -> Decimal | None:
+                """Helper function for side effect."""
                 try:
                     return Decimal(str(value)) if value else None
                 except Exception:

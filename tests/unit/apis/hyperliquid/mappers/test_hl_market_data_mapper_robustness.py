@@ -1,4 +1,4 @@
-"""CyberDeltaEngine: Hyperliquid Market Data Mapper Robustness Tests
+"""CyberDeltaEngine: Hyperliquid Market Data Mapper Robustness Tests.
 -----------------------------------------------------------------
 
 Comprehensive test suite for HyperliquidMarketDataMapper robustness, edge cases,
@@ -538,6 +538,7 @@ class TestErrorRecoveryScenarios:
 
         # Mock the _map_side_to_internal method to raise an error for unknown sides
         def mock_map_side_side_effect(hl_side: str) -> OrderSide:
+            """Return mock map side side effect for testing."""
             if hl_side == "B":  # For our test trade
                 raise ValueError("Unknown side")  # Simulate unknown side error
             return OrderSide.BUY  # Default for other cases

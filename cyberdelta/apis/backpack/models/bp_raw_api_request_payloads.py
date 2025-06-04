@@ -44,11 +44,13 @@ class BackpackRawOrderExecuteRequest(BaseModel):
     price: RawBpParsableFiniteDecimalString | None = Field(default=None, alias="price")
     quantity: RawBpParsableFiniteDecimalString | None = Field(default=None, alias="quantity")
     quoteQuantity: RawBpParsableFiniteDecimalString | None = Field(
-        default=None, alias="quoteQuantity",
+        default=None,
+        alias="quoteQuantity",
     )
     reduceOnly: RawBpOptionalStrictBool | None = Field(default=None, alias="reduceOnly")
     selfTradePrevention: Literal["RejectTaker", "RejectMaker", "RejectBoth"] | None = Field(
-        default=None, alias="selfTradePrevention",
+        default=None,
+        alias="selfTradePrevention",
     )
     timeInForce: Literal["GTC", "IOC", "FOK"] | None = Field(default=None, alias="timeInForce")
 
@@ -60,24 +62,30 @@ class BackpackRawOrderExecuteRequest(BaseModel):
 
     # Stop loss fields
     stopLossTriggerPrice: RawBpParsableFiniteDecimalString | None = Field(
-        default=None, alias="stopLossTriggerPrice",
+        default=None,
+        alias="stopLossTriggerPrice",
     )
     stopLossTriggerBy: Literal["LastPrice", "MarkPrice", "IndexPrice"] | None = Field(
-        default=None, alias="stopLossTriggerBy",
+        default=None,
+        alias="stopLossTriggerBy",
     )
     stopLossLimitPrice: RawBpParsableFiniteDecimalString | None = Field(
-        default=None, alias="stopLossLimitPrice",
+        default=None,
+        alias="stopLossLimitPrice",
     )
 
     # Take profit fields
     takeProfitTriggerPrice: RawBpParsableFiniteDecimalString | None = Field(
-        default=None, alias="takeProfitTriggerPrice",
+        default=None,
+        alias="takeProfitTriggerPrice",
     )
     takeProfitTriggerBy: Literal["LastPrice", "MarkPrice", "IndexPrice"] | None = Field(
-        default=None, alias="takeProfitTriggerBy",
+        default=None,
+        alias="takeProfitTriggerBy",
     )
     takeProfitLimitPrice: RawBpParsableFiniteDecimalString | None = Field(
-        default=None, alias="takeProfitLimitPrice",
+        default=None,
+        alias="takeProfitLimitPrice",
     )
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
@@ -106,7 +114,8 @@ class BackpackRawOrderCancelAllRequest(BaseModel):
 
     symbol: RawBpNonEmptyStringMax64 = Field(alias="symbol")
     orderType: Literal["RestingLimitOrder", "ConditionalOrder"] | None = Field(
-        default=None, alias="orderType",
+        default=None,
+        alias="orderType",
     )
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
@@ -269,7 +278,8 @@ class BackpackRawUpdateAccountSettingsRequest(BaseModel):
     """
 
     autoBorrowSettlements: RawBpOptionalStrictBool | None = Field(
-        default=None, alias="autoBorrowSettlements",
+        default=None,
+        alias="autoBorrowSettlements",
     )
     autoLend: RawBpOptionalStrictBool | None = Field(default=None, alias="autoLend")
     autoRealizePnl: RawBpOptionalStrictBool | None = Field(default=None, alias="autoRealizePnl")
@@ -535,10 +545,12 @@ class BackpackRawRequestForQuoteRequest(BaseModel):
     symbol: RawBpNonEmptyStringMax64 = Field(alias="symbol")
     quantity: RawBpParsableFiniteDecimalString | None = Field(default=None, alias="quantity")
     quoteQuantity: RawBpParsableFiniteDecimalString | None = Field(
-        default=None, alias="quoteQuantity",
+        default=None,
+        alias="quoteQuantity",
     )
     autoAcceptThreshold: RawBpParsableFiniteDecimalString | None = Field(
-        default=None, alias="autoAcceptThreshold",
+        default=None,
+        alias="autoAcceptThreshold",
     )
     submissionTimeMs: RawBpUint32 | None = Field(default=None, alias="submissionTimeMs")
     expiryTimeMs: RawBpUint32 | None = Field(default=None, alias="expiryTimeMs")

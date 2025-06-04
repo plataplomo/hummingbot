@@ -1,5 +1,4 @@
-"""Module for calculating various financial performance metrics.
-"""
+"""Module for calculating various financial performance metrics."""
 
 import logging
 from decimal import Decimal
@@ -11,8 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class PerformanceMetricsCalculator:
-    """Provides static methods for calculating common financial performance metrics.
-    """
+    """Provides static methods for calculating common financial performance metrics."""
 
     @staticmethod
     def calculate_sharpe_ratio(
@@ -148,6 +146,7 @@ class PerformanceMetricsCalculator:
     @staticmethod
     def calculate_win_rate(trades: pd.DataFrame) -> Decimal:
         """Calculate the win rate from a DataFrame of trades.
+
         Assumes trades DataFrame has a 'pnl' column.
 
         Args:
@@ -173,6 +172,7 @@ class PerformanceMetricsCalculator:
     @staticmethod
     def calculate_profit_factor(trades: pd.DataFrame) -> Decimal:
         """Calculate the profit factor from a DataFrame of trades.
+
         Assumes trades DataFrame has a 'pnl' column.
 
         Args:
@@ -191,7 +191,8 @@ class PerformanceMetricsCalculator:
 
         if gross_losses == 0:
             logger.warning(
-                "No losses recorded. Profit factor is infinite (or undefined if no profits either).",
+                "No losses recorded. Profit factor is infinite "
+                "(or undefined if no profits either).",
             )
             return Decimal("Infinity") if gross_profits > 0 else Decimal("NaN")
 
@@ -219,10 +220,14 @@ class PerformanceMetricsCalculator:
         metrics: dict[str, Decimal] = {}
         try:
             metrics["sharpe_ratio"] = self.calculate_sharpe_ratio(
-                returns, risk_free_rate, periods_per_year,
+                returns,
+                risk_free_rate,
+                periods_per_year,
             )
             metrics["sortino_ratio"] = self.calculate_sortino_ratio(
-                returns, risk_free_rate, periods_per_year,
+                returns,
+                risk_free_rate,
+                periods_per_year,
             )
             metrics["max_drawdown"] = self.calculate_max_drawdown(returns)
             metrics["calmar_ratio"] = self.calculate_calmar_ratio(returns, periods_per_year)

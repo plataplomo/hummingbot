@@ -170,7 +170,10 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         assert isinstance(asset_ctxs_list_of_objects, list)
 
         meta = HyperliquidRawMetaResponse.model_validate(
-            meta_dict, strict=strict, context=context, from_attributes=from_attributes,
+            meta_dict,
+            strict=strict,
+            context=context,
+            from_attributes=from_attributes,
         )
 
         validated_asset_ctxs: list[HyperliquidRawAssetCtx] = []

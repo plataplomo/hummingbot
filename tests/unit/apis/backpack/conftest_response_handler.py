@@ -7,11 +7,13 @@ import pytest
 
 @pytest.fixture
 def symbol_spot() -> str:
+    """Helper function for symbol spot."""
     return "SOL_USDC"
 
 
 @pytest.fixture
 def symbol_perp() -> str:
+    """Helper function for symbol perp."""
     return "SOL-PERP"
 
 
@@ -23,16 +25,19 @@ def symbol_any() -> str:
 
 @pytest.fixture
 def order_id() -> str:
+    """Helper function for order id."""
     return "987654321"
 
 
 @pytest.fixture
 def client_id() -> str:
+    """Helper function for client id."""
     return "clientOrder001"
 
 
 @pytest.fixture
 def valid_raw_ticker(symbol_spot: str) -> dict[str, Any]:
+    """Return valid raw ticker for testing."""
     return {
         "symbol": symbol_spot,
         "price": "140.50",
@@ -45,6 +50,7 @@ def valid_raw_ticker(symbol_spot: str) -> dict[str, Any]:
 
 @pytest.fixture
 def valid_raw_order_book(symbol_spot: str) -> dict[str, Any]:
+    """Return valid raw order book for testing."""
     return {
         "bids": [["140.10", "10"], ["140.00", "20"]],
         "asks": [["140.20", "15"], ["140.30", "25"]],
@@ -55,6 +61,7 @@ def valid_raw_order_book(symbol_spot: str) -> dict[str, Any]:
 
 @pytest.fixture
 def valid_raw_trade_item(symbol_spot: str) -> dict[str, Any]:
+    """Return valid raw trade item for testing."""
     return {
         "symbol": symbol_spot,
         "price": "141.00",
@@ -67,6 +74,7 @@ def valid_raw_trade_item(symbol_spot: str) -> dict[str, Any]:
 
 @pytest.fixture
 def valid_raw_recent_trades(valid_raw_trade_item: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return valid raw recent trades for testing."""
     item1 = valid_raw_trade_item.copy()
     item2 = valid_raw_trade_item.copy()
     item2["id"] = "1002"
@@ -79,6 +87,7 @@ def valid_raw_recent_trades(valid_raw_trade_item: dict[str, Any]) -> list[dict[s
 
 @pytest.fixture
 def valid_raw_market_data() -> list[list[Any]]:
+    """Return valid raw market data for testing."""
     return [
         [
             1678886400000,
@@ -113,6 +122,7 @@ def valid_raw_market_data() -> list[list[Any]]:
 
 @pytest.fixture
 def valid_raw_historical_trades(symbol_spot: str) -> list[dict[str, Any]]:
+    """Return valid raw historical trades for testing."""
     trade1 = {
         "id": "1001",
         "symbol": symbol_spot,
@@ -134,6 +144,7 @@ def valid_raw_historical_trades(symbol_spot: str) -> list[dict[str, Any]]:
 
 @pytest.fixture
 def valid_raw_balance_item() -> dict[str, Any]:
+    """Return valid raw balance item for testing."""
     return {
         "asset": "SOL",
         "available": "10.5",
@@ -143,6 +154,7 @@ def valid_raw_balance_item() -> dict[str, Any]:
 
 @pytest.fixture
 def valid_raw_balances(valid_raw_balance_item: dict[str, Any]) -> dict[str, Any]:
+    """Return valid raw balances for testing."""
     usdc_item = valid_raw_balance_item.copy()
     usdc_item["asset"] = "USDC"
     usdc_item["available"] = "1000.0"
@@ -152,6 +164,7 @@ def valid_raw_balances(valid_raw_balance_item: dict[str, Any]) -> dict[str, Any]
 
 @pytest.fixture
 def valid_raw_position_item(symbol_spot: str) -> dict[str, Any]:
+    """Return valid raw position item for testing."""
     return {
         "symbol": symbol_spot,
         "breakEvenPrice": "131.00",
@@ -177,6 +190,7 @@ def valid_raw_position_item(symbol_spot: str) -> dict[str, Any]:
 
 @pytest.fixture
 def valid_raw_positions(valid_raw_position_item: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return valid raw positions for testing."""
     item2 = valid_raw_position_item.copy()
     item2["symbol"] = "BTC_USDT"
     item2["breakEvenPrice"] = "54900.00"
@@ -196,6 +210,7 @@ def valid_raw_positions(valid_raw_position_item: dict[str, Any]) -> list[dict[st
 
 @pytest.fixture
 def valid_raw_account_summary() -> dict[str, Any]:
+    """Return valid raw account summary for testing."""
     return {
         "autoBorrowSettlements": True,
         "autoLend": False,
@@ -216,6 +231,7 @@ def valid_raw_account_summary() -> dict[str, Any]:
 
 @pytest.fixture
 def valid_raw_order(order_id: str, client_id: str, symbol_spot: str) -> dict[str, Any]:
+    """Return valid raw order for testing."""
     return {
         "id": order_id,
         "clientId": client_id,
@@ -234,6 +250,7 @@ def valid_raw_order(order_id: str, client_id: str, symbol_spot: str) -> dict[str
 
 @pytest.fixture
 def valid_raw_open_orders(valid_raw_order: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return valid raw open orders for testing."""
     item2 = valid_raw_order.copy()
     item2["id"] = "order002"
     item2["symbol"] = "BTC_USDT"
@@ -246,6 +263,7 @@ def valid_raw_open_orders(valid_raw_order: dict[str, Any]) -> list[dict[str, Any
 
 @pytest.fixture
 def valid_raw_funding_rate(symbol_perp: str) -> dict[str, Any]:
+    """Return valid raw funding rate for testing."""
     return {
         "symbol": symbol_perp,
         "rate": "0.000123",
@@ -257,6 +275,7 @@ def valid_raw_funding_rate(symbol_perp: str) -> dict[str, Any]:
 
 @pytest.fixture
 def valid_raw_withdrawal() -> dict[str, Any]:
+    """Return valid raw withdrawal for testing."""
     return {
         "id": 12345,
         "blockchain": "Solana",
@@ -272,6 +291,7 @@ def valid_raw_withdrawal() -> dict[str, Any]:
 
 @pytest.fixture
 def valid_raw_order_history(valid_raw_order: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return valid raw order history for testing."""
     item1 = valid_raw_order.copy()
     item1["id"] = "histOrder001"
     item1["status"] = "FILLED"
@@ -297,6 +317,7 @@ def valid_raw_order_history(valid_raw_order: dict[str, Any]) -> list[dict[str, A
 
 @pytest.fixture
 def valid_raw_trade_history(symbol_spot: str) -> list[dict[str, Any]]:
+    """Return valid raw trade history for testing."""
     trade1 = {
         "symbol": symbol_spot,
         "price": "141.00",
@@ -318,6 +339,7 @@ def valid_raw_trade_history(symbol_spot: str) -> list[dict[str, Any]]:
 
 @pytest.fixture
 def valid_raw_order_status(valid_raw_order: dict[str, Any]) -> dict[str, Any]:
+    """Return valid raw order status for testing."""
     order_copy = valid_raw_order.copy()
     order_copy["id"] = "statusOrder123"
     order_copy["clientId"] = "clientStatus001"

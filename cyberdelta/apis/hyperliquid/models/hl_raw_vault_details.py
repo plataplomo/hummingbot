@@ -80,7 +80,8 @@ class HyperliquidRawVaultDetailsResponse(BaseModel):
     total_pnl: RawFiniteDecimalStr = Field(..., alias="totalPnl")
     all_time_pnl: RawFiniteDecimalStr = Field(..., alias="allTimePnl")
     performance_history: list[HyperliquidRawVaultPerformanceHistoryItem] = Field(
-        ..., alias="performanceHistory",
+        ...,
+        alias="performanceHistory",
     )
     user_equities: list[HyperliquidRawVaultUserEquity] = Field(..., alias="userEquities")
     max_distributable: RawNonNegativeFiniteDecimalStr = Field(..., alias="maxDistributable")
@@ -93,7 +94,9 @@ class HyperliquidRawVaultDetailsResponse(BaseModel):
     @field_validator("performance_history", "user_equities", mode="before")
     @classmethod
     def validate_model_list_structure(
-        cls, v: object, info: ValidationInfo,
+        cls,
+        v: object,
+        info: ValidationInfo,
     ) -> list[dict[str, object]]:
         field_name = info.field_name or "list_field"
         if not isinstance(v, list):

@@ -147,7 +147,13 @@ Asset = Literal[
 ]
 
 EqualsMoneyWithdrawalState = Literal[
-    "initialized", "pending", "processing", "complete", "declined", "cancelled", "review",
+    "initialized",
+    "pending",
+    "processing",
+    "complete",
+    "declined",
+    "cancelled",
+    "review",
 ]
 
 FiatAsset = Literal[

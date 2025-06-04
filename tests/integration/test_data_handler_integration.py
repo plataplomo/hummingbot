@@ -22,6 +22,7 @@ def mock_symbol_mapper() -> MagicMock:
     mapper_mock = MagicMock(spec=SymbolMapper)
 
     def identity_symbol_map(exchange_id: str, symbol: str) -> str:
+        """Helper function for identity symbol map."""
         return symbol
 
     # Configure map_to_engine_symbol to return the input symbol itself
@@ -43,6 +44,7 @@ class TestDataHandlerIntegration:
         if not hasattr(mock_config, "get") or not isinstance(mock_config.get, MagicMock):
             # Default setup for 'get' if not provided by a more specific fixture
             def default_get_side_effect(key: str, default: object = None) -> object:
+                """Helper function for default get side effect."""
                 # Provide minimal config for DataHandler initialization to pass
                 if key == "exchanges":
                     return {
@@ -248,6 +250,7 @@ class TestDataHandlerIntegration:
 
         # Test with a different config setup
         def test_config_get(key: str, default: object = None) -> object:
+            """Test config get."""
             if key == "exchanges":
                 return {
                     "test_exchange": {"enabled": True, "symbols": ["TEST_SYM"]},
@@ -286,6 +289,7 @@ class TestDataHandlerIntegration:
         """Test WebSocket reconnection scenario."""
 
         def mock_config_side_effect(key: str, default: object = None) -> object:
+            """Return mock config side effect for testing."""
             config_dict = {
                 "exchanges": {"test_exchange": {"enabled": True, "symbols": ["SYM1"]}},
                 "data_handler.staleness_defaults": {"ticker": 60, "funding_rate": 300},

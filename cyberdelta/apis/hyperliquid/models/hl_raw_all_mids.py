@@ -66,8 +66,7 @@ class HyperliquidRawAllMidsRequestPayload(BaseModel):
     @field_validator("type", mode="before")
     @classmethod
     def validate_type_string(cls, v: object) -> str:
-        """Validates the 'type' field is a valid string. The Literal check handles the value.
-        """
+        """Validates the 'type' field is a valid string. The Literal check handles the value."""
         return validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
 
 

@@ -1,5 +1,4 @@
-"""CyberDeltaEngine: Backpack Exchange Integration
-----------------------------------------------
+"""CyberDeltaEngine: Backpack Exchange Integration.
 
 This module implements the Backpack exchange adapter for CyberDeltaEngine, including:
 - REST and WebSocket API client (`BackpackAPI`)
@@ -174,10 +173,12 @@ class BackpackAPI(ExchangeAPI):
         rate_per_second = exchange_config.rate_limit_per_minute / 60.0
         bucket_size = max(1, int(rate_per_second * 2))
         bp_limiter_primitive = TokenBucketRateLimiterRuntime(
-            rate=rate_per_second, bucket_size=bucket_size,
+            rate=rate_per_second,
+            bucket_size=bucket_size,
         )
         bp_strategy = BackpackRateLimitStrategy(
-            limiter=bp_limiter_primitive, default_request_weight=1,
+            limiter=bp_limiter_primitive,
+            default_request_weight=1,
         )
 
         config_dict_for_super = {
@@ -310,7 +311,8 @@ class BackpackAPI(ExchangeAPI):
         # Check if topic requires authentication (private streams start with "account.")
         if topic.startswith("account."):
             if not self._bp_authenticator or not hasattr(
-                self._bp_authenticator, "get_ws_subscription_signature_components",
+                self._bp_authenticator,
+                "get_ws_subscription_signature_components",
             ):
                 raise APIError(
                     "ED25519 authenticator required for private WebSocket subscriptions",
@@ -325,7 +327,8 @@ class BackpackAPI(ExchangeAPI):
                 symbol = None
 
             signature_components = self._bp_authenticator.get_ws_subscription_signature_components(
-                subscription_type=subscription_type, symbol=symbol,
+                subscription_type=subscription_type,
+                symbol=symbol,
             )
 
         # Delegate to the WebSocket router with signature components
@@ -524,7 +527,8 @@ class BackpackAPI(ExchangeAPI):
         await super()._resubscribe()
 
     async def get_historical_funding_rates(
-        self, args: GetHistoricalFundingRatesArgs,
+        self,
+        args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
         """Get historical funding rates for a specific symbol."""
         return await self.market_data_service.get_historical_funding_rates(args=args)

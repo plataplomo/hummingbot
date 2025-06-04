@@ -1,5 +1,4 @@
-"""Defines the interface for mapping exchange-specific errors to standardized APIError instances.
-"""
+"""Defines the interface for mapping exchange-specific errors to standardized APIError instances."""
 
 from abc import ABC, abstractmethod
 from typing import Any
@@ -8,8 +7,7 @@ from cyberdelta.apis.models.api_error import APIError
 
 
 class IErrorMapper(ABC):
-    """Interface for mapping exchange-specific error responses to a common APIError format.
-    """
+    """Interface for mapping exchange-specific error responses to a common APIError format."""
 
     @abstractmethod
     def map_exchange_error(

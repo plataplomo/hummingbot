@@ -8,21 +8,25 @@ import pytest
 
 @pytest.fixture
 def user_address() -> str:
+    """Helper function for user address."""
     return "0xTestUserAddress1234567890abcdef"
 
 
 @pytest.fixture
 def symbol() -> str:
+    """Helper function for symbol."""
     return "ETH-PERP"
 
 
 @pytest.fixture
 def order_id() -> int:
+    """Helper function for order id."""
     return 98765
 
 
 @pytest.fixture
 def valid_raw_exchange_status_object_resting() -> dict[str, Any]:
+    """Return valid raw exchange status object resting for testing."""
     return {"resting": {"oid": 12345}}
 
 
@@ -30,6 +34,7 @@ def valid_raw_exchange_status_object_resting() -> dict[str, Any]:
 def valid_raw_exchange_response(
     valid_raw_exchange_status_object_resting: dict[str, Any],
 ) -> dict[str, Any]:
+    """Return valid raw exchange response for testing."""
     return {
         "status": "ok",
         "data": {
@@ -41,6 +46,7 @@ def valid_raw_exchange_response(
 
 @pytest.fixture
 def valid_raw_meta_and_asset_ctxs() -> list[Any]:
+    """Return valid raw meta and asset ctxs for testing."""
     return [
         {
             "universe": [
@@ -71,6 +77,7 @@ def valid_raw_meta_and_asset_ctxs() -> list[Any]:
 
 @pytest.fixture
 def valid_raw_user_state() -> dict[str, Any]:
+    """Return valid raw user state for testing."""
     return {
         "assetPositions": [
             {
@@ -115,6 +122,7 @@ def valid_raw_user_state() -> dict[str, Any]:
 
 @pytest.fixture
 def valid_raw_open_order_item() -> dict[str, Any]:
+    """Return valid raw open order item for testing."""
     return {
         "order": {
             "asset": "ETH-PERP",
@@ -136,6 +144,7 @@ def valid_raw_open_order_item() -> dict[str, Any]:
 
 @pytest.fixture
 def valid_raw_user_fill() -> dict[str, Any]:
+    """Return valid raw user fill for testing."""
     return {
         "tid": 1001,
         "coin": "ETH-PERP",
@@ -156,6 +165,7 @@ def valid_raw_user_fill() -> dict[str, Any]:
 
 @pytest.fixture
 def valid_raw_asset_ctx() -> dict[str, Any]:
+    """Return valid raw asset ctx for testing."""
     return {
         "name": "ETH-PERP",
         "markPx": "3010.00",
@@ -168,6 +178,7 @@ def valid_raw_asset_ctx() -> dict[str, Any]:
 
 @pytest.fixture
 def valid_raw_l2_book() -> dict[str, Any]:
+    """Return valid raw l2 book for testing."""
     return {
         "coin": "ETH-PERP",
         "levels": [
@@ -180,6 +191,7 @@ def valid_raw_l2_book() -> dict[str, Any]:
 
 @pytest.fixture
 def valid_raw_public_trade() -> dict[str, Any]:
+    """Return valid raw public trade for testing."""
     return {
         "coin": "ETH-PERP",
         "side": "B",
@@ -192,6 +204,7 @@ def valid_raw_public_trade() -> dict[str, Any]:
 
 @pytest.fixture
 def valid_raw_candle() -> dict[str, Any]:
+    """Return valid raw candle for testing."""
     return {
         "t": 1678889500000,
         "o": "3000.0",
@@ -205,6 +218,7 @@ def valid_raw_candle() -> dict[str, Any]:
 
 @pytest.fixture
 def valid_raw_candle_snapshot() -> dict[str, Any]:
+    """Return valid raw candle snapshot for testing."""
     # HyperliquidRawCandleSnapshot expects parallel arrays, not a list of candle dicts
     return {
         "t": [1672531200000, 1672531260000],
@@ -219,6 +233,7 @@ def valid_raw_candle_snapshot() -> dict[str, Any]:
 
 @pytest.fixture
 def valid_raw_historical_funding_rates_data() -> list[dict[str, Any]]:
+    """Return valid raw historical funding rates data for testing."""
     return [
         {"coin": "ETH", "fundingRate": "0.000123", "premium": "0.0001", "time": 1678886400000},
         {"coin": "BTC", "fundingRate": "-0.00005", "premium": "-0.00003", "time": 1678882800000},
@@ -227,6 +242,7 @@ def valid_raw_historical_funding_rates_data() -> list[dict[str, Any]]:
 
 @pytest.fixture
 def valid_raw_historical_order_response() -> dict[str, Any]:
+    """Return valid raw historical order response for testing."""
     return {
         "order": {
             "asset": "ETH-PERP",
@@ -247,6 +263,7 @@ def valid_raw_historical_order_response() -> dict[str, Any]:
 
 @pytest.fixture
 def valid_raw_vault_details() -> dict[str, Any]:
+    """Return valid raw vault details for testing."""
     # Placeholder structure - adjust based on actual API/model
     return {
         "name": "Test Vault",

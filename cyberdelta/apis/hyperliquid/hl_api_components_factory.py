@@ -35,7 +35,8 @@ logger = get_logger(__name__)
 # Type alias for the HTTP client requester callable that the factory will use.
 # This should match the signature of ExchangeAPI._request
 HttpClientRequesterSig = Callable[
-    ..., Coroutine[Any, Any, tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
+    ...,
+    Coroutine[Any, Any, tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
 ]
 
 # Type alias for the get_asset_index callable

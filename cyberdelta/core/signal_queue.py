@@ -37,7 +37,9 @@ class PrioritySignalQueue:
     """
 
     def __init__(
-        self, app_settings: AppSettings, circuit_breaker_system: CircuitBreakerSystem | None = None,
+        self,
+        app_settings: AppSettings,
+        circuit_breaker_system: CircuitBreakerSystem | None = None,
     ) -> None:
         """Initialize the priority signal queue.
 
@@ -184,7 +186,9 @@ class PrioritySignalQueue:
             return True  # Indicate successful addition
 
     async def add_from_opportunity(
-        self, opportunity: ArbitrageOpportunity, strategy_name: str,
+        self,
+        opportunity: ArbitrageOpportunity,
+        strategy_name: str,
     ) -> TradeSignal | None:
         """Create and add a trade signal from an arbitrage opportunity.
 
@@ -353,7 +357,9 @@ class PrioritySignalQueue:
                 return signal  # Or None, if strict rejection on peek is desired
 
     async def get_signals(
-        self, max_count: int = 10, symbol: str | None = None,
+        self,
+        max_count: int = 10,
+        symbol: str | None = None,
     ) -> list[TradeSignal]:
         """Get a list of signals, optionally filtered by symbol. Asynchronous version."""
         signals_with_priority: list[tuple[float, int, TradeSignal]] = []
@@ -466,7 +472,9 @@ class PrioritySignalQueue:
             # (highest actual priority)
             num_to_keep = self.max_queue_size
             highest_priority_signals = heapq.nsmallest(
-                num_to_keep, self.signal_queue, key=lambda x: x[0],
+                num_to_keep,
+                self.signal_queue,
+                key=lambda x: x[0],
             )
             num_removed = len(self.signal_queue) - len(highest_priority_signals)
 
@@ -575,7 +583,8 @@ class PrioritySignalQueue:
                     return False
 
                 can_exec, reason = self.circuit_breaker_system.can_execute(
-                    exchange_id, signal.symbol,
+                    exchange_id,
+                    signal.symbol,
                 )
 
                 if not can_exec:
@@ -691,7 +700,8 @@ class PrioritySignalQueue:
             pending_signals: list[TradeSignal] = [
                 signal
                 for _score, _count, signal in sorted(
-                    list(self.signal_queue), key=lambda x: (x[0], x[1]),
+                    list(self.signal_queue),
+                    key=lambda x: (x[0], x[1]),
                 )
                 if signal.is_valid()
             ]
@@ -765,7 +775,9 @@ class PrioritySignalQueue:
         self.new_signal_event.set()
 
     async def wait_for_signals(
-        self, timeout: float | None = None, max_signals: int = 1,
+        self,
+        timeout: float | None = None,
+        max_signals: int = 1,
     ) -> list[TradeSignal]:
         """Waits for signals to become available and returns up to max_signals highest
         priority signals.
@@ -917,7 +929,8 @@ class PrioritySignalQueue:
         for exchange_name in set(exchanges_to_check):  # Use set to avoid redundant checks
             # Check for API error breakers specifically
             exchange_breaker_item = self.circuit_breaker_system.get_exchange_breaker(
-                exchange_name, "api_errors",
+                exchange_name,
+                "api_errors",
             )
 
             # Handle the case where get_exchange_breaker returns a CircuitBreaker directly

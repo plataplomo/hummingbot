@@ -122,8 +122,7 @@ class HyperliquidRawUserFillsResponse(RootModel[list[HyperliquidRawUserFill]]):
 
 # --- Request Payload ---
 class HyperliquidRawUserFillsRequestPayload(BaseModel):
-    """Strict boundary model for the request payload for the 'userFills' info type.
-    """
+    """Strict boundary model for the request payload for the 'userFills' info type."""
 
     type: Annotated[
         Literal["userFills"],

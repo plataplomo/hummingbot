@@ -1,4 +1,4 @@
-"""Integration Tests for BackpackAPI WebSocket Integration
+"""Integration Tests for BackpackAPI WebSocket Integration.
 -----------------------------------------------------
 
 This module tests the WebSocket integration in BackpackAPI,
@@ -153,7 +153,9 @@ class TestBackpackAPIWebSocketLifecycle:
 
     @pytest.fixture
     def bp_api(
-        self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ApiKeyAuthSecrets,
+        self,
+        mock_exchange_config: ExchangeSpecificConfig,
+        mock_exchange_secrets: ApiKeyAuthSecrets,
     ) -> BackpackAPI:
         """Create BackpackAPI instance with mocked dependencies for lifecycle tests."""
         with patch("cyberdelta.apis.backpack.bp_api.BackpackEd25519Authenticator"):
@@ -219,7 +221,9 @@ class TestBackpackAPIWebSocketIntegration:
 
     @pytest.fixture
     def bp_api(
-        self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ApiKeyAuthSecrets,
+        self,
+        mock_exchange_config: ExchangeSpecificConfig,
+        mock_exchange_secrets: ApiKeyAuthSecrets,
     ) -> BackpackAPI:
         """Create BackpackAPI instance with real router for integration tests."""
         with patch("cyberdelta.apis.backpack.bp_api.BackpackEd25519Authenticator"):
@@ -283,7 +287,9 @@ class TestBackpackAPIWebSocketEdgeCases:
 
     @pytest.fixture
     def bp_api_edge_case(
-        self, mock_exchange_config: ExchangeSpecificConfig, mock_exchange_secrets: ApiKeyAuthSecrets,
+        self,
+        mock_exchange_config: ExchangeSpecificConfig,
+        mock_exchange_secrets: ApiKeyAuthSecrets,
     ) -> BackpackAPI:
         """Create BackpackAPI instance for edge case testing."""
         with patch("cyberdelta.apis.backpack.bp_api.BackpackEd25519Authenticator"):

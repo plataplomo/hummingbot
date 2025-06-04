@@ -90,17 +90,20 @@ class BackpackRawMarket(BaseModel):
     min_trade_price: RawBpStringToNonNegativeFiniteDecimal = Field(..., alias="minTradePrice")
     max_trade_price: RawBpStringToNonNegativeFiniteDecimal = Field(..., alias="maxTradePrice")
     min_order_book_quantity: RawBpStringToNonNegativeFiniteDecimal = Field(
-        ..., alias="minOrderBookQuantity",
+        ...,
+        alias="minOrderBookQuantity",
     )
 
     bids: list[
         tuple[
-            RawBpParsableNonNegativeFiniteDecimalString, RawBpParsableNonNegativeFiniteDecimalString,
+            RawBpParsableNonNegativeFiniteDecimalString,
+            RawBpParsableNonNegativeFiniteDecimalString,
         ]
     ] = Field(..., alias="bids")
     asks: list[
         tuple[
-            RawBpParsableNonNegativeFiniteDecimalString, RawBpParsableNonNegativeFiniteDecimalString,
+            RawBpParsableNonNegativeFiniteDecimalString,
+            RawBpParsableNonNegativeFiniteDecimalString,
         ]
     ] = Field(..., alias="asks")
 
@@ -146,25 +149,32 @@ class BackpackRawOrderBook(BaseModel):
 
     bids: list[
         tuple[
-            RawBpParsableNonNegativeFiniteDecimalString, RawBpParsableNonNegativeFiniteDecimalString,
+            RawBpParsableNonNegativeFiniteDecimalString,
+            RawBpParsableNonNegativeFiniteDecimalString,
         ]
     ] = Field(..., alias="bids")
     asks: list[
         tuple[
-            RawBpParsableNonNegativeFiniteDecimalString, RawBpParsableNonNegativeFiniteDecimalString,
+            RawBpParsableNonNegativeFiniteDecimalString,
+            RawBpParsableNonNegativeFiniteDecimalString,
         ]
     ] = Field(..., alias="asks")
     last_update_id: RawBpNonEmptyStringMax64 = Field(..., alias="lastUpdateId")
     timestamp: RawBpFlexibleTimestamp = Field(..., alias="timestamp")
 
     model_config = ConfigDict(
-        populate_by_name=True, extra="ignore", frozen=True, validate_assignment=True,
+        populate_by_name=True,
+        extra="ignore",
+        frozen=True,
+        validate_assignment=True,
     )
 
     @field_validator("bids", "asks", mode="before")
     @classmethod
     def _validate_bids_asks_must_be_list_ob(
-        cls, v: object, info: ValidationInfo,
+        cls,
+        v: object,
+        info: ValidationInfo,
     ) -> list[tuple[str, str]]:
         if not isinstance(v, list):
             raise ValueError("Must be a list")
@@ -209,7 +219,8 @@ class BackpackRawTickerEvent(BaseModel):
     volume: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="volume")
     quote_volume: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="quoteVolume")
     price_change_percent: RawBpParsableNonNegativeFiniteDecimalString = Field(
-        ..., alias="priceChangePercent",
+        ...,
+        alias="priceChangePercent",
     )
     event_type: RawBpOptionalNonEmptyStringMax32 = Field(None, alias="e")
     event_time: RawBpOptionalFlexibleTimestamp = Field(None, alias="E")
@@ -236,7 +247,9 @@ class BackpackRawDepthUpdateEvent(BaseModel):
     @field_validator("bids", "asks", mode="before")
     @classmethod
     def _custom_validate_depth_levels(
-        cls, v: object, info: ValidationInfo,
+        cls,
+        v: object,
+        info: ValidationInfo,
     ) -> list[tuple[object, object]]:
         # Combined validator: First, ensure v is a list.
         if not isinstance(v, list):

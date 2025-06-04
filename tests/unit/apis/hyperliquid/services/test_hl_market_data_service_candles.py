@@ -1,5 +1,4 @@
-"""Unit tests for HyperliquidMarketDataService market data/candles functionality.
-"""
+"""Unit tests for HyperliquidMarketDataService market data/candles functionality."""
 
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -630,7 +629,13 @@ class TestHyperliquidMarketDataServiceCandles:
             mock_http_client_requester.return_value = (mock_candle_data, 200, {})
 
             mock_candle_snapshot = HyperliquidRawCandleSnapshot(
-                t=[start_time_ms], o=["3000"], h=["3010"], l=["2990"], c=["3005"], v=["100"], s="ok",
+                t=[start_time_ms],
+                o=["3000"],
+                h=["3010"],
+                l=["2990"],
+                c=["3005"],
+                v=["100"],
+                s="ok",
             )
             mock_hl_response_handler.handle_info_candle_snapshot_response.return_value = (
                 mock_candle_snapshot

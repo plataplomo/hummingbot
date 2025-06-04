@@ -106,7 +106,9 @@ class HyperliquidAccountDataMapper:
                 )
 
                 available_usdc = parse_decimal_value(
-                    raw_state.withdrawable, allow_none=True, field_name="withdrawable",
+                    raw_state.withdrawable,
+                    allow_none=True,
+                    field_name="withdrawable",
                 )
 
                 if total_usdc is not None and total_usdc > Decimal("0"):
@@ -206,7 +208,9 @@ class HyperliquidAccountDataMapper:
                     # Parse position size
                     size_str = getattr(pos, "szi", "0")
                     size = parse_decimal_value(
-                        size_str, allow_none=False, field_name="position.szi",
+                        size_str,
+                        allow_none=False,
+                        field_name="position.szi",
                     )
 
                     if size is None or size == Decimal("0"):
@@ -218,7 +222,9 @@ class HyperliquidAccountDataMapper:
                     if entry_price_str and entry_price_str != "0":
                         try:
                             entry_price = parse_decimal_value(
-                                entry_price_str, allow_none=True, field_name="position.entry_px",
+                                entry_price_str,
+                                allow_none=True,
+                                field_name="position.entry_px",
                             )
                         except (ValueError, TypeError) as e:
                             logger.warning(
@@ -444,7 +450,9 @@ class HyperliquidAccountDataMapper:
 
             # Parse fee
             fee = parse_decimal_value(
-                getattr(raw_fill, "fee", "0"), allow_none=True, field_name="fee",
+                getattr(raw_fill, "fee", "0"),
+                allow_none=True,
+                field_name="fee",
             ) or Decimal("0")
 
             # Create HL-specific details
@@ -520,7 +528,9 @@ class HyperliquidAccountDataMapper:
 
             # Parse fee
             fee = parse_decimal_value(
-                getattr(raw_fill, "fee", "0"), allow_none=True, field_name="fee",
+                getattr(raw_fill, "fee", "0"),
+                allow_none=True,
+                field_name="fee",
             ) or Decimal("0")
 
             # Create HL-specific details
@@ -651,7 +661,9 @@ class HyperliquidAccountDataMapper:
             if entry_price_str and entry_price_str != "0":
                 try:
                     entry_price = parse_decimal_value(
-                        entry_price_str, allow_none=True, field_name="position.entry_px",
+                        entry_price_str,
+                        allow_none=True,
+                        field_name="position.entry_px",
                     )
                 except (ValueError, TypeError) as e:
                     logger.warning(
@@ -749,7 +761,9 @@ class HyperliquidAccountDataMapper:
 
             # Use the existing position transformation logic
             return HyperliquidAccountDataMapper.transform_raw_position_to_internal(
-                position_info, symbol, timestamp,
+                position_info,
+                symbol,
+                timestamp,
             )
 
         except Exception as e:

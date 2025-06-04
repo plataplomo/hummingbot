@@ -63,7 +63,8 @@ class BackpackRawPosition(BaseModel):
     break_even_price: RawBpParsableFiniteDecimalString = Field(..., alias="breakEvenPrice")
     entry_price: RawBpParsableFiniteDecimalString = Field(..., alias="entryPrice")
     est_liquidation_price: RawBpParsableFiniteDecimalString = Field(
-        ..., alias="estLiquidationPrice",
+        ...,
+        alias="estLiquidationPrice",
     )
     imf: RawBpParsableFiniteDecimalString = Field(..., alias="imf")
     imf_function: BackpackRawImfFunction = Field(..., alias="imfFunction")
@@ -73,15 +74,18 @@ class BackpackRawPosition(BaseModel):
     net_cost: RawBpParsableFiniteDecimalString = Field(..., alias="netCost")
     net_quantity: RawBpParsableFiniteDecimalString = Field(..., alias="netQuantity")
     net_exposure_quantity: RawBpParsableFiniteDecimalString = Field(
-        ..., alias="netExposureQuantity",
+        ...,
+        alias="netExposureQuantity",
     )
     net_exposure_notional: RawBpParsableFiniteDecimalString = Field(
-        ..., alias="netExposureNotional",
+        ...,
+        alias="netExposureNotional",
     )
     pnl_realized: RawBpParsableFiniteDecimalString = Field(..., alias="pnlRealized")
     pnl_unrealized: RawBpParsableFiniteDecimalString = Field(..., alias="pnlUnrealized")
     cumulative_funding_payment: RawBpParsableFiniteDecimalString = Field(
-        ..., alias="cumulativeFundingPayment",
+        ...,
+        alias="cumulativeFundingPayment",
     )
     symbol: RawBpNonEmptyStringMax64 = Field(..., alias="symbol")
     user_id: RawBpNonNegativeInt = Field(..., alias="userId")
@@ -89,7 +93,10 @@ class BackpackRawPosition(BaseModel):
     cumulative_interest: RawBpParsableFiniteDecimalString = Field(..., alias="cumulativeInterest")
 
     model_config = ConfigDict(
-        populate_by_name=True, extra="forbid", frozen=True, validate_assignment=True,
+        populate_by_name=True,
+        extra="forbid",
+        frozen=True,
+        validate_assignment=True,
     )
 
 
@@ -132,5 +139,8 @@ class BackpackRawPositionUpdate(BaseModel):
     net_exposure_notional: RawBpOptionalParsableFiniteDecimalString = Field(None, alias="n")
 
     model_config = ConfigDict(
-        populate_by_name=True, extra="forbid", frozen=True, validate_assignment=True,
+        populate_by_name=True,
+        extra="forbid",
+        frozen=True,
+        validate_assignment=True,
     )

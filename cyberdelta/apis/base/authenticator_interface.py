@@ -1,3 +1,11 @@
+"""Exchange Authentication Interface.
+
+This module defines the abstract interface for exchange-specific authentication
+implementations across different trading platforms.
+"""
+
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from typing import Any
@@ -15,8 +23,7 @@ class AuthenticatedRequestComponents(BaseModel):
 
 
 class IAuthenticator(ABC):
-    """Interface for request authentication strategies.
-    """
+    """Interface for request authentication strategies."""
 
     @abstractmethod
     async def prepare_request(

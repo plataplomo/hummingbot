@@ -59,6 +59,7 @@ from tests.integration.mocks.mock_exchange import MockAPIError, MockExchangeAPI
 def create_mock_funding_rate(
     symbol: str, rate: str | Decimal | None, next_time: datetime,
 ) -> FundingRate:
+    """Create mock funding rate for testing."""
     # Convert rate to Decimal, ensuring string conversion for floats/others
     # Convert next_time to integer timestamp (milliseconds)
     # next_funding_timestamp = int(next_time.timestamp() * 1000) # FundingRate expects datetime
@@ -82,6 +83,7 @@ def create_mock_ticker(
     price: str | float | Decimal | None,
     timestamp: datetime,
 ) -> Ticker:
+    """Create mock ticker for testing."""
     processed_bid = Decimal(str(bid)) if bid is not None else Decimal("0")
     processed_ask = Decimal(str(ask)) if ask is not None else Decimal("0")
     processed_price = Decimal(str(price)) if price is not None else Decimal("0")
@@ -103,6 +105,7 @@ def create_mock_orderbook(
     asks: list[tuple[str | float | Decimal | None, str | float | Decimal | None]],  # Allow None
     timestamp: datetime,
 ) -> OrderBook:
+    """Create mock orderbook for testing."""
     processed_bids = [
         (
             Decimal(str(p)) if p is not None else Decimal("0"),

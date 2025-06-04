@@ -1,4 +1,4 @@
-"""CyberDeltaEngine: Backpack Trading Data Mapper Core Tests
+"""CyberDeltaEngine: Backpack Trading Data Mapper Core Tests.
 ---------------------------------------------------------
 
 Comprehensive test suite for BackpackTradingDataMapper core transformations.

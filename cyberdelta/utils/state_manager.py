@@ -1,3 +1,11 @@
+"""State Management System.
+
+This module provides utilities for managing application state persistence
+and recovery in the CyberDeltaEngine trading system.
+"""
+
+from __future__ import annotations
+
 import json
 import logging
 import os

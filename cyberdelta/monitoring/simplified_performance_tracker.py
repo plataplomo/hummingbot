@@ -276,7 +276,11 @@ class SimplePerformanceTracker:
             self._record_metrics()
 
     def track_trade_exit(
-        self, trade_id: str, exit_price: float, exit_time: datetime, realized_pnl: float,
+        self,
+        trade_id: str,
+        exit_price: float,
+        exit_time: datetime,
+        realized_pnl: float,
     ) -> None:
         """Track the exit of a trade.
 
@@ -521,7 +525,9 @@ class SimplePerformanceAnalyzer:
         return drawdown
 
     def calculate_sharpe_ratio(
-        self, returns: pd.Series, risk_free_rate: Decimal = Decimal("0.0"),
+        self,
+        returns: pd.Series,
+        risk_free_rate: Decimal = Decimal("0.0"),
     ) -> Decimal:
         """Calculate the Sharpe ratio for a series of returns.
 
@@ -732,28 +738,28 @@ class SimplePerformanceAnalyzer:
         """Print a summary of performance metrics."""
         metrics = self.calculate_metrics()
 
-        print("\n" + "=" * 40)
-        print(f"Performance Summary for {self.tracker.strategy_name}")
-        print("=" * 40)
-        print(f"Total PnL: ${metrics['total_pnl']:.2f}")
-        print(f"Win Rate: {metrics['win_rate']:.2f}%")
-        print(f"Total Trades: {metrics['total_trades']}")
-        print(f"Winning Trades: {metrics['winning_trades']}")
-        print(f"Losing Trades: {metrics['losing_trades']}")
+        logger.info("\n" + "=" * 40)
+        logger.info(f"Performance Summary for {self.tracker.strategy_name}")
+        logger.info("=" * 40)
+        logger.info(f"Total PnL: ${metrics['total_pnl']:.2f}")
+        logger.info(f"Win Rate: {metrics['win_rate']:.2f}%")
+        logger.info(f"Total Trades: {metrics['total_trades']}")
+        logger.info(f"Winning Trades: {metrics['winning_trades']}")
+        logger.info(f"Losing Trades: {metrics['losing_trades']}")
 
         if "avg_profit" in metrics:
-            print(f"Average Profit: ${metrics['avg_profit']:.2f}")
+            logger.info(f"Average Profit: ${metrics['avg_profit']:.2f}")
 
         if "avg_loss" in metrics:
-            print(f"Average Loss: ${metrics['avg_loss']:.2f}")
+            logger.info(f"Average Loss: ${metrics['avg_loss']:.2f}")
 
         if "sharpe_ratio" in metrics:
-            print(f"Sharpe Ratio: {metrics['sharpe_ratio']:.2f}")
+            logger.info(f"Sharpe Ratio: {metrics['sharpe_ratio']:.2f}")
 
         if "max_drawdown" in metrics:
-            print(f"Maximum Drawdown: {metrics['max_drawdown']:.2f}%")
+            logger.info(f"Maximum Drawdown: {metrics['max_drawdown']:.2f}%")
 
-        print("=" * 40)
+        logger.info("=" * 40)
 
 
 # Example usage
@@ -824,10 +830,16 @@ if __name__ == "__main__":
 
     # Track trade exits
     tracker.track_trade_exit(
-        "trade1", float(Decimal("52000.0")), now + timedelta(days=1), float(Decimal("2000.0")),
+        "trade1",
+        float(Decimal("52000.0")),
+        now + timedelta(days=1),
+        float(Decimal("2000.0")),
     )
     tracker.track_trade_exit(
-        "trade2", float(Decimal("2800.0")), now + timedelta(days=2), float(Decimal("2000.0")),
+        "trade2",
+        float(Decimal("2800.0")),
+        now + timedelta(days=2),
+        float(Decimal("2000.0")),
     )
 
     # Export data

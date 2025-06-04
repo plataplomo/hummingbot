@@ -1,5 +1,4 @@
-"""Shared fixtures for HyperliquidTradingService tests.
-"""
+"""Shared fixtures for HyperliquidTradingService tests."""
 
 from collections.abc import Callable
 from unittest.mock import AsyncMock, MagicMock

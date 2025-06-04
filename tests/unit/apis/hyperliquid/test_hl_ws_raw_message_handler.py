@@ -1,5 +1,4 @@
-"""Unit tests for HyperliquidWsRawMessageHandler.
-"""
+"""Unit tests for HyperliquidWsRawMessageHandler."""
 
 from typing import Any
 

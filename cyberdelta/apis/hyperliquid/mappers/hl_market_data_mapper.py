@@ -93,7 +93,9 @@ class HyperliquidMarketDataMapper:
         try:
             # Parse core ticker fields using parsing utilities
             mark_px = parse_decimal_value(
-                raw_asset_ctx.mark_px, allow_none=False, field_name="markPx",
+                raw_asset_ctx.mark_px,
+                allow_none=False,
+                field_name="markPx",
             )
             if mark_px is None:
                 raise TransformationError("mark_px is required for ticker")
@@ -102,7 +104,9 @@ class HyperliquidMarketDataMapper:
             volume_24h = None
             if raw_asset_ctx.day_ntl_vlm:
                 volume_24h = parse_decimal_value(
-                    raw_asset_ctx.day_ntl_vlm, allow_none=True, field_name="dayNtlVlm",
+                    raw_asset_ctx.day_ntl_vlm,
+                    allow_none=True,
+                    field_name="dayNtlVlm",
                 )
 
             # Get current timestamp for ticker timestamp
@@ -124,7 +128,8 @@ class HyperliquidMarketDataMapper:
 
     @staticmethod
     def transform_raw_order_book_to_internal(
-        raw_book: HyperliquidRawL2Book, depth: int | None = None,
+        raw_book: HyperliquidRawL2Book,
+        depth: int | None = None,
     ) -> OrderBook:
         """Transforms a HyperliquidRawL2Book to an Internal OrderBook model.
 
@@ -274,7 +279,9 @@ class HyperliquidMarketDataMapper:
         try:
             # Parse mark price first
             mark_price = parse_decimal_value(
-                raw_asset_ctx.mark_px, allow_none=True, field_name="mark_px",
+                raw_asset_ctx.mark_px,
+                allow_none=True,
+                field_name="mark_px",
             )
 
             # Parse hourly funding rate
@@ -283,7 +290,9 @@ class HyperliquidMarketDataMapper:
 
             try:
                 hourly_funding_rate = parse_decimal_value(
-                    raw_asset_ctx.funding, allow_none=True, field_name="funding",
+                    raw_asset_ctx.funding,
+                    allow_none=True,
+                    field_name="funding",
                 )
 
                 if hourly_funding_rate is not None and hourly_funding_rate.is_finite():
@@ -305,7 +314,9 @@ class HyperliquidMarketDataMapper:
 
             # Parse additional HL-specific details
             impact_px = parse_decimal_value(
-                raw_asset_ctx.impact_px, allow_none=True, field_name="impact_px",
+                raw_asset_ctx.impact_px,
+                allow_none=True,
+                field_name="impact_px",
             )
 
             # Create HL-specific details
@@ -350,7 +361,9 @@ class HyperliquidMarketDataMapper:
         try:
             # Parse funding rate
             funding_rate = parse_decimal_value(
-                raw_item.funding_rate, allow_none=False, field_name="fundingRate",
+                raw_item.funding_rate,
+                allow_none=False,
+                field_name="fundingRate",
             )
 
             if funding_rate is None:
@@ -381,7 +394,9 @@ class HyperliquidMarketDataMapper:
 
     @staticmethod
     def transform_raw_candle_snapshot_to_candles(
-        raw_snapshot: HyperliquidRawCandleSnapshot, symbol: str, interval: str,
+        raw_snapshot: HyperliquidRawCandleSnapshot,
+        symbol: str,
+        interval: str,
     ) -> list[Candle]:
         """Transforms a HyperliquidRawCandleSnapshot to a list of Internal Candle models.
 
@@ -408,14 +423,20 @@ class HyperliquidMarketDataMapper:
             for i in range(len(raw_snapshot.t)):
                 # Parse OHLCV data from parallel lists
                 open_price = parse_decimal_value(
-                    raw_snapshot.o[i], allow_none=False, field_name="o",
+                    raw_snapshot.o[i],
+                    allow_none=False,
+                    field_name="o",
                 )
                 high_price = parse_decimal_value(
-                    raw_snapshot.h[i], allow_none=False, field_name="h",
+                    raw_snapshot.h[i],
+                    allow_none=False,
+                    field_name="h",
                 )
                 low_price = parse_decimal_value(raw_snapshot.l[i], allow_none=False, field_name="l")
                 close_price = parse_decimal_value(
-                    raw_snapshot.c[i], allow_none=False, field_name="c",
+                    raw_snapshot.c[i],
+                    allow_none=False,
+                    field_name="c",
                 )
                 volume = parse_decimal_value(raw_snapshot.v[i], allow_none=False, field_name="v")
 
@@ -562,7 +583,8 @@ class HyperliquidMarketDataMapper:
 
     @staticmethod
     def transform_raw_trades(
-        raw_public_trades: list[HyperliquidRawPublicTrade], limit: int | None = None,
+        raw_public_trades: list[HyperliquidRawPublicTrade],
+        limit: int | None = None,
     ) -> list[Trade]:
         """Transforms a list of HyperliquidRawPublicTrade to Internal Trade models.
 

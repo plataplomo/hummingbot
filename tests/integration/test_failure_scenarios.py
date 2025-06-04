@@ -1,5 +1,4 @@
-"""Integration tests focusing on failure scenarios and safety system triggers.
-"""
+"""Integration tests focusing on failure scenarios and safety system triggers."""
 
 import asyncio
 import logging
@@ -244,7 +243,9 @@ class TestFailureScenarios:
         )
         assert other_breaker is not None
         assert not isinstance(other_breaker, dict) and other_breaker.state == BreakerState.CLOSED, (
-            f"Other exchange breaker {other_breaker.name if not isinstance(other_breaker, dict) else 'dict'} should be CLOSED"
+            f"Other exchange breaker "
+            f"{other_breaker.name if not isinstance(other_breaker, dict) else 'dict'} "
+            f"should be CLOSED"
         )
 
         other_result = await execution_handler.execute_opportunity(other_sized_opportunity)
@@ -361,7 +362,8 @@ class TestFailureScenarios:
         if breaker is None:
             pytest.skip(f"Breaker {breaker_name} not found, skipping manual control test.")
 
-        initial_state = breaker.state if not isinstance(breaker, dict) else None  # Store initial state if needed for later comparison
+        # Store initial state if needed for later comparison
+        initial_state = breaker.state if not isinstance(breaker, dict) else None
         assert initial_state is BreakerState.CLOSED, (
             f"Breaker initial state was {initial_state}, expected CLOSED."
         )
@@ -372,7 +374,8 @@ class TestFailureScenarios:
         if not isinstance(breaker, dict):
             breaker.trip("Manual trip for testing")
         assert not isinstance(breaker, dict) and breaker.state is BreakerState.OPEN, (
-            f"Breaker state after trip was {breaker.state if not isinstance(breaker, dict) else 'dict'}, expected OPEN."
+            f"Breaker state after trip was "
+            f"{breaker.state if not isinstance(breaker, dict) else 'dict'}, expected OPEN."
         )
         assert not isinstance(breaker, dict) and breaker.trip_reason == "Manual trip for testing"
 

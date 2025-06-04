@@ -109,7 +109,9 @@ class TradeSignal(BaseModel):
     @field_validator("price", mode="before")
     @classmethod
     def parse_required_decimal_finite(
-        cls, v: str | int | float | Decimal, info: ValidationInfo,
+        cls,
+        v: str | int | float | Decimal,
+        info: ValidationInfo,
     ) -> Decimal:
         """Parse required decimal, ensuring finite. Positive check via Field."""
         field_name = info.field_name
@@ -125,7 +127,9 @@ class TradeSignal(BaseModel):
     @field_validator("quantity", "stop_loss", "take_profit", mode="before")
     @classmethod
     def parse_optional_decimal_finite(
-        cls, v: str | int | float | Decimal | None, info: ValidationInfo,
+        cls,
+        v: str | int | float | Decimal | None,
+        info: ValidationInfo,
     ) -> Decimal | None:
         """Parse optional decimal, ensuring finite if not None. Positive check via Field."""
         field_name = info.field_name
@@ -143,7 +147,9 @@ class TradeSignal(BaseModel):
     @field_validator("confidence", mode="before")
     @classmethod
     def validate_optional_float(
-        cls, v: str | int | float | None, info: ValidationInfo,
+        cls,
+        v: str | int | float | None,
+        info: ValidationInfo,
     ) -> float | None:
         """Validate optional float value."""
         field_name = info.field_name
@@ -161,7 +167,9 @@ class TradeSignal(BaseModel):
     @field_validator("expiration", mode="before")
     @classmethod
     def parse_optional_datetime_utc(
-        cls, v: str | int | float | datetime | None, info: ValidationInfo,
+        cls,
+        v: str | int | float | datetime | None,
+        info: ValidationInfo,
     ) -> datetime | None:
         """Parse optional datetime, ensuring UTC if present."""
         field_name = info.field_name

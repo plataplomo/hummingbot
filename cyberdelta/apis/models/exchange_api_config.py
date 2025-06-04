@@ -21,5 +21,6 @@ class ExchangeAPIConfig(BaseModel):
     api_key: str = Field(..., description="API key for authentication.")
     api_secret: str = Field(..., description="API secret for authentication.")
     rate_limits: dict[str, Any] | None = Field(
-        None, description="Optional rate limit configuration (raw dict or validated model).",
+        None,
+        description="Optional rate limit configuration (raw dict or validated model).",
     )

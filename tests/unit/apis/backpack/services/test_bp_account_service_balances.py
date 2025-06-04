@@ -161,6 +161,7 @@ class TestBackpackAccountServiceBalances:
         def mapper_side_effect(
             asset_symbol: str, raw_balance_model: BackpackRawBalance,
         ) -> SpotBalance:
+            """Helper function for mapper side effect."""
             if asset_symbol == "USDC" and raw_balance_model == mock_raw_balances_payload["USDC"]:
                 return usdc_spot_balance
             if asset_symbol == "SOL" and raw_balance_model == mock_raw_balances_payload["SOL"]:

@@ -193,7 +193,8 @@ class PerformanceTracker:
                     if metadata:
                         # Ensure metadata exists and is a dict before updating
                         if "metadata" not in self.trades[i] or not isinstance(
-                            self.trades[i]["metadata"], dict,
+                            self.trades[i]["metadata"],
+                            dict,
                         ):
                             self.trades[i]["metadata"] = {}
                         self.trades[i]["metadata"].update(metadata)
@@ -288,7 +289,10 @@ class PerformanceTracker:
             self.persistence.save_signals(self.signals)
 
     def track_signal_execution(
-        self, signal_id: str, executed: bool, metadata: dict[str, Any] | None = None,
+        self,
+        signal_id: str,
+        executed: bool,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """Track the execution of a signal.
 
@@ -310,7 +314,8 @@ class PerformanceTracker:
                     if metadata:
                         # Ensure metadata exists and is a dict before updating
                         if "metadata" not in self.signals[i] or not isinstance(
-                            self.signals[i]["metadata"], dict,
+                            self.signals[i]["metadata"],
+                            dict,
                         ):
                             self.signals[i]["metadata"] = {}
                         self.signals[i]["metadata"].update(metadata)
@@ -642,10 +647,13 @@ class PerformanceTracker:
                     # Pivot requires unique index/column combinations
                     # Drop duplicates based on index (timestamp) and symbol before pivoting
                     df_unique = df.reset_index().drop_duplicates(
-                        subset=["timestamp", "symbol"], keep="last",
+                        subset=["timestamp", "symbol"],
+                        keep="last",
                     )
                     df_pivot = df_unique.pivot(
-                        index="timestamp", columns="symbol", values="funding_rate",
+                        index="timestamp",
+                        columns="symbol",
+                        values="funding_rate",
                     )
                     return df_pivot
                 except Exception as e:

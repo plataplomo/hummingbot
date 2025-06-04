@@ -1,3 +1,5 @@
+"""Module docstring."""
+import logging
 import types
 from collections.abc import Callable
 from decimal import Decimal
@@ -28,6 +30,8 @@ from cyberdelta.config.config_models import (
     StrategyParamsHLPerpBPSpot,
 )
 from cyberdelta.enums.exchange_names import ExchangeName
+
+logger = logging.getLogger(__name__)
 
 
 def create_test_url(url_str: str) -> Any:
@@ -74,6 +78,7 @@ class MockResponse:
         pass
 
     def raise_for_status(self) -> None:  # Add return type hint
+        """Helper function for raise for status."""
         self._raise_for_status_called = True
         if self.status >= 400:
             raise aiohttp.ClientResponseError(
@@ -136,6 +141,7 @@ def mock_client_session() -> Callable[..., MockClientSession]:
     def create_session(
         responses: dict[tuple[str, str], MockResponse] | None = None,
     ) -> MockClientSession:
+        """Create session for testing."""
         return MockClientSession(responses)
 
     return create_session
@@ -179,7 +185,7 @@ def hyperliquid_secrets() -> dict[str, str]:
         derived_address = account.address
     except Exception as e:
         # Fallback if w3 or account generation fails unexpectedly
-        print(f"Error generating Hyperliquid mock account: {e}")
+        logger.warning(f"Error generating Hyperliquid mock account: {e}")
         derived_address = "0xMockAddressCreationFailed"  # Provide a fallback
 
     return {

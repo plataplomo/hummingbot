@@ -45,6 +45,7 @@ class TestRiskManagerControls:
         def config_get_side_effect_for_test(
             key: str, default: object | None = None,
         ) -> object | None:
+            """Helper function for config get side effect for test."""
             return combined_config.get(key, default)
 
         # Mock one of the exchange breakers to be in HALF_OPEN state
@@ -55,6 +56,7 @@ class TestRiskManagerControls:
         mock_short_breaker.state = BreakerState.OPEN  # Any state other than HALF_OPEN
 
         def get_breaker_side_effect(exchange_name_param: str, breaker_type_param: str) -> MagicMock:
+            """Get breaker side effect for testing."""
             if (
                 exchange_name_param == sample_opportunity.long_exchange
                 and breaker_type_param == "APIErrorBreaker"

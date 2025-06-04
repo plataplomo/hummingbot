@@ -290,7 +290,8 @@ class TestHyperliquidAPIWebSocketSubscriptionIntegration:
     ) -> HyperliquidAPI:
         """Create HyperliquidAPI instance with mocked dependencies."""
         with patch(
-            "cyberdelta.apis.connectivity.ws_manager.WebSocketManager", return_value=mock_ws_manager,
+            "cyberdelta.apis.connectivity.ws_manager.WebSocketManager",
+            return_value=mock_ws_manager,
         ):
             api = HyperliquidAPI(exchange_config=hl_config, exchange_secrets=hl_secrets)
             # Use object.__setattr__ to bypass protection for integration testing setup

@@ -163,7 +163,9 @@ class HyperliquidAPI(ExchangeAPI):
 
         # Create the factory to handle component instantiation
         factory = HyperliquidAPIComponentsFactory(
-            exchange_config, exchange_secrets, exchange_config.chain_id,
+            exchange_config,
+            exchange_secrets,
+            exchange_config.chain_id,
         )
 
         # Use injected components or create them via factory
@@ -368,7 +370,11 @@ class HyperliquidAPI(ExchangeAPI):
         try:
             auth_components: AuthenticatedRequestComponents = (
                 await self._hl_authenticator.prepare_request(
-                    method, path, params, data, current_headers,
+                    method,
+                    path,
+                    params,
+                    data,
+                    current_headers,
                 )
             )
         except APIError:
@@ -397,7 +403,10 @@ class HyperliquidAPI(ExchangeAPI):
         return await self._asset_indexer.get_asset_index(symbol)
 
     def _update_rate_limit_from_headers(
-        self, headers: Mapping[str, str], method: str, path: str,
+        self,
+        headers: Mapping[str, str],
+        method: str,
+        path: str,
     ) -> None:
         """Update rate limit information based on response headers.
         Hyperliquid does not typically provide rate limit info in standard headers.
@@ -512,7 +521,8 @@ class HyperliquidAPI(ExchangeAPI):
         return await self.account_service.get_trade_history(args=args)
 
     async def get_historical_funding_rates(
-        self, args: GetHistoricalFundingRatesArgs,
+        self,
+        args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
         """Get historical funding rates for a specific symbol."""
         # Hyperliquid requires start_time

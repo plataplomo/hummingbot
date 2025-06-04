@@ -75,7 +75,9 @@ class MarginAccountSummary(BaseModel):
     @field_validator("timestamp", mode="before")
     @classmethod
     def parse_required_datetime_utc(
-        cls, v: str | int | float | datetime, info: ValidationInfo,
+        cls,
+        v: str | int | float | datetime,
+        info: ValidationInfo,
     ) -> datetime:
         """Parse required datetime, ensuring UTC."""
         field_name = info.field_name
@@ -93,7 +95,9 @@ class MarginAccountSummary(BaseModel):
     @field_validator("total_equity", "available_equity", mode="before")
     @classmethod
     def parse_required_decimal_finite_non_negative(
-        cls, v: str | int | float | Decimal, info: ValidationInfo,
+        cls,
+        v: str | int | float | Decimal,
+        info: ValidationInfo,
     ) -> Decimal:
         """Parse required decimal, ensuring finite and non-negative."""
         field_name = info.field_name
@@ -118,7 +122,9 @@ class MarginAccountSummary(BaseModel):
     )
     @classmethod
     def parse_optional_decimal_finite(
-        cls, v: str | int | float | Decimal | None, info: ValidationInfo,
+        cls,
+        v: str | int | float | Decimal | None,
+        info: ValidationInfo,
     ) -> Decimal | None:
         """Parse optional decimals, allowing None but ensuring finite if present."""
         field_name = info.field_name
@@ -157,11 +163,15 @@ class HyperliquidMarginDetails(BaseModel):
     model_config = ConfigDict(extra="ignore", frozen=True, validate_assignment=False)
 
     @field_validator(
-        "cross_maintenance_margin_used", "isolated_maintenance_margin_used", mode="before",
+        "cross_maintenance_margin_used",
+        "isolated_maintenance_margin_used",
+        mode="before",
     )
     @classmethod
     def parse_required_decimal_finite_non_negative(
-        cls, v: str | int | float | Decimal, info: ValidationInfo,
+        cls,
+        v: str | int | float | Decimal,
+        info: ValidationInfo,
     ) -> Decimal:
         """Parse required decimal, ensuring finite and non-negative."""
         field_name = info.field_name
@@ -204,7 +214,9 @@ class BackpackMarginDetails(BaseModel):
     )
     @classmethod
     def parse_optional_decimal_finite(
-        cls, v: str | int | float | Decimal | None, info: ValidationInfo,
+        cls,
+        v: str | int | float | Decimal | None,
+        info: ValidationInfo,
     ) -> Decimal | None:
         """Parse optional decimal, ensuring finite if present."""
         field_name = info.field_name

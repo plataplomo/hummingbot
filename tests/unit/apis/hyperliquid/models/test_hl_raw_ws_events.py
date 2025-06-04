@@ -13,6 +13,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 
 
 def test_ws_fill_event_happy_path() -> None:
+    """Test ws fill event happy path."""
     obj: dict[str, object] = {
         "coin": "ETH",
         "px": "3000.0",
@@ -31,12 +32,14 @@ def test_ws_fill_event_happy_path() -> None:
 
 
 def test_ws_fill_event_missing_required() -> None:
+    """Test ws fill event missing required."""
     obj: dict[str, object] = {"coin": "ETH", "px": "3000.0"}
     with pytest.raises(ValidationError):
         HyperliquidRawWsFillEvent.model_validate(obj)
 
 
 def test_ws_fill_event_type_errors() -> None:
+    """Test ws fill event type errors."""
     obj: dict[str, object] = {
         "coin": 123,
         "px": 3000.0,
@@ -53,6 +56,7 @@ def test_ws_fill_event_type_errors() -> None:
 
 
 def test_ws_fill_event_constraint_errors() -> None:
+    """Test ws fill event constraint errors."""
     obj: dict[str, object] = {
         "coin": "E" * 65,
         "px": "NaN",
@@ -69,6 +73,7 @@ def test_ws_fill_event_constraint_errors() -> None:
 
 
 def test_ws_fill_event_optional_cloid() -> None:
+    """Test ws fill event optional cloid."""
     obj: dict[str, object] = {
         "coin": "ETH",
         "px": "3000.0",
@@ -84,6 +89,7 @@ def test_ws_fill_event_optional_cloid() -> None:
 
 
 def test_ws_fill_event_extra_field() -> None:
+    """Test ws fill event extra field."""
     obj: dict[str, object] = {
         "coin": "ETH",
         "px": "3000.0",
@@ -101,6 +107,7 @@ def test_ws_fill_event_extra_field() -> None:
 
 
 def test_ws_fill_event_adversarial_strings() -> None:
+    """Test ws fill event adversarial strings."""
     obj: dict[str, object] = {
         "coin": "DROP TABLE users;",
         "px": "123.456",
@@ -117,6 +124,7 @@ def test_ws_fill_event_adversarial_strings() -> None:
 
 
 def test_ws_book_update_happy_path() -> None:
+    """Test ws book update happy path."""
     obj: dict[str, object] = {
         "coin": "BTC",
         "levels": [
@@ -135,6 +143,7 @@ def test_ws_book_update_happy_path() -> None:
 
 
 def test_ws_book_update_invalid_levels() -> None:
+    """Test ws book update invalid levels."""
     obj: dict[str, object] = {
         "coin": "BTC",
         "levels": [[], []],
@@ -153,6 +162,7 @@ def test_ws_book_update_invalid_levels() -> None:
 
 
 def test_ws_book_update_type_errors() -> None:
+    """Test ws book update type errors."""
     obj: dict[str, object] = {
         "coin": 123,
         "levels": "notalist",
@@ -163,6 +173,7 @@ def test_ws_book_update_type_errors() -> None:
 
 
 def test_ws_book_update_extra_field() -> None:
+    """Test ws book update extra field."""
     obj: dict[str, object] = {
         "coin": "BTC",
         "levels": [[], []],
@@ -174,6 +185,7 @@ def test_ws_book_update_extra_field() -> None:
 
 
 def test_ws_book_update_only_bids_or_asks() -> None:
+    """Test ws book update only bids or asks."""
     # Only bids (should be rejected)
     obj: dict[str, object] = {
         "coin": "BTC",
@@ -194,6 +206,7 @@ def test_ws_book_update_only_bids_or_asks() -> None:
 
 
 def test_ws_book_update_empty_lists() -> None:
+    """Test ws book update empty lists."""
     # Both bids and asks empty
     obj: dict[str, object] = {"coin": "BTC", "levels": [[], []], "time": 1234567890}
     model = HyperliquidRawWsBookUpdate.model_validate(obj)
@@ -201,6 +214,7 @@ def test_ws_book_update_empty_lists() -> None:
 
 
 def test_ws_trade_event_happy_path() -> None:
+    """Test ws trade event happy path."""
     obj: dict[str, object] = {
         "coin": "ETH",
         "px": "3000.0",
@@ -215,12 +229,14 @@ def test_ws_trade_event_happy_path() -> None:
 
 
 def test_ws_trade_event_missing_required() -> None:
+    """Test ws trade event missing required."""
     obj: dict[str, object] = {"coin": "ETH", "px": "3000.0"}
     with pytest.raises(ValidationError):
         HyperliquidRawWsTradeEvent.model_validate(obj)
 
 
 def test_ws_trade_event_type_errors() -> None:
+    """Test ws trade event type errors."""
     obj: dict[str, object] = {
         "coin": 123,
         "px": 3000.0,
@@ -234,6 +250,7 @@ def test_ws_trade_event_type_errors() -> None:
 
 
 def test_ws_trade_event_constraint_errors() -> None:
+    """Test ws trade event constraint errors."""
     obj: dict[str, object] = {
         "coin": "E" * 65,
         "px": "NaN",
@@ -247,6 +264,7 @@ def test_ws_trade_event_constraint_errors() -> None:
 
 
 def test_ws_trade_event_extra_field() -> None:
+    """Test ws trade event extra field."""
     obj: dict[str, object] = {
         "coin": "ETH",
         "px": "3000.0",
@@ -261,6 +279,7 @@ def test_ws_trade_event_extra_field() -> None:
 
 
 def test_ws_trade_event_side_lowercase_invalid() -> None:
+    """Test ws trade event side lowercase invalid."""
     # side as lowercase or invalid
     obj: dict[str, object] = {
         "coin": "ETH",
@@ -295,6 +314,7 @@ def test_ws_trade_event_side_lowercase_invalid() -> None:
 
 
 def test_ws_order_update_happy_path() -> None:
+    """Test ws order update happy path."""
     obj: dict[str, object] = {
         "eventType": "orderUpdate",
         "data": {"foo": "bar"},
@@ -305,30 +325,35 @@ def test_ws_order_update_happy_path() -> None:
 
 
 def test_ws_order_update_missing_required() -> None:
+    """Test ws order update missing required."""
     obj: dict[str, object] = {"eventType": "orderUpdate"}
     with pytest.raises(ValidationError):
         HyperliquidRawWsOrderUpdate.model_validate(obj)
 
 
 def test_ws_order_update_type_errors() -> None:
+    """Test ws order update type errors."""
     obj: dict[str, object] = {"eventType": 123, "data": "notadict"}
     with pytest.raises(ValidationError):
         HyperliquidRawWsOrderUpdate.model_validate(obj)
 
 
 def test_ws_order_update_empty_data() -> None:
+    """Test ws order update empty data."""
     obj: dict[str, object] = {"eventType": "orderUpdate", "data": {}}
     with pytest.raises(ValidationError):
         HyperliquidRawWsOrderUpdate.model_validate(obj)
 
 
 def test_ws_order_update_extra_field() -> None:
+    """Test ws order update extra field."""
     obj: dict[str, object] = {"eventType": "orderUpdate", "data": {"foo": "bar"}, "foo": 1}
     with pytest.raises(ValidationError):
         HyperliquidRawWsOrderUpdate.model_validate(obj)
 
 
 def test_ws_order_update_unknown_event_type() -> None:
+    """Test ws order update unknown event type."""
     # eventType as unknown string
     obj: dict[str, object] = {"eventType": "unknownType", "data": {"foo": "bar"}}
     model = HyperliquidRawWsOrderUpdate.model_validate(obj)
@@ -336,6 +361,7 @@ def test_ws_order_update_unknown_event_type() -> None:
 
 
 def test_ws_position_update_event_happy_path() -> None:
+    """Test ws position update event happy path."""
     obj: dict[str, object] = {
         "asset": "ETH",
         "position": {
@@ -358,18 +384,21 @@ def test_ws_position_update_event_happy_path() -> None:
 
 
 def test_ws_position_update_event_missing_required() -> None:
+    """Test ws position update event missing required."""
     obj: dict[str, object] = {"asset": "ETH", "position": {}}
     with pytest.raises(ValidationError):
         HyperliquidRawWsPositionUpdateEvent.model_validate(obj)
 
 
 def test_ws_position_update_event_type_errors() -> None:
+    """Test ws position update event type errors."""
     obj: dict[str, object] = {"asset": 123, "position": "notadict", "time": "now"}
     with pytest.raises(ValidationError):
         HyperliquidRawWsPositionUpdateEvent.model_validate(obj)
 
 
 def test_ws_position_update_event_extra_field() -> None:
+    """Test ws position update event extra field."""
     obj: dict[str, object] = {
         "asset": "ETH",
         "position": {
@@ -392,6 +421,7 @@ def test_ws_position_update_event_extra_field() -> None:
 
 
 def test_ws_position_update_missing_optional_fields() -> None:
+    """Test ws position update missing optional fields."""
     # position with only required fields
     obj: dict[str, object] = {
         "asset": "ETH",
@@ -412,6 +442,7 @@ def test_ws_position_update_missing_optional_fields() -> None:
 
 
 def test_ws_position_update_all_zero_negative_large() -> None:
+    """Test ws position update all zero negative large."""
     # All fields as zero, negative, or large
     obj: dict[str, object] = {
         "asset": "BTC",
@@ -470,6 +501,7 @@ def test_ws_position_update_all_zero_negative_large() -> None:
 
 
 def test_ws_fill_event_cloid_empty_string() -> None:
+    """Test ws fill event cloid empty string."""
     # cloid as empty string (should be rejected)
     obj: dict[str, object] = {
         "coin": "ETH",
@@ -487,6 +519,7 @@ def test_ws_fill_event_cloid_empty_string() -> None:
 
 
 def test_ws_fill_event_cloid_omitted() -> None:
+    """Test ws fill event cloid omitted."""
     # cloid omitted
     obj: dict[str, object] = {
         "coin": "ETH",
@@ -503,6 +536,7 @@ def test_ws_fill_event_cloid_omitted() -> None:
 
 
 def test_ws_fill_event_cloid_very_long() -> None:
+    """Test ws fill event cloid very long."""
     # cloid very long (should be rejected)
     obj: dict[str, object] = {
         "coin": "ETH",
@@ -520,6 +554,7 @@ def test_ws_fill_event_cloid_very_long() -> None:
 
 
 def test_ws_fill_event_hash_unicode_control() -> None:
+    """Test ws fill event hash unicode control."""
     # hash with unicode or control characters
     obj: dict[str, object] = {
         "coin": "ETH",
@@ -537,6 +572,7 @@ def test_ws_fill_event_hash_unicode_control() -> None:
 
 
 def test_ws_event_fields_set_to_none() -> None:
+    """Test ws event fields set to none."""
     # Fields present but set to None (should be rejected if not optional)
     obj: dict[str, object] = {
         "coin": None,
@@ -554,6 +590,7 @@ def test_ws_event_fields_set_to_none() -> None:
 
 
 def test_ws_event_extra_fields_everywhere() -> None:
+    """Test ws event extra fields everywhere."""
     # Extra fields at every level (should be rejected)
     obj: dict[str, object] = {
         "coin": "ETH",

@@ -1,5 +1,5 @@
-"""cyberdelta.utils.parsing
------------------------
+"""cyberdelta.utils.parsing.
+
 Utility functions for robust, consistent parsing of datetimes and decimals across all core models.
 
 All parsing errors will include the field name in their messages if provided,
@@ -15,9 +15,11 @@ logger = logging.getLogger(__name__)
 
 
 def parse_datetime_utc(
-    value: datetime | int | float | str | None, field_name: str = "",
+    value: datetime | int | float | str | None,
+    field_name: str = "",
 ) -> datetime | None:
-    """Parses various inputs into a timezone-aware UTC datetime object.
+    """Parse various inputs into a timezone-aware UTC datetime object.
+
     Accepts:
         - datetime (returns as UTC-aware)
         - int/float (epoch seconds or ms, auto-detects ms)
@@ -95,6 +97,7 @@ def parse_decimal_value(
     field_name: str = "",
 ) -> Decimal | None:
     """Safely convert various inputs to Decimal, with robust error context.
+
     Accepts:
         - Decimal (returns as is)
         - str/int/float (converts, strips commas from str)
@@ -135,7 +138,7 @@ def validate_str_field(
     max_length: int | None = None,
     allow_empty: bool = False,
 ) -> str:
-    """Validates that a value is a string, optionally non-empty, within max_length, and valid UTF-8.
+    """Validate that a value is a string, optionally non-empty, within max_length, and valid UTF-8.
 
     Args:
         value: The value to validate.
@@ -170,7 +173,7 @@ def validate_enum_field(
     field_name: str = "",
     max_length: int | None = 32,
 ) -> str:
-    """Validates that a value is a string, a member of the allowed set, and valid UTF-8.
+    """Validate that a value is a string, a member of the allowed set, and valid UTF-8.
 
     Args:
         value: The value to validate.
@@ -195,7 +198,7 @@ def validate_enum_field(
 
 
 def timeframe_to_ms(tf_str: str, default_to_minutes: int | None = 1) -> int:
-    """Converts a timeframe string (e.g., "1m", "5m", "1h", "1d") to milliseconds.
+    """Convert a timeframe string (e.g., "1m", "5m", "1h", "1d") to milliseconds.
 
     Args:
         tf_str: The timeframe string to parse.
@@ -235,7 +238,8 @@ def timeframe_to_ms(tf_str: str, default_to_minutes: int | None = 1) -> int:
 
 
 def check_str_parsable_to_finite_decimal(value: object, field_name: str = "") -> str:
-    """Validates that a value is a string, is parsable to a finite Decimal.
+    """Validate that a value is a string, is parsable to a finite Decimal.
+
     Returns the original string if valid, otherwise raises ValueError.
     This is intended for use with Pydantic's AfterValidator on a string field.
 

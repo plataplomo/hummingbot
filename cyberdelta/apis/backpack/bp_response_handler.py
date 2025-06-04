@@ -1,6 +1,6 @@
 """Response Handler for Backpack API Raw Responses.
 
-Validates raw JSON data against Pydantic models specific to Backpack\'s API endpoints.
+Validates raw JSON data against Pydantic models specific to Backpack's API endpoints.
 """
 
 from __future__ import annotations  # Ensure this is at the top if not already
@@ -47,7 +47,9 @@ class BackpackResponseHandler:
 
     @staticmethod
     def _handle_validation_error(
-        e: ValidationError, context: str, raw_data: RawJsonResponse,
+        e: ValidationError,
+        context: str,
+        raw_data: RawJsonResponse,
     ) -> APIError:
         """Helper to create a standardized APIError from a ValidationError."""
         logger.error(
@@ -80,7 +82,9 @@ class BackpackResponseHandler:
             return BackpackRawTicker.model_validate(raw_response_content)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
-                e, context, raw_response_content,
+                e,
+                context,
+                raw_response_content,
             ) from e
 
     @staticmethod
@@ -102,7 +106,9 @@ class BackpackResponseHandler:
             return BackpackRawOrderBook.model_validate(raw_response_content)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
-                e, context, raw_response_content,
+                e,
+                context,
+                raw_response_content,
             ) from e
 
     @staticmethod
@@ -131,7 +137,9 @@ class BackpackResponseHandler:
                 validated_items.append(BackpackRawTrade.model_validate(item))
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
-                    e, f"single trade item in {context}", item,
+                    e,
+                    f"single trade item in {context}",
+                    item,
                 ) from e
         return validated_items
 
@@ -165,13 +173,16 @@ class BackpackResponseHandler:
                 )
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
-                    e, f"balance details for {asset_symbol}", balance_details,
+                    e,
+                    f"balance details for {asset_symbol}",
+                    balance_details,
                 ) from e
         return validated_balances
 
     @staticmethod
     def handle_get_positions_response(
-        raw_response_content: RawJsonResponse, symbol: str | None,
+        raw_response_content: RawJsonResponse,
+        symbol: str | None,
     ) -> list[BackpackRawPosition]:
         """Validates the raw response for the Get Positions endpoint.
 
@@ -198,7 +209,9 @@ class BackpackResponseHandler:
                     validated_positions.append(position)
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
-                    e, f"single position item in {context}", item,
+                    e,
+                    f"single position item in {context}",
+                    item,
                 ) from e
 
         if symbol is not None and not validated_positions:
@@ -224,12 +237,16 @@ class BackpackResponseHandler:
             return BackpackRawOrder.model_validate(raw_response_content)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
-                e, context, raw_response_content,
+                e,
+                context,
+                raw_response_content,
             ) from e
 
     @staticmethod
     def handle_cancel_order_response(
-        raw_response_content: RawJsonResponse, order_id: str, symbol: str,
+        raw_response_content: RawJsonResponse,
+        order_id: str,
+        symbol: str,
     ) -> bool:
         """Validates the raw response for the Cancel Order endpoint.
         Expects no content on success.
@@ -245,7 +262,8 @@ class BackpackResponseHandler:
 
     @staticmethod
     def handle_get_open_orders_response(
-        raw_response_content: RawJsonResponse, symbol: str | None,
+        raw_response_content: RawJsonResponse,
+        symbol: str | None,
     ) -> list[BackpackRawOrder]:
         """Validates the raw response for the Get Open Orders endpoint."""
         context = f"open orders ({symbol or 'all'})"
@@ -265,7 +283,9 @@ class BackpackResponseHandler:
                 validated_orders.append(BackpackRawOrder.model_validate(item))
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
-                    e, f"single open order item in {context}", item,
+                    e,
+                    f"single open order item in {context}",
+                    item,
                 ) from e
         return validated_orders
 
@@ -313,7 +333,9 @@ class BackpackResponseHandler:
             return BackpackRawFundingRate.model_validate(raw_data_to_validate)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
-                e, context, raw_data_to_validate,
+                e,
+                context,
+                raw_data_to_validate,
             ) from e
 
     @staticmethod
@@ -332,7 +354,9 @@ class BackpackResponseHandler:
             return BackpackRawAccountSummary.model_validate(raw_response_content)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
-                e, context, raw_response_content,
+                e,
+                context,
+                raw_response_content,
             ) from e
 
     @staticmethod
@@ -351,12 +375,15 @@ class BackpackResponseHandler:
             return BackpackRawWithdrawalResponse.model_validate(raw_response_content)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
-                e, context, raw_response_content,
+                e,
+                context,
+                raw_response_content,
             ) from e
 
     @staticmethod
     def handle_get_order_history_response(
-        raw_response_content: RawJsonResponse, symbol: str | None,
+        raw_response_content: RawJsonResponse,
+        symbol: str | None,
     ) -> list[BackpackRawOrder]:
         """Validates the raw response for the Get Order History endpoint."""
         context = f"order history ({symbol or 'all'})"
@@ -376,13 +403,16 @@ class BackpackResponseHandler:
                 validated_orders.append(BackpackRawOrder.model_validate(item))
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
-                    e, f"single order history item in {context}", item,
+                    e,
+                    f"single order history item in {context}",
+                    item,
                 ) from e
         return validated_orders
 
     @staticmethod
     def handle_get_trade_history_response(
-        raw_response_content: RawJsonResponse, symbol: str | None,
+        raw_response_content: RawJsonResponse,
+        symbol: str | None,
     ) -> list[BackpackRawTrade]:
         """Validates the raw response for the Get Trade History endpoint.
 
@@ -405,7 +435,9 @@ class BackpackResponseHandler:
                 validated_items.append(BackpackRawTrade.model_validate(item))
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
-                    e, f"single trade item in {context}", item,
+                    e,
+                    f"single trade item in {context}",
+                    item,
                 ) from e
         return validated_items
 
@@ -444,7 +476,9 @@ class BackpackResponseHandler:
                 )
                 # Re-raise to fail the entire response if one kline is bad, or collect valid ones
                 raise BackpackResponseHandler._handle_validation_error(
-                    e, f"single kline item in {context}", item_raw,
+                    e,
+                    f"single kline item in {context}",
+                    item_raw,
                 ) from e
             except Exception as e_unk_item:
                 logger.error(
@@ -484,13 +518,16 @@ class BackpackResponseHandler:
                 validated_trades.append(BackpackRawTrade.model_validate(item))
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
-                    e, f"single historical trade item in {context}", item,
+                    e,
+                    f"single historical trade item in {context}",
+                    item,
                 ) from e
         return validated_trades
 
     @staticmethod
     def handle_get_order_status_response(
-        raw_response_content: RawJsonResponse, identifier: str,
+        raw_response_content: RawJsonResponse,
+        identifier: str,
     ) -> BackpackRawOrder:
         """Validates the raw response for the Get Order Status endpoint."""
         context = f"order status (id={identifier})"
@@ -510,12 +547,15 @@ class BackpackResponseHandler:
             return BackpackRawOrder.model_validate(raw_response_content)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
-                e, context, raw_response_content,
+                e,
+                context,
+                raw_response_content,
             ) from e
 
     @staticmethod
     def handle_cancel_all_orders_response(
-        raw_response_content: RawJsonResponse, symbol: str | None,
+        raw_response_content: RawJsonResponse,
+        symbol: str | None,
     ) -> list[BackpackRawOrder]:
         """Validates the raw response for the Cancel All Orders endpoint
         (DELETE /api/v1/orders/cancelAll).
@@ -589,7 +629,8 @@ class BackpackResponseHandler:
 
         # Basic structure validation
         if "success" not in raw_response_content or not isinstance(
-            raw_response_content["success"], bool,
+            raw_response_content["success"],
+            bool,
         ):
             raise APIError(
                 message=(
@@ -600,7 +641,8 @@ class BackpackResponseHandler:
             )
 
         if "message" in raw_response_content and not isinstance(
-            raw_response_content["message"], str,
+            raw_response_content["message"],
+            str,
         ):
             logger.warning(
                 f"[{__name__}] {context} 'message' field is not a string: "
@@ -609,7 +651,8 @@ class BackpackResponseHandler:
             # Don't raise, but log. Message is optional and for info.
 
         if "transferId" in raw_response_content and not isinstance(
-            raw_response_content["transferId"], str,
+            raw_response_content["transferId"],
+            str,
         ):
             logger.warning(
                 f"[{__name__}] {context} 'transferId' field is not a string: "
@@ -641,7 +684,9 @@ class BackpackResponseHandler:
             return BackpackRawFundingRate.model_validate(raw_response_content)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
-                e, context, raw_response_content,
+                e,
+                context,
+                raw_response_content,
             ) from e
 
     @staticmethod
@@ -673,6 +718,8 @@ class BackpackResponseHandler:
                 validated_rates.append(BackpackRawFundingIntervalRate.model_validate(item_raw))
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
-                    e, f"single historical funding rate item in {context}", item_raw,
+                    e,
+                    f"single historical funding rate item in {context}",
+                    item_raw,
                 ) from e
         return validated_rates

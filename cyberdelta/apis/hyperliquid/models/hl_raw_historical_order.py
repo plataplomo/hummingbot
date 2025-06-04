@@ -36,7 +36,8 @@ class HyperliquidRawHistoricalOrder(BaseModel):
 
     oid: RawNonNegativeInt = Field(..., alias="oid")
     cloid: RawCloidString64HL | None = Field(
-        None, alias="cloid",
+        None,
+        alias="cloid",
     )  # Adjusted from RawOptionalNonEmptyString64HL
     asset: RawAssetString64HL = Field(..., alias="asset")
     side: RawSideStr = Field(..., alias="side")
@@ -57,6 +58,7 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
     """
 
     order: HyperliquidRawHistoricalOrder = Field(
-        ..., description="The details of the queried historical order.",
+        ...,
+        description="The details of the queried historical order.",
     )
     model_config = ConfigDict(extra="forbid", frozen=True)

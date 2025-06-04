@@ -175,7 +175,7 @@ class TestSetupLogging:
 
             # Find the file handler
             file_handler = None
-            console_handler = None
+            console_handler: logging.StreamHandler[Any] | None = None
             for handler in root_logger.handlers:
                 if isinstance(handler, logging.FileHandler):
                     file_handler = handler

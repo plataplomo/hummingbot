@@ -65,6 +65,7 @@ class TestRiskManagerValidation:
 
         # Test mixed list
         def size_side_effect(opp: ArbitrageOpportunity) -> SizedOpportunity | None:
+            """Helper function for size side effect."""
             if opp == sample_opportunity:
                 return valid_sized
             return None

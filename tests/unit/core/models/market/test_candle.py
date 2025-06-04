@@ -23,6 +23,7 @@ DEC_INF: Decimal = Decimal("Infinity")
 
 # Helper function to create valid candle data easily
 def create_valid_candle_data(**overrides: object) -> dict[str, Any]:
+    """Create valid candle data for testing."""
     defaults: dict[str, Any] = {
         "symbol": VALID_SYMBOL,
         "interval": VALID_INTERVAL,

@@ -316,6 +316,7 @@ class TestTradeTransformation:
             def side_effect(
                 value: str, allow_none: bool = False, field_name: str = "",
             ) -> Decimal | None:
+                """Helper function for side effect."""
                 if field_name == "price":
                     return None
                 # For other fields, call the real function
@@ -345,6 +346,7 @@ class TestTradeTransformation:
             def side_effect(
                 value: str, allow_none: bool = False, field_name: str = "",
             ) -> Decimal | None:
+                """Helper function for side effect."""
                 if field_name == "quantity":
                     return None
                 # For other fields, call the real function

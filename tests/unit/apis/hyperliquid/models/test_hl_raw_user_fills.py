@@ -18,6 +18,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
 
 # --- Helper: Valid minimal payloads for each model ---
 def valid_user_fill() -> dict[str, object]:
+    """Return valid user fill for testing."""
     return {
         "tid": 1,
         "coin": "ETH",
@@ -37,10 +38,12 @@ def valid_user_fill() -> dict[str, object]:
 
 
 def valid_user_fills_response() -> list[dict[str, object]]:
+    """Return valid user fills response for testing."""
     return [valid_user_fill()]
 
 
 def valid_user_fills_request_payload() -> dict[str, object]:
+    """Return valid user fills request payload for testing."""
     # Use a valid Ethereum address (0x + 40 hex chars) for strict validation
     # Example: 0xabcdefabcdefabcdefabcdefabcdefabcdefabcd (40 hex chars)
     return {"type": "userFills", "user": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"}
@@ -70,6 +73,7 @@ def valid_user_fill_data() -> dict[str, Any]:
 
 # --- Tests for HyperliquidRawUserFill ---
 def test_user_fill_happy_path() -> None:
+    """Test user fill happy path."""
     obj = HyperliquidRawUserFill.model_validate(valid_user_fill())
     assert obj.coin == "ETH"
     assert obj.px == "123.45"
@@ -80,6 +84,7 @@ def test_user_fill_happy_path() -> None:
 
 
 def test_user_fill_missing_required() -> None:
+    """Test user fill missing required."""
     required = [
         "tid",
         "coin",
@@ -107,6 +112,7 @@ def test_user_fill_missing_required() -> None:
 
 
 def test_user_fill_optional_fields() -> None:
+    """Test user fill optional fields."""
     d = valid_user_fill().copy()
     d["liquidationMarkPx"] = "123.45"
     d["cloid"] = "client-1"
@@ -122,6 +128,7 @@ def test_user_fill_optional_fields() -> None:
 
 
 def test_user_fill_type_errors() -> None:
+    """Test user fill type errors."""
     d = valid_user_fill().copy()
     d["tid"] = "notanint"
     # Expect ValidationError because RawNonNegativeInt uses a validator that expects int
@@ -156,6 +163,7 @@ def test_user_fill_type_errors() -> None:
 
 
 def test_user_fill_format_errors() -> None:
+    """Test user fill format errors."""
     for field in ["coin", "px", "sz", "fee", "startPosition", "dir", "hash"]:
         d = valid_user_fill().copy()
         d[field] = ""
@@ -201,6 +209,7 @@ def test_user_fill_format_errors() -> None:
 
 
 def test_user_fill_extra_field() -> None:
+    """Test user fill extra field."""
     d = valid_user_fill().copy()
     d["foo"] = 1
     with pytest.raises(ValidationError) as exc_info:
@@ -211,6 +220,7 @@ def test_user_fill_extra_field() -> None:
 
 
 def test_user_fill_adversarial_strings() -> None:
+    """Test user fill adversarial strings."""
     d = valid_user_fill().copy()
     d["coin"] = "💣"
     obj = HyperliquidRawUserFill.model_validate(d)
@@ -222,6 +232,7 @@ def test_user_fill_adversarial_strings() -> None:
 
 # --- Additional edge case tests (OpenAPI/SDK/real-world) ---
 def test_user_fill_coin_edge_cases() -> None:
+    """Test user fill coin edge cases."""
     # Emoji, whitespace, symbols, bidi text
     for coin in ["ETH 💎", "   BTC   ", "COIN-123!@#", "\u202eABC\u202c"]:
         d = valid_user_fill().copy()
@@ -231,6 +242,7 @@ def test_user_fill_coin_edge_cases() -> None:
 
 
 def test_user_fill_numeric_string_edge_cases() -> None:
+    """Test user fill numeric string edge cases."""
     # px, sz, fee, startPosition: leading/trailing zeros, scientific notation, negative, overlong
     for field in ["px", "sz", "fee", "startPosition"]:
         d = valid_user_fill().copy()
@@ -250,6 +262,7 @@ def test_user_fill_numeric_string_edge_cases() -> None:
 
 
 def test_user_fill_side_enum_edge_cases() -> None:
+    """Test user fill side enum edge cases."""
     # Lower/upper case, invalid value, whitespace
     d = valid_user_fill().copy()
     d["side"] = "b"
@@ -291,6 +304,7 @@ def test_user_fill_cloid_and_hash_edge_cases() -> None:
 
 
 def test_user_fill_liquidation_mark_px_edge_cases() -> None:
+    """Test user fill liquidation mark px edge cases."""
     # null, empty, overlong, non-decimal
     d = valid_user_fill().copy()
     d["liquidationMarkPx"] = None
@@ -308,6 +322,7 @@ def test_user_fill_liquidation_mark_px_edge_cases() -> None:
 
 
 def test_user_fills_response_array_edge_cases() -> None:
+    """Test user fills response array edge cases."""
     # Empty fills, excessive fills, non-list root
     obj = HyperliquidRawUserFillsResponse.model_validate([])
     assert obj.root == []
@@ -318,6 +333,7 @@ def test_user_fills_response_array_edge_cases() -> None:
 
 
 def test_user_fills_request_payload_user_edge_cases() -> None:
+    """Test user fills request payload user edge cases."""
     # Invalid hex, too short/long, mixed case, non-hex
     d = valid_user_fills_request_payload().copy()
     d["user"] = "0x123"
@@ -336,6 +352,7 @@ def test_user_fills_request_payload_user_edge_cases() -> None:
 
 
 def test_user_fill_extra_fields() -> None:
+    """Test user fill extra fields."""
     # Extra fields at all levels
     d = valid_user_fill().copy()
     d["extra"] = 123
@@ -353,12 +370,14 @@ def test_user_fill_extra_fields() -> None:
 
 # --- Tests for HyperliquidRawUserFillsResponse (RootModel) ---
 def test_user_fills_response_happy_path() -> None:
+    """Test user fills response happy path."""
     obj = HyperliquidRawUserFillsResponse.model_validate(valid_user_fills_response())
     assert isinstance(obj.root, list)
     assert obj.root[0].coin == "ETH"
 
 
 def test_user_fills_response_type_errors() -> None:
+    """Test user fills response type errors."""
     with pytest.raises(ValidationError):
         HyperliquidRawUserFillsResponse.model_validate({"not": "alist"})
     with pytest.raises(ValidationError):
@@ -366,6 +385,7 @@ def test_user_fills_response_type_errors() -> None:
 
 
 def test_user_fills_response_extra_field() -> None:
+    """Test user fills response extra field."""
     data = valid_user_fills_response()
     data[0]["foo"] = 1
     with pytest.raises(ValidationError):
@@ -373,6 +393,7 @@ def test_user_fills_response_extra_field() -> None:
 
 
 def test_user_fills_request_payload_happy_path() -> None:
+    """Test user fills request payload happy path."""
     # Use a valid Ethereum address for the happy path (exactly 40 hex chars)
     obj = HyperliquidRawUserFillsRequestPayload.model_validate(valid_user_fills_request_payload())
     assert obj.type == "userFills"
@@ -380,6 +401,7 @@ def test_user_fills_request_payload_happy_path() -> None:
 
 
 def test_user_fills_request_payload_type_errors() -> None:
+    """Test user fills request payload type errors."""
     d = valid_user_fills_request_payload().copy()
     d["user"] = 123
     with pytest.raises(ValidationError):
@@ -391,6 +413,7 @@ def test_user_fills_request_payload_type_errors() -> None:
 
 
 def test_user_fills_request_payload_format_errors() -> None:
+    """Test user fills request payload format errors."""
     d = valid_user_fills_request_payload().copy()
     d["user"] = ""
     with pytest.raises(ValidationError):
@@ -401,6 +424,7 @@ def test_user_fills_request_payload_format_errors() -> None:
 
 
 def test_user_fills_request_payload_extra_field() -> None:
+    """Test user fills request payload extra field."""
     d = valid_user_fills_request_payload().copy()
     d["foo"] = 1
     with pytest.raises(ValidationError):

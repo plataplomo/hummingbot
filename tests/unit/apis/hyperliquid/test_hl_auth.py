@@ -245,6 +245,7 @@ class TestHyperliquidEip712Authenticator:
 
     @pytest.fixture
     def mock_logger(self) -> MagicMock:
+        """Return mock logger for testing."""
         return MagicMock(spec=logging.Logger)
 
     @pytest.fixture

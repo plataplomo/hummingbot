@@ -47,6 +47,7 @@ def create_mock_opportunity(
     basis_volatility: Decimal = Decimal("0.001"),
     timestamp: datetime | None = None,
 ) -> ArbitrageOpportunity:
+    """Create mock opportunity for testing."""
     return ArbitrageOpportunity(
         symbol=symbol,
         long_exchange=long_exchange,
@@ -74,6 +75,7 @@ def create_mock_signal(
     details: dict[str, Any] | None = None,
     expiration: datetime | None = None,
 ) -> TradeSignal:
+    """Create mock signal for testing."""
     return TradeSignal(
         symbol=symbol,
         signal_type=signal_type,
@@ -90,6 +92,7 @@ def create_mock_signal(
 
 @pytest.fixture
 def strategy() -> FundingRateArbitrageStrategy:
+    """Helper function for strategy."""
     data_handler = AsyncMock()
     portfolio_tracker = MagicMock(spec=PortfolioTracker)
     risk_manager_mock = MagicMock(spec=RiskManager)
@@ -112,6 +115,7 @@ def strategy() -> FundingRateArbitrageStrategy:
 
 
 def fake_get_position(ex: str, sym: str) -> PositionType:
+    """Helper function for fake get position."""
     positions = {
         ("hyperliquid", "BTC-PERP"): DerivativePosition(
             exchange="hyperliquid",
@@ -309,7 +313,9 @@ async def test_evaluate_entry_opportunity_found(
             strategy.risk_manager, "calculate_position_size", return_value=mock_sized_opportunity,
         ) as mock_calc_size,
         patch.object(
-            strategy, "_generate_entry_signal", return_value=[create_mock_signal(symbol="BTC-PERP")],
+            strategy,
+            "_generate_entry_signal",
+            return_value=[create_mock_signal(symbol="BTC-PERP")],
         ) as mock_gen_signal,
     ):
         signals = await strategy.evaluate_entry_opportunity()
@@ -365,6 +371,7 @@ class CandleKwargs(TypedDict, total=False):
 
 
 def create_mock_candle(**kwargs: Unpack[CandleKwargs]) -> Candle:
+    """Create mock candle for testing."""
     defaults: dict[str, Any] = {
         "symbol": "BTC-PERP",
         "open_time": datetime.now(UTC) - timedelta(minutes=1),
@@ -398,6 +405,7 @@ class TickerKwargs(TypedDict, total=False):
 
 
 def create_mock_ticker(**kwargs: Unpack[TickerKwargs]) -> Ticker:
+    """Create mock ticker for testing."""
     defaults: dict[str, Any] = {
         "symbol": "BTC-PERP",
         "price": Decimal("30000.0"),
@@ -432,6 +440,7 @@ class FundingRateKwargs(TypedDict, total=False):
 
 
 def create_mock_funding_rate(**kwargs: Unpack[FundingRateKwargs]) -> FundingRate:
+    """Create mock funding rate for testing."""
     defaults: dict[str, Any] = {
         "symbol": "BTC-PERP",
         "funding_rate": Decimal("0.0001"),

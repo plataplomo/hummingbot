@@ -1,3 +1,11 @@
+"""Connectivity Data Models.
+
+This module defines data models and structures used for API connectivity,
+including request/response handling and connection management.
+"""
+
+from __future__ import annotations
+
 import re
 
 from pydantic import AnyUrl, BaseModel, ConfigDict, Field, HttpUrl, field_validator

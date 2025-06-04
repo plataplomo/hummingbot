@@ -1,5 +1,4 @@
-"""Tests for Backpack WebSocket subscription payload models.
-"""
+"""Tests for Backpack WebSocket subscription payload models."""
 
 import pytest
 from pydantic import ValidationError

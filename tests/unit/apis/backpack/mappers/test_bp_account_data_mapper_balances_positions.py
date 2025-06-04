@@ -1,4 +1,4 @@
-"""CyberDeltaEngine: Backpack Account Data Mapper Balance and Position Tests
+"""CyberDeltaEngine: Backpack Account Data Mapper Balance and Position Tests.
 --------------------------------------------------------------------------
 
 Comprehensive test suite for BackpackAccountDataMapper balance and position methods.
@@ -231,6 +231,7 @@ class TestBalanceTransformation:
             def side_effect(
                 value: str, allow_none: bool = False, field_name: str = "",
             ) -> Decimal | None:
+                """Helper function for side effect."""
                 if field_name.endswith("_total"):
                     return None
                 # For other fields, return a valid decimal
@@ -258,6 +259,7 @@ class TestBalanceTransformation:
             def side_effect(
                 value: str, allow_none: bool = False, field_name: str = "",
             ) -> Decimal | None:
+                """Helper function for side effect."""
                 if field_name.endswith("_available"):
                     return None
                 # For other fields, return a valid decimal
@@ -383,6 +385,7 @@ class TestPositionTransformation:
             def side_effect(
                 value: str, allow_none: bool = False, field_name: str = "",
             ) -> Decimal | None:
+                """Helper function for side effect."""
                 if field_name == "net_quantity":
                     return None
                 # For other fields, return a valid decimal if possible
@@ -483,6 +486,7 @@ class TestPositionTransformation:
             def side_effect(
                 value: str, allow_none: bool = False, field_name: str = "",
             ) -> Decimal | None:
+                """Helper function for side effect."""
                 # Return valid values for required fields
                 if field_name == "net_quantity":
                     return Decimal("10.0")
@@ -693,6 +697,7 @@ class TestErrorHandling:
             def side_effect(
                 value: str, allow_none: bool = False, field_name: str = "",
             ) -> Decimal | None:
+                """Helper function for side effect."""
                 if field_name == "total_balance":
                     return None
                 return Decimal("900.0")  # Available balance
@@ -718,6 +723,7 @@ class TestErrorHandling:
             def side_effect(
                 value: str, allow_none: bool = False, field_name: str = "",
             ) -> Decimal | None:
+                """Helper function for side effect."""
                 if field_name == "available_balance":
                     return None
                 return Decimal("1000.0")  # Total balance

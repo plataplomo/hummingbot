@@ -183,7 +183,8 @@ class PortfolioTracker:
             f"Balances before: {self.balances}",
         )
         results: list[bool | BaseException] = await asyncio.gather(
-            *initialization_tasks, return_exceptions=True,
+            *initialization_tasks,
+            return_exceptions=True,
         )
         logger.info(f"---> State of self.balances immediately after init gather: {self.balances}")
         initialization_failed = False
@@ -300,7 +301,10 @@ class PortfolioTracker:
             return False
 
     def _parse_balance_info(
-        self, exchange_id: str, asset: str, balance_info: dict[str, Any] | SpotBalance,
+        self,
+        exchange_id: str,
+        asset: str,
+        balance_info: dict[str, Any] | SpotBalance,
     ) -> SpotBalance | None:
         """Parse balance information into a SpotBalance object."""
         if isinstance(balance_info, SpotBalance):
@@ -334,13 +338,17 @@ class PortfolioTracker:
             return parsed
         except (ValidationError, TypeError, InvalidOperation) as e:
             logger.error(
-                f"Failed to parse balance for {asset} on {exchange_id}: {e}", exc_info=True,
+                f"Failed to parse balance for {asset} on {exchange_id}: {e}",
+                exc_info=True,
             )
             return None
 
     @staticmethod
     def _safe_decimal_convert(
-        value: str | Decimal | int | float | None, field_name: str, asset: str, exchange_id: str,
+        value: str | Decimal | int | float | None,
+        field_name: str,
+        asset: str,
+        exchange_id: str,
     ) -> Decimal | None:
         """Safely convert a value to Decimal, logging errors."""
         if value is None:
@@ -430,7 +438,10 @@ class PortfolioTracker:
                 order_id = order_instance.client_order_id
                 if order_instance and order_id:
                     order_instance.price = self._safe_decimal_convert(
-                        order_instance.price, "price", order_instance.symbol, exchange_id,
+                        order_instance.price,
+                        "price",
+                        order_instance.symbol,
+                        exchange_id,
                     )
                     order_instance.quantity_requested = self._safe_decimal_convert(
                         order_instance.quantity_requested,
@@ -472,7 +483,8 @@ class PortfolioTracker:
             if not self.app_settings.exchanges[exchange_id].enabled:
                 continue
             last_reconciliation = self.last_reconciliation_time.get(
-                exchange_id, datetime.min.replace(tzinfo=UTC),
+                exchange_id,
+                datetime.min.replace(tzinfo=UTC),
             )
             needs_reconciliation = (
                 now - last_reconciliation
@@ -489,12 +501,14 @@ class PortfolioTracker:
                 update_tasks.append(self._fetch_exchange_orders(exchange_id))
         if update_tasks:
             results: list[bool | BaseException] = await asyncio.gather(
-                *update_tasks, return_exceptions=True,
+                *update_tasks,
+                return_exceptions=True,
             )
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
                     logger.error(
-                        f"Error during portfolio update task (index {i}): {result}", exc_info=result,
+                        f"Error during portfolio update task (index {i}): {result}",
+                        exc_info=result,
                     )
                 elif result is False:
                     logger.warning(
@@ -850,7 +864,9 @@ class PortfolioTracker:
         return total_value if total_value.is_finite() else Decimal("0.0")
 
     async def get_exchange_exposure(
-        self, exchange_id: str, valuation_asset: str = "USDC",
+        self,
+        exchange_id: str,
+        valuation_asset: str = "USDC",
     ) -> Decimal:
         """Calculate the total market exposure for a given exchange in a valuation asset."""
         logger.debug(f"Calculating exposure for {exchange_id} in {valuation_asset}...")
@@ -864,7 +880,9 @@ class PortfolioTracker:
 
             # Get current market price
             mark_price = await self._get_asset_price_in_base(
-                exchange_id, position.symbol, valuation_asset,
+                exchange_id,
+                position.symbol,
+                valuation_asset,
             )
 
             if mark_price is not None and mark_price.is_finite():
@@ -928,7 +946,9 @@ class PortfolioTracker:
                         else position.symbol.split("-")[-1]
                     )  # Simple guess
                     conversion_rate = await self._get_asset_price_in_base(
-                        exchange_id, pnl_quote_asset, base_currency,
+                        exchange_id,
+                        pnl_quote_asset,
+                        base_currency,
                     )
 
                     # Check conversion rate validity
@@ -972,7 +992,9 @@ class PortfolioTracker:
 
                 # 1. Get Mark Price in the requested Base Currency
                 mark_price_in_base = await self._get_asset_price_in_base(
-                    exchange_id, position.symbol, base_currency,
+                    exchange_id,
+                    position.symbol,
+                    base_currency,
                 )
 
                 # 2. Get Entry Price (which is in the Quote currency of the symbol)
@@ -998,7 +1020,9 @@ class PortfolioTracker:
                 else:
                     # Need conversion rate from quote to base
                     quote_to_base_rate = await self._get_asset_price_in_base(
-                        exchange_id, quote_currency, base_currency,
+                        exchange_id,
+                        quote_currency,
+                        base_currency,
                     )
                     if quote_to_base_rate is not None:
                         entry_price_in_base = entry_price_in_quote * quote_to_base_rate
@@ -1159,7 +1183,10 @@ class PortfolioTracker:
 
     @classmethod
     def from_dict(
-        cls, data: dict[str, Any], app_settings: AppSettings, pt_config: PortfolioTrackerConfig,
+        cls,
+        data: dict[str, Any],
+        app_settings: AppSettings,
+        pt_config: PortfolioTrackerConfig,
     ) -> PortfolioTracker:
         """Deserialize the portfolio state from a dictionary."""
         tracker = cls(app_settings, pt_config)
@@ -1281,7 +1308,8 @@ class PortfolioTracker:
                         # Ensure ts_data_any_lut is not None before passing to parse_datetime_utc
                         if ts_data_any_lut is not None:
                             parsed_ts = parse_datetime_utc(
-                                ts_data_any_lut, field_name=f"last_update_time.{ex_id_str_lut}",
+                                ts_data_any_lut,
+                                field_name=f"last_update_time.{ex_id_str_lut}",
                             )
                             if parsed_ts:
                                 tracker.last_update_time[ex_id_str_lut] = parsed_ts
@@ -1380,7 +1408,9 @@ class PortfolioTracker:
         self.balances[exchange_id][balance.asset] = balance
 
     def _parse_positions(
-        self, exchange_id: str, positions_data: list[DerivativePosition] | dict[str, Any],
+        self,
+        exchange_id: str,
+        positions_data: list[DerivativePosition] | dict[str, Any],
     ) -> None:
         logger.warning("_parse_positions needs implementation based on API data format.")
         if isinstance(positions_data, dict):
@@ -1432,7 +1462,10 @@ class PortfolioTracker:
                             order = Order.model_validate(order_dict_data)
                             # Process validated order
                             order.price = self._safe_decimal_convert(
-                                order.price, "price", order.symbol, exchange_id,
+                                order.price,
+                                "price",
+                                order.symbol,
+                                exchange_id,
                             )
                             order.quantity_requested = self._safe_decimal_convert(
                                 order.quantity_requested,
@@ -1701,7 +1734,9 @@ class PortfolioTracker:
         logger.info("PortfolioTracker initialized.")
 
     async def _fetch_exchange_account_summary(
-        self, client: ExchangeAPI, exchange_id: str,
+        self,
+        client: ExchangeAPI,
+        exchange_id: str,
     ) -> tuple[str, MarginAccountSummary | None] | None:
         try:
             summary = await client.get_account_summary()
@@ -1715,7 +1750,8 @@ class PortfolioTracker:
             return None
 
     def get_all_derivative_positions_for_exchange(
-        self, exchange_id: str,
+        self,
+        exchange_id: str,
     ) -> dict[Symbol, DerivativePosition] | None:
         """Returns all derivative positions for a given exchange."""
         normalized_exchange_id = exchange_id.lower()

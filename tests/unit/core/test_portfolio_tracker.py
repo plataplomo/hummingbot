@@ -1,5 +1,4 @@
-"""Tests for the PortfolioTracker class.
-"""
+"""Tests for the PortfolioTracker class."""
 
 from __future__ import annotations  # Enable postponed evaluation
 
@@ -296,6 +295,7 @@ class TestPortfolioTracker:
         """Create sample balances state for testing."""
 
         def create_balance(exchange: str, asset: str, qty: Decimal) -> SpotBalance:
+            """Create balance for testing."""
             return SpotBalance(
                 exchange=exchange,
                 asset=asset,
@@ -958,7 +958,6 @@ class TestPortfolioTracker:
         # internal use.
         # price_btc_usdc = await portfolio_tracker._get_asset_price_in_base("backpack",
         # "BTC", "USDC")  , SLF001
-        # print(f"Debug: Price BTC-USDC from helper: {price_btc_usdc}") # Should be 50000.0
 
         total_capital = await portfolio_tracker.get_total_capital(base_currency="USDC")
 
@@ -981,7 +980,6 @@ class TestPortfolioTracker:
         # For example, if BTC is base currency (this requires USDC-BTC ticker mock)
         # price_usdc_btc = await portfolio_tracker._get_asset_price_in_base(
         #     "hyperliquid", "USDC", "BTC")  , SLF001
-        # print(f"Debug: Price USDC-BTC from helper: {price_usdc_btc}") # Should be 0.00002
 
         # total_capital_btc = await portfolio_tracker.get_total_capital(
         # base_currency="BTC")
@@ -1006,7 +1004,6 @@ class TestPortfolioTracker:
         # for it.
         # unpriced_price = await portfolio_tracker._get_asset_price_in_base(
         #     "hyperliquid", "UNPRICED", "USDC")  , SLF001
-        # print(f"Debug: Price UNPRICED-USDC: {unpriced_price}") # Should be None
 
         total_capital_with_unpriced = await portfolio_tracker.get_total_capital(
             base_currency="USDC",

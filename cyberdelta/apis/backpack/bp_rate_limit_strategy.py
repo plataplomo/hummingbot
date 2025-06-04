@@ -24,7 +24,9 @@ class BackpackRateLimitStrategy(SimpleTokenBucketStrategy):
     """
 
     def __init__(
-        self, limiter: TokenBucketRateLimiterRuntime, default_request_weight: int = 1,
+        self,
+        limiter: TokenBucketRateLimiterRuntime,
+        default_request_weight: int = 1,
     ) -> None:
         """Initialize the Backpack rate limit strategy.
 
@@ -36,7 +38,9 @@ class BackpackRateLimitStrategy(SimpleTokenBucketStrategy):
         super().__init__(limiter, default_request_weight)
 
     async def handle_exchange_retry_after(
-        self, duration_seconds: float, request_context: dict[str, Any],
+        self,
+        duration_seconds: float,
+        request_context: dict[str, Any],
     ) -> None:
         """React to an explicit retry-after directive from Backpack.
 

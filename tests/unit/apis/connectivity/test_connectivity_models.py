@@ -166,7 +166,9 @@ class TestHttpClientConfig:
         assert config_no_validation.max_retries == 1
 
         config_zero_retries = HttpClientConfig(
-            rest_endpoint=HttpUrl("http://example.com"), default_request_timeout=10.0, max_retries=0,
+            rest_endpoint=HttpUrl("http://example.com"),
+            default_request_timeout=10.0,
+            max_retries=0,
         )
         assert config_zero_retries.max_retries == 0
 

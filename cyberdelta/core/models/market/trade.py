@@ -73,7 +73,9 @@ class Trade(BaseModel):
     @field_validator("executed_at", mode="before")
     @classmethod
     def parse_executed_at(
-        cls, raw_value: str | int | float | datetime | None, info: object,
+        cls,
+        raw_value: str | int | float | datetime | None,
+        info: object,
     ) -> datetime:
         dt = parse_datetime_utc(raw_value, field_name="executed_at")
         if dt is None:
@@ -83,7 +85,9 @@ class Trade(BaseModel):
     @field_validator("price", "quantity", "fee", mode="before")
     @classmethod
     def parse_decimal_fields(
-        cls, raw_value: str | int | float | Decimal | None, info: object,
+        cls,
+        raw_value: str | int | float | Decimal | None,
+        info: object,
     ) -> Decimal:
         field_name = getattr(info, "field_name", None)
         d = parse_decimal_value(raw_value, allow_none=False, field_name=str(field_name))
@@ -159,7 +163,9 @@ class HyperliquidTradeDetails(BaseModel):
     @field_validator("liquidation_mark_px", "start_position", mode="before")
     @classmethod
     def validate_decimals(
-        cls, v: str | int | float | Decimal | None, info: object,
+        cls,
+        v: str | int | float | Decimal | None,
+        info: object,
     ) -> Decimal | None:
         if v is None:
             return None

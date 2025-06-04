@@ -184,7 +184,8 @@ class SimpleVisualizer:
         plt.tight_layout()
         if save:
             filename = os.path.join(
-                self.output_dir, f"{self.tracker.strategy_name}_{plot_name}.png",
+                self.output_dir,
+                f"{self.tracker.strategy_name}_{plot_name}.png",
             )
             try:
                 plt.savefig(filename)
@@ -750,7 +751,8 @@ class SimpleVisualizer:
 
         if fig_dist:
             dist_path = os.path.join(
-                save_dir, f"{self.tracker.strategy_name}_trade_distribution.png",
+                save_dir,
+                f"{self.tracker.strategy_name}_trade_distribution.png",
             )
             fig_dist.savefig(dist_path)
             plt.close(fig_dist)
@@ -764,7 +766,8 @@ class SimpleVisualizer:
 
         if fig_month:
             month_path = os.path.join(
-                save_dir, f"{self.tracker.strategy_name}_monthly_performance.png",
+                save_dir,
+                f"{self.tracker.strategy_name}_monthly_performance.png",
             )
             fig_month.savefig(month_path)
             plt.close(fig_month)
@@ -772,7 +775,8 @@ class SimpleVisualizer:
 
         if fig_metrics:
             metrics_path = os.path.join(
-                save_dir, f"{self.tracker.strategy_name}_performance_metrics.png",
+                save_dir,
+                f"{self.tracker.strategy_name}_performance_metrics.png",
             )
             fig_metrics.savefig(metrics_path)
             plt.close(fig_metrics)
@@ -784,7 +788,8 @@ class SimpleVisualizer:
             from matplotlib.backends.backend_pdf import PdfPages
 
             pdf_path = os.path.join(
-                save_dir, f"{self.tracker.strategy_name}_performance_report.pdf",
+                save_dir,
+                f"{self.tracker.strategy_name}_performance_report.pdf",
             )
             logger.info(f"Saving combined performance report to {pdf_path}")
 
@@ -848,7 +853,9 @@ class SimpleVisualizer:
 if __name__ == "__main__":
     # Generate example data using our helper function
     tracker = generate_example_data(
-        strategy_name="ExampleStrategy", output_dir="./data", num_trades=30,
+        strategy_name="ExampleStrategy",
+        output_dir="./data",
+        num_trades=30,
     )
 
     # Create visualizer
@@ -864,4 +871,4 @@ if __name__ == "__main__":
 
     # Generate comprehensive report
     report_files = visualizer.generate_performance_report()
-    print(f"Report generated. Files: {report_files}")
+    logger.info(f"Report generated. Files: {report_files}")

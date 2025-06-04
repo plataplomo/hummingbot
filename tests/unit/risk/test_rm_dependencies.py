@@ -57,6 +57,7 @@ class TestRiskManagerDependencyFailures:
         original_defaults = mock_config_dict
 
         def get_side_effect_for_bad_capital(key: str, default: object = None) -> object:
+            """Get side effect for bad capital for testing."""
             if key == "risk.use_simple_sizing_path":
                 return True
             return original_defaults.get(key, default)
@@ -84,6 +85,7 @@ class TestRiskManagerDependencyFailures:
         original_defaults = mock_config_dict
 
         def get_side_effect_for_constraint_fail(key: str, default: object = None) -> object:
+            """Get side effect for constraint fail for testing."""
             if key == "risk.use_simple_sizing_path":
                 return True
             return original_defaults.get(key, default)
@@ -120,6 +122,7 @@ class TestRiskManagerDependencyFailures:
         original_defaults = mock_config_dict
 
         def get_side_effect_for_dep_exception(key: str, default: object = None) -> object:
+            """Get side effect for dep exception for testing."""
             if key == "risk.use_simple_sizing_path":
                 return True
             return original_defaults.get(key, default)
@@ -162,6 +165,7 @@ class TestRiskManagerDependencyFailures:
         combined_config = {**mock_config_dict, **test_overrides}
 
         def get_side_effect_for_cb_tripped(key: str, default: object = None) -> object:
+            """Get side effect for cb tripped for testing."""
             return combined_config.get(key, default)
 
         risk_manager.max_position_size = Decimal("20000.0")
@@ -184,6 +188,7 @@ class TestRiskManagerDependencyFailures:
                     def can_execute_side_effect(
                         scope: str, symbol: str | None = None,
                     ) -> tuple[bool, str | None]:
+                        """Helper function for can execute side effect."""
                         if scope_to_trip == "global":
                             if (
                                 scope == sample_opportunity.long_exchange
@@ -226,6 +231,7 @@ class TestRiskManagerDependencyFailures:
         combined_config = {**mock_config_dict, **test_overrides}
 
         def get_side_effect_for_cb_exception(key: str, default: object = None) -> object:
+            """Get side effect for cb exception for testing."""
             return combined_config.get(key, default)
 
         risk_manager.max_position_size = Decimal("20000.0")

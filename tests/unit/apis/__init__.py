@@ -1,1 +1,5 @@
-# This file makes Python treat the 'apis' directory as a package.
+"""Unit tests for API modules.
+
+This package contains unit tests for exchange API clients,
+including Hyperliquid and Backpack exchange integrations.
+"""

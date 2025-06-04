@@ -70,7 +70,9 @@ class HyperliquidWsMessageRouter:
         self.logger = get_logger(__name__)
 
     def construct_subscription_payload(
-        self, topic: str, wallet_address: str | None,
+        self,
+        topic: str,
+        wallet_address: str | None,
     ) -> HyperliquidRawWsSubscribeRequest:
         """Construct the subscription payload for a given topic for Hyperliquid.
 
@@ -117,13 +119,16 @@ class HyperliquidWsMessageRouter:
                         "Ensure private_key is configured in secrets.",
                     )
                 inner_payload = HyperliquidRawWsUserEventsSubscriptionPayload(
-                    type="userEvents", user=wallet_address,
+                    type="userEvents",
+                    user=wallet_address,
                 )
             elif sub_type == "candle" and len(parts) >= 3:
                 coin = parts[1]
                 interval = parts[2]
                 inner_payload = HyperliquidRawWsCandleSubscriptionPayload(
-                    type="candle", coin=coin, interval=interval,
+                    type="candle",
+                    coin=coin,
+                    interval=interval,
                 )
             elif sub_type == "allMids":
                 inner_payload = HyperliquidRawWsAllMidsSubscriptionPayload(type="allMids")
@@ -151,7 +156,9 @@ class HyperliquidWsMessageRouter:
             ) from e
 
     async def route_message(
-        self, message: dict[str, Any], ws_handlers: dict[str, MessageHandler],
+        self,
+        message: dict[str, Any],
+        ws_handlers: dict[str, MessageHandler],
     ) -> None:
         """Route incoming WebSocket messages from Hyperliquid.
 
@@ -370,9 +377,7 @@ class HyperliquidWsMessageRouter:
                             validated_order_details = _handle_order_event(order_update_wrapper.data)
                             try:
                                 # Transform raw validated model to internal domain model
-                                order_transform_method = (
-                                    self._trading_data_mapper.transform_ws_order_update_to_internal_order
-                                )
+                                order_transform_method = self._trading_data_mapper.transform_ws_order_update_to_internal_order
                                 internal_order = order_transform_method(validated_order_details)
                                 # Convert internal model to dict for handler compatibility
                                 order_dict = internal_order.model_dump(mode="json")
@@ -390,9 +395,7 @@ class HyperliquidWsMessageRouter:
                             validated_position_update = _handle_pos_update(event_item_dict)
                             try:
                                 # Transform raw validated model to internal domain model
-                                position_transform_method = (
-                                    self._account_data_mapper.transform_ws_position_update_to_internal_position
-                                )
+                                position_transform_method = self._account_data_mapper.transform_ws_position_update_to_internal_position
                                 internal_position = position_transform_method(
                                     validated_position_update,
                                 )

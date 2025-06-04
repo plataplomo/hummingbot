@@ -1,5 +1,4 @@
-"""Unit Tests for Hyperliquid Raw Builder Fee Approval Model
-"""
+"""Unit Tests for Hyperliquid Raw Builder Fee Approval Model."""
 
 from typing import Any
 
@@ -19,6 +18,7 @@ VALID_BUILDER_FEE_RESPONSE: dict[str, Any] = {"approved": True}
 
 @pytest.fixture
 def valid_builder_fee_data() -> dict[str, Any]:
+    """Return valid builder fee data for testing."""
     return VALID_BUILDER_FEE_RESPONSE.copy()
 
 
@@ -26,6 +26,7 @@ def valid_builder_fee_data() -> dict[str, Any]:
 
 
 def test_builder_fee_valid(valid_builder_fee_data: dict[str, Any]) -> None:
+    """Test builder fee valid."""
     response = HyperliquidRawBuilderFeeApprovalResponse.model_validate(valid_builder_fee_data)
     assert response.approved == valid_builder_fee_data["approved"]
 
@@ -42,6 +43,7 @@ def test_builder_fee_valid(valid_builder_fee_data: dict[str, Any]) -> None:
     ],
 )
 def test_builder_fee_approved_various_inputs(value: str | bool | float) -> None:
+    """Test builder fee approved various inputs."""
     data = {"approved": value}
     if isinstance(value, str) and value.lower() in ["true", "false"]:
         expected_bool = value.lower() == "true"
@@ -53,11 +55,13 @@ def test_builder_fee_approved_various_inputs(value: str | bool | float) -> None:
 
 
 def test_builder_fee_missing_approved_field() -> None:
+    """Test builder fee missing approved field."""
     with pytest.raises(ValidationError, match="Field required"):
         HyperliquidRawBuilderFeeApprovalResponse.model_validate({})
 
 
 def test_builder_fee_extra_field(valid_builder_fee_data: dict[str, Any]) -> None:
+    """Test builder fee extra field."""
     data_copy = valid_builder_fee_data.copy()
     data_copy["extra"] = "field"
     with pytest.raises(ValidationError):

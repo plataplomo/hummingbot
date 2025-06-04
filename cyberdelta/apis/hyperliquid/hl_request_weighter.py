@@ -84,7 +84,8 @@ class HyperliquidRequestWeighter:
             if api_type and self.hl_exchange_config.info_request_type_ip_weights:
                 # Look up specific weight for this info type
                 ip_weight = self.hl_exchange_config.info_request_type_ip_weights.get(
-                    api_type, self.hl_exchange_config.default_info_weight or 20,
+                    api_type,
+                    self.hl_exchange_config.default_info_weight or 20,
                 )
                 logger.debug(f"Hyperliquid /info request: type={api_type}, ip_weight={ip_weight}")
             else:

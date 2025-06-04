@@ -171,7 +171,9 @@ class BackpackTradingDataMapper:
 
             # Parse quantities
             quantity_requested = parse_decimal_value(
-                quantity, allow_none=False, field_name="quantity",
+                quantity,
+                allow_none=False,
+                field_name="quantity",
             )
             if quantity_requested is None:
                 raise TransformationError("quantity_requested is required")
@@ -242,20 +244,26 @@ class BackpackTradingDataMapper:
 
             # Parse quantities
             quantity_requested = parse_decimal_value(
-                raw_order.quantity, allow_none=False, field_name="quantity",
+                raw_order.quantity,
+                allow_none=False,
+                field_name="quantity",
             )
             if quantity_requested is None:
                 raise TransformationError("quantity_requested is required")
 
             quantity_filled = parse_decimal_value(
-                raw_order.executedQuantity, allow_none=True, field_name="executedQuantity",
+                raw_order.executedQuantity,
+                allow_none=True,
+                field_name="executedQuantity",
             ) or Decimal("0")
 
             # Parse price
             order_price = None
             if raw_order.price and raw_order.price != "0":
                 parsed_price = parse_decimal_value(
-                    raw_order.price, allow_none=True, field_name="price",
+                    raw_order.price,
+                    allow_none=True,
+                    field_name="price",
                 )
                 if parsed_price is not None and parsed_price > 0:
                     order_price = parsed_price
@@ -264,7 +272,9 @@ class BackpackTradingDataMapper:
             stop_price = None
             if raw_order.triggerPrice and raw_order.triggerPrice != "0":
                 parsed_stop_price = parse_decimal_value(
-                    raw_order.triggerPrice, allow_none=True, field_name="triggerPrice",
+                    raw_order.triggerPrice,
+                    allow_none=True,
+                    field_name="triggerPrice",
                 )
                 if parsed_stop_price is not None and parsed_stop_price > 0:
                     stop_price = parsed_stop_price
@@ -273,7 +283,9 @@ class BackpackTradingDataMapper:
             average_fill_price = None
             if raw_order.avgFillPrice and raw_order.avgFillPrice != "0":
                 parsed_avg_price = parse_decimal_value(
-                    raw_order.avgFillPrice, allow_none=True, field_name="avgFillPrice",
+                    raw_order.avgFillPrice,
+                    allow_none=True,
+                    field_name="avgFillPrice",
                 )
                 if parsed_avg_price is not None and parsed_avg_price > 0:
                     average_fill_price = parsed_avg_price
@@ -290,7 +302,8 @@ class BackpackTradingDataMapper:
             triggered_timestamp = None
             if raw_order.triggeredAt:
                 triggered_timestamp = parse_datetime_utc(
-                    raw_order.triggeredAt, field_name="triggeredAt",
+                    raw_order.triggeredAt,
+                    field_name="triggeredAt",
                 )
 
             return Order(
@@ -352,7 +365,9 @@ class BackpackTradingDataMapper:
             # Parse quantities
             if raw_order_update.quantity:
                 quantity_requested = parse_decimal_value(
-                    raw_order_update.quantity, allow_none=False, field_name="quantity",
+                    raw_order_update.quantity,
+                    allow_none=False,
+                    field_name="quantity",
                 )
                 # DEFENSIVE CHECK: Ensure quantity_requested is not None after parsing.
                 # Mypy=[unreachable] Ruff=[unreachable]
@@ -368,14 +383,17 @@ class BackpackTradingDataMapper:
             order_price = None
             if raw_order_update.price:
                 order_price = parse_decimal_value(
-                    raw_order_update.price, allow_none=True, field_name="price",
+                    raw_order_update.price,
+                    allow_none=True,
+                    field_name="price",
                 )
 
             # Parse timestamps
             event_timestamp = None
             if raw_order_update.event_time:
                 event_timestamp = parse_datetime_utc(
-                    raw_order_update.event_time, field_name="event_time",
+                    raw_order_update.event_time,
+                    field_name="event_time",
                 )
 
             if event_timestamp is None:

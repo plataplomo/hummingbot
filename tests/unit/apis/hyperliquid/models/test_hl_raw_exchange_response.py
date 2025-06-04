@@ -1,4 +1,6 @@
 # tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_response.py
+"""Module docstring."""
+import logging
 from typing import Any
 
 import pytest
@@ -12,30 +14,37 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeStatusResting,
 )
 
+logger = logging.getLogger(__name__)
+
 
 # --- Fixtures ---
 @pytest.fixture
 def valid_resting_data() -> dict[str, Any]:
+    """Return valid resting data for testing."""
     return {"oid": 12345}
 
 
 @pytest.fixture
 def valid_filled_data() -> dict[str, Any]:
+    """Return valid filled data for testing."""
     return {"oid": 67890, "totalSz": "1.5", "avgPx": "150.25"}
 
 
 @pytest.fixture
 def valid_status_object_resting(valid_resting_data: dict[str, Any]) -> dict[str, Any]:
+    """Return valid status object resting for testing."""
     return {"resting": valid_resting_data}
 
 
 @pytest.fixture
 def valid_status_object_filled(valid_filled_data: dict[str, Any]) -> dict[str, Any]:
+    """Return valid status object filled for testing."""
     return {"filled": valid_filled_data}
 
 
 @pytest.fixture
 def valid_status_object_error() -> dict[str, Any]:
+    """Return valid status object error for testing."""
     return {"error": "Order rejected due to insufficient margin."}
 
 
@@ -43,6 +52,7 @@ def valid_status_object_error() -> dict[str, Any]:
 def valid_response_data_dict(
     valid_status_object_resting: dict[str, Any], valid_status_object_filled: dict[str, Any],
 ) -> dict[str, Any]:
+    """Return valid response data dict for testing."""
     return {
         "type": "order",
         "statuses": [
@@ -57,11 +67,13 @@ def valid_response_data_dict(
 
 @pytest.fixture
 def valid_top_level_response(valid_response_data_dict: dict[str, Any]) -> dict[str, Any]:
+    """Return valid top level response for testing."""
     return {"status": "ok", "data": valid_response_data_dict}
 
 
 # --- Success Cases ---
 def test_hl_resting_valid(valid_resting_data: dict[str, Any]) -> None:
+    """Test hl resting valid."""
     obj = HyperliquidRawExchangeStatusResting.model_validate(valid_resting_data)
     assert obj.oid == 12345
     assert obj.model_config.get("extra") == "forbid"
@@ -69,6 +81,7 @@ def test_hl_resting_valid(valid_resting_data: dict[str, Any]) -> None:
 
 
 def test_hl_filled_valid(valid_filled_data: dict[str, Any]) -> None:
+    """Test hl filled valid."""
     obj = HyperliquidRawExchangeStatusFilled.model_validate(valid_filled_data)
     assert obj.oid == 67890
     assert obj.total_sz == "1.5"
@@ -82,6 +95,7 @@ def test_hl_status_object_valid(
     valid_status_object_filled: dict[str, Any],
     valid_status_object_error: dict[str, Any],
 ) -> None:
+    """Test hl status object valid."""
     resting = HyperliquidRawExchangeStatusObject.model_validate(valid_status_object_resting)
     assert resting.resting is not None
     assert resting.resting.oid == 12345
@@ -107,6 +121,7 @@ def test_hl_status_object_valid(
 
 
 def test_hl_response_data_valid(valid_response_data_dict: dict[str, Any]) -> None:
+    """Test hl response data valid."""
     obj = HyperliquidRawExchangeResponseData.model_validate(valid_response_data_dict)
     assert obj.type == "order"
     assert len(obj.statuses) == 5
@@ -124,6 +139,7 @@ def test_hl_response_data_valid(valid_response_data_dict: dict[str, Any]) -> Non
 
 
 def test_hl_response_valid(valid_top_level_response: dict[str, Any]) -> None:
+    """Test hl response valid."""
     obj = HyperliquidRawExchangeResponse.model_validate(valid_top_level_response)
     assert obj.status == "ok"
     assert obj.data is not None
@@ -164,6 +180,7 @@ def test_hl_response_valid_missing_data() -> None:
     ],
 )
 def test_hl_resting_invalid(invalid_data: dict[str, Any], expected_msg_part: str) -> None:
+    """Test hl resting invalid."""
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawExchangeStatusResting.model_validate(invalid_data)
     assert expected_msg_part.lower() in str(exc_info.value).lower()
@@ -197,6 +214,7 @@ def test_hl_resting_extra_fields_ignored() -> None:
 def test_hl_filled_invalid(
     invalid_data: dict[str, Any], expected_keywords: tuple[str, ...],
 ) -> None:
+    """Test hl filled invalid."""
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawExchangeStatusFilled.model_validate(invalid_data)
     error_str = str(exc_info.value).lower()
@@ -226,6 +244,7 @@ def test_hl_filled_extra_fields_ignored() -> None:
 def test_hl_status_object_invalid(
     invalid_data: dict[str, Any], expected_keywords: tuple[str, ...],
 ) -> None:
+    """Test hl status object invalid."""
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawExchangeStatusObject.model_validate(invalid_data)
     error_str = str(exc_info.value).lower()
@@ -273,6 +292,7 @@ def test_hl_response_data_invalid(
     expected_exception: type[Exception],
     expected_keywords: tuple[str, ...],
 ) -> None:
+    """Test hl response data invalid."""
     with pytest.raises(expected_exception) as exc_info:
         HyperliquidRawExchangeResponseData.model_validate(invalid_data)
     error_str = str(exc_info.value).lower()
@@ -314,6 +334,7 @@ def test_hl_response_invalid(
     expected_exception: type[Exception],
     expected_keywords: tuple[str, ...],
 ) -> None:
+    """Test hl response invalid."""
     with pytest.raises(expected_exception) as exc_info:
         HyperliquidRawExchangeResponse.model_validate(invalid_data)
     error_str = str(exc_info.value).lower()
@@ -347,7 +368,7 @@ def test_hl_response_data_statuses_validation(
     statuses_list: list[dict[str, Any]]
     | str
     | int
-    | None,  # Testing specific invalid types for Pydantic validation
+    | None,  # Invalid types for Pydantic
     is_valid: bool,
 ) -> None:
     """Test the validation logic for the 'statuses' field specifically."""
@@ -367,6 +388,6 @@ def test_hl_response_data_statuses_validation(
             HyperliquidRawExchangeResponseData.model_validate(data_dict)
         # Check that *some* error occurred. More specific message checks can be added.
         assert exc_info is not None
-        print(
+        logger.debug(
             f"Input: {statuses_list}, Expected Failure, Got Error: {exc_info.value}",
-        )  # Debug print
+        )

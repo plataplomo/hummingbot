@@ -67,7 +67,10 @@ class BackpackRawTrade(BaseModel):
     quantity: RawBpParsableFiniteDecimalString = Field(..., alias="qty")
     time: RawBpFlexibleTimestamp = Field(..., alias="time")
     model_config = ConfigDict(
-        populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True,
+        populate_by_name=True,
+        extra="forbid",
+        validate_by_name=True,
+        frozen=True,
     )
 
 
@@ -102,7 +105,10 @@ class BackpackRawTradeEvent(BaseModel):
     engine_timestamp: RawBpFlexibleTimestamp = Field(..., alias="T")
     is_buyer_the_maker: RawBpStrictBool = Field(..., alias="m")
     model_config = ConfigDict(
-        populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True,
+        populate_by_name=True,
+        extra="forbid",
+        validate_by_name=True,
+        frozen=True,
     )
 
 
@@ -117,28 +123,42 @@ class BackpackRawFill(BaseModel):
 
     fee: RawBpParsableFiniteDecimalString = Field(..., description="The fee charged on the fill.")
     fee_symbol: RawBpNonEmptyStringMax32 = Field(
-        ..., alias="feeSymbol", description="The asset that is charged as a fee.",
+        ...,
+        alias="feeSymbol",
+        description="The asset that is charged as a fee.",
     )
     is_maker: RawBpStrictBool = Field(
-        ..., alias="isMaker", description="Whether the fill was made by the maker.",
+        ...,
+        alias="isMaker",
+        description="Whether the fill was made by the maker.",
     )
     order_id: RawBpNonEmptyStringMax128 = Field(
-        ..., alias="orderId", description="The order ID of the fill.",
+        ...,
+        alias="orderId",
+        description="The order ID of the fill.",
     )
     price: RawBpParsableFiniteDecimalString = Field(..., description="The price of the fill.")
     quantity: RawBpParsableFiniteDecimalString = Field(..., description="The quantity of the fill.")
     side: RawBpExtendedOrderSideString = Field(..., description="The side of the fill.")
     symbol: RawBpNonEmptyStringMax64 = Field(..., description="The market symbol of the fill.")
     timestamp: RawBpIsoTimestampString = Field(
-        ..., description="The timestamp of the fill (UTC string, e.g., YYYY-MM-DDTHH:MM:SS.ffffffZ)",
+        ...,
+        description="The timestamp of the fill (UTC string, e.g., YYYY-MM-DDTHH:MM:SS.ffffffZ)",
     )
     trade_id: RawBpNonNegativeInt = Field(
-        ..., alias="tradeId", description="The trade ID of the fill.",
+        ...,
+        alias="tradeId",
+        description="The trade ID of the fill.",
     )
     client_id: RawBpOptionalNonEmptyStringMax128 = Field(
-        None, alias="clientId", description="Client id of the order.",
+        None,
+        alias="clientId",
+        description="Client id of the order.",
     )
 
     model_config = ConfigDict(
-        populate_by_name=True, extra="forbid", frozen=True, validate_assignment=True,
+        populate_by_name=True,
+        extra="forbid",
+        frozen=True,
+        validate_assignment=True,
     )
