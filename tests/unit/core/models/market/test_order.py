@@ -1,5 +1,4 @@
-"""
-Unit tests for the CyberDeltaEngine internal Order model and enrichment slots.
+"""Unit tests for the CyberDeltaEngine internal Order model and enrichment slots.
 
 Covers:
 - Order: construction, core field validation, mutability, model validation, extra='forbid'

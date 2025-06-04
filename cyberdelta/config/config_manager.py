@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
-"""
-Configuration Manager for loading and validating application configuration.
+"""Configuration Manager for loading and validating application configuration.
 """
 
 import logging
@@ -23,8 +22,7 @@ class ConfigurationError(Exception):
 
 
 class ConfigManager:
-    """
-    Manages loading and validation of configuration.
+    """Manages loading and validation of configuration.
 
     This class handles loading configuration from file, validates it against
     the AppSettings Pydantic model, and provides access to configuration values
@@ -33,8 +31,7 @@ class ConfigManager:
     """
 
     def __init__(self, config_path: str | None = None) -> None:
-        """
-        Initialize the ConfigManager.
+        """Initialize the ConfigManager.
 
         Args:
             config_path: Optional path to the configuration file.
@@ -42,6 +39,7 @@ class ConfigManager:
 
         Raises:
             ConfigurationError: If configuration loading or validation fails.
+
         """
         self.settings: AppSettings | None = None
         self.config_path = Path(config_path) if config_path else self._get_default_config_path()
@@ -50,12 +48,12 @@ class ConfigManager:
         self.load()
 
     def load(self) -> None:
-        """
-        Load configuration from file and validate against AppSettings model.
+        """Load configuration from file and validate against AppSettings model.
 
         Raises:
             ConfigurationError: If file is not found, YAML parsing fails,
                                or Pydantic validation fails.
+
         """
         # Check if config file exists
         if not self.config_path.exists():
@@ -71,7 +69,7 @@ class ConfigManager:
             if config_data_dict is None or not isinstance(config_data_dict, dict):
                 logger.critical(f"Invalid or empty content in config file: {self.config_path}")
                 raise ConfigurationError(
-                    f"Invalid or empty content in config file: {self.config_path}"
+                    f"Invalid or empty content in config file: {self.config_path}",
                 )
 
         except (yaml.YAMLError, OSError) as e:
@@ -92,17 +90,17 @@ class ConfigManager:
             self.settings = None
             self.loaded = False
             raise ConfigurationError(
-                f"Invalid application configuration in {self.config_path}: {e}"
+                f"Invalid application configuration in {self.config_path}: {e}",
             ) from e
 
     def _get_default_config_path(self) -> Path:
-        """
-        Get default configuration path.
+        """Get default configuration path.
 
         Checks environment variable and standard locations for config file.
 
         Returns:
             Path: Path to the configuration file
+
         """
         # Check environment variable first
         env_path = os.environ.get("CYBERDELTA_CONFIG_PATH")
@@ -124,11 +122,11 @@ class ConfigManager:
         return default_paths[0]  # Return first default as fallback
 
     def reload(self) -> None:
-        """
-        Reload configuration from file.
+        """Reload configuration from file.
 
         Raises:
             ConfigurationError: If reload fails.
+
         """
         self.settings = None
         self.loaded = False

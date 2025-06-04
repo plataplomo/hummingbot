@@ -1,5 +1,4 @@
-"""
-Unit Tests for Hyperliquid Raw Referral Info Models
+"""Unit Tests for Hyperliquid Raw Referral Info Models
 """
 
 from typing import Any

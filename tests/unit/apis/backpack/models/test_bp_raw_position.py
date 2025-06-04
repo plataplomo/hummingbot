@@ -331,8 +331,7 @@ def test_BackpackRawPositionUpdate_frozen(
 
 
 class TestBackpackRawPosition:
-    """
-    Tests for the BackpackRawPosition model that might involve more complex validation
+    """Tests for the BackpackRawPosition model that might involve more complex validation
     or scenarios not covered by simple field-level parametrization.
     """
 

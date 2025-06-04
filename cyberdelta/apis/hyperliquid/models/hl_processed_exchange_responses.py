@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Processed Models (Exchange Responses)
+"""CyberDeltaEngine: Hyperliquid API Processed Models (Exchange Responses)
 -----------------------------------------------------------------------
 
 This module defines Pydantic models that represent *processed* or *interpreted*

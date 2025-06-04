@@ -1,5 +1,4 @@
-"""
-Strategy Performance Tracker for CyberDeltaEngine.
+"""Strategy Performance Tracker for CyberDeltaEngine.
 
 This module provides tools for tracking and managing strategy performance data.
 It stores trade, signal, and return data for analysis and visualization.
@@ -26,8 +25,7 @@ PandasTimestamp = pd.Timestamp | datetime
 
 @dataclass
 class PerformanceTracker:
-    """
-    Tracks and manages strategy performance data in memory.
+    """Tracks and manages strategy performance data in memory.
 
     This class collects and stores trade, signal, and return data for strategies.
     It provides methods for retrieving this data for analysis and visualization.
@@ -38,12 +36,12 @@ class PerformanceTracker:
     output_dir: str = field(default="./performance_data")
 
     def __init__(self, output_dir: str | None = None) -> None:
-        """
-        Initialize the performance tracker.
+        """Initialize the performance tracker.
 
         Args:
             output_dir: Directory for saving/loading performance data
                 (passed to persistence handler).
+
         """
         # Set output dir, defaulting if None
         effective_output_dir = output_dir or "./performance_data"
@@ -64,13 +62,13 @@ class PerformanceTracker:
         self._load_data()
 
     def track_return(self, strategy_name: str, timestamp: datetime, return_value: float) -> None:
-        """
-        Track a return for a strategy.
+        """Track a return for a strategy.
 
         Args:
             strategy_name: Name of the strategy
             timestamp: Timestamp of the return
             return_value: Return value
+
         """
         with self.lock:
             if strategy_name not in self.returns:
@@ -97,8 +95,7 @@ class PerformanceTracker:
         pnl: float | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        """
-        Track a trade.
+        """Track a trade.
 
         Args:
             trade_id: Unique ID for the trade
@@ -113,6 +110,7 @@ class PerformanceTracker:
             exit_time: Exit timestamp (optional)
             pnl: Profit/loss (optional)
             metadata: Additional trade metadata (optional)
+
         """
         with self.lock:
             # Create trade dictionary
@@ -162,8 +160,7 @@ class PerformanceTracker:
         pnl: float,
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        """
-        Track the exit of a trade.
+        """Track the exit of a trade.
 
         Args:
             trade_id: ID of the trade to update
@@ -171,6 +168,7 @@ class PerformanceTracker:
             exit_time: Exit timestamp
             pnl: Profit/loss
             metadata: Additional exit metadata (optional)
+
         """
         trade_updated = False
         strategy_name_for_return = None
@@ -195,7 +193,7 @@ class PerformanceTracker:
                     if metadata:
                         # Ensure metadata exists and is a dict before updating
                         if "metadata" not in self.trades[i] or not isinstance(
-                            self.trades[i]["metadata"], dict
+                            self.trades[i]["metadata"], dict,
                         ):
                             self.trades[i]["metadata"] = {}
                         self.trades[i]["metadata"].update(metadata)
@@ -220,7 +218,7 @@ class PerformanceTracker:
                     except (ValueError, TypeError):
                         logger.warning(
                             f"Could not calculate initial value for return tracking "
-                            f"on trade {trade_id}"
+                            f"on trade {trade_id}",
                         )
                     # End always-executed block
 
@@ -247,8 +245,7 @@ class PerformanceTracker:
         confidence: float | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        """
-        Track a trading signal.
+        """Track a trading signal.
 
         Args:
             signal_id: Unique ID for the signal
@@ -258,6 +255,7 @@ class PerformanceTracker:
             timestamp: Signal timestamp
             confidence: Signal confidence score (optional)
             metadata: Additional signal metadata (optional)
+
         """
         with self.lock:
             # Create signal dictionary
@@ -290,15 +288,15 @@ class PerformanceTracker:
             self.persistence.save_signals(self.signals)
 
     def track_signal_execution(
-        self, signal_id: str, executed: bool, metadata: dict[str, Any] | None = None
+        self, signal_id: str, executed: bool, metadata: dict[str, Any] | None = None,
     ) -> None:
-        """
-        Track the execution of a signal.
+        """Track the execution of a signal.
 
         Args:
             signal_id: ID of the signal to update
             executed: Whether the signal was executed
             metadata: Additional execution metadata (optional)
+
         """
         signal_updated = False
         with self.lock:
@@ -312,7 +310,7 @@ class PerformanceTracker:
                     if metadata:
                         # Ensure metadata exists and is a dict before updating
                         if "metadata" not in self.signals[i] or not isinstance(
-                            self.signals[i]["metadata"], dict
+                            self.signals[i]["metadata"], dict,
                         ):
                             self.signals[i]["metadata"] = {}
                         self.signals[i]["metadata"].update(metadata)
@@ -336,8 +334,7 @@ class PerformanceTracker:
         predicted_rate: float | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        """
-        Track a funding rate.
+        """Track a funding rate.
 
         Args:
             timestamp: Funding rate timestamp
@@ -346,6 +343,7 @@ class PerformanceTracker:
             funding_rate: Funding rate value
             predicted_rate: Predicted funding rate (optional)
             metadata: Additional metadata (optional)
+
         """
         with self.lock:
             # Create funding rate dictionary
@@ -367,11 +365,11 @@ class PerformanceTracker:
     # --- Data Retrieval Methods (operate on in-memory data) --- #
 
     def get_strategy_names(self) -> list[str]:
-        """
-        Get the names of all tracked strategies from in-memory data.
+        """Get the names of all tracked strategies from in-memory data.
 
         Returns:
             List of strategy names
+
         """
         with self.lock:
             strategies: set[str] = set()
@@ -386,8 +384,7 @@ class PerformanceTracker:
         start_time: datetime | None = None,
         end_time: datetime | None = None,
     ) -> pd.DataFrame:
-        """
-        Get returns data as a DataFrame from in-memory data.
+        """Get returns data as a DataFrame from in-memory data.
 
         Args:
             strategy_names: List of strategy names to include (optional)
@@ -396,6 +393,7 @@ class PerformanceTracker:
 
         Returns:
             DataFrame with returns data
+
         """
         with self.lock:
             if not self.returns:
@@ -453,8 +451,7 @@ class PerformanceTracker:
         end_time: datetime | None = None,
         completed_only: bool = False,
     ) -> pd.DataFrame:
-        """
-        Get trade data as a DataFrame from in-memory data.
+        """Get trade data as a DataFrame from in-memory data.
 
         Args:
             strategy_names: List of strategy names to include (optional).
@@ -464,6 +461,7 @@ class PerformanceTracker:
 
         Returns:
             DataFrame with trade data.
+
         """
         with self.lock:
             if not self.trades:
@@ -522,8 +520,7 @@ class PerformanceTracker:
         start_time: datetime | None = None,
         end_time: datetime | None = None,
     ) -> pd.DataFrame:
-        """
-        Get signal data as a DataFrame from in-memory data.
+        """Get signal data as a DataFrame from in-memory data.
 
         Args:
             strategy_names: List of strategy names to include (optional).
@@ -532,6 +529,7 @@ class PerformanceTracker:
 
         Returns:
             DataFrame with signal data.
+
         """
         with self.lock:
             if not self.signals:
@@ -581,8 +579,7 @@ class PerformanceTracker:
         end_time: datetime | None = None,
         pivot: bool = False,  # Add pivot option
     ) -> pd.DataFrame:
-        """
-        Get funding rate data as a DataFrame from in-memory data.
+        """Get funding rate data as a DataFrame from in-memory data.
 
         Args:
             exchange: Exchange to filter by (optional).
@@ -593,6 +590,7 @@ class PerformanceTracker:
 
         Returns:
             DataFrame with funding rate data.
+
         """
         with self.lock:
             if not self.funding_rates:
@@ -644,15 +642,15 @@ class PerformanceTracker:
                     # Pivot requires unique index/column combinations
                     # Drop duplicates based on index (timestamp) and symbol before pivoting
                     df_unique = df.reset_index().drop_duplicates(
-                        subset=["timestamp", "symbol"], keep="last"
+                        subset=["timestamp", "symbol"], keep="last",
                     )
                     df_pivot = df_unique.pivot(
-                        index="timestamp", columns="symbol", values="funding_rate"
+                        index="timestamp", columns="symbol", values="funding_rate",
                     )
                     return df_pivot
                 except Exception as e:
                     logger.warning(
-                        f"Could not pivot funding rate data (maybe duplicate entries?). Error: {e}"
+                        f"Could not pivot funding rate data (maybe duplicate entries?). Error: {e}",
                     )
                     # Return the unpivoted DataFrame if pivot fails
                     return df.sort_index()
@@ -672,7 +670,7 @@ class PerformanceTracker:
         logger.info(
             f"Loaded {len(self.returns)} strategies' returns, "
             f"{len(self.trades)} trades, {len(self.signals)} signals, "
-            f"{len(self.funding_rates)} funding rates."
+            f"{len(self.funding_rates)} funding rates.",
         )
 
     # Remove original _save_* methods as they are replaced by calls to self.persistence

@@ -95,8 +95,7 @@ class MockErrorMapper(IErrorMapper):
 
 
 class MockExchangeAPI(ExchangeAPI):
-    """
-    Mock implementation of the ExchangeAPI for integration testing.
+    """Mock implementation of the ExchangeAPI for integration testing.
     Simulates basic exchange behavior, including order management, data fetching,
     and WebSocket interactions. Allows simulating errors and latency.
     """
@@ -779,8 +778,7 @@ class MockExchangeAPI(ExchangeAPI):
         return order
 
     async def get_order_status(self, args: GetOrderArgs) -> Order | None:
-        """
-        Get a specific order by ID, returning None if not found.
+        """Get a specific order by ID, returning None if not found.
         """
         self._check_error("get_order_status")
         await self._simulate_latency()

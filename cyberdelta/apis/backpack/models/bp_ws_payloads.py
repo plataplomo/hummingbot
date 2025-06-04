@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack WebSocket Subscription Request Payload Models
+"""CyberDeltaEngine: Backpack WebSocket Subscription Request Payload Models
 ------------------------------------------------------------------------
 
 This module defines Pydantic models for WebSocket subscription/unsubscription
@@ -22,8 +21,7 @@ from .bp_common_raw_types import (
 
 
 class BackpackWsSignatureComponents(BaseModel):
-    """
-    Pydantic model for Backpack WebSocket subscription signature components.
+    """Pydantic model for Backpack WebSocket subscription signature components.
 
     This model represents the components needed for authenticating private
     WebSocket subscriptions to the Backpack exchange.
@@ -38,8 +36,7 @@ class BackpackWsSignatureComponents(BaseModel):
 
 
 class BackpackRawWsSubscriptionRequest(BaseModel):
-    """
-    Raw model for Backpack WebSocket subscription/unsubscription requests.
+    """Raw model for Backpack WebSocket subscription/unsubscription requests.
 
     Based on the Backpack API documentation:
     - Public streams: {"method": "SUBSCRIBE", "params": ["stream_name"]}

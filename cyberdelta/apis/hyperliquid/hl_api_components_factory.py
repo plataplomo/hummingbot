@@ -1,5 +1,4 @@
-"""
-HyperliquidAPIComponentsFactory: Centralized factory for Hyperliquid exchange components.
+"""HyperliquidAPIComponentsFactory: Centralized factory for Hyperliquid exchange components.
 
 This factory class is responsible for creating and configuring all the necessary
 components for the Hyperliquid exchange API, including authenticators, error mappers,
@@ -36,7 +35,7 @@ logger = get_logger(__name__)
 # Type alias for the HTTP client requester callable that the factory will use.
 # This should match the signature of ExchangeAPI._request
 HttpClientRequesterSig = Callable[
-    ..., Coroutine[Any, Any, tuple[ParsedJsonResponse | None, int, Mapping[str, str]]]
+    ..., Coroutine[Any, Any, tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
 ]
 
 # Type alias for the get_asset_index callable
@@ -44,8 +43,7 @@ GetAssetIndexCallableSig = Callable[[str], Coroutine[Any, Any, int]]
 
 
 class HyperliquidAPIComponentsFactory:
-    """
-    Factory class for creating Hyperliquid exchange API components and services.
+    """Factory class for creating Hyperliquid exchange API components and services.
 
     This factory centralizes the instantiation logic for all Hyperliquid-specific
     components, making it easier to manage dependencies and simplify the main
@@ -58,13 +56,13 @@ class HyperliquidAPIComponentsFactory:
         exchange_secrets: AnyExchangeSecrets,
         chain_id: int,
     ) -> None:
-        """
-        Initialize the factory with configuration and secrets.
+        """Initialize the factory with configuration and secrets.
 
         Args:
             exchange_config: Exchange-specific configuration model
             exchange_secrets: Exchange secrets configuration model (discriminated union)
             chain_id: The blockchain chain ID for EIP-712 signing
+
         """
         self.exchange_config = exchange_config
         self.exchange_secrets = exchange_secrets
@@ -74,24 +72,24 @@ class HyperliquidAPIComponentsFactory:
         if not isinstance(exchange_secrets, PrivateKeyAuthSecrets):
             logger.error(
                 f"Hyperliquid expects auth_type 'private_key' but received "
-                f"'{exchange_secrets.auth_type}'. EIP-712 authentication will not work."
+                f"'{exchange_secrets.auth_type}'. EIP-712 authentication will not work.",
             )
 
     def create_authenticator(self) -> HyperliquidEip712Authenticator | None:
-        """
-        Create a HyperliquidEip712Authenticator instance.
+        """Create a HyperliquidEip712Authenticator instance.
 
         The authenticator will perform its own cryptographic validation.
 
         Returns:
             Configured authenticator instance or None if credentials are missing or invalid
+
         """
         # Check if we have the correct secrets type for Hyperliquid
         if not isinstance(self.exchange_secrets, PrivateKeyAuthSecrets):
             logger.error(
                 f"Cannot create Hyperliquid authenticator: expected auth_type 'private_key' "
                 f"but received '{self.exchange_secrets.auth_type}'. "
-                f"Signed operations will fail."
+                f"Signed operations will fail.",
             )
             return None
 
@@ -110,7 +108,7 @@ class HyperliquidAPIComponentsFactory:
                 # Priority 1: testnet_seed_passphrase (for future implementation)
                 logger.warning(
                     "testnet_seed_passphrase is provided but wallet derivation "
-                    "is not yet implemented. Falling back to other options."
+                    "is not yet implemented. Falling back to other options.",
                 )
                 # TODO: Implement BIP-39 seed phrase to private key derivation
                 # For now, continue to check other options
@@ -124,12 +122,12 @@ class HyperliquidAPIComponentsFactory:
                 private_key_to_use = secrets.private_key
                 logger.warning(
                     "No testnet-specific credentials found. Using main private_key for testnet. "
-                    "Consider using a dedicated testnet key for safety."
+                    "Consider using a dedicated testnet key for safety.",
                 )
             else:
                 logger.error(
                     "No suitable private key found for testnet environment. "
-                    "Provide either private_key_testnet or private_key."
+                    "Provide either private_key_testnet or private_key.",
                 )
                 return None
 
@@ -147,61 +145,61 @@ class HyperliquidAPIComponentsFactory:
         else:
             logger.warning(
                 "Hyperliquid secrets provided but no suitable private key found. "
-                "Cannot create authenticator."
+                "Cannot create authenticator.",
             )
             return None
 
     def create_error_mapper(self) -> HyperliquidErrorMapper:
-        """
-        Create a HyperliquidErrorMapper instance.
+        """Create a HyperliquidErrorMapper instance.
 
         Returns:
             Configured error mapper instance
+
         """
         return HyperliquidErrorMapper()
 
     def create_request_builder(self) -> HyperliquidRequestBuilder:
-        """
-        Create a HyperliquidRequestBuilder instance.
+        """Create a HyperliquidRequestBuilder instance.
 
         Returns:
             Configured request builder instance
+
         """
         return HyperliquidRequestBuilder()
 
     def create_response_handler(self) -> HyperliquidResponseHandler:
-        """
-        Create a HyperliquidResponseHandler instance.
+        """Create a HyperliquidResponseHandler instance.
 
         Returns:
             Configured response handler instance
+
         """
         return HyperliquidResponseHandler()
 
     def create_market_data_mapper(self) -> HyperliquidMarketDataMapper:
-        """
-        Create a HyperliquidMarketDataMapper instance.
+        """Create a HyperliquidMarketDataMapper instance.
 
         Returns:
             Configured market data mapper instance
+
         """
         return HyperliquidMarketDataMapper()
 
     def create_account_data_mapper(self) -> HyperliquidAccountDataMapper:
-        """
-        Create a HyperliquidAccountDataMapper instance.
+        """Create a HyperliquidAccountDataMapper instance.
 
         Returns:
             Configured account data mapper instance
+
         """
         return HyperliquidAccountDataMapper()
 
     def create_trading_data_mapper(self) -> HyperliquidTradingDataMapper:
-        """
-        Create a HyperliquidTradingDataMapper instance.
+        """Create a HyperliquidTradingDataMapper instance.
 
         Returns:
             Configured trading data mapper instance
+
         """
         return HyperliquidTradingDataMapper()
 
@@ -213,8 +211,7 @@ class HyperliquidAPIComponentsFactory:
         response_handler: HyperliquidResponseHandler,
         exchange_name: str,
     ) -> HyperliquidMarketDataService:
-        """
-        Create a HyperliquidMarketDataService instance.
+        """Create a HyperliquidMarketDataService instance.
 
         Args:
             http_client_requester: HTTP client request function
@@ -225,6 +222,7 @@ class HyperliquidAPIComponentsFactory:
 
         Returns:
             Configured market data service instance
+
         """
         return HyperliquidMarketDataService(
             http_client_requester=http_client_requester,
@@ -245,8 +243,7 @@ class HyperliquidAPIComponentsFactory:
         exchange_name: str,
         wallet_address: str | None,
     ) -> HyperliquidAccountService:
-        """
-        Create a HyperliquidAccountService instance.
+        """Create a HyperliquidAccountService instance.
 
         Args:
             http_client_requester: HTTP client request function
@@ -260,6 +257,7 @@ class HyperliquidAPIComponentsFactory:
 
         Returns:
             Configured account service instance
+
         """
         return HyperliquidAccountService(
             http_client_requester=http_client_requester,
@@ -284,8 +282,7 @@ class HyperliquidAPIComponentsFactory:
         wallet_address: str | None,
         get_asset_index_callable: GetAssetIndexCallableSig,
     ) -> HyperliquidTradingService:
-        """
-        Create a HyperliquidTradingService instance.
+        """Create a HyperliquidTradingService instance.
 
         Args:
             http_client_requester: HTTP client request function
@@ -300,6 +297,7 @@ class HyperliquidAPIComponentsFactory:
 
         Returns:
             Configured trading service instance
+
         """
         return HyperliquidTradingService(
             http_client_requester=http_client_requester,

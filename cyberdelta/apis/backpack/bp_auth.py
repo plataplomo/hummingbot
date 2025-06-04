@@ -23,12 +23,12 @@ class BackpackEd25519Authenticator(IAuthenticator):
     """Authenticator for Backpack API using ED25519 signature."""
 
     def __init__(self, api_key_b64_secret: SecretStr, private_key_b64_secret: SecretStr) -> None:
-        """
-        Initialize the authenticator with SecretStr-wrapped Base64-encoded keys.
+        """Initialize the authenticator with SecretStr-wrapped Base64-encoded keys.
 
         Args:
             api_key_b64_secret: SecretStr containing Base64-encoded public key for API auth.
             private_key_b64_secret: SecretStr containing Base64-encoded private key for signing.
+
         """
         # Get secret values and validate
         api_key_b64 = api_key_b64_secret.get_secret_value().strip()
@@ -112,8 +112,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
         }
 
     def _get_instruction_for_endpoint(self, method: str, path: str) -> str:
-        """
-        Get the instruction string for a given method and path.
+        """Get the instruction string for a given method and path.
 
         Args:
             method: HTTP method (GET, POST, etc.)
@@ -124,6 +123,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
 
         Raises:
             APIError: If instruction not found for the endpoint
+
         """
         method_upper = method.upper()
 
@@ -155,8 +155,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
         data: dict[str, Any] | None,
         headers: Mapping[str, Any] | None,
     ) -> AuthenticatedRequestComponents:
-        """
-        Prepares and signs a Backpack API request using ED25519.
+        """Prepares and signs a Backpack API request using ED25519.
 
         Args:
             method: The HTTP method (e.g., 'GET', 'POST').
@@ -170,6 +169,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
 
         Raises:
             APIError: If signing fails or instruction not found.
+
         """
         try:
             # Get instruction for this endpoint
@@ -249,8 +249,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
         subscription_type: str,
         symbol: str | None = None,
     ) -> BackpackWsSignatureComponents:
-        """
-        Generate ED25519 signature components for WebSocket subscription.
+        """Generate ED25519 signature components for WebSocket subscription.
 
         Args:
             subscription_type: Type of subscription (e.g., "account", "orderbook")
@@ -258,6 +257,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
 
         Returns:
             BackpackWsSignatureComponents model with api_key, timestamp, window, and signature
+
         """
         try:
             timestamp_ms = int(time.time() * 1000)

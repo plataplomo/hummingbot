@@ -1,5 +1,4 @@
-"""
-Unit tests for HyperliquidAssetIndexResolver.
+"""Unit tests for HyperliquidAssetIndexResolver.
 
 Tests the asset index resolution logic that was extracted from HyperliquidAPI
 to improve modularity and reduce complexity.

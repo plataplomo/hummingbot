@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack API Raw Models (Margin Functions)
+"""CyberDeltaEngine: Backpack API Raw Models (Margin Functions)
 ------------------------------------------------------------
 
 This module provides strict, security-focused Pydantic models for validating the *raw*
@@ -54,8 +53,7 @@ class BackpackRawMmfFunction(BaseModel):
 
 
 class BackpackRawPositionImfFunction(BaseModel):
-    """
-    Raw model for Position-Specific Initial Margin Fraction (IMF) function.
+    """Raw model for Position-Specific Initial Margin Fraction (IMF) function.
     This reflects the nested 'imfFunction' object within a position's details.
     The 'type' field, often "sqrt", seems to be part of this nested structure,
     though API responses can vary. We use `extra='ignore'` to be robust.
@@ -75,8 +73,7 @@ class BackpackRawPositionImfFunction(BaseModel):
 
 
 class BackpackRawPositionMmfFunction(BaseModel):
-    """
-    Raw model for Position-Specific Maintenance Margin Fraction (MMF) function.
+    """Raw model for Position-Specific Maintenance Margin Fraction (MMF) function.
     Similar to ImfFunction, this reflects the nested 'mmfFunction'.
     """
 
@@ -91,8 +88,7 @@ class BackpackRawPositionMmfFunction(BaseModel):
 
 
 class BackpackRawMarginCoverage(BaseModel):
-    """
-    Raw model for margin coverage data, indicating if current margin covers requirements.
+    """Raw model for margin coverage data, indicating if current margin covers requirements.
     Example: `{"type": "marginCoverage", "marginCoverage": "good"}`
     """
 

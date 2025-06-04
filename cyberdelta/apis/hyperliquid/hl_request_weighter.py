@@ -1,5 +1,4 @@
-"""
-cyberdelta.apis.hyperliquid.hl_request_weighter
+"""cyberdelta.apis.hyperliquid.hl_request_weighter
 ----------------------------------------------
 Utility class for calculating IP weights and address action counts for Hyperliquid requests.
 
@@ -19,20 +18,19 @@ logger = logging.getLogger(__name__)
 
 
 class HyperliquidRequestWeighter:
-    """
-    Calculates IP weights and address action counts for Hyperliquid API requests.
+    """Calculates IP weights and address action counts for Hyperliquid API requests.
 
     This utility is used by HyperliquidRateLimitStrategy to determine the cost
     of each request in terms of both IP weight limits and address-based action limits.
     """
 
     def __init__(self, hl_exchange_config: ExchangeSpecificConfig) -> None:
-        """
-        Initialize the request weighter with Hyperliquid-specific configuration.
+        """Initialize the request weighter with Hyperliquid-specific configuration.
 
         Args:
             hl_exchange_config: The Hyperliquid exchange configuration containing
                               IP weight mappings and other rate limit parameters.
+
         """
         self.hl_exchange_config = hl_exchange_config
 
@@ -42,16 +40,15 @@ class HyperliquidRequestWeighter:
                 self.hl_exchange_config.info_request_type_ip_weights is not None,
                 self.hl_exchange_config.default_info_weight is not None,
                 self.hl_exchange_config.exchange_action_base_ip_weight is not None,
-            ]
+            ],
         ):
             raise ValueError(
                 "HyperliquidRequestWeighter requires Hyperliquid-specific "
-                "rate limit configuration fields"
+                "rate limit configuration fields",
             )
 
     def get_ip_weight(self, endpoint: str, action_payload: dict[str, Any] | None) -> int:
-        """
-        Calculate the IP weight cost for a given request.
+        """Calculate the IP weight cost for a given request.
 
         Args:
             endpoint: The API endpoint path (e.g., "/info", "/exchange")
@@ -59,6 +56,7 @@ class HyperliquidRequestWeighter:
 
         Returns:
             The IP weight cost of the request.
+
         """
         # Handle /exchange endpoint with batch formula
         if endpoint == "/exchange":
@@ -73,7 +71,7 @@ class HyperliquidRequestWeighter:
             ip_weight = base_weight + (batch_length // 40)
 
             logger.debug(
-                f"Hyperliquid /exchange request: batch_length={batch_length}, ip_weight={ip_weight}"
+                f"Hyperliquid /exchange request: batch_length={batch_length}, ip_weight={ip_weight}",
             )
             return ip_weight
 
@@ -86,14 +84,14 @@ class HyperliquidRequestWeighter:
             if api_type and self.hl_exchange_config.info_request_type_ip_weights:
                 # Look up specific weight for this info type
                 ip_weight = self.hl_exchange_config.info_request_type_ip_weights.get(
-                    api_type, self.hl_exchange_config.default_info_weight or 20
+                    api_type, self.hl_exchange_config.default_info_weight or 20,
                 )
                 logger.debug(f"Hyperliquid /info request: type={api_type}, ip_weight={ip_weight}")
             else:
                 # Use default weight for unknown or missing types
                 ip_weight = self.hl_exchange_config.default_info_weight or 20
                 logger.debug(
-                    f"Hyperliquid /info request: unknown type, using default ip_weight={ip_weight}"
+                    f"Hyperliquid /info request: unknown type, using default ip_weight={ip_weight}",
                 )
 
             return ip_weight
@@ -102,13 +100,12 @@ class HyperliquidRequestWeighter:
         else:
             ip_weight = self.hl_exchange_config.default_info_weight or 20
             logger.warning(
-                f"Hyperliquid unknown endpoint '{endpoint}', using default ip_weight={ip_weight}"
+                f"Hyperliquid unknown endpoint '{endpoint}', using default ip_weight={ip_weight}",
             )
             return ip_weight
 
     def get_address_action_count(self, endpoint: str, action_payload: dict[str, Any] | None) -> int:
-        """
-        Calculate the address action count for a given request.
+        """Calculate the address action count for a given request.
 
         Only /exchange endpoint actions count towards the address-based action limit.
 
@@ -118,6 +115,7 @@ class HyperliquidRequestWeighter:
 
         Returns:
             The number of address-based actions in the request.
+
         """
         # Only /exchange endpoint contributes to address action count
         if endpoint == "/exchange":

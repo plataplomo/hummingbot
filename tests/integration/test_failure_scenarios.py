@@ -1,5 +1,4 @@
-"""
-Integration tests focusing on failure scenarios and safety system triggers.
+"""Integration tests focusing on failure scenarios and safety system triggers.
 """
 
 import asyncio

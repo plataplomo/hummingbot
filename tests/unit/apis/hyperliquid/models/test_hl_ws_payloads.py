@@ -1,5 +1,4 @@
-"""
-Tests for Hyperliquid WebSocket subscription payload models.
+"""Tests for Hyperliquid WebSocket subscription payload models.
 """
 
 import pytest

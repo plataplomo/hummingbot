@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Raw Models (Vault Details)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Vault Details)
 -----------------------------------------------------------
 
 Strict boundary validation models for the Hyperliquid 'vaultDetails' info endpoint.
@@ -66,8 +65,7 @@ class HyperliquidRawVaultRelationship(BaseModel):
 
 
 class HyperliquidRawVaultDetailsResponse(BaseModel):
-    """
-    Strict boundary model for the Hyperliquid 'vaultDetails' info endpoint response.
+    """Strict boundary model for the Hyperliquid 'vaultDetails' info endpoint response.
     Validates the raw structure only.
     """
 
@@ -82,7 +80,7 @@ class HyperliquidRawVaultDetailsResponse(BaseModel):
     total_pnl: RawFiniteDecimalStr = Field(..., alias="totalPnl")
     all_time_pnl: RawFiniteDecimalStr = Field(..., alias="allTimePnl")
     performance_history: list[HyperliquidRawVaultPerformanceHistoryItem] = Field(
-        ..., alias="performanceHistory"
+        ..., alias="performanceHistory",
     )
     user_equities: list[HyperliquidRawVaultUserEquity] = Field(..., alias="userEquities")
     max_distributable: RawNonNegativeFiniteDecimalStr = Field(..., alias="maxDistributable")
@@ -95,7 +93,7 @@ class HyperliquidRawVaultDetailsResponse(BaseModel):
     @field_validator("performance_history", "user_equities", mode="before")
     @classmethod
     def validate_model_list_structure(
-        cls, v: object, info: ValidationInfo
+        cls, v: object, info: ValidationInfo,
     ) -> list[dict[str, object]]:
         field_name = info.field_name or "list_field"
         if not isinstance(v, list):
@@ -108,7 +106,7 @@ class HyperliquidRawVaultDetailsResponse(BaseModel):
         for item_idx, item_obj in enumerate(list_of_objects):
             if not isinstance(item_obj, dict):
                 raise ValueError(
-                    f"{field_name}[{item_idx}]: Expected dict item, got {type(item_obj).__name__}"
+                    f"{field_name}[{item_idx}]: Expected dict item, got {type(item_obj).__name__}",
                 )
             item_dict = cast(dict[str, object], item_obj)
             assert isinstance(item_dict, dict)

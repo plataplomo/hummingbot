@@ -17,8 +17,7 @@ from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, va
 
 
 class Candle(BaseModel):
-    """
-    Represents an immutable, validated OHLCV candlestick bar for a specific symbol and interval.
+    """Represents an immutable, validated OHLCV candlestick bar for a specific symbol and interval.
 
     This model ensures data integrity for historical or interval-based market data through
     strict validation, Decimal usage for financial precision, and logical consistency checks.
@@ -39,6 +38,7 @@ class Candle(BaseModel):
         - `extra='forbid'`: Prevents unexpected fields.
         - `validate_assignment=True`: Ensures validation on assignment
                 (mostly redundant with frozen=True).
+
     """
 
     symbol: str
@@ -79,10 +79,9 @@ class Candle(BaseModel):
     @field_validator("open", "high", "low", "close", "volume", mode="before")
     @classmethod
     def validate_and_parse_decimal_required(
-        cls, v: str | int | float | Decimal | None, info: ValidationInfo
+        cls, v: str | int | float | Decimal | None, info: ValidationInfo,
     ) -> Decimal:
-        """
-        Validate, parse, and check finiteness for required Decimal fields (OHLCV).
+        """Validate, parse, and check finiteness for required Decimal fields (OHLCV).
 
         Uses `parse_decimal_value`. Ensures the result is non-None and finite.
         Positive/Non-negative constraints (`gt=0`/`ge=0`) are handled by `Field`.
@@ -96,6 +95,7 @@ class Candle(BaseModel):
 
         Raises:
             ValueError: If input is None, cannot be parsed, or is not finite.
+
         """
         field_name = info.field_name if info.field_name is not None else "unknown_decimal_field"
         # Ensure value is not None
@@ -117,8 +117,7 @@ class Candle(BaseModel):
 
     @model_validator(mode="after")
     def check_ohlc_consistency(self) -> Self:
-        """
-        Validate the logical consistency of OHLC prices (high >= low, etc.).
+        """Validate the logical consistency of OHLC prices (high >= low, etc.).
         """
         if self.high < self.low:
             raise ValueError(f"high ({self.high}) must be >= low ({self.low})")

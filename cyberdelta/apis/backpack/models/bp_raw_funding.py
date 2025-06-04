@@ -1,5 +1,4 @@
-"""
-Backpack API Funding Rate and Mark Price Models
+"""Backpack API Funding Rate and Mark Price Models
 ------------------------------------------
 
 This module defines strict Pydantic models for validating funding rate and mark
@@ -26,8 +25,7 @@ from cyberdelta.apis.backpack.models.bp_common_raw_types import (
 
 
 class BackpackRawFundingRate(BaseModel):
-    """
-    Pydantic model for a raw funding rate object from `/api/v1/funding` (Backpack REST API).
+    """Pydantic model for a raw funding rate object from `/api/v1/funding` (Backpack REST API).
 
     This model mirrors the Backpack OpenAPI schema, using common raw types for validation.
 
@@ -38,6 +36,7 @@ class BackpackRawFundingRate(BaseModel):
         index_price (str): The index price (string), validated as parsable to a finite decimal.
         time (int | float | str): The timestamp of the funding rate data, validated for a
                                   specific range.
+
     """
 
     symbol: RawBpNonEmptyStringMax64 = Field(..., alias="symbol")
@@ -52,8 +51,7 @@ class BackpackRawFundingRate(BaseModel):
 
 
 class BackpackRawMarkPrice(BaseModel):
-    """
-    Pydantic model for a raw mark price and funding info object
+    """Pydantic model for a raw mark price and funding info object
     from `/api/v1/markPrice` (Backpack REST API).
 
     This model mirrors the Backpack OpenAPI schema, using common raw types for validation.
@@ -63,6 +61,7 @@ class BackpackRawMarkPrice(BaseModel):
         mark_price (str): Mark price (validated as a parsable decimal string).
         funding_rate (str): Estimated next funding rate (validated as a parsable decimal string).
         # funding_time: (Removed from attributes as it's not in the original model fields)
+
     """
 
     symbol: RawBpNonEmptyStringMax64 = Field(..., alias="symbol")
@@ -75,8 +74,7 @@ class BackpackRawMarkPrice(BaseModel):
 
 
 class BackpackRawFundingIntervalRate(BaseModel):
-    """
-    Pydantic model for a single raw funding interval rate object from the list returned
+    """Pydantic model for a single raw funding interval rate object from the list returned
     by `/api/v1/fundingRates` (Backpack REST API).
 
     Attributes:
@@ -84,6 +82,7 @@ class BackpackRawFundingIntervalRate(BaseModel):
         rate (str): The funding rate for the interval, validated as parsable to a finite decimal.
         time (int): The timestamp for the funding interval (Unix epoch in seconds or ms -
                       needs to match API). OpenAPI specifies integer for time.
+
     """
 
     symbol: RawBpNonEmptyStringMax64 = Field(...)

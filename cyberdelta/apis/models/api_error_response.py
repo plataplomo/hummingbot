@@ -6,8 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class APIErrorResponse(BaseModel):
-    """
-    Standardized error response model for API errors in CyberDeltaEngine.
+    """Standardized error response model for API errors in CyberDeltaEngine.
 
     This model is used to validate, normalize, and transport error information from any exchange
     (e.g., Backpack, Hyperliquid) into a consistent internal format for business logic, logging,
@@ -34,21 +33,21 @@ class APIErrorResponse(BaseModel):
 
     message: str = Field(..., description="Human-readable error message.")
     code: int | str = Field(
-        ..., description="Canonical error code (int, or raw exchange code as str)."
+        ..., description="Canonical error code (int, or raw exchange code as str).",
     )
     http_status: int | None = Field(None, description="HTTP status code, if available.")
     exchange_code: str | int | None = Field(
-        None, description="Raw error code from the exchange, if present."
+        None, description="Raw error code from the exchange, if present.",
     )
     exchange_message: str | None = Field(
-        None, description="Raw error message from the exchange, if present."
+        None, description="Raw error message from the exchange, if present.",
     )
     retry_after: float | None = Field(
-        None, description="Seconds to wait before retrying (for rate limits, etc.)."
+        None, description="Seconds to wait before retrying (for rate limits, etc.).",
     )
     metadata: dict[str, Any] | None = Field(None, description="Additional context or diagnostics.")
     original_exception: Exception | None = Field(
-        None, description="Original exception, if chained."
+        None, description="Original exception, if chained.",
     )
 
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
@@ -56,13 +55,15 @@ class APIErrorResponse(BaseModel):
     @field_validator("code", mode="before")
     @classmethod
     def validate_code(cls, raw_code: str | int | float | None) -> int | str:
-        """
-        Ensure 'code' is an int if possible, otherwise leave as str.
+        """Ensure 'code' is an int if possible, otherwise leave as str.
+
         Args:
             raw_code: The raw code value from the exchange or mapping logic. Accepts str, int,
                 float, or None.
+
         Returns:
             int or str: The normalized code value. If input is None, returns 'UNKNOWN'.
+
         """
         if raw_code is None:
             return "UNKNOWN"
@@ -91,8 +92,7 @@ class APIErrorResponse(BaseModel):
         metadata: dict[str, Any] | None = None,
         original_exception: Exception | None = None,
     ) -> APIErrorResponse:
-        """
-        Construct an APIErrorResponse from raw exchange error data, performing validation and
+        """Construct an APIErrorResponse from raw exchange error data, performing validation and
         normalization.
         This is the preferred way to create error responses from mapping logic.
         """

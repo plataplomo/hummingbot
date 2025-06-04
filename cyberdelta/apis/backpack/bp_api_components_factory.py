@@ -1,5 +1,4 @@
-"""
-BackpackAPIComponentsFactory: Centralized factory for Backpack exchange components.
+"""BackpackAPIComponentsFactory: Centralized factory for Backpack exchange components.
 
 This factory class is responsible for creating and configuring all the necessary
 components for the Backpack exchange API, including authenticators, error mappers,
@@ -30,13 +29,12 @@ logger = get_logger(__name__)
 # Type alias for the HTTP client requester callable that the factory will use.
 # This should match the signature of ExchangeAPI._request
 HttpClientRequesterSig = Callable[
-    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]]
+    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
 ]
 
 
 class BackpackAPIComponentsFactory:
-    """
-    Factory class for creating Backpack exchange API components and services.
+    """Factory class for creating Backpack exchange API components and services.
 
     This factory centralizes the instantiation logic for all Backpack-specific
     components, making it easier to manage dependencies and simplify the main
@@ -44,14 +42,14 @@ class BackpackAPIComponentsFactory:
     """
 
     def __init__(
-        self, exchange_config: ExchangeSpecificConfig, exchange_secrets: AnyExchangeSecrets
+        self, exchange_config: ExchangeSpecificConfig, exchange_secrets: AnyExchangeSecrets,
     ) -> None:
-        """
-        Initialize the factory with configuration and secrets.
+        """Initialize the factory with configuration and secrets.
 
         Args:
             exchange_config: Exchange-specific configuration model
             exchange_secrets: Exchange secrets configuration model (discriminated union)
+
         """
         self.exchange_config = exchange_config
         self.exchange_secrets = exchange_secrets
@@ -60,24 +58,24 @@ class BackpackAPIComponentsFactory:
         if not isinstance(exchange_secrets, ApiKeyAuthSecrets):
             logger.error(
                 f"Backpack expects auth_type 'api_key' but received "
-                f"'{exchange_secrets.auth_type}'. ED25519 authentication will not work."
+                f"'{exchange_secrets.auth_type}'. ED25519 authentication will not work.",
             )
 
     def create_authenticator(self) -> BackpackEd25519Authenticator | None:
-        """
-        Create a BackpackEd25519Authenticator instance.
+        """Create a BackpackEd25519Authenticator instance.
 
         The authenticator will perform its own cryptographic validation.
 
         Returns:
             Configured ED25519 authenticator instance or None if credentials are missing or invalid
+
         """
         # Check if we have the correct secrets type for Backpack
         if not isinstance(self.exchange_secrets, ApiKeyAuthSecrets):
             logger.error(
                 f"Cannot create Backpack authenticator: expected auth_type 'api_key' "
                 f"but received '{self.exchange_secrets.auth_type}'. "
-                f"Signed operations will fail."
+                f"Signed operations will fail.",
             )
             return None
 
@@ -85,7 +83,7 @@ class BackpackAPIComponentsFactory:
 
         if secrets.api_key and secrets.api_secret:  # Check if SecretStr objects themselves exist
             logger.info(
-                "Attempting to create BackpackEd25519Authenticator (ED25519 authentication)"
+                "Attempting to create BackpackEd25519Authenticator (ED25519 authentication)",
             )
             try:
                 return BackpackEd25519Authenticator(
@@ -98,61 +96,61 @@ class BackpackAPIComponentsFactory:
         else:
             logger.warning(
                 "Backpack secrets (api_key or api_secret as SecretStr) not fully provided. "
-                "Cannot create ED25519 authenticator."
+                "Cannot create ED25519 authenticator.",
             )
             return None
 
     def create_error_mapper(self) -> BackpackErrorMapper:
-        """
-        Create a BackpackErrorMapper instance.
+        """Create a BackpackErrorMapper instance.
 
         Returns:
             Configured error mapper instance
+
         """
         return BackpackErrorMapper()
 
     def create_request_builder(self) -> BackpackRequestBuilder:
-        """
-        Create a BackpackRequestBuilder instance.
+        """Create a BackpackRequestBuilder instance.
 
         Returns:
             Configured request builder instance
+
         """
         return BackpackRequestBuilder(self.exchange_config)
 
     def create_response_handler(self) -> BackpackResponseHandler:
-        """
-        Create a BackpackResponseHandler instance.
+        """Create a BackpackResponseHandler instance.
 
         Returns:
             Configured response handler instance
+
         """
         return BackpackResponseHandler()
 
     def create_market_data_mapper(self) -> BackpackMarketDataMapper:
-        """
-        Create a BackpackMarketDataMapper instance.
+        """Create a BackpackMarketDataMapper instance.
 
         Returns:
             Configured market data mapper instance
+
         """
         return BackpackMarketDataMapper()
 
     def create_account_data_mapper(self) -> BackpackAccountDataMapper:
-        """
-        Create a BackpackAccountDataMapper instance.
+        """Create a BackpackAccountDataMapper instance.
 
         Returns:
             Configured account data mapper instance
+
         """
         return BackpackAccountDataMapper()
 
     def create_trading_data_mapper(self) -> BackpackTradingDataMapper:
-        """
-        Create a BackpackTradingDataMapper instance.
+        """Create a BackpackTradingDataMapper instance.
 
         Returns:
             Configured trading data mapper instance
+
         """
         return BackpackTradingDataMapper()
 
@@ -164,8 +162,7 @@ class BackpackAPIComponentsFactory:
         response_handler: BackpackResponseHandler,
         exchange_name: str,
     ) -> BackpackMarketDataService:
-        """
-        Create a BackpackMarketDataService instance.
+        """Create a BackpackMarketDataService instance.
 
         Args:
             http_client_requester: HTTP client request function
@@ -176,6 +173,7 @@ class BackpackAPIComponentsFactory:
 
         Returns:
             Configured market data service instance
+
         """
         return BackpackMarketDataService(
             http_client_requester=http_client_requester,
@@ -194,8 +192,7 @@ class BackpackAPIComponentsFactory:
         response_handler: BackpackResponseHandler,
         exchange_name: str,
     ) -> BackpackAccountService:
-        """
-        Create a BackpackAccountService instance.
+        """Create a BackpackAccountService instance.
 
         Args:
             http_client_requester: HTTP client request function
@@ -207,6 +204,7 @@ class BackpackAPIComponentsFactory:
 
         Returns:
             Configured account service instance
+
         """
         return BackpackAccountService(
             http_client_requester=http_client_requester,
@@ -226,8 +224,7 @@ class BackpackAPIComponentsFactory:
         response_handler: BackpackResponseHandler,
         exchange_name: str,
     ) -> BackpackTradingService:
-        """
-        Create a BackpackTradingService instance.
+        """Create a BackpackTradingService instance.
 
         Args:
             http_client_requester: HTTP client request function
@@ -239,6 +236,7 @@ class BackpackAPIComponentsFactory:
 
         Returns:
             Configured trading service instance
+
         """
         return BackpackTradingService(
             http_client_requester=http_client_requester,

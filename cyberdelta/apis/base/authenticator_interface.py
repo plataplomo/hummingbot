@@ -15,8 +15,7 @@ class AuthenticatedRequestComponents(BaseModel):
 
 
 class IAuthenticator(ABC):
-    """
-    Interface for request authentication strategies.
+    """Interface for request authentication strategies.
     """
 
     @abstractmethod
@@ -28,8 +27,7 @@ class IAuthenticator(ABC):
         data: dict[str, Any] | None,
         headers: Mapping[str, Any] | None,
     ) -> AuthenticatedRequestComponents:
-        """
-        Prepares and signs an API request.
+        """Prepares and signs an API request.
 
         Args:
             method: The HTTP method (e.g., 'GET', 'POST').
@@ -41,5 +39,6 @@ class IAuthenticator(ABC):
         Returns:
             An AuthenticatedRequestComponents Pydantic model containing the necessary
             headers, params, and data for the authenticated request.
+
         """
         pass

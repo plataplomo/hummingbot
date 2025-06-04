@@ -1,5 +1,4 @@
-"""
-Simplified Visualization Tools for CyberDeltaEngine Performance Data.
+"""Simplified Visualization Tools for CyberDeltaEngine Performance Data.
 
 This module provides basic visualization tools for performance data
 without dependencies on complex web frameworks.
@@ -111,8 +110,7 @@ def generate_example_data(
 
 # Add a utility method for safe decimal to float conversion
 def _decimal_to_float(value: Decimal | int | float | str | None) -> float:
-    """
-    Safely convert a value to float for visualization purposes.
+    """Safely convert a value to float for visualization purposes.
     Handles Decimal, int, float, string representations, and None.
     Returns NaN for invalid or None inputs.
     """
@@ -139,20 +137,19 @@ def _decimal_to_float(value: Decimal | int | float | str | None) -> float:
 
 
 class SimpleVisualizer:
-    """
-    Simple visualization tool for performance data.
+    """Simple visualization tool for performance data.
 
     This class provides basic plotting functionality using matplotlib
     without dependencies on complex web frameworks.
     """
 
     def __init__(self, tracker: SimplePerformanceTracker, output_dir: str | None = None) -> None:
-        """
-        Initialize the visualizer.
+        """Initialize the visualizer.
 
         Args:
             tracker: SimplePerformanceTracker instance
             output_dir: Directory to save plot images (default: "./performance_plots")
+
         """
         self.tracker = tracker
         self.analyzer = SimplePerformanceAnalyzer(tracker)
@@ -187,7 +184,7 @@ class SimpleVisualizer:
         plt.tight_layout()
         if save:
             filename = os.path.join(
-                self.output_dir, f"{self.tracker.strategy_name}_{plot_name}.png"
+                self.output_dir, f"{self.tracker.strategy_name}_{plot_name}.png",
             )
             try:
                 plt.savefig(filename)
@@ -202,8 +199,7 @@ class SimpleVisualizer:
     # --- Plotting Methods ---
 
     def plot_cumulative_pnl(self, save: bool = False, show: bool = True) -> Figure | None:
-        """
-        Plot cumulative PnL over time.
+        """Plot cumulative PnL over time.
 
         Args:
             save: Whether to save the plot to a file
@@ -211,6 +207,7 @@ class SimpleVisualizer:
 
         Returns:
             Matplotlib figure if successful, None otherwise.
+
         """
         # Get trades data
         trades_df = self.tracker.get_trades_dataframe(completed_only=True)
@@ -240,7 +237,7 @@ class SimpleVisualizer:
             if "pnl" in trades_df.columns:
                 # Store string representation of Decimal values
                 trades_df["pnl_str"] = trades_df["pnl"].apply(
-                    lambda x: str(x) if isinstance(x, Decimal) else str(x)
+                    lambda x: str(x) if isinstance(x, Decimal) else str(x),
                 )
                 # Convert to float only for plotting (matplotlib requirement)
                 trades_df["pnl_float"] = trades_df["pnl"].apply(_decimal_to_float)
@@ -290,8 +287,7 @@ class SimpleVisualizer:
         return fig  # Return the figure object (though it's closed if not shown live)
 
     def plot_drawdown(self, save: bool = False, show: bool = True) -> Figure | None:
-        """
-        Plot drawdown percentage over time.
+        """Plot drawdown percentage over time.
 
         Args:
             save: Whether to save the plot to a file
@@ -299,6 +295,7 @@ class SimpleVisualizer:
 
         Returns:
             Matplotlib figure if successful, None otherwise.
+
         """
         # Get daily PnL from analyzer
         daily_pnl = self.analyzer.get_daily_pnl()
@@ -364,8 +361,7 @@ class SimpleVisualizer:
         return fig
 
     def plot_trade_distribution(self, save: bool = False, show: bool = True) -> Figure | None:
-        """
-        Plot distribution of trade PnL.
+        """Plot distribution of trade PnL.
 
         Args:
             save: Whether to save the plot to a file
@@ -373,6 +369,7 @@ class SimpleVisualizer:
 
         Returns:
             Matplotlib figure if successful, None otherwise.
+
         """
         # Get trades data
         trades_df = self.tracker.get_trades_dataframe(completed_only=True)
@@ -418,8 +415,7 @@ class SimpleVisualizer:
         return fig
 
     def plot_winning_vs_losing_trades(self, save: bool = False, show: bool = True) -> Figure | None:
-        """
-        Plot winning vs. losing trades for the strategy.
+        """Plot winning vs. losing trades for the strategy.
 
         Args:
             save: Whether to save the plot to a file
@@ -427,6 +423,7 @@ class SimpleVisualizer:
 
         Returns:
             Matplotlib figure if successful, None otherwise.
+
         """
         # Get trades data
         trades_df = self.tracker.get_trades_dataframe(completed_only=True)
@@ -505,8 +502,7 @@ class SimpleVisualizer:
         return fig
 
     def plot_monthly_performance(self, save: bool = False, show: bool = True) -> Figure | None:
-        """
-        Plot monthly PnL performance.
+        """Plot monthly PnL performance.
 
         Args:
             save: Whether to save the plot to a file
@@ -514,6 +510,7 @@ class SimpleVisualizer:
 
         Returns:
             Matplotlib figure if successful, None otherwise.
+
         """
         # Get trades data
         trades_df = self.tracker.get_trades_dataframe(completed_only=True)
@@ -599,11 +596,11 @@ class SimpleVisualizer:
         return fig
 
     def generate_performance_summary(self) -> str:
-        """
-        Generate a text summary of performance metrics.
+        """Generate a text summary of performance metrics.
 
         Returns:
             String containing a formatted performance summary.
+
         """
         try:
             metrics = self.analyzer.calculate_metrics()
@@ -632,8 +629,7 @@ class SimpleVisualizer:
             return "Error generating performance summary. See logs for details."
 
     def plot_performance_metrics(self, save: bool = False, show: bool = True) -> Figure | None:
-        """
-        Plot key performance metrics as a bar chart.
+        """Plot key performance metrics as a bar chart.
 
         Args:
             save: Whether to save the plot to a file
@@ -641,6 +637,7 @@ class SimpleVisualizer:
 
         Returns:
             Matplotlib figure if successful, None otherwise.
+
         """
         # Get performance metrics
         metrics = self.analyzer.calculate_metrics()
@@ -715,14 +712,14 @@ class SimpleVisualizer:
         return fig
 
     def generate_performance_report(self, save_dir: str | None = None) -> dict[str, str]:
-        """
-        Generate a comprehensive performance report with all plots.
+        """Generate a comprehensive performance report with all plots.
 
         Args:
             save_dir: Directory to save plots (default: self.output_dir)
 
         Returns:
             Dictionary mapping plot names to file paths
+
         """
         save_dir = save_dir or self.output_dir
         os.makedirs(save_dir, exist_ok=True)
@@ -753,7 +750,7 @@ class SimpleVisualizer:
 
         if fig_dist:
             dist_path = os.path.join(
-                save_dir, f"{self.tracker.strategy_name}_trade_distribution.png"
+                save_dir, f"{self.tracker.strategy_name}_trade_distribution.png",
             )
             fig_dist.savefig(dist_path)
             plt.close(fig_dist)
@@ -767,7 +764,7 @@ class SimpleVisualizer:
 
         if fig_month:
             month_path = os.path.join(
-                save_dir, f"{self.tracker.strategy_name}_monthly_performance.png"
+                save_dir, f"{self.tracker.strategy_name}_monthly_performance.png",
             )
             fig_month.savefig(month_path)
             plt.close(fig_month)
@@ -775,7 +772,7 @@ class SimpleVisualizer:
 
         if fig_metrics:
             metrics_path = os.path.join(
-                save_dir, f"{self.tracker.strategy_name}_performance_metrics.png"
+                save_dir, f"{self.tracker.strategy_name}_performance_metrics.png",
             )
             fig_metrics.savefig(metrics_path)
             plt.close(fig_metrics)
@@ -787,7 +784,7 @@ class SimpleVisualizer:
             from matplotlib.backends.backend_pdf import PdfPages
 
             pdf_path = os.path.join(
-                save_dir, f"{self.tracker.strategy_name}_performance_report.pdf"
+                save_dir, f"{self.tracker.strategy_name}_performance_report.pdf",
             )
             logger.info(f"Saving combined performance report to {pdf_path}")
 
@@ -851,7 +848,7 @@ class SimpleVisualizer:
 if __name__ == "__main__":
     # Generate example data using our helper function
     tracker = generate_example_data(
-        strategy_name="ExampleStrategy", output_dir="./data", num_trades=30
+        strategy_name="ExampleStrategy", output_dir="./data", num_trades=30,
     )
 
     # Create visualizer

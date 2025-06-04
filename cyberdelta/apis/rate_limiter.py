@@ -8,8 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class TokenBucketRateLimiterRuntime:
-    """
-    Runtime/business logic for a token bucket rate limiter.
+    """Runtime/business logic for a token bucket rate limiter.
     This is NOT a Pydantic model. It manages async state and provides the acquire() method.
     Use from_pydantic() and to_pydantic() to bridge with the config/state model.
     """
@@ -29,14 +28,14 @@ class TokenBucketRateLimiterRuntime:
         self.is_ip_banned_until: float | None = None
 
     async def acquire(self, tokens_to_consume: int = 1) -> float:
-        """
-        Acquire tokens from the bucket.
+        """Acquire tokens from the bucket.
 
         Args:
             tokens_to_consume: Number of tokens to consume (default: 1)
 
         Returns:
             Time waited in seconds (0.0 if no wait was needed)
+
         """
         wait_time = 0.0
         async with self.lock:
@@ -49,7 +48,7 @@ class TokenBucketRateLimiterRuntime:
                     self.lock.release()
                     try:
                         logger.warning(
-                            f"IP ban active for rate limiter. Waiting {wait_time_for_ban:.2f}s."
+                            f"IP ban active for rate limiter. Waiting {wait_time_for_ban:.2f}s.",
                         )
                         await asyncio.sleep(wait_time_for_ban)
                         wait_time += wait_time_for_ban
@@ -84,11 +83,11 @@ class TokenBucketRateLimiterRuntime:
             return wait_time
 
     async def trigger_ip_ban(self, duration_seconds: float) -> None:
-        """
-        Trigger an IP ban for the specified duration.
+        """Trigger an IP ban for the specified duration.
 
         Args:
             duration_seconds: Duration of the IP ban in seconds.
+
         """
         async with self.lock:
             self.is_ip_banned_until = time.monotonic() + duration_seconds

@@ -161,7 +161,7 @@ async def main() -> None:
 
         # PortfolioTracker expects Config, PortfolioTrackerConfig, and SymbolMapper
         portfolio_tracker: PortfolioTracker = PortfolioTracker(
-            config, config.portfolio_tracker, symbol_mapper=symbol_mapper
+            config, config.portfolio_tracker, symbol_mapper=symbol_mapper,
         )
         app_state["portfolio_tracker"] = portfolio_tracker
 
@@ -365,12 +365,12 @@ async def main() -> None:
         # Start data streams and processing
         main_tasks.append(
             asyncio.create_task(
-                data_handler.start_connections(), name="DataHandler_start_connections"
-            )
+                data_handler.start_connections(), name="DataHandler_start_connections",
+            ),
         )
         # Start signal queue processing
         main_tasks.append(
-            asyncio.create_task(signal_queue.run(cancellation_token), name="SignalQueue_run")
+            asyncio.create_task(signal_queue.run(cancellation_token), name="SignalQueue_run"),
         )
         # Add other component run loops if needed
 
@@ -431,7 +431,7 @@ async def main() -> None:
             _, pending = await asyncio.wait(main_tasks, timeout=15.0)
             if pending:
                 logger.warning(
-                    f"{len(pending)} main tasks did not finish gracefully, cancelling..."
+                    f"{len(pending)} main tasks did not finish gracefully, cancelling...",
                 )
                 for task in pending:
                     task.cancel()

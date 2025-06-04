@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine models package: aggregates all core trading, API, and enum models for
+"""CyberDeltaEngine models package: aggregates all core trading, API, and enum models for
 convenient import.
 
 - Enums (OrderSide, OrderType, etc.) are only re-exported from .enums to avoid type conflicts.

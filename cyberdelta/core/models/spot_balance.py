@@ -1,5 +1,4 @@
-"""
-Portfolio Models for CyberDeltaEngine
+"""Portfolio Models for CyberDeltaEngine
 
 This module contains models representing the user's portfolio state, including balances,
 derivative positions, and margin account summaries. These are used for risk management,
@@ -48,7 +47,7 @@ class BackpackSpotBalanceDetails(BaseModel):
     @field_validator("open_order_quantity", "lend_quantity", "collateral_weight", mode="before")
     @classmethod
     def parse_optional_decimal_finite(
-        cls, v: str | int | float | Decimal | None, info: ValidationInfo
+        cls, v: str | int | float | Decimal | None, info: ValidationInfo,
     ) -> Decimal | None:
         """Parse optional decimal, allowing None but ensuring finite if present."""
         field_name = info.field_name
@@ -69,8 +68,7 @@ class BackpackSpotBalanceDetails(BaseModel):
 
 
 class SpotBalance(BaseModel):
-    """
-    Represents an immutable snapshot of a spot asset balance.
+    """Represents an immutable snapshot of a spot asset balance.
     Follows the "Core + Typed Extension Slots" pattern (Idea 5).
 
     Core Fields:
@@ -87,6 +85,7 @@ class SpotBalance(BaseModel):
     Notes:
         - IMMUTABLE (`frozen=True`).
         - Logic consistency (e.g., exchange vs. details slot) enforced by instantiation logic.
+
     """
 
     # --- Core Required Fields ---
@@ -115,7 +114,7 @@ class SpotBalance(BaseModel):
     @field_validator("timestamp", mode="before")
     @classmethod
     def parse_required_datetime_utc(
-        cls, v: str | int | float | datetime, info: ValidationInfo
+        cls, v: str | int | float | datetime, info: ValidationInfo,
     ) -> datetime:
         """Parse required datetime, ensuring UTC."""
         field_name = info.field_name
@@ -124,14 +123,14 @@ class SpotBalance(BaseModel):
         dt = parse_datetime_utc(v, field_name=field_name)
         if dt is None:
             raise ValueError(
-                f"{field_name}: Required datetime value parsed as None or was invalid."
+                f"{field_name}: Required datetime value parsed as None or was invalid.",
             )
         return dt
 
     @field_validator("total_quantity", "available_quantity", mode="before")
     @classmethod
     def parse_required_decimal_finite(
-        cls, v: str | int | float | Decimal, info: ValidationInfo
+        cls, v: str | int | float | Decimal, info: ValidationInfo,
     ) -> Decimal:
         """Parse required decimal, ensuring finite and non-negative via Field."""
         field_name = info.field_name

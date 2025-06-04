@@ -1,5 +1,4 @@
-"""
-Hyperliquid API Error Mapping
+"""Hyperliquid API Error Mapping
 -----------------------------
 
 Hyperliquid does NOT provide official error codes or enums. All errors are returned as
@@ -14,14 +13,14 @@ References:
     - https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/error-responses
     - https://github.com/hyperliquid-dex/hyperliquid-python-sdk/tree/master
     - https://docs.ccxt.com/#/exchanges/hyperliquid
+
 """
 
 from enum import Enum
 
 
 class HyperliquidAPIErrorCategory(Enum):
-    """
-    Known categories of Hyperliquid API errors (reverse-engineered, not official).
+    """Known categories of Hyperliquid API errors (reverse-engineered, not official).
     This enum is based on observed error messages and public documentation.
     It is NOT exhaustive or guaranteed stable—always handle unknown errors defensively.
     """

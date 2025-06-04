@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Raw Models (Frontend Open Orders)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Frontend Open Orders)
 ------------------------------------------------------------------
 
 Strict boundary validation models for the Hyperliquid 'frontendOpenOrders' info endpoint.
@@ -22,8 +21,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
 
 
 class HyperliquidRawFrontendOpenOrder(BaseModel):
-    """
-    Raw boundary model for a single open order with frontend-specific fields.
+    """Raw boundary model for a single open order with frontend-specific fields.
     """
 
     coin: RawAssetString64HL = Field(..., alias="coin")

@@ -1,5 +1,4 @@
-"""
-Unit Tests for Hyperliquid Raw Staking Info Models
+"""Unit Tests for Hyperliquid Raw Staking Info Models
 """
 
 from typing import Any

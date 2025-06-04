@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
-"""
-Secrets Manager for securely loading API keys and other sensitive information.
+"""Secrets Manager for securely loading API keys and other sensitive information.
 This module ensures secrets are stored outside the source code repository.
 """
 
@@ -24,8 +23,7 @@ class ConfigurationError(Exception):
 
 
 class SecretsManager:
-    """
-    Manages loading of secrets from secure location outside source tree.
+    """Manages loading of secrets from secure location outside source tree.
 
     This class ensures that sensitive information like API keys and credentials
     are loaded from a secure location outside the Git repository, reducing the
@@ -35,8 +33,7 @@ class SecretsManager:
     """
 
     def __init__(self, secrets_path: str | None = None) -> None:
-        """
-        Initialize the SecretsManager.
+        """Initialize the SecretsManager.
 
         Args:
             secrets_path: Optional path to the secrets file.
@@ -44,6 +41,7 @@ class SecretsManager:
 
         Raises:
             ConfigurationError: If secrets loading or validation fails.
+
         """
         self.secrets_data: SecretsConfig | None = None
         self.secrets_path = Path(secrets_path) if secrets_path else self._get_secrets_path()
@@ -52,12 +50,12 @@ class SecretsManager:
         self.load()
 
     def load(self) -> None:
-        """
-        Load secrets from the configured location and validate against SecretsConfig model.
+        """Load secrets from the configured location and validate against SecretsConfig model.
 
         Raises:
             ConfigurationError: If file is not found, YAML parsing fails,
                                or Pydantic validation fails.
+
         """
         # Check if secrets file exists
         if not self.secrets_path.exists():
@@ -73,7 +71,7 @@ class SecretsManager:
             if secrets_data_dict is None or not isinstance(secrets_data_dict, dict):
                 logger.critical(f"Invalid or empty content in secrets file: {self.secrets_path}")
                 raise ConfigurationError(
-                    f"Invalid or empty content in secrets file: {self.secrets_path}"
+                    f"Invalid or empty content in secrets file: {self.secrets_path}",
                 )
 
         except (yaml.YAMLError, OSError) as e:
@@ -88,20 +86,20 @@ class SecretsManager:
 
         except ValidationError as e:
             logger.critical(
-                f"Secrets validation failed for {self.secrets_path}: {e}", exc_info=True
+                f"Secrets validation failed for {self.secrets_path}: {e}", exc_info=True,
             )
             self.secrets_data = None
             self.secrets_loaded = False
             raise ConfigurationError(
-                f"Invalid secrets configuration in {self.secrets_path}: {e}"
+                f"Invalid secrets configuration in {self.secrets_path}: {e}",
             ) from e
 
     def _get_secrets_path(self) -> Path:
-        """
-        Get the path to the secrets file from environment variable or default location.
+        """Get the path to the secrets file from environment variable or default location.
 
         Returns:
             Path: The path to the secrets file
+
         """
         # Try environment variable first
         env_path_str = os.environ.get("CYBERDELTA_SECRETS_PATH")
@@ -116,11 +114,11 @@ class SecretsManager:
         return default_path
 
     def reload(self) -> None:
-        """
-        Reload secrets from file.
+        """Reload secrets from file.
 
         Raises:
             ConfigurationError: If reload fails.
+
         """
         self.secrets_data = None
         self.secrets_loaded = False

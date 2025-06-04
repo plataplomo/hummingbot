@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Raw Models (User Vault Equity)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (User Vault Equity)
 ---------------------------------------------------------------
 
 Strict boundary validation models for the Hyperliquid 'userVaultEquities' info endpoint.

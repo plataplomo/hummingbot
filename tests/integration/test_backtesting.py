@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
-"""
-Integration tests for the Backtesting Framework
+"""Integration tests for the Backtesting Framework
 Tests the integration of the backtesting framework with actual strategies
 """
 

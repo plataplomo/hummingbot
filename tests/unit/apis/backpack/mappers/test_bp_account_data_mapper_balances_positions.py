@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack Account Data Mapper Balance and Position Tests
+"""CyberDeltaEngine: Backpack Account Data Mapper Balance and Position Tests
 --------------------------------------------------------------------------
 
 Comprehensive test suite for BackpackAccountDataMapper balance and position methods.

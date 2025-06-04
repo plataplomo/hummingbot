@@ -35,21 +35,20 @@ logger = get_logger(__name__)
 
 
 def address_to_bytes(address: str) -> bytes:
-    """
-    Convert an Ethereum address string to bytes.
+    """Convert an Ethereum address string to bytes.
 
     Args:
         address: Ethereum address string (with or without 0x prefix)
 
     Returns:
         Address as bytes
+
     """
     return bytes.fromhex(address[2:] if address.startswith("0x") else address)
 
 
 class HyperliquidEip712Authenticator(IAuthenticator):
-    """
-    Authenticator for Hyperliquid API using EIP-712 Agent signatures.
+    """Authenticator for Hyperliquid API using EIP-712 Agent signatures.
     """
 
     def __init__(
@@ -91,7 +90,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 ):
                     raise ValueError(
                         "Hyperliquid private_key must be a 64-character hex string "
-                        "(with or without '0x' prefix)."
+                        "(with or without '0x' prefix).",
                     )
 
                 # Cryptographic validation using eth_account
@@ -99,12 +98,12 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                     self._account: LocalAccount = Account.from_key(processed_pk_str)
                 except Exception as e:
                     raise ValueError(
-                        f"Hyperliquid private_key is not cryptographically valid: {e}"
+                        f"Hyperliquid private_key is not cryptographically valid: {e}",
                     ) from e
 
             except ValueError as e:
                 self.logger.error(
-                    f"HyperliquidEip712Authenticator: Invalid private key: {e}", exc_info=True
+                    f"HyperliquidEip712Authenticator: Invalid private key: {e}", exc_info=True,
                 )
                 raise ValueError(f"Invalid private key: {e}") from e
 
@@ -118,7 +117,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                     if num_words not in (12, 24):
                         raise ValueError(
                             f"Hyperliquid passphrase must consist of 12 or 24 words, "
-                            f"got {num_words} words."
+                            f"got {num_words} words.",
                         )
 
                     # BIP-39 mnemonic validation
@@ -127,20 +126,20 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                         if not mnemonic_validator.check(phrase_str):
                             raise ValueError(
                                 "Hyperliquid passphrase is not a valid BIP-39 mnemonic "
-                                "(checksum or wordlist error)."
+                                "(checksum or wordlist error).",
                             )
                     except Exception as e:
                         # Handle any other exceptions from mnemonic validation
                         if "not a valid BIP-39 mnemonic" not in str(e):
                             raise ValueError(
                                 f"Error validating Hyperliquid passphrase with mnemonic "
-                                f"library: {e}"
+                                f"library: {e}",
                             ) from e
                         raise
 
                 except ValueError as e:
                     self.logger.error(
-                        f"HyperliquidEip712Authenticator: Invalid passphrase: {e}", exc_info=True
+                        f"HyperliquidEip712Authenticator: Invalid passphrase: {e}", exc_info=True,
                     )
                     raise ValueError(f"Invalid passphrase: {e}") from e
 
@@ -160,7 +159,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
         self.logger.info(
             f"HyperliquidEip712Authenticator initialized for address: {self.wallet_address} "
-            f"on chain_id: {self.chain_id}"
+            f"on chain_id: {self.chain_id}",
         )
 
         # Nonce strategy: use millisecond timestamp, ensuring strict increment if called rapidly.
@@ -200,8 +199,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         return self._chain_id
 
     async def _get_next_nonce_ms(self) -> int:
-        """
-        Atomically generates a strictly increasing millisecond timestamp nonce.
+        """Atomically generates a strictly increasing millisecond timestamp nonce.
         """
         async with self._nonce_lock:
             current_ms = int(time.time() * 1000)
@@ -212,8 +210,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             return self._last_nonce_ms
 
     def _clean_order_type_fields(self, data: dict[str, Any]) -> None:
-        """
-        Recursively clean None values from order type structures in JSON payload.
+        """Recursively clean None values from order type structures in JSON payload.
         This is specifically for Hyperliquid API which expects order types to have
         only the active field (limit OR market), not both with one as null.
         """
@@ -259,12 +256,12 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 self._lowercase_addresses_in_list(item)
 
     def _lowercase_addresses_in_payload(self, data: dict[str, Any]) -> None:
-        """
-        Recursively convert Ethereum addresses to lowercase in the payload.
+        """Recursively convert Ethereum addresses to lowercase in the payload.
         This ensures consistent hashing as addresses are case-sensitive in msgpack.
 
         Args:
             data: Dictionary to process (modified in place)
+
         """
         # Process all key-value pairs
         for key, value in data.items():
@@ -286,8 +283,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         data: dict[str, Any] | None,
         headers: Mapping[str, Any] | None,
     ) -> AuthenticatedRequestComponents:
-        """
-        Prepares and signs a Hyperliquid API request.
+        """Prepares and signs a Hyperliquid API request.
 
         For /exchange endpoint: Uses sign_l1_action scheme with msgpack-based action_hash
         and EIP-712 Agent signature in request body (no X-HL-* headers).
@@ -308,16 +304,17 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             APIError: If signing fails or account is not properly initialized.
             ValueError: If data requirements are not met.
             NotImplementedError: For non-/exchange paths.
+
         """
         if path == "/exchange":
             return await self._prepare_exchange_request(method, path, params, data, headers)
         else:
             self.logger.error(
                 f"HyperliquidEip712Authenticator: Signing for path {path} is not implemented. "
-                f"Only /exchange endpoint is currently supported."
+                f"Only /exchange endpoint is currently supported.",
             )
             raise NotImplementedError(
-                f"Signing for path {path} is not implemented. Only /exchange endpoint is supported."
+                f"Signing for path {path} is not implemented. Only /exchange endpoint is supported.",
             )
 
     async def _prepare_exchange_request(
@@ -328,8 +325,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         data: dict[str, Any] | None,
         headers: Mapping[str, Any] | None,
     ) -> AuthenticatedRequestComponents:
-        """
-        Prepares and signs a Hyperliquid /exchange request using sign_l1_action scheme.
+        """Prepares and signs a Hyperliquid /exchange request using sign_l1_action scheme.
 
         This implements the SDK's sign_l1_action flow:
         1. msgpack the action payload

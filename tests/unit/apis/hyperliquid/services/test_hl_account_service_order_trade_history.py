@@ -1,5 +1,4 @@
-"""
-Unit tests for HyperliquidAccountService order and trade history functionality.
+"""Unit tests for HyperliquidAccountService order and trade history functionality.
 """
 
 from datetime import UTC, datetime

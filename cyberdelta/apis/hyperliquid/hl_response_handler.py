@@ -1,5 +1,4 @@
-"""
-Response Handler for Hyperliquid API Raw Responses.
+"""Response Handler for Hyperliquid API Raw Responses.
 
 Validates raw JSON data against Pydantic models specific to Hyperliquid's API endpoints.
 """
@@ -64,8 +63,7 @@ type RawJsonResponse = RawJson
 
 
 class HyperliquidResponseHandler:
-    """
-    Handles validation of raw JSON responses from Hyperliquid REST API endpoints.
+    """Handles validation of raw JSON responses from Hyperliquid REST API endpoints.
 
     Uses Pydantic models defined in `cyberdelta.apis.hyperliquid.models` to validate
     the structure and types of the raw data. Raises APIError if validation fails.
@@ -105,7 +103,7 @@ class HyperliquidResponseHandler:
         if not isinstance(raw_response_content, list):
             logger.error(
                 f"Unexpected {context} format. "
-                f"Status: {status_code}, Headers: {headers}, Raw: {raw_response_content!r}"
+                f"Status: {status_code}, Headers: {headers}, Raw: {raw_response_content!r}",
             )
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "
@@ -173,7 +171,7 @@ class HyperliquidResponseHandler:
                 if not isinstance(raw_ctx_dict_from_api, dict):
                     logger.warning(
                         f"Skipping non-dict item in asset_ctxs_data at index {i}: "
-                        f"{raw_ctx_dict_from_api!r}"
+                        f"{raw_ctx_dict_from_api!r}",
                     )
                     continue
 
@@ -181,7 +179,7 @@ class HyperliquidResponseHandler:
                 if i >= len(meta_model.universe):
                     logger.warning(
                         f"Asset context at index {i} has no corresponding universe entry. "
-                        f"Universe has {len(meta_model.universe)} entries. Skipping."
+                        f"Universe has {len(meta_model.universe)} entries. Skipping.",
                     )
                     continue
 
@@ -209,17 +207,17 @@ class HyperliquidResponseHandler:
             # DO NOT call HyperliquidRawMetaAndAssetCtxsResponse.model_validate()
             # Instead, construct the response directly with the validated components
             return HyperliquidRawMetaAndAssetCtxsResponse(
-                meta=meta_model, asset_ctxs=validated_asset_ctxs
+                meta=meta_model, asset_ctxs=validated_asset_ctxs,
             )
 
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
-                e, context, raw_response_content, status_code, headers
+                e, context, raw_response_content, status_code, headers,
             ) from e
         except Exception as e_generic:  # Catch other exceptions like ValueError
             logger.error(
                 f"[{HyperliquidResponseHandler.__name__}] Unexpected generic error processing "
-                f"{context}: {e_generic}. Raw: {raw_response_content!r}"
+                f"{context}: {e_generic}. Raw: {raw_response_content!r}",
             )
             raise APIError(
                 message=f"Unexpected error processing {context}: {e_generic}",
@@ -230,7 +228,7 @@ class HyperliquidResponseHandler:
 
     @staticmethod
     def handle_info_user_state_response(
-        raw_response_content: RawJsonResponse, user_address: str
+        raw_response_content: RawJsonResponse, user_address: str,
     ) -> HyperliquidRawUserStateResponse:
         """Validates the /info response for user_state."""
         context = f"info (user state for {user_address})"
@@ -244,12 +242,12 @@ class HyperliquidResponseHandler:
             return HyperliquidRawUserStateResponse.model_validate(raw_response_content)
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
-                e, context, raw_response_content
+                e, context, raw_response_content,
             ) from e
 
     @staticmethod
     def handle_info_open_orders_response(
-        raw_response_content: RawJsonResponse, user_address: str
+        raw_response_content: RawJsonResponse, user_address: str,
     ) -> HyperliquidRawOpenOrdersResponse:
         """Validates the /info response for open_orders."""
         context = f"info (open orders for {user_address})"
@@ -263,12 +261,12 @@ class HyperliquidResponseHandler:
             return HyperliquidRawOpenOrdersResponse.model_validate(raw_response_content)
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
-                e, context, raw_response_content
+                e, context, raw_response_content,
             ) from e
 
     @staticmethod
     def handle_info_user_fills_response(
-        raw_response_content: RawJsonResponse, user_address: str
+        raw_response_content: RawJsonResponse, user_address: str,
     ) -> HyperliquidRawUserFillsResponse:
         """Validates the /info response for user_fills."""
         context = f"info (user fills for {user_address})"
@@ -282,12 +280,12 @@ class HyperliquidResponseHandler:
             return HyperliquidRawUserFillsResponse.model_validate(raw_response_content)
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
-                e, context, raw_response_content
+                e, context, raw_response_content,
             ) from e
 
     @staticmethod
     def handle_info_funding_rate_response(
-        raw_response_content: RawJsonResponse, symbol: str
+        raw_response_content: RawJsonResponse, symbol: str,
     ) -> HyperliquidRawAssetCtx:
         """Validates the /info response for funding rate (per symbol)."""
         context = f"info (funding rate for {symbol})"
@@ -301,12 +299,12 @@ class HyperliquidResponseHandler:
             return HyperliquidRawAssetCtx.model_validate(raw_response_content)
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
-                e, context, raw_response_content
+                e, context, raw_response_content,
             ) from e
         except AttributeError:
             logger.error(
                 f"Model HyperliquidRawAssetCtx appears incomplete or unavailable for {context}. "
-                "Validation skipped."
+                "Validation skipped.",
             )
             raise APIError(
                 message=f"Asset context model (for funding rate) not fully available for {context}",
@@ -325,7 +323,7 @@ class HyperliquidResponseHandler:
         if not isinstance(raw_response_content, dict):
             logger.error(
                 f"Unexpected {context} format for {symbol}. "
-                f"Status: {status_code}, Headers: {headers}, Raw: {raw_response_content!r}"
+                f"Status: {status_code}, Headers: {headers}, Raw: {raw_response_content!r}",
             )
             raise APIError(
                 message=f"Unexpected {context} response format: expected dict, "
@@ -337,7 +335,7 @@ class HyperliquidResponseHandler:
             return HyperliquidRawOrderBookResponse.model_validate(raw_response_content)
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
-                e, context, raw_response_content, status_code, headers
+                e, context, raw_response_content, status_code, headers,
             ) from e
 
     @staticmethod
@@ -352,7 +350,7 @@ class HyperliquidResponseHandler:
         if not isinstance(raw_response_content, list):
             logger.error(
                 f"Unexpected {context} format for {symbol}. "
-                f"Status: {status_code}, Headers: {headers}, Raw: {raw_response_content!r}"
+                f"Status: {status_code}, Headers: {headers}, Raw: {raw_response_content!r}",
             )
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "
@@ -365,7 +363,7 @@ class HyperliquidResponseHandler:
         for i, item in enumerate(raw_response_content):
             if not isinstance(item, dict):
                 logger.warning(
-                    f"Skipping non-dict item at index {i} in {context} for {symbol}. Item: {item!r}"
+                    f"Skipping non-dict item at index {i} in {context} for {symbol}. Item: {item!r}",
                 )
                 continue  # Skip non-dict items
 
@@ -377,7 +375,7 @@ class HyperliquidResponseHandler:
                     f"[HyperliquidResponseHandler] Pydantic validation failed "
                     f"for trade item at index {i} "
                     f"in {context}: {e}. "
-                    f"Status: {status_code}. Headers: {headers}. Raw data: {item!r}"
+                    f"Status: {status_code}. Headers: {headers}. Raw data: {item!r}",
                 )
                 # Make the error message more generic to match test expectations
                 error_message = (
@@ -395,7 +393,7 @@ class HyperliquidResponseHandler:
                     f"[HyperliquidResponseHandler] Unexpected error validating "
                     f"trade item at index {i} "
                     f"in {context}: {e}. "
-                    f"Status: {status_code}. Headers: {headers}. Raw data: {item!r}"
+                    f"Status: {status_code}. Headers: {headers}. Raw data: {item!r}",
                 )
                 raise APIError(
                     message=(
@@ -420,7 +418,7 @@ class HyperliquidResponseHandler:
         if not isinstance(raw_response_content, dict):
             logger.error(
                 f"Unexpected {context} format for {symbol} {interval}. "
-                f"Status: {status_code}, Headers: {headers}, Raw: {raw_response_content!r}"
+                f"Status: {status_code}, Headers: {headers}, Raw: {raw_response_content!r}",
             )
             raise APIError(
                 message=f"Unexpected {context} response format: expected dict, "
@@ -432,12 +430,12 @@ class HyperliquidResponseHandler:
             return HyperliquidRawCandleSnapshot.model_validate(raw_response_content)
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
-                e, context, raw_response_content, status_code, headers
+                e, context, raw_response_content, status_code, headers,
             ) from e
 
     @staticmethod
     def handle_info_order_status_response(
-        raw_response_content: RawJsonResponse, user_address: str, order_id: int
+        raw_response_content: RawJsonResponse, user_address: str, order_id: int,
     ) -> HyperliquidRawHistoricalOrderResponse:
         """Validates the /info response for order_status."""
         context = f"info (OrderStatus for user {user_address}, oid {order_id})"
@@ -462,7 +460,7 @@ class HyperliquidResponseHandler:
                 try:
                     # Attempt to validate directly if it's a dict that matches the model
                     return HyperliquidRawHistoricalOrderResponse.model_validate(
-                        raw_response_content
+                        raw_response_content,
                     )
                 except ValidationError:
                     # If direct dict validation fails, it could be an unhandled error structure
@@ -503,7 +501,7 @@ class HyperliquidResponseHandler:
                     )
                 else:
                     logger.warning(
-                        f"{context}: Unexpected string content in list: '{status_item}'."
+                        f"{context}: Unexpected string content in list: '{status_item}'.",
                     )
                     raise APIError(
                         message=f"Unexpected string content in {context} response: {status_item}",
@@ -526,7 +524,7 @@ class HyperliquidResponseHandler:
                 return HyperliquidRawHistoricalOrderResponse.model_validate(status_item)
             except ValidationError as e:
                 raise HyperliquidResponseHandler._handle_validation_error(
-                    e, f"order status object in {context}", status_item
+                    e, f"order status object in {context}", status_item,
                 ) from e
 
         # Fallback if raw_response_content was a dict but didn't validate directly and wasn't a list
@@ -537,7 +535,7 @@ class HyperliquidResponseHandler:
             return HyperliquidRawHistoricalOrderResponse.model_validate(raw_response_content)
         except ValidationError as e_final_dict:
             raise HyperliquidResponseHandler._handle_validation_error(
-                e_final_dict, f"order status object in {context}", raw_response_content
+                e_final_dict, f"order status object in {context}", raw_response_content,
             ) from e_final_dict
 
         # Should not be reached if logic above is complete for list/dict
@@ -568,12 +566,12 @@ class HyperliquidResponseHandler:
                 validated_ctxs.append(HyperliquidRawAssetCtx.model_validate(item))
             except ValidationError as e:
                 raise HyperliquidResponseHandler._handle_validation_error(
-                    e, f"single spot asset context item in {context}", item
+                    e, f"single spot asset context item in {context}", item,
                 ) from e
             except AttributeError:
                 logger.error(
                     f"Model HyperliquidRawAssetCtx appears incomplete or unavailable for "
-                    f"{context} items. Validation skipped."
+                    f"{context} items. Validation skipped.",
                 )
                 raise APIError(
                     message=f"Spot asset context model item not fully available for {context}",
@@ -583,7 +581,7 @@ class HyperliquidResponseHandler:
 
     @staticmethod
     def handle_info_vault_details_response(
-        raw_response_content: RawJsonResponse, user_address: str
+        raw_response_content: RawJsonResponse, user_address: str,
     ) -> HyperliquidRawVaultDetailsResponse:
         """Validates the /info response for vault details."""
         context = f"info (VaultDetails for {user_address})"
@@ -597,12 +595,12 @@ class HyperliquidResponseHandler:
             return HyperliquidRawVaultDetailsResponse.model_validate(raw_response_content)
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
-                e, context, raw_response_content
+                e, context, raw_response_content,
             ) from e
         except AttributeError:
             logger.error(
                 f"Placeholder or missing model for HyperliquidRawVaultDetailsResponse used for "
-                f"{context}. Validation skipped."
+                f"{context}. Validation skipped.",
             )
             raise APIError(
                 message=f"Vault details model not fully available for {context}",
@@ -611,7 +609,7 @@ class HyperliquidResponseHandler:
 
     @staticmethod
     def handle_exchange_response(
-        raw_response_content: RawJsonResponse, action_type: str
+        raw_response_content: RawJsonResponse, action_type: str,
     ) -> HyperliquidRawExchangeResponse:
         """Validates the /exchange response (for actions like order, cancel, withdraw)."""
         context = f"exchange ({action_type})"
@@ -626,7 +624,7 @@ class HyperliquidResponseHandler:
         except ValidationError as e:
             logger.warning(f"Initial validation of {context} failed. Raw: {raw_response_content!r}")
             raise HyperliquidResponseHandler._handle_validation_error(
-                e, context, raw_response_content
+                e, context, raw_response_content,
             ) from e
 
     @staticmethod
@@ -634,8 +632,7 @@ class HyperliquidResponseHandler:
         first_status_raw: RawJsonPrim | RawJson,
         action_description: str,
     ) -> HyperliquidSuccessfulOrderStatus | HyperliquidErrorStatus:
-        """
-        Processes the first status item from an /exchange endpoint response.
+        """Processes the first status item from an /exchange endpoint response.
 
         Args:
             first_status_raw: The raw status item (dict or string).
@@ -646,6 +643,7 @@ class HyperliquidResponseHandler:
 
         Raises:
             APIError: If the status structure is unknown or invalid.
+
         """
         if isinstance(first_status_raw, dict):
             if "resting" in first_status_raw and isinstance(first_status_raw["resting"], dict):
@@ -694,7 +692,7 @@ class HyperliquidResponseHandler:
                     )
 
                 return HyperliquidSuccessfulOrderStatus(
-                    status_type="filled", oid=oid_raw, total_sz=total_sz_raw, avg_px=avg_px_raw
+                    status_type="filled", oid=oid_raw, total_sz=total_sz_raw, avg_px=avg_px_raw,
                 )
 
             if "canceled" in first_status_raw and isinstance(first_status_raw["canceled"], dict):
@@ -727,7 +725,7 @@ class HyperliquidResponseHandler:
             # that isn't wrapped in an {"error": ...} object.
             logger.warning(
                 f"Encountered direct string status for {action_description}: '{first_status_raw}'. "
-                f"Treating as error."
+                f"Treating as error.",
             )
             return HyperliquidErrorStatus(message=first_status_raw)
 
@@ -742,7 +740,7 @@ class HyperliquidResponseHandler:
 
     @staticmethod
     def handle_query_order_history_response(
-        raw_response_content: RawJsonResponse, user_address: str
+        raw_response_content: RawJsonResponse, user_address: str,
     ) -> list[HyperliquidRawHistoricalOrderResponse]:
         """Validates the /query_order_history response."""
         context = f"query_order_history (for {user_address})"
@@ -756,7 +754,7 @@ class HyperliquidResponseHandler:
         for item_index, item in enumerate(raw_response_content):
             if not isinstance(item, dict):
                 logger.warning(
-                    f"Skipping non-dict item in {context} list at index {item_index}: {item!r}"
+                    f"Skipping non-dict item in {context} list at index {item_index}: {item!r}",
                 )
                 continue
             try:
@@ -797,7 +795,7 @@ class HyperliquidResponseHandler:
                 )
                 logger.error(
                     f"[HyperliquidResponseHandler] {error_message}. "
-                    f"Raw item: {item_raw!r}. Full raw response: {raw_response_content!r}"
+                    f"Raw item: {item_raw!r}. Full raw response: {raw_response_content!r}",
                 )
                 raise APIError(
                     message=error_message,
@@ -814,7 +812,7 @@ class HyperliquidResponseHandler:
                 )
                 logger.error(
                     f"{error_message} Full raw response: {raw_response_content!r}. "
-                    f"Raw item: {item_raw!r}"
+                    f"Raw item: {item_raw!r}",
                 )
                 raise APIError(
                     message=error_message,

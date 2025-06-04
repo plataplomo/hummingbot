@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Common Raw Pydantic Types
+"""CyberDeltaEngine: Hyperliquid API Common Raw Pydantic Types
 -----------------------------------------------------------
 
 This module provides reusable Pydantic `Annotated` types for common raw data patterns
@@ -54,7 +53,7 @@ def _wrap_validate_general_str(
 
 
 def _wrap_validate_finite_decimal_str(
-    v: object, handler: Callable[[object], str], info: ValidationInfo
+    v: object, handler: Callable[[object], str], info: ValidationInfo,
 ) -> str:
     """Wrapper for validating strings that must represent finite decimal numbers."""
     field_name = info.field_name or "finite_decimal_str_field"
@@ -68,10 +67,9 @@ def _wrap_validate_finite_decimal_str(
 
 
 def _wrap_validate_lax_eth_address_str(
-    v: object, handler: Callable[[object], str], info: ValidationInfo
+    v: object, handler: Callable[[object], str], info: ValidationInfo,
 ) -> str:
-    """
-    Wrapper for validating Ethereum-like address strings (0x-prefixed, <=42 chars).
+    """Wrapper for validating Ethereum-like address strings (0x-prefixed, <=42 chars).
     NOTE: Relaxed validation based on test data mandate. Does NOT enforce hex or exact length 42.
     Used for addresses received from API responses.
     Now includes a min_length check to catch overly short invalid addresses.
@@ -87,7 +85,7 @@ def _wrap_validate_lax_eth_address_str(
     MIN_LEN = 8
     if len(s) < MIN_LEN:
         raise ValueError(
-            f"{field_name}: String value too short (min {MIN_LEN} chars, got {len(s)})."
+            f"{field_name}: String value too short (min {MIN_LEN} chars, got {len(s)}).",
         )
 
     if not s.startswith("0x"):
@@ -97,16 +95,15 @@ def _wrap_validate_lax_eth_address_str(
 
 
 def _wrap_validate_strict_eth_address_str(
-    v: object, handler: Callable[[object], str], info: ValidationInfo
+    v: object, handler: Callable[[object], str], info: ValidationInfo,
 ) -> str:
-    """
-    Wrapper for validating STRICT Ethereum address strings.
+    """Wrapper for validating STRICT Ethereum address strings.
     Must be 0x-prefixed, exactly 42 characters, and valid hexadecimal.
     Used for addresses provided as user input (e.g., in request payloads).
     """
     field_name = info.field_name or "strict_eth_address_field"
     s = validate_str_field(
-        v, field_name=field_name, max_length=42, allow_empty=False
+        v, field_name=field_name, max_length=42, allow_empty=False,
     )  # Max length check is okay here
     if not s.startswith("0x"):
         raise ValueError(f"{field_name}: Must start with '0x'.")
@@ -116,13 +113,13 @@ def _wrap_validate_strict_eth_address_str(
         int(s, 16)  # Check if it's a valid hex string
     except ValueError:
         raise ValueError(
-            f"{field_name}: Must be a valid 0x-prefixed hexadecimal string of length 42."
+            f"{field_name}: Must be a valid 0x-prefixed hexadecimal string of length 42.",
         ) from None
     return handler(s)
 
 
 def _wrap_validate_tx_hash_str(
-    v: object, handler: Callable[[object], str], info: ValidationInfo
+    v: object, handler: Callable[[object], str], info: ValidationInfo,
 ) -> str:
     """Wrapper for validating transaction hash strings (0x-prefixed, 66 chars, hex)."""
     field_name = info.field_name or "tx_hash_field"
@@ -138,14 +135,14 @@ def _wrap_validate_tx_hash_str(
     if len(s) != 66:
         raise ValueError(
             f"{field_name}: Must be exactly 66 characters long. "
-            f"Actual length: {len(s)}. Value: '{s}'"
+            f"Actual length: {len(s)}. Value: '{s}'",
         )
 
     # Step 4: Check if the part after "0x" is valid hexadecimal
     hex_part = s[2:]
     if not all(c in "0123456789abcdefABCDEF" for c in hex_part):
         raise ValueError(
-            f"{field_name}: Contains non-hexadecimal characters after '0x'. Value: '{s}'"
+            f"{field_name}: Contains non-hexadecimal characters after '0x'. Value: '{s}'",
         )
 
     return handler(s)
@@ -159,8 +156,7 @@ def _wrap_validate_raw_int(
     field_name_default: str,
     allow_negative: bool = False,
 ) -> int:
-    """
-    Validates that the input is an integer and optionally non-negative.
+    """Validates that the input is an integer and optionally non-negative.
 
     This is a `mode='before'` validator.
     Ensures the raw input is strictly `int` type (no coercion from str/float).
@@ -190,10 +186,9 @@ def _wrap_validate_raw_int(
 
 
 def _wrap_validate_strict_bool(
-    v: object, handler: Callable[[object], bool], info: ValidationInfo
+    v: object, handler: Callable[[object], bool], info: ValidationInfo,
 ) -> bool:
-    """
-    Wrapper for validating booleans. Must be actual booleans.
+    """Wrapper for validating booleans. Must be actual booleans.
     Adheres to RULE-ARCH-MODEL-DESIGN-V2 (Raw Models: Booleans: Check isinstance(v, bool).
     Reject string coercion).
     """
@@ -236,7 +231,7 @@ def _wrap_validate_enum_str(
 
 
 def _wrap_validate_positive_finite_decimal_str(
-    v: object, handler: Callable[[object], str], info: ValidationInfo
+    v: object, handler: Callable[[object], str], info: ValidationInfo,
 ) -> str:
     """Wrapper for validating strings that must represent positive finite decimal numbers."""
     field_name = info.field_name or "positive_finite_decimal_str_field"
@@ -250,7 +245,7 @@ def _wrap_validate_positive_finite_decimal_str(
 
 
 def _wrap_validate_non_negative_finite_decimal_str(
-    v: object, handler: Callable[[object], str], info: ValidationInfo
+    v: object, handler: Callable[[object], str], info: ValidationInfo,
 ) -> str:
     """Wrapper for validating strings that must represent non-negative finite decimal numbers."""
     field_name = info.field_name or "non_negative_finite_decimal_str_field"
@@ -288,7 +283,7 @@ def validate_and_parse_raw_non_negative_int(raw_val: object, field_name: str) ->
     else:
         raise ValueError(
             f"{field_name}: Expected an integer or an integer-like string, "
-            f"got {type(raw_val).__name__}"
+            f"got {type(raw_val).__name__}",
         )
 
     if val_int < 0:
@@ -298,7 +293,7 @@ def validate_and_parse_raw_non_negative_int(raw_val: object, field_name: str) ->
 
 
 def validate_and_return_finite_decimal_str(
-    raw_val: object, field_name: str, max_len: int = 64
+    raw_val: object, field_name: str, max_len: int = 64,
 ) -> str:
     """Validates raw input as a non-empty string representing a finite decimal."""
     # Use existing validate_str_field for initial string validation
@@ -336,8 +331,8 @@ RawTimestampMsInt = Annotated[
     int,
     WrapValidator(
         lambda v, h, i: _wrap_validate_raw_int(
-            v, h, i, field_name_default="timestamp_ms_field", allow_negative=False
-        )
+            v, h, i, field_name_default="timestamp_ms_field", allow_negative=False,
+        ),
     ),
 ]
 """A raw integer type for timestamps (ms), non-negative, can parse from string."""
@@ -346,8 +341,8 @@ RawNonNegativeInt = Annotated[
     int,
     WrapValidator(
         lambda v, h, i: _wrap_validate_raw_int(
-            v, h, i, field_name_default="non_negative_int_field", allow_negative=False
-        )
+            v, h, i, field_name_default="non_negative_int_field", allow_negative=False,
+        ),
     ),
 ]
 """A raw integer type that must be non-negative, can parse from string."""
@@ -356,8 +351,8 @@ RawInt = Annotated[
     int,
     WrapValidator(
         lambda v, h, i: _wrap_validate_raw_int(
-            v, h, i, field_name_default="int_field", allow_negative=True
-        )
+            v, h, i, field_name_default="int_field", allow_negative=True,
+        ),
     ),
 ]
 """A raw integer type, allows negatives, can parse from string."""
@@ -373,8 +368,8 @@ RawDefaultString = Annotated[
     str,
     WrapValidator(
         lambda v, h, i: _wrap_validate_general_str(
-            v, h, i, field_name_default="string_field", max_length=128, allow_empty=False
-        )
+            v, h, i, field_name_default="string_field", max_length=128, allow_empty=False,
+        ),
     ),
 ]
 """A generic raw string, non-empty, with a default max length of 128."""
@@ -389,7 +384,7 @@ RawOptionalString = Annotated[
             field_name_default="optional_string_field",
             max_length=128,
             allow_empty=True,
-        )
+        ),
     ),
 ]
 """An optional raw string. If present, validated with max_length 128. Can be None."""
@@ -406,8 +401,8 @@ RawSideStr = Annotated[
     str,
     WrapValidator(
         lambda v, h, i: _wrap_validate_enum_str(
-            v, h, i, field_name_default="side_field", allowed_values={"B", "A"}
-        )
+            v, h, i, field_name_default="side_field", allowed_values={"B", "A"},
+        ),
     ),
 ]
 """A raw string representing an order side, must be 'B' (Buy) or 'A' (Ask/Sell)."""
@@ -417,8 +412,8 @@ RawTpslStr = Annotated[
     str,
     WrapValidator(
         lambda v, h, i: _wrap_validate_enum_str(
-            v, h, i, field_name_default="tpsl_field", allowed_values={"tp", "sl"}
-        )
+            v, h, i, field_name_default="tpsl_field", allowed_values={"tp", "sl"},
+        ),
     ),
 ]
 """A raw string representing a trigger type, must be 'tp' or 'sl'."""
@@ -428,8 +423,8 @@ RawTifStr = Annotated[
     str,
     WrapValidator(
         lambda v, h, i: _wrap_validate_enum_str(
-            v, h, i, field_name_default="tif_field", allowed_values={"Gtc", "Ioc", "Alo"}
-        )
+            v, h, i, field_name_default="tif_field", allowed_values={"Gtc", "Ioc", "Alo"},
+        ),
     ),
 ]
 """A raw string representing Time-In-Force, must be 'Gtc', 'Ioc', or 'Alo'."""
@@ -439,8 +434,8 @@ RawAssetString64HL = Annotated[
     str,
     WrapValidator(
         lambda v, h, i: _wrap_validate_general_str(
-            v, h, i, field_name_default="asset_field_hl", max_length=64, allow_empty=False
-        )
+            v, h, i, field_name_default="asset_field_hl", max_length=64, allow_empty=False,
+        ),
     ),
 ]
 """A raw string for Hyperliquid asset names, non-empty, max_length=64."""
@@ -449,8 +444,8 @@ RawCloidString64HL = Annotated[
     str,
     WrapValidator(
         lambda v, h, i: _wrap_validate_general_str(
-            v, h, i, field_name_default="cloid_field_hl", max_length=64, allow_empty=False
-        )
+            v, h, i, field_name_default="cloid_field_hl", max_length=64, allow_empty=False,
+        ),
     ),
 ]
 """A raw string for Hyperliquid client order IDs (when required), non-empty, max_length=64."""
@@ -467,7 +462,7 @@ RawOptionalNonEmptyString64HL = Annotated[
             allow_empty=False,  # If present, it must not be empty
         )
         if v is not None
-        else h(v)
+        else h(v),
     ),
 ]
 """
@@ -500,7 +495,7 @@ def _validate_optional_non_empty_str128(v: object, info: ValidationInfo) -> str 
 
 
 RawOptionalNonEmptyString128HL = Annotated[
-    str | None, BeforeValidator(_validate_optional_non_empty_str128)
+    str | None, BeforeValidator(_validate_optional_non_empty_str128),
 ]
 """
 An optional raw string. If present, it must be non-empty and adhere to max_length=128.
@@ -533,7 +528,7 @@ def _validate_optional_non_empty_str1024(v: object, info: ValidationInfo) -> str
 
 # Define the new type
 RawOptionalNonEmptyString1024HL = Annotated[
-    str | None, BeforeValidator(_validate_optional_non_empty_str1024)
+    str | None, BeforeValidator(_validate_optional_non_empty_str1024),
 ]
 """
 Optional string, max 1024 chars. If present, must be non-empty.
@@ -564,7 +559,7 @@ def _validate_hl_candle_status_string(v: object, info: ValidationInfo) -> str:
     # validate_str_field will be called effectively with that max_length by Pydantic.
     # The primary role here is the custom empty/whitespace message.
     return validate_str_field(
-        v, field_name=field_name_for_error, max_length=None, allow_empty=False
+        v, field_name=field_name_for_error, max_length=None, allow_empty=False,
     )
 
 
@@ -581,8 +576,8 @@ RawOrderStatusHL = Annotated[
     str,  # Base type
     WrapValidator(
         lambda v, h, i: _wrap_validate_enum_str(
-            v, h, i, field_name_default="order_status", allowed_values=_ALLOWED_ORDER_STATUSES_HL
-        )
+            v, h, i, field_name_default="order_status", allowed_values=_ALLOWED_ORDER_STATUSES_HL,
+        ),
     ),
 ]
 
@@ -597,12 +592,12 @@ RawHistoricalOrderStatusHL = Annotated[
             i,
             field_name_default="historical_order_status",
             allowed_values=_ALLOWED_HISTORICAL_ORDER_STATUSES_HL,
-        )
+        ),
     ),
 ]
 
 RawPositiveFiniteDecimalStr = Annotated[
-    str, WrapValidator(_wrap_validate_positive_finite_decimal_str)
+    str, WrapValidator(_wrap_validate_positive_finite_decimal_str),
 ]
 """
 A raw string type that must represent a positive (GT 0) finite decimal number.
@@ -610,7 +605,7 @@ Retains string form.
 """
 
 RawNonNegativeFiniteDecimalStr = Annotated[
-    str, WrapValidator(_wrap_validate_non_negative_finite_decimal_str)
+    str, WrapValidator(_wrap_validate_non_negative_finite_decimal_str),
 ]
 """
 A raw string type that must represent a non-negative (>= 0) finite decimal number.
@@ -627,7 +622,7 @@ RawApiErrorStringHL = Annotated[
             field_name_default="api_error_string_hl",
             max_length=1024,  # Specific max_length for API errors
             allow_empty=False,
-        )
+        ),
     ),
 ]
 """A raw string for Hyperliquid API error messages, non-empty, max_length=1024."""
@@ -636,8 +631,8 @@ RawTradeHashStringHL = Annotated[
     str,
     WrapValidator(
         lambda v, h, i: _wrap_validate_general_str(
-            v, h, i, field_name_default="trade_hash_field_hl", max_length=66, allow_empty=False
-        )
+            v, h, i, field_name_default="trade_hash_field_hl", max_length=66, allow_empty=False,
+        ),
     ),
 ]
 """A raw string for Hyperliquid trade hashes, non-empty, max_length=66."""
@@ -646,8 +641,8 @@ RawTimeframeString = Annotated[
     str,
     WrapValidator(
         lambda v, h, i: _wrap_validate_general_str(
-            v, h, i, field_name_default="timeframe_field", max_length=32, allow_empty=False
-        )
+            v, h, i, field_name_default="timeframe_field", max_length=32, allow_empty=False,
+        ),
     ),
 ]
 """A raw string for timeframe identifiers (e.g., '1h', '1d'), non-empty, max_length=32."""
@@ -662,7 +657,7 @@ RawUserRoleString = Annotated[
             i,
             field_name_default="user_role_field",
             allowed_values=_KNOWN_USER_ROLES,
-        )
+        ),
     ),
 ]
 """A raw string representing a user role, must be one of {_KNOWN_USER_ROLES}."""
@@ -677,7 +672,7 @@ RawLeverageTypeString = Annotated[
             i,
             field_name_default="leverage_type_field",
             allowed_values=_KNOWN_LEVERAGE_TYPES,
-        )
+        ),
     ),
 ]
 """A raw string representing a leverage type, must be one of {_KNOWN_LEVERAGE_TYPES}."""
@@ -694,7 +689,7 @@ RawStatusStringHL = Annotated[
             allowed=KNOWN_EXCHANGE_STATUS_STRINGS,
             field_name=(i.field_name or "status_string_hl"),
             max_length=32,  # Match RawDefaultString max_length used before
-        )
+        ),
         # We don't call handler `h` here because validate_enum_field already returns
         # the validated string `s`. If we wrapped RawDefaultString first,
         # we would call h(validated_enum_string).
@@ -715,7 +710,7 @@ def _validate_timestamp_ms(value: int | str | float) -> int:
 
 # Raw string type that must be parsable to a finite Decimal
 RawHlParsableFiniteDecimalString = Annotated[
-    str, AfterValidator(check_str_parsable_to_finite_decimal)
+    str, AfterValidator(check_str_parsable_to_finite_decimal),
 ]
 
 # Raw integer type representing a millisecond timestamp

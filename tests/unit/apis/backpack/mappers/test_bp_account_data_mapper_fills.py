@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack Account Data Mapper Fill Tests
+"""CyberDeltaEngine: Backpack Account Data Mapper Fill Tests
 --------------------------------------------------------
 
 Comprehensive test suite for BackpackAccountDataMapper fill and trade transformation methods.

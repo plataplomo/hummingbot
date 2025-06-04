@@ -1,5 +1,4 @@
-"""
-Monitoring module initialization.
+"""Monitoring module initialization.
 
 This module provides tools for monitoring trading system performance,
 including a real-time dashboard and performance tracking.

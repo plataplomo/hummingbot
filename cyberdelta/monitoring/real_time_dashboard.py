@@ -1,5 +1,4 @@
-"""
-Real-Time Monitoring Dashboard for CyberDeltaEngine.
+"""Real-Time Monitoring Dashboard for CyberDeltaEngine.
 
 This module provides a web-based dashboard for real-time monitoring of
 strategy performance using Dash and Plotly for visualization.
@@ -29,8 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 class RealTimeDashboard:
-    """
-    Real-time dashboard for monitoring strategy performance.
+    """Real-time dashboard for monitoring strategy performance.
 
     This class creates and manages a Dash application that displays real-time
     performance metrics for running strategies.
@@ -45,8 +43,7 @@ class RealTimeDashboard:
         port: int = 8050,
         debug: bool = False,
     ) -> None:
-        """
-        Initialize the dashboard.
+        """Initialize the dashboard.
 
         Args:
             performance_tracker: Tracker containing performance data
@@ -55,6 +52,7 @@ class RealTimeDashboard:
             host: Host address to run the dashboard on
             port: Port to run the dashboard on
             debug: Whether to run in debug mode
+
         """
         self.performance_tracker = performance_tracker
         self.portfolio_tracker = portfolio_tracker
@@ -65,7 +63,7 @@ class RealTimeDashboard:
 
         # Initialize visualization components
         self.visualizer = PerformanceVisualizer(
-            config=VisualizationConfig(theme="dark", template="plotly_dark")
+            config=VisualizationConfig(theme="dark", template="plotly_dark"),
         )
         self.metrics_calculator = PerformanceMetricsCalculator()
 
@@ -100,8 +98,8 @@ class RealTimeDashboard:
                                 ),
                             ],
                             width=12,
-                        )
-                    ]
+                        ),
+                    ],
                 ),
                 dbc.Row(
                     [
@@ -146,14 +144,14 @@ class RealTimeDashboard:
                                                     value="1d",
                                                     inline=True,
                                                 ),
-                                            ]
+                                            ],
                                         ),
-                                    ]
+                                    ],
                                 ),
                             ],
                             width=12,
                         ),
-                    ]
+                    ],
                 ),
                 dbc.Row(
                     [
@@ -168,15 +166,15 @@ class RealTimeDashboard:
                                                     id="performance-overview",
                                                     style={"height": "400px"},
                                                 ),
-                                            ]
+                                            ],
                                         ),
-                                    ]
+                                    ],
                                 ),
                             ],
                             width=12,
                             className="mt-4",
                         ),
-                    ]
+                    ],
                 ),
                 dbc.Row(
                     [
@@ -191,9 +189,9 @@ class RealTimeDashboard:
                                                     id="drawdown-chart",
                                                     style={"height": "300px"},
                                                 ),
-                                            ]
+                                            ],
                                         ),
-                                    ]
+                                    ],
                                 ),
                             ],
                             width=6,
@@ -210,15 +208,15 @@ class RealTimeDashboard:
                                                     id="pnl-distribution",
                                                     style={"height": "300px"},
                                                 ),
-                                            ]
+                                            ],
                                         ),
-                                    ]
+                                    ],
                                 ),
                             ],
                             width=6,
                             className="mt-4",
                         ),
-                    ]
+                    ],
                 ),
                 dbc.Row(
                     [
@@ -233,9 +231,9 @@ class RealTimeDashboard:
                                                     id="trade-analysis",
                                                     style={"height": "400px"},
                                                 ),
-                                            ]
+                                            ],
                                         ),
-                                    ]
+                                    ],
                                 ),
                             ],
                             width=6,
@@ -252,15 +250,15 @@ class RealTimeDashboard:
                                                     id="funding-rate-heatmap",
                                                     style={"height": "400px"},
                                                 ),
-                                            ]
+                                            ],
                                         ),
-                                    ]
+                                    ],
                                 ),
                             ],
                             width=6,
                             className="mt-4",
                         ),
-                    ]
+                    ],
                 ),
                 dbc.Row(
                     [
@@ -270,13 +268,13 @@ class RealTimeDashboard:
                                     [
                                         dbc.CardHeader("Key Performance Metrics"),
                                         dbc.CardBody(id="performance-metrics-table"),
-                                    ]
+                                    ],
                                 ),
                             ],
                             width=12,
                             className="mt-4",
                         ),
-                    ]
+                    ],
                 ),
                 dcc.Interval(
                     id="interval-component",
@@ -303,7 +301,7 @@ class RealTimeDashboard:
             options: list[dict[str, str]] = [{"label": s, "value": s} for s in strategies]
             # Keep current selection if available
             current_selection: list[str] = dash.callback_context.states.get(
-                "strategy-selector.value", []
+                "strategy-selector.value", [],
             )
             valid_selection: list[str] = [s for s in current_selection if s in strategies]
             return options, valid_selection
@@ -411,7 +409,7 @@ class RealTimeDashboard:
                             name=strategy,
                             opacity=0.7,
                             nbinsx=30,
-                        )
+                        ),
                     )
 
             fig.update_layout(
@@ -452,7 +450,7 @@ class RealTimeDashboard:
             ]
 
             return self.visualizer.create_trade_analysis_chart(
-                trade_data=filtered_data, title="Trade Analysis (PnL vs Duration)"
+                trade_data=filtered_data, title="Trade Analysis (PnL vs Duration)",
             )
 
         # Update funding rate heatmap
@@ -471,7 +469,7 @@ class RealTimeDashboard:
                 )
 
             return self.visualizer.create_funding_rate_heatmap(
-                funding_data=funding_data, title="Funding Rate Heatmap"
+                funding_data=funding_data, title="Funding Rate Heatmap",
             )
 
         # Update performance metrics table
@@ -507,7 +505,7 @@ class RealTimeDashboard:
                     )
 
                     metrics: dict[str, Any] = self.metrics_calculator.calculate_all_metrics(
-                        returns=strategy_returns, trades=strategy_trades
+                        returns=strategy_returns, trades=strategy_trades,
                     )
 
                     metrics_rows.append(
@@ -522,8 +520,8 @@ class RealTimeDashboard:
                                 html.Td(f"{metrics['calmar_ratio']:.2f}"),
                                 html.Td(f"{metrics.get('win_rate', 'N/A'):.2f}%"),
                                 html.Td(f"{metrics.get('profit_factor', 'N/A'):.2f}"),
-                            ]
-                        )
+                            ],
+                        ),
                     )
 
             table: dbc.Table = dbc.Table(
@@ -540,8 +538,8 @@ class RealTimeDashboard:
                                 html.Th("Calmar Ratio"),
                                 html.Th("Win Rate"),
                                 html.Th("Profit Factor"),
-                            ]
-                        )
+                            ],
+                        ),
                     ),
                     html.Tbody(metrics_rows),
                 ],
@@ -555,8 +553,7 @@ class RealTimeDashboard:
             return table
 
     def _get_returns_data(self, strategies: list[str], time_range: str) -> pd.DataFrame:
-        """
-        Get returns data for selected strategies and time range.
+        """Get returns data for selected strategies and time range.
 
         Args:
             strategies: List of strategy names
@@ -564,6 +561,7 @@ class RealTimeDashboard:
 
         Returns:
             DataFrame with strategy returns
+
         """
         # Cache key
         cache_key = f"returns_{','.join(sorted(strategies))}_{time_range}"
@@ -587,7 +585,7 @@ class RealTimeDashboard:
 
         # Get returns data from performance tracker
         returns_data = self.performance_tracker.get_returns_dataframe(
-            strategy_names=strategies, start_time=start_time, end_time=end_time
+            strategy_names=strategies, start_time=start_time, end_time=end_time,
         )
 
         # Cache the data
@@ -596,8 +594,7 @@ class RealTimeDashboard:
         return returns_data
 
     def _get_trade_data(self, strategies: list[str], time_range: str) -> pd.DataFrame:
-        """
-        Get trade data for selected strategies and time range.
+        """Get trade data for selected strategies and time range.
 
         Args:
             strategies: List of strategy names
@@ -605,6 +602,7 @@ class RealTimeDashboard:
 
         Returns:
             DataFrame with trade data
+
         """
         # Cache key
         cache_key = f"trades_{','.join(sorted(strategies))}_{time_range}"
@@ -628,7 +626,7 @@ class RealTimeDashboard:
 
         # Get trade data from performance tracker
         trade_data = self.performance_tracker.get_trades_dataframe(
-            strategy_names=strategies, start_time=start_time, end_time=end_time
+            strategy_names=strategies, start_time=start_time, end_time=end_time,
         )
 
         # Cache the data
@@ -637,14 +635,14 @@ class RealTimeDashboard:
         return trade_data
 
     def _get_funding_rate_data(self, time_range: str) -> pd.DataFrame:
-        """
-        Get funding rate data for time range.
+        """Get funding rate data for time range.
 
         Args:
             time_range: Time range (1h, 1d, 1w, 1m, all)
 
         Returns:
             DataFrame with funding rate data
+
         """
         # Cache key
         cache_key = f"funding_rates_{time_range}"
@@ -668,7 +666,7 @@ class RealTimeDashboard:
 
         # Get funding rate data from performance tracker
         funding_data = self.performance_tracker.get_funding_rates_dataframe(
-            start_time=start_time, end_time=end_time
+            start_time=start_time, end_time=end_time,
         )
 
         # Cache the data
@@ -677,11 +675,11 @@ class RealTimeDashboard:
         return funding_data
 
     def start(self, use_threading: bool = True) -> threading.Thread | None:
-        """
-        Start the dashboard server.
+        """Start the dashboard server.
 
         Args:
             use_threading: Whether to run the server in a separate thread
+
         """
         logger.info(f"Starting dashboard server on http://{self.host}:{self.port}")
         if use_threading:
@@ -704,8 +702,7 @@ def launch_dashboard(
     debug: bool = False,
     use_threading: bool = True,
 ) -> RealTimeDashboard:
-    """
-    Launch the real-time dashboard.
+    """Launch the real-time dashboard.
 
     Args:
         performance_tracker: Tracker containing performance data
@@ -717,6 +714,7 @@ def launch_dashboard(
 
     Returns:
         The dashboard instance, and if use_threading is True, the dashboard thread
+
     """
     dashboard = RealTimeDashboard(
         performance_tracker=performance_tracker,

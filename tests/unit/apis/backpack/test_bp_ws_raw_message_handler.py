@@ -1,5 +1,4 @@
-"""
-Unit tests for BackpackWsRawMessageHandler.
+"""Unit tests for BackpackWsRawMessageHandler.
 """
 
 import pytest

@@ -1,5 +1,4 @@
-"""
-Unit tests for Hyperliquid Processed Exchange Response Models.
+"""Unit tests for Hyperliquid Processed Exchange Response Models.
 """
 
 from typing import Any, cast  # Added for casting

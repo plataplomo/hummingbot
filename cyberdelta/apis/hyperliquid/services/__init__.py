@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid Exchange Services
+"""CyberDeltaEngine: Hyperliquid Exchange Services
 ----------------------------------------------
 
 This package contains service classes that encapsulate specific categories of

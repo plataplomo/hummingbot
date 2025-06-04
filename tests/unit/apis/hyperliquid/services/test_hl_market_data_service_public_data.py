@@ -1,5 +1,4 @@
-"""
-Unit tests for HyperliquidMarketDataService public data operations.
+"""Unit tests for HyperliquidMarketDataService public data operations.
 Tests the public market data methods including get_ticker, get_order_book, and get_recent_trades.
 """
 

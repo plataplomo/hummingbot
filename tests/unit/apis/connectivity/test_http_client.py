@@ -88,8 +88,7 @@ class TestHttpClient:
         MockAiohttpSession: MagicMock,  # Patched class constructor
         http_client_instance: HttpClient,  # Uses internal session by default
     ) -> None:
-        """
-        Test internal session is created on first request, reused, and closed correctly.
+        """Test internal session is created on first request, reused, and closed correctly.
         Relies on public HttpClient.request() and HttpClient.close_session().
         """
         # --- First request: Session Creation ---

@@ -1,5 +1,4 @@
-"""
-cyberdelta.config.secrets_models
+"""cyberdelta.config.secrets_models
 -------------------------------
 Pydantic models for secrets.yaml configuration validation.
 
@@ -30,8 +29,7 @@ class BaseExchangeSecrets(BaseModel):
 
 
 class ApiKeyAuthSecrets(BaseExchangeSecrets):
-    """
-    Secrets configuration for exchanges using API key/secret authentication.
+    """Secrets configuration for exchanges using API key/secret authentication.
 
     This covers exchanges using traditional API key pairs or Backpack's ED25519
     keys (where api_key=public key and api_secret=private key).
@@ -43,8 +41,7 @@ class ApiKeyAuthSecrets(BaseExchangeSecrets):
 
 
 class PrivateKeyAuthSecrets(BaseExchangeSecrets):
-    """
-    Secrets configuration for exchanges using private key authentication.
+    """Secrets configuration for exchanges using private key authentication.
 
     This covers exchanges like Hyperliquid that use Ethereum private keys
     or mnemonic passphrases for authentication.
@@ -72,13 +69,12 @@ class PrivateKeyAuthSecrets(BaseExchangeSecrets):
 
 # Discriminated union for all exchange secret types
 AnyExchangeSecrets = Annotated[
-    ApiKeyAuthSecrets | PrivateKeyAuthSecrets, Field(discriminator="auth_type")
+    ApiKeyAuthSecrets | PrivateKeyAuthSecrets, Field(discriminator="auth_type"),
 ]
 
 
 class TelegramSecrets(BaseModel):
-    """
-    Secrets configuration for Telegram notifications.
+    """Secrets configuration for Telegram notifications.
 
     Contains bot token and chat ID for sending notifications via Telegram.
     """
@@ -101,8 +97,7 @@ class TelegramSecrets(BaseModel):
 
 
 class NotificationsConfig(BaseModel):
-    """
-    Configuration for all notification services.
+    """Configuration for all notification services.
 
     Currently supports Telegram notifications. Can be extended
     for other notification services in the future.
@@ -114,8 +109,7 @@ class NotificationsConfig(BaseModel):
 
 
 class LogfireSecrets(BaseModel):
-    """
-    Secrets for Pydantic Logfire integration.
+    """Secrets for Pydantic Logfire integration.
 
     Contains the write token required for sending logs to Pydantic Logfire.
     """
@@ -126,8 +120,7 @@ class LogfireSecrets(BaseModel):
 
 
 class SecretsConfig(BaseModel):
-    """
-    Root configuration model for secrets.yaml.
+    """Root configuration model for secrets.yaml.
 
     Contains all sensitive configuration data including exchange
     API credentials, notification service tokens, and Logfire configuration.
@@ -140,7 +133,7 @@ class SecretsConfig(BaseModel):
     @field_validator("exchanges", mode="after")
     @classmethod
     def validate_exchanges(
-        cls, v: dict[str, AnyExchangeSecrets], info: ValidationInfo
+        cls, v: dict[str, AnyExchangeSecrets], info: ValidationInfo,
     ) -> dict[str, AnyExchangeSecrets]:
         """Validate exchange dictionary keys are valid strings."""
         validated_exchanges: dict[str, AnyExchangeSecrets] = {}
@@ -160,8 +153,7 @@ class SecretsConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_exchange_specific_secret_configurations(self) -> Self:
-        """
-        Validate exchange-specific secret configurations and authentication requirements.
+        """Validate exchange-specific secret configurations and authentication requirements.
 
         Ensures that each exchange uses the correct auth_type and has valid credentials.
         Basic presence checks are performed here; deeper cryptographic validation is
@@ -172,7 +164,7 @@ class SecretsConfig(BaseModel):
                 if not isinstance(secrets_config_item, PrivateKeyAuthSecrets):
                     raise ValueError(
                         "Hyperliquid configuration in secrets must have auth_type 'private_key' "
-                        "and corresponding fields."
+                        "and corresponding fields.",
                     )
                 # Basic presence check for private_key
                 pk_val = secrets_config_item.private_key.get_secret_value()
@@ -187,7 +179,7 @@ class SecretsConfig(BaseModel):
                 if not isinstance(secrets_config_item, ApiKeyAuthSecrets):
                     raise ValueError(
                         "Backpack configuration in secrets must have auth_type 'api_key' "
-                        "and corresponding fields."
+                        "and corresponding fields.",
                     )
                 # Basic presence checks for Backpack (ED25519 keys)
                 api_key_val = secrets_config_item.api_key.get_secret_value()

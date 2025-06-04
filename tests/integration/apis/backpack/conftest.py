@@ -13,8 +13,7 @@ from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, SecretsConfig
 
 @pytest.fixture(scope="session")
 def active_bp_config(test_app_settings: AppSettings) -> ExchangeSpecificConfig:
-    """
-    Get ExchangeSpecificConfig for Backpack from test configuration.
+    """Get ExchangeSpecificConfig for Backpack from test configuration.
 
     Uses test_config.yaml settings. Backpack always uses mainnet.
     """
@@ -23,8 +22,7 @@ def active_bp_config(test_app_settings: AppSettings) -> ExchangeSpecificConfig:
 
 @pytest.fixture(scope="session")
 def active_bp_secrets(test_secrets_config: SecretsConfig) -> ApiKeyAuthSecrets:
-    """
-    Get ApiKeyAuthSecrets for Backpack from test secrets.
+    """Get ApiKeyAuthSecrets for Backpack from test secrets.
 
     Uses test_secrets.yaml settings.
     """
@@ -150,8 +148,7 @@ def bp_api_for_test_env(
     active_bp_config: ExchangeSpecificConfig,
     active_bp_secrets: ApiKeyAuthSecrets,
 ) -> BackpackAPI:
-    """
-    Create BackpackAPI instance for integration tests.
+    """Create BackpackAPI instance for integration tests.
 
     Uses configuration from test_config.yaml and test_secrets.yaml.
     For cassette recording/playback, this uses real components.
@@ -178,8 +175,7 @@ def bp_api_with_di(
     mock_bp_market_data_service: MagicMock,
     mock_bp_trading_service: MagicMock,
 ) -> Callable[..., BackpackAPI]:
-    """
-    Factory fixture to create BackpackAPI instances with all dependencies injected.
+    """Factory fixture to create BackpackAPI instances with all dependencies injected.
     This enables black-box testing without accessing protected members.
     """
 

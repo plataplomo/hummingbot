@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Raw Models (Meta & Asset Context Group)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Meta & Asset Context Group)
 -----------------------------------------------------------------------
 
 This module provides strict, security-focused Pydantic models for validating the *raw*
@@ -51,8 +50,7 @@ from cyberdelta.utils.parsing import validate_str_field
 
 
 class HyperliquidRawAssetDefinition(BaseModel):
-    """
-    Strict boundary model for a single asset/market definition from the Hyperliquid 'meta' endpoint.
+    """Strict boundary model for a single asset/market definition from the Hyperliquid 'meta' endpoint.
 
     This model is used exclusively for validating the raw structure of asset entries in the upstream
     API response. It enforces strict type and format constraints to prevent malformed or ambiguous
@@ -73,8 +71,7 @@ class HyperliquidRawAssetDefinition(BaseModel):
 
 
 class HyperliquidRawAssetCtx(BaseModel):
-    """
-    Strict boundary model for contextual information about a single asset from the
+    """Strict boundary model for contextual information about a single asset from the
     'metaAndAssetCtxs' endpoint.
 
     Used only for validating the raw structure of asset context entries (funding, mark price, etc.)
@@ -100,8 +97,7 @@ class HyperliquidRawAssetCtx(BaseModel):
 
 
 class HyperliquidRawMetaResponse(BaseModel):
-    """
-    Strict boundary model for the top-level 'meta' response from the Hyperliquid API.
+    """Strict boundary model for the top-level 'meta' response from the Hyperliquid API.
 
     Used only for validating the raw structure of the 'meta' endpoint response, which contains
     the universe of tradable assets. Never use for internal business logic.
@@ -115,8 +111,7 @@ class HyperliquidRawMetaResponse(BaseModel):
 
 
 class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
-    """
-    Strict boundary model for the [meta, assetCtxs] tuple response from the 'metaAndAssetCtxs'
+    """Strict boundary model for the [meta, assetCtxs] tuple response from the 'metaAndAssetCtxs'
     endpoint.
 
     Used only for validating the raw structure of the 2-tuple response: meta info and
@@ -144,8 +139,7 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         by_alias: bool | None = None,
         by_name: bool | None = None,
     ) -> Self:
-        """
-        Custom validator for the [meta, assetCtxs] tuple response. Ensures the input is a
+        """Custom validator for the [meta, assetCtxs] tuple response. Ensures the input is a
         list of length 2, with the first element a dict (meta) and the second a list of
         dicts (asset contexts). Raises ValueError if the structure is not as expected. This
         is essential for robust boundary validation of upstream API data.
@@ -166,7 +160,7 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
             raise ValueError("Invalid MetaAndAssetCtxs response: first element (meta) must be dict")
         if not isinstance(asset_ctxs_list_raw, list):
             raise ValueError(
-                "Invalid MetaAndAssetCtxs response: second element (asset_ctxs) must be list"
+                "Invalid MetaAndAssetCtxs response: second element (asset_ctxs) must be list",
             )
 
         meta_dict = cast(dict[str, Any], meta_obj_raw)
@@ -176,7 +170,7 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         assert isinstance(asset_ctxs_list_of_objects, list)
 
         meta = HyperliquidRawMetaResponse.model_validate(
-            meta_dict, strict=strict, context=context, from_attributes=from_attributes
+            meta_dict, strict=strict, context=context, from_attributes=from_attributes,
         )
 
         validated_asset_ctxs: list[HyperliquidRawAssetCtx] = []
@@ -206,7 +200,7 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
                     strict=strict,
                     context=context,
                     from_attributes=from_attributes,
-                )
+                ),
             )
 
         return cls(meta=meta, asset_ctxs=validated_asset_ctxs)
@@ -215,8 +209,7 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
 
 
 class HyperliquidRawMetaRequestPayload(BaseModel):
-    """
-    Strict boundary model for the request payload for the 'meta' info type.
+    """Strict boundary model for the request payload for the 'meta' info type.
 
     Used only for constructing and validating the payload sent to the Hyperliquid API when
     requesting meta/universe information. Never use for internal business logic.
@@ -228,15 +221,14 @@ class HyperliquidRawMetaRequestPayload(BaseModel):
     type: Annotated[
         Literal["meta"],
         BeforeValidator(
-            lambda v: validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
+            lambda v: validate_str_field(v, field_name="type", max_length=32, allow_empty=False),
         ),
     ] = Field("meta", alias="type")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
 class HyperliquidRawMetaAndAssetCtxsRequestPayload(BaseModel):
-    """
-    Strict boundary model for the request payload for the 'metaAndAssetCtxs' info type.
+    """Strict boundary model for the request payload for the 'metaAndAssetCtxs' info type.
 
     Used only for constructing and validating the payload sent to the Hyperliquid API when
     requesting both meta and asset context information. Never use for internal business logic.
@@ -248,15 +240,14 @@ class HyperliquidRawMetaAndAssetCtxsRequestPayload(BaseModel):
     type: Annotated[
         Literal["metaAndAssetCtxs"],
         BeforeValidator(
-            lambda v: validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
+            lambda v: validate_str_field(v, field_name="type", max_length=32, allow_empty=False),
         ),
     ] = Field("metaAndAssetCtxs", alias="type")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
 class HyperliquidRawAllMetaRequestPayload(BaseModel):
-    """
-    Strict boundary model for the request payload for the 'allMeta' info type.
+    """Strict boundary model for the request payload for the 'allMeta' info type.
 
     Fields:
         type (Literal['allMeta']): Must be 'allMeta'.
@@ -265,15 +256,14 @@ class HyperliquidRawAllMetaRequestPayload(BaseModel):
     type: Annotated[
         Literal["allMeta"],
         BeforeValidator(
-            lambda v: validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
+            lambda v: validate_str_field(v, field_name="type", max_length=32, allow_empty=False),
         ),
     ] = Field("allMeta", alias="type")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
 class HyperliquidRawUpdateLeverageRequest(BaseModel):
-    """
-    Strict boundary model for the request payload for updating leverage settings for a
+    """Strict boundary model for the request payload for updating leverage settings for a
     specific asset.
 
     Used only for constructing and validating the payload sent to the Hyperliquid API when
@@ -292,8 +282,7 @@ class HyperliquidRawUpdateLeverageRequest(BaseModel):
 
 
 class HyperliquidRawUpdateIsolatedMarginRequest(BaseModel):
-    """
-    Strict boundary model for the request payload for updating isolated margin for a specific asset.
+    """Strict boundary model for the request payload for updating isolated margin for a specific asset.
 
     Used only for constructing and validating the payload sent to the Hyperliquid API when updating
     isolated margin for an asset. Never use for internal business logic.

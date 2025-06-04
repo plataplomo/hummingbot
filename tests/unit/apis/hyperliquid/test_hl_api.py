@@ -1,5 +1,4 @@
-"""
-Unit tests for the HyperliquidAPI client implementation.
+"""Unit tests for the HyperliquidAPI client implementation.
 Tests use dependency injection patterns to mock collaborators and focus on isolated logic testing.
 """
 
@@ -20,8 +19,7 @@ def create_test_exchange_config(
     env_type: Literal["mainnet", "testnet"] = "testnet",
     **kwargs: object,
 ) -> ExchangeSpecificConfig:
-    """
-    Create ExchangeSpecificConfig for testing with environment awareness.
+    """Create ExchangeSpecificConfig for testing with environment awareness.
 
     Args:
         env_type: Environment type ("mainnet" or "testnet")
@@ -218,8 +216,7 @@ def hl_api_with_di(
     mock_hl_trading_service: MagicMock,
     mock_hl_market_data_service: MagicMock,
 ) -> Callable[..., Any]:
-    """
-    Factory fixture to create HyperliquidAPI instances with all dependencies injected.
+    """Factory fixture to create HyperliquidAPI instances with all dependencies injected.
     This enables black-box testing without accessing private members.
     """
     from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI

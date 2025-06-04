@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid Account Data Mapper
+"""CyberDeltaEngine: Hyperliquid Account Data Mapper
 ------------------------------------------------
 
 This module provides the HyperliquidAccountDataMapper class for transforming
@@ -52,8 +51,7 @@ logger = logging.getLogger(__name__)
 
 
 class HyperliquidAccountDataMapper:
-    """
-    Domain-focused mapper for Hyperliquid account data transformations.
+    """Domain-focused mapper for Hyperliquid account data transformations.
 
     This class contains static methods for transforming validated Hyperliquid Raw models
     related to account data into CyberDeltaEngine Internal Domain Models.
@@ -61,8 +59,7 @@ class HyperliquidAccountDataMapper:
 
     @staticmethod
     def _map_side_to_internal(hl_side: str) -> OrderSide:
-        """
-        Maps a Hyperliquid order side string to internal OrderSide enum.
+        """Maps a Hyperliquid order side string to internal OrderSide enum.
 
         Args:
             hl_side: Raw side string from Hyperliquid ("B" or "A")
@@ -72,6 +69,7 @@ class HyperliquidAccountDataMapper:
 
         Raises:
             TransformationError: If side cannot be mapped
+
         """
         if hl_side == "B":
             return OrderSide.BUY
@@ -84,8 +82,7 @@ class HyperliquidAccountDataMapper:
     def transform_raw_clearinghouse_state_to_spot_balances(
         raw_state: HyperliquidRawClearinghouseState,
     ) -> dict[str, SpotBalance]:
-        """
-        Transforms a HyperliquidRawClearinghouseState to Internal SpotBalance models.
+        """Transforms a HyperliquidRawClearinghouseState to Internal SpotBalance models.
 
         Args:
             raw_state: Validated raw clearinghouse state from Hyperliquid
@@ -95,6 +92,7 @@ class HyperliquidAccountDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             spot_balances: dict[str, SpotBalance] = {}
@@ -108,7 +106,7 @@ class HyperliquidAccountDataMapper:
                 )
 
                 available_usdc = parse_decimal_value(
-                    raw_state.withdrawable, allow_none=True, field_name="withdrawable"
+                    raw_state.withdrawable, allow_none=True, field_name="withdrawable",
                 )
 
                 if total_usdc is not None and total_usdc > Decimal("0"):
@@ -171,15 +169,14 @@ class HyperliquidAccountDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform HyperliquidRawClearinghouseState to SpotBalance: {e}"
+                f"Failed to transform HyperliquidRawClearinghouseState to SpotBalance: {e}",
             ) from e
 
     @staticmethod
     def transform_raw_clearinghouse_state_to_derivative_positions(
         raw_state: HyperliquidRawClearinghouseState,
     ) -> dict[str, DerivativePosition]:
-        """
-        Transforms a HyperliquidRawClearinghouseState to Internal DerivativePosition models.
+        """Transforms a HyperliquidRawClearinghouseState to Internal DerivativePosition models.
 
         Args:
             raw_state: Validated raw clearinghouse state from Hyperliquid
@@ -189,6 +186,7 @@ class HyperliquidAccountDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             positions: dict[str, DerivativePosition] = {}
@@ -208,7 +206,7 @@ class HyperliquidAccountDataMapper:
                     # Parse position size
                     size_str = getattr(pos, "szi", "0")
                     size = parse_decimal_value(
-                        size_str, allow_none=False, field_name="position.szi"
+                        size_str, allow_none=False, field_name="position.szi",
                     )
 
                     if size is None or size == Decimal("0"):
@@ -220,18 +218,18 @@ class HyperliquidAccountDataMapper:
                     if entry_price_str and entry_price_str != "0":
                         try:
                             entry_price = parse_decimal_value(
-                                entry_price_str, allow_none=True, field_name="position.entry_px"
+                                entry_price_str, allow_none=True, field_name="position.entry_px",
                             )
                         except (ValueError, TypeError) as e:
                             logger.warning(
                                 f"Failed to parse entry price for {symbol}: "
-                                f"{entry_price_str}, error: {e}"
+                                f"{entry_price_str}, error: {e}",
                             )
 
                     # Skip positions with no entry price (invalid derivative positions)
                     if entry_price is None or entry_price <= Decimal("0"):
                         raise TransformationError(
-                            f"Invalid or zero entry price for {symbol}: {entry_price_str}"
+                            f"Invalid or zero entry price for {symbol}: {entry_price_str}",
                         )
 
                     # Parse unrealized PnL
@@ -302,15 +300,14 @@ class HyperliquidAccountDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform HyperliquidRawClearinghouseState to DerivativePosition: {e}"
+                f"Failed to transform HyperliquidRawClearinghouseState to DerivativePosition: {e}",
             ) from e
 
     @staticmethod
     def transform_raw_clearinghouse_state_to_margin_summary(
         raw_state: HyperliquidRawClearinghouseState,
     ) -> MarginAccountSummary:
-        """
-        Transforms a HyperliquidRawClearinghouseState to an Internal MarginAccountSummary model.
+        """Transforms a HyperliquidRawClearinghouseState to an Internal MarginAccountSummary model.
 
         Args:
             raw_state: Validated raw clearinghouse state from Hyperliquid
@@ -320,6 +317,7 @@ class HyperliquidAccountDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Parse margin summary data
@@ -384,7 +382,7 @@ class HyperliquidAccountDataMapper:
             # Calculate total unrealized PnL from derivative positions
             mapper = HyperliquidAccountDataMapper
             derivative_positions = mapper.transform_raw_clearinghouse_state_to_derivative_positions(
-                raw_state
+                raw_state,
             )
             total_unrealized_pnl = Decimal("0")
             for position in derivative_positions.values():
@@ -411,13 +409,12 @@ class HyperliquidAccountDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform HyperliquidRawClearinghouseState to MarginAccountSummary: {e}"
+                f"Failed to transform HyperliquidRawClearinghouseState to MarginAccountSummary: {e}",
             ) from e
 
     @staticmethod
     def transform_raw_user_fill_to_internal(raw_fill: HyperliquidRawUserFill) -> Trade:
-        """
-        Transforms a HyperliquidRawUserFill to an Internal Trade model.
+        """Transforms a HyperliquidRawUserFill to an Internal Trade model.
 
         Args:
             raw_fill: Validated raw user fill from Hyperliquid
@@ -427,6 +424,7 @@ class HyperliquidAccountDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Map side
@@ -446,7 +444,7 @@ class HyperliquidAccountDataMapper:
 
             # Parse fee
             fee = parse_decimal_value(
-                getattr(raw_fill, "fee", "0"), allow_none=True, field_name="fee"
+                getattr(raw_fill, "fee", "0"), allow_none=True, field_name="fee",
             ) or Decimal("0")
 
             # Create HL-specific details
@@ -487,13 +485,12 @@ class HyperliquidAccountDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform HyperliquidRawUserFill to Trade: {e}"
+                f"Failed to transform HyperliquidRawUserFill to Trade: {e}",
             ) from e
 
     @staticmethod
     def transform_raw_fill_to_internal(raw_fill: HyperliquidRawFill) -> Trade:
-        """
-        Transforms a HyperliquidRawFill to an Internal Trade model.
+        """Transforms a HyperliquidRawFill to an Internal Trade model.
 
         Args:
             raw_fill: Validated raw fill from Hyperliquid
@@ -503,6 +500,7 @@ class HyperliquidAccountDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Map side
@@ -522,7 +520,7 @@ class HyperliquidAccountDataMapper:
 
             # Parse fee
             fee = parse_decimal_value(
-                getattr(raw_fill, "fee", "0"), allow_none=True, field_name="fee"
+                getattr(raw_fill, "fee", "0"), allow_none=True, field_name="fee",
             ) or Decimal("0")
 
             # Create HL-specific details
@@ -559,13 +557,12 @@ class HyperliquidAccountDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform HyperliquidRawFill to Trade: {e}"
+                f"Failed to transform HyperliquidRawFill to Trade: {e}",
             ) from e
 
     @staticmethod
     def transform_ws_fill_event_to_internal(raw_fill: HyperliquidRawWsFillEvent) -> Trade:
-        """
-        Transforms a WebSocket fill event to an Internal Trade model.
+        """Transforms a WebSocket fill event to an Internal Trade model.
 
         Args:
             raw_fill: Validated raw WebSocket fill event from Hyperliquid
@@ -575,6 +572,7 @@ class HyperliquidAccountDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Map side
@@ -616,7 +614,7 @@ class HyperliquidAccountDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform HyperliquidRawWsFillEvent to Trade: {e}"
+                f"Failed to transform HyperliquidRawWsFillEvent to Trade: {e}",
             ) from e
 
     @staticmethod
@@ -625,8 +623,7 @@ class HyperliquidAccountDataMapper:
         symbol: str,
         timestamp: datetime,
     ) -> DerivativePosition:
-        """
-        Transforms raw position info to an Internal DerivativePosition model.
+        """Transforms raw position info to an Internal DerivativePosition model.
 
         Args:
             position_info: Raw position info from Hyperliquid
@@ -638,6 +635,7 @@ class HyperliquidAccountDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Parse position size
@@ -653,17 +651,17 @@ class HyperliquidAccountDataMapper:
             if entry_price_str and entry_price_str != "0":
                 try:
                     entry_price = parse_decimal_value(
-                        entry_price_str, allow_none=True, field_name="position.entry_px"
+                        entry_price_str, allow_none=True, field_name="position.entry_px",
                     )
                 except (ValueError, TypeError) as e:
                     logger.warning(
-                        f"Failed to parse entry price for {symbol}: {entry_price_str}, error: {e}"
+                        f"Failed to parse entry price for {symbol}: {entry_price_str}, error: {e}",
                     )
 
             # Skip positions with no entry price (invalid derivative positions)
             if entry_price is None or entry_price <= Decimal("0"):
                 raise TransformationError(
-                    f"Invalid or zero entry price for {symbol}: {entry_price_str}"
+                    f"Invalid or zero entry price for {symbol}: {entry_price_str}",
                 )
 
             # Parse unrealized PnL
@@ -728,8 +726,7 @@ class HyperliquidAccountDataMapper:
     def transform_ws_position_update_to_internal_position(
         raw_position_update: HyperliquidRawWsPositionUpdateEvent,
     ) -> DerivativePosition:
-        """
-        Transforms a HyperliquidRawWsPositionUpdateEvent (WebSocket position update event) to an
+        """Transforms a HyperliquidRawWsPositionUpdateEvent (WebSocket position update event) to an
         Internal DerivativePosition model.
 
         Args:
@@ -740,6 +737,7 @@ class HyperliquidAccountDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Extract position info from the WebSocket event
@@ -751,10 +749,10 @@ class HyperliquidAccountDataMapper:
 
             # Use the existing position transformation logic
             return HyperliquidAccountDataMapper.transform_raw_position_to_internal(
-                position_info, symbol, timestamp
+                position_info, symbol, timestamp,
             )
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform WebSocket position update to internal: {e}"
+                f"Failed to transform WebSocket position update to internal: {e}",
             ) from e

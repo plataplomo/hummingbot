@@ -1,5 +1,4 @@
-"""
-Unit tests for BackpackAccountService position functionality.
+"""Unit tests for BackpackAccountService position functionality.
 """
 
 from __future__ import annotations

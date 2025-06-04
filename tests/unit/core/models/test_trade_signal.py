@@ -1,5 +1,4 @@
-"""
-Unit tests for the CyberDeltaEngine internal TradeSignal model.
+"""Unit tests for the CyberDeltaEngine internal TradeSignal model.
 
 Covers:
 - Initialization with required/optional fields.

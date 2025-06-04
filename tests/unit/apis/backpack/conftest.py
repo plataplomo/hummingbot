@@ -173,8 +173,7 @@ def eth_asset() -> str:
 
 @pytest.fixture
 def active_bp_config() -> ExchangeSpecificConfig:
-    """
-    Active Backpack exchange configuration for unit tests.
+    """Active Backpack exchange configuration for unit tests.
     Backpack only has mainnet, no testnet.
     """
     return ExchangeSpecificConfig.model_validate(
@@ -203,8 +202,7 @@ def active_bp_config() -> ExchangeSpecificConfig:
 def bp_api_with_di(
     active_bp_config: ExchangeSpecificConfig,
 ) -> Callable[..., BackpackAPI]:
-    """
-    Factory fixture to create BackpackAPI instances with all dependencies mocked.
+    """Factory fixture to create BackpackAPI instances with all dependencies mocked.
     This enables unit testing without accessing protected members.
     """
 

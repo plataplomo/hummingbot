@@ -1,5 +1,4 @@
-"""
-Integration tests for HyperliquidAPI WebSocket functionality.
+"""Integration tests for HyperliquidAPI WebSocket functionality.
 
 These tests verify the WebSocket integration behavior including message routing,
 subscription management, and delegation to the router. They test the interaction
@@ -32,8 +31,7 @@ def create_test_exchange_config(
     ws_url: str = "wss://api.hyperliquid-testnet.xyz/ws",
     **kwargs: object,
 ) -> ExchangeSpecificConfig:
-    """
-    Create ExchangeSpecificConfig for testing by parsing from dict.
+    """Create ExchangeSpecificConfig for testing by parsing from dict.
     Defaults to testnet for integration tests.
     """
     config_dict = {

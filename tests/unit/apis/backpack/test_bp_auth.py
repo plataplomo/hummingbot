@@ -233,8 +233,7 @@ class TestBackpackEd25519Authenticator:
     async def test_signing_string_generation_order_cancel_example(
         self, test_ed25519_keys: dict[str, str],
     ) -> None:
-        """
-        Test signing string generation using the orderCancel example from Backpack documentation.
+        """Test signing string generation using the orderCancel example from Backpack documentation.
 
         According to Backpack docs, the signing string should be:
         instruction=orderCancel&orderId=28&symbol=BTC_USDT&timestamp=<timestamp>&window=<window>
@@ -269,8 +268,7 @@ class TestBackpackEd25519Authenticator:
     async def test_signing_string_generation_json_body_query_format(
         self, test_ed25519_keys: dict[str, str],
     ) -> None:
-        """
-        Test that JSON request bodies are converted to query string format for signing.
+        """Test that JSON request bodies are converted to query string format for signing.
         """
         auth = BackpackEd25519Authenticator(
             api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
@@ -305,8 +303,7 @@ class TestBackpackEd25519Authenticator:
     async def test_signing_string_generation_with_none_values_filtered(
         self, test_ed25519_keys: dict[str, str],
     ) -> None:
-        """
-        Test that None values are properly filtered out from the signing string.
+        """Test that None values are properly filtered out from the signing string.
         """
         auth = BackpackEd25519Authenticator(
             api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
@@ -340,8 +337,7 @@ class TestBackpackEd25519Authenticator:
     async def test_signing_string_generation_empty_body_no_double_ampersands(
         self, test_ed25519_keys: dict[str, str],
     ) -> None:
-        """
-        Test that requests with no body don't create double ampersands in signing string.
+        """Test that requests with no body don't create double ampersands in signing string.
         """
         auth = BackpackEd25519Authenticator(
             api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
@@ -367,8 +363,7 @@ class TestBackpackEd25519Authenticator:
     async def test_signing_string_generation_get_with_params_query_format(
         self, test_ed25519_keys: dict[str, str],
     ) -> None:
-        """
-        Test that GET request parameters are properly URL-encoded and sorted for signing.
+        """Test that GET request parameters are properly URL-encoded and sorted for signing.
         """
         auth = BackpackEd25519Authenticator(
             api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
@@ -396,8 +391,7 @@ class TestBackpackEd25519Authenticator:
     async def test_signing_string_generation_complex_data_types_stringified(
         self, test_ed25519_keys: dict[str, str],
     ) -> None:
-        """
-        Test that complex data types (numbers, booleans) are properly stringified for signing.
+        """Test that complex data types (numbers, booleans) are properly stringified for signing.
         """
         auth = BackpackEd25519Authenticator(
             api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
@@ -431,8 +425,7 @@ class TestBackpackEd25519Authenticator:
     async def test_delete_request_authentication_components_order_cancel(
         self, test_ed25519_keys: dict[str, str],
     ) -> None:
-        """
-        Test DELETE request authentication components for order cancellation.
+        """Test DELETE request authentication components for order cancellation.
 
         This test verifies that the authenticator generates valid authentication
         components for an order cancellation request.
@@ -473,8 +466,7 @@ class TestBackpackEd25519Authenticator:
     async def test_post_request_authentication_components_order_creation(
         self, test_ed25519_keys: dict[str, str],
     ) -> None:
-        """
-        Test POST request authentication components for order creation.
+        """Test POST request authentication components for order creation.
 
         This test verifies that the authenticator generates valid authentication
         components for an order creation request with multiple data fields.
@@ -520,8 +512,7 @@ class TestBackpackEd25519Authenticator:
     async def test_get_request_authentication_components_no_params(
         self, test_ed25519_keys: dict[str, str],
     ) -> None:
-        """
-        Test GET request authentication components without parameters.
+        """Test GET request authentication components without parameters.
 
         This test verifies that the authenticator generates valid authentication
         components for a GET request with no parameters.
@@ -557,8 +548,7 @@ class TestBackpackEd25519Authenticator:
     async def test_get_request_authentication_components_with_params(
         self, test_ed25519_keys: dict[str, str],
     ) -> None:
-        """
-        Test GET request authentication components with parameters.
+        """Test GET request authentication components with parameters.
 
         This test verifies that the authenticator generates valid authentication
         components for a GET request with query parameters.

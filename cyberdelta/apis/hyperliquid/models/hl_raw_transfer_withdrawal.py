@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Raw Models (Transfer & Withdrawal Action Payloads)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Transfer & Withdrawal Action Payloads)
 -----------------------------------------------------------------------------------
 
 This module defines Pydantic models for constructing parts of the raw
@@ -24,16 +23,15 @@ from cyberdelta.utils.parsing import validate_str_field
 
 
 class HyperliquidRawL2UsdTransferPayload(BaseModel):
-    """
-    Payload for an L2 USDC transfer action.
+    """Payload for an L2 USDC transfer action.
     Corresponds to action type "usdTransfer" with chain "L2".
     """
 
     destination: RawStrictEthereumAddressStrHL = Field(
-        ..., description="The recipient's 0x address."
+        ..., description="The recipient's 0x address.",
     )
     token: Annotated[
-        Literal["USDC"], BeforeValidator(lambda v: validate_str_field(v, "token", max_length=16))
+        Literal["USDC"], BeforeValidator(lambda v: validate_str_field(v, "token", max_length=16)),
     ] = Field(..., description="The token to transfer, must be USDC for L2.")
     amount: RawPositiveFiniteDecimalStr = Field(..., description="The positive amount to transfer.")
 
@@ -41,17 +39,16 @@ class HyperliquidRawL2UsdTransferPayload(BaseModel):
 
 
 class HyperliquidRawWithdrawalToL1ActionPayload(BaseModel):
-    """
-    Payload for withdrawing funds to L1.
+    """Payload for withdrawing funds to L1.
     Corresponds to action type "withdraw".
     """
 
     token: RawDefaultString = Field(
-        ..., description="The symbol of the token to withdraw", max_length=24
+        ..., description="The symbol of the token to withdraw", max_length=24,
     )
     amount: RawPositiveFiniteDecimalStr = Field(..., description="The positive amount to withdraw.")
     destination: RawStrictEthereumAddressStrHL = Field(
-        ..., description="The recipient's 0x address on L1."
+        ..., description="The recipient's 0x address on L1.",
     )
     # Note: Hyperliquid docs also mention "withdrawEth" type. If its payload differs,
     # a separate model or a union model might be needed.

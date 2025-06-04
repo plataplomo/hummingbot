@@ -1,5 +1,4 @@
-"""
-Backpack API Error Models
+"""Backpack API Error Models
 ------------------------
 
 Defines strict Pydantic models for validating error responses from the Backpack Exchange API.
@@ -21,8 +20,7 @@ from .bp_common_raw_types import (
 
 
 class BackpackRawApiError(BaseModel):
-    """
-    Pydantic model for a raw error response from the Backpack REST or WebSocket API.
+    """Pydantic model for a raw error response from the Backpack REST or WebSocket API.
 
     This model mirrors the Backpack OpenAPI error schema, enforcing strict field validation
     (e.g., types, lengths, allowed enum values for `code`, `extra="forbid"`).
@@ -31,6 +29,7 @@ class BackpackRawApiError(BaseModel):
     Attributes:
         code (RawBpErrorCodeString): Backpack error code.
         message (RawBpNonEmptyStringMax1024): Human-readable error message from the API.
+
     """
 
     code: RawBpErrorCodeString = Field(..., description="Backpack error code")

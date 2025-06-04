@@ -1,5 +1,4 @@
-"""
-Shared fixtures for HyperliquidTradingService tests.
+"""Shared fixtures for HyperliquidTradingService tests.
 """
 
 from collections.abc import Callable
@@ -67,8 +66,7 @@ def make_hl_trading_service(
     mock_hl_trading_mapper: MagicMock,
     mock_hl_error_mapper: MagicMock,
 ) -> Callable[..., HyperliquidTradingService]:
-    """
-    Factory fixture to create HyperliquidTradingService instances with mocked dependencies.
+    """Factory fixture to create HyperliquidTradingService instances with mocked dependencies.
 
     Returns a factory function that accepts optional parameters like wallet_address
     and returns a properly configured HyperliquidTradingService instance with all
@@ -95,8 +93,7 @@ def make_hl_trading_service(
 def hl_trading_service(
     make_hl_trading_service: Callable[..., HyperliquidTradingService],
 ) -> HyperliquidTradingService:
-    """
-    Convenience fixture that provides a default HyperliquidTradingService instance.
+    """Convenience fixture that provides a default HyperliquidTradingService instance.
 
     Uses the default wallet address for most tests that don't need custom configuration.
     """

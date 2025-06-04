@@ -1,5 +1,4 @@
-"""
-Integration tests for Hyperliquid public endpoints using pytest-recording (VCR).
+"""Integration tests for Hyperliquid public endpoints using pytest-recording (VCR).
 
 These tests make real HTTP requests to Hyperliquid's public API endpoints and use
 cassette-based recording to avoid repeated network calls while maintaining test reliability.
@@ -17,8 +16,7 @@ from cyberdelta.enums.exchange_names import ExchangeName
 
 @pytest.fixture(scope="module")
 def simple_hl_config() -> ExchangeSpecificConfig:
-    """
-    Simple Hyperliquid configuration fixture that doesn't depend on complex test configurations.
+    """Simple Hyperliquid configuration fixture that doesn't depend on complex test configurations.
     Uses environment variable or defaults to testnet.
     """
     # Default to mainnet for VCR tests to match existing cassettes
@@ -63,8 +61,7 @@ def simple_backpack_config() -> dict[str, Any]:
 async def test_hyperliquid_info_meta_and_asset_ctxs_public_endpoint(
     simple_hl_config: ExchangeSpecificConfig,
 ) -> None:
-    """
-    Test Hyperliquid's public /info endpoint with metaAndAssetCtxs type.
+    """Test Hyperliquid's public /info endpoint with metaAndAssetCtxs type.
 
     This test:
     1. Makes a real HTTP request to Hyperliquid's /info endpoint
@@ -154,8 +151,7 @@ async def test_hyperliquid_info_meta_and_asset_ctxs_public_endpoint(
 @pytest.mark.integration
 @pytest.mark.vcr
 async def test_vcr_sensitive_data_filtering_demo() -> None:
-    """
-    Demonstration test for VCR sensitive data filtering capabilities.
+    """Demonstration test for VCR sensitive data filtering capabilities.
 
     This test shows how VCR filters sensitive headers and query parameters
     while preserving functional test data. It makes a request to httpbin.org
@@ -207,8 +203,7 @@ async def test_vcr_sensitive_data_filtering_demo() -> None:
 async def test_hyperliquid_info_l2_book_public_endpoint(
     simple_hl_config: ExchangeSpecificConfig,
 ) -> None:
-    """
-    Test Hyperliquid's public /info endpoint with l2Book type for order book data.
+    """Test Hyperliquid's public /info endpoint with l2Book type for order book data.
 
     This test demonstrates VCR usage with a different endpoint that returns
     order book data. Shows how VCR works with various API response structures.
@@ -255,8 +250,7 @@ async def test_hyperliquid_info_l2_book_public_endpoint(
 async def test_hyperliquid_info_all_mids_public_endpoint(
     simple_hl_config: ExchangeSpecificConfig,
 ) -> None:
-    """
-    Test Hyperliquid's public /info endpoint with allMids type for mid prices.
+    """Test Hyperliquid's public /info endpoint with allMids type for mid prices.
 
     This test demonstrates VCR with yet another endpoint format,
     showing how the same infrastructure handles different data types.
@@ -305,8 +299,7 @@ async def test_hyperliquid_info_all_mids_public_endpoint(
 async def test_backpack_public_markets_endpoint(
     simple_backpack_config: dict[str, Any],
 ) -> None:
-    """
-    Test Backpack's public markets endpoint.
+    """Test Backpack's public markets endpoint.
 
     This test demonstrates VCR usage with a different exchange (Backpack)
     to show cross-exchange compatibility and different API patterns.

@@ -1,5 +1,4 @@
-"""
-Unit tests for BackpackTradingService account and miscellaneous functionality.
+"""Unit tests for BackpackTradingService account and miscellaneous functionality.
 """
 
 from __future__ import annotations

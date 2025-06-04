@@ -525,8 +525,7 @@ def mock_secrets_manager_with_missing() -> MagicMock:
 
 @pytest.fixture(scope="session")
 def hl_test_environment() -> str:
-    """
-    Fixture to determine Hyperliquid test environment.
+    """Fixture to determine Hyperliquid test environment.
 
     Defaults to 'testnet' but can be overridden with CYBERDELTA_TEST_ENV_HL environment variable.
     """
@@ -535,8 +534,7 @@ def hl_test_environment() -> str:
 
 @pytest.fixture(scope="session")
 def active_hl_config(hl_test_environment: str) -> ExchangeSpecificConfig:
-    """
-    Environment-aware ExchangeSpecificConfig fixture for Hyperliquid.
+    """Environment-aware ExchangeSpecificConfig fixture for Hyperliquid.
 
     Configures the exchange for mainnet or testnet based on hl_test_environment.
     Always includes both mainnet and testnet URLs.
@@ -574,8 +572,7 @@ def active_hl_config(hl_test_environment: str) -> ExchangeSpecificConfig:
 
 @pytest.fixture(scope="session")
 def active_hl_secrets() -> PrivateKeyAuthSecrets:
-    """
-    Environment-aware PrivateKeyAuthSecrets fixture for Hyperliquid.
+    """Environment-aware PrivateKeyAuthSecrets fixture for Hyperliquid.
 
     Uses environment variables if available, otherwise provides test placeholders.
     Supports both dedicated testnet credentials and main credentials.
@@ -820,8 +817,7 @@ def test_secrets_config(test_secrets_file_path: Path) -> SecretsConfig:
 
 @pytest.fixture(scope="session")
 def hl_test_environment_from_config(test_app_settings: AppSettings) -> str:
-    """
-    Get the default Hyperliquid test environment from test_config.yaml.
+    """Get the default Hyperliquid test environment from test_config.yaml.
 
     Can be overridden with CYBERDELTA_TEST_ENV_HL environment variable.
     """
@@ -842,8 +838,7 @@ def hl_test_environment_from_config(test_app_settings: AppSettings) -> str:
 
 @pytest.fixture(scope="module")
 def vcr_config() -> dict[str, Any]:
-    """
-    VCR.py configuration for pytest-recording cassette-based integration testing.
+    """VCR.py configuration for pytest-recording cassette-based integration testing.
 
     Provides comprehensive configuration for recording and playing back HTTP interactions,
     with robust filtering for sensitive data including authentication tokens, signatures,

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Integration tests for the secure configuration system.
+"""Integration tests for the secure configuration system.
 
 These tests verify that:
 1. Secrets are properly loaded from secure locations

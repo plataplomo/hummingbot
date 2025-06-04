@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack Market Data Mapper Core Tests
+"""CyberDeltaEngine: Backpack Market Data Mapper Core Tests
 --------------------------------------------------------
 
 Comprehensive test suite for BackpackMarketDataMapper core transformation methods.

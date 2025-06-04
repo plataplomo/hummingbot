@@ -1,5 +1,4 @@
-"""
-Results handler for backtesting.
+"""Results handler for backtesting.
 
 This module provides tools for processing, analyzing, and saving backtest results.
 """
@@ -31,8 +30,7 @@ class BacktestResultsHandler:
         slippage: Decimal,
         results_dir: str = "backtest_results",
     ) -> None:
-        """
-        Initialize the results handler.
+        """Initialize the results handler.
 
         Args:
             strategy_name: Name of the strategy
@@ -40,6 +38,7 @@ class BacktestResultsHandler:
             commission: Commission rate for the backtest
             slippage: Slippage rate for the backtest
             results_dir: Directory to save results
+
         """
         self.strategy_name = strategy_name
         self.initial_capital = initial_capital
@@ -60,44 +59,44 @@ class BacktestResultsHandler:
         self.returns_series: pd.Series | None = None
 
     def add_trade(self, trade: dict[str, Any]) -> None:
-        """
-        Add a trade to the results.
+        """Add a trade to the results.
 
         Args:
             trade: Trade data dictionary
+
         """
         self.trades.append(trade)
 
     def add_position(self, position: dict[str, Any]) -> None:
-        """
-        Add a position to the results.
+        """Add a position to the results.
 
         Args:
             position: Position data dictionary
+
         """
         self.positions.append(position)
 
     def add_equity_point(self, timestamp: datetime, equity: Decimal) -> None:
-        """
-        Add a point to the equity curve.
+        """Add a point to the equity curve.
 
         Args:
             timestamp: Point timestamp
             equity: Equity value
+
         """
         self.equity_curve.append(
             {
                 "timestamp": timestamp,
                 "equity": float(equity),  # Convert to float for JSON serialization
-            }
+            },
         )
 
     def calculate_returns(self) -> pd.Series:
-        """
-        Calculate returns series from equity curve.
+        """Calculate returns series from equity curve.
 
         Returns:
             Series of period returns
+
         """
         if not self.equity_curve:
             return pd.Series(dtype=float)  # Ensure float dtype for empty series
@@ -115,11 +114,11 @@ class BacktestResultsHandler:
         return self.returns_series
 
     def calculate_metrics(self) -> dict[str, Any]:
-        """
-        Calculate performance metrics.
+        """Calculate performance metrics.
 
         Returns:
             Dictionary of performance metrics
+
         """
         if self.returns_series is None:  # Check if None before calling calculate_returns
             self.calculate_returns()
@@ -200,7 +199,7 @@ class BacktestResultsHandler:
                 "sharpe_ratio": float(sharpe_ratio),
                 "max_drawdown": float(max_drawdown),
                 "num_trades": len(self.trades),  # Redundant? Already set above. Consider removing.
-            }
+            },
         )
 
         # Calculate additional trade metrics if we have trades
@@ -231,20 +230,20 @@ class BacktestResultsHandler:
                     "profit_factor": float(profit_factor),
                     "total_profit": float(total_profit),
                     "total_loss": float(total_loss),
-                }
+                },
             )
 
         return self.metrics
 
     def save_results(self, filename: str | None = None) -> str:
-        """
-        Save results to JSON file.
+        """Save results to JSON file.
 
         Args:
             filename: Optional custom filename
 
         Returns:
             Path to the saved results file
+
         """
         if filename is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -277,7 +276,7 @@ class BacktestResultsHandler:
         except TypeError as e:
             logger.error(
                 f"Error serializing results to JSON: {e}. "
-                f"Attempting manual conversion for equity_curve."
+                f"Attempting manual conversion for equity_curve.",
             )
             # Fallback if CyberDeltaJSONEncoder has issues or isn't comprehensive
             # enough for nested structures
@@ -294,7 +293,7 @@ class BacktestResultsHandler:
                 with open(filepath, "w") as f:
                     json.dump(results_copy, f, indent=4, cls=CyberDeltaJSONEncoder)
                 logger.info(
-                    f"Backtest results saved (with manual datetime conversion) to {filepath}"
+                    f"Backtest results saved (with manual datetime conversion) to {filepath}",
                 )
             except Exception as final_e:
                 logger.error(f"Failed to save results even after manual conversion: {final_e}")
@@ -303,11 +302,11 @@ class BacktestResultsHandler:
         return filepath
 
     def format_results_for_output(self) -> dict[str, Any]:
-        """
-        Format key results for display or logging.
+        """Format key results for display or logging.
 
         Returns:
             Dictionary with formatted key metrics
+
         """
         if not self.metrics:
             self.calculate_metrics()

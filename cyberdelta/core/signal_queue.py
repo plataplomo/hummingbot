@@ -30,22 +30,21 @@ logger = get_logger(__name__)
 
 
 class PrioritySignalQueue:
-    """
-    Priority queue for trade signals with expiration handling.
+    """Priority queue for trade signals with expiration handling.
 
     This class manages trade signals ordered by their utility scores,
     automatically handling signal expiration and integration with safety systems.
     """
 
     def __init__(
-        self, app_settings: AppSettings, circuit_breaker_system: CircuitBreakerSystem | None = None
+        self, app_settings: AppSettings, circuit_breaker_system: CircuitBreakerSystem | None = None,
     ) -> None:
-        """
-        Initialize the priority signal queue.
+        """Initialize the priority signal queue.
 
         Args:
             app_settings: AppSettingsuration parameters
             circuit_breaker_system: Optional circuit breaker system for safety checks
+
         """
         self.app_settings = app_settings
         self.circuit_breaker_system = circuit_breaker_system
@@ -80,14 +79,14 @@ class PrioritySignalQueue:
         self.logger.info("Initialized priority signal queue")
 
     async def add_signal(self, signal: TradeSignal) -> bool:
-        """
-        Add a signal to the priority queue asynchronously.
+        """Add a signal to the priority queue asynchronously.
 
         Args:
             signal: Trade signal to add
 
         Returns:
             True if signal was added, False if rejected
+
         """
         # Ensure signal.metadata exists for score checking/setting
         if signal.metadata is None:
@@ -96,7 +95,7 @@ class PrioritySignalQueue:
         # Default utility score if missing
         if "utility_score" not in signal.metadata:
             self.logger.warning(
-                f"Signal for {signal.symbol} has no utility score, using default 0.0"
+                f"Signal for {signal.symbol} has no utility score, using default 0.0",
             )
             signal.metadata["utility_score"] = 0.0
 
@@ -107,7 +106,7 @@ class PrioritySignalQueue:
         except (ValueError, TypeError, KeyError):  # Added KeyError
             score_val = signal.metadata.get("utility_score", "N/A")  # Use get for safety
             self.logger.warning(
-                f"Invalid utility_score '{score_val}' for signal {signal.symbol}. Using default 0.0"
+                f"Invalid utility_score '{score_val}' for signal {signal.symbol}. Using default 0.0",
             )
             utility_score = 0.0
             signal.metadata["utility_score"] = utility_score  # Store default back
@@ -149,7 +148,7 @@ class PrioritySignalQueue:
             except (ValueError, TypeError):
                 priority = 0.0  # Default priority if conversion fails
                 self.logger.warning(
-                    f"Invalid utility score for {signal.symbol}, using 0.0 priority."
+                    f"Invalid utility score for {signal.symbol}, using 0.0 priority.",
                 )
 
             heapq.heappush(self.signal_queue, (priority, self.counter, signal))
@@ -160,7 +159,7 @@ class PrioritySignalQueue:
                 trimmed = self._trim_queue()  # Trim if queue is over size limit
                 if not trimmed:
                     self.logger.error(
-                        "Failed to trim queue after adding signal. State might be inconsistent."
+                        "Failed to trim queue after adding signal. State might be inconsistent.",
                     )
                     # Decide behavior: raise error, remove added signal, or just log?
                     # Logging for now.
@@ -185,10 +184,9 @@ class PrioritySignalQueue:
             return True  # Indicate successful addition
 
     async def add_from_opportunity(
-        self, opportunity: ArbitrageOpportunity, strategy_name: str
+        self, opportunity: ArbitrageOpportunity, strategy_name: str,
     ) -> TradeSignal | None:
-        """
-        Create and add a trade signal from an arbitrage opportunity.
+        """Create and add a trade signal from an arbitrage opportunity.
 
         Args:
             opportunity: Arbitrage opportunity
@@ -196,6 +194,7 @@ class PrioritySignalQueue:
 
         Returns:
             Created signal if added successfully, None otherwise
+
         """
         # Determine SignalType based on opportunity details (simplified example)
         # TODO: Refine logic to determine signal type based on opportunity context
@@ -238,7 +237,7 @@ class PrioritySignalQueue:
             # For now, use a placeholder to satisfy TradeSignal's gt=0 constraint.
             self.logger.warning(
                 f"Could not determine quantity for signal {opportunity.symbol} from optimal_size. "
-                f"Using placeholder."
+                f"Using placeholder.",
             )
             quantity = Decimal("0.000001")  # Placeholder
 
@@ -263,11 +262,11 @@ class PrioritySignalQueue:
         return None
 
     async def get_next_signal(self) -> TradeSignal | None:
-        """
-        Get the highest priority unexpired signal and remove it from the queue.
+        """Get the highest priority unexpired signal and remove it from the queue.
 
         Returns:
             Highest priority valid trade signal or None if queue is empty/all expired
+
         """
         # Clean expired signals
         self._clean_expired_signals()
@@ -288,19 +287,19 @@ class PrioritySignalQueue:
                     heapq.heappop(self.signal_queue)
                     self.logger.debug(
                         f"Removed expired signal {uid} for {potential_signal.symbol} "
-                        f"from queue during get_next."
+                        f"from queue during get_next.",
                     )
                     continue  # Try the next item in the heap
 
                 # Check circuit breakers before returning
                 if self.circuit_breaker_system and not self._check_circuit_breakers_post_get(
-                    potential_signal
+                    potential_signal,
                 ):
                     # Remove signal blocked by CB and log
                     heapq.heappop(self.signal_queue)
                     # Shorten f-string for line length
                     self.logger.warning(
-                        f"CB active for {potential_signal.symbol}, skipping signal {uid}"
+                        f"CB active for {potential_signal.symbol}, skipping signal {uid}",
                     )
                     continue  # Try the next item
 
@@ -318,11 +317,11 @@ class PrioritySignalQueue:
             return None
 
     async def peek_next_signal(self) -> TradeSignal | None:
-        """
-        Peek at the highest priority unexpired signal without removing it from the queue.
+        """Peek at the highest priority unexpired signal without removing it from the queue.
 
         Returns:
             Highest priority valid trade signal or None if queue is empty/all expired
+
         """
         async with self.lock:  # Use async lock
             # Clean expired signals first
@@ -347,14 +346,14 @@ class PrioritySignalQueue:
                 # but we don't remove it on peek.
                 self.logger.warning(
                     f"Peek: Circuit breaker check failed for signal {signal.signal_id}. "
-                    f"Signal remains in queue but would be rejected on get."
+                    f"Signal remains in queue but would be rejected on get.",
                 )
                 # Depending on desired behavior, we could return None here too.
                 # For now, return the signal but note it would be blocked.
                 return signal  # Or None, if strict rejection on peek is desired
 
     async def get_signals(
-        self, max_count: int = 10, symbol: str | None = None
+        self, max_count: int = 10, symbol: str | None = None,
     ) -> list[TradeSignal]:
         """Get a list of signals, optionally filtered by symbol. Asynchronous version."""
         signals_with_priority: list[tuple[float, int, TradeSignal]] = []
@@ -406,19 +405,19 @@ class PrioritySignalQueue:
         self.logger.info("Cleared all signals from the queue.")
 
     def _clean_expired_signals(self) -> int:
-        """
-        Remove expired signals from the queue.
+        """Remove expired signals from the queue.
 
         This method MUST be called within a lock context (sync or async)
         that protects self.signal_queue.
 
         Returns:
             The number of signals removed.
+
         """
         now = datetime.now(UTC)
         original_count = len(self.signal_queue)
         self.logger.debug(
-            f"[_clean_expired] Running at time {now}. Current queue size: {original_count}"
+            f"[_clean_expired] Running at time {now}. Current queue size: {original_count}",
         )
 
         # Rebuild the heap excluding expired signals
@@ -429,7 +428,7 @@ class PrioritySignalQueue:
             is_valid = signal.is_valid()  # Removed 'now' argument
             self.logger.debug(
                 f"[_clean_expired] Checking signal {signal.signal_id} (score={-priority:.4f}, "
-                f"expiry={signal.expiration}). Valid={is_valid}."
+                f"expiry={signal.expiration}). Valid={is_valid}.",
             )
             if is_valid:
                 valid_signals.append(item)
@@ -451,7 +450,7 @@ class PrioritySignalQueue:
         elif removed_count != removed_count_local:
             self.logger.warning(
                 f"[_clean_expired] Mismatch in removed count! Logic="
-                f"{removed_count_local}, Diff={removed_count}"
+                f"{removed_count_local}, Diff={removed_count}",
             )
 
         self.logger.debug(f"[_clean_expired] Finished. New queue size: {len(self.signal_queue)}")
@@ -467,7 +466,7 @@ class PrioritySignalQueue:
             # (highest actual priority)
             num_to_keep = self.max_queue_size
             highest_priority_signals = heapq.nsmallest(
-                num_to_keep, self.signal_queue, key=lambda x: x[0]
+                num_to_keep, self.signal_queue, key=lambda x: x[0],
             )
             num_removed = len(self.signal_queue) - len(highest_priority_signals)
 
@@ -493,12 +492,12 @@ class PrioritySignalQueue:
                 expiration_delta = timedelta(seconds=float(self.default_expiration_seconds))
                 signal.expiration = signal.timestamp + expiration_delta
                 self.logger.debug(
-                    f"Set default expiration for {signal.symbol} to {signal.expiration}"
+                    f"Set default expiration for {signal.symbol} to {signal.expiration}",
                 )
             except (TypeError, ValueError) as e:
                 self.logger.error(
                     f"Failed to calculate default expiration for signal {signal.symbol}. "
-                    f"Expiration remains None. Error: {e}"
+                    f"Expiration remains None. Error: {e}",
                 )
                 signal.expiration = None  # Ensure it's None if calculation fails
         return signal
@@ -529,7 +528,7 @@ class PrioritySignalQueue:
                 else:
                     self.logger.warning(
                         f"Signal {signal.signal_id} for {signal.symbol} has an empty "
-                        f"string for 'exchange' field."
+                        f"string for 'exchange' field.",
                     )
                     return False  # Reject if exchange string is empty
             # If it's a list, process it.
@@ -546,7 +545,7 @@ class PrioritySignalQueue:
                 else:
                     self.logger.warning(
                         f"Signal {signal.signal_id} for {signal.symbol} 'exchange' field "
-                        f"is a list with no valid non-empty strings."
+                        f"is a list with no valid non-empty strings.",
                     )
                     return False  # Reject if list is empty or contains only empty strings
             # else: # Should not happen if type hint is enforced by Pydantic
@@ -559,7 +558,7 @@ class PrioritySignalQueue:
             self.logger.warning(
                 f"Cannot determine target exchange(s) for pre-add circuit breaker check on signal "
                 f"{signal.symbol} (metadata: {metadata}, exchange field: {signal.exchange}). "
-                f"Rejecting signal for safety."
+                f"Rejecting signal for safety.",
             )
             return False  # Reject if exchange cannot be determined
 
@@ -571,19 +570,19 @@ class PrioritySignalQueue:
                 if not self.circuit_breaker_system:
                     # This case should be caught earlier, but defensive check
                     self.logger.error(
-                        "Circuit breaker system is None during check, rejecting signal."
+                        "Circuit breaker system is None during check, rejecting signal.",
                     )
                     return False
 
                 can_exec, reason = self.circuit_breaker_system.can_execute(
-                    exchange_id, signal.symbol
+                    exchange_id, signal.symbol,
                 )
 
                 if not can_exec:
                     self.logger.warning(
                         f"Circuit breaker for {exchange_id} is active, rejecting signal "
                         f"{signal.symbol}. "
-                        f"Reason: {reason}"
+                        f"Reason: {reason}",
                     )
                     return False  # Reject signal if any relevant breaker is tripped
             except Exception as e:
@@ -612,13 +611,12 @@ class PrioritySignalQueue:
             # Log message already handled within _check_circuit_breakers_pre_add,
             # but add a debug message here indicating it was caught post-get.
             self.logger.debug(
-                f"Post-get circuit breaker check failed for signal {signal.symbol}. Discarding."
+                f"Post-get circuit breaker check failed for signal {signal.symbol}. Discarding.",
             )
         return allow_signal
 
     def _infer_exchange_from_symbol(self, symbol: str) -> str | None:
-        """
-        Attempt to infer the exchange based on the symbol format.
+        """Attempt to infer the exchange based on the symbol format.
 
         This method tries to extract exchange information from the symbol formatting.
         Different exchanges use different symbol formats.
@@ -628,6 +626,7 @@ class PrioritySignalQueue:
 
         Returns:
             Inferred exchange name or None if inference fails
+
         """
         if not symbol:
             return None
@@ -692,7 +691,7 @@ class PrioritySignalQueue:
             pending_signals: list[TradeSignal] = [
                 signal
                 for _score, _count, signal in sorted(
-                    list(self.signal_queue), key=lambda x: (x[0], x[1])
+                    list(self.signal_queue), key=lambda x: (x[0], x[1]),
                 )
                 if signal.is_valid()
             ]
@@ -746,7 +745,7 @@ class PrioritySignalQueue:
                 # New signal has lower or equal priority than the worst in queue
                 self.logger.debug(
                     f"Rejected signal for {signal.symbol} with score "
-                    f"{priority_score} (lower than min {-min_score_in_queue}) - Queue full."
+                    f"{priority_score} (lower than min {-min_score_in_queue}) - Queue full.",
                 )
                 return  # Do not add
 
@@ -766,10 +765,9 @@ class PrioritySignalQueue:
         self.new_signal_event.set()
 
     async def wait_for_signals(
-        self, timeout: float | None = None, max_signals: int = 1
+        self, timeout: float | None = None, max_signals: int = 1,
     ) -> list[TradeSignal]:
-        """
-        Waits for signals to become available and returns up to max_signals highest
+        """Waits for signals to become available and returns up to max_signals highest
         priority signals.
 
         Args:
@@ -778,6 +776,7 @@ class PrioritySignalQueue:
 
         Returns:
             List of TradeSignal objects ordered by priority
+
         """
         # First see if we already have signals available
         result = await self.pop_signals(max_signals)
@@ -848,13 +847,12 @@ class PrioritySignalQueue:
                     # Log rejection
                     self.logger.debug(
                         f"Circuit breaker tripped for {signal.exchange} / {signal.symbol}, "
-                        f"skipping peeked signal {signal.signal_id}."
+                        f"skipping peeked signal {signal.signal_id}.",
                     )
         return signals  # Already sorted by priority due to nsmallest
 
     def _check_circuit_breakers(self, signal: TradeSignal) -> bool:
-        """
-        Check relevant circuit breakers for a given signal.
+        """Check relevant circuit breakers for a given signal.
 
         Args:
             signal: The trade signal to check.
@@ -862,6 +860,7 @@ class PrioritySignalQueue:
         Returns:
             True if all relevant circuit breakers are closed or allow the trade,
             False otherwise.
+
         """
         if not self.circuit_breaker_system:
             return True  # No CB system, always pass
@@ -893,7 +892,7 @@ class PrioritySignalQueue:
             # Or, if this case is an error, log and return False
             self.logger.debug(
                 f"No specific exchanges found for signal {signal.signal_id} "
-                f"({signal.symbol}) to check CB. Checking symbol-level."
+                f"({signal.symbol}) to check CB. Checking symbol-level.",
             )
             # Pass to symbol check
 
@@ -904,13 +903,13 @@ class PrioritySignalQueue:
         if symbol_breaker and symbol_breaker.state == BreakerState.OPEN:
             self.logger.warning(
                 f"Symbol circuit breaker for {signal.symbol} ({symbol_breaker_name}) is OPEN. "
-                f"Reason: {symbol_breaker.trip_reason}. Signal {signal.signal_id} rejected."
+                f"Reason: {symbol_breaker.trip_reason}. Signal {signal.signal_id} rejected.",
             )
             return False
 
         if not exchanges_to_check:
             self.logger.debug(
-                f"No exchanges derived for signal {signal.signal_id}, symbol CB passed. Allowing."
+                f"No exchanges derived for signal {signal.signal_id}, symbol CB passed. Allowing.",
             )
             return True  # No specific exchanges, and symbol CB (if any) passed
 
@@ -918,7 +917,7 @@ class PrioritySignalQueue:
         for exchange_name in set(exchanges_to_check):  # Use set to avoid redundant checks
             # Check for API error breakers specifically
             exchange_breaker_item = self.circuit_breaker_system.get_exchange_breaker(
-                exchange_name, "api_errors"
+                exchange_name, "api_errors",
             )
 
             # Handle the case where get_exchange_breaker returns a CircuitBreaker directly
@@ -927,7 +926,7 @@ class PrioritySignalQueue:
                     self.logger.warning(
                         f"Exchange circuit breaker for {exchange_name} (api_errors) is OPEN. "
                         f"Reason: {exchange_breaker_item.trip_reason}. Signal {signal.signal_id} "
-                        f"rejected."
+                        f"rejected.",
                     )
                     return False
             elif isinstance(exchange_breaker_item, dict):
@@ -938,7 +937,7 @@ class PrioritySignalQueue:
                         self.logger.warning(
                             f"Symbol-specific circuit breaker for {exchange_name} is OPEN. "
                             f"Reason: {symbol_breaker.trip_reason}. Signal {signal.signal_id} "
-                            f"rejected."
+                            f"rejected.",
                         )
                         return False
 
@@ -950,12 +949,12 @@ class PrioritySignalQueue:
                     f"Pair circuit breaker for {exchange_name}-{signal.symbol} "
                     f"({pair_breaker_name}) is OPEN. "
                     f"Reason: {pair_breaker.trip_reason}. Signal {signal.signal_id} "
-                    f"rejected."
+                    f"rejected.",
                 )
                 return False
 
         self.logger.debug(
-            f"All circuit breakers passed for signal {signal.signal_id} ({signal.symbol})"
+            f"All circuit breakers passed for signal {signal.signal_id} ({signal.symbol})",
         )
         return True
 
@@ -973,11 +972,11 @@ class PrioritySignalQueue:
         return is_currently_empty  # Return the boolean value
 
     async def enqueue_signal(self, signal: TradeSignal) -> None:
-        """
-        Asynchronously enqueue a trade signal into the priority queue and notify listeners.
+        """Asynchronously enqueue a trade signal into the priority queue and notify listeners.
 
         Args:
             signal: TradeSignal to enqueue.
+
         """
         async with self.lock:
             added = await self.add_signal(signal)
@@ -988,11 +987,11 @@ class PrioritySignalQueue:
                 self.logger.warning(f"Failed to enqueue signal for {signal.symbol} (async)")
 
     async def run(self, cancellation_token: asyncio.Event) -> None:
-        """
-        Asynchronous run loop for the signal queue. Waits for new signals and processes them.
+        """Asynchronous run loop for the signal queue. Waits for new signals and processes them.
 
         Args:
             cancellation_token: An asyncio.Event used to signal shutdown.
+
         """
         self.logger.info("PrioritySignalQueue run loop started.")
         try:

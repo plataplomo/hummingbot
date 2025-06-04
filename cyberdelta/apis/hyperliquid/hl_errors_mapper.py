@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Error Mapper
+"""CyberDeltaEngine: Hyperliquid API Error Mapper
 ---------------------------------------------
 
 This module centralizes the logic for mapping Hyperliquid's unstructured error messages
@@ -30,15 +29,13 @@ logger = logging.getLogger(__name__)
 
 
 class HyperliquidErrorMapper(IErrorMapper):
-    """
-    Provides methods for mapping and normalizing Hyperliquid API errors.
+    """Provides methods for mapping and normalizing Hyperliquid API errors.
     Implements the IErrorMapper interface.
     """
 
     @staticmethod
     def _regex_match(msg: str, patterns: str | list[str]) -> bool:
-        """
-        Helper for regex-based error message matching.
+        """Helper for regex-based error message matching.
         Accepts a single pattern or a list of patterns.
         """
         if isinstance(patterns, str):
@@ -47,8 +44,7 @@ class HyperliquidErrorMapper(IErrorMapper):
 
     @staticmethod
     def _categorize_hyperliquid_error(error_message: str) -> HyperliquidAPIErrorCategory:
-        """
-        Map a Hyperliquid error message to a known error category, ERROR, or UNKNOWN.
+        """Map a Hyperliquid error message to a known error category, ERROR, or UNKNOWN.
         Uses canonical error substrings from hl_api_error.py for initial matching,
         then regex for variants.
         """
@@ -110,7 +106,7 @@ class HyperliquidErrorMapper(IErrorMapper):
         if HyperliquidErrorMapper._regex_match(msg, r"invalid twap duration"):
             return HyperliquidAPIErrorCategory.INVALID_TWAP_DURATION
         if HyperliquidErrorMapper._regex_match(
-            msg, [r"twap was never placed", r"twap already canceled", r"twap already filled"]
+            msg, [r"twap was never placed", r"twap already canceled", r"twap already filled"],
         ):
             return HyperliquidAPIErrorCategory.TWAP_NOT_FOUND_OR_FILLED
         return HyperliquidAPIErrorCategory.UNKNOWN
@@ -119,8 +115,7 @@ class HyperliquidErrorMapper(IErrorMapper):
     def _map_category_to_api_error_code(
         category_or_message: HyperliquidAPIErrorCategory | str,
     ) -> APIErrorCode:
-        """
-        Map a HyperliquidAPIErrorCategory or raw error message (str) to APIErrorCode.
+        """Map a HyperliquidAPIErrorCategory or raw error message (str) to APIErrorCode.
         If a string is provided, it is first categorized using regex logic.
         """
         if isinstance(category_or_message, str):
@@ -193,8 +188,7 @@ class HyperliquidErrorMapper(IErrorMapper):
         request_path: str | None = None,
         original_exception: Exception | None = None,
     ) -> APIError:
-        """
-        Transform a raw Hyperliquid error response into a standardized APIError.
+        """Transform a raw Hyperliquid error response into a standardized APIError.
         This is the single entry point for mapping/categorizing/normalizing Hyperliquid errors.
 
         Args:
@@ -206,6 +200,7 @@ class HyperliquidErrorMapper(IErrorMapper):
 
         Returns:
             APIError: The standardized internal error model for business logic.
+
         """
         # Priority check for Hyperliquid IP ban (403 + rate limit message)
         if status_code == 403:
@@ -214,7 +209,7 @@ class HyperliquidErrorMapper(IErrorMapper):
             if error_category == HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED:
                 logger.warning(
                     f"[HyperliquidErrorMapper] Detected IP ban pattern: "
-                    f"HTTP 403 with rate limit message: {error_body}"
+                    f"HTTP 403 with rate limit message: {error_body}",
                 )
                 return APIError(
                     message=error_body or "IP ban suspected - rate limit on 403",
@@ -250,7 +245,7 @@ class HyperliquidErrorMapper(IErrorMapper):
             # If error_body provides a more specific reason, map_string_error might refine it.
             # However, if error_body is empty or generic, this status code is a strong indicator.
             specific_error_from_string = self.map_string_error(
-                error_body or "", http_status=status_code
+                error_body or "", http_status=status_code,
             )
             if (
                 specific_error_from_string.code != APIErrorCode.EXCHANGE_SPECIFIC.value

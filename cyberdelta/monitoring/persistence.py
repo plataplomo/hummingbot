@@ -1,5 +1,4 @@
-"""
-Handles persistence (saving and loading) of performance tracking data.
+"""Handles persistence (saving and loading) of performance tracking data.
 """
 
 from __future__ import annotations
@@ -23,11 +22,11 @@ class PerformanceDataPersistence:
     """Handles saving and loading of performance data to/from JSON files."""
 
     def __init__(self, output_dir: str) -> None:
-        """
-        Initialize the persistence handler.
+        """Initialize the persistence handler.
 
         Args:
             output_dir: Directory for saving/loading performance data files.
+
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -38,8 +37,7 @@ class PerformanceDataPersistence:
         logger.info(f"Performance data persistence initialized for directory: {self.output_dir}")
 
     def _get_filepath(self, data_type: str, filename: str) -> Path:
-        """
-        Get the full file path for a data type and filename.
+        """Get the full file path for a data type and filename.
 
         Args:
             data_type: Type of data (e.g., 'returns', 'trades')
@@ -47,19 +45,20 @@ class PerformanceDataPersistence:
 
         Returns:
             Full path to the file
+
         """
         dir_path = self.output_dir / data_type
         dir_path.mkdir(parents=True, exist_ok=True)
         return dir_path / filename
 
     def save_data(self, data_type: str, filename: str, data: dict[str, Any] | list[Any]) -> None:
-        """
-        Save data to a JSON file.
+        """Save data to a JSON file.
 
         Args:
             data_type: Type of data (e.g., 'returns', 'trades')
             filename: Name of the file
             data: Data to save
+
         """
         filepath = self._get_filepath(data_type, filename)
         filepath.parent.mkdir(parents=True, exist_ok=True)
@@ -77,8 +76,7 @@ class PerformanceDataPersistence:
             logger.error(f"Failed to save {data_type} data to {filepath}: {e}")
 
     def load_data(self, data_type: str, filename: str) -> dict[str, Any] | list[Any] | None:
-        """
-        Load data from a JSON file.
+        """Load data from a JSON file.
 
         Args:
             data_type: Type of data (e.g., 'returns', 'trades')
@@ -86,6 +84,7 @@ class PerformanceDataPersistence:
 
         Returns:
             Loaded data or None if file doesn't exist or loading fails
+
         """
         filepath = self._get_filepath(data_type, filename)
 
@@ -108,14 +107,14 @@ class PerformanceDataPersistence:
             return None
 
     def _make_serializable(self, data: dict[str, Any] | list[Any]) -> dict[str, Any] | list[Any]:
-        """
-        Make data JSON serializable by converting datetime objects to ISO strings.
+        """Make data JSON serializable by converting datetime objects to ISO strings.
 
         Args:
             data: Data to make serializable
 
         Returns:
             Serializable data
+
         """
         if isinstance(data, dict):
             return self._make_dict_serializable(data)
@@ -133,14 +132,14 @@ class PerformanceDataPersistence:
             return data
 
     def _make_dict_serializable(self, item: dict[str, Any]) -> dict[str, Any]:
-        """
-        Make a dictionary JSON serializable.
+        """Make a dictionary JSON serializable.
 
         Args:
             item: Dictionary to make serializable
 
         Returns:
             Serializable dictionary
+
         """
         serializable_item: dict[str, Any] = {}
         for key, value in item.items():
@@ -157,10 +156,9 @@ class PerformanceDataPersistence:
         return serializable_item
 
     def post_process_loaded_data(
-        self, data_type: str, loaded_data: dict[str, Any] | list[Any] | None
+        self, data_type: str, loaded_data: dict[str, Any] | list[Any] | None,
     ) -> dict[str, Any] | list[Any] | None:
-        """
-        Post-process loaded data to convert datetime strings back to datetime objects.
+        """Post-process loaded data to convert datetime strings back to datetime objects.
 
         Args:
             data_type: Type of data being loaded
@@ -168,6 +166,7 @@ class PerformanceDataPersistence:
 
         Returns:
             Post-processed data
+
         """
         if loaded_data is None:
             return None
@@ -213,14 +212,14 @@ class PerformanceDataPersistence:
             return loaded_data
 
     def _post_process_dict(self, item: dict[str, Any]) -> dict[str, Any]:
-        """
-        Post-process a dictionary to convert datetime strings back to datetime objects.
+        """Post-process a dictionary to convert datetime strings back to datetime objects.
 
         Args:
             item: Dictionary to post-process
 
         Returns:
             Post-processed dictionary
+
         """
         processed_item: dict[str, Any] = {}
         datetime_fields = [
@@ -253,11 +252,11 @@ class PerformanceDataPersistence:
         self.save_data("returns", f"{strategy_name}.json", serializable_data)
 
     def load_all_returns(self) -> dict[str, dict[datetime, float]]:
-        """
-        Load all returns data from files.
+        """Load all returns data from files.
 
         Returns:
             Dictionary mapping strategy names to their returns data
+
         """
         returns_dir = self.output_dir / "returns"
         all_returns: dict[str, dict[datetime, float]] = {}

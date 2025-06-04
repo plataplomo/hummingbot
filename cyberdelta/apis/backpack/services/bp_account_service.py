@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack Account Service
+"""CyberDeltaEngine: Backpack Account Service
 ------------------------------------------
 
 This service encapsulates the logic for fetching and managing account-specific
@@ -51,13 +50,12 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 HttpClientRequesterSig = Callable[
-    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]]
+    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
 ]
 
 
 class BackpackAccountService:
-    """
-    Service class for Backpack account management operations.
+    """Service class for Backpack account management operations.
     Returns Internal Domain Models.
     """
 
@@ -77,8 +75,7 @@ class BackpackAccountService:
         exchange_name: str,
         mapper: BackpackAccountDataMapper | None = None,
     ) -> None:
-        """
-        Initialize the BackpackAccountService.
+        """Initialize the BackpackAccountService.
 
         Args:
             http_client_requester: A callable for making API requests.
@@ -87,6 +84,7 @@ class BackpackAccountService:
             authenticator: An instance of IAuthenticator for signed requests.
             exchange_name: The name of the exchange.
             mapper: Optional mapper instance for dependency injection.
+
         """
         self._http_client_requester = http_client_requester
         self._request_builder = request_builder
@@ -103,7 +101,7 @@ class BackpackAccountService:
         params = self._request_builder.build_get_balances_params()  # Returns None
         logger.debug(
             f"[{self._exchange_name}] Requesting raw balances dict from {endpoint_path} "
-            f"with params: {params}"
+            f"with params: {params}",
         )
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
@@ -120,7 +118,7 @@ class BackpackAccountService:
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw balances dict response: {raw_data!r} "
-                f"(Status: {status_code})"
+                f"(Status: {status_code})",
             )
             if raw_data is None:
                 raise APIError(
@@ -134,7 +132,7 @@ class BackpackAccountService:
         except (ValidationError, ValueError) as e_val:
             logger.error(
                 f"Validation/map error for raw balances dict: {e_val}. "
-                f"Raw: {raw_data!r}, Status: {status_code}"
+                f"Raw: {raw_data!r}, Status: {status_code}",
             )
             raise APIError(
                 message=f"Processing raw balances dict data failed: {e_val}",
@@ -167,7 +165,7 @@ class BackpackAccountService:
         params = self._request_builder.build_get_positions_params(symbol)
         logger.debug(
             f"[{self._exchange_name}] Requesting raw positions from {endpoint_path} "
-            f"for symbol '{symbol or 'all'}' with params: {params}"
+            f"for symbol '{symbol or 'all'}' with params: {params}",
         )
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
@@ -182,7 +180,7 @@ class BackpackAccountService:
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw positions response for '{symbol or 'all'}: "
-                f"{raw_data!r} (Status: {status_code})"
+                f"{raw_data!r} (Status: {status_code})",
             )
             if raw_data is None:
                 # Consider if an empty list is a valid response for no positions vs. an error
@@ -204,7 +202,7 @@ class BackpackAccountService:
         except (ValidationError, ValueError) as e_val:
             logger.error(
                 f"Validation/map error for raw positions ('{symbol or 'all'}'): {e_val}. "
-                f"Raw: {raw_data!r}, Status: {status_code}"
+                f"Raw: {raw_data!r}, Status: {status_code}",
             )
             raise APIError(
                 message=f"Processing raw positions data failed: {e_val}",
@@ -236,7 +234,7 @@ class BackpackAccountService:
         params = self._request_builder.build_get_account_info_params()  # Returns None
         logger.debug(
             f"[{self._exchange_name}] Requesting raw account summary from {endpoint_path} "
-            f"with params: {params}"
+            f"with params: {params}",
         )
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
@@ -251,7 +249,7 @@ class BackpackAccountService:
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw account summary response: {raw_data!r} "
-                f"(Status: {status_code})"
+                f"(Status: {status_code})",
             )
             if raw_data is None:
                 raise APIError(
@@ -265,7 +263,7 @@ class BackpackAccountService:
         except (ValidationError, ValueError) as e_val:
             logger.error(
                 f"Validation/map error for raw account summary: {e_val}. "
-                f"Raw: {raw_data!r}, Status: {status_code}"
+                f"Raw: {raw_data!r}, Status: {status_code}",
             )
             raise APIError(
                 message=f"Processing raw account summary data failed: {e_val}",
@@ -318,17 +316,17 @@ class BackpackAccountService:
                     # which should ensure str keys.
                     internal_balances[asset_symbol] = (
                         self._mapper.transform_raw_balance_to_internal(
-                            asset_symbol, raw_balance_model
+                            asset_symbol, raw_balance_model,
                         )
                     )
                 except (ValidationError, ValueError) as e_map_item:
                     logger.warning(
                         f"[{self._exchange_name}] Skipping balance mapping for asset "
-                        f"'{asset_symbol}' due to error: {e_map_item}. Raw: {raw_balance_model!r}"
+                        f"'{asset_symbol}' due to error: {e_map_item}. Raw: {raw_balance_model!r}",
                     )
             logger.debug(
                 f"[{self._exchange_name}] Successfully mapped {len(internal_balances)} "
-                f"spot balances."
+                f"spot balances.",
             )
             return internal_balances
 
@@ -394,7 +392,7 @@ class BackpackAccountService:
 
         if symbol is not None and not symbol:
             raise ValueError(
-                f"[{current_method}] 'symbol' must be a non-empty string when provided."
+                f"[{current_method}] 'symbol' must be a non-empty string when provided.",
             )
 
         # Initialize context for error handling
@@ -405,14 +403,14 @@ class BackpackAccountService:
             # Core operational logic
             logger.info(
                 f"[{self._exchange_name}] Getting derivative positions for symbol "
-                f"'{symbol or 'all'}'."
+                f"'{symbol or 'all'}'.",
             )
             raw_positions_list = await self._get_raw_positions_list(symbol)
             internal_positions: list[DerivativePosition] = []
             for raw_position_model in raw_positions_list:
                 try:
                     internal_positions.append(
-                        self._mapper.transform_raw_position_to_internal(raw_position_model)
+                        self._mapper.transform_raw_position_to_internal(raw_position_model),
                     )
                 except (ValidationError, ValueError) as e_map_item:
                     logger.warning(
@@ -424,11 +422,11 @@ class BackpackAccountService:
                                 else 'UnknownSymbol'
                             )
                         }' "
-                        f"due to error: {e_map_item}. Raw: {raw_position_model!r}"
+                        f"due to error: {e_map_item}. Raw: {raw_position_model!r}",
                     )
             logger.debug(
                 f"[{self._exchange_name}] Successfully mapped {len(internal_positions)} "
-                f"derivative positions."
+                f"derivative positions.",
             )
             return internal_positions
 
@@ -512,7 +510,7 @@ class BackpackAccountService:
         try:
             # Core operational logic
             logger.debug(
-                f"[{self._exchange_name}] Fetching account info (summary, balances, positions)."
+                f"[{self._exchange_name}] Fetching account info (summary, balances, positions).",
             )
             # Fetch raw components concurrently if desired, or sequentially.
             # For simplicity and clarity, fetching sequentially here.
@@ -528,7 +526,7 @@ class BackpackAccountService:
                 derivative_positions_raw=raw_positions_list,  # Expects list[BackpackRawPosition]
             )
             logger.debug(
-                f"[{self._exchange_name}] Mapped internal account summary: {internal_summary}"
+                f"[{self._exchange_name}] Mapped internal account summary: {internal_summary}",
             )
             return internal_summary
 
@@ -597,12 +595,12 @@ class BackpackAccountService:
         if args.from_account_type not in valid_accounts:
             raise ValueError(
                 f"[{current_method}] Invalid from_account_type: {args.from_account_type}. "
-                f"Must be one of {valid_accounts}"
+                f"Must be one of {valid_accounts}",
             )
         if args.to_account_type not in valid_accounts:
             raise ValueError(
                 f"[{current_method}] Invalid to_account_type: {args.to_account_type}. "
-                f"Must be one of {valid_accounts}"
+                f"Must be one of {valid_accounts}",
             )
 
         # Initialize context for error handling
@@ -622,7 +620,7 @@ class BackpackAccountService:
             )
             logger.debug(
                 f"[{self._exchange_name}] Requesting transfer from {endpoint_path} "
-                f"with payload: {payload}"
+                f"with payload: {payload}",
             )
 
             raw_data, status_code, _ = await self._http_client_requester(
@@ -639,7 +637,7 @@ class BackpackAccountService:
 
             logger.debug(
                 f"[{self._exchange_name}] Raw transfer response: {raw_data!r} "
-                f"(Status: {status_code})"
+                f"(Status: {status_code})",
             )
             if raw_data is None:
                 raise APIError(
@@ -677,7 +675,7 @@ class BackpackAccountService:
             logger.debug(f"[{self._exchange_name}] Mapped internal transfer: {internal_transfer}")
             logger.debug(
                 f"[{self._exchange_name}] Transfer successful. "
-                f"Response: {internal_transfer.model_dump_json(exclude_none=True)}"
+                f"Response: {internal_transfer.model_dump_json(exclude_none=True)}",
             )
             return internal_transfer
 
@@ -779,7 +777,7 @@ class BackpackAccountService:
         if args.network not in blockchain_mapping:
             raise ValueError(
                 f"[{current_method}] Unsupported network: {args.network}. "
-                f"Supported networks: {list(blockchain_mapping.keys())}"
+                f"Supported networks: {list(blockchain_mapping.keys())}",
             )
 
         # Initialize context for error handling
@@ -802,7 +800,7 @@ class BackpackAccountService:
             )
             logger.debug(
                 f"[{self._exchange_name}] Requesting withdrawal from {endpoint_path} "
-                f"with payload: {payload}"
+                f"with payload: {payload}",
             )
 
             raw_data, status_code, _ = await self._http_client_requester(
@@ -819,7 +817,7 @@ class BackpackAccountService:
 
             logger.debug(
                 f"[{self._exchange_name}] Raw withdrawal response: {raw_data!r} "
-                f"(Status: {status_code})"
+                f"(Status: {status_code})",
             )
             if raw_data is None:
                 raise APIError(
@@ -844,7 +842,7 @@ class BackpackAccountService:
                 tag=args.tag,
             )
             logger.debug(
-                f"[{self._exchange_name}] Mapped internal withdrawal: {internal_withdrawal}"
+                f"[{self._exchange_name}] Mapped internal withdrawal: {internal_withdrawal}",
             )
             return internal_withdrawal
 
@@ -940,7 +938,7 @@ class BackpackAccountService:
             )
             logger.debug(
                 f"[{self._exchange_name}] Requesting order history from {endpoint_path} "
-                f"with params: {params}"
+                f"with params: {params}",
             )
 
             raw_data, status_code, _ = await self._http_client_requester(
@@ -957,7 +955,7 @@ class BackpackAccountService:
 
             logger.debug(
                 f"[{self._exchange_name}] Raw order history response: {raw_data!r} "
-                f"(Status: {status_code})"
+                f"(Status: {status_code})",
             )
             if raw_data is None:
                 raise APIError(
@@ -974,19 +972,19 @@ class BackpackAccountService:
             for raw_order_model in raw_orders_list:
                 try:
                     internal_orders.append(
-                        self._mapper.transform_raw_order_to_internal(raw_order_model)
+                        self._mapper.transform_raw_order_to_internal(raw_order_model),
                     )
                 except (ValidationError, ValueError) as e_map_item:
                     logger.warning(
                         f"[{self._exchange_name}] Skipping order history mapping for "
                         f"order '{raw_order_model.clientId or raw_order_model.id}' "
                         f"due to error: {e_map_item}. Raw: "
-                        f"{raw_order_model.model_dump_json(exclude_none=True)}"
+                        f"{raw_order_model.model_dump_json(exclude_none=True)}",
                     )
 
             logger.debug(
                 f"[{self._exchange_name}] Mapped internal order history: "
-                f"{len(internal_orders)} orders"
+                f"{len(internal_orders)} orders",
             )
             return internal_orders
 
@@ -1053,6 +1051,7 @@ class BackpackAccountService:
 
         Args:
             args: Parameters for filtering trade history including symbol and limit.
+
         """
         # Service Input Parameter Validation is now handled by GetTradeHistoryArgs Pydantic model
         frame = inspect.currentframe()
@@ -1077,7 +1076,7 @@ class BackpackAccountService:
             )
             logger.debug(
                 f"[{self._exchange_name}] Requesting trade history from {endpoint_path} "
-                f"with params: {params}"
+                f"with params: {params}",
             )
 
             raw_data, status_code, _ = await self._http_client_requester(
@@ -1094,7 +1093,7 @@ class BackpackAccountService:
 
             logger.debug(
                 f"[{self._exchange_name}] Raw trade history response: {raw_data!r} "
-                f"(Status: {status_code})"
+                f"(Status: {status_code})",
             )
             if raw_data is None:
                 raise APIError(
@@ -1117,12 +1116,12 @@ class BackpackAccountService:
                     logger.warning(
                         f"[{self._exchange_name}] Skipping trade history mapping for trade "
                         f"'{raw_trade_model.id}' due to error: {e_map_item}. Raw: "
-                        f"{raw_trade_model.model_dump_json(exclude_none=True)}"
+                        f"{raw_trade_model.model_dump_json(exclude_none=True)}",
                     )
 
             logger.debug(
                 f"[{self._exchange_name}] Mapped internal trade history: "
-                f"{len(internal_trades)} trades"
+                f"{len(internal_trades)} trades",
             )
             return internal_trades
 

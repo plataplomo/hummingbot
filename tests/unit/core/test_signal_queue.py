@@ -1,5 +1,4 @@
-"""
-Tests for the Priority Signal Queue functionality.
+"""Tests for the Priority Signal Queue functionality.
 """
 
 import asyncio

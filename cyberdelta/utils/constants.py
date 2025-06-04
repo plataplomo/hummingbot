@@ -1,5 +1,4 @@
-"""
-Constants for the CyberDeltaEngine.
+"""Constants for the CyberDeltaEngine.
 
 Note: Trading enums (OrderType, OrderSide) are now sourced from cyberdelta.core.models.enums.
 """

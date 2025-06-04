@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-"""
-Example script demonstrating the usage of the CyberDeltaEngine configuration system.
+"""Example script demonstrating the usage of the CyberDeltaEngine configuration system.
 
 This script shows how to:
 1. Load the configuration and secrets from files
@@ -168,13 +167,13 @@ def main() -> None:
         sys.exit(1)
 
     print(
-        f"Loading secrets from: {secrets_path}"
+        f"Loading secrets from: {secrets_path}",
     )  # secrets_path is for info, SecretsManager finds its own path
     secrets_manager = SecretsManager()
     # Attempt to load secrets; load_secrets() returns bool, errors logged internally
     if not secrets_manager.load_secrets():
         print(
-            f"Warning: Secrets could not be loaded. Path used by SecretsManager might be missing or invalid (e.g., {secrets_manager._get_secrets_path()})"
+            f"Warning: Secrets could not be loaded. Path used by SecretsManager might be missing or invalid (e.g., {secrets_manager._get_secrets_path()})",
         )
         # loaded_secrets will be an empty dict if loading failed and was attempted
     loaded_secrets = secrets_manager.secrets  # Access the internal dict
@@ -254,11 +253,11 @@ def main() -> None:
             # This is highly dependent on the actual structure of your secrets
             if isinstance(api_key, dict) and api_key.get("public"):
                 print(
-                    f"    API Key (Public Part): Set (ending with ...{api_key['public'][-4:] if api_key['public'] and len(api_key['public']) >= 4 else '****'})"
+                    f"    API Key (Public Part): Set (ending with ...{api_key['public'][-4:] if api_key['public'] and len(api_key['public']) >= 4 else '****'})",
                 )
             elif isinstance(api_key, str) and api_key:
                 print(
-                    f"    API Key: Set (ending with ...{api_key[-4:] if len(api_key) >= 4 else '****'})"
+                    f"    API Key: Set (ending with ...{api_key[-4:] if len(api_key) >= 4 else '****'})",
                 )
             else:
                 print("    API Key: Not Set or invalid format")
@@ -277,7 +276,7 @@ def main() -> None:
         # This is just to show it's loaded. For dict-type keys, access sub-keys.
         if isinstance(hyperliquid_api_key, dict):
             print(
-                f"Hyperliquid API Key (Public Part): {hyperliquid_api_key.get('public', 'Not Set')}"
+                f"Hyperliquid API Key (Public Part): {hyperliquid_api_key.get('public', 'Not Set')}",
             )
         elif isinstance(hyperliquid_api_key, str):
             print(f"Hyperliquid API Key: Loaded (Value type: {type(hyperliquid_api_key)})")
@@ -320,7 +319,7 @@ def run_benchmark(config_main_path: Path, secrets_main_path: Path) -> None:
     print("- Times include object instantiation and file I/O.")
     print("- Real-world performance will also depend on config file size and complexity.")
     print(
-        "- SecretsManager may have different performance based on encryption/decryption if implemented."
+        "- SecretsManager may have different performance based on encryption/decryption if implemented.",
     )
 
 

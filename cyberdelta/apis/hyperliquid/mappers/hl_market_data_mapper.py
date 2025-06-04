@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid Market Data Mapper
+"""CyberDeltaEngine: Hyperliquid Market Data Mapper
 ------------------------------------------------
 
 This module provides the HyperliquidMarketDataMapper class for transforming
@@ -50,8 +49,7 @@ logger = logging.getLogger(__name__)
 
 
 class HyperliquidMarketDataMapper:
-    """
-    Domain-focused mapper for Hyperliquid market data transformations.
+    """Domain-focused mapper for Hyperliquid market data transformations.
 
     This class contains static methods for transforming validated Hyperliquid Raw models
     related to market data into CyberDeltaEngine Internal Domain Models.
@@ -59,8 +57,7 @@ class HyperliquidMarketDataMapper:
 
     @staticmethod
     def _map_side_to_internal(hl_side: str) -> OrderSide:
-        """
-        Maps a Hyperliquid order side string to internal OrderSide enum.
+        """Maps a Hyperliquid order side string to internal OrderSide enum.
 
         Args:
             hl_side: Raw side string from Hyperliquid ("B" or "A")
@@ -70,6 +67,7 @@ class HyperliquidMarketDataMapper:
 
         Raises:
             TransformationError: If side cannot be mapped
+
         """
         if hl_side == "B":
             return OrderSide.BUY
@@ -80,8 +78,7 @@ class HyperliquidMarketDataMapper:
 
     @staticmethod
     def transform_raw_asset_ctx_to_ticker(raw_asset_ctx: HyperliquidRawAssetCtx) -> Ticker:
-        """
-        Transforms a HyperliquidRawAssetCtx to an Internal Ticker model.
+        """Transforms a HyperliquidRawAssetCtx to an Internal Ticker model.
 
         Args:
             raw_asset_ctx: Validated raw asset context data from Hyperliquid
@@ -91,11 +88,12 @@ class HyperliquidMarketDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Parse core ticker fields using parsing utilities
             mark_px = parse_decimal_value(
-                raw_asset_ctx.mark_px, allow_none=False, field_name="markPx"
+                raw_asset_ctx.mark_px, allow_none=False, field_name="markPx",
             )
             if mark_px is None:
                 raise TransformationError("mark_px is required for ticker")
@@ -104,7 +102,7 @@ class HyperliquidMarketDataMapper:
             volume_24h = None
             if raw_asset_ctx.day_ntl_vlm:
                 volume_24h = parse_decimal_value(
-                    raw_asset_ctx.day_ntl_vlm, allow_none=True, field_name="dayNtlVlm"
+                    raw_asset_ctx.day_ntl_vlm, allow_none=True, field_name="dayNtlVlm",
                 )
 
             # Get current timestamp for ticker timestamp
@@ -121,15 +119,14 @@ class HyperliquidMarketDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform HyperliquidRawAssetCtx to Ticker: {e}"
+                f"Failed to transform HyperliquidRawAssetCtx to Ticker: {e}",
             ) from e
 
     @staticmethod
     def transform_raw_order_book_to_internal(
-        raw_book: HyperliquidRawL2Book, depth: int | None = None
+        raw_book: HyperliquidRawL2Book, depth: int | None = None,
     ) -> OrderBook:
-        """
-        Transforms a HyperliquidRawL2Book to an Internal OrderBook model.
+        """Transforms a HyperliquidRawL2Book to an Internal OrderBook model.
 
         Args:
             raw_book: Validated raw order book data from Hyperliquid
@@ -140,6 +137,7 @@ class HyperliquidMarketDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Parse bid levels (raw_book.levels[0])
@@ -184,15 +182,14 @@ class HyperliquidMarketDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform HyperliquidRawL2Book to OrderBook: {e}"
+                f"Failed to transform HyperliquidRawL2Book to OrderBook: {e}",
             ) from e
 
     @staticmethod
     def transform_raw_public_trade_to_internal(
         raw_trade: HyperliquidRawPublicTrade,
     ) -> Trade | None:
-        """
-        Transforms a HyperliquidRawPublicTrade to an Internal Trade model.
+        """Transforms a HyperliquidRawPublicTrade to an Internal Trade model.
 
         Args:
             raw_trade: Validated raw public trade data from Hyperliquid
@@ -202,6 +199,7 @@ class HyperliquidMarketDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Map side
@@ -219,7 +217,7 @@ class HyperliquidMarketDataMapper:
             min_quantity_threshold = Decimal("0.000001")  # 1 micro unit minimum
             if price <= Decimal("0") or quantity <= min_quantity_threshold:
                 logger.warning(
-                    f"Invalid trade data: price={price}, quantity={quantity}. Skipping trade."
+                    f"Invalid trade data: price={price}, quantity={quantity}. Skipping trade.",
                 )
                 return None
 
@@ -254,15 +252,14 @@ class HyperliquidMarketDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform HyperliquidRawPublicTrade to Trade: {e}"
+                f"Failed to transform HyperliquidRawPublicTrade to Trade: {e}",
             ) from e
 
     @staticmethod
     def transform_raw_asset_ctx_to_funding_rate(
         raw_asset_ctx: HyperliquidRawAssetCtx,
     ) -> FundingRate | None:
-        """
-        Transforms a HyperliquidRawAssetCtx to an Internal FundingRate model.
+        """Transforms a HyperliquidRawAssetCtx to an Internal FundingRate model.
 
         Args:
             raw_asset_ctx: Validated raw asset context data from Hyperliquid
@@ -272,11 +269,12 @@ class HyperliquidMarketDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Parse mark price first
             mark_price = parse_decimal_value(
-                raw_asset_ctx.mark_px, allow_none=True, field_name="mark_px"
+                raw_asset_ctx.mark_px, allow_none=True, field_name="mark_px",
             )
 
             # Parse hourly funding rate
@@ -285,7 +283,7 @@ class HyperliquidMarketDataMapper:
 
             try:
                 hourly_funding_rate = parse_decimal_value(
-                    raw_asset_ctx.funding, allow_none=True, field_name="funding"
+                    raw_asset_ctx.funding, allow_none=True, field_name="funding",
                 )
 
                 if hourly_funding_rate is not None and hourly_funding_rate.is_finite():
@@ -294,7 +292,7 @@ class HyperliquidMarketDataMapper:
 
             except ValueError:
                 logger.warning(
-                    f"Could not parse funding rate for {raw_asset_ctx.name}. Setting to None."
+                    f"Could not parse funding rate for {raw_asset_ctx.name}. Setting to None.",
                 )
 
             # Calculate next funding time (start of next hour)
@@ -302,12 +300,12 @@ class HyperliquidMarketDataMapper:
 
             now_utc = datetime.now(UTC)
             next_funding_time = now_utc.replace(minute=0, second=0, microsecond=0) + timedelta(
-                hours=1
+                hours=1,
             )
 
             # Parse additional HL-specific details
             impact_px = parse_decimal_value(
-                raw_asset_ctx.impact_px, allow_none=True, field_name="impact_px"
+                raw_asset_ctx.impact_px, allow_none=True, field_name="impact_px",
             )
 
             # Create HL-specific details
@@ -329,7 +327,7 @@ class HyperliquidMarketDataMapper:
 
         except Exception as e:
             logger.error(
-                f"Error mapping raw asset context to FundingRate for {raw_asset_ctx.name}: {e}"
+                f"Error mapping raw asset context to FundingRate for {raw_asset_ctx.name}: {e}",
             )
             return None
 
@@ -337,8 +335,7 @@ class HyperliquidMarketDataMapper:
     def transform_raw_funding_history_item_to_internal(
         raw_item: HyperliquidRawFundingHistoryItem,
     ) -> FundingRate:
-        """
-        Transforms a HyperliquidRawFundingHistoryItem to an Internal FundingRate model.
+        """Transforms a HyperliquidRawFundingHistoryItem to an Internal FundingRate model.
 
         Args:
             raw_item: Validated raw funding history item from Hyperliquid
@@ -348,11 +345,12 @@ class HyperliquidMarketDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Parse funding rate
             funding_rate = parse_decimal_value(
-                raw_item.funding_rate, allow_none=False, field_name="fundingRate"
+                raw_item.funding_rate, allow_none=False, field_name="fundingRate",
             )
 
             if funding_rate is None:
@@ -378,15 +376,14 @@ class HyperliquidMarketDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform HyperliquidRawFundingHistoryItem to FundingRate: {e}"
+                f"Failed to transform HyperliquidRawFundingHistoryItem to FundingRate: {e}",
             ) from e
 
     @staticmethod
     def transform_raw_candle_snapshot_to_candles(
-        raw_snapshot: HyperliquidRawCandleSnapshot, symbol: str, interval: str
+        raw_snapshot: HyperliquidRawCandleSnapshot, symbol: str, interval: str,
     ) -> list[Candle]:
-        """
-        Transforms a HyperliquidRawCandleSnapshot to a list of Internal Candle models.
+        """Transforms a HyperliquidRawCandleSnapshot to a list of Internal Candle models.
 
         Args:
             raw_snapshot: Validated raw candle snapshot data from Hyperliquid
@@ -398,6 +395,7 @@ class HyperliquidMarketDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             candles: list[Candle] = []
@@ -410,14 +408,14 @@ class HyperliquidMarketDataMapper:
             for i in range(len(raw_snapshot.t)):
                 # Parse OHLCV data from parallel lists
                 open_price = parse_decimal_value(
-                    raw_snapshot.o[i], allow_none=False, field_name="o"
+                    raw_snapshot.o[i], allow_none=False, field_name="o",
                 )
                 high_price = parse_decimal_value(
-                    raw_snapshot.h[i], allow_none=False, field_name="h"
+                    raw_snapshot.h[i], allow_none=False, field_name="h",
                 )
                 low_price = parse_decimal_value(raw_snapshot.l[i], allow_none=False, field_name="l")
                 close_price = parse_decimal_value(
-                    raw_snapshot.c[i], allow_none=False, field_name="c"
+                    raw_snapshot.c[i], allow_none=False, field_name="c",
                 )
                 volume = parse_decimal_value(raw_snapshot.v[i], allow_none=False, field_name="v")
 
@@ -452,13 +450,12 @@ class HyperliquidMarketDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform HyperliquidRawCandleSnapshot to Candle list: {e}"
+                f"Failed to transform HyperliquidRawCandleSnapshot to Candle list: {e}",
             ) from e
 
     @staticmethod
     def transform_ws_trade_event_to_internal(raw: HyperliquidRawWsTradeEvent) -> Trade:
-        """
-        Transforms a WebSocket trade event to an Internal Trade model.
+        """Transforms a WebSocket trade event to an Internal Trade model.
 
         Args:
             raw: Validated raw WebSocket trade event from Hyperliquid
@@ -468,6 +465,7 @@ class HyperliquidMarketDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Map side
@@ -509,13 +507,12 @@ class HyperliquidMarketDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform HyperliquidRawWsTradeEvent to Trade: {e}"
+                f"Failed to transform HyperliquidRawWsTradeEvent to Trade: {e}",
             ) from e
 
     @staticmethod
     def transform_ws_book_update_to_internal(raw: HyperliquidRawWsBookUpdate) -> OrderBook:
-        """
-        Transforms a WebSocket order book update to an Internal OrderBook model.
+        """Transforms a WebSocket order book update to an Internal OrderBook model.
 
         Args:
             raw: Validated raw WebSocket book update from Hyperliquid
@@ -525,6 +522,7 @@ class HyperliquidMarketDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Parse bid levels (levels[0])
@@ -559,15 +557,14 @@ class HyperliquidMarketDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform HyperliquidRawWsBookUpdate to OrderBook: {e}"
+                f"Failed to transform HyperliquidRawWsBookUpdate to OrderBook: {e}",
             ) from e
 
     @staticmethod
     def transform_raw_trades(
-        raw_public_trades: list[HyperliquidRawPublicTrade], limit: int | None = None
+        raw_public_trades: list[HyperliquidRawPublicTrade], limit: int | None = None,
     ) -> list[Trade]:
-        """
-        Transforms a list of HyperliquidRawPublicTrade to Internal Trade models.
+        """Transforms a list of HyperliquidRawPublicTrade to Internal Trade models.
 
         Args:
             raw_public_trades: List of validated raw public trade data from Hyperliquid
@@ -578,24 +575,25 @@ class HyperliquidMarketDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         trades: list[Trade] = []
 
         for raw_trade in raw_public_trades:
             try:
                 trade = HyperliquidMarketDataMapper.transform_raw_public_trade_to_internal(
-                    raw_trade
+                    raw_trade,
                 )
                 if trade is not None:
                     trades.append(trade)
                 else:
                     logger.warning(
-                        f"Skipping trade transformation for {raw_trade.coin} - returned None"
+                        f"Skipping trade transformation for {raw_trade.coin} - returned None",
                     )
             except Exception as e:
                 logger.error(
                     f"Error transforming trade for {raw_trade.coin}: {e}. "
-                    f"Raw: {raw_trade.model_dump()}"
+                    f"Raw: {raw_trade.model_dump()}",
                 )
                 continue
 

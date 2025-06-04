@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack API Raw Models (User Fills)
+"""CyberDeltaEngine: Backpack API Raw Models (User Fills)
 -------------------------------------------------------
 
 Strict Pydantic models for validating the *raw* structure of Backpack Exchange API responses
@@ -37,8 +36,7 @@ from cyberdelta.apis.backpack.models.bp_common_raw_types import (
 
 # --- Core Backpack Fill Model ---
 class BackpackRawFill(BaseModel):
-    """
-    Pydantic model for a raw fill object from Backpack API responses.
+    """Pydantic model for a raw fill object from Backpack API responses.
 
     This model enforces strict validation of the raw data structure and types
     as defined by the Backpack Exchange API for fill events/objects.
@@ -59,6 +57,7 @@ class BackpackRawFill(BaseModel):
         timestamp (str): The ISO 8601 timestamp of the fill.
         trade_id (int): The unique ID of the trade.
         client_id (str | None): Optional client-specified order ID (max_length=128).
+
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
@@ -80,8 +79,7 @@ class BackpackRawFill(BaseModel):
 # The BackpackRawFillsList model remains structurally the same but benefits from
 # the BackpackRawFill model being refactored.
 class BackpackRawFillsList(RootModel[list[BackpackRawFill]]):
-    """
-    Pydantic model for a list of raw fill objects from the Backpack API.
+    """Pydantic model for a list of raw fill objects from the Backpack API.
     This typically represents the direct JSON response which is a list of fills.
     """
 

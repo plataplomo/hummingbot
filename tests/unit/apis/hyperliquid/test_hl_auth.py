@@ -1,5 +1,4 @@
-"""
-Unit tests for HyperliquidEip712Authenticator.
+"""Unit tests for HyperliquidEip712Authenticator.
 
 These tests complement the comprehensive tests in test_hl_auth_sign_l1_action.py
 and focus on initialization, validation, and error handling.

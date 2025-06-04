@@ -1,5 +1,4 @@
-"""
-Unit tests for BackpackTradingService query and status functionality.
+"""Unit tests for BackpackTradingService query and status functionality.
 """
 
 from __future__ import annotations

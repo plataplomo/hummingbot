@@ -1,5 +1,4 @@
-"""
-Unit tests for the HyperliquidMarketDataService.
+"""Unit tests for the HyperliquidMarketDataService.
 Tests complete workflows through public interfaces with mocked HTTP responses.
 """
 

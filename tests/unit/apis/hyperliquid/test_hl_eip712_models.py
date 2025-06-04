@@ -1,5 +1,4 @@
-"""
-Unit tests for Hyperliquid EIP-712 models.
+"""Unit tests for Hyperliquid EIP-712 models.
 """
 
 import pytest

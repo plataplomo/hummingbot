@@ -1,5 +1,4 @@
-"""
-cyberdelta.config.config_models
+"""cyberdelta.config.config_models
 ------------------------------
 Pydantic models for CyberDeltaEngine configuration validation.
 
@@ -31,7 +30,7 @@ from cyberdelta.utils.parsing import (
 
 
 def _parse_yaml_input_to_required_decimal(
-    v: str | int | float | Decimal, info: ValidationInfo
+    v: str | int | float | Decimal, info: ValidationInfo,
 ) -> Decimal:
     """Pydantic 'before' validator to parse input to a required, finite Decimal."""
     field_name = info.field_name if info.field_name else "decimal_field"
@@ -48,7 +47,7 @@ def _parse_yaml_input_to_required_decimal(
 def _validate_string_for_literal_check(v: str | int | float | bool, info: ValidationInfo) -> str:
     """Pydantic 'before' validator to ensure v is a string before Literal check."""
     return validate_str_field(
-        v, field_name=info.field_name or "literal_str_field", allow_empty=False
+        v, field_name=info.field_name or "literal_str_field", allow_empty=False,
     )
 
 
@@ -114,7 +113,7 @@ class GeneralSettings(BaseModel):
         if not isinstance(v, dict):
             raise ValueError(
                 f"{info.field_name or 'module_log_levels'}: Expected dict or None, "
-                f"got {type(v).__name__}"
+                f"got {type(v).__name__}",
             )
 
         validated_levels: dict[str, str] = {}
@@ -146,17 +145,17 @@ class ExchangeSpecificConfig(BaseModel):
     enabled: bool = True
     # Mainnet URLs (renamed from api_base_url and ws_url)
     api_base_url_mainnet: HttpUrl = Field(
-        ..., description="Base URL for the exchange's mainnet REST API."
+        ..., description="Base URL for the exchange's mainnet REST API.",
     )
     ws_url_mainnet: AnyUrl = Field(
-        ..., description="Base URL for the exchange's mainnet WebSocket API."
+        ..., description="Base URL for the exchange's mainnet WebSocket API.",
     )
     # Testnet URLs (optional)
     api_base_url_testnet: HttpUrl | None = Field(
-        default=None, description="Optional base URL for the exchange's testnet REST API."
+        default=None, description="Optional base URL for the exchange's testnet REST API.",
     )
     ws_url_testnet: AnyUrl | None = Field(
-        default=None, description="Optional base URL for the exchange's testnet WebSocket API."
+        default=None, description="Optional base URL for the exchange's testnet WebSocket API.",
     )
     # Environment flag
     is_mainnet_environment: bool = Field(
@@ -166,11 +165,11 @@ class ExchangeSpecificConfig(BaseModel):
         ),
     )
     rate_limit_per_minute: int | None = Field(
-        default=None, gt=0, description="For simple exchanges: total requests per minute."
+        default=None, gt=0, description="For simple exchanges: total requests per minute.",
     )
     symbols: dict[str, str]
     exchange_name: ExchangeName = Field(
-        ..., description="Canonical exchange name, must match a value from ExchangeName enum."
+        ..., description="Canonical exchange name, must match a value from ExchangeName enum.",
     )
 
     # Hyperliquid-specific rate limiting configuration
@@ -184,7 +183,7 @@ class ExchangeSpecificConfig(BaseModel):
         description="Hyperliquid: IP weights for /info request types. Keys are API 'type' strings.",
     )
     default_info_weight: int | None = Field(
-        default=None, ge=1, description="Hyperliquid: Default IP weight for unlisted /info types."
+        default=None, ge=1, description="Hyperliquid: Default IP weight for unlisted /info types.",
     )
     exchange_action_base_ip_weight: int | None = Field(
         default=None,
@@ -192,7 +191,7 @@ class ExchangeSpecificConfig(BaseModel):
         description="Hyperliquid: Base IP weight for one /exchange action.",
     )
     address_action_safety_net: AddressActionSafetyNetConfig | None = Field(
-        default=None, description="Hyperliquid: Config for address action safety net limiter."
+        default=None, description="Hyperliquid: Config for address action safety net limiter.",
     )
     websocket_send_rate_per_minute: int | None = Field(
         default=None,
@@ -262,7 +261,7 @@ class ExchangeSpecificConfig(BaseModel):
     )
     @classmethod
     def _validate_url_strings(
-        cls, v: str | int | float | bool | None, info: ValidationInfo
+        cls, v: str | int | float | bool | None, info: ValidationInfo,
     ) -> str | None:
         # Testnet URLs can be None
         if v is None and info.field_name and "testnet" in info.field_name:
@@ -273,20 +272,20 @@ class ExchangeSpecificConfig(BaseModel):
     @field_validator("symbols", mode="before")
     @classmethod
     def _validate_symbols_dict(
-        cls, v: dict[str, str] | list[str] | str | int | float | bool, info: ValidationInfo
+        cls, v: dict[str, str] | list[str] | str | int | float | bool, info: ValidationInfo,
     ) -> dict[str, str]:
         if not isinstance(v, dict):
             raise ValueError(
-                f"{info.field_name or 'symbols'}: Expected dict, got {type(v).__name__}"
+                f"{info.field_name or 'symbols'}: Expected dict, got {type(v).__name__}",
             )
 
         validated_symbols: dict[str, str] = {}
         for raw_key, raw_value in v.items():
             validated_key = validate_str_field(
-                raw_key, field_name=f"{info.field_name or 'symbols'}.key", allow_empty=False
+                raw_key, field_name=f"{info.field_name or 'symbols'}.key", allow_empty=False,
             )
             validated_value = validate_str_field(
-                raw_value, field_name=f"{info.field_name or 'symbols'}.{raw_key}", allow_empty=False
+                raw_value, field_name=f"{info.field_name or 'symbols'}.{raw_key}", allow_empty=False,
             )
             validated_symbols[validated_key] = validated_value
 
@@ -310,14 +309,14 @@ class ExchangeSpecificConfig(BaseModel):
                 if field_value is None:
                     raise ValueError(
                         f"ExchangeSpecificConfig for Hyperliquid: '{field_name}' is required "
-                        f"but not provided."
+                        f"but not provided.",
                     )
         elif self.exchange_name == ExchangeName.BACKPACK:
             # Backpack requires the simple rate_limit_per_minute
             if self.rate_limit_per_minute is None:
                 raise ValueError(
                     "ExchangeSpecificConfig for Backpack: 'rate_limit_per_minute' is required "
-                    "but not provided."
+                    "but not provided.",
                 )
 
         return self
@@ -329,12 +328,12 @@ class ExchangeSpecificConfig(BaseModel):
             if self.api_base_url_testnet is None:
                 raise ValueError(
                     f"ExchangeSpecificConfig for {self.exchange_name.value}: "
-                    f"'api_base_url_testnet' is required when 'is_mainnet_environment' is False."
+                    f"'api_base_url_testnet' is required when 'is_mainnet_environment' is False.",
                 )
             if self.ws_url_testnet is None:
                 raise ValueError(
                     f"ExchangeSpecificConfig for {self.exchange_name.value}: "
-                    f"'ws_url_testnet' is required when 'is_mainnet_environment' is False."
+                    f"'ws_url_testnet' is required when 'is_mainnet_environment' is False.",
                 )
         return self
 
@@ -455,7 +454,7 @@ class BalanceMonitoringSettings(BaseModel):
         if not isinstance(v, dict):
             raise ValueError(
                 f"{info.field_name or 'min_balance_thresholds_usd'}: "
-                f"Expected dict, got {type(v).__name__}"
+                f"Expected dict, got {type(v).__name__}",
             )
 
         validated_thresholds: dict[str, str | int | float | Decimal] = {}
@@ -472,14 +471,14 @@ class BalanceMonitoringSettings(BaseModel):
     @field_validator("min_balance_thresholds_usd", mode="after")
     @classmethod
     def _validate_balance_thresholds_values(
-        cls, v: dict[str, Decimal], info: ValidationInfo
+        cls, v: dict[str, Decimal], info: ValidationInfo,
     ) -> dict[str, Decimal]:
         """Validate that all Decimal values are positive after ConfigDecimal parsing."""
         for key, value in v.items():
             if value <= Decimal("0"):
                 raise ValueError(
                     f"Field '{info.field_name or 'min_balance_thresholds_usd'}.{key}': "
-                    f"Balance threshold must be positive, got {value}."
+                    f"Balance threshold must be positive, got {value}.",
                 )
         return v
 
@@ -510,11 +509,11 @@ class MonitoringSettings(BaseModel):
     @field_validator("alert_methods", mode="before")
     @classmethod
     def _validate_alert_methods(
-        cls, v: list[str | int | float | bool] | str | int | float | bool, info: ValidationInfo
+        cls, v: list[str | int | float | bool] | str | int | float | bool, info: ValidationInfo,
     ) -> list[str]:
         if not isinstance(v, list):
             raise ValueError(
-                f"{info.field_name or 'alert_methods'}: Expected list, got {type(v).__name__}"
+                f"{info.field_name or 'alert_methods'}: Expected list, got {type(v).__name__}",
             )
 
         validated_methods: list[str] = []
@@ -577,7 +576,7 @@ class AppSettings(BaseModel):
     ) -> dict[str, dict[str, str | int | float | bool]]:
         if not isinstance(v, dict):
             raise ValueError(
-                f"{info.field_name or 'exchanges'}: Expected dict, got {type(v).__name__}"
+                f"{info.field_name or 'exchanges'}: Expected dict, got {type(v).__name__}",
             )
 
         # Validate exchange names are non-empty strings
@@ -585,7 +584,7 @@ class AppSettings(BaseModel):
         for raw_key, raw_value in v.items():
             # Type checker knows raw_key is str after isinstance check above
             validated_key = validate_str_field(
-                raw_key, field_name=f"{info.field_name or 'exchanges'}.key", allow_empty=False
+                raw_key, field_name=f"{info.field_name or 'exchanges'}.key", allow_empty=False,
             )
             validated_exchanges[validated_key] = raw_value
 
@@ -594,29 +593,28 @@ class AppSettings(BaseModel):
     @model_validator(mode="after")
     def _validate_cross_references(self) -> Self:
         """Validate cross-references between configuration sections."""
-
         # Ensure strategy exchanges exist in exchanges config
         strategy = self.strategies.hl_perp_bp_spot
         if strategy.long_exchange not in self.exchanges:
             raise ValueError(
                 f"Strategy long_exchange '{strategy.long_exchange}' "
-                f"not found in exchanges configuration"
+                f"not found in exchanges configuration",
             )
         if strategy.short_exchange not in self.exchanges:
             raise ValueError(
                 f"Strategy short_exchange '{strategy.short_exchange}' "
-                f"not found in exchanges configuration"
+                f"not found in exchanges configuration",
             )
 
         # Ensure balance monitoring thresholds reference valid exchanges
         balance_exchanges = set(
-            self.safety_systems.balance_monitoring.min_balance_thresholds_usd.keys()
+            self.safety_systems.balance_monitoring.min_balance_thresholds_usd.keys(),
         )
         configured_exchanges = set(self.exchanges.keys())
         invalid_exchanges = balance_exchanges - configured_exchanges
         if invalid_exchanges:
             raise ValueError(
-                f"Balance monitoring references unknown exchanges: {sorted(invalid_exchanges)}"
+                f"Balance monitoring references unknown exchanges: {sorted(invalid_exchanges)}",
             )
 
         return self
@@ -633,7 +631,7 @@ class AppSettings(BaseModel):
                         f"dictionary key is '{key}', but 'exchange_name' field "
                         f"is '{exchange_cfg_instance.exchange_name.value}'. "
                         f"These must be identical (e.g., 'hyperliquid' key must have "
-                        f"'hyperliquid' as exchange_name)."
+                        f"'hyperliquid' as exchange_name).",
                     )
         return self
 
@@ -646,7 +644,7 @@ class AppSettings(BaseModel):
                 if hyperliquid_config.chain_id is None:
                     raise ValueError(
                         "AppSettings: 'chain_id' must be specified in config.yaml for "
-                        "enabled 'hyperliquid' exchange."
+                        "enabled 'hyperliquid' exchange.",
                     )
                 # DEFENSIVE CHECK: Verify chain_id is positive after Field validation.
                 # Since chain_id is validated as int | None with gt=0, we just need
@@ -654,6 +652,6 @@ class AppSettings(BaseModel):
                 if hyperliquid_config.chain_id <= 0:
                     raise ValueError(
                         "AppSettings: 'chain_id' for 'hyperliquid' exchange must be a "
-                        "positive integer."
+                        "positive integer.",
                     )
         return self

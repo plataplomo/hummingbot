@@ -1,5 +1,4 @@
-"""
-Utilities for generating synthetic market data for testing purposes.
+"""Utilities for generating synthetic market data for testing purposes.
 """
 
 import logging
@@ -18,8 +17,7 @@ def generate_synthetic_data(
     freq: str = "1h",
     seed: int | None = None,
 ) -> pd.DataFrame:
-    """
-    Generate synthetic market data for backtesting.
+    """Generate synthetic market data for backtesting.
 
     Args:
         days: Number of days of data to generate.
@@ -30,6 +28,7 @@ def generate_synthetic_data(
 
     Returns:
         DataFrame containing the synthetic data.
+
     """
     if symbols is None:
         symbols = ["ExchangeA/Coin1/USDT", "ExchangeB/Coin1/USDT"]
@@ -76,16 +75,16 @@ def generate_synthetic_data(
             # Derive OHLC from base_prices with some noise
             price_variation = volatility * base_prices * 0.1  # Smaller variation for OHLC
             df_symbol[("open", symbol)] = base_prices - rng.normal(
-                0, price_variation / 2, num_points
+                0, price_variation / 2, num_points,
             )
             df_symbol[("close", symbol)] = base_prices + rng.normal(
-                0, price_variation / 2, num_points
+                0, price_variation / 2, num_points,
             )
             df_symbol[("high", symbol)] = np.maximum(
-                df_symbol[("open", symbol)], df_symbol[("close", symbol)]
+                df_symbol[("open", symbol)], df_symbol[("close", symbol)],
             ) + rng.exponential(price_variation, num_points)
             df_symbol[("low", symbol)] = np.minimum(
-                df_symbol[("open", symbol)], df_symbol[("close", symbol)]
+                df_symbol[("open", symbol)], df_symbol[("close", symbol)],
             ) - rng.exponential(price_variation, num_points)
             # Ensure low <= open/close <= high
             df_symbol[("low", symbol)] = np.minimum(
@@ -131,14 +130,14 @@ def generate_synthetic_data(
                 # DEFENSIVE CHECK: Check if columns are iterable but not strings.
                 # Mypy=[unreachable] Ruff=[]
                 if hasattr(combined_df.columns[0], "__iter__") and not isinstance(
-                    combined_df.columns[0], str
+                    combined_df.columns[0], str,
                 ):
                     combined_df.columns = pd.MultiIndex.from_tuples(combined_df.columns)
                 else:
                     # DEFENSIVE CHECK: Single level columns, create tuples.
                     # Mypy=[unreachable] Ruff=[]
                     combined_df.columns = pd.MultiIndex.from_tuples(
-                        [(col, "") for col in combined_df.columns]
+                        [(col, "") for col in combined_df.columns],
                     )
             combined_df = combined_df.sort_index(axis=1, level=[1, 0])
         except (TypeError, ValueError) as e:
@@ -149,6 +148,6 @@ def generate_synthetic_data(
     # else: combined_df has no columns, leave as is (empty Index for columns)
 
     logger.info(
-        f"Generated synthetic {data_type} data for {symbols} with shape {combined_df.shape}"
+        f"Generated synthetic {data_type} data for {symbols} with shape {combined_df.shape}",
     )
     return combined_df

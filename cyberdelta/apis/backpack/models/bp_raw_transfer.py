@@ -1,5 +1,4 @@
-"""
-Backpack API Transfer (Deposit/Withdrawal) Models
+"""Backpack API Transfer (Deposit/Withdrawal) Models
 ------------------------------------------------
 
 Defines strict Pydantic models for validating deposit and withdrawal responses from
@@ -38,8 +37,7 @@ from cyberdelta.apis.backpack.models.bp_common_raw_types import (
 
 
 class BackpackRawWithdrawal(BaseModel):
-    """
-    Pydantic model for a raw withdrawal object from `/api/v1/withdrawals` (Backpack REST API).
+    """Pydantic model for a raw withdrawal object from `/api/v1/withdrawals` (Backpack REST API).
 
     Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
     Use this model to validate and parse withdrawal payloads received from the exchange.
@@ -50,6 +48,7 @@ class BackpackRawWithdrawal(BaseModel):
         amount (str): Withdrawal amount (as string, non-negative finite decimal).
         status (str): Withdrawal status (e.g., 'pending', 'completed', 'failed', 'cancelled').
         time (datetime | None): Timestamp of the withdrawal.
+
     """
 
     id: RawBpNonEmptyStringMax64 = Field(..., alias="id")
@@ -67,13 +66,12 @@ class BackpackRawWithdrawal(BaseModel):
     to_address: RawBpOptionalNonEmptyString = Field(None, alias="to_address")
     transaction_hash: RawBpOptionalNonEmptyString = Field(None, alias="transaction_hash")
     model_config = ConfigDict(
-        populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True
+        populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True,
     )
 
 
 class BackpackRawDeposit(BaseModel):
-    """
-    Pydantic model for a raw deposit object from `/api/v1/deposits` (Backpack REST API).
+    """Pydantic model for a raw deposit object from `/api/v1/deposits` (Backpack REST API).
 
     Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
     Use this model to validate and parse deposit payloads received from the exchange.
@@ -84,6 +82,7 @@ class BackpackRawDeposit(BaseModel):
         amount (str): Deposit amount (as string, non-negative finite decimal).
         status (str): Deposit status (e.g., 'pending', 'completed').
         time (datetime | None): Timestamp of the deposit.
+
     """
 
     id: RawBpNonEmptyStringMax64 = Field(..., alias="id")
@@ -102,13 +101,12 @@ class BackpackRawDeposit(BaseModel):
     transaction_hash: RawBpOptionalNonEmptyString = Field(None, alias="transaction_hash")
     confirmation_block_number: int | None = Field(None, alias="confirmation_block_number")
     model_config = ConfigDict(
-        populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True
+        populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True,
     )
 
 
 class BackpackRawLiquidation(BaseModel):
-    """
-    Pydantic model for a raw liquidation event from `/api/v1/liquidations` (Backpack REST API).
+    """Pydantic model for a raw liquidation event from `/api/v1/liquidations` (Backpack REST API).
 
     Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
     Use this model to validate and parse liquidation event payloads received from the exchange.
@@ -120,6 +118,7 @@ class BackpackRawLiquidation(BaseModel):
         side (str): Side ('buy', 'sell').
         time (datetime | None): Timestamp of the liquidation.
         liquidation_id (str | None): Unique ID for the liquidation event.
+
     """
 
     symbol: RawBpNonEmptyStringMax32 = Field(..., alias="symbol")
@@ -129,5 +128,5 @@ class BackpackRawLiquidation(BaseModel):
     time: RawBpStringToDatetime | None = Field(None, alias="time")
     liquidation_id: RawBpNonEmptyStringMax64 | None = Field(None, alias="liquidation_id")
     model_config = ConfigDict(
-        populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True
+        populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True,
     )

@@ -1,5 +1,4 @@
-"""
-Multi-tier funding rate provider implementation.
+"""Multi-tier funding rate provider implementation.
 
 This module contains the implementation of the multi-tier funding rate
 provider, which integrates data from multiple sources and provides
@@ -38,8 +37,7 @@ class FundingRateValidatorProtocol(Protocol):
 
 
 class MultiTierFundingProvider:
-    """
-    Funding rate provider that integrates data from multiple sources.
+    """Funding rate provider that integrates data from multiple sources.
 
     This class implements the multi-tier signal verification mechanism,
     providing funding rate data with confidence scoring based on validation
@@ -51,12 +49,12 @@ class MultiTierFundingProvider:
         config: dict[str, Any],
         funding_rate_validator: FundingRateValidatorProtocol | None = None,
     ) -> None:
-        """
-        Initialize the multi-tier funding provider.
+        """Initialize the multi-tier funding provider.
 
         Args:
             config: Configuration parameters
             funding_rate_validator: Optional validator for accuracy metrics
+
         """
         self.config = config
         self.funding_rate_validator = funding_rate_validator
@@ -85,13 +83,13 @@ class MultiTierFundingProvider:
         weights_typed: dict[str, Any] = weights
 
         self.historical_accuracy_weight = self._validate_float_config(
-            weights_typed, "historical", default=0.4
+            weights_typed, "historical", default=0.4,
         )
         self.source_count_weight = self._validate_float_config(
-            weights_typed, "source_count", default=0.2
+            weights_typed, "source_count", default=0.2,
         )
         self.dispersion_weight = self._validate_float_config(
-            weights_typed, "dispersion", default=0.3
+            weights_typed, "dispersion", default=0.3,
         )
         self.freshness_weight = self._validate_float_config(weights_typed, "freshness", default=0.1)
 
@@ -111,19 +109,19 @@ class MultiTierFundingProvider:
         thresholds_typed: dict[str, Any] = thresholds
 
         self.min_confidence_score = self._validate_float_config(
-            thresholds_typed, "min_confidence_score", default=0.6
+            thresholds_typed, "min_confidence_score", default=0.6,
         )
         # max_staleness_hours: Needs careful handling if converting to seconds
         max_staleness_hours = self._validate_float_config(
-            thresholds_typed, "max_staleness_hours", default=1.0
+            thresholds_typed, "max_staleness_hours", default=1.0,
         )
         self.max_staleness_seconds = max_staleness_hours * 3600.0
 
         self.max_dispersion_std_dev = self._validate_float_config(
-            thresholds_typed, "max_dispersion_std_dev", default=0.0005
+            thresholds_typed, "max_dispersion_std_dev", default=0.0005,
         )
         self.min_source_count = self._validate_int_config(
-            thresholds_typed, "min_source_count", default=2
+            thresholds_typed, "min_source_count", default=2,
         )
 
         logger.info("Initialized multi-tier funding rate provider")
@@ -135,14 +133,14 @@ class MultiTierFundingProvider:
         source_type: SourceType,
         reliability: SourceReliability,
     ) -> None:
-        """
-        Register a funding rate data source.
+        """Register a funding rate data source.
 
         Args:
             exchange: Exchange identifier
             source_func: Function that returns funding rate data
             source_type: Type of source (primary, secondary, tertiary, fallback)
             reliability: Reliability category of the source
+
         """
         # source_info = {"func": source_func, "reliability": reliability} # F841 Unused variable
 
@@ -157,12 +155,11 @@ class MultiTierFundingProvider:
 
         logger.info(
             f"Registered {source_type.value} source for {exchange} "
-            f"with {reliability.value} reliability"
+            f"with {reliability.value} reliability",
         )
 
     async def get_funding_rate(self, exchange: str, symbol: str) -> tuple[float, float]:
-        """
-        Get funding rate with confidence score using multi-tier approach.
+        """Get funding rate with confidence score using multi-tier approach.
 
         Args:
             exchange: Exchange identifier
@@ -173,6 +170,7 @@ class MultiTierFundingProvider:
 
         Raises:
             FundingRateSourceError: If no funding rate data is available
+
         """
         # Try to get from cache if not stale
         cache_key = (exchange, symbol)
@@ -186,11 +184,11 @@ class MultiTierFundingProvider:
                 # Adjust confidence for stale data
                 decay_factor = max(0, 1 - (age / (self.max_acceptable_age * 2)))
                 adjusted_confidence = Decimal(str(cached_data.confidence_score)) * Decimal(
-                    str(decay_factor)
+                    str(decay_factor),
                 )
                 logger.info(
                     f"Using stale cached funding rate for {exchange}:{symbol} "
-                    f"with age {age:.0f}s, confidence reduced to {adjusted_confidence:.2f}"
+                    f"with age {age:.0f}s, confidence reduced to {adjusted_confidence:.2f}",
                 )
                 return cached_data.rate, float(adjusted_confidence)
 
@@ -203,12 +201,12 @@ class MultiTierFundingProvider:
 
             # Integrate data from multiple sources
             integrated_data = self._integrate_funding_data(
-                exchange, symbol, primary_data, secondary_data, tertiary_data
+                exchange, symbol, primary_data, secondary_data, tertiary_data,
             )
 
             # Calculate confidence score
             confidence_factors = self._calculate_confidence_factors(
-                integrated_data, exchange, symbol
+                integrated_data, exchange, symbol,
             )
 
             confidence_score = confidence_factors.get_weighted_score(
@@ -226,7 +224,7 @@ class MultiTierFundingProvider:
 
             logger.debug(
                 f"Got funding rate {integrated_data.rate:.6f} for {exchange}:{symbol} "
-                f"with confidence {confidence_score:.2f}"
+                f"with confidence {confidence_score:.2f}",
             )
             return integrated_data.rate, confidence_score
 
@@ -239,21 +237,20 @@ class MultiTierFundingProvider:
                     fallback_confidence,
                 ) = await self._get_fallback_funding_rate(exchange, symbol)
                 logger.debug(
-                    f"Using fallback funding rate {fallback_rate:.6f} for {exchange}:{symbol}"
+                    f"Using fallback funding rate {fallback_rate:.6f} for {exchange}:{symbol}",
                 )
                 return fallback_rate, fallback_confidence
             except Exception as fallback_error:
                 logger.error(
-                    f"All funding rate sources failed for {exchange}:{symbol}: {fallback_error}"
+                    f"All funding rate sources failed for {exchange}:{symbol}: {fallback_error}",
                 )
                 # Re-raise with proper chaining
                 raise FundingRateSourceError(
-                    f"No funding rate data available for {exchange}:{symbol}"
+                    f"No funding rate data available for {exchange}:{symbol}",
                 ) from fallback_error
 
     async def _get_primary_funding_rate(self, exchange: str, symbol: str) -> FundingData | None:
-        """
-        Get funding rate from primary source.
+        """Get funding rate from primary source.
 
         Args:
             exchange: Exchange identifier
@@ -261,6 +258,7 @@ class MultiTierFundingProvider:
 
         Returns:
             FundingData from primary source or None if not available
+
         """
         if exchange not in self.primary_sources:
             logger.debug(f"No primary source registered for {exchange}")
@@ -299,8 +297,7 @@ class MultiTierFundingProvider:
             return None
 
     async def _get_secondary_funding_rate(self, exchange: str, symbol: str) -> FundingData | None:
-        """
-        Get funding rate from secondary source.
+        """Get funding rate from secondary source.
 
         Args:
             exchange: Exchange identifier
@@ -308,6 +305,7 @@ class MultiTierFundingProvider:
 
         Returns:
             FundingData from secondary source or None if not available
+
         """
         if exchange not in self.secondary_sources:
             logger.debug(f"No secondary source registered for {exchange}")
@@ -345,8 +343,7 @@ class MultiTierFundingProvider:
             return None
 
     async def _get_tertiary_funding_rate(self, exchange: str, symbol: str) -> FundingData | None:
-        """
-        Get funding rate from tertiary source.
+        """Get funding rate from tertiary source.
 
         Args:
             exchange: Exchange identifier
@@ -354,6 +351,7 @@ class MultiTierFundingProvider:
 
         Returns:
             FundingData from tertiary source or None if not available
+
         """
         if exchange not in self.tertiary_sources:
             logger.debug(f"No tertiary source registered for {exchange}")
@@ -391,8 +389,7 @@ class MultiTierFundingProvider:
             return None
 
     async def _get_fallback_funding_rate(self, exchange: str, symbol: str) -> tuple[float, float]:
-        """
-        Get funding rate from fallback source.
+        """Get funding rate from fallback source.
 
         Args:
             exchange: Exchange identifier
@@ -403,6 +400,7 @@ class MultiTierFundingProvider:
 
         Raises:
             FundingRateSourceError: If fallback source also fails
+
         """
         if exchange not in self.fallback_sources:
             raise FundingRateSourceError(f"No fallback source registered for {exchange}")
@@ -438,7 +436,7 @@ class MultiTierFundingProvider:
             fallback_ts_aware = fallback_data.timestamp
             if fallback_ts_aware.tzinfo is None:
                 fallback_ts_aware = fallback_ts_aware.replace(
-                    tzinfo=UTC
+                    tzinfo=UTC,
                 )  # Should not happen due to above logic, but belt-and-suspenders
             age = (datetime.now(UTC) - fallback_ts_aware).total_seconds()
             decay_factor = max(0, 1 - (age / (self.max_acceptable_age * 4)))
@@ -447,7 +445,7 @@ class MultiTierFundingProvider:
 
             logger.debug(
                 f"Using fallback funding rate {adjusted_rate:.6f} for {exchange}:{symbol} "
-                f"with age {age:.0f}s, confidence reduced to {adjusted_confidence:.2f}"
+                f"with age {age:.0f}s, confidence reduced to {adjusted_confidence:.2f}",
             )
 
             return adjusted_rate, float(adjusted_confidence)
@@ -464,8 +462,7 @@ class MultiTierFundingProvider:
         secondary: FundingData | None,
         tertiary: FundingData | None,
     ) -> IntegratedFundingData:
-        """
-        Integrate funding data from different sources using predefined weights
+        """Integrate funding data from different sources using predefined weights
         and reliability factors.
 
         Args:
@@ -477,6 +474,7 @@ class MultiTierFundingProvider:
 
         Returns:
             IntegratedFundingData object
+
         """
         # Define base weights and reliability multipliers
         base_weights = {
@@ -524,7 +522,7 @@ class MultiTierFundingProvider:
 
         if not available_sources_data or not actual_weights or sum(actual_weights) <= Decimal("0"):
             raise FundingRateSourceError(
-                f"No valid, weighted funding rate data available for {exchange}:{symbol}"
+                f"No valid, weighted funding rate data available for {exchange}:{symbol}",
             )
 
         # Calculate weighted average rate
@@ -582,10 +580,9 @@ class MultiTierFundingProvider:
         return integrated_data
 
     def _calculate_confidence_factors(
-        self, integrated_data: IntegratedFundingData, exchange: str, symbol: str
+        self, integrated_data: IntegratedFundingData, exchange: str, symbol: str,
     ) -> ConfidenceFactors:
-        """
-        Calculate confidence factors based on integrated data.
+        """Calculate confidence factors based on integrated data.
 
         Args:
             integrated_data: The integrated funding data
@@ -594,6 +591,7 @@ class MultiTierFundingProvider:
 
         Returns:
             ConfidenceFactors object
+
         """
         # Historical accuracy score
         historical_accuracy = self._check_historical_accuracy(exchange, symbol)
@@ -618,8 +616,7 @@ class MultiTierFundingProvider:
         )
 
     def _check_historical_accuracy(self, exchange: str, symbol: str) -> float:
-        """
-        Check historical accuracy of funding rate predictions.
+        """Check historical accuracy of funding rate predictions.
 
         Args:
             exchange: Exchange identifier
@@ -627,6 +624,7 @@ class MultiTierFundingProvider:
 
         Returns:
             Accuracy score (0-1)
+
         """
         if self.funding_rate_validator is None:
             return float(self.default_accuracy_score)
@@ -663,8 +661,7 @@ class MultiTierFundingProvider:
         logger.debug("Cleared funding rate cache")
 
     def clear_stale_cache_entries(self, max_age_seconds: float | None = None) -> int:
-        """
-        Clear stale entries from funding rate cache.
+        """Clear stale entries from funding rate cache.
 
         Args:
             max_age_seconds: Max age in seconds for cache entries to be considered fresh.
@@ -672,6 +669,7 @@ class MultiTierFundingProvider:
 
         Returns:
             Number of stale entries cleared
+
         """
         max_age = max_age_seconds or self.max_acceptable_age
         now = datetime.now(UTC)
@@ -690,7 +688,7 @@ class MultiTierFundingProvider:
         return len(stale_keys)
 
     def _validate_float_config(
-        self, config_dict: dict[str, Any], key: str, default: float
+        self, config_dict: dict[str, Any], key: str, default: float,
     ) -> float:
         """Safely get and validate a float config value."""
         value = config_dict.get(key, default)
@@ -701,7 +699,7 @@ class MultiTierFundingProvider:
             return float(value)
         else:
             logger.warning(
-                f"Invalid type for config value '{key}' ({type(value)}), using default: {default}"
+                f"Invalid type for config value '{key}' ({type(value)}), using default: {default}",
             )
         return default
 
@@ -715,7 +713,7 @@ class MultiTierFundingProvider:
             return int(value)
         else:
             logger.warning(
-                f"Invalid type for config value '{key}' ({type(value)}), using default: {default}"
+                f"Invalid type for config value '{key}' ({type(value)}), using default: {default}",
             )
         return default
 

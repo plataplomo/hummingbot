@@ -1,5 +1,4 @@
-"""
-Unit tests for HyperliquidRequestWeighter.
+"""Unit tests for HyperliquidRequestWeighter.
 Tests the IP weight and address action calculation logic for Hyperliquid requests.
 """
 

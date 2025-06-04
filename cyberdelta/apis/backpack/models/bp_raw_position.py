@@ -1,5 +1,4 @@
-"""
-Backpack API Position Models (RAW)
+"""Backpack API Position Models (RAW)
 ----------------------------------
 
 This module defines strict Pydantic models for validating position responses from the Backpack
@@ -38,8 +37,7 @@ from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
 
 
 class BackpackRawPosition(BaseModel):
-    """
-    Pydantic model for a raw position object from `/api/v1/position` or WebSocket position
+    """Pydantic model for a raw position object from `/api/v1/position` or WebSocket position
     update events.
 
     Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
@@ -59,12 +57,13 @@ class BackpackRawPosition(BaseModel):
         imf (PositionImfFunction | None): Initial margin function parameters.
         sqrt_func (SqrtFunction | None): Square root function parameters.
         update_time (int | float | str | None): Last update time.
+
     """
 
     break_even_price: RawBpParsableFiniteDecimalString = Field(..., alias="breakEvenPrice")
     entry_price: RawBpParsableFiniteDecimalString = Field(..., alias="entryPrice")
     est_liquidation_price: RawBpParsableFiniteDecimalString = Field(
-        ..., alias="estLiquidationPrice"
+        ..., alias="estLiquidationPrice",
     )
     imf: RawBpParsableFiniteDecimalString = Field(..., alias="imf")
     imf_function: BackpackRawImfFunction = Field(..., alias="imfFunction")
@@ -74,15 +73,15 @@ class BackpackRawPosition(BaseModel):
     net_cost: RawBpParsableFiniteDecimalString = Field(..., alias="netCost")
     net_quantity: RawBpParsableFiniteDecimalString = Field(..., alias="netQuantity")
     net_exposure_quantity: RawBpParsableFiniteDecimalString = Field(
-        ..., alias="netExposureQuantity"
+        ..., alias="netExposureQuantity",
     )
     net_exposure_notional: RawBpParsableFiniteDecimalString = Field(
-        ..., alias="netExposureNotional"
+        ..., alias="netExposureNotional",
     )
     pnl_realized: RawBpParsableFiniteDecimalString = Field(..., alias="pnlRealized")
     pnl_unrealized: RawBpParsableFiniteDecimalString = Field(..., alias="pnlUnrealized")
     cumulative_funding_payment: RawBpParsableFiniteDecimalString = Field(
-        ..., alias="cumulativeFundingPayment"
+        ..., alias="cumulativeFundingPayment",
     )
     symbol: RawBpNonEmptyStringMax64 = Field(..., alias="symbol")
     user_id: RawBpNonNegativeInt = Field(..., alias="userId")
@@ -90,13 +89,12 @@ class BackpackRawPosition(BaseModel):
     cumulative_interest: RawBpParsableFiniteDecimalString = Field(..., alias="cumulativeInterest")
 
     model_config = ConfigDict(
-        populate_by_name=True, extra="forbid", frozen=True, validate_assignment=True
+        populate_by_name=True, extra="forbid", frozen=True, validate_assignment=True,
     )
 
 
 class BackpackRawPositionUpdate(BaseModel):
-    """
-    Pydantic model for a raw position update event from the Backpack WebSocket stream
+    """Pydantic model for a raw position update event from the Backpack WebSocket stream
     (`positionUpdate`).
 
     Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
@@ -117,6 +115,7 @@ class BackpackRawPositionUpdate(BaseModel):
         margin (str): Margin allocated.
         imf (PositionImfFunction | None): Initial margin function parameters.
         sqrt_func (SqrtFunction | None): Square root function parameters.
+
     """
 
     event_type: Literal["positionUpdate"] = Field(..., alias="e")
@@ -133,5 +132,5 @@ class BackpackRawPositionUpdate(BaseModel):
     net_exposure_notional: RawBpOptionalParsableFiniteDecimalString = Field(None, alias="n")
 
     model_config = ConfigDict(
-        populate_by_name=True, extra="forbid", frozen=True, validate_assignment=True
+        populate_by_name=True, extra="forbid", frozen=True, validate_assignment=True,
     )

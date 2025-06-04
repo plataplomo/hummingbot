@@ -1,5 +1,4 @@
-"""
-Pydantic Models for Hyperliquid Raw Info Endpoint Responses
+"""Pydantic Models for Hyperliquid Raw Info Endpoint Responses
 ---------------------------------------------------------
 
 This module defines Pydantic models that represent the raw structure of
@@ -20,8 +19,7 @@ from cyberdelta.utils.parsing import validate_str_field
 
 
 class HyperliquidRawFundingHistoryItem(BaseModel):
-    """
-    Represents a single item in the historical funding rates response array
+    """Represents a single item in the historical funding rates response array
     from Hyperliquid's `/info` endpoint (type: "fundingHistory").
     Example: {"coin": "ETH", "fundingRate": "-0.00022196", "premium": "-0.00052196",
               "time": 1683849600076}
@@ -41,8 +39,7 @@ class HyperliquidRawFundingHistoryItem(BaseModel):
 
 
 class HyperliquidRawFundingHistoryRequestPayload(BaseModel):
-    """
-    Strict boundary model for the request payload for the 'fundingHistory' info type.
+    """Strict boundary model for the request payload for the 'fundingHistory' info type.
 
     Used only for constructing and validating the payload sent to the Hyperliquid API when
     requesting historical funding rates for a specific coin. Never use for internal business logic.
@@ -63,14 +60,14 @@ class HyperliquidRawFundingHistoryRequestPayload(BaseModel):
     type: Annotated[
         Literal["fundingHistory"],
         BeforeValidator(
-            lambda v: validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
+            lambda v: validate_str_field(v, field_name="type", max_length=32, allow_empty=False),
         ),
     ] = Field(default="fundingHistory")
 
     coin: RawHlCoinName
 
     start_time: RawHlTimestampMsInt = Field(
-        alias="startTime", description="Start time in milliseconds since Unix epoch"
+        alias="startTime", description="Start time in milliseconds since Unix epoch",
     )
 
     end_time: RawHlTimestampMsInt | None = Field(

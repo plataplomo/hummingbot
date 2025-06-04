@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack Raw Models Package
+"""CyberDeltaEngine: Backpack Raw Models Package
 --------------------------------------------
 
 This package provides strict, well-documented Pydantic models for validating and parsing

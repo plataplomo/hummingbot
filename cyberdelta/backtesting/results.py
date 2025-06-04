@@ -1,5 +1,4 @@
-"""
-Handles calculation, plotting, and saving of backtest results.
+"""Handles calculation, plotting, and saving of backtest results.
 """
 
 import logging
@@ -32,8 +31,7 @@ class BacktestResultsHandler:
         trades: list[dict[str, Any]],  # List of trade dictionaries
         results_dir: str = "backtest_results",
     ) -> None:
-        """
-        Initialize the results handler with raw data from BacktestEngine.
+        """Initialize the results handler with raw data from BacktestEngine.
 
         Args:
             strategy_name: Name of the strategy.
@@ -44,6 +42,7 @@ class BacktestResultsHandler:
             equity_curve: List of (timestamp, capital) tuples.
             trades: List of completed trade dictionaries.
             results_dir: Directory to save outputs.
+
         """
         self.strategy_name = strategy_name
         self.initial_capital = initial_capital
@@ -76,7 +75,7 @@ class BacktestResultsHandler:
                 self.equity_df = self.equity_df.set_index("timestamp")
                 # Ensure capital is numeric (float for analysis)
                 self.equity_df["capital"] = pd.to_numeric(
-                    self.equity_df["capital"], errors="coerce"
+                    self.equity_df["capital"], errors="coerce",
                 )
             except Exception as e:
                 logger.error(f"Error creating equity DataFrame: {e}", exc_info=True)
@@ -125,7 +124,7 @@ class BacktestResultsHandler:
         if returns.empty:
             logger.warning(
                 "No returns calculated (equity curve might be flat or too short). "
-                "Returning basic metrics."
+                "Returning basic metrics.",
             )
             total_return = (
                 (float(self.final_capital) / float(self.initial_capital)) - 1
@@ -243,7 +242,7 @@ class BacktestResultsHandler:
         else:
             logger.warning(
                 "Trade DataFrame is missing, empty, or lacks 'pnl' column. "
-                "Skipping trade-based metrics."
+                "Skipping trade-based metrics.",
             )
             self.metrics["total_trades"] = 0
 
@@ -266,7 +265,7 @@ class BacktestResultsHandler:
 
         try:
             fig, axes = plt.subplots(
-                2, 1, figsize=figsize, sharex=True, gridspec_kw={"height_ratios": [3, 1]}
+                2, 1, figsize=figsize, sharex=True, gridspec_kw={"height_ratios": [3, 1]},
             )  # Give more space to equity
             fig.suptitle(f"{self.strategy_name} Backtest Results", fontsize=16)
 
@@ -301,7 +300,7 @@ class BacktestResultsHandler:
 
             # Save plot
             plot_filename = os.path.join(
-                self.results_dir, f"{self.strategy_name}_backtest_plot.png"
+                self.results_dir, f"{self.strategy_name}_backtest_plot.png",
             )
             plt.savefig(plot_filename)
             logger.info(f"Result plot saved to {plot_filename}")

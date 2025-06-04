@@ -1,5 +1,4 @@
-"""
-Unit Tests for Hyperliquid Raw User Vault Equity Models
+"""Unit Tests for Hyperliquid Raw User Vault Equity Models
 """
 
 from typing import Any

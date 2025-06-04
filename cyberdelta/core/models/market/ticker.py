@@ -13,8 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class Ticker(BaseModel):
-    """
-    Represents an immutable, validated snapshot of the latest ticker data for a symbol.
+    """Represents an immutable, validated snapshot of the latest ticker data for a symbol.
 
     Provides core price (last, bid, ask) and volume information, ensuring data integrity
     through strict validation and Decimal usage for financial precision.
@@ -31,6 +30,7 @@ class Ticker(BaseModel):
         - `frozen=True`: Guarantees immutability.
         - `extra='forbid'`: Prevents unexpected fields.
         - `validate_assignment=True`: Ensures validation on assignment (redundant with frozen=True).
+
     """
 
     symbol: str
@@ -61,10 +61,9 @@ class Ticker(BaseModel):
     @field_validator("price", "bid", "ask", "volume", mode="before")
     @classmethod
     def validate_and_parse_decimal_optional(
-        cls, v: str | int | float | Decimal | None, info: ValidationInfo
+        cls, v: str | int | float | Decimal | None, info: ValidationInfo,
     ) -> Decimal | None:
-        """
-        Validate, parse, and check finiteness for optional Decimal fields (price, bid, ask, volume).
+        """Validate, parse, and check finiteness for optional Decimal fields (price, bid, ask, volume).
 
         Uses `parse_decimal_value` which handles None input gracefully (returns None).
         Adds an explicit check to ensure that any non-None parsed Decimal is finite.
@@ -80,6 +79,7 @@ class Ticker(BaseModel):
 
         Raises:
             ValueError: If a non-None input cannot be parsed to a finite Decimal.
+
         """
         # Ensure field_name is a str for the parsing utility.
         field_name = info.field_name if info.field_name is not None else "unknown_field"
@@ -100,6 +100,7 @@ class Ticker(BaseModel):
         Returns:
             The mid-price as a Decimal if both bid and ask are valid and non-None,
             otherwise returns None.
+
         """
         # Type hints and earlier validation make isinstance checks redundant here.
         if (
@@ -116,7 +117,7 @@ class Ticker(BaseModel):
                 else:
                     logger.warning(
                         f"Mid-price calculation for {self.symbol} resulted in non-finite value "
-                        f"from bid={self.bid}, ask={self.ask}"
+                        f"from bid={self.bid}, ask={self.ask}",
                     )
                     return None
             except InvalidOperation:  # Catch only InvalidOperation for calculation issues

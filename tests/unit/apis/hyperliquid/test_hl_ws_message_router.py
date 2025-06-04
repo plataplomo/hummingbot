@@ -1,5 +1,4 @@
-"""
-Unit tests for HyperliquidWsMessageRouter.
+"""Unit tests for HyperliquidWsMessageRouter.
 
 Tests the WebSocket message routing logic in isolation with mocked dependencies.
 """

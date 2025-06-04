@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid Trading Data Mapper Transformations Tests
+"""CyberDeltaEngine: Hyperliquid Trading Data Mapper Transformations Tests
 -----------------------------------------------------------------------
 
 Comprehensive test suite for HyperliquidTradingDataMapper transformation methods.

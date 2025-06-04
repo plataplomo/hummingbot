@@ -1,5 +1,4 @@
-"""
-Simplified Performance Monitoring System for CyberDeltaEngine.
+"""Simplified Performance Monitoring System for CyberDeltaEngine.
 
 This module provides essential tools for tracking and analyzing strategy performance
 without dependencies on external databases or web frameworks.
@@ -82,20 +81,19 @@ class SignalMetrics:
 
 
 class SimplePerformanceTracker:
-    """
-    Simplified tracker for strategy performance metrics.
+    """Simplified tracker for strategy performance metrics.
 
     This class provides core functionality for tracking signals, trades,
     and performance without external database dependencies.
     """
 
     def __init__(self, strategy_name: str, output_dir: str | None = None) -> None:
-        """
-        Initialize the performance tracker.
+        """Initialize the performance tracker.
 
         Args:
             strategy_name: Name of the strategy to track
             output_dir: Directory to save CSV exports (default: "./performance_data")
+
         """
         self.strategy_name = strategy_name
         self.output_dir = output_dir or "./performance_data"
@@ -146,14 +144,14 @@ class SimplePerformanceTracker:
         return metrics
 
     def track_signal(self, signal: TradeSignal) -> SignalMetrics:
-        """
-        Track a trading signal.
+        """Track a trading signal.
 
         Args:
             signal: The trade signal to track
 
         Returns:
             SignalMetrics object
+
         """
         # Create signal metrics with proper error handling
         try:
@@ -190,12 +188,12 @@ class SimplePerformanceTracker:
             raise ValueError(f"TradeSignal is missing required attributes: {e}") from e
 
     def track_signal_execution(self, signal_id: str, executed: bool) -> None:
-        """
-        Track the execution of a signal.
+        """Track the execution of a signal.
 
         Args:
             signal_id: ID of the signal
             executed: Whether the signal was executed successfully
+
         """
         if signal_id in self.pending_signals:
             signal_metrics = self.pending_signals[signal_id]
@@ -224,8 +222,7 @@ class SimplePerformanceTracker:
         entry_time: datetime,
         signal_id: str | None = None,
     ) -> TradeMetrics:
-        """
-        Track a new trade.
+        """Track a new trade.
 
         Args:
             trade_id: Unique identifier for the trade
@@ -239,6 +236,7 @@ class SimplePerformanceTracker:
 
         Returns:
             TradeMetrics object
+
         """
         # Create trade metrics
         trade_metrics = TradeMetrics(
@@ -264,12 +262,12 @@ class SimplePerformanceTracker:
         return trade_metrics
 
     def update_trade_pnl(self, trade_id: str, unrealized_pnl: float) -> None:
-        """
-        Update the unrealized PnL for a trade.
+        """Update the unrealized PnL for a trade.
 
         Args:
             trade_id: Unique identifier for the trade
             unrealized_pnl: Current unrealized PnL
+
         """
         if trade_id in self.current_trades:
             self.current_trades[trade_id].pnl = Decimal(str(unrealized_pnl))
@@ -278,16 +276,16 @@ class SimplePerformanceTracker:
             self._record_metrics()
 
     def track_trade_exit(
-        self, trade_id: str, exit_price: float, exit_time: datetime, realized_pnl: float
+        self, trade_id: str, exit_price: float, exit_time: datetime, realized_pnl: float,
     ) -> None:
-        """
-        Track the exit of a trade.
+        """Track the exit of a trade.
 
         Args:
             trade_id: Unique identifier for the trade
             exit_price: Exit price
             exit_time: Exit timestamp
             realized_pnl: Realized PnL
+
         """
         if trade_id in self.current_trades:
             trade = self.current_trades[trade_id]
@@ -314,14 +312,14 @@ class SimplePerformanceTracker:
             self._record_metrics()
 
     def track_opportunity(self, opportunity: ArbitrageOpportunity) -> str:
-        """
-        Track an arbitrage opportunity.
+        """Track an arbitrage opportunity.
 
         Args:
             opportunity: ArbitrageOpportunity object
 
         Returns:
             Opportunity ID for reference
+
         """
         opportunity_id = str(id(opportunity))
 
@@ -344,11 +342,11 @@ class SimplePerformanceTracker:
         return opportunity_id
 
     def get_performance_summary(self) -> dict[str, float | int | str]:
-        """
-        Get a summary of performance metrics.
+        """Get a summary of performance metrics.
 
         Returns:
             Dictionary with summarized performance metrics
+
         """
         # Calculate win rate
         total_completed_trades = self.winning_trades + self.losing_trades
@@ -381,14 +379,14 @@ class SimplePerformanceTracker:
         }
 
     def export_to_csv(self, filename_prefix: str | None = None) -> dict[str, str] | None:
-        """
-        Export all data to CSV files.
+        """Export all data to CSV files.
 
         Args:
             filename_prefix: Optional prefix for the CSV filenames
 
         Returns:
             Dictionary mapping file types to file paths, or None if error
+
         """
         prefix = filename_prefix or self.strategy_name
         timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
@@ -428,14 +426,14 @@ class SimplePerformanceTracker:
         }
 
     def load_metrics_from_csv(self, file_path: str) -> pd.DataFrame:
-        """
-        Load metrics from a CSV file into a DataFrame.
+        """Load metrics from a CSV file into a DataFrame.
 
         Args:
             file_path: Path to the CSV file
 
         Returns:
             DataFrame containing the metrics
+
         """
         try:
             df = pd.read_csv(file_path)
@@ -448,23 +446,23 @@ class SimplePerformanceTracker:
             return pd.DataFrame()
 
     def get_metrics_dataframe(self) -> pd.DataFrame:
-        """
-        Get metrics history as a DataFrame.
+        """Get metrics history as a DataFrame.
 
         Returns:
             DataFrame with metrics history
+
         """
         return pd.DataFrame([asdict(m) for m in self.metrics_history])
 
     def get_trades_dataframe(self, completed_only: bool = False) -> pd.DataFrame:
-        """
-        Get trade history as a DataFrame.
+        """Get trade history as a DataFrame.
 
         Args:
             completed_only: If True, include only completed trades
 
         Returns:
             DataFrame with trade history
+
         """
         trades = list(self.trade_history.values())
         if completed_only:
@@ -473,41 +471,40 @@ class SimplePerformanceTracker:
         return pd.DataFrame([asdict(t) for t in trades])
 
     def get_signals_dataframe(self) -> pd.DataFrame:
-        """
-        Get signal history as a DataFrame.
+        """Get signal history as a DataFrame.
 
         Returns:
             DataFrame with signal history
+
         """
         return pd.DataFrame([asdict(s) for s in self.signal_history.values()])
 
 
 class SimplePerformanceAnalyzer:
-    """
-    Analyze performance data from a SimplePerformanceTracker.
+    """Analyze performance data from a SimplePerformanceTracker.
 
     This class provides basic analysis tools without dependencies on
     external databases or web frameworks.
     """
 
     def __init__(self, tracker: SimplePerformanceTracker) -> None:
-        """
-        Initialize the analyzer.
+        """Initialize the analyzer.
 
         Args:
             tracker: SimplePerformanceTracker instance
+
         """
         self.tracker = tracker
 
     def calculate_drawdown(self, pnl_series: pd.Series) -> pd.Series:
-        """
-        Calculate drawdown from a PnL series.
+        """Calculate drawdown from a PnL series.
 
         Args:
             pnl_series: Series of PnL values
 
         Returns:
             Series of drawdown values
+
         """
         # Convert Decimal values to float for pandas calculations
         pnl_series_float = pnl_series.astype(float)
@@ -524,10 +521,9 @@ class SimplePerformanceAnalyzer:
         return drawdown
 
     def calculate_sharpe_ratio(
-        self, returns: pd.Series, risk_free_rate: Decimal = Decimal("0.0")
+        self, returns: pd.Series, risk_free_rate: Decimal = Decimal("0.0"),
     ) -> Decimal:
-        """
-        Calculate the Sharpe ratio for a series of returns.
+        """Calculate the Sharpe ratio for a series of returns.
 
         Args:
             returns: Series of returns
@@ -535,6 +531,7 @@ class SimplePerformanceAnalyzer:
 
         Returns:
             Sharpe ratio as a Decimal
+
         """
         if len(returns) < 2:
             return Decimal("0.0")
@@ -565,11 +562,11 @@ class SimplePerformanceAnalyzer:
         return Decimal(str(annualized_sharpe))
 
     def calculate_win_rate(self) -> float:
-        """
-        Calculate win rate from completed trades.
+        """Calculate win rate from completed trades.
 
         Returns:
             Win rate (percentage)
+
         """
         trades_df = self.tracker.get_trades_dataframe(completed_only=True)
         if trades_df.empty:
@@ -583,11 +580,11 @@ class SimplePerformanceAnalyzer:
         return 0.0
 
     def get_daily_pnl(self) -> pd.Series:
-        """
-        Get daily P&L data aggregated by date.
+        """Get daily P&L data aggregated by date.
 
         Returns:
             Series with daily P&L values
+
         """
         # Get completed trades
         trades_df = self.tracker.get_trades_dataframe(completed_only=True)
@@ -609,11 +606,11 @@ class SimplePerformanceAnalyzer:
             return pd.Series()
 
     def get_daily_returns(self) -> pd.Series:
-        """
-        Calculate daily returns from daily P&L.
+        """Calculate daily returns from daily P&L.
 
         Returns:
             Series with daily returns as percentage
+
         """
         # Get daily PnL
         daily_pnl = self.get_daily_pnl()
@@ -636,11 +633,11 @@ class SimplePerformanceAnalyzer:
             return pd.Series()
 
     def calculate_metrics(self) -> dict[str, float | int]:
-        """
-        Calculate performance metrics based on trades and returns.
+        """Calculate performance metrics based on trades and returns.
 
         Returns:
             Dictionary of performance metrics
+
         """
         metrics = {}
 
@@ -827,10 +824,10 @@ if __name__ == "__main__":
 
     # Track trade exits
     tracker.track_trade_exit(
-        "trade1", float(Decimal("52000.0")), now + timedelta(days=1), float(Decimal("2000.0"))
+        "trade1", float(Decimal("52000.0")), now + timedelta(days=1), float(Decimal("2000.0")),
     )
     tracker.track_trade_exit(
-        "trade2", float(Decimal("2800.0")), now + timedelta(days=2), float(Decimal("2000.0"))
+        "trade2", float(Decimal("2800.0")), now + timedelta(days=2), float(Decimal("2000.0")),
     )
 
     # Export data

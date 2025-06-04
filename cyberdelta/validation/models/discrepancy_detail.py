@@ -7,8 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class DiscrepancyDetail(BaseModel):
-    """
-    Represents a single detected discrepancy during position reconciliation.
+    """Represents a single detected discrepancy during position reconciliation.
     """
 
     symbol: str = Field(..., description="The trading symbol of the asset with a discrepancy.")
@@ -32,7 +31,7 @@ class DiscrepancyDetail(BaseModel):
     # The actual comparison and numeric operations happen with Decimals
     # before this model is created.
     exchange_value: str | None = Field(
-        default=None, description="The value reported by the exchange (or N/A)."
+        default=None, description="The value reported by the exchange (or N/A).",
     )
     local_value: str | None = Field(default=None, description="The value tracked locally (or N/A).")
 
@@ -50,20 +49,19 @@ class DiscrepancyDetail(BaseModel):
 
 
 class HistoricalDiscrepancyRecord(BaseModel):
-    """
-    Represents a discrepancy record with its context (exchange, time) and status.
+    """Represents a discrepancy record with its context (exchange, time) and status.
     This model is mutable to allow updating the 'is_corrected' status.
     """
 
     detail: DiscrepancyDetail = Field(..., description="The core details of the discrepancy.")
     exchange_id: str = Field(
-        ..., description="The identifier of the exchange where the discrepancy was observed."
+        ..., description="The identifier of the exchange where the discrepancy was observed.",
     )
     recorded_at: datetime = Field(
-        ..., description="The timestamp when the discrepancy was recorded."
+        ..., description="The timestamp when the discrepancy was recorded.",
     )
     is_corrected: bool = Field(
-        False, description="Whether this discrepancy has been successfully corrected."
+        False, description="Whether this discrepancy has been successfully corrected.",
     )
 
     model_config = ConfigDict(validate_assignment=True, extra="forbid")

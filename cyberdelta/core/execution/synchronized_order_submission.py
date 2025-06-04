@@ -1,5 +1,4 @@
-"""
-Synchronized Order Submission with Verification.
+"""Synchronized Order Submission with Verification.
 
 This module implements synchronized order submission across exchanges
 with comprehensive verification at every step.
@@ -159,22 +158,20 @@ class ExecutionContext:
 
 
 class OrderVerifier:
-    """
-    Component for verifying order placement, execution, and fills.
+    """Component for verifying order placement, execution, and fills.
     """
 
     def __init__(
-        self, config: dict[str, Any], portfolio_tracker: PortfolioTracker
+        self, config: dict[str, Any], portfolio_tracker: PortfolioTracker,
     ) -> None:  # Add -> None
         """Initialize the order verifier."""
         self.config = config
         self.portfolio_tracker = portfolio_tracker
 
     async def verify_order_placement(
-        self, exchange: str, order_id: str, expected_details: dict[str, Any]
+        self, exchange: str, order_id: str, expected_details: dict[str, Any],
     ) -> dict[str, Any]:
-        """
-        Verify that an order was placed correctly.
+        """Verify that an order was placed correctly.
 
         Args:
             exchange: Exchange where the order was placed
@@ -183,6 +180,7 @@ class OrderVerifier:
 
         Returns:
             Verification result dictionary
+
         """
         verification_details: dict[str, Any] = {}
         verification_success = True
@@ -194,7 +192,7 @@ class OrderVerifier:
 
         # Get order from exchange API
         api_client = self.portfolio_tracker.api_clients.get(
-            exchange
+            exchange,
         )  # Access api_clients dict directly
         api_order: Order | None = None  # Initialize api_order
         if not api_client:
@@ -207,7 +205,7 @@ class OrderVerifier:
                 # Assuming get_order exists on the concrete API client
                 api_order = await api_client.get_order(GetOrderArgs(
                     order_id=order_id, 
-                    symbol=expected_details.get("symbol")
+                    symbol=expected_details.get("symbol"),
                 ))
             except AttributeError:
                 logger.error(f"API client for {exchange} missing get_order method.")
@@ -299,10 +297,11 @@ class OrderVerifier:
         }
 
     async def verify_order_execution(self, exchange: str, order_id: str) -> dict[str, Any]:
-        """
-        Verify that an order was executed properly.
+        """Verify that an order was executed properly.
+
         Returns:
             Verification result dictionary
+
         """
         verification_details: dict[str, Any] = {}
         verification_success = True
@@ -354,22 +353,22 @@ class OrderVerifier:
             if hasattr(api_client, "get_order_status"):
                 api_order = await api_client.get_order_status(GetOrderArgs(
                     order_id=order_id, 
-                    symbol=symbol_for_api_call
+                    symbol=symbol_for_api_call,
                 ))
             elif hasattr(
-                api_client, "get_order"
+                api_client, "get_order",
             ):  # Fallback if get_order_status is not on protocol
                 logger.warning(
                     f"API client for {exchange} missing get_order_status, "
-                    f"falling back to get_order."
+                    f"falling back to get_order.",
                 )
                 api_order = await api_client.get_order(GetOrderArgs(
                     order_id=order_id, 
-                    symbol=symbol_for_api_call
+                    symbol=symbol_for_api_call,
                 ))
             else:
                 raise AttributeError(
-                    f"API client for {exchange} missing get_order_status and get_order methods."
+                    f"API client for {exchange} missing get_order_status and get_order methods.",
                 )
 
             if api_order:
@@ -381,7 +380,7 @@ class OrderVerifier:
             AttributeError
         ) as e:  # Catch if chosen method (get_order_status/get_order) is missing
             logger.error(
-                f"API client for {exchange} is missing a required order fetch method: {e!r}"
+                f"API client for {exchange} is missing a required order fetch method: {e!r}",
             )
             error_msg = f"API client for {exchange} is missing a required order fetch method: {e!r}"
             verification_error = (
@@ -446,7 +445,7 @@ class OrderVerifier:
                 verification_details["recent_fills_count"] = len(recent_fills)
             except APIError as e:  # Catch API specific errors if get_trade_history raises them
                 logger.warning(
-                    f"API error getting recent fills for {order_id} on {exchange}: {e!r}"
+                    f"API error getting recent fills for {order_id} on {exchange}: {e!r}",
                 )
                 verification_details["recent_fills_error"] = str(e)
                 verification_details["recent_fills_count"] = 0
@@ -482,8 +481,7 @@ class OrderVerifier:
 
 
 class ExecutionCoordinator:
-    """
-    Coordinates synchronized execution with verification checkpoints.
+    """Coordinates synchronized execution with verification checkpoints.
     """
 
     def __init__(self, config: dict[str, Any]) -> None:  # Add -> None
@@ -492,10 +490,9 @@ class ExecutionCoordinator:
         self.executions: dict[str, ExecutionContext] = {}  # Add type hint
 
     async def start_execution(
-        self, execution_id: str, opportunity: OpportunityType, strategy: str
+        self, execution_id: str, opportunity: OpportunityType, strategy: str,
     ) -> ExecutionContext:
-        """
-        Start a new execution with verification checkpoints.
+        """Start a new execution with verification checkpoints.
 
         Args:
             execution_id: Unique execution ID
@@ -504,6 +501,7 @@ class ExecutionCoordinator:
 
         Returns:
             Execution context
+
         """
         # Create execution context
         context = ExecutionContext(
@@ -534,15 +532,15 @@ class ExecutionCoordinator:
         return context
 
     async def add_checkpoint(
-        self, context: ExecutionContext, checkpoint_name: str, details: dict[str, Any]
+        self, context: ExecutionContext, checkpoint_name: str, details: dict[str, Any],
     ) -> None:
-        """
-        Add an execution checkpoint.
+        """Add an execution checkpoint.
 
         Args:
             context: Execution context
             checkpoint_name: Name of the checkpoint
             details: Checkpoint details
+
         """
         checkpoint = {
             "name": checkpoint_name,
@@ -556,12 +554,12 @@ class ExecutionCoordinator:
         logger.debug(f"Execution {context.execution_id} checkpoint: {checkpoint_name}")
 
     async def complete_execution(self, context: ExecutionContext, result: ExecutionResult) -> None:
-        """
-        Mark an execution as complete.
+        """Mark an execution as complete.
 
         Args:
             context: Execution context
             result: Execution result
+
         """
         context.status = result.status
         context.end_time = datetime.now(UTC)
@@ -587,8 +585,7 @@ class ExecutionCoordinator:
         )
 
     async def abort_execution(self, context: ExecutionContext, reason: str) -> dict[str, Any]:
-        """
-        Abort an execution.
+        """Abort an execution.
 
         Args:
             context: Execution context
@@ -596,6 +593,7 @@ class ExecutionCoordinator:
 
         Returns:
             Abort details
+
         """
         context.status = ExecutionStatus.FAILED
         context.end_time = datetime.now(UTC)  # Ensure assignment is valid
@@ -627,11 +625,11 @@ class ExecutionCoordinator:
         }
 
     def _cleanup_execution(self, execution_id: str) -> None:
-        """
-        Clean up an execution context after retention period.
+        """Clean up an execution context after retention period.
 
         Args:
             execution_id: Execution ID to clean up
+
         """
         if execution_id in self.executions:
             del self.executions[execution_id]
@@ -639,8 +637,7 @@ class ExecutionCoordinator:
 
 
 class SynchronizedOrderSubmissionService:
-    """
-    Service for synchronized order submission across exchanges with verification.
+    """Service for synchronized order submission across exchanges with verification.
     Extends the AtomicExecutionEngine with enhanced verification capabilities.
     """
 
@@ -668,10 +665,9 @@ class SynchronizedOrderSubmissionService:
         self.verification_interval = config.get("execution.verification_interval", 1.0)  # seconds
 
     async def submit_orders(
-        self, opportunity: OpportunityType, execution_strategy: str = "sequential_lock_in"
+        self, opportunity: OpportunityType, execution_strategy: str = "sequential_lock_in",
     ) -> ExecutionResult:
-        """
-        Submit orders for an opportunity, synchronizing execution across exchanges.
+        """Submit orders for an opportunity, synchronizing execution across exchanges.
 
         Args:
             opportunity: Trading opportunity
@@ -679,6 +675,7 @@ class SynchronizedOrderSubmissionService:
 
         Returns:
             Execution result
+
         """
         execution_id = self._generate_execution_id(opportunity)
         result = ExecutionResult(
@@ -689,13 +686,13 @@ class SynchronizedOrderSubmissionService:
 
         # Create execution context
         execution_context = await self.execution_coordinator.start_execution(
-            execution_id, opportunity, "funding_rate_arb"
+            execution_id, opportunity, "funding_rate_arb",
         )
 
         # Pre-execution verification
         pre_verify_result = await self.verify_pre_execution(execution_context, opportunity)
         await self.execution_coordinator.add_checkpoint(
-            execution_context, "pre_execution_verification", pre_verify_result
+            execution_context, "pre_execution_verification", pre_verify_result,
         )
 
         if not pre_verify_result.get("verified", False):
@@ -707,13 +704,13 @@ class SynchronizedOrderSubmissionService:
         # Market conditions verification
         market_verify_result = await self.verify_market_conditions(opportunity)
         await self.execution_coordinator.add_checkpoint(
-            execution_context, "market_conditions_verification", market_verify_result
+            execution_context, "market_conditions_verification", market_verify_result,
         )
 
         if not market_verify_result.get("verified", False):
             result.status = ExecutionStatus.REJECTED
             result.error = market_verify_result.get(
-                "error", "Market conditions verification failed"
+                "error", "Market conditions verification failed",
             )
             await self.execution_coordinator.complete_execution(execution_context, result)
             return result
@@ -721,7 +718,7 @@ class SynchronizedOrderSubmissionService:
         # Balance verification
         balance_verify_result = await self.verify_balances(opportunity)
         await self.execution_coordinator.add_checkpoint(
-            execution_context, "balance_verification", balance_verify_result
+            execution_context, "balance_verification", balance_verify_result,
         )
 
         if not balance_verify_result.get("verified", False):
@@ -736,11 +733,11 @@ class SynchronizedOrderSubmissionService:
         # Execute orders based on strategy
         if execution_strategy == "sequential_lock_in":
             execution_result = await self._execute_sequential_with_verification(
-                opportunity, execution_context
+                opportunity, execution_context,
             )
         elif execution_strategy == "simultaneous":
             simultaneous_result = await self._execute_simultaneous_with_verification(
-                opportunity, execution_context
+                opportunity, execution_context,
             )
             # Convert to ExecutionResult
             execution_result = ExecutionResult(
@@ -766,17 +763,17 @@ class SynchronizedOrderSubmissionService:
             ExecutionStatus.PARTIALLY_COMPLETED,
         ):
             post_verify_result = await self.verify_post_execution(
-                execution_context, opportunity, execution_result
+                execution_context, opportunity, execution_result,
             )
             await self.execution_coordinator.add_checkpoint(
-                execution_context, "post_execution_verification", post_verify_result
+                execution_context, "post_execution_verification", post_verify_result,
             )
 
             # If verification failed, perform compensation actions
             if not post_verify_result.get("verified", False):
                 execution_context.status = ExecutionStatus.COMPENSATING
                 compensation_outcome_dict = await self._compensate_verification_failure(
-                    opportunity, execution_result, post_verify_result
+                    opportunity, execution_result, post_verify_result,
                 )
                 # Keep this for any direct access
                 # execution_result.compensation_result = compensation_outcome_dict
@@ -798,7 +795,7 @@ class SynchronizedOrderSubmissionService:
         return execution_result
 
     async def verify_pre_execution(
-        self, execution_context: ExecutionContext, opportunity: OpportunityType
+        self, execution_context: ExecutionContext, opportunity: OpportunityType,
     ) -> dict[str, Any]:
         """Perform pre-execution verification checks."""
         results = {}
@@ -904,10 +901,9 @@ class SynchronizedOrderSubmissionService:
         }
 
     async def _execute_sequential_with_verification(
-        self, opportunity: OpportunityType, execution_context: ExecutionContext
+        self, opportunity: OpportunityType, execution_context: ExecutionContext,
     ) -> ExecutionResult:
-        """
-        Execute orders sequentially with verification between legs.
+        """Execute orders sequentially with verification between legs.
 
         This ensures the first leg executes successfully before attempting the second leg.
 
@@ -917,6 +913,7 @@ class SynchronizedOrderSubmissionService:
 
         Returns:
             Result with verification details
+
         """
         execution_id = execution_context.execution_id
         result = ExecutionResult(
@@ -960,7 +957,7 @@ class SynchronizedOrderSubmissionService:
                 )
                 placed_order: Order = await first_api.place_order(first_place_order_args)
                 assert hasattr(placed_order, "client_order_id") and hasattr(
-                    placed_order, "to_dict"
+                    placed_order, "to_dict",
                 ), "placed_order missing required attributes"
                 result.first_order_id = placed_order.client_order_id  # Use client_order_id
 
@@ -987,7 +984,7 @@ class SynchronizedOrderSubmissionService:
                 if not verification_result.get("success", False):
                     result.status = ExecutionStatus.FAILED
                     result.error = verification_result.get(
-                        "error", "First order verification failed"
+                        "error", "First order verification failed",
                     )
                     return result
 
@@ -1006,7 +1003,7 @@ class SynchronizedOrderSubmissionService:
 
                     # Checkpoint: first order filled
                     await self.execution_coordinator.add_checkpoint(
-                        execution_context, "first_order_filled", fill_result
+                        execution_context, "first_order_filled", fill_result,
                     )
 
                 # Second leg
@@ -1041,10 +1038,10 @@ class SynchronizedOrderSubmissionService:
                         # TODO: Handle post_only, reduce_only if needed via config/adapter
                     )
                     second_placed_order: Order = await second_api.place_order(
-                        second_place_order_args
+                        second_place_order_args,
                     )
                     assert hasattr(second_placed_order, "client_order_id") and hasattr(
-                        second_placed_order, "to_dict"
+                        second_placed_order, "to_dict",
                     ), "second_placed_order missing required attributes"
                     result.second_order_id = (
                         second_placed_order.client_order_id
@@ -1075,7 +1072,7 @@ class SynchronizedOrderSubmissionService:
                         # Second order failed but first succeeded - partial completion
                         result.status = ExecutionStatus.PARTIALLY_COMPLETED
                         result.error = second_verification.get(
-                            "error", "Second order verification failed"
+                            "error", "Second order verification failed",
                         )
                     else:
                         # Both orders succeeded
@@ -1086,7 +1083,7 @@ class SynchronizedOrderSubmissionService:
                             # Monitor for fills - this would be implemented
                             # to check if order is filled
                             second_fill_result = {
-                                "filled": True
+                                "filled": True,
                             }  # Placeholder for actual fill monitoring
 
                             if not second_fill_result.get("filled", False):
@@ -1097,7 +1094,7 @@ class SynchronizedOrderSubmissionService:
 
                                 # Checkpoint: second order filled
                                 await self.execution_coordinator.add_checkpoint(
-                                    execution_context, "second_order_filled", second_fill_result
+                                    execution_context, "second_order_filled", second_fill_result,
                                 )
 
                                 # Complete execution
@@ -1178,7 +1175,7 @@ class SynchronizedOrderSubmissionService:
         )
 
     async def _execute_simultaneous_with_verification(
-        self, opportunity: OpportunityType, execution_context: ExecutionContext
+        self, opportunity: OpportunityType, execution_context: ExecutionContext,
     ) -> dict[str, Any]:
         """Execute trades simultaneously with verification (less common for arbitrage)."""
         # Placeholder: Actual implementation would involve more complex logic
@@ -1191,7 +1188,7 @@ class SynchronizedOrderSubmissionService:
 
         # Call _verify_post_execution with the context
         verification_outcome = await self.verify_post_execution(
-            execution_context, opportunity, mock_simultaneous_execution_result
+            execution_context, opportunity, mock_simultaneous_execution_result,
         )
         # The method now returns a dict, not ExecutionResult directly
         # We might need to update mock_simultaneous_execution_result based on verification_outcome
@@ -1208,7 +1205,7 @@ class SynchronizedOrderSubmissionService:
         """Verify positions, fills, and orders after execution."""
         logger.info(
             f"Post-execution verification for opportunity {opportunity} "
-            f"and execution ID {execution_context.execution_id}"
+            f"and execution ID {execution_context.execution_id}",
         )
         overall_success = True
         all_details: dict[str, Any] = {"positions": {}, "fills": {}, "orders": {}}
@@ -1220,7 +1217,7 @@ class SynchronizedOrderSubmissionService:
             overall_success = False
             logger.warning(
                 f"Post-execution position verification FAILED for "
-                f"{execution_context.execution_id}: {position_result.get('error')}"
+                f"{execution_context.execution_id}: {position_result.get('error')}",
             )
             if self.execution_coordinator:
                 await self.execution_coordinator.add_checkpoint(
@@ -1241,7 +1238,7 @@ class SynchronizedOrderSubmissionService:
                 logger.warning(
                     f"Post-execution fill verification FAILED for "
                     f"{execution_context.execution_id}: "
-                    f"{fill_result.get('error')}"
+                    f"{fill_result.get('error')}",
                 )
                 if self.execution_coordinator:
                     await self.execution_coordinator.add_checkpoint(
@@ -1259,7 +1256,7 @@ class SynchronizedOrderSubmissionService:
                 logger.warning(
                     f"Post-execution order verification FAILED for "
                     f"{execution_context.execution_id}: "
-                    f"{order_result.get('error')}"
+                    f"{order_result.get('error')}",
                 )
                 if self.execution_coordinator:
                     await self.execution_coordinator.add_checkpoint(
@@ -1291,10 +1288,9 @@ class SynchronizedOrderSubmissionService:
         return {"verified": overall_success, "details": all_details}
 
     async def verify_positions(
-        self, opportunity: OpportunityType, execution_result: ExecutionResult
+        self, opportunity: OpportunityType, execution_result: ExecutionResult,
     ) -> dict[str, Any]:
-        """
-        Verify positions after execution.
+        """Verify positions after execution.
 
         Args:
             opportunity: Arbitrage opportunity
@@ -1302,16 +1298,16 @@ class SynchronizedOrderSubmissionService:
 
         Returns:
             Verification result
+
         """
         # This is a placeholder implementation
         # Actual implementation would use position reconciliation system
         return {"checked": True}
 
     async def verify_fills(
-        self, opportunity: OpportunityType, execution_result: ExecutionResult
+        self, opportunity: OpportunityType, execution_result: ExecutionResult,
     ) -> dict[str, Any]:
-        """
-        Verify fills match expected quantities.
+        """Verify fills match expected quantities.
 
         Args:
             opportunity: Arbitrage opportunity
@@ -1319,16 +1315,16 @@ class SynchronizedOrderSubmissionService:
 
         Returns:
             Verification result
+
         """
         # This is a placeholder implementation
         # Actual implementation would check fill quantities
         return {"checked": True}
 
     async def verify_orders(
-        self, opportunity: OpportunityType, execution_result: ExecutionResult
+        self, opportunity: OpportunityType, execution_result: ExecutionResult,
     ) -> dict[str, Any]:
-        """
-        Verify no unexpected orders were created.
+        """Verify no unexpected orders were created.
 
         Args:
             opportunity: Arbitrage opportunity
@@ -1336,6 +1332,7 @@ class SynchronizedOrderSubmissionService:
 
         Returns:
             Verification result
+
         """
         # This is a placeholder implementation
         # Actual implementation would check for unexpected orders
@@ -1347,8 +1344,7 @@ class SynchronizedOrderSubmissionService:
         execution_result: ExecutionResult,
         verification_result: dict[str, Any],
     ) -> dict[str, Any]:
-        """
-        Compensate for verification failures.
+        """Compensate for verification failures.
 
         Args:
             opportunity: Arbitrage opportunity
@@ -1357,20 +1353,21 @@ class SynchronizedOrderSubmissionService:
 
         Returns:
             Compensation details
+
         """
         # This is a placeholder implementation
         # Actual implementation would compensate for verification failures
         return {"compensated": True}
 
     def _generate_execution_id(self, opportunity: OpportunityType) -> str:
-        """
-        Generate a unique execution ID.
+        """Generate a unique execution ID.
 
         Args:
             opportunity: Arbitrage opportunity
 
         Returns:
             Unique execution ID
+
         """
         timestamp = int(time.time() * 1000)
         # Use opportunity.id as it's a stable UUID and hashable

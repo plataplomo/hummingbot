@@ -35,8 +35,7 @@ type ExchangeType = str
 
 
 class PortfolioTracker:
-    """
-    Track and manage the current state of the portfolio.
+    """Track and manage the current state of the portfolio.
 
     Responsible for:
     - Tracking balances across exchanges
@@ -55,8 +54,7 @@ class PortfolioTracker:
         exchange_factories: dict[ExchangeType, Callable[..., ExchangeAPI]] | None = None,
         symbol_mapper: SymbolMapper | None = None,  # ADDED PARAMETER
     ) -> None:
-        """
-        Initialize the portfolio tracker.
+        """Initialize the portfolio tracker.
 
         Args:
             app_settings: Application configuration
@@ -64,6 +62,7 @@ class PortfolioTracker:
             api_clients: Dictionary of exchange API clients
             exchange_factories: Dictionary of exchange API factory functions
             symbol_mapper: Symbol mapper instance # ADDED DOC
+
         """
         self.logger = get_logger(__name__ + "." + self.__class__.__name__)
         self.app_settings: AppSettings = app_settings
@@ -84,8 +83,8 @@ class PortfolioTracker:
                     total_quantity=Decimal(0),
                     available_quantity=Decimal(0),
                     timestamp=datetime.min.replace(tzinfo=UTC),  # Clearly old timestamp
-                )
-            )
+                ),
+            ),
         )
         # Positions: dict[exchange_id, dict[symbol, DerivativePosition]]
         self.positions: defaultdict[str, defaultdict[str, DerivativePosition]] = defaultdict(
@@ -98,20 +97,20 @@ class PortfolioTracker:
                     size=Decimal(0),
                     entry_price=None,  # Must be None if size is 0
                     timestamp=datetime.min.replace(tzinfo=UTC),
-                )
-            )
+                ),
+            ),
         )
         self.orders: defaultdict[str, dict[str, Order]] = defaultdict(
-            dict
+            dict,
         )  # client_order_id -> Order
 
         # Initialize last update times
         # Consolidate individual last update times
         self.last_update_time: defaultdict[str, datetime] = defaultdict(
-            lambda: datetime.min.replace(tzinfo=UTC)
+            lambda: datetime.min.replace(tzinfo=UTC),
         )
         self.last_reconciliation_time: defaultdict[str, datetime] = defaultdict(
-            lambda: datetime.min.replace(tzinfo=UTC)
+            lambda: datetime.min.replace(tzinfo=UTC),
         )
         # Removed individual _last_balance_update_times, _last_position_update_times, etc.
 
@@ -130,7 +129,7 @@ class PortfolioTracker:
 
         # Initialize high watermark (as Decimal)
         self.high_watermark: Decimal = Decimal(
-            "0.0"
+            "0.0",
         )  # Track highest portfolio value for drawdown calculation
 
         # Add internal tracking for realized PNL
@@ -152,17 +151,17 @@ class PortfolioTracker:
             _ = self.last_reconciliation_time[exchange_id]
 
     def register_api_client(self, exchange_id: str, client: ExchangeAPI) -> None:
-        """
-        Register an API client for an exchange.
+        """Register an API client for an exchange.
 
         Args:
             exchange_id: Exchange identifier
             client: ExchangeAPI implementation
+
         """
         self.api_clients[exchange_id] = client
         self.logger.info(
             f"PT_REGISTER: Registered API client for {exchange_id}. \
-            Current api_clients keys: {list(self.api_clients.keys())}"
+            Current api_clients keys: {list(self.api_clients.keys())}",
         )
 
     async def initialize(self) -> None:
@@ -170,7 +169,7 @@ class PortfolioTracker:
         initialization_tasks: list[Awaitable[Any]] = []
         logger.info(
             f"PortfolioTracker {id(self)}: About to gather init tasks. "
-            f"Balance dict: {self.balances}"
+            f"Balance dict: {self.balances}",
         )
         for exchange_id, client in self.api_clients.items():
             if not self.app_settings.exchanges[exchange_id].enabled:
@@ -181,10 +180,10 @@ class PortfolioTracker:
             initialization_tasks.append(self._fetch_exchange_orders(exchange_id))
         logger.info(
             f"PortfolioTracker {id(self)}: About to gather init tasks. "
-            f"Balances before: {self.balances}"
+            f"Balances before: {self.balances}",
         )
         results: list[bool | BaseException] = await asyncio.gather(
-            *initialization_tasks, return_exceptions=True
+            *initialization_tasks, return_exceptions=True,
         )
         logger.info(f"---> State of self.balances immediately after init gather: {self.balances}")
         initialization_failed = False
@@ -205,20 +204,20 @@ class PortfolioTracker:
             error_summary = "; ".join(failed_tasks_info)
             logger.critical(
                 f"PortfolioTracker failed to initialize essential data from one or more exchanges. "
-                f"Cannot proceed reliably. Errors: {error_summary}"
+                f"Cannot proceed reliably. Errors: {error_summary}",
             )
 
         # Set initial reconciliation time AFTER fetching
         now_utc = datetime.now(UTC)
         logger.info(
             f"PT INIT: Setting reconciliation times. "
-            f"Current self.last_reconciliation_time before: {self.last_reconciliation_time}"
+            f"Current self.last_reconciliation_time before: {self.last_reconciliation_time}",
         )
         for exchange_id in self.api_clients:
             self.last_reconciliation_time[exchange_id] = now_utc
         logger.info(
             f"PT INIT: Reconciliation times set. "
-            f"Current self.last_reconciliation_time after: {self.last_reconciliation_time}"
+            f"Current self.last_reconciliation_time after: {self.last_reconciliation_time}",
         )
 
         # Calculate initial portfolio capital and set high watermark
@@ -251,7 +250,7 @@ class PortfolioTracker:
                         logger.warning(
                             f"[{exchange_id}] Skipping balance for asset {asset} "
                             f"due to mismatched exchange ID ({balance_obj.exchange}) "
-                            f"in received SpotBalance object (from dict)."
+                            f"in received SpotBalance object (from dict).",
                         )
 
             # Update internal state if new valid balances were found
@@ -269,7 +268,7 @@ class PortfolioTracker:
                             del self.balances[exchange_id][asset_to_remove]
                             logger.debug(
                                 f"[{exchange_id}] Removed stale balance "
-                                f"for asset {asset_to_remove}."
+                                f"for asset {asset_to_remove}.",
                             )
 
                     # Now, add/update balances from updated_balances
@@ -279,7 +278,7 @@ class PortfolioTracker:
                 logger.info(
                     f"[FETCH_BALANCES:{exchange_id}] Balances updated "
                     f"successfully with {len(updated_balances)} items. "
-                    f"Assets removed: {len(assets_to_remove)}."
+                    f"Assets removed: {len(assets_to_remove)}.",
                 )
             elif not updated_balances:
                 # This implies that balances_data was not None,
@@ -290,7 +289,7 @@ class PortfolioTracker:
                 # or the initial type hint for `client.get_balances()` would be violated.
                 logger.warning(
                     f"[FETCH_BALANCES:{exchange_id}] No valid balances processed or "
-                    f"API returned empty data. Type: {type(balances_data)}"
+                    f"API returned empty data. Type: {type(balances_data)}",
                 )
                 # Not returning False here, as an empty (but valid) response is not an error.
 
@@ -301,14 +300,14 @@ class PortfolioTracker:
             return False
 
     def _parse_balance_info(
-        self, exchange_id: str, asset: str, balance_info: dict[str, Any] | SpotBalance
+        self, exchange_id: str, asset: str, balance_info: dict[str, Any] | SpotBalance,
     ) -> SpotBalance | None:
         """Parse balance information into a SpotBalance object."""
         if isinstance(balance_info, SpotBalance):
             if balance_info.exchange != exchange_id:
                 logger.error(
                     f"Mismatched exchange ID in provided SpotBalance object: expected "
-                    f"{exchange_id}, got {balance_info.exchange}"
+                    f"{exchange_id}, got {balance_info.exchange}",
                 )
                 return None
             return balance_info
@@ -329,19 +328,19 @@ class PortfolioTracker:
             if parsed.total_quantity < Decimal("0") or parsed.available_quantity < Decimal("0"):
                 logger.error(
                     f"Parsed balance has negative values: Total={parsed.total_quantity}, "
-                    f"Available={parsed.available_quantity}"
+                    f"Available={parsed.available_quantity}",
                 )
                 return None
             return parsed
         except (ValidationError, TypeError, InvalidOperation) as e:
             logger.error(
-                f"Failed to parse balance for {asset} on {exchange_id}: {e}", exc_info=True
+                f"Failed to parse balance for {asset} on {exchange_id}: {e}", exc_info=True,
             )
             return None
 
     @staticmethod
     def _safe_decimal_convert(
-        value: str | Decimal | int | float | None, field_name: str, asset: str, exchange_id: str
+        value: str | Decimal | int | float | None, field_name: str, asset: str, exchange_id: str,
     ) -> Decimal | None:
         """Safely convert a value to Decimal, logging errors."""
         if value is None:
@@ -361,7 +360,7 @@ class PortfolioTracker:
         except (InvalidOperation, ValueError, TypeError) as e:
             logger.error(
                 f"Failed to convert '{field_name}' value '{value}' "
-                f"(type: {type(value)}) to Decimal for {asset} on {exchange_id}: {e}"
+                f"(type: {type(value)}) to Decimal for {asset} on {exchange_id}: {e}",
             )
             return None
 
@@ -389,7 +388,7 @@ class PortfolioTracker:
                 else:
                     logger.warning(
                         f"Skipping DerivativePosition object without symbol on "
-                        f"{exchange_id}: {position_info}"
+                        f"{exchange_id}: {position_info}",
                     )
 
             # This completely replaces the inner dict for the exchange_id
@@ -406,7 +405,7 @@ class PortfolioTracker:
             )
             self.last_update_time[exchange_id] = datetime.now(UTC)
             logger.debug(
-                f"Successfully updated positions for {exchange_id}. Count: {len(updated_positions)}"
+                f"Successfully updated positions for {exchange_id}. Count: {len(updated_positions)}",
             )
             return True
         except Exception as e:
@@ -431,7 +430,7 @@ class PortfolioTracker:
                 order_id = order_instance.client_order_id
                 if order_instance and order_id:
                     order_instance.price = self._safe_decimal_convert(
-                        order_instance.price, "price", order_instance.symbol, exchange_id
+                        order_instance.price, "price", order_instance.symbol, exchange_id,
                     )
                     order_instance.quantity_requested = self._safe_decimal_convert(
                         order_instance.quantity_requested,
@@ -451,14 +450,14 @@ class PortfolioTracker:
                         except ValueError:
                             logger.warning(
                                 f"Invalid status string '{order_instance.status}' for "
-                                f"order {order_id}"
+                                f"order {order_id}",
                             )
                             order_instance.status = OrderStatus.UNKNOWN
                     updated_orders[str(order_id)] = order_instance
             self.orders[exchange_id] = updated_orders  # This replaces the inner dict
             self.last_update_time[exchange_id] = datetime.now(UTC)
             logger.debug(
-                f"Successfully updated open orders for {exchange_id}. Count: {len(updated_orders)}"
+                f"Successfully updated open orders for {exchange_id}. Count: {len(updated_orders)}",
             )
             return True
         except Exception as e:
@@ -473,7 +472,7 @@ class PortfolioTracker:
             if not self.app_settings.exchanges[exchange_id].enabled:
                 continue
             last_reconciliation = self.last_reconciliation_time.get(
-                exchange_id, datetime.min.replace(tzinfo=UTC)
+                exchange_id, datetime.min.replace(tzinfo=UTC),
             )
             needs_reconciliation = (
                 now - last_reconciliation
@@ -490,27 +489,27 @@ class PortfolioTracker:
                 update_tasks.append(self._fetch_exchange_orders(exchange_id))
         if update_tasks:
             results: list[bool | BaseException] = await asyncio.gather(
-                *update_tasks, return_exceptions=True
+                *update_tasks, return_exceptions=True,
             )
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
                     logger.error(
-                        f"Error during portfolio update task (index {i}): {result}", exc_info=result
+                        f"Error during portfolio update task (index {i}): {result}", exc_info=result,
                     )
                 elif result is False:
                     logger.warning(
-                        f"Portfolio update task (index {i}) indicated failure (returned False)."
+                        f"Portfolio update task (index {i}) indicated failure (returned False).",
                     )
         current_capital = await self.get_total_capital()
         self.high_watermark = max(self.high_watermark, current_capital)
 
     def update_order(self, exchange_id: str, order: Order) -> None:
-        """
-        Update the status of a single order.
+        """Update the status of a single order.
 
         Args:
             exchange_id: Exchange identifier
             order: Order object with updated information
+
         """
         # self.orders is defaultdict(dict), so exchange_id will be auto-created if missing
         if not order.client_order_id:
@@ -529,16 +528,17 @@ class PortfolioTracker:
         ] and order.quantity_filled > Decimal("0"):
             logger.info(
                 f"Order {order_id_str} on {exchange_id} is {order.status}. "
-                f"Triggering trade processing (placeholder)."
+                f"Triggering trade processing (placeholder).",
             )
             # self.process_trade(exchange_id, Trade(...)) # Requires Trade object creation logic
 
     def update_position(self, exchange_id: str, position: DerivativePosition) -> None:
-        """
-        Update the state of a single position.
+        """Update the state of a single position.
+
         Args:
             exchange_id: Exchange identifier
             position: DerivativePosition object with updated information
+
         """
         # self.positions is defaultdict(defaultdict), so exchange_id will be auto-created
         pos_key = position.symbol
@@ -551,8 +551,7 @@ class PortfolioTracker:
         logger.debug(f"Updated position {pos_key} for {exchange_id}")
 
     async def process_trade(self, exchange_id: str, trade: Trade) -> None:
-        """
-        Process a trade execution and update relevant portfolio state.
+        """Process a trade execution and update relevant portfolio state.
         - Updates positions.
         - Updates balances (placeholder, needs full implementation).
         - Updates realized P&L.
@@ -560,6 +559,7 @@ class PortfolioTracker:
         Args:
             exchange_id: The exchange where the trade occurred.
             trade: The Trade object.
+
         """
         if not trade or not trade.symbol or not trade.quantity or trade.quantity <= Decimal(0):
             logger.warning(f"Ignoring invalid or zero-quantity trade on {exchange_id}: {trade}")
@@ -574,7 +574,7 @@ class PortfolioTracker:
             # but this should be fixed by ensuring proper initialization.
             base_symbol = trade.symbol.split("-")[0].split("/")[0]  # Basic fallback
             logger.warning(
-                f"SymbolMapper missing, using basic fallback for base symbol: {base_symbol}"
+                f"SymbolMapper missing, using basic fallback for base symbol: {base_symbol}",
             )
         else:
             base_symbol = (
@@ -584,7 +584,7 @@ class PortfolioTracker:
 
         logger.info(
             f"Processing trade on {exchange_id}: {trade.side} {trade.quantity} "
-            f"{base_symbol} (from {trade.symbol}) @ {trade.price}"
+            f"{base_symbol} (from {trade.symbol}) @ {trade.price}",
         )
 
         async def _update_position_async() -> None:
@@ -601,7 +601,7 @@ class PortfolioTracker:
                     # Opening new position
                     logger.debug(
                         f"Opening new position for {base_symbol} on {exchange_id} "
-                        f"from trade {trade.id}"
+                        f"from trade {trade.id}",
                     )
                     new_pos = DerivativePosition(
                         exchange=exchange_id,
@@ -620,16 +620,16 @@ class PortfolioTracker:
                     logger.debug(
                         f"Modifying existing position for {base_symbol} on {exchange_id} "
                         f"from trade {trade.id}. Current size: {current_position.size}, "
-                        f"side: {current_position.side}"
+                        f"side: {current_position.side}",
                     )
                     current_entry_price = current_position.entry_price or Decimal(
-                        0
+                        0,
                     )  # Default if somehow None
 
                     if current_position.side == trade_side:
                         # Increasing position
                         logger.debug(
-                            f"Increasing position for {base_symbol}. Trade qty: {trade_quantity}"
+                            f"Increasing position for {base_symbol}. Trade qty: {trade_quantity}",
                         )
                         if (
                             current_position.size < Decimal(0) and trade_side == OrderSide.SELL
@@ -652,7 +652,7 @@ class PortfolioTracker:
                                 f"Logical error in increasing position {base_symbol}. "
                                 f"Current size {current_position.size}, "
                                 f"side {current_position.side}. "
-                                f"Trade qty {trade_quantity}, side {trade_side}"
+                                f"Trade qty {trade_quantity}, side {trade_side}",
                             )
                             new_avg_price = trade_price  # Fallback
 
@@ -660,14 +660,14 @@ class PortfolioTracker:
                         logger.debug(
                             f"Position for {base_symbol} increased. New size: "
                             f"{current_position.size}, "
-                            f"New avg entry: {current_position.entry_price}"
+                            f"New avg entry: {current_position.entry_price}",
                         )
 
                     else:
                         # Decreasing or flipping position
                         logger.debug(
                             f"Reducing or flipping position for {base_symbol}. "
-                            f"Trade qty: {trade_quantity}"
+                            f"Trade qty: {trade_quantity}",
                         )
 
                         # Calculate PNL on the portion of the position affected by this trade
@@ -686,7 +686,7 @@ class PortfolioTracker:
                                 ) * qty_affected
 
                             self._update_realized_pnl(
-                                realized_pnl_for_this_trade
+                                realized_pnl_for_this_trade,
                             )  # Update portfolio total PNL
                             current_position.realized_pnl = (
                                 current_position.realized_pnl or Decimal(0)
@@ -694,7 +694,7 @@ class PortfolioTracker:
                             logger.info(
                                 f"Trade {trade.id} for {base_symbol}: "
                                 f"Realized PNL {realized_pnl_for_this_trade:.4f}. "
-                                f"Position Realized PNL: {current_position.realized_pnl:.4f}"
+                                f"Position Realized PNL: {current_position.realized_pnl:.4f}",
                             )
 
                         if trade_quantity < abs(current_position.size):
@@ -705,7 +705,7 @@ class PortfolioTracker:
                                     current_position.size - qty_affected
                                     if current_position.side == OrderSide.BUY
                                     else current_position.size + qty_affected
-                                }"
+                                }",
                             )
                             if current_position.side == OrderSide.BUY:
                                 current_position.size -= trade_quantity
@@ -725,7 +725,7 @@ class PortfolioTracker:
                             remaining_qty = trade_quantity - abs(current_position.size)
                             logger.debug(
                                 f"Flipping position for {base_symbol}. "
-                                f"Remaining qty after closing: {remaining_qty}"
+                                f"Remaining qty after closing: {remaining_qty}",
                             )
                             current_position.size = (
                                 remaining_qty if trade_side == OrderSide.BUY else -remaining_qty
@@ -819,18 +819,18 @@ class PortfolioTracker:
                         total_value += asset_value
                         logger.debug(
                             f"  [{exchange_id}] Spot Balance: {asset} {balance.total_quantity} "
-                            f"@ {price} {base_currency} = {asset_value} {base_currency}"
+                            f"@ {price} {base_currency} = {asset_value} {base_currency}",
                         )
                     except (TypeError, InvalidOperation) as e:
                         logger.error(
                             f"Error calculating value for spot balance {asset} "
-                            f"on {exchange_id}: {e}"
+                            f"on {exchange_id}: {e}",
                         )
                 else:
                     logger.warning(
                         f"Could not determine price for spot asset {asset} "
                         f"on {exchange_id} in {base_currency}. "
-                        f"Skipping in capital calculation."
+                        f"Skipping in capital calculation.",
                     )
 
         # 2. Calculate the equity value of all derivative positions
@@ -850,7 +850,7 @@ class PortfolioTracker:
         return total_value if total_value.is_finite() else Decimal("0.0")
 
     async def get_exchange_exposure(
-        self, exchange_id: str, valuation_asset: str = "USDC"
+        self, exchange_id: str, valuation_asset: str = "USDC",
     ) -> Decimal:
         """Calculate the total market exposure for a given exchange in a valuation asset."""
         logger.debug(f"Calculating exposure for {exchange_id} in {valuation_asset}...")
@@ -864,7 +864,7 @@ class PortfolioTracker:
 
             # Get current market price
             mark_price = await self._get_asset_price_in_base(
-                exchange_id, position.symbol, valuation_asset
+                exchange_id, position.symbol, valuation_asset,
             )
 
             if mark_price is not None and mark_price.is_finite():
@@ -875,18 +875,18 @@ class PortfolioTracker:
                     logger.debug(
                         f"  [{exchange_id}] Position Exposure: {position.symbol} "
                         f"size {position.size} @ mark {mark_price} {valuation_asset} = "
-                        f"{position_value} {valuation_asset}"
+                        f"{position_value} {valuation_asset}",
                     )
                 except (TypeError, InvalidOperation) as e:
                     logger.error(
                         f"Error calculating value for position {position_key} "
-                        f"({position.symbol}) on {exchange_id}: {e}"
+                        f"({position.symbol}) on {exchange_id}: {e}",
                     )
             else:
                 logger.warning(
                     f"Could not determine mark price for position {position_key} "
                     f"({position.symbol}) on {exchange_id} in {valuation_asset}. "
-                    f"Skipping in exposure calculation."
+                    f"Skipping in exposure calculation.",
                 )
 
         logger.info(f"Total exposure for {exchange_id}: {exchange_exposure} {valuation_asset}")
@@ -904,14 +904,14 @@ class PortfolioTracker:
         return total_exposure if total_exposure.is_finite() else Decimal("0.0")
 
     async def get_pnl(self, base_currency: str = "USDC") -> tuple[Decimal, Decimal]:
-        """
-        Calculate the total realized and unrealized PNL across all exchanges.
+        """Calculate the total realized and unrealized PNL across all exchanges.
 
         Args:
             base_currency: The currency to report PNL in.
 
         Returns:
             A tuple containing (total_realized_pnl, total_unrealized_pnl).
+
         """
         logger.debug(f"Calculating PNL in {base_currency}...")
         total_unrealized_pnl = Decimal("0.0")
@@ -928,7 +928,7 @@ class PortfolioTracker:
                         else position.symbol.split("-")[-1]
                     )  # Simple guess
                     conversion_rate = await self._get_asset_price_in_base(
-                        exchange_id, pnl_quote_asset, base_currency
+                        exchange_id, pnl_quote_asset, base_currency,
                     )
 
                     # Check conversion rate validity
@@ -941,23 +941,23 @@ class PortfolioTracker:
                             else:
                                 logger.warning(
                                     f"Converted realized PNL for {position_key} "
-                                    f"is not finite ({converted_pnl}). Skipping addition."
+                                    f"is not finite ({converted_pnl}). Skipping addition.",
                                 )
                         except (TypeError, InvalidOperation) as e:
                             logger.error(
                                 f"Error during realized PNL conversion/addition "
-                                f"for {position_key}: {e}"
+                                f"for {position_key}: {e}",
                             )
                     else:
                         logger.warning(
                             f"Cannot convert realized PNL for {position_key} on {exchange_id} "
                             f"to {base_currency}. Realized PNL: {position.realized_pnl}, "
-                            f"Conversion Rate: {conversion_rate}."
+                            f"Conversion Rate: {conversion_rate}.",
                         )
                 elif position.realized_pnl is not None:  # Log if it exists but isn't finite
                     logger.warning(
                         f"Position {position_key} realized PNL is not finite: "
-                        f"{position.realized_pnl}"
+                        f"{position.realized_pnl}",
                     )
 
                 # Calculate unrealized PNL
@@ -966,13 +966,13 @@ class PortfolioTracker:
                 if position.size == Decimal("0") or position.entry_price is None:
                     logger.debug(
                         f"Skipping unrealized PNL calc for {position_key} on {exchange_id} "
-                        f"due to zero size or missing entry price."
+                        f"due to zero size or missing entry price.",
                     )
                     continue
 
                 # 1. Get Mark Price in the requested Base Currency
                 mark_price_in_base = await self._get_asset_price_in_base(
-                    exchange_id, position.symbol, base_currency
+                    exchange_id, position.symbol, base_currency,
                 )
 
                 # 2. Get Entry Price (which is in the Quote currency of the symbol)
@@ -987,7 +987,7 @@ class PortfolioTracker:
                 else:
                     logger.warning(
                         f"Cannot determine quote currency for symbol {position.symbol}, "
-                        f"cannot calculate unrealized PNL accurately."
+                        f"cannot calculate unrealized PNL accurately.",
                     )
                     continue  # Skip if we can't determine quote currency
 
@@ -998,7 +998,7 @@ class PortfolioTracker:
                 else:
                     # Need conversion rate from quote to base
                     quote_to_base_rate = await self._get_asset_price_in_base(
-                        exchange_id, quote_currency, base_currency
+                        exchange_id, quote_currency, base_currency,
                     )
                     if quote_to_base_rate is not None:
                         entry_price_in_base = entry_price_in_quote * quote_to_base_rate
@@ -1006,7 +1006,7 @@ class PortfolioTracker:
                         logger.warning(
                             f"Cannot convert entry price for {position.symbol} "
                             f"from {quote_currency} to {base_currency}. "
-                            f"Skipping unrealized PNL."
+                            f"Skipping unrealized PNL.",
                         )
                         entry_price_in_base = None  # Explicitly set to None if conversion fails
 
@@ -1027,20 +1027,20 @@ class PortfolioTracker:
                             f"  [{exchange_id}] Position PNL: {position.symbol} "
                             f"size {position.size}, entry_base {entry_price_in_base:.4f}, "
                             f"mark_base {mark_price_in_base:.4f} => Unrealized: "
-                            f"{unrealized_pnl:.4f} {base_currency}"
+                            f"{unrealized_pnl:.4f} {base_currency}",
                         )
 
                     except (TypeError, InvalidOperation) as e:
                         logger.error(
                             f"Error calculating unrealized PNL for {position_key} "
-                            f"on {exchange_id}: {e}"
+                            f"on {exchange_id}: {e}",
                         )
                 else:
                     logger.warning(
                         f"Skipping unrealized PNL calculation for {position_key} "
                         f"({position.symbol}) on {exchange_id} due to missing/invalid "
                         f"converted prices (MarkBase={mark_price_in_base}, "
-                        f"EntryBase={entry_price_in_base})."
+                        f"EntryBase={entry_price_in_base}).",
                     )
 
         finite_realized = total_realized_pnl if total_realized_pnl.is_finite() else Decimal("0.0")
@@ -1050,7 +1050,7 @@ class PortfolioTracker:
 
         logger.info(
             f"Total PNL calculated: Realized={finite_realized} {base_currency}, "
-            f"Unrealized={finite_unrealized} {base_currency}"
+            f"Unrealized={finite_unrealized} {base_currency}",
         )
         return finite_realized, finite_unrealized
 
@@ -1065,7 +1065,7 @@ class PortfolioTracker:
         if not current_capital.is_finite() or current_capital <= Decimal("0.0"):
             logger.warning(
                 f"Current capital ({current_capital}) is not positive or finite. "
-                f"Cannot calculate drawdown."
+                f"Cannot calculate drawdown.",
             )
             return Decimal("0.0")
 
@@ -1073,7 +1073,7 @@ class PortfolioTracker:
         result = max(Decimal("0.0"), drawdown)
         logger.debug(
             f"Calculated Drawdown: HWM={self.high_watermark}, "
-            f"Capital={current_capital}, Drawdown={result}"
+            f"Capital={current_capital}, Drawdown={result}",
         )
         return result
 
@@ -1106,8 +1106,7 @@ class PortfolioTracker:
         return all_orders
 
     def get_order_by_id(self, exchange_id: str, order_id: str) -> Order | None:
-        """
-        Retrieve a specific order by its ID from the internal tracking.
+        """Retrieve a specific order by its ID from the internal tracking.
 
         Args:
             exchange_id: The exchange the order belongs to.
@@ -1115,6 +1114,7 @@ class PortfolioTracker:
 
         Returns:
             The Order object if found, otherwise None.
+
         """
         exchange_orders = self.orders.get(exchange_id, {})
 
@@ -1159,7 +1159,7 @@ class PortfolioTracker:
 
     @classmethod
     def from_dict(
-        cls, data: dict[str, Any], app_settings: AppSettings, pt_config: PortfolioTrackerConfig
+        cls, data: dict[str, Any], app_settings: AppSettings, pt_config: PortfolioTrackerConfig,
     ) -> PortfolioTracker:
         """Deserialize the portfolio state from a dictionary."""
         tracker = cls(app_settings, pt_config)
@@ -1184,17 +1184,17 @@ class PortfolioTracker:
                                     str(k): v for k, v in temp_bal_dict_for_comp.items()
                                 }
                                 tracker.balances[ex_id_str][asset_str] = SpotBalance.model_validate(
-                                    validated_bal_dict
+                                    validated_bal_dict,
                                 )
                             except ValidationError as e:
                                 logger.error(
                                     f"Error validating SpotBalance for {asset_str} "
-                                    f"on {ex_id_str}: {e}"
+                                    f"on {ex_id_str}: {e}",
                                 )
                             except Exception as e:  # Catch other potential errors from str(k)
                                 logger.warning(
                                     f"Type error processing balance {ex_id_str}/{asset_str} "
-                                    f"in from_dict: {e}"
+                                    f"in from_dict: {e}",
                                 )
                         elif isinstance(bal_data_any, SpotBalance):  # If already an object
                             tracker.balances[ex_id_str][asset_str] = bal_data_any
@@ -1223,12 +1223,12 @@ class PortfolioTracker:
                             except ValidationError as e:
                                 logger.error(
                                     f"Error validating DerivativePosition for {sym_str} "
-                                    f"on {ex_id_str_pos}: {e}"
+                                    f"on {ex_id_str_pos}: {e}",
                                 )
                             except Exception as e:  # Catch other potential errors from str(k)
                                 logger.warning(
                                     f"Type error processing position {ex_id_str_pos}/{sym_str} "
-                                    f"in from_dict: {e}"
+                                    f"in from_dict: {e}",
                                 )
                         elif isinstance(pos_data_any, DerivativePosition):
                             tracker.positions[ex_id_str_pos][sym_str] = pos_data_any
@@ -1252,17 +1252,17 @@ class PortfolioTracker:
                                     str(k): v for k, v in temp_order_dict_for_comp.items()
                                 }
                                 tracker.orders[ex_id_str_ord][ord_id_str] = Order.model_validate(
-                                    validated_order_dict_for_model
+                                    validated_order_dict_for_model,
                                 )
                             except ValidationError as e:
                                 logger.error(
                                     f"Error validating Order for {ord_id_str} "
-                                    f"on {ex_id_str_ord}: {e}"
+                                    f"on {ex_id_str_ord}: {e}",
                                 )
                             except Exception as e:  # Catch other potential errors from str(k)
                                 logger.warning(
                                     f"Type error processing order {ex_id_str_ord}/{ord_id_str} "
-                                    f"in from_dict: {e}"
+                                    f"in from_dict: {e}",
                                 )
                         elif isinstance(order_data_any, Order):
                             tracker.orders[ex_id_str_ord][ord_id_str] = order_data_any
@@ -1281,13 +1281,13 @@ class PortfolioTracker:
                         # Ensure ts_data_any_lut is not None before passing to parse_datetime_utc
                         if ts_data_any_lut is not None:
                             parsed_ts = parse_datetime_utc(
-                                ts_data_any_lut, field_name=f"last_update_time.{ex_id_str_lut}"
+                                ts_data_any_lut, field_name=f"last_update_time.{ex_id_str_lut}",
                             )
                             if parsed_ts:
                                 tracker.last_update_time[ex_id_str_lut] = parsed_ts
                         else:
                             logger.warning(
-                                f"Received None for last_update_time for {ex_id_str_lut}, skipping."
+                                f"Received None for last_update_time for {ex_id_str_lut}, skipping.",
                             )
                 except Exception as e:
                     logger.error(f"Error deserializing last_update_time for {ex_id_str_lut}: {e}")
@@ -1313,11 +1313,11 @@ class PortfolioTracker:
                         else:
                             logger.warning(
                                 f"Received None for last_reconciliation_time for "
-                                f"{ex_id_str_lrt}, skipping."
+                                f"{ex_id_str_lrt}, skipping.",
                             )
                 except Exception as e:
                     logger.error(
-                        f"Error deserializing last_reconciliation_time for {ex_id_str_lrt}: {e}"
+                        f"Error deserializing last_reconciliation_time for {ex_id_str_lrt}: {e}",
                     )
 
         tracker.high_watermark = Decimal(str(data.get("high_watermark", "0.0")))
@@ -1380,7 +1380,7 @@ class PortfolioTracker:
         self.balances[exchange_id][balance.asset] = balance
 
     def _parse_positions(
-        self, exchange_id: str, positions_data: list[DerivativePosition] | dict[str, Any]
+        self, exchange_id: str, positions_data: list[DerivativePosition] | dict[str, Any],
     ) -> None:
         logger.warning("_parse_positions needs implementation based on API data format.")
         if isinstance(positions_data, dict):
@@ -1414,7 +1414,7 @@ class PortfolioTracker:
                         else:
                             self.logger.warning(
                                 f"Skipping unexpected value type in orders_data dict: "
-                                f"{type(item_val)}"
+                                f"{type(item_val)}",
                             )
                 # If not a dict, it must be list[Order] per type hint
                 else:  # orders_data is list[Order]
@@ -1432,7 +1432,7 @@ class PortfolioTracker:
                             order = Order.model_validate(order_dict_data)
                             # Process validated order
                             order.price = self._safe_decimal_convert(
-                                order.price, "price", order.symbol, exchange_id
+                                order.price, "price", order.symbol, exchange_id,
                             )
                             order.quantity_requested = self._safe_decimal_convert(
                                 order.quantity_requested,
@@ -1452,7 +1452,7 @@ class PortfolioTracker:
                                 except ValueError:
                                     self.logger.warning(
                                         f"Invalid status string '{order.status}' for "
-                                        f"order {order.client_order_id}"
+                                        f"order {order.client_order_id}",
                                     )
                                     order.status = OrderStatus.UNKNOWN
                             current_orders[order.client_order_id] = order
@@ -1465,7 +1465,7 @@ class PortfolioTracker:
                             )
                             self.logger.error(
                                 f"Error validating Order for {client_id_for_log} "
-                                f"on {exchange_id}: {e}"
+                                f"on {exchange_id}: {e}",
                             )
                     # If not dict, must be Order (items_to_process has Order | dict[str, Any],
                     # and non-Order/dict items were filtered).
@@ -1497,7 +1497,7 @@ class PortfolioTracker:
                             except ValueError:
                                 self.logger.warning(
                                     f"Invalid status string '{order_obj_from_list.status}' for "
-                                    f"order {order_obj_from_list.client_order_id}"
+                                    f"order {order_obj_from_list.client_order_id}",
                                 )
                                 order_obj_from_list.status = OrderStatus.UNKNOWN
                             current_orders[order_obj_from_list.client_order_id] = (
@@ -1509,14 +1509,13 @@ class PortfolioTracker:
                 self.orders[exchange_id] = current_orders
                 self.logger.info(
                     f"Parsed {len(items_to_process)} order items for {exchange_id}. "
-                    f"{new_count} new (as Order objects), {updated_count} updated (from dict)."
+                    f"{new_count} new (as Order objects), {updated_count} updated (from dict).",
                 )
 
         asyncio.create_task(_do_parse())
 
     def reset(self) -> None:
-        """
-        Reset the portfolio tracker to a clean initial state.
+        """Reset the portfolio tracker to a clean initial state.
 
         This method clears all tracked balances, positions, orders, timestamps, high watermark,
         realized PNL, active symbols, and watchlist. It is intended for use in tests or integration
@@ -1558,7 +1557,7 @@ class PortfolioTracker:
         if price_override is not None:
             logger.debug(
                 f"[{exchange_id}] Using provided price override for {asset} "
-                f"in {base_currency}: {price_override}"
+                f"in {base_currency}: {price_override}",
             )
             return price_override
 
@@ -1568,14 +1567,14 @@ class PortfolioTracker:
         client = self.api_clients.get(exchange_id)
         if not client:
             logger.warning(
-                f"[{exchange_id}] No API client to fetch price for {asset}->{base_currency}"
+                f"[{exchange_id}] No API client to fetch price for {asset}->{base_currency}",
             )
             return None
 
         # DEBUG LOGGING START
         logger.info(
             f"_get_asset_price_in_base CALLED for {exchange_id}: asset='{asset}', "
-            f"base_currency='{base_currency}', price_override={price_override}"
+            f"base_currency='{base_currency}', price_override={price_override}",
         )
         # DEBUG LOGGING END
 
@@ -1583,17 +1582,17 @@ class PortfolioTracker:
         symbol_direct = f"{asset.upper()}-{base_currency.upper()}"
         logger.debug(
             f"[{exchange_id}] _get_asset_price_in_base: Attempting direct "
-            f"lookup for {symbol_direct}"
+            f"lookup for {symbol_direct}",
         )
         ticker_direct = await client.get_ticker(symbol_direct)
         logger.debug(
             f"[{exchange_id}] _get_asset_price_in_base: Received ticker_direct for "
-            f"{symbol_direct}: {ticker_direct} (Type: {type(ticker_direct)})"
+            f"{symbol_direct}: {ticker_direct} (Type: {type(ticker_direct)})",
         )
         if ticker_direct:
             logger.debug(
                 f"[{exchange_id}] _get_asset_price_in_base: ticker_direct.price "
-                f"for {symbol_direct}: {getattr(ticker_direct, 'price', 'N/A')}"
+                f"for {symbol_direct}: {getattr(ticker_direct, 'price', 'N/A')}",
             )
             # Debug logging for ticker price checks
             has_valid_price = (
@@ -1602,13 +1601,13 @@ class PortfolioTracker:
                 and ticker_direct.price > Decimal("0")
             )
             logger.debug(
-                f"[{exchange_id}] Ticker direct price check for {symbol_direct}: {has_valid_price}"
+                f"[{exchange_id}] Ticker direct price check for {symbol_direct}: {has_valid_price}",
             )
 
         if ticker_direct and ticker_direct.price is not None and ticker_direct.price > Decimal("0"):
             logger.debug(
                 f"[{exchange_id}] _get_asset_price_in_base: ticker_direct.price "
-                f"for {symbol_direct}: {ticker_direct.price}"
+                f"for {symbol_direct}: {ticker_direct.price}",
             )
             return ticker_direct.price
 
@@ -1616,17 +1615,17 @@ class PortfolioTracker:
         symbol_inverse = f"{base_currency}-{asset}"
         logger.debug(
             f"[{exchange_id}] _get_asset_price_in_base: Attempting inverse "
-            f"lookup for {symbol_inverse}"
+            f"lookup for {symbol_inverse}",
         )
         ticker_inverse = await client.get_ticker(symbol_inverse)
         logger.debug(
             f"[{exchange_id}] _get_asset_price_in_base: Received ticker_inverse for "
-            f"{symbol_inverse}: {ticker_inverse} (Type: {type(ticker_inverse)})"
+            f"{symbol_inverse}: {ticker_inverse} (Type: {type(ticker_inverse)})",
         )
         if ticker_inverse:
             logger.debug(
                 f"[{exchange_id}] _get_asset_price_in_base: ticker_inverse.price "
-                f"for {symbol_inverse}: {getattr(ticker_inverse, 'price', 'N/A')}"
+                f"for {symbol_inverse}: {getattr(ticker_inverse, 'price', 'N/A')}",
             )
             # Debug logging for inverse ticker price checks
             has_valid_inverse_price = (
@@ -1636,7 +1635,7 @@ class PortfolioTracker:
             )
             logger.debug(
                 f"[{exchange_id}] Ticker inverse price check for {symbol_inverse}: "
-                f"{has_valid_inverse_price}"
+                f"{has_valid_inverse_price}",
             )
 
         if (
@@ -1647,14 +1646,14 @@ class PortfolioTracker:
             price = Decimal("1.0") / ticker_inverse.price
             logger.debug(
                 f"[{exchange_id}] _get_asset_price_in_base: ticker_inverse.price "
-                f"for {symbol_inverse}: {ticker_inverse.price}, calculated: {price}"
+                f"for {symbol_inverse}: {ticker_inverse.price}, calculated: {price}",
             )
             return price
 
         # TODO: Implement simple triangulation if needed
         logger.warning(
             f"[{exchange_id}] Price conversion failed for {asset} to "
-            f"{base_currency}. Returning None."
+            f"{base_currency}. Returning None.",
         )
         return None
 
@@ -1686,7 +1685,7 @@ class PortfolioTracker:
                 except InvalidOperation:
                     logger.error(
                         f"Invalid decimal value for initial balance of {asset} "
-                        f"on {exchange_id}: {quantity_str}"
+                        f"on {exchange_id}: {quantity_str}",
                     )
         # Initialize positions
         for pos_dict in self.pt_config.initial_positions:
@@ -1695,14 +1694,14 @@ class PortfolioTracker:
                 self.positions[pos.exchange][pos.symbol] = pos
                 logger.info(
                     f"Initialized position: {pos.symbol} on {pos.exchange}, "
-                    f"Side: {pos.side}, Size: {pos.size}"
+                    f"Side: {pos.side}, Size: {pos.size}",
                 )
             except (ValidationError, TypeError) as e:
                 logger.error(f"Failed to create DerivativePosition from config: {e}")
         logger.info("PortfolioTracker initialized.")
 
     async def _fetch_exchange_account_summary(
-        self, client: ExchangeAPI, exchange_id: str
+        self, client: ExchangeAPI, exchange_id: str,
     ) -> tuple[str, MarginAccountSummary | None] | None:
         try:
             summary = await client.get_account_summary()
@@ -1716,7 +1715,7 @@ class PortfolioTracker:
             return None
 
     def get_all_derivative_positions_for_exchange(
-        self, exchange_id: str
+        self, exchange_id: str,
     ) -> dict[Symbol, DerivativePosition] | None:
         """Returns all derivative positions for a given exchange."""
         normalized_exchange_id = exchange_id.lower()
@@ -1726,13 +1725,13 @@ class PortfolioTracker:
             f"PT_GET_ALL_DERIV_POS_CRITICAL_DEBUG: id(self)={id(self)}, "
             f"id(self.api_clients)={id(self.api_clients)}, "
             f"self.api_clients={self.api_clients}, "
-            f"exchange_id='{exchange_id}', normalized_exchange_id='{normalized_exchange_id}'"
+            f"exchange_id='{exchange_id}', normalized_exchange_id='{normalized_exchange_id}'",
         )
 
         if normalized_exchange_id not in self.api_clients:
             self.logger.warning(
                 f"PT_GET_ALL_DERIV_POS: Attempted to get positions for unknown or unregistered "
-                f"exchange: '{exchange_id}' (normalized: '{normalized_exchange_id}')."
+                f"exchange: '{exchange_id}' (normalized: '{normalized_exchange_id}').",
             )
             return None
 

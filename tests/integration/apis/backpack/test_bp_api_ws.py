@@ -1,5 +1,4 @@
-"""
-Integration Tests for BackpackAPI WebSocket Integration
+"""Integration Tests for BackpackAPI WebSocket Integration
 -----------------------------------------------------
 
 This module tests the WebSocket integration in BackpackAPI,
@@ -28,8 +27,7 @@ def create_test_exchange_config(
     is_mainnet_environment: bool = True,
     **kwargs: object,
 ) -> ExchangeSpecificConfig:
-    """
-    Create ExchangeSpecificConfig for testing by parsing from dict.
+    """Create ExchangeSpecificConfig for testing by parsing from dict.
     This works with the validator that expects string inputs.
     """
     config_dict = {

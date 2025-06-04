@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack Trading Data Mapper Integration Tests
+"""CyberDeltaEngine: Backpack Trading Data Mapper Integration Tests
 ---------------------------------------------------------------
 
 Comprehensive integration test suite for BackpackTradingDataMapper.

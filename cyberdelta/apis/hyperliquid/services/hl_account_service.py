@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid Account Service
+"""CyberDeltaEngine: Hyperliquid Account Service
 ----------------------------------------------
 
 This service encapsulates the logic for fetching and managing account-specific
@@ -76,13 +75,12 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 HttpClientRequesterSig = Callable[
-    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]]
+    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
 ]
 
 
 class HyperliquidAccountService:
-    """
-    Service class for Hyperliquid account management operations.
+    """Service class for Hyperliquid account management operations.
     Returns Internal Domain Models.
     """
 
@@ -121,7 +119,7 @@ class HyperliquidAccountService:
         """Helper to fetch and validate the raw HyperliquidClearinghouseState."""
         if not self._wallet_address:
             logger.error(
-                f"[{self._exchange_name}] Wallet address not set. Cannot fetch clearinghouse state."
+                f"[{self._exchange_name}] Wallet address not set. Cannot fetch clearinghouse state.",
             )
             raise APIError(
                 message="Wallet address is required to fetch clearinghouse state for Hyperliquid.",
@@ -134,7 +132,7 @@ class HyperliquidAccountService:
 
         logger.debug(
             f"[{self._exchange_name}] Requesting user state for clearinghouse_state from "
-            f"{endpoint_path} with payload: {payload_dict}"
+            f"{endpoint_path} with payload: {payload_dict}",
         )
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
@@ -147,7 +145,7 @@ class HyperliquidAccountService:
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw user state response for clearinghouse_state: "
-                f"{raw_data!r} (Status: {status_code})"
+                f"{raw_data!r} (Status: {status_code})",
             )
 
             if raw_data is None:
@@ -183,7 +181,7 @@ class HyperliquidAccountService:
 
             return self._response_handler.handle_info_user_state_response(
                 raw_response_content=cast(
-                    dict[str, Any], state_data_dict
+                    dict[str, Any], state_data_dict,
                 ),  # Cast to dict[str, Any]
                 user_address=self._wallet_address,
             )
@@ -192,7 +190,7 @@ class HyperliquidAccountService:
         except (ValidationError, ValueError) as e_val:  # Catch Pydantic/parsing errors
             logger.error(
                 f"Validation/map error for HL clearinghouse_state: {e_val}. "
-                f"Raw: {raw_data!r}, Status: {status_code}"
+                f"Raw: {raw_data!r}, Status: {status_code}",
             )
             raise APIError(
                 message=f"Processing HL clearinghouse_state data failed: {e_val}",
@@ -235,7 +233,7 @@ class HyperliquidAccountService:
             raw_clearinghouse_state = await self._get_raw_clearinghouse_state()
             internal_balances = (
                 self._account_mapper.transform_raw_clearinghouse_state_to_spot_balances(
-                    raw_clearinghouse_state
+                    raw_clearinghouse_state,
                 )
             )
             logger.debug(f"[{self._exchange_name}] Mapped internal balances: {internal_balances}")
@@ -303,7 +301,7 @@ class HyperliquidAccountService:
 
         if symbol is not None and not symbol:
             raise ValueError(
-                f"[{current_method}] 'symbol' must be a non-empty string when provided."
+                f"[{current_method}] 'symbol' must be a non-empty string when provided.",
             )
 
         # Initialize context for error handling
@@ -316,7 +314,7 @@ class HyperliquidAccountService:
             # Assuming mapper returns Dict[str, DerivativePosition] where key is symbol
             all_positions_dict = (
                 self._account_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
-                    raw_clearinghouse_state
+                    raw_clearinghouse_state,
                 )
             )
 
@@ -325,18 +323,18 @@ class HyperliquidAccountService:
                 if position:
                     logger.debug(
                         f"[{self._exchange_name}] Filtered position for symbol "
-                        f"'{symbol}': {position}"
+                        f"'{symbol}': {position}",
                     )
                     return [position]
                 logger.debug(
                     f"[{self._exchange_name}] No position found for symbol '{symbol}'. "
-                    f"Positions: {list(all_positions_dict.keys())}"
+                    f"Positions: {list(all_positions_dict.keys())}",
                 )
                 return []
 
             all_positions_list = list(all_positions_dict.values())
             logger.debug(
-                f"[{self._exchange_name}] Mapped all internal positions: {all_positions_list}"
+                f"[{self._exchange_name}] Mapped all internal positions: {all_positions_list}",
             )
             return all_positions_list
 
@@ -411,11 +409,11 @@ class HyperliquidAccountService:
             raw_clearinghouse_state = await self._get_raw_clearinghouse_state()
             internal_summary = (
                 self._account_mapper.transform_raw_clearinghouse_state_to_margin_summary(
-                    raw_clearinghouse_state
+                    raw_clearinghouse_state,
                 )
             )
             logger.debug(
-                f"[{self._exchange_name}] Mapped internal account summary: {internal_summary}"
+                f"[{self._exchange_name}] Mapped internal account summary: {internal_summary}",
             )
             return internal_summary
 
@@ -474,8 +472,7 @@ class HyperliquidAccountService:
             ) from e_unexpected
 
     async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
-        """
-        Retrieves historical order data using the 'queryOrderHistory' endpoint.
+        """Retrieves historical order data using the 'queryOrderHistory' endpoint.
         Requires start_time and end_time.
         Filtering by symbol (if provided) is done client-side.
         """
@@ -515,7 +512,7 @@ class HyperliquidAccountService:
 
             logger.debug(
                 f"[{self._exchange_name}] Requesting order history from {endpoint_path} "
-                f"with payload: {payload_dict}"
+                f"with payload: {payload_dict}",
             )
 
             raw_data, status_code, _ = await self._http_client_requester(
@@ -530,7 +527,7 @@ class HyperliquidAccountService:
 
             logger.debug(
                 f"[{self._exchange_name}] Raw order history response: {raw_data!r} "
-                f"(Status: {status_code})"
+                f"(Status: {status_code})",
             )
 
             if raw_data is None:
@@ -579,7 +576,7 @@ class HyperliquidAccountService:
                         )
                         logger.warning(
                             f"[{self._exchange_name}] Error mapping historical order item: "
-                            f"{e_map_item}. Raw: {raw_order_repr}"
+                            f"{e_map_item}. Raw: {raw_order_repr}",
                         )
 
             if args.symbol:
@@ -588,13 +585,13 @@ class HyperliquidAccountService:
                 filtered_orders = [o for o in internal_orders if o.symbol == args.symbol]
                 logger.debug(
                     f"[{self._exchange_name}] Filtered order history for symbol '{args.symbol}': "
-                    f"{len(filtered_orders)} orders"
+                    f"{len(filtered_orders)} orders",
                 )
                 return filtered_orders
 
             logger.debug(
                 f"[{self._exchange_name}] Mapped internal order history: "
-                f"{len(internal_orders)} orders"
+                f"{len(internal_orders)} orders",
             )
             return internal_orders
 
@@ -661,6 +658,7 @@ class HyperliquidAccountService:
         Note:
             Hyperliquid's userFills endpoint doesn't support server-side filtering.
             Symbol filtering and limit are applied client-side after fetching all fills.
+
         """
         # Service Input Parameter Validation is now handled by GetTradeHistoryArgs Pydantic model
         frame = inspect.currentframe()
@@ -681,13 +679,13 @@ class HyperliquidAccountService:
 
             endpoint_path = "/info"
             payload_model = self._request_builder.build_user_fills_request_payload(
-                self._wallet_address
+                self._wallet_address,
             )
             payload_dict = payload_model.model_dump()
 
             logger.debug(
                 f"[{self._exchange_name}] Requesting user fills from {endpoint_path} "
-                f"with payload: {payload_dict}"
+                f"with payload: {payload_dict}",
             )
 
             raw_response_list, status_code, _ = await self._http_client_requester(
@@ -702,7 +700,7 @@ class HyperliquidAccountService:
 
             logger.debug(
                 f"[{self._exchange_name}] Raw user fills response: {raw_response_list!r} "
-                f"(Status: {status_code})"
+                f"(Status: {status_code})",
             )
 
             if raw_response_list is None:
@@ -732,7 +730,7 @@ class HyperliquidAccountService:
             # and user_address
             validated_fills_response = self._response_handler.handle_info_user_fills_response(
                 raw_response_content=cast(
-                    RawJsonResponse, raw_fills_list_of_dicts
+                    RawJsonResponse, raw_fills_list_of_dicts,
                 ),  # Cast to satisfy handler
                 user_address=self._wallet_address,  # Add missing user_address
             )
@@ -745,7 +743,7 @@ class HyperliquidAccountService:
                     try:
                         # Use the injected account_mapper instance
                         mapped_trade = self._account_mapper.transform_raw_user_fill_to_internal(
-                            raw_fill_obj
+                            raw_fill_obj,
                         )
                         # Apply symbol filtering if specified
                         if args.symbol is None or mapped_trade.symbol == args.symbol:
@@ -753,14 +751,14 @@ class HyperliquidAccountService:
                     except (ValidationError, ValueError) as e_map:
                         logger.warning(
                             f"[{self._exchange_name}] Error mapping raw user fill: {e_map}. "
-                            f"Raw: {raw_fill_obj}. Skipping."
+                            f"Raw: {raw_fill_obj}. Skipping.",
                         )
             # Apply limit if specified
             if args.limit is not None and len(internal_trades) > args.limit:
                 internal_trades = internal_trades[: args.limit]
 
             logger.debug(
-                f"[{self._exchange_name}] Mapped internal trades: {len(internal_trades)} trades"
+                f"[{self._exchange_name}] Mapped internal trades: {len(internal_trades)} trades",
             )
             return internal_trades
 
@@ -842,7 +840,7 @@ class HyperliquidAccountService:
             # Core operational logic
             logger.warning(
                 f"[{self._exchange_name}] transfer functionality may be limited or "
-                f"different for Hyperliquid."
+                f"different for Hyperliquid.",
             )
             raise NotImplementedError("transfer not yet implemented in HyperliquidAccountService")
 
@@ -926,7 +924,7 @@ class HyperliquidAccountService:
             # Core operational logic
             logger.warning(
                 f"[{self._exchange_name}] withdraw functionality is complex for Hyperliquid "
-                f"(L1 interaction)."
+                f"(L1 interaction).",
             )
             raise NotImplementedError("withdraw not yet implemented in HyperliquidAccountService")
 
@@ -1011,13 +1009,13 @@ class HyperliquidAccountService:
             endpoint_path = "/info"  # Hyperliquid uses /info for many user-specific queries
             # Use the request builder to create the payload
             payload_model = self._request_builder.build_open_orders_payload(
-                wallet_address=self._wallet_address
+                wallet_address=self._wallet_address,
             )
             payload_dict = payload_model.model_dump()
 
             logger.debug(
                 f"[{self._exchange_name}] Requesting open orders from {endpoint_path} "
-                f"with payload: {payload_dict}"
+                f"with payload: {payload_dict}",
             )
 
             raw_data, status_code, _ = await self._http_client_requester(
@@ -1032,7 +1030,7 @@ class HyperliquidAccountService:
 
             logger.debug(
                 f"[{self._exchange_name}] Raw open orders response: {raw_data!r} "
-                f"(Status: {status_code})"
+                f"(Status: {status_code})",
             )
 
             if raw_data is None:
@@ -1046,7 +1044,7 @@ class HyperliquidAccountService:
             raw_orders_list: list[HyperliquidRawOpenOrder] = []  # Initialize
             validated_response: HyperliquidRawOpenOrdersResponse = (
                 self._response_handler.handle_info_open_orders_response(
-                    raw_response_content=raw_data, user_address=self._wallet_address
+                    raw_response_content=raw_data, user_address=self._wallet_address,
                 )
             )
             if validated_response and validated_response.items:
@@ -1062,7 +1060,7 @@ class HyperliquidAccountService:
                 internal_orders.append(internal_order)
 
             logger.debug(
-                f"[{self._exchange_name}] Mapped {len(internal_orders)} internal open orders."
+                f"[{self._exchange_name}] Mapped {len(internal_orders)} internal open orders.",
             )
             return internal_orders
 

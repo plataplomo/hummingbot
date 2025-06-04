@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid Market Data Mapper Order Book & Trades Tests
+"""CyberDeltaEngine: Hyperliquid Market Data Mapper Order Book & Trades Tests
 --------------------------------------------------------------------------
 
 Comprehensive test suite for HyperliquidMarketDataMapper order book and

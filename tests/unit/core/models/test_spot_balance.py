@@ -1,5 +1,4 @@
-"""
-Unit tests for the core SpotBalance model and its Details sub-models.
+"""Unit tests for the core SpotBalance model and its Details sub-models.
 Focuses on validation, parsing, immutability, and the Core+Details pattern.
 """
 

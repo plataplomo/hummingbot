@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Raw Models (Public Trades Group)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Public Trades Group)
 -----------------------------------------------------------------
 
 This module provides strict Pydantic models for validating the *raw* structure of all major
@@ -57,8 +56,7 @@ from cyberdelta.utils.parsing import validate_str_field
 
 # --- Core Public Trade Model ---
 class HyperliquidRawPublicTrade(BaseModel):
-    """
-    Strict boundary model for a public trade object as returned in recent trades endpoints.
+    """Strict boundary model for a public trade object as returned in recent trades endpoints.
 
     This model validates the structure and content of individual public trade entries,
     enforcing strict type and format constraints for all fields. Never use for internal
@@ -84,8 +82,7 @@ class HyperliquidRawPublicTrade(BaseModel):
 
 # --- Batch/Array Response ---
 class HyperliquidRawRecentTradesResponse(RootModel[list[HyperliquidRawPublicTrade]]):
-    """
-    Strict boundary model for an array of public trades as returned in the 'recentTrades'
+    """Strict boundary model for an array of public trades as returned in the 'recentTrades'
     endpoint response.
 
     This model validates the structure and content of the batch response, enforcing strict
@@ -99,12 +96,12 @@ class HyperliquidRawRecentTradesResponse(RootModel[list[HyperliquidRawPublicTrad
 
     @property
     def items(self) -> list[HyperliquidRawPublicTrade]:
-        """
-        Returns the validated list of public trades with full type safety.
+        """Returns the validated list of public trades with full type safety.
         This is the preferred way to access the root data in Pydantic v2.
 
         Returns:
             list[HyperliquidRawPublicTrade]: The validated list of public trade objects.
+
         """
         return self.root
 
@@ -129,7 +126,7 @@ class HyperliquidRawRecentTradesResponse(RootModel[list[HyperliquidRawPublicTrad
                 item_type = type(item_obj).__name__
                 raise ValueError(
                     f"Field '{field_name}', Item {item_idx}: Expected a dictionary, "
-                    f"got {item_type}."
+                    f"got {item_type}.",
                 )
 
             # CAST 2: For type checker, item_obj is already confirmed dict by runtime check
@@ -142,8 +139,7 @@ class HyperliquidRawRecentTradesResponse(RootModel[list[HyperliquidRawPublicTrad
 
 # --- Request Payload ---
 class HyperliquidRawRecentTradesRequestPayload(BaseModel):
-    """
-    Strict boundary model for the request payload for the 'recentTrades' info type.
+    """Strict boundary model for the request payload for the 'recentTrades' info type.
 
     This model is used to construct and validate the payload sent to the Hyperliquid API when
     requesting recent public trades for a specific asset. Enforces strict type and format

@@ -1,5 +1,4 @@
-"""
-Tests for the FundingRateValidator class.
+"""Tests for the FundingRateValidator class.
 """
 
 import time

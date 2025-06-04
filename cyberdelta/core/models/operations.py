@@ -15,7 +15,7 @@ class HyperliquidTransferDetails(BaseModel):
 
     from_user: str | None = Field(default=None, description="Source user for Hyperliquid transfer.")
     to_user: str | None = Field(
-        default=None, description="Destination user for Hyperliquid transfer."
+        default=None, description="Destination user for Hyperliquid transfer.",
     )
 
     model_config = ConfigDict(extra="ignore", frozen=True)
@@ -25,13 +25,13 @@ class BackpackTransferDetails(BaseModel):
     """Backpack-specific transfer enrichment fields. Immutable."""
 
     client_id: str | None = Field(
-        default=None, description="Client ID provided in the Backpack transfer request."
+        default=None, description="Client ID provided in the Backpack transfer request.",
     )
     from_account_type: str | None = Field(
-        default=None, description="Account type transferred from (Backpack specific)."
+        default=None, description="Account type transferred from (Backpack specific).",
     )
     to_account_type: str | None = Field(
-        default=None, description="Account type transferred to (Backpack specific)."
+        default=None, description="Account type transferred to (Backpack specific).",
     )
 
     model_config = ConfigDict(extra="ignore", frozen=True)
@@ -41,8 +41,7 @@ class BackpackTransferDetails(BaseModel):
 
 
 class Transfer(BaseModel):
-    """
-    Core internal model for a funds transfer operation. Immutable.
+    """Core internal model for a funds transfer operation. Immutable.
     Represents the state or result of a transfer.
     """
 
@@ -56,7 +55,7 @@ class Transfer(BaseModel):
         description="Timestamp of the transfer event or creation (UTC).",
     )
     response_message: str | None = Field(
-        default=None, description="Optional message from the exchange regarding the operation."
+        default=None, description="Optional message from the exchange regarding the operation.",
     )
 
     # Extension Slots
@@ -73,7 +72,7 @@ class HyperliquidWithdrawalDetails(BaseModel):
     """Hyperliquid-specific withdrawal enrichment fields. Immutable."""
 
     usd_value: Decimal | None = Field(
-        default=None, description="USD value of the withdrawal on Hyperliquid."
+        default=None, description="USD value of the withdrawal on Hyperliquid.",
     )
 
     model_config = ConfigDict(extra="ignore", frozen=True)
@@ -83,40 +82,40 @@ class BackpackWithdrawalDetails(BaseModel):
     """Backpack-specific withdrawal enrichment fields. Immutable."""
 
     blockchain: str | None = Field(
-        default=None, description="Blockchain network used for the Backpack withdrawal."
+        default=None, description="Blockchain network used for the Backpack withdrawal.",
     )
     is_internal: bool | None = Field(
-        default=None, description="Flag indicating if the Backpack withdrawal was internal."
+        default=None, description="Flag indicating if the Backpack withdrawal was internal.",
     )
     client_id: str | None = Field(
-        default=None, description="Client ID for the Backpack withdrawal."
+        default=None, description="Client ID for the Backpack withdrawal.",
     )
     identifier: str | None = Field(
-        default=None, description="Identifier for fiat withdrawals on Backpack."
+        default=None, description="Identifier for fiat withdrawals on Backpack.",
     )
     fiat_fee: Decimal | None = Field(
-        default=None, description="Fee in fiat currency for Backpack withdrawals."
+        default=None, description="Fee in fiat currency for Backpack withdrawals.",
     )
     fiat_state: str | None = Field(
-        default=None, description="State of fiat withdrawal on Backpack."
+        default=None, description="State of fiat withdrawal on Backpack.",
     )
     fiat_symbol: str | None = Field(
-        default=None, description="Fiat currency symbol for Backpack withdrawals."
+        default=None, description="Fiat currency symbol for Backpack withdrawals.",
     )
     provider_id: str | None = Field(
-        default=None, description="Provider ID for Backpack withdrawals."
+        default=None, description="Provider ID for Backpack withdrawals.",
     )
     subaccount_id: int | None = Field(
-        default=None, description="Subaccount ID for Backpack withdrawals."
+        default=None, description="Subaccount ID for Backpack withdrawals.",
     )
     bank_name: str | None = Field(
-        default=None, description="Bank name for Backpack fiat withdrawals."
+        default=None, description="Bank name for Backpack fiat withdrawals.",
     )
     bank_identifier: str | None = Field(
-        default=None, description="Bank identifier for Backpack fiat withdrawals."
+        default=None, description="Bank identifier for Backpack fiat withdrawals.",
     )
     account_identifier: str | None = Field(
-        default=None, description="Account identifier for Backpack fiat withdrawals."
+        default=None, description="Account identifier for Backpack fiat withdrawals.",
     )
 
     model_config = ConfigDict(extra="ignore", frozen=True)
@@ -126,8 +125,7 @@ class BackpackWithdrawalDetails(BaseModel):
 
 
 class Withdrawal(BaseModel):
-    """
-    Core internal model for a withdrawal operation. Immutable.
+    """Core internal model for a withdrawal operation. Immutable.
     Represents the state or result of a withdrawal.
     """
 
@@ -143,10 +141,10 @@ class Withdrawal(BaseModel):
     )
     fee: Decimal | None = Field(default=None, description="Fee paid for the withdrawal, if any.")
     tx_hash: str | None = Field(
-        default=None, description="Blockchain transaction hash for the withdrawal, if available."
+        default=None, description="Blockchain transaction hash for the withdrawal, if available.",
     )
     response_message: str | None = Field(
-        default=None, description="Optional message from the exchange regarding the operation."
+        default=None, description="Optional message from the exchange regarding the operation.",
     )
 
     # Extension Slots

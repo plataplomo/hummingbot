@@ -1,5 +1,4 @@
-"""
-Unit tests for the base ExchangeAPI class implementation.
+"""Unit tests for the base ExchangeAPI class implementation.
 Tests use dependency injection patterns to mock collaborators and focus on public interface testing.
 """
 
@@ -261,8 +260,7 @@ def exchange_api_with_di(
     mock_ws_manager: MagicMock,
     mock_rate_limiter: MagicMock,
 ) -> Callable[..., ConcreteTestExchangeAPI]:
-    """
-    Factory fixture to create ExchangeAPI instances with all dependencies injected.
+    """Factory fixture to create ExchangeAPI instances with all dependencies injected.
     This enables black-box testing without accessing private members.
     """
 

@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack Account Data Mapper
+"""CyberDeltaEngine: Backpack Account Data Mapper
 ---------------------------------------------
 
 This module provides the BackpackAccountDataMapper class for transforming
@@ -74,8 +73,7 @@ logger = logging.getLogger(__name__)
 
 
 class BackpackAccountDataMapper:
-    """
-    Domain-focused mapper for Backpack account data transformations.
+    """Domain-focused mapper for Backpack account data transformations.
 
     This class contains static methods for transforming validated Backpack Raw models
     related to account data into CyberDeltaEngine Internal Domain Models.
@@ -83,8 +81,7 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def _map_side_to_internal(bp_side: str) -> OrderSide:
-        """
-        Maps a Backpack order side string to internal OrderSide enum.
+        """Maps a Backpack order side string to internal OrderSide enum.
 
         Args:
             bp_side: Raw side string from Backpack ("Buy", "Sell", "Bid", "Ask")
@@ -94,6 +91,7 @@ class BackpackAccountDataMapper:
 
         Raises:
             TransformationError: If side cannot be mapped
+
         """
         side_lower = bp_side.lower() if bp_side else ""
         if side_lower in ("buy", "bid"):
@@ -197,8 +195,7 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def transform_raw_fill_to_internal(raw_fill: BackpackRawFill) -> Trade | None:
-        """
-        Transforms a BackpackRawFill to an Internal Trade model.
+        """Transforms a BackpackRawFill to an Internal Trade model.
 
         Args:
             raw_fill: Validated raw fill from Backpack
@@ -209,6 +206,7 @@ class BackpackAccountDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Map side
@@ -217,7 +215,7 @@ class BackpackAccountDataMapper:
             # Parse price and quantity
             price = parse_decimal_value(raw_fill.price, allow_none=False, field_name="price")
             quantity = parse_decimal_value(
-                raw_fill.quantity, allow_none=False, field_name="quantity"
+                raw_fill.quantity, allow_none=False, field_name="quantity",
             )
 
             if price is None or quantity is None:
@@ -227,7 +225,7 @@ class BackpackAccountDataMapper:
             if price <= Decimal("0") or quantity <= Decimal("0"):
                 logger.warning(
                     f"Skipping trade {raw_fill.trade_id} with zero price ({price}) "
-                    f"or quantity ({quantity})"
+                    f"or quantity ({quantity})",
                 )
                 return None
 
@@ -238,12 +236,12 @@ class BackpackAccountDataMapper:
 
             # Parse fee
             fee = parse_decimal_value(raw_fill.fee, allow_none=True, field_name="fee") or Decimal(
-                "0"
+                "0",
             )
 
             # Create BP-specific details
             details = BackpackTradeDetails(
-                system_order_type=None  # Not available in fill data
+                system_order_type=None,  # Not available in fill data
             )
 
             return Trade(
@@ -267,10 +265,9 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def transform_balance_data_to_spot_balance(
-        asset: str, total_balance: str, available_balance: str
+        asset: str, total_balance: str, available_balance: str,
     ) -> SpotBalance:
-        """
-        Transforms balance data to an Internal SpotBalance model.
+        """Transforms balance data to an Internal SpotBalance model.
 
         Args:
             asset: Asset symbol
@@ -282,12 +279,13 @@ class BackpackAccountDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Parse balances
             total = parse_decimal_value(total_balance, allow_none=False, field_name="total_balance")
             available = parse_decimal_value(
-                available_balance, allow_none=False, field_name="available_balance"
+                available_balance, allow_none=False, field_name="available_balance",
             )
 
             if total is None or available is None:
@@ -307,15 +305,14 @@ class BackpackAccountDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform balance data to SpotBalance: {e}"
+                f"Failed to transform balance data to SpotBalance: {e}",
             ) from e
 
     @staticmethod
     def transform_raw_balance_to_internal(
-        asset_symbol: str, raw: BackpackRawBalance
+        asset_symbol: str, raw: BackpackRawBalance,
     ) -> SpotBalance:
-        """
-        Transforms a validated `BackpackRawBalance` object for a specific asset into an
+        """Transforms a validated `BackpackRawBalance` object for a specific asset into an
         internal `SpotBalance` domain model.
 
         Args:
@@ -327,23 +324,24 @@ class BackpackAccountDataMapper:
 
         Raises:
             TransformationError: If essential numeric fields are missing or invalid.
+
         """
         try:
             # Defensive parsing of numeric strings
             parsed_total = parse_decimal_value(
-                raw.total, allow_none=False, field_name=f"{asset_symbol}_total"
+                raw.total, allow_none=False, field_name=f"{asset_symbol}_total",
             )
             parsed_available = parse_decimal_value(
-                raw.available, allow_none=False, field_name=f"{asset_symbol}_available"
+                raw.available, allow_none=False, field_name=f"{asset_symbol}_available",
             )
 
             if parsed_total is None:
                 raise TransformationError(
-                    f"Total quantity missing/invalid for {asset_symbol} in BackpackRawBalance"
+                    f"Total quantity missing/invalid for {asset_symbol} in BackpackRawBalance",
                 )
             if parsed_available is None:
                 raise TransformationError(
-                    f"Available quantity missing/invalid for {asset_symbol} in BackpackRawBalance"
+                    f"Available quantity missing/invalid for {asset_symbol} in BackpackRawBalance",
                 )
 
             bp_details = BackpackSpotBalanceDetails()
@@ -361,8 +359,7 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def transform_raw_position_to_internal(raw: BackpackRawPosition) -> DerivativePosition:
-        """
-        Transforms a validated `BackpackRawPosition` object into an internal
+        """Transforms a validated `BackpackRawPosition` object into an internal
         `DerivativePosition` domain model.
 
         Args:
@@ -373,11 +370,12 @@ class BackpackAccountDataMapper:
 
         Raises:
             TransformationError: If essential numeric fields are missing or invalid.
+
         """
         try:
             # Parse core numeric fields defensively
             size_dec = parse_decimal_value(
-                raw.net_quantity, allow_none=False, field_name="net_quantity"
+                raw.net_quantity, allow_none=False, field_name="net_quantity",
             )
             if size_dec is None:
                 raise TransformationError("net_quantity missing/invalid in BackpackRawPosition")
@@ -401,7 +399,7 @@ class BackpackAccountDataMapper:
             mmf_base_dec = parse_decimal_value(raw.mmf_function.base, allow_none=True)
             mmf_factor_dec = parse_decimal_value(raw.mmf_function.factor, allow_none=True)
             cumulative_funding_dec = parse_decimal_value(
-                raw.cumulative_funding_payment, allow_none=True
+                raw.cumulative_funding_payment, allow_none=True,
             )
 
             bp_details = BackpackPositionDetails(
@@ -434,8 +432,7 @@ class BackpackAccountDataMapper:
         spot_balances_raw: dict[str, BackpackRawBalance],
         derivative_positions_raw: list[BackpackRawPosition],
     ) -> MarginAccountSummary:
-        """
-        Transforms raw Backpack account settings, along with separately fetched raw balances
+        """Transforms raw Backpack account settings, along with separately fetched raw balances
         and positions, into an internal `MarginAccountSummary` model.
 
         Args:
@@ -448,6 +445,7 @@ class BackpackAccountDataMapper:
 
         Raises:
             TransformationError: If critical numeric fields cannot be parsed.
+
         """
         try:
             internal_spot_balances = [
@@ -523,8 +521,7 @@ class BackpackAccountDataMapper:
         to_account_type_raw: str,
         client_transfer_id: str | None,
     ) -> Transfer:
-        """
-        Transforms a raw Backpack transfer JSON response into an internal `Transfer` model.
+        """Transforms a raw Backpack transfer JSON response into an internal `Transfer` model.
 
         Args:
             raw_response: The raw JSON dictionary from the transfer API call.
@@ -540,16 +537,17 @@ class BackpackAccountDataMapper:
 
         Raises:
             TransformationError: If essential fields are missing or transformation fails.
+
         """
         try:
             logger.debug(
                 f"[BackpackAccountDataMapper] Transforming raw transfer: "
-                f"{raw_response!r} for {asset}"
+                f"{raw_response!r} for {asset}",
             )
 
             if not isinstance(raw_response, dict):
                 raise TransformationError(
-                    f"Raw transfer response is not a dict: {type(raw_response)}"
+                    f"Raw transfer response is not a dict: {type(raw_response)}",
                 )
 
             transfer_id = raw_response.get("id")
@@ -571,7 +569,7 @@ class BackpackAccountDataMapper:
                 raw_status_str = None
 
             internal_status = BackpackAccountDataMapper._map_transfer_status_to_internal(
-                raw_status_str
+                raw_status_str,
             )
 
             timestamp: datetime
@@ -582,7 +580,7 @@ class BackpackAccountDataMapper:
                 except ValueError:
                     logger.warning(
                         f"Invalid timestamp format '{timestamp_ms_str}' "
-                        f"for transfer '{transfer_id}'"
+                        f"for transfer '{transfer_id}'",
                     )
                     timestamp = datetime.now(UTC)
             else:
@@ -618,8 +616,7 @@ class BackpackAccountDataMapper:
         client_withdrawal_id: str | None,
         tag: str | None,
     ) -> Withdrawal:
-        """
-        Transforms a raw Backpack withdrawal response into an internal `Withdrawal` model.
+        """Transforms a raw Backpack withdrawal response into an internal `Withdrawal` model.
 
         Args:
             raw_response: The validated `BackpackRawWithdrawalResponse` Pydantic model.
@@ -635,6 +632,7 @@ class BackpackAccountDataMapper:
 
         Raises:
             TransformationError: If transformation fails.
+
         """
         try:
             withdrawal_id = raw_response.id
@@ -679,7 +677,7 @@ class BackpackAccountDataMapper:
                 client_id=client_withdrawal_id or raw_response.client_id,
                 identifier=raw_response.identifier,
                 fiat_fee=parse_decimal_value(
-                    raw_response.fiat_fee, field_name="fiat_fee", allow_none=True
+                    raw_response.fiat_fee, field_name="fiat_fee", allow_none=True,
                 )
                 if raw_response.fiat_fee is not None
                 else None,
@@ -710,8 +708,7 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def transform_raw_order_to_internal(raw: BackpackRawOrder) -> Order:
-        """
-        Transforms a validated `BackpackRawOrder` object into an internal `Order` domain model.
+        """Transforms a validated `BackpackRawOrder` object into an internal `Order` domain model.
 
         Args:
             raw: The validated raw order data from Backpack.
@@ -721,6 +718,7 @@ class BackpackAccountDataMapper:
 
         Raises:
             TransformationError: If essential fields are missing or cannot be parsed.
+
         """
         try:
             # Defensive: ensure required fields are present and valid
@@ -739,7 +737,7 @@ class BackpackAccountDataMapper:
 
             # Create BackpackOrderDetails with available data
             executed_quote_quantity = parse_decimal_value(
-                raw.executedQuoteQuantity, allow_none=True
+                raw.executedQuoteQuantity, allow_none=True,
             )
 
             # Map self trade prevention string to enum if available
@@ -836,8 +834,7 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def transform_raw_trade_to_internal(raw: BackpackRawTrade) -> Trade | None:
-        """
-        Transforms a validated `BackpackRawTrade` object into an internal `Trade` domain model.
+        """Transforms a validated `BackpackRawTrade` object into an internal `Trade` domain model.
 
         Note: Backpack REST API for trades typically lacks side information.
         Returns None if essential information cannot be determined.
@@ -851,11 +848,12 @@ class BackpackAccountDataMapper:
 
         Raises:
             TransformationError: If essential fields are missing or cannot be parsed.
+
         """
         try:
             price_dec = parse_decimal_value(raw.price, allow_none=False, field_name="price")
             quantity_dec = parse_decimal_value(
-                raw.quantity, allow_none=False, field_name="quantity"
+                raw.quantity, allow_none=False, field_name="quantity",
             )
             timestamp = parse_datetime_utc(raw.time, field_name="time")
 
@@ -868,7 +866,7 @@ class BackpackAccountDataMapper:
 
             # Backpack REST API for recent trades doesn't provide side
             logger.warning(
-                f"Cannot determine trade side for raw trade {raw.id} from REST API. Skipping."
+                f"Cannot determine trade side for raw trade {raw.id} from REST API. Skipping.",
             )
             return None
         except Exception as e:
@@ -876,8 +874,7 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def transform_ws_fill_event_to_internal_trade(raw_fill: BackpackRawFill) -> Trade | None:
-        """
-        Transforms a WebSocket fill event (BackpackRawFill) to an Internal Trade model.
+        """Transforms a WebSocket fill event (BackpackRawFill) to an Internal Trade model.
 
         This is an alias for transform_raw_fill_to_internal for consistency with WebSocket naming.
 
@@ -890,6 +887,7 @@ class BackpackAccountDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         return BackpackAccountDataMapper.transform_raw_fill_to_internal(raw_fill)
 
@@ -897,8 +895,7 @@ class BackpackAccountDataMapper:
     def transform_ws_position_update_to_internal_position(
         raw_position_update: BackpackRawPositionUpdate,
     ) -> DerivativePosition:
-        """
-        Transforms a BackpackRawPositionUpdate (WebSocket position update event) to an
+        """Transforms a BackpackRawPositionUpdate (WebSocket position update event) to an
         Internal DerivativePosition model.
 
         Args:
@@ -909,12 +906,13 @@ class BackpackAccountDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Parse core numeric fields defensively
             if raw_position_update.net_quantity:
                 size_dec = parse_decimal_value(
-                    raw_position_update.net_quantity, allow_none=False, field_name="net_quantity"
+                    raw_position_update.net_quantity, allow_none=False, field_name="net_quantity",
                 )
                 # DEFENSIVE CHECK: Ensure size_dec is not None after parsing.
                 # Mypy=[unreachable] Ruff=[unreachable]
@@ -945,7 +943,7 @@ class BackpackAccountDataMapper:
             timestamp = datetime.now(UTC)
             if raw_position_update.event_time:
                 event_timestamp = parse_datetime_utc(
-                    raw_position_update.event_time, field_name="event_time"
+                    raw_position_update.event_time, field_name="event_time",
                 )
                 if event_timestamp is not None:
                     timestamp = event_timestamp
@@ -954,13 +952,13 @@ class BackpackAccountDataMapper:
             imf_dec = None
             if raw_position_update.initial_margin_fraction:
                 imf_dec = parse_decimal_value(
-                    raw_position_update.initial_margin_fraction, allow_none=True
+                    raw_position_update.initial_margin_fraction, allow_none=True,
                 )
 
             mmf_dec = None
             if raw_position_update.maintenance_margin_fraction:
                 mmf_dec = parse_decimal_value(
-                    raw_position_update.maintenance_margin_fraction, allow_none=True
+                    raw_position_update.maintenance_margin_fraction, allow_none=True,
                 )
 
             bp_details = BackpackPositionDetails(
@@ -986,5 +984,5 @@ class BackpackAccountDataMapper:
             )
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform WebSocket position update to internal: {e}"
+                f"Failed to transform WebSocket position update to internal: {e}",
             ) from e

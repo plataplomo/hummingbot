@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid Domain-Focused Data Mappers
+"""CyberDeltaEngine: Hyperliquid Domain-Focused Data Mappers
 ---------------------------------------------------------
 
 This package contains domain-focused data transformation mappers for Hyperliquid Exchange.

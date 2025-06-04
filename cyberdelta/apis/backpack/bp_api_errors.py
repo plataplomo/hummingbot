@@ -1,5 +1,4 @@
-"""
-Backpack API Error Codes Enum
+"""Backpack API Error Codes Enum
 ----------------------------
 
 Defines all error codes returned by the Backpack Exchange API,
@@ -16,8 +15,7 @@ from enum import Enum
 
 
 class BackpackAPIErrorCode(Enum):
-    """
-    Enum of all Backpack API error codes as per the OpenAPI spec (2024-05-14).
+    """Enum of all Backpack API error codes as per the OpenAPI spec (2024-05-14).
     Use for strict validation, error mapping, and documentation.
 
     Codes:

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Fix the Backpack time endpoint by fetching the plain text response and converting it to JSON.
+"""Fix the Backpack time endpoint by fetching the plain text response and converting it to JSON.
 
 The /api/v1/time endpoint returns plain text instead of JSON, so we need to handle it separately.
 This script uses the CyberDeltaEngine configuration system to get the Backpack API URL.

@@ -1,5 +1,4 @@
-"""
-Tests for the SignalGenerator class.
+"""Tests for the SignalGenerator class.
 """
 
 import logging
@@ -625,8 +624,7 @@ class TestSignalGenerator:
 def assert_decimal_approx(
     actual: Decimal, expected: Decimal, tol: Decimal = Decimal("1e-6"),
 ) -> None:
-    """
-    Assert that two Decimal values are approximately equal within a given tolerance.
+    """Assert that two Decimal values are approximately equal within a given tolerance.
 
     Args:
         actual (Decimal): The actual value.

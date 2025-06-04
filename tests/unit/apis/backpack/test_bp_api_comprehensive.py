@@ -1,5 +1,4 @@
-"""
-Unit tests for BackpackAPI class focusing on method delegation and error handling.
+"""Unit tests for BackpackAPI class focusing on method delegation and error handling.
 Tests API class behavior in isolation with mocked service dependencies.
 """
 

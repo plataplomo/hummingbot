@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Raw Models (Order Action Payloads & Info Requests)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Order Action Payloads & Info Requests)
 ---------------------------------------------------------------------------------
 
 This module defines Pydantic models for constructing parts of the raw
@@ -29,8 +28,7 @@ from cyberdelta.utils.parsing import validate_str_field
 
 
 class HyperliquidRawLimitOrderTypeDetails(BaseModel):
-    """
-    Details for a limit order type.
+    """Details for a limit order type.
     Corresponds to ApiTifLimit inside ApiOrderTypeLimit in openapi_hl.json.
     """
 
@@ -39,8 +37,7 @@ class HyperliquidRawLimitOrderTypeDetails(BaseModel):
 
 
 class HyperliquidRawMarketOrderTypeDetails(BaseModel):
-    """
-    Details for a market order type (currently empty as per Hyperliquid spec).
+    """Details for a market order type (currently empty as per Hyperliquid spec).
     Corresponds to ApiOrderTypeMarket in openapi_hl.json.
     """
 
@@ -50,8 +47,7 @@ class HyperliquidRawMarketOrderTypeDetails(BaseModel):
 
 
 class HyperliquidRawOrderType(BaseModel):
-    """
-    Represents the 'orderType' field which can be a limit or market type.
+    """Represents the 'orderType' field which can be a limit or market type.
     Uses a dictionary structure as per Hyperliquid's format, e.g., {"limit": {...}}
     or {"market": {}}. This model is used as a field in HyperliquidRawPlaceOrderAction.
     """
@@ -63,8 +59,7 @@ class HyperliquidRawOrderType(BaseModel):
 
 
 class HyperliquidRawTriggerDetails(BaseModel):
-    """
-    Details for a trigger order (TP/SL).
+    """Details for a trigger order (TP/SL).
     Corresponds to ApiTriggerSpec in openapi_hl.json.
     """
 
@@ -76,8 +71,7 @@ class HyperliquidRawTriggerDetails(BaseModel):
 
 
 class HyperliquidRawPlaceOrderAction(BaseModel):
-    """
-    Pydantic model for the Hyperliquid raw 'place order' action payload.
+    """Pydantic model for the Hyperliquid raw 'place order' action payload.
     Corresponds to ApiOrderSpec in openapi_hl.json.
     Ensures strict validation of the request payload before sending to the API.
     This model replaces the previous placeholder.
@@ -93,13 +87,12 @@ class HyperliquidRawPlaceOrderAction(BaseModel):
     order_type: HyperliquidRawOrderType = Field(..., alias="orderType")
     trigger: HyperliquidRawTriggerDetails | None = Field(default=None)
     cloid: RawOptionalNonEmptyString64HL | None = Field(
-        default=None, description="Client Order ID (string, e.g., user-defined or 0x...)"
+        default=None, description="Client Order ID (string, e.g., user-defined or 0x...)",
     )
 
 
 class HyperliquidRawQueryOrderHistoryRequestPayload(BaseModel):
-    """
-    Request payload for the 'queryOrderHistory' info type.
+    """Request payload for the 'queryOrderHistory' info type.
     Timestamps are in milliseconds.
     """
 

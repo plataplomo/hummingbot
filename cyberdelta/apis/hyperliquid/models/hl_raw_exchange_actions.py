@@ -21,8 +21,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
 
 # Model for ETH specific withdrawal action (part of the signed payload)
 class HyperliquidRawEthWithdrawalActionPayload(BaseModel):
-    """
-    Represents the specific action payload for withdrawing ETH to L1.
+    """Represents the specific action payload for withdrawing ETH to L1.
     This forms part of the signed message for the /exchange endpoint.
     """
 
@@ -34,8 +33,7 @@ class HyperliquidRawEthWithdrawalActionPayload(BaseModel):
 
 # Model for individual order specifications within a bulk order placement
 class HyperliquidRawOrderItemSpec(BaseModel):
-    """
-    Represents the detailed specification for a single order
+    """Represents the detailed specification for a single order
     within the 'orders' list of a batch order placement action.
     This forms part of the signed message for the /exchange endpoint.
 
@@ -64,8 +62,7 @@ class HyperliquidRawOrderItemSpec(BaseModel):
 
 # Model for the overall BATCH order placement action (signed payload)
 class HyperliquidRawBatchPlaceOrderActionPayload(BaseModel):
-    """
-    Represents the action payload for placing one or more orders in a batch.
+    """Represents the action payload for placing one or more orders in a batch.
     This forms part of the signed message for the /exchange endpoint.
 
     Corresponds to the 'action' field when 'type' is 'order' for batch operations.
@@ -82,8 +79,7 @@ class HyperliquidRawBatchPlaceOrderActionPayload(BaseModel):
 
 
 class HyperliquidRawL2UsdTransferActionDetails(BaseModel):
-    """
-    Represents the 'action' details for an L2 USD transfer.
+    """Represents the 'action' details for an L2 USD transfer.
     """
 
     chain: Literal["L2"]
@@ -93,8 +89,7 @@ class HyperliquidRawL2UsdTransferActionDetails(BaseModel):
 
 
 class HyperliquidRawCancelOrderAction(BaseModel):
-    """
-    Represents the 'action' payload for cancelling an order.
+    """Represents the 'action' payload for cancelling an order.
     """
 
     asset: RawNonNegativeInt

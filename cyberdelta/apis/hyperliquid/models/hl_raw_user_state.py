@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Raw Models (User State Group)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (User State Group)
 --------------------------------------------------------------
 
 This module provides strict, security-focused Pydantic models for validating the *raw*
@@ -53,8 +52,7 @@ from cyberdelta.utils.parsing import validate_str_field
 
 # --- Leverage Submodel ---
 class HyperliquidRawLeverage(BaseModel):
-    """
-    Strict boundary model for leverage settings as returned in user state endpoints.
+    """Strict boundary model for leverage settings as returned in user state endpoints.
     Validation handled by Annotated types.
     """
 
@@ -65,8 +63,7 @@ class HyperliquidRawLeverage(BaseModel):
 
 # --- Position Info Submodel ---
 class HyperliquidRawPositionInfo(BaseModel):
-    """
-    Strict boundary model for detailed user position information.
+    """Strict boundary model for detailed user position information.
     Validation handled by Annotated types.
     """
 
@@ -85,8 +82,7 @@ class HyperliquidRawPositionInfo(BaseModel):
 
 # --- Asset Position Submodel ---
 class HyperliquidRawAssetPosition(BaseModel):
-    """
-    Strict boundary model for a user's position details for a specific asset.
+    """Strict boundary model for a user's position details for a specific asset.
     Validation handled by Annotated types and nested models.
     """
 
@@ -97,8 +93,7 @@ class HyperliquidRawAssetPosition(BaseModel):
 
 # --- Margin Summary Submodel ---
 class HyperliquidRawMarginSummary(BaseModel):
-    """
-    Strict boundary model for a margin summary as returned in user state endpoints.
+    """Strict boundary model for a margin summary as returned in user state endpoints.
     Validation handled by Annotated types.
     """
 
@@ -111,19 +106,18 @@ class HyperliquidRawMarginSummary(BaseModel):
 
 # --- Clearinghouse State Model ---
 class HyperliquidRawClearinghouseState(BaseModel):
-    """
-    Represents the user's clearinghouse state.
+    """Represents the user's clearinghouse state.
     Validation handled by Annotated types and nested models.
     """
 
     asset_positions: list[HyperliquidRawAssetPosition] = Field(..., alias="assetPositions")
     margin_summary: HyperliquidRawMarginSummary = Field(..., alias="marginSummary")
     cross_maintenance_margin_used: RawNonNegativeFiniteDecimalStr = Field(
-        ..., alias="crossMaintenanceMarginUsed"
+        ..., alias="crossMaintenanceMarginUsed",
     )
     cross_margin_summary: HyperliquidRawMarginSummary = Field(..., alias="crossMarginSummary")
     isolated_maintenance_margin_used: RawNonNegativeFiniteDecimalStr = Field(
-        ..., alias="isolatedMaintenanceMarginUsed"
+        ..., alias="isolatedMaintenanceMarginUsed",
     )
     isolated_margin_summary: HyperliquidRawMarginSummary = Field(..., alias="isolatedMarginSummary")
     withdrawable: RawNonNegativeFiniteDecimalStr = Field(..., alias="withdrawable")
@@ -132,8 +126,7 @@ class HyperliquidRawClearinghouseState(BaseModel):
 
 # --- User State Request Payload ---
 class HyperliquidRawUserStateRequestPayload(BaseModel):
-    """
-    Represents the request payload for the 'clearinghouseState' info type.
+    """Represents the request payload for the 'clearinghouseState' info type.
     """
 
     type: Annotated[

@@ -1,5 +1,4 @@
-"""
-cyberdelta.apis.base.simple_rate_limit_strategy
+"""cyberdelta.apis.base.simple_rate_limit_strategy
 ---------------------------------------------
 Simple token bucket strategy implementation for exchanges with basic rate limiting.
 
@@ -17,29 +16,27 @@ from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 
 
 class SimpleTokenBucketStrategy(RateLimitStrategy):
-    """
-    Simple rate limiting strategy using a single token bucket.
+    """Simple rate limiting strategy using a single token bucket.
 
     This strategy is appropriate for exchanges with basic rate limiting where
     each request consumes a configurable number of tokens from a single bucket.
     """
 
     def __init__(
-        self, limiter: TokenBucketRateLimiterRuntime, default_request_weight: int = 1
+        self, limiter: TokenBucketRateLimiterRuntime, default_request_weight: int = 1,
     ) -> None:
-        """
-        Initialize the simple token bucket strategy.
+        """Initialize the simple token bucket strategy.
 
         Args:
             limiter: The token bucket rate limiter instance to use.
             default_request_weight: Default number of tokens to consume per request.
+
         """
         self.limiter = limiter
         self.default_request_weight = default_request_weight
 
     async def prepare_and_acquire(self, request_context: dict[str, Any]) -> None:
-        """
-        Acquire tokens from the bucket based on request weight.
+        """Acquire tokens from the bucket based on request weight.
 
         Args:
             request_context: Dict containing request details. Uses 'request_weight'
@@ -47,6 +44,7 @@ class SimpleTokenBucketStrategy(RateLimitStrategy):
 
         Returns:
             None - this strategy does not modify the request payload.
+
         """
         cost = request_context.get("request_weight", self.default_request_weight)
         if cost > 0:  # Only acquire if cost is positive
@@ -54,15 +52,15 @@ class SimpleTokenBucketStrategy(RateLimitStrategy):
         return None  # Does not modify data payload
 
     async def handle_exchange_retry_after(
-        self, duration_seconds: float, request_context: dict[str, Any]
+        self, duration_seconds: float, request_context: dict[str, Any],
     ) -> None:
-        """
-        Reacts to an exchange-advised retry_after directive.
+        """Reacts to an exchange-advised retry_after directive.
         For this simple strategy, it means temporarily pausing its limiter.
 
         Args:
             duration_seconds: The exchange-advised delay in seconds.
             request_context: Context of the request that was rate-limited.
+
         """
         if hasattr(self, "limiter") and hasattr(self.limiter, "trigger_ip_ban"):
             # Log the action being taken by this specific strategy
@@ -72,7 +70,7 @@ class SimpleTokenBucketStrategy(RateLimitStrategy):
             logger.info(
                 f"SimpleTokenBucketStrategy for {request_context.get('exchange_name', 'N/A')}: "
                 f"Received exchange-advised retry_after of {duration_seconds:.2f}s. "
-                f"Triggering temporary pause on its limiter."
+                f"Triggering temporary pause on its limiter.",
             )
             await self.limiter.trigger_ip_ban(duration_seconds)
         else:

@@ -1,5 +1,4 @@
-"""
-Tests for the PositionReconciliationSystem class.
+"""Tests for the PositionReconciliationSystem class.
 """
 
 from datetime import UTC, datetime, timedelta

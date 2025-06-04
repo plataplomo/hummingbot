@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Raw Models (Portfolio History)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Portfolio History)
 ----------------------------------------------------------------
 
 Strict boundary validation models for the Hyperliquid 'portfolio' info endpoint.
@@ -27,8 +26,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
 
 
 class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, RawFiniteDecimalStr]]):
-    """
-    Raw boundary model for a single point in account value or PnL history.
+    """Raw boundary model for a single point in account value or PnL history.
     Represents the [timestamp, value_str] tuple structure, validated by Annotated types.
     """
 
@@ -38,10 +36,9 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
     @field_validator("root", mode="before")
     @classmethod
     def validate_history_entry_tuple_structure(
-        cls, v: object, info: ValidationInfo
+        cls, v: object, info: ValidationInfo,
     ) -> list[int | str]:  # Return list for Pydantic to map to tuple elements
-        """
-        Ensures input is a 2-element list/tuple or a dict {0: ts, 1: val}.
+        """Ensures input is a 2-element list/tuple or a dict {0: ts, 1: val}.
         Pydantic handles element validation against RawTimestampMsInt and RawFiniteDecimalStr.
         """
         field_name = info.field_name or "history_entry_tuple"
@@ -58,19 +55,19 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
                     # Handles cases like {0: val0, 1: val1, 2: val2}
                     raise ValueError(
                         f"Field '{field_name}': Dictionary input must contain "
-                        f"exactly keys 0 and 1, got keys {sorted(list(v_dict.keys()))}."
+                        f"exactly keys 0 and 1, got keys {sorted(list(v_dict.keys()))}.",
                     )
             else:
                 raise ValueError(
                     f"Field '{field_name}': Dictionary input must have keys 0 and 1, "
-                    f"got keys {sorted(list(v_dict.keys()))}."
+                    f"got keys {sorted(list(v_dict.keys()))}.",
                 )
         elif isinstance(v, list | tuple):
             v_sequence = cast(list[object] | tuple[object, ...], v)
             if len(v_sequence) != 2:
                 raise ValueError(
                     f"Field '{field_name}': Expected 2-element list/tuple, "
-                    f"got length {len(v_sequence)}."
+                    f"got length {len(v_sequence)}.",
                 )
             # Ensure it's a list of [int | str] for Pydantic to process for the tuple
             # This involves casting elements from object to int | str.
@@ -86,7 +83,7 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
         else:
             raise ValueError(
                 f"Field '{field_name}': Expected 2-element list/tuple or dict {{0: ts, 1: val}}, "
-                f"got {type(v).__name__}."
+                f"got {type(v).__name__}.",
             )
 
 
@@ -94,7 +91,7 @@ class HyperliquidRawPortfolioTimeframeData(BaseModel):
     """Raw boundary model for portfolio data within a specific timeframe."""
 
     account_value_history: list[HyperliquidRawPortfolioHistoryEntry] = Field(
-        ..., alias="accountValueHistory"
+        ..., alias="accountValueHistory",
     )
     pnl_history: list[HyperliquidRawPortfolioHistoryEntry] = Field(..., alias="pnlHistory")
     vlm: RawNonNegativeFiniteDecimalStr = Field(..., alias="vlm")
@@ -103,7 +100,7 @@ class HyperliquidRawPortfolioTimeframeData(BaseModel):
 
 
 class HyperliquidRawPortfolioTupleItem(
-    RootModel[tuple[RawTimeframeString, HyperliquidRawPortfolioTimeframeData]]
+    RootModel[tuple[RawTimeframeString, HyperliquidRawPortfolioTimeframeData]],
 ):
     """Represents one item [timeframe_str, data_obj] in the main response list."""
 
@@ -112,20 +109,20 @@ class HyperliquidRawPortfolioTupleItem(
     @field_validator("root", mode="before")
     @classmethod
     def validate_portfolio_tuple_item_structure(
-        cls, v: object, info: ValidationInfo
+        cls, v: object, info: ValidationInfo,
     ) -> tuple[object, dict[str, object]] | list[object]:
         """Ensures input is a 2-element list/tuple. Pydantic handles element validation."""
         field_name = info.field_name or "portfolio_tuple_item"
         if not isinstance(v, list | tuple):
             raise ValueError(
-                f"Field '{field_name}': Expected 2-element list/tuple, got {type(v).__name__}."
+                f"Field '{field_name}': Expected 2-element list/tuple, got {type(v).__name__}.",
             )
 
         v_casted = cast(list[object] | tuple[object, ...], v)
 
         if len(v_casted) != 2:
             raise ValueError(
-                f"Field '{field_name}': Expected 2-element list/tuple, got length {len(v_casted)}."
+                f"Field '{field_name}': Expected 2-element list/tuple, got length {len(v_casted)}.",
             )
 
         element_0_value = v_casted[0]
@@ -135,7 +132,7 @@ class HyperliquidRawPortfolioTupleItem(
             actual_type_name = type(element_1_value).__name__
             raise ValueError(
                 f"Field '{field_name}', element 1: Expected data object to be a dictionary, "
-                f"got {actual_type_name}."
+                f"got {actual_type_name}.",
             )
 
         element_1_dict = cast(dict[str, object], element_1_value)
@@ -146,8 +143,7 @@ class HyperliquidRawPortfolioTupleItem(
 
 
 class HyperliquidRawPortfolioResponse(RootModel[list[HyperliquidRawPortfolioTupleItem]]):
-    """
-    Raw boundary model for the portfolio history response.
+    """Raw boundary model for the portfolio history response.
     The root object is a list of [timeframe_str, data_obj] tuples.
     """
 

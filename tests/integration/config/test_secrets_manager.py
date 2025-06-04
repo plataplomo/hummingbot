@@ -1,5 +1,4 @@
-"""
-Unit tests for cyberdelta.config.secrets_manager module.
+"""Unit tests for cyberdelta.config.secrets_manager module.
 
 Tests the SecretsManager class for loading and validating secrets configuration,
 including file handling, validation, and error scenarios.

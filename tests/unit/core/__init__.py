@@ -1,3 +1,2 @@
-"""
-Tests for core components of the CyberDeltaEngine.
+"""Tests for core components of the CyberDeltaEngine.
 """

@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack Account Data Mapper Fill and Order Tests
+"""CyberDeltaEngine: Backpack Account Data Mapper Fill and Order Tests
 -------------------------------------------------------------------
 
 Comprehensive test suite for BackpackAccountDataMapper fill and order methods.

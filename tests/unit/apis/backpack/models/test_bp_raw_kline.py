@@ -1,5 +1,4 @@
-"""
-Unit Tests for Backpack Raw Kline Model (bp_raw_kline.py)
+"""Unit Tests for Backpack Raw Kline Model (bp_raw_kline.py)
 """
 
 from decimal import Decimal

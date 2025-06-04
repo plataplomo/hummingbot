@@ -1,5 +1,4 @@
-"""
-Unit tests for cyberdelta.config.logging_config module.
+"""Unit tests for cyberdelta.config.logging_config module.
 
 Tests the refactored logging configuration that uses AppSettings
 instead of the old Config class.

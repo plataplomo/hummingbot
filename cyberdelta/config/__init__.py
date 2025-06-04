@@ -1,5 +1,4 @@
-"""
-Configuration module for CyberDeltaEngine.
+"""Configuration module for CyberDeltaEngine.
 
 This module manages loading and accessing configuration and secrets.
 All configuration access is now through validated Pydantic models.
@@ -83,7 +82,7 @@ def _initialize_config() -> None:
         logger.critical(
             f"CRITICAL: AppSettings not loaded by ConfigManager from "
             f"{_config_manager.config_path}. "
-            "Application cannot proceed safely without configuration."
+            "Application cannot proceed safely without configuration.",
         )
         raise RuntimeError("AppSettings failed to load. Check logs for details from ConfigManager.")
 
@@ -92,11 +91,11 @@ def _initialize_config() -> None:
         logger.critical(
             "CRITICAL: SecretsConfig failed to load by SecretsManager "
             "(expected at ~/.cyberdelta/secrets.yaml or via CYBERDELTA_SECRETS_PATH). "
-            "Application cannot proceed without secrets."
+            "Application cannot proceed without secrets.",
         )
         raise RuntimeError(
             f"SecretsConfig failed to load. Check logs. "
-            f"Path used by manager: {_secrets_manager.secrets_path}"
+            f"Path used by manager: {_secrets_manager.secrets_path}",
         )
 
     _app_settings = _config_manager.settings

@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack Trading Service
+"""CyberDeltaEngine: Backpack Trading Service
 -------------------------------------------
 
 This service encapsulates the logic for trading operations on the Backpack Exchange.
@@ -42,13 +41,12 @@ logger = get_logger(__name__)
 
 # Type alias for the HTTP client requester callable that the service will use.
 HttpClientRequesterSig = Callable[
-    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]]
+    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
 ]
 
 
 class BackpackTradingService:
-    """
-    Service class for Backpack trading operations. Returns Internal Domain Models.
+    """Service class for Backpack trading operations. Returns Internal Domain Models.
     """
 
     def __init__(
@@ -60,8 +58,7 @@ class BackpackTradingService:
         exchange_name: str,
         mapper: BackpackTradingDataMapper | None = None,
     ) -> None:
-        """
-        Initialize the BackpackTradingService.
+        """Initialize the BackpackTradingService.
 
         Args:
             http_client_requester: A callable for making API requests.
@@ -70,6 +67,7 @@ class BackpackTradingService:
             authenticator: An instance of IAuthenticator for signed requests.
             exchange_name: The name of the exchange.
             mapper: Optional mapper instance for dependency injection.
+
         """
         self._http_client_requester = http_client_requester
         self._request_builder = request_builder
@@ -94,7 +92,7 @@ class BackpackTradingService:
         ]
         if args.order_type not in supported_order_types:
             raise ValueError(
-                f"[{current_method}] Unsupported order type for Backpack: {args.order_type.value}"
+                f"[{current_method}] Unsupported order type for Backpack: {args.order_type.value}",
             )
 
         # Validate time in force for limit orders
@@ -103,7 +101,7 @@ class BackpackTradingService:
             if args.time_in_force not in supported_tif:
                 raise ValueError(
                     f"[{current_method}] Unsupported time in force for limit orders: "
-                    f"{args.time_in_force.value}. Supported: {[tif.value for tif in supported_tif]}"
+                    f"{args.time_in_force.value}. Supported: {[tif.value for tif in supported_tif]}",
                 )
 
         # Validate client_order_id can be converted to int if provided
@@ -113,14 +111,14 @@ class BackpackTradingService:
             except ValueError as e:
                 raise ValueError(
                     f"[{current_method}] client_order_id must be convertible to integer, "
-                    f"got: {args.client_order_id}"
+                    f"got: {args.client_order_id}",
                 ) from e
 
         # Validate reduce_only is not supported (log warning)
         if args.reduce_only:
             logger.warning(
                 f"[{self._exchange_name}] 'reduce_only' parameter is not supported for "
-                f"place_order and will be ignored."
+                f"place_order and will be ignored.",
             )
 
         # Initialize context for error handling
@@ -163,7 +161,7 @@ class BackpackTradingService:
                 )
 
             raw_order_model: BackpackRawOrder = self._response_handler.handle_place_order_response(
-                raw_data
+                raw_data,
             )
             internal_order = self._trading_mapper.transform_raw_order_to_internal(raw_order_model)
             return internal_order
@@ -263,7 +261,7 @@ class BackpackTradingService:
             # Core operational logic
             endpoint = "/api/v1/order"
             payload = self._request_builder.build_cancel_order_payload(
-                symbol=symbol, order_id=order_id
+                symbol=symbol, order_id=order_id,
             )
 
             raw_data, status_code, _ = await self._http_client_requester(
@@ -284,7 +282,7 @@ class BackpackTradingService:
             if raw_data is None:
                 logger.error(
                     f"[{self._exchange_name}] Cancel order for {order_id} ({symbol}) received "
-                    f"no content. Status: {status_code}"
+                    f"no content. Status: {status_code}",
                 )
                 raise APIError(
                     message=f"No data received when cancelling order {order_id} ({symbol}), "
@@ -294,7 +292,7 @@ class BackpackTradingService:
                 )
 
             return self._response_handler.handle_cancel_order_response(
-                raw_response_content=raw_data, order_id=order_id, symbol=symbol
+                raw_response_content=raw_data, order_id=order_id, symbol=symbol,
             )
 
         except APIError:
@@ -372,7 +370,7 @@ class BackpackTradingService:
 
         if symbol is not None and not symbol:
             raise ValueError(
-                f"[{current_method}] 'symbol' must be a non-empty string when provided."
+                f"[{current_method}] 'symbol' must be a non-empty string when provided.",
             )
 
         # Initialize context for error handling
@@ -510,7 +508,7 @@ class BackpackTradingService:
 
             endpoint = f"/api/v1/order/{identifier}"
             params = self._request_builder.build_get_order_params(
-                symbol=args.symbol
+                symbol=args.symbol,
             )  # Symbol is a query param
 
             raw_data, status_code, _ = await self._http_client_requester(
@@ -527,7 +525,7 @@ class BackpackTradingService:
 
             if status_code == 404:  # Order not found
                 logger.info(
-                    f"[{self._exchange_name}] Order {identifier} ({args.symbol}) not found."
+                    f"[{self._exchange_name}] Order {identifier} ({args.symbol}) not found.",
                 )
                 return None
 
@@ -550,7 +548,7 @@ class BackpackTradingService:
             if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
                 logger.info(
                     f"[{self._exchange_name}] Order {identifier} ({args.symbol}) not found "
-                    f"via handler mapping."
+                    f"via handler mapping.",
                 )
                 return None
             raise
@@ -768,7 +766,7 @@ class BackpackTradingService:
                 if isinstance(raw_data, dict) and raw_data.get("error"):  # Check for explicit error
                     raise APIError(
                         raw_data.get("error", {}).get(
-                            "message", "Failed to cancel all orders due to API error response."
+                            "message", "Failed to cancel all orders due to API error response.",
                         ),
                         APIErrorCode.UNKNOWN.value,  # Using UNKNOWN as OPERATION_FAILED
                         # is not available
@@ -778,7 +776,7 @@ class BackpackTradingService:
 
                 logger.warning(
                     f"[{self._exchange_name}] {error_message}. "
-                    f"Assuming no orders were cancelled or confirmable."
+                    f"Assuming no orders were cancelled or confirmable.",
                 )
                 # Create a generic failure result if no orders could be confirmed cancelled.
                 # This assumes that if there were orders and they failed to cancel,
@@ -799,16 +797,16 @@ class BackpackTradingService:
                             success=True,
                             message="Successfully cancelled.",
                             status=CancelOrderResultStatus.SUCCESS,
-                        )
+                        ),
                     )
                 else:  # Should not happen if API conforms
                     logger.warning(
                         f"[{self._exchange_name}] Unexpected item in cancel all orders "
-                        f"response list: {cancelled_order_id_any}"
+                        f"response list: {cancelled_order_id_any}",
                     )
 
             logger.info(
-                f"[{self._exchange_name}] Cancelled {len(results)} orders for {symbol or 'all'}."
+                f"[{self._exchange_name}] Cancelled {len(results)} orders for {symbol or 'all'}.",
             )
             return results
 
@@ -869,11 +867,11 @@ class BackpackTradingService:
             ) from e_unexpected
 
     async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
-        """
-        Fetch all open orders, optionally filtering by symbol.
+        """Fetch all open orders, optionally filtering by symbol.
 
         Args:
             args: Parameters for filtering open orders including optional symbol.
+
         """
         # Service Input Parameter Validation is now handled by GetAllOpenOrdersArgs Pydantic model
         frame = inspect.currentframe()

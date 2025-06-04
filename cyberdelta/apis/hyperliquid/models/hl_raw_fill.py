@@ -1,5 +1,4 @@
-"""
-Hyperliquid Raw User Fill Model
+"""Hyperliquid Raw User Fill Model
 """
 
 import logging
@@ -32,7 +31,7 @@ class HyperliquidRawFill(BaseModel):
     px: RawFiniteDecimalStr = Field(..., description="Fill price", max_length=64)
     sz: RawFiniteDecimalStr = Field(..., description="Fill size", max_length=64)
     start_position: RawFiniteDecimalStr = Field(
-        ..., alias="startPosition", description="Start position size", max_length=64
+        ..., alias="startPosition", description="Start position size", max_length=64,
     )
     fee: RawFiniteDecimalStr = Field(..., description="Fee paid", max_length=64)
     liquidation_mark_px: RawFiniteDecimalStr | None = Field(
@@ -47,7 +46,7 @@ class HyperliquidRawFill(BaseModel):
     hash: RawTxHashStr = Field(..., description="Transaction hash")
     is_maker: RawStrictBool = Field(..., alias="isMaker")
     cloid: RawOptionalString = Field(
-        None, description="Client order ID if provided", max_length=128
+        None, description="Client order ID if provided", max_length=128,
     )
 
     model_config = ConfigDict(

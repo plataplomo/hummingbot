@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack API Raw Models (Account Summary)
+"""CyberDeltaEngine: Backpack API Raw Models (Account Summary)
 ----------------------------------------------------------
 
 This module defines the Pydantic model for validating the *raw* structure
@@ -16,8 +15,7 @@ from .bp_common_raw_types import (
 
 
 class BackpackRawAccountSummary(BaseModel):
-    """
-    Pydantic model for the raw account summary data from Backpack.
+    """Pydantic model for the raw account summary data from Backpack.
 
     Corresponds to the `AccountSummary` schema in Backpack's OpenAPI specification.
     Ensures that all fields from the API response are correctly typed and validated
@@ -44,5 +42,5 @@ class BackpackRawAccountSummary(BaseModel):
     trigger_orders: RawBpNonNegativeInt = Field(..., alias="triggerOrders")
 
     model_config = ConfigDict(
-        populate_by_name=True, extra="forbid", frozen=True, validate_assignment=True
+        populate_by_name=True, extra="forbid", frozen=True, validate_assignment=True,
     )

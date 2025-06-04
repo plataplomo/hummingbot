@@ -12,8 +12,7 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 
 class StateManager:
-    """
-    Provide reliable state persistence and recovery.
+    """Provide reliable state persistence and recovery.
 
     Responsible for:
     - Atomic state saving with validation
@@ -23,11 +22,11 @@ class StateManager:
     """
 
     def __init__(self, config: AppSettings) -> None:
-        """
-        Initialize the state manager.
+        """Initialize the state manager.
 
         Args:
             config: Application configuration
+
         """
         self.config = config
 
@@ -44,16 +43,16 @@ class StateManager:
         self.last_save_time: datetime | None = None
 
     def load_state(self) -> bool:
-        """
-        Load state from file.
+        """Load state from file.
 
         Returns:
             True if state was loaded successfully, False otherwise
+
         """
         try:
             if not os.path.exists(self.state_file):
                 logger.info(
-                    f"State file {self.state_file} does not exist, starting with empty state"
+                    f"State file {self.state_file} does not exist, starting with empty state",
                 )
                 return False
 
@@ -65,7 +64,7 @@ class StateManager:
             if not self._verify_state_integrity(state_data):
                 logger.warning(
                     f"State file {self.state_file} failed integrity check, "
-                    f"attempting to recover from backup"
+                    f"attempting to recover from backup",
                 )
                 return self._recover_from_backup()
 
@@ -77,7 +76,7 @@ class StateManager:
 
         except json.JSONDecodeError:
             logger.error(
-                f"Error decoding state file {self.state_file}, attempting to recover from backup"
+                f"Error decoding state file {self.state_file}, attempting to recover from backup",
             )
             return self._recover_from_backup()
 
@@ -86,14 +85,14 @@ class StateManager:
             return self._recover_from_backup()
 
     def save_state(self, state: dict[str, Any]) -> bool:
-        """
-        Save state to file.
+        """Save state to file.
 
         Args:
             state: State to save
 
         Returns:
             True if state was saved successfully, False otherwise
+
         """
         try:
             # Update current state
@@ -130,20 +129,20 @@ class StateManager:
             return False
 
     def get_current_state(self) -> dict[str, Any]:
-        """
-        Get the current state.
+        """Get the current state.
 
         Returns:
             Current state
+
         """
         return self.current_state.copy()
 
     def _create_backup(self) -> bool:
-        """
-        Create a backup of the current state file.
+        """Create a backup of the current state file.
 
         Returns:
             True if backup was created successfully, False otherwise
+
         """
         if not os.path.exists(self.state_file):
             return False
@@ -188,11 +187,11 @@ class StateManager:
             logger.error(f"Error rotating backups: {str(e)}", exc_info=True)
 
     def _recover_from_backup(self) -> bool:
-        """
-        Attempt to recover state from a backup.
+        """Attempt to recover state from a backup.
 
         Returns:
             True if recovery was successful, False otherwise
+
         """
         try:
             # Get all backup files
@@ -240,14 +239,14 @@ class StateManager:
             return False
 
     def _verify_state_integrity(self, state_data: dict[str, Any]) -> bool:
-        """
-        Verify the integrity of a state.
+        """Verify the integrity of a state.
 
         Args:
             state_data: State data to verify
 
         Returns:
             True if state is valid, False otherwise
+
         """
         # Type hint ensures state_data is a dict, no runtime check needed here.
 
@@ -277,14 +276,14 @@ class StateManager:
         return bool(expected_checksum == actual_checksum)
 
     def _calculate_checksum(self, state: dict[str, Any]) -> str:
-        """
-        Calculate a checksum for a state.
+        """Calculate a checksum for a state.
 
         Args:
             state: State to calculate checksum for
 
         Returns:
             Checksum string
+
         """
         # For simplicity, we're using a JSON hash as the checksum
         # In a production system, you might want to use a more robust algorithm
@@ -293,14 +292,14 @@ class StateManager:
 
 
 def load_state_manager(config: AppSettings) -> StateManager:
-    """
-    Create and initialize a state manager.
+    """Create and initialize a state manager.
 
     Args:
         config: Application configuration
 
     Returns:
         Initialized state manager
+
     """
     state_manager = StateManager(config)
     state_manager.load_state()

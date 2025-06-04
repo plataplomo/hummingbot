@@ -1,5 +1,4 @@
-"""
-Unit tests for Hyperliquid Raw Order Action Pydantic models.
+"""Unit tests for Hyperliquid Raw Order Action Pydantic models.
 Validates parsing, aliases, and error handling for raw order request structures.
 """
 
@@ -326,8 +325,7 @@ class TestHyperliquidRawPlaceOrderAction:
 
 
 class TestHyperliquidRawOrder:
-    """
-    Tests for the HyperliquidRawOrder model itself (representing an existing order).
+    """Tests for the HyperliquidRawOrder model itself (representing an existing order).
     """
 
     def test_invalid_order_bad_status(self) -> None:

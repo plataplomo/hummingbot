@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: apis package initializer
+"""CyberDeltaEngine: apis package initializer
 This file marks the directory as a Python package and enables submodule imports.
 """
 

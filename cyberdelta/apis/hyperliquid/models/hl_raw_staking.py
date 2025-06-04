@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Raw Models (Staking Info)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Staking Info)
 ----------------------------------------------------------
 
 Strict boundary validation models for the Hyperliquid staking-related info endpoints:
@@ -63,7 +62,7 @@ class HyperliquidRawDelegationsResponse(RootModel[list[HyperliquidRawDelegationI
         for item_idx, item_obj in enumerate(list_of_objects):
             if not isinstance(item_obj, dict):
                 raise ValueError(
-                    f"Item {item_idx}: Expected dict delegation, got {type(item_obj).__name__}"
+                    f"Item {item_idx}: Expected dict delegation, got {type(item_obj).__name__}",
                 )
 
             item_dict = cast(dict[str, object], item_obj)
@@ -135,7 +134,7 @@ class HyperliquidRawDelegatorHistoryResponse(RootModel[list[HyperliquidRawDelega
         for item_idx, item_obj in enumerate(list_of_objects):
             if not isinstance(item_obj, dict):
                 raise ValueError(
-                    f"Item {item_idx}: Expected dict history item, got {type(item_obj).__name__}"
+                    f"Item {item_idx}: Expected dict history item, got {type(item_obj).__name__}",
                 )
 
             item_dict = cast(dict[str, object], item_obj)
@@ -176,7 +175,7 @@ class HyperliquidRawDelegatorRewardsResponse(RootModel[list[HyperliquidRawDelega
         for item_idx, item_obj in enumerate(list_of_objects):
             if not isinstance(item_obj, dict):
                 raise ValueError(
-                    f"Item {item_idx}: Expected dict reward item, got {type(item_obj).__name__}"
+                    f"Item {item_idx}: Expected dict reward item, got {type(item_obj).__name__}",
                 )
 
             item_dict = cast(dict[str, object], item_obj)

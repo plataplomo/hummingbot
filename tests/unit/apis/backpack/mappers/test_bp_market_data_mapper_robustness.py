@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack Market Data Mapper Robustness Tests
+"""CyberDeltaEngine: Backpack Market Data Mapper Robustness Tests
 --------------------------------------------------------------
 
 Comprehensive test suite for BackpackMarketDataMapper edge cases and robustness.

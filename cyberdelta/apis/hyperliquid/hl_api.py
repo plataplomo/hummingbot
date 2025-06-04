@@ -103,8 +103,7 @@ class HyperliquidAPI(ExchangeAPI):
         trading_service: HyperliquidTradingService | None = None,
         market_data_service: HyperliquidMarketDataService | None = None,
     ) -> None:
-        """
-        Initialize the HyperliquidAPI client.
+        """Initialize the HyperliquidAPI client.
 
         Args:
             exchange_config: Exchange-specific configuration model.
@@ -120,6 +119,7 @@ class HyperliquidAPI(ExchangeAPI):
             account_service: Optional account service instance for dependency injection
             trading_service: Optional trading service instance for dependency injection
             market_data_service: Optional market data service instance for dependency injection
+
         """
         # URL Selection Logic based on environment
         if exchange_config.is_mainnet_environment:
@@ -128,7 +128,7 @@ class HyperliquidAPI(ExchangeAPI):
                 str(exchange_config.ws_url_mainnet) if exchange_config.ws_url_mainnet else None
             )
             logger.info(
-                f"[{exchange_config.exchange_name.value}] Initializing for MAINNET environment."
+                f"[{exchange_config.exchange_name.value}] Initializing for MAINNET environment.",
             )
         elif exchange_config.api_base_url_testnet:  # Check if testnet URL is actually configured
             self.active_api_base_url = str(exchange_config.api_base_url_testnet)
@@ -136,14 +136,14 @@ class HyperliquidAPI(ExchangeAPI):
                 str(exchange_config.ws_url_testnet) if exchange_config.ws_url_testnet else None
             )
             logger.info(
-                f"[{exchange_config.exchange_name.value}] Initializing for TESTNET environment."
+                f"[{exchange_config.exchange_name.value}] Initializing for TESTNET environment.",
             )
         else:
             # Fallback or error if is_mainnet_environment is False but no testnet URLs
             logger.error(
                 f"[{exchange_config.exchange_name.value}] Configuration error: "
                 f"is_mainnet_environment is False, but no testnet URLs "
-                f"(api_base_url_testnet) are provided. Falling back to mainnet URLs."
+                f"(api_base_url_testnet) are provided. Falling back to mainnet URLs.",
             )
             self.active_api_base_url = str(exchange_config.api_base_url_mainnet)
             self.active_ws_url = (
@@ -158,12 +158,12 @@ class HyperliquidAPI(ExchangeAPI):
         if exchange_config.chain_id is None:
             raise ValueError(
                 "chain_id is required for Hyperliquid but was None in exchange_config. "
-                "Check AppSettings validator."
+                "Check AppSettings validator.",
             )
 
         # Create the factory to handle component instantiation
         factory = HyperliquidAPIComponentsFactory(
-            exchange_config, exchange_secrets, exchange_config.chain_id
+            exchange_config, exchange_secrets, exchange_config.chain_id,
         )
 
         # Use injected components or create them via factory
@@ -226,7 +226,7 @@ class HyperliquidAPI(ExchangeAPI):
             # This should not happen if secrets validation is working correctly
             logger.error(
                 f"Hyperliquid API received wrong auth type: {exchange_secrets.auth_type}. "
-                f"Expected 'private_key'. Authentication will fail."
+                f"Expected 'private_key'. Authentication will fail.",
             )
             secrets_dict_for_super = {
                 "private_key": None,
@@ -264,7 +264,7 @@ class HyperliquidAPI(ExchangeAPI):
                 http_client_config_data_cleaned["rest_endpoint"] = self.active_api_base_url
 
             http_client_config_obj = HttpClientConfig.model_validate(
-                http_client_config_data_cleaned
+                http_client_config_data_cleaned,
             )
             self._http_client = HttpClient(self.exchange_name, http_client_config_obj)
 
@@ -356,7 +356,7 @@ class HyperliquidAPI(ExchangeAPI):
         if not self._hl_authenticator:
             logger.error(
                 f"[{self.exchange_name}] Attempt to call signed endpoint ({method} {path}) "
-                "without configured HL authenticator."
+                "without configured HL authenticator.",
             )
             raise APIError(
                 "HL authenticator not initialized (e.g., missing/invalid private key).",
@@ -368,7 +368,7 @@ class HyperliquidAPI(ExchangeAPI):
         try:
             auth_components: AuthenticatedRequestComponents = (
                 await self._hl_authenticator.prepare_request(
-                    method, path, params, data, current_headers
+                    method, path, params, data, current_headers,
                 )
             )
         except APIError:
@@ -378,7 +378,7 @@ class HyperliquidAPI(ExchangeAPI):
             # Wrap other exceptions as authentication failures
             logger.error(
                 f"[{self.exchange_name}] Unexpected error during authentication preparation "
-                f"for {method} {path}: {e}"
+                f"for {method} {path}: {e}",
             )
             raise APIError(
                 f"Authentication preparation failed: {e}",
@@ -397,16 +397,15 @@ class HyperliquidAPI(ExchangeAPI):
         return await self._asset_indexer.get_asset_index(symbol)
 
     def _update_rate_limit_from_headers(
-        self, headers: Mapping[str, str], method: str, path: str
+        self, headers: Mapping[str, str], method: str, path: str,
     ) -> None:
-        """
-        Update rate limit information based on response headers.
+        """Update rate limit information based on response headers.
         Hyperliquid does not typically provide rate limit info in standard headers.
         This is a placeholder implementation.
         """
         logger.debug(
             f"[{self.exchange_name}] _update_rate_limit_from_headers called "
-            f"(no-op for Hyperliquid). Headers: {headers}, Method: {method}, Path: {path}"
+            f"(no-op for Hyperliquid). Headers: {headers}, Method: {method}, Path: {path}",
         )
         pass
 
@@ -422,13 +421,13 @@ class HyperliquidAPI(ExchangeAPI):
         Raises:
             ValueError: If topic format is invalid or required info is missing
             APIError: If topic is not supported by the exchange
+
         """
         # Delegate to the WebSocket router for payload construction
         return self._hl_ws_router.construct_subscription_payload(topic, self._wallet_address)
 
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
-        """
-        Handle raw WebSocket message from WebSocketManager, then route it.
+        """Handle raw WebSocket message from WebSocketManager, then route it.
         This method is called by the WebSocketManager.
         """
         # Following the pattern from BackpackAPI, directly route to _route_ws_message.
@@ -508,17 +507,18 @@ class HyperliquidAPI(ExchangeAPI):
 
         Args:
             args: Parameters for filtering trade history including symbol and limit.
+
         """
         return await self.account_service.get_trade_history(args=args)
 
     async def get_historical_funding_rates(
-        self, args: GetHistoricalFundingRatesArgs
+        self, args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
         """Get historical funding rates for a specific symbol."""
         # Hyperliquid requires start_time
         if args.start_time is None:
             raise ValueError(
-                "start_time is required for Hyperliquid.get_historical_funding_rates()"
+                "start_time is required for Hyperliquid.get_historical_funding_rates()",
             )
         return await self.market_data_service.get_historical_funding_rates(args=args)
 
@@ -537,7 +537,7 @@ class HyperliquidAPI(ExchangeAPI):
         # Hyperliquid topic format: "l2Book:SYMBOL"
         topic = f"l2Book:{symbol}"
         logger.debug(
-            f"[{self.exchange_name}] Preparing subscription for order book (l2Book) topic: {topic}"
+            f"[{self.exchange_name}] Preparing subscription for order book (l2Book) topic: {topic}",
         )
         # Actual subscription is initiated by the caller using self.subscribe(topic, handler)
 
@@ -552,7 +552,7 @@ class HyperliquidAPI(ExchangeAPI):
         logger.warning(
             f"[{self.exchange_name}] Hyperliquid does not have a direct 'ticker:{symbol}' stream. "
             f"Consider subscribing to 'allMids' for all mid prices, or 'l2Book:{symbol}' "
-            f"and derive ticker data."
+            f"and derive ticker data.",
         )
         # No direct topic construction for a non-existent stream type.
 
@@ -563,7 +563,7 @@ class HyperliquidAPI(ExchangeAPI):
         # Hyperliquid topic format: "trades:SYMBOL"
         topic = f"trades:{symbol}"
         logger.debug(
-            f"[{self.exchange_name}] Preparing subscription for public trades topic: {topic}"
+            f"[{self.exchange_name}] Preparing subscription for public trades topic: {topic}",
         )
         # Actual subscription is initiated by the caller using self.subscribe(topic, handler)
 
@@ -577,14 +577,14 @@ class HyperliquidAPI(ExchangeAPI):
         topic = "userEvents"
         logger.debug(
             f"[{self.exchange_name}] Preparing subscription for user account updates "
-            f"(userEvents) topic: {topic}"
+            f"(userEvents) topic: {topic}",
         )
         # Actual subscription is initiated by the caller using self.subscribe(topic, handler)
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
         """Register a handler for a WebSocket topic and send subscription via WebSocketManager."""
         logger.info(
-            f"[{self.exchange_name}] Subscribing to topic: {topic}. Delegating to base ExchangeAPI."
+            f"[{self.exchange_name}] Subscribing to topic: {topic}. Delegating to base ExchangeAPI.",
         )
         await super().subscribe(topic, handler)
 
@@ -592,14 +592,14 @@ class HyperliquidAPI(ExchangeAPI):
         """Callback for when WebSocket connects, typically to resubscribe to topics."""
         logger.info(
             f"[{self.exchange_name}] WebSocket connected. "
-            f"Triggering resubscription via base ExchangeAPI."
+            f"Triggering resubscription via base ExchangeAPI.",
         )
         await super()._on_ws_connected()
 
     async def _resubscribe(self) -> None:
         """Resubscribe to all registered topics upon WebSocket (re)connection."""
         logger.info(
-            f"[{self.exchange_name}] Resubscribing to topics. Delegating to base ExchangeAPI."
+            f"[{self.exchange_name}] Resubscribing to topics. Delegating to base ExchangeAPI.",
         )
         await super()._resubscribe()
 
@@ -608,5 +608,6 @@ class HyperliquidAPI(ExchangeAPI):
 
         Args:
             args: Parameters for filtering open orders including optional symbol.
+
         """
         return await self.trading_service.get_all_open_orders(args=args)

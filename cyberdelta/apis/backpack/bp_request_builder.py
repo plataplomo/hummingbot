@@ -42,8 +42,7 @@ logger = get_logger(__name__)
 
 
 class BackpackRequestBuilder:
-    """
-    Builds request parameters and payloads for Backpack API endpoints.
+    """Builds request parameters and payloads for Backpack API endpoints.
 
     This class centralizes the logic for constructing the dictionaries
     needed for various Backpack API calls, ensuring consistency and
@@ -51,11 +50,11 @@ class BackpackRequestBuilder:
     """
 
     def __init__(self, exchange_config: ExchangeSpecificConfig) -> None:
-        """
-        Initializes the BackpackRequestBuilder.
+        """Initializes the BackpackRequestBuilder.
 
         Args:
             exchange_config: Exchange-specific configuration model.
+
         """
         self._exchange_config = exchange_config
         # Get base URL from the configuration based on environment
@@ -79,23 +78,22 @@ class BackpackRequestBuilder:
 
     @staticmethod
     def build_get_ticker_params(symbol: str) -> BackpackRawGetTickerParams:
-        """
-        Builds parameters for the get_ticker endpoint.
+        """Builds parameters for the get_ticker endpoint.
 
         Args:
             symbol: The trading symbol (e.g., "SOL_USDC").
 
         Returns:
             BackpackRawGetTickerParams: The validated request parameters model.
+
         """
         return BackpackRawGetTickerParams(symbol=BackpackRequestBuilder.format_symbol(symbol))
 
     @staticmethod
     def build_get_order_book_params(
-        symbol: str, limit: int | None
+        symbol: str, limit: int | None,
     ) -> BackpackRawGetOrderBookParams:
-        """
-        Builds parameters for the get_order_book endpoint.
+        """Builds parameters for the get_order_book endpoint.
 
         Args:
             symbol: The trading symbol (e.g., "SOL_USDC").
@@ -103,17 +101,17 @@ class BackpackRequestBuilder:
 
         Returns:
             BackpackRawGetOrderBookParams: The validated request parameters model.
+
         """
         return BackpackRawGetOrderBookParams(
-            symbol=BackpackRequestBuilder.format_symbol(symbol), limit=limit
+            symbol=BackpackRequestBuilder.format_symbol(symbol), limit=limit,
         )
 
     @staticmethod
     def build_get_recent_trades_params(
-        symbol: str, limit: int | None
+        symbol: str, limit: int | None,
     ) -> BackpackRawGetRecentTradesParams:
-        """
-        Builds parameters for the get_recent_trades endpoint.
+        """Builds parameters for the get_recent_trades endpoint.
 
         Args:
             symbol: The trading symbol (e.g., "SOL_USDC").
@@ -121,9 +119,10 @@ class BackpackRequestBuilder:
 
         Returns:
             BackpackRawGetRecentTradesParams: The validated request parameters model.
+
         """
         return BackpackRawGetRecentTradesParams(
-            symbol=BackpackRequestBuilder.format_symbol(symbol), limit=limit
+            symbol=BackpackRequestBuilder.format_symbol(symbol), limit=limit,
         )
 
     @staticmethod
@@ -133,13 +132,13 @@ class BackpackRequestBuilder:
         Returns:
             BackpackRawGetBalancesParams: The validated request parameters model.
             This endpoint requires no query parameters, but returns a model for consistency.
+
         """
         return BackpackRawGetBalancesParams()
 
     @staticmethod
     def build_get_positions_params(symbol: str | None) -> BackpackRawGetPositionsParams:
-        """
-        Builds parameters for the get_positions endpoint.
+        """Builds parameters for the get_positions endpoint.
 
         Args:
             symbol: The trading symbol to filter by (optional). Note that the symbol
@@ -150,6 +149,7 @@ class BackpackRequestBuilder:
             BackpackRawGetPositionsParams: The validated request parameters model.
             This endpoint requires no query parameters when fetching all positions
             or a specific position (symbol goes in URL path).
+
         """
         # GET /api/v1/positions
         # GET /api/v1/positions/{symbol}
@@ -177,8 +177,7 @@ class BackpackRequestBuilder:
         reduce_only: bool = False,
         self_trade_prevention: str | None = None,
     ) -> BackpackRawOrderExecuteRequest:
-        """
-        Builds the payload for placing an order.
+        """Builds the payload for placing an order.
 
         Args:
             symbol: The trading symbol.
@@ -205,6 +204,7 @@ class BackpackRequestBuilder:
         Note:
             Inputs are assumed to be business-validated by the service layer.
             This method only performs mapping/translation to raw API values.
+
         """
         # Map internal enums to API strings (no business logic validation)
         api_side = "Bid" if side == OrderSide.BUY else "Ask"
@@ -282,10 +282,9 @@ class BackpackRequestBuilder:
 
     @staticmethod
     def build_cancel_order_payload(
-        symbol: str, order_id: str | None = None, client_order_id: str | None = None
+        symbol: str, order_id: str | None = None, client_order_id: str | None = None,
     ) -> BackpackRawOrderCancelRequest:
-        """
-        Builds the JSON payload for cancelling an order.
+        """Builds the JSON payload for cancelling an order.
         Corresponds to DELETE /api/v1/order request body.
 
         Args:
@@ -299,6 +298,7 @@ class BackpackRequestBuilder:
         Note:
             Inputs are assumed to be business-validated by the service layer.
             This method only performs mapping/translation to raw API values.
+
         """
         request_data: dict[str, Any] = {
             "symbol": BackpackRequestBuilder.format_symbol(symbol),
@@ -317,10 +317,9 @@ class BackpackRequestBuilder:
 
     @staticmethod
     def build_cancel_all_orders_payload(
-        symbol: str, order_type_filter: str | None = None
+        symbol: str, order_type_filter: str | None = None,
     ) -> BackpackRawOrderCancelAllRequest:
-        """
-        Builds the payload for cancelling all orders for a symbol.
+        """Builds the payload for cancelling all orders for a symbol.
 
         Args:
             symbol: The trading symbol.
@@ -332,6 +331,7 @@ class BackpackRequestBuilder:
         Note:
             Inputs are assumed to be business-validated by the service layer.
             This method only performs mapping/translation to raw API values.
+
         """
         request_data: dict[str, Any] = {
             "symbol": BackpackRequestBuilder.format_symbol(symbol),
@@ -345,14 +345,14 @@ class BackpackRequestBuilder:
 
     @staticmethod
     def build_get_open_orders_params(symbol: str | None) -> BackpackRawGetOpenOrdersParams:
-        """
-        Builds parameters for the get_open_orders endpoint.
+        """Builds parameters for the get_open_orders endpoint.
 
         Args:
             symbol: The trading symbol to filter by (optional).
 
         Returns:
             BackpackRawGetOpenOrdersParams: The validated request parameters model.
+
         """
         formatted_symbol = None
         if symbol:
@@ -361,8 +361,7 @@ class BackpackRequestBuilder:
 
     @staticmethod
     def build_get_funding_rate_params(symbol: str) -> BackpackRawGetFundingRateParams:
-        """
-        Builds parameters for fetching the current funding rate for a single symbol.
+        """Builds parameters for fetching the current funding rate for a single symbol.
 
         Args:
             symbol: The trading symbol to get funding rate for (e.g., "SOL_USDC").
@@ -372,6 +371,7 @@ class BackpackRequestBuilder:
 
         Note:
             For historical funding rates, use build_get_historical_funding_rates_params.
+
         """
         return BackpackRawGetFundingRateParams(symbol=BackpackRequestBuilder.format_symbol(symbol))
 
@@ -382,8 +382,7 @@ class BackpackRequestBuilder:
         end_time_ms: int | None = None,
         limit: int | None = None,
     ) -> BackpackRawGetHistoricalFundingRatesParams:
-        """
-        Builds parameters for fetching historical funding rates (/api/v1/fundingRates).
+        """Builds parameters for fetching historical funding rates (/api/v1/fundingRates).
 
         Args:
             symbol: The trading symbol (e.g., "SOL_USDC").
@@ -393,6 +392,7 @@ class BackpackRequestBuilder:
 
         Returns:
             BackpackRawGetHistoricalFundingRatesParams: The validated request parameters model.
+
         """
         return BackpackRawGetHistoricalFundingRatesParams(
             symbol=BackpackRequestBuilder.format_symbol(symbol),
@@ -403,12 +403,12 @@ class BackpackRequestBuilder:
 
     @staticmethod
     def build_get_account_info_params() -> BackpackRawGetAccountInfoParams:
-        """
-        Builds parameters for the get_account_info endpoint (GET /api/v1/account).
+        """Builds parameters for the get_account_info endpoint (GET /api/v1/account).
 
         Returns:
             BackpackRawGetAccountInfoParams: The validated request parameters model.
             This endpoint requires no query parameters, but returns a model for consistency.
+
         """
         return BackpackRawGetAccountInfoParams()
 
@@ -424,8 +424,7 @@ class BackpackRequestBuilder:
         auto_borrow: bool = False,
         auto_lend_redeem: bool = False,
     ) -> BackpackRawAccountWithdrawalRequest:
-        """
-        Builds the payload for a withdrawal request.
+        """Builds the payload for a withdrawal request.
 
         Args:
             asset: The asset symbol (e.g., "USDC").
@@ -444,6 +443,7 @@ class BackpackRequestBuilder:
         Note:
             Inputs are assumed to be business-validated by the service layer.
             This method only performs mapping/translation to raw API values.
+
         """
         # Map network names to blockchain values (mapping/translation only)
         blockchain_mapping = {
@@ -496,8 +496,7 @@ class BackpackRequestBuilder:
         order_id: str | None = None,
         client_order_id: str | None = None,
     ) -> BackpackRawGetOrderHistoryParams:
-        """
-        Builds parameters for the get_order_history endpoint.
+        """Builds parameters for the get_order_history endpoint.
 
         Args:
             symbol: The trading symbol (optional).
@@ -509,6 +508,7 @@ class BackpackRequestBuilder:
 
         Returns:
             BackpackRawGetOrderHistoryParams: The validated request parameters model.
+
         """
         formatted_symbol = None
         if symbol:
@@ -539,8 +539,7 @@ class BackpackRequestBuilder:
         limit: int | None,
         from_id: str | None = None,  # For pagination based on trade ID
     ) -> BackpackRawGetTradeHistoryParams:
-        """
-        Builds parameters for the get_trade_history (fills) endpoint.
+        """Builds parameters for the get_trade_history (fills) endpoint.
 
         Args:
             symbol: The trading symbol (optional).
@@ -551,6 +550,7 @@ class BackpackRequestBuilder:
 
         Returns:
             BackpackRawGetTradeHistoryParams: The validated request parameters model.
+
         """
         formatted_symbol = None
         if symbol:
@@ -568,14 +568,13 @@ class BackpackRequestBuilder:
     def build_get_market_data_params(
         symbol: str,
         timeframe_str: Literal[
-            "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w"
+            "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w",
         ],
         start_time_ms: int | None,
         end_time_ms: int | None,
         limit: int | None,
     ) -> BackpackRawGetMarketDataParams:
-        """
-        Builds parameters for fetching market data (candlesticks).
+        """Builds parameters for fetching market data (candlesticks).
         GET /api/v1/klines
 
         Args:
@@ -591,6 +590,7 @@ class BackpackRequestBuilder:
         Note:
             Inputs are assumed to be business-validated by the service layer.
             This method only performs mapping/translation to raw API values.
+
         """
         # Map to raw API format - business logic validation is done by service layer
         formatted_symbol = BackpackRequestBuilder.format_symbol(symbol)
@@ -605,10 +605,9 @@ class BackpackRequestBuilder:
 
     @staticmethod
     def build_get_historical_trades_params(
-        symbol: str, limit: int | None, from_id: str | None
+        symbol: str, limit: int | None, from_id: str | None,
     ) -> BackpackRawGetHistoricalTradesParams:
-        """
-        Builds parameters for fetching historical public trades.
+        """Builds parameters for fetching historical public trades.
         GET /api/v1/trades/history
 
         Args:
@@ -618,9 +617,10 @@ class BackpackRequestBuilder:
 
         Returns:
             BackpackRawGetHistoricalTradesParams: The validated request parameters model.
+
         """
         return BackpackRawGetHistoricalTradesParams(
-            symbol=BackpackRequestBuilder.format_symbol(symbol), limit=limit, fromId=from_id
+            symbol=BackpackRequestBuilder.format_symbol(symbol), limit=limit, fromId=from_id,
         )
 
     @staticmethod
@@ -631,8 +631,7 @@ class BackpackRequestBuilder:
         to_account: str,
         client_transfer_id: str | None = None,
     ) -> BackpackRawInternalTransferRequest:
-        """
-        Builds the payload for an internal capital transfer.
+        """Builds the payload for an internal capital transfer.
 
         Args:
             asset_symbol: The symbol of the asset to transfer (e.g., "USDC").
@@ -647,6 +646,7 @@ class BackpackRequestBuilder:
         Note:
             Inputs are assumed to be business-validated by the service layer.
             This method only performs mapping/translation to raw API values.
+
         """
         request_data: dict[str, Any] = {
             "symbol": BackpackRequestBuilder.format_symbol(asset_symbol),
@@ -662,8 +662,7 @@ class BackpackRequestBuilder:
 
     @staticmethod
     def build_get_order_params(symbol: str) -> BackpackRawGetOrderParams:
-        """
-        Builds parameters for GET /api/v1/orders/{orderIdOrClientId}.
+        """Builds parameters for GET /api/v1/orders/{orderIdOrClientId}.
         This endpoint requires 'symbol' as a query parameter.
 
         Args:
@@ -675,19 +674,20 @@ class BackpackRequestBuilder:
         Note:
             Inputs are assumed to be business-validated by the service layer.
             This method only performs mapping/translation to raw API values.
+
         """
         return BackpackRawGetOrderParams(symbol=BackpackRequestBuilder.format_symbol(symbol))
 
     @staticmethod
     def build_convert_dust_payload(asset_symbol: str) -> BackpackRawAccountConvertDustRequest:
-        """
-        Builds the payload for converting dust balances to USDC.
+        """Builds the payload for converting dust balances to USDC.
 
         Args:
             asset_symbol: The asset symbol to convert dust for (e.g., "BTC").
 
         Returns:
             BackpackRawAccountConvertDustRequest: The validated request payload model.
+
         """
         request_data: dict[str, Any] = {
             "symbol": asset_symbol.upper(),
@@ -696,10 +696,9 @@ class BackpackRequestBuilder:
 
     @staticmethod
     def build_borrow_lend_payload(
-        asset_symbol: str, quantity: Decimal, side: str
+        asset_symbol: str, quantity: Decimal, side: str,
     ) -> BackpackRawBorrowLendExecuteRequest:
-        """
-        Builds the payload for borrowing or lending operations.
+        """Builds the payload for borrowing or lending operations.
 
         Args:
             asset_symbol: The asset symbol (e.g., "USDC").
@@ -712,6 +711,7 @@ class BackpackRequestBuilder:
         Note:
             Inputs are assumed to be business-validated by the service layer.
             This method only performs mapping/translation to raw API values.
+
         """
         request_data: dict[str, Any] = {
             "quantity": str(quantity),
@@ -727,8 +727,7 @@ class BackpackRequestBuilder:
         auto_realize_pnl: bool | None = None,
         auto_repay_borrows: bool | None = None,
     ) -> BackpackRawUpdateAccountSettingsRequest:
-        """
-        Builds the payload for updating account settings.
+        """Builds the payload for updating account settings.
 
         Args:
             auto_borrow_settlements: Enable/disable auto borrow settlements.
@@ -738,6 +737,7 @@ class BackpackRequestBuilder:
 
         Returns:
             BackpackRawUpdateAccountSettingsRequest: The validated request payload model.
+
         """
         request_data: dict[str, Any] = {}
 
@@ -762,8 +762,7 @@ class BackpackRequestBuilder:
         expiry_time_ms: int | None = None,
         client_id: str | None = None,
     ) -> BackpackRawRequestForQuoteRequest:
-        """
-        Builds the payload for submitting a Request For Quote (RFQ).
+        """Builds the payload for submitting a Request For Quote (RFQ).
 
         Args:
             symbol: The trading symbol.
@@ -780,6 +779,7 @@ class BackpackRequestBuilder:
         Note:
             Inputs are assumed to be business-validated by the service layer.
             This method only performs mapping/translation to raw API values.
+
         """
         request_data: dict[str, Any] = {
             "symbol": BackpackRequestBuilder.format_symbol(symbol),
@@ -802,10 +802,9 @@ class BackpackRequestBuilder:
 
     @staticmethod
     def build_submit_quote_payload(
-        rfq_id: str, side: OrderSide, price: Decimal, client_quote_id: str | None = None
+        rfq_id: str, side: OrderSide, price: Decimal, client_quote_id: str | None = None,
     ) -> BackpackRawQuoteSubmitRequest:
-        """
-        Builds the payload for submitting a quote in response to an RFQ.
+        """Builds the payload for submitting a quote in response to an RFQ.
 
         Args:
             rfq_id: The RFQ ID to respond to.
@@ -819,6 +818,7 @@ class BackpackRequestBuilder:
         Note:
             Inputs are assumed to be business-validated by the service layer.
             This method only performs mapping/translation to raw API values.
+
         """
         # Map OrderSide to API string
         api_side = "Bid" if side == OrderSide.BUY else "Ask"
@@ -836,8 +836,7 @@ class BackpackRequestBuilder:
 
     @staticmethod
     def build_accept_quote_payload(rfq_id: str, quote_id: str) -> BackpackRawQuoteAcceptRequest:
-        """
-        Builds the payload for accepting a quote.
+        """Builds the payload for accepting a quote.
 
         Args:
             rfq_id: The RFQ ID.
@@ -845,6 +844,7 @@ class BackpackRequestBuilder:
 
         Returns:
             BackpackRawQuoteAcceptRequest: The validated request payload model.
+
         """
         request_data: dict[str, Any] = {
             "rfqId": rfq_id,
@@ -854,14 +854,14 @@ class BackpackRequestBuilder:
 
     @staticmethod
     def build_cancel_rfq_payload(rfq_id: str) -> BackpackRawRequestForQuoteCancelRequest:
-        """
-        Builds the payload for cancelling an RFQ.
+        """Builds the payload for cancelling an RFQ.
 
         Args:
             rfq_id: The RFQ ID to cancel.
 
         Returns:
             BackpackRawRequestForQuoteCancelRequest: The validated request payload model.
+
         """
         request_data: dict[str, Any] = {
             "rfqId": rfq_id,
@@ -874,8 +874,7 @@ class BackpackRequestBuilder:
         submission_time_ms: int | None = None,
         expiry_time_ms: int | None = None,
     ) -> BackpackRawRequestForQuoteRefreshRequest:
-        """
-        Builds the payload for refreshing an RFQ.
+        """Builds the payload for refreshing an RFQ.
 
         Args:
             rfq_id: The RFQ ID to refresh.
@@ -884,6 +883,7 @@ class BackpackRequestBuilder:
 
         Returns:
             BackpackRawRequestForQuoteRefreshRequest: The validated request payload model.
+
         """
         request_data: dict[str, Any] = {
             "rfqId": rfq_id,

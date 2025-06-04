@@ -1,5 +1,4 @@
-"""
-Module for calculating various financial performance metrics.
+"""Module for calculating various financial performance metrics.
 """
 
 import logging
@@ -12,8 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class PerformanceMetricsCalculator:
-    """
-    Provides static methods for calculating common financial performance metrics.
+    """Provides static methods for calculating common financial performance metrics.
     """
 
     @staticmethod
@@ -22,8 +20,7 @@ class PerformanceMetricsCalculator:
         risk_free_rate: Decimal = Decimal("0.0"),
         periods_per_year: int = 252,
     ) -> Decimal:
-        """
-        Calculate the Sharpe ratio.
+        """Calculate the Sharpe ratio.
 
         Args:
             returns: Series of portfolio returns (e.g., daily).
@@ -32,6 +29,7 @@ class PerformanceMetricsCalculator:
 
         Returns:
             Annualized Sharpe ratio (Decimal).
+
         """
         # Convert risk_free_rate to per-period rate (using Decimal for division)
         per_period_rfr = risk_free_rate / Decimal(str(periods_per_year))
@@ -43,7 +41,7 @@ class PerformanceMetricsCalculator:
 
         if std_dev_excess_return == 0:
             logger.warning(
-                "Standard deviation of excess returns is zero. Cannot calculate Sharpe ratio."
+                "Standard deviation of excess returns is zero. Cannot calculate Sharpe ratio.",
             )
             return Decimal("0.0")  # Return a concrete Decimal value
 
@@ -61,8 +59,7 @@ class PerformanceMetricsCalculator:
         risk_free_rate: Decimal = Decimal("0.0"),
         periods_per_year: int = 252,
     ) -> Decimal:
-        """
-        Calculate the Sortino ratio (uses downside deviation).
+        """Calculate the Sortino ratio (uses downside deviation).
 
         Args:
             returns: Series of portfolio returns.
@@ -71,6 +68,7 @@ class PerformanceMetricsCalculator:
 
         Returns:
             Annualized Sortino ratio (Decimal).
+
         """
         # Convert risk_free_rate to per-period rate
         per_period_rfr = risk_free_rate / Decimal(str(periods_per_year))
@@ -89,7 +87,7 @@ class PerformanceMetricsCalculator:
 
         if downside_deviation == 0:
             logger.warning(
-                "Downside deviation is zero. Cannot calculate Sortino ratio meaningfully."
+                "Downside deviation is zero. Cannot calculate Sortino ratio meaningfully.",
             )
             # If mean excess return is positive, technically infinite Sortino, else 0
             return Decimal("Infinity") if mean_excess_return > 0 else Decimal("0.0")
@@ -104,14 +102,14 @@ class PerformanceMetricsCalculator:
 
     @staticmethod
     def calculate_max_drawdown(returns: pd.Series) -> Decimal:
-        """
-        Calculate the maximum drawdown.
+        """Calculate the maximum drawdown.
 
         Args:
             returns: Series of portfolio returns.
 
         Returns:
             Maximum drawdown as a negative percentage (e.g., -0.1 for -10%) (Decimal).
+
         """
         cumulative_returns = (1 + returns).cumprod()
         rolling_max = cumulative_returns.cummax()
@@ -121,8 +119,7 @@ class PerformanceMetricsCalculator:
 
     @staticmethod
     def calculate_calmar_ratio(returns: pd.Series, periods_per_year: int = 252) -> Decimal:
-        """
-        Calculate the Calmar ratio (Annualized Return / Abs(Max Drawdown)).
+        """Calculate the Calmar ratio (Annualized Return / Abs(Max Drawdown)).
 
         Args:
             returns: Series of portfolio returns.
@@ -130,6 +127,7 @@ class PerformanceMetricsCalculator:
 
         Returns:
             Calmar ratio (Decimal).
+
         """
         # Calculate annualized return
         mean_return = returns.mean()
@@ -149,8 +147,7 @@ class PerformanceMetricsCalculator:
 
     @staticmethod
     def calculate_win_rate(trades: pd.DataFrame) -> Decimal:
-        """
-        Calculate the win rate from a DataFrame of trades.
+        """Calculate the win rate from a DataFrame of trades.
         Assumes trades DataFrame has a 'pnl' column.
 
         Args:
@@ -158,6 +155,7 @@ class PerformanceMetricsCalculator:
 
         Returns:
             Win rate (percentage of winning trades) (Decimal).
+
         """
         if trades.empty or "pnl" not in trades.columns:
             logger.warning("Trade data is missing or invalid for win rate calculation.")
@@ -174,8 +172,7 @@ class PerformanceMetricsCalculator:
 
     @staticmethod
     def calculate_profit_factor(trades: pd.DataFrame) -> Decimal:
-        """
-        Calculate the profit factor from a DataFrame of trades.
+        """Calculate the profit factor from a DataFrame of trades.
         Assumes trades DataFrame has a 'pnl' column.
 
         Args:
@@ -183,6 +180,7 @@ class PerformanceMetricsCalculator:
 
         Returns:
             Profit factor (Gross Profits / Gross Losses) (Decimal).
+
         """
         if trades.empty or "pnl" not in trades.columns:
             logger.warning("Trade data is missing or invalid for profit factor calculation.")
@@ -193,7 +191,7 @@ class PerformanceMetricsCalculator:
 
         if gross_losses == 0:
             logger.warning(
-                "No losses recorded. Profit factor is infinite (or undefined if no profits either)."
+                "No losses recorded. Profit factor is infinite (or undefined if no profits either).",
             )
             return Decimal("Infinity") if gross_profits > 0 else Decimal("NaN")
 
@@ -206,8 +204,7 @@ class PerformanceMetricsCalculator:
         risk_free_rate: Decimal = Decimal("0.0"),
         periods_per_year: int = 252,
     ) -> dict[str, Decimal]:
-        """
-        Calculate a dictionary of all performance metrics.
+        """Calculate a dictionary of all performance metrics.
 
         Args:
             returns: Series of portfolio returns.
@@ -217,14 +214,15 @@ class PerformanceMetricsCalculator:
 
         Returns:
             Dictionary containing calculated performance metrics (values as Decimal).
+
         """
         metrics: dict[str, Decimal] = {}
         try:
             metrics["sharpe_ratio"] = self.calculate_sharpe_ratio(
-                returns, risk_free_rate, periods_per_year
+                returns, risk_free_rate, periods_per_year,
             )
             metrics["sortino_ratio"] = self.calculate_sortino_ratio(
-                returns, risk_free_rate, periods_per_year
+                returns, risk_free_rate, periods_per_year,
             )
             metrics["max_drawdown"] = self.calculate_max_drawdown(returns)
             metrics["calmar_ratio"] = self.calculate_calmar_ratio(returns, periods_per_year)

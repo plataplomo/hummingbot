@@ -1,5 +1,4 @@
-"""
-Unit tests for HyperliquidEip712Authenticator's sign_l1_action scheme.
+"""Unit tests for HyperliquidEip712Authenticator's sign_l1_action scheme.
 
 This tests the refactored authentication method that aligns with Hyperliquid SDK's
 sign_l1_action scheme for the /exchange endpoint.

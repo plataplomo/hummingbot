@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack Market Data Service
+"""CyberDeltaEngine: Backpack Market Data Service
 ---------------------------------------------
 
 This service encapsulates the logic for fetching and processing market data
@@ -69,13 +68,12 @@ logger = get_logger(__name__)
 # Type alias for the HTTP client requester callable that the service will use.
 # This should match the signature of ExchangeAPI._request
 HttpClientRequesterSig = Callable[
-    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]]
+    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
 ]
 
 
 class BackpackMarketDataService:
-    """
-    Service class for Backpack market data operations.
+    """Service class for Backpack market data operations.
     Returns Internal Domain Models.
     """
 
@@ -93,8 +91,7 @@ class BackpackMarketDataService:
         exchange_name: str,
         mapper: BackpackMarketDataMapper | None = None,
     ) -> None:
-        """
-        Initialize the BackpackMarketDataService.
+        """Initialize the BackpackMarketDataService.
 
         Args:
             http_client_requester: A callable for making API requests (e.g., BackpackAPI._request).
@@ -102,6 +99,7 @@ class BackpackMarketDataService:
             response_handler: An instance of BackpackResponseHandler.
             exchange_name: The name of the exchange.
             mapper: Optional mapper instance for dependency injection.
+
         """
         self._http_client_requester = http_client_requester
         self._request_builder = request_builder
@@ -129,7 +127,7 @@ class BackpackMarketDataService:
             endpoint_path = "/api/v1/ticker"
             logger.debug(
                 f"[{self._exchange_name}] Requesting ticker for {symbol} from {endpoint_path} "
-                f"with params: {params}"
+                f"with params: {params}",
             )
 
             response_tuple = await self._http_client_requester(
@@ -147,7 +145,7 @@ class BackpackMarketDataService:
 
             logger.debug(
                 f"[{self._exchange_name}] Raw ticker response for {symbol}: {raw_data!r} "
-                f"(Status: {status_code}, Headers: {headers})"
+                f"(Status: {status_code}, Headers: {headers})",
             )
 
             if raw_data is None or not isinstance(raw_data, dict):
@@ -158,13 +156,13 @@ class BackpackMarketDataService:
                 )
 
             raw_ticker_model: BackpackRawTicker = self._response_handler.handle_get_ticker_response(
-                raw_data, symbol, status_code, headers
+                raw_data, symbol, status_code, headers,
             )
             internal_ticker = self._mapper.transform_raw_ticker_to_internal(
-                raw_ticker_model, symbol_override=symbol
+                raw_ticker_model, symbol_override=symbol,
             )
             logger.debug(
-                f"[{self._exchange_name}] Mapped internal ticker for {symbol}: {internal_ticker}"
+                f"[{self._exchange_name}] Mapped internal ticker for {symbol}: {internal_ticker}",
             )
             return internal_ticker
 
@@ -243,10 +241,10 @@ class BackpackMarketDataService:
             # Or, the OpenAPI spec might list all tickers directly under /markets.
             # For now, this is not implemented as the builder/handler methods are missing.
             logger.warning(
-                f"[{self._exchange_name}] get_all_tickers is not implemented yet for Backpack."
+                f"[{self._exchange_name}] get_all_tickers is not implemented yet for Backpack.",
             )
             raise NotImplementedError(
-                "get_all_tickers is not implemented for BackpackMarketDataService"
+                "get_all_tickers is not implemented for BackpackMarketDataService",
             )
 
         except APIError:
@@ -327,7 +325,7 @@ class BackpackMarketDataService:
             endpoint_path = "/api/v1/depth"
             logger.debug(
                 f"[{self._exchange_name}] Requesting order book for {symbol} (limit: {limit}) "
-                f"from {endpoint_path} with params: {params}"
+                f"from {endpoint_path} with params: {params}",
             )
 
             response_tuple = await self._http_client_requester(
@@ -345,7 +343,7 @@ class BackpackMarketDataService:
 
             logger.debug(
                 f"[{self._exchange_name}] Raw order_book for {symbol}: {raw_data!r} "
-                f"(Status: {status_code}, Headers: {headers})"
+                f"(Status: {status_code}, Headers: {headers})",
             )
 
             if raw_data is None or not isinstance(raw_data, dict):
@@ -357,14 +355,14 @@ class BackpackMarketDataService:
 
             raw_order_book_model: BackpackRawOrderBook = (
                 self._response_handler.handle_get_order_book_response(
-                    raw_data, symbol, status_code, headers
+                    raw_data, symbol, status_code, headers,
                 )
             )
             internal_order_book = self._mapper.transform_raw_order_book_to_internal(
-                symbol, raw_order_book_model
+                symbol, raw_order_book_model,
             )
             logger.debug(
-                f"[{self._exchange_name}] Mapped order_book for {symbol}: {internal_order_book}"
+                f"[{self._exchange_name}] Mapped order_book for {symbol}: {internal_order_book}",
             )
             return internal_order_book
 
@@ -443,12 +441,12 @@ class BackpackMarketDataService:
         try:
             # Core operational logic
             params = self._request_builder.build_get_recent_trades_params(
-                symbol=symbol, limit=limit
+                symbol=symbol, limit=limit,
             )
             endpoint_path = "/api/v1/trades"
             logger.debug(
                 f"[{self._exchange_name}] Requesting recent trades for {symbol} (limit: {limit}) "
-                f"from {endpoint_path} with params: {params}"
+                f"from {endpoint_path} with params: {params}",
             )
 
             response_tuple = await self._http_client_requester(
@@ -466,7 +464,7 @@ class BackpackMarketDataService:
 
             logger.debug(
                 f"[{self._exchange_name}] Raw recent_trades for {symbol}: {raw_data_list!r} "
-                f"(Status: {status_code}, Headers: {headers})"
+                f"(Status: {status_code}, Headers: {headers})",
             )
 
             if raw_data_list is None or not isinstance(raw_data_list, list):
@@ -478,7 +476,7 @@ class BackpackMarketDataService:
 
             raw_trade_models: list[BackpackRawTrade] = (
                 self._response_handler.handle_get_recent_trades_response(
-                    raw_data_list, symbol, status_code, headers
+                    raw_data_list, symbol, status_code, headers,
                 )
             )
             internal_trades: list[Trade] = []
@@ -494,7 +492,7 @@ class BackpackMarketDataService:
                     )
                     logger.warning(f"Skipping trade map error: {e_map_item}. Raw: {raw_data_str}")
             logger.debug(
-                f"[{self._exchange_name}] Mapped recent_trades for {symbol}: {internal_trades}"
+                f"[{self._exchange_name}] Mapped recent_trades for {symbol}: {internal_trades}",
             )
             return internal_trades
 
@@ -574,7 +572,7 @@ class BackpackMarketDataService:
             endpoint_path = "/api/v1/funding"  # Define endpoint path in service
             logger.debug(
                 f"[{self._exchange_name}] Requesting funding rate for {symbol} from "
-                f"{endpoint_path} with params: {params}"
+                f"{endpoint_path} with params: {params}",
             )
 
             response_tuple = await self._http_client_requester(
@@ -592,7 +590,7 @@ class BackpackMarketDataService:
 
             logger.debug(
                 f"[{self._exchange_name}] Raw funding_rate for {symbol}: {raw_data!r} "
-                f"(Status: {status_code}, Headers: {headers})"
+                f"(Status: {status_code}, Headers: {headers})",
             )
 
             if raw_data is None:
@@ -610,14 +608,14 @@ class BackpackMarketDataService:
 
             raw_funding_rate_model: BackpackRawFundingRate = (
                 self._response_handler.handle_get_funding_rate_response(
-                    raw_data, symbol, status_code, headers
+                    raw_data, symbol, status_code, headers,
                 )
             )
             internal_funding_rate = self._mapper.transform_raw_funding_rate_to_internal(
-                raw_funding_rate_model  # Removed symbol_override=symbol as mapper does not take it
+                raw_funding_rate_model,  # Removed symbol_override=symbol as mapper does not take it
             )
             logger.debug(
-                f"[{self._exchange_name}] Mapped funding_rate for {symbol}: {internal_funding_rate}"
+                f"[{self._exchange_name}] Mapped funding_rate for {symbol}: {internal_funding_rate}",
             )
             return internal_funding_rate
 
@@ -678,8 +676,7 @@ class BackpackMarketDataService:
             ) from e_unexpected
 
     async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
-        """
-        Retrieves current funding rates for one or more symbols.
+        """Retrieves current funding rates for one or more symbols.
         If Backpack API doesn't support a bulk endpoint, this method iterates
         and calls the single-symbol funding rate endpoint.
         """
@@ -695,7 +692,7 @@ class BackpackMarketDataService:
         for symbol in symbols:
             if not symbol:
                 raise ValueError(
-                    f"[{current_method}] All symbols in list must be non-empty strings."
+                    f"[{current_method}] All symbols in list must be non-empty strings.",
                 )
 
         # Initialize context for error handling
@@ -713,7 +710,7 @@ class BackpackMarketDataService:
                 except APIError as e:
                     logger.error(
                         f"[{self._exchange_name}] Failed to fetch current funding rate for "
-                        f"{symbol_item} within get_funding_rates service method: {e.message}"
+                        f"{symbol_item} within get_funding_rates service method: {e.message}",
                     )
                     # Option: collect errors and continue, or raise immediately.
                     # For consistency with how API was, re-raising.
@@ -783,15 +780,15 @@ class BackpackMarketDataService:
             ) from e_unexpected
 
     async def get_historical_funding_rates(
-        self, args: GetHistoricalFundingRatesArgs
+        self, args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
-        """
-        Retrieves historical funding rates for a symbol within a given time range.
+        """Retrieves historical funding rates for a symbol within a given time range.
 
         Args:
             args: Parameters for historical funding rate request including
                  symbol (required), optional time range (start_time, end_time),
                  and optional limit.
+
         """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
@@ -805,7 +802,7 @@ class BackpackMarketDataService:
             if args.start_time.tzinfo is None:
                 logger.warning(
                     f"[{self._exchange_name}] start_time for get_historical_funding_rates "
-                    f"is naive. Assuming UTC."
+                    f"is naive. Assuming UTC.",
                 )
             start_time_ms = int(args.start_time.timestamp())
             if start_time_ms <= 0:
@@ -816,7 +813,7 @@ class BackpackMarketDataService:
             if args.end_time.tzinfo is None:
                 logger.warning(
                     f"[{self._exchange_name}] end_time for get_historical_funding_rates "
-                    f"is naive. Assuming UTC."
+                    f"is naive. Assuming UTC.",
                 )
             end_time_ms = int(args.end_time.timestamp())
             if end_time_ms <= 0:
@@ -838,7 +835,7 @@ class BackpackMarketDataService:
             endpoint_path = "/api/v1/funding/history"  # Define endpoint path in service
             logger.debug(
                 f"[{self._exchange_name}] Requesting historical funding rates for {args.symbol} "
-                f"from {endpoint_path} with params: {params}"
+                f"from {endpoint_path} with params: {params}",
             )
 
             response_tuple = await self._http_client_requester(
@@ -856,7 +853,7 @@ class BackpackMarketDataService:
 
             logger.debug(
                 f"[{self._exchange_name}] Raw historical funding rates for {args.symbol}: "
-                f"{raw_data!r} (Status: {status_code}, Headers: {headers})"
+                f"{raw_data!r} (Status: {status_code}, Headers: {headers})",
             )
 
             if raw_data is None:
@@ -870,7 +867,7 @@ class BackpackMarketDataService:
             if not isinstance(raw_data, list):  # raw_data must be a list if not None
                 logger.error(
                     f"[{self._exchange_name}] Historical funding rates data for {args.symbol} "
-                    f"is not a list: {type(raw_data)}. Raw: {raw_data!r}, Status: {status_code}"
+                    f"is not a list: {type(raw_data)}. Raw: {raw_data!r}, Status: {status_code}",
                 )
                 raise APIError(
                     f"Historical funding rates data for {args.symbol} is not a list: "
@@ -882,7 +879,7 @@ class BackpackMarketDataService:
 
             raw_funding_interval_rates: list[BackpackRawFundingIntervalRate] = (
                 self._response_handler.handle_get_historical_funding_rates_response(
-                    raw_data, args.symbol, status_code, headers
+                    raw_data, args.symbol, status_code, headers,
                 )
             )
 
@@ -897,12 +894,12 @@ class BackpackMarketDataService:
                 except (ValidationError, ValueError) as e_map_item:
                     logger.warning(
                         f"[{self._exchange_name}] Skipping mapping for historical funding rate "
-                        f"item for {args.symbol}: {e_map_item}. Item: {raw_rate!r}"
+                        f"item for {args.symbol}: {e_map_item}. Item: {raw_rate!r}",
                     )
 
             logger.debug(
                 f"[{self._exchange_name}] Mapped {len(internal_funding_rates)} internal "
-                f"historical funding rates for {args.symbol}"
+                f"historical funding rates for {args.symbol}",
             )
             return internal_funding_rates
 
@@ -963,8 +960,7 @@ class BackpackMarketDataService:
             ) from e_unexpected
 
     async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
-        """
-        Retrieves market data (K-lines/candlesticks) for a specific symbol and timeframe.
+        """Retrieves market data (K-lines/candlesticks) for a specific symbol and timeframe.
         """
         # Service Input Parameter Validation is now handled by GetMarketDataArgs Pydantic model
         frame = inspect.currentframe()
@@ -990,7 +986,7 @@ class BackpackMarketDataService:
         if args.timeframe not in supported_intervals:
             raise ValueError(
                 f"[{current_method}] Unsupported interval '{args.timeframe}'. "
-                f"Supported intervals: {sorted(supported_intervals)}"
+                f"Supported intervals: {sorted(supported_intervals)}",
             )
 
         # Initialize context for error handling
@@ -1031,7 +1027,7 @@ class BackpackMarketDataService:
             endpoint_path = "/api/v1/klines"  # Define endpoint path in service
             logger.debug(
                 f"[{self._exchange_name}] Requesting klines for {args.symbol}@{args.timeframe} "
-                f"from {endpoint_path} with params: {params}"
+                f"from {endpoint_path} with params: {params}",
             )
 
             response_tuple = await self._http_client_requester(
@@ -1049,7 +1045,7 @@ class BackpackMarketDataService:
 
             logger.debug(
                 f"[{self._exchange_name}] Raw klines for {args.symbol}@{args.timeframe}: "
-                f"{raw_data_list!r} (Status: {status_code}, Headers: {headers})"
+                f"{raw_data_list!r} (Status: {status_code}, Headers: {headers})",
             )
 
             if raw_data_list is None:
@@ -1071,7 +1067,7 @@ class BackpackMarketDataService:
             # Handler now returns list[BackpackRawKline]
             raw_kline_models: list[BackpackRawKline] = (
                 self._response_handler.handle_get_market_data_response(
-                    raw_data_list, args.symbol, args.timeframe, status_code, headers
+                    raw_data_list, args.symbol, args.timeframe, status_code, headers,
                 )
             )
             internal_candles: list[Candle] = []
@@ -1081,17 +1077,17 @@ class BackpackMarketDataService:
                 try:
                     # No need to validate to BackpackRawKline here anymore
                     candle = self._mapper.transform_raw_kline_to_internal(
-                        args.symbol, args.timeframe, raw_kline_model
+                        args.symbol, args.timeframe, raw_kline_model,
                     )
                     internal_candles.append(candle)
                 except (ValidationError, ValueError) as e_map_item:
                     logger.warning(
                         f"Skipping kline map error for {args.symbol}@{args.timeframe}: "
-                        f"{e_map_item}. Item: {repr(raw_kline_model)}"
+                        f"{e_map_item}. Item: {repr(raw_kline_model)}",
                     )
             logger.debug(
                 f"[{self._exchange_name}] Mapped {len(internal_candles)} candles for "
-                f"{args.symbol}@{args.timeframe}"
+                f"{args.symbol}@{args.timeframe}",
             )
             return internal_candles
 

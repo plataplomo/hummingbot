@@ -222,8 +222,7 @@ def test_BackpackRawMarkPrice_corruption_cases() -> None:
 
 
 def test_BackpackRawMarkPrice_real_json_example() -> None:
-    """
-    Validate BackpackRawMarkPrice using a real JSON payload from the Backpack OpenAPI spec.
+    """Validate BackpackRawMarkPrice using a real JSON payload from the Backpack OpenAPI spec.
     Includes edge values.
     """
     payload = {

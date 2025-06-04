@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack API Error Mapper
+"""CyberDeltaEngine: Backpack API Error Mapper
 -------------------------------------------
 
 This module defines the `BackpackErrorMapper` class, responsible for translating
@@ -35,18 +34,16 @@ logger = logging.getLogger(__name__)
 
 
 class BackpackErrorMapper(IErrorMapper):
-    """
-    Maps and normalizes Backpack API errors to CyberDeltaEngine's canonical error model.
+    """Maps and normalizes Backpack API errors to CyberDeltaEngine's canonical error model.
 
     Implements the IErrorMapper interface for Backpack-specific error handling.
     """
 
     @staticmethod
     def _map_backpack_error_code_to_api_error_code(
-        error_body: str, error_data: dict[str, Any] | None = None, status_code: int | None = None
+        error_body: str, error_data: dict[str, Any] | None = None, status_code: int | None = None,
     ) -> APIErrorCode:
-        """
-        Map Backpack error responses (body, data, status) to standardized APIErrorCode.
+        """Map Backpack error responses (body, data, status) to standardized APIErrorCode.
 
         Attempts to parse `error_data` using `BackpackRawApiError` to extract a structured
         error code. If parsing succeeds, it maps known Backpack codes to internal `APIErrorCode`s.
@@ -63,6 +60,7 @@ class BackpackErrorMapper(IErrorMapper):
 
         Returns:
             APIErrorCode: Canonical error code for internal handling.
+
         """
         mapped_code = APIErrorCode.EXCHANGE_SPECIFIC
         if error_data:
@@ -106,7 +104,7 @@ class BackpackErrorMapper(IErrorMapper):
                 if mapped_code == APIErrorCode.EXCHANGE_SPECIFIC and code not in code_map:
                     logger.warning(
                         f"[{BackpackErrorMapper.__name__}] Unmapped or ambiguous "
-                        f"Backpack error code: {code}"
+                        f"Backpack error code: {code}",
                     )
                 return mapped_code
             except ValidationError as e:
@@ -115,13 +113,12 @@ class BackpackErrorMapper(IErrorMapper):
                     f"[{BackpackErrorMapper.__name__}] Failed to parse error_data as "
                     f"{BackpackRawApiError.__name__}. "
                     f"Pydantic errors: {detailed_errors}. Original exception string: {e}. "
-                    f"Falling back to heuristics."
+                    f"Falling back to heuristics.",
                 )
         return mapped_code
 
     def map_string_error(self, error_message: str, http_status: int | None = None) -> APIError:
-        """
-        Maps a raw error string from Backpack to a standardized APIError.
+        """Maps a raw error string from Backpack to a standardized APIError.
 
         Args:
             error_message: The raw error string from the exchange.
@@ -129,6 +126,7 @@ class BackpackErrorMapper(IErrorMapper):
 
         Returns:
             APIError: A standardized APIError object.
+
         """
         # Default to EXCHANGE_SPECIFIC if no specific match is found
         mapped_code_enum = APIErrorCode.EXCHANGE_SPECIFIC
@@ -200,8 +198,7 @@ class BackpackErrorMapper(IErrorMapper):
         request_path: str | None = None,
         original_exception: Exception | None = None,
     ) -> APIError:
-        """
-        Maps a raw Backpack error response to a standardized APIError object.
+        """Maps a raw Backpack error response to a standardized APIError object.
 
         Args:
             status_code: HTTP status code.
@@ -212,6 +209,7 @@ class BackpackErrorMapper(IErrorMapper):
 
         Returns:
             APIError: A standardized APIError object.
+
         """
         effective_error_body = error_body if error_body is not None else "No error body provided"
 
@@ -219,7 +217,7 @@ class BackpackErrorMapper(IErrorMapper):
         # _map_backpack_error_code_to_api_error_code will return EXCHANGE_SPECIFIC
         # if error_data is unparseable or contains an unmapped Backpack code.
         api_error_code_enum = self._map_backpack_error_code_to_api_error_code(
-            error_body=effective_error_body, error_data=error_data, status_code=status_code
+            error_body=effective_error_body, error_data=error_data, status_code=status_code,
         )
 
         bp_code_str: str | None = None
@@ -266,7 +264,7 @@ class BackpackErrorMapper(IErrorMapper):
                     f"[{class_name}] Failed to parse error_data as BackpackRawApiError. "
                     f"Pydantic errors: {errors_str}. "
                     f"Original exception string: {exc_str}. "
-                    f"Error classified as {code_name} based on initial mapping."
+                    f"Error classified as {code_name} based on initial mapping.",
                 )
 
                 # Try to get a more specific exchange message from error_data if possible,
@@ -319,7 +317,7 @@ class BackpackErrorMapper(IErrorMapper):
         if api_error_code_enum == APIErrorCode.RATE_LIMITED:
             logger.debug(
                 f"Attempting to parse retry_after from Backpack rate limit message: "
-                f"'{effective_exchange_message}'"
+                f"'{effective_exchange_message}'",
             )
 
             # Define regex patterns to search for retry-after hints (case-insensitive)
@@ -343,7 +341,7 @@ class BackpackErrorMapper(IErrorMapper):
 
                         logger.info(
                             f"Parsed retry_after from Backpack message: "
-                            f"{parsed_retry_after_seconds} seconds."
+                            f"{parsed_retry_after_seconds} seconds.",
                         )
                         break  # Use first successful match
                     except (ValueError, IndexError) as e:
@@ -352,7 +350,7 @@ class BackpackErrorMapper(IErrorMapper):
 
             if parsed_retry_after_seconds is None:
                 logger.debug(
-                    "No parsable retry_after information found in Backpack rate limit message."
+                    "No parsable retry_after information found in Backpack rate limit message.",
                 )
 
         # Construct the final APIError

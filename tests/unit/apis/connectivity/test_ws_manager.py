@@ -1,5 +1,4 @@
-"""
-Unit tests for WebSocketManager.
+"""Unit tests for WebSocketManager.
 Tests WebSocket connection management, message handling, and error scenarios.
 """
 

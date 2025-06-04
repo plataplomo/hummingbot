@@ -1,5 +1,4 @@
-"""
-Tests for the PortfolioTracker class.
+"""Tests for the PortfolioTracker class.
 """
 
 from __future__ import annotations  # Enable postponed evaluation
@@ -44,8 +43,7 @@ class TestPortfolioTracker:
 
         # Explicitly type the side effect function for config.get
         def get_config_value(key: str, default: object = None) -> object:
-            """
-            Mocked config.get implementation.
+            """Mocked config.get implementation.
             Returns values for known keys, otherwise returns the provided default.
             Type: (str, object) -> object
             Note: This is a test mock; in production, config values should be strictly typed.

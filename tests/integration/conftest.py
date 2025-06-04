@@ -221,8 +221,7 @@ def signal_generator(
 def risk_manager(
     mock_config: AppSettings,
 ) -> object:  # Keep as object to avoid circular dependency if RiskManager imports protocols
-    """
-    Risk Manager instance using protocol-compliant mocks for portfolio tracker and
+    """Risk Manager instance using protocol-compliant mocks for portfolio tracker and
     funding rate validator.
     """
     from cyberdelta.core.risk_manager import RiskManager  # Local import

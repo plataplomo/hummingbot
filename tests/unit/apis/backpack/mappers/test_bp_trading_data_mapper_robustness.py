@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack Trading Data Mapper Robustness Tests
+"""CyberDeltaEngine: Backpack Trading Data Mapper Robustness Tests
 --------------------------------------------------------------
 
 Comprehensive robustness test suite for BackpackTradingDataMapper.

@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack WebSocket Message Router
+"""CyberDeltaEngine: Backpack WebSocket Message Router
 --------------------------------------------------
 
 This module implements the `BackpackWsMessageRouter` class, responsible for:
@@ -29,8 +28,7 @@ from cyberdelta.config.logging_config import get_logger
 
 
 class BackpackWsMessageRouter:
-    """
-    Routes and processes WebSocket messages for Backpack exchange.
+    """Routes and processes WebSocket messages for Backpack exchange.
 
     This class handles the entire WebSocket message processing pipeline:
     1. Constructs subscription payloads for various topics
@@ -47,8 +45,7 @@ class BackpackWsMessageRouter:
         raw_ws_handler: BackpackWsRawMessageHandler,
         exchange_name: str,
     ) -> None:
-        """
-        Initialize the WebSocket message router.
+        """Initialize the WebSocket message router.
 
         Args:
             market_data_mapper: Mapper for market data transformations
@@ -56,6 +53,7 @@ class BackpackWsMessageRouter:
             trading_data_mapper: Mapper for trading data transformations
             raw_ws_handler: Handler for raw WebSocket message validation
             exchange_name: Name of the exchange for logging purposes
+
         """
         self._market_data_mapper = market_data_mapper
         self._account_data_mapper = account_data_mapper
@@ -65,10 +63,9 @@ class BackpackWsMessageRouter:
         self.logger = get_logger(__name__)
 
     def construct_subscription_payload(
-        self, topic: str, signature_components: BackpackWsSignatureComponents | None = None
+        self, topic: str, signature_components: BackpackWsSignatureComponents | None = None,
     ) -> BackpackRawWsSubscriptionRequest:
-        """
-        Construct the subscription payload for a given topic for Backpack.
+        """Construct the subscription payload for a given topic for Backpack.
 
         This method creates the subscription request structure and includes signature
         components for private streams when provided.
@@ -87,6 +84,7 @@ class BackpackWsMessageRouter:
 
         Raises:
             ValueError: If topic format is invalid or empty
+
         """
         # Basic topic validation
         if not topic or not topic.strip():
@@ -111,19 +109,18 @@ class BackpackWsMessageRouter:
         # Create the subscription request
         try:
             return BackpackRawWsSubscriptionRequest(
-                method=method_val, params=params_val, signature=signature_val_tuple
+                method=method_val, params=params_val, signature=signature_val_tuple,
             )
         except Exception as e:
             # Wrap unexpected exceptions
             raise ValueError(
-                f"Failed to construct subscription payload for topic '{topic}': {e}"
+                f"Failed to construct subscription payload for topic '{topic}': {e}",
             ) from e
 
     async def route_message(
-        self, message: dict[str, Any], ws_handlers: dict[str, MessageHandler]
+        self, message: dict[str, Any], ws_handlers: dict[str, MessageHandler],
     ) -> None:
-        """
-        Route incoming WebSocket messages to the appropriate handler based on topic.
+        """Route incoming WebSocket messages to the appropriate handler based on topic.
 
         This method processes the complete WebSocket message handling pipeline:
         1. Extracts topic and data from the message
@@ -135,6 +132,7 @@ class BackpackWsMessageRouter:
         Args:
             message: The raw WebSocket message dictionary
             ws_handlers: Mapping of topic strings to application MessageHandler callbacks
+
         """
         topic_str: str | None = message.get("topic")
         data_payload: dict[str, Any] | None = message.get("data")
@@ -153,14 +151,14 @@ class BackpackWsMessageRouter:
             else:
                 self.logger.debug(
                     f"[{self._exchange_name}] Unroutable message - no clear string topic "
-                    f"and not a known event type: {message}"
+                    f"and not a known event type: {message}",
                 )
                 return
 
         if data_payload is None:
             self.logger.debug(
                 f"[{self._exchange_name}] Received message with topic/type '{topic_str}' "
-                f"but no data_payload: {message}"
+                f"but no data_payload: {message}",
             )
             return
 
@@ -181,7 +179,7 @@ class BackpackWsMessageRouter:
         if not app_handler:
             self.logger.debug(
                 f"[{self._exchange_name}] No application handler registered for topic: "
-                f"{topic_str} (or base topic: {base_topic})"
+                f"{topic_str} (or base topic: {base_topic})",
             )
             return
 
@@ -195,12 +193,12 @@ class BackpackWsMessageRouter:
                 # Extract symbol from topic (e.g., "depth.SOL_USDC" -> "SOL_USDC")
                 symbol_from_topic = topic_str.split(".", 1)[1] if "." in topic_str else "UNKNOWN"
                 internal_model = self._market_data_mapper.transform_ws_depth_event_to_internal(
-                    symbol_from_topic, validated_payload
+                    symbol_from_topic, validated_payload,
                 )
             elif base_topic == "ticker":
                 validated_payload = self._raw_ws_handler.handle_ticker_payload(data_payload)
                 internal_model = self._market_data_mapper.transform_ws_ticker_event_to_internal(
-                    validated_payload
+                    validated_payload,
                 )
             elif base_topic == "fills":
                 validated_payload = self._raw_ws_handler.handle_trade_event_payload(data_payload)
@@ -208,30 +206,30 @@ class BackpackWsMessageRouter:
                 # Based on the context, assume this is private account fills
                 internal_model = (
                     self._account_data_mapper.transform_ws_fill_event_to_internal_trade(
-                        validated_payload
+                        validated_payload,
                     )
                 )
             elif base_topic == "orders":
                 validated_payload = self._raw_ws_handler.handle_order_update_payload(data_payload)
                 internal_model = (
                     self._trading_data_mapper.transform_ws_order_update_to_internal_order(
-                        validated_payload
+                        validated_payload,
                     )
                 )
             elif base_topic == "positionUpdate":
                 validated_payload = self._raw_ws_handler.handle_position_update_payload(
-                    data_payload
+                    data_payload,
                 )
                 internal_model = (
                     self._account_data_mapper.transform_ws_position_update_to_internal_position(
-                        validated_payload
+                        validated_payload,
                     )
                 )
             else:
                 self.logger.warning(
                     f"[{self._exchange_name}] No specific raw WS validator for topic "
                     f"'{topic_str}' (base: '{base_topic}'). "
-                    f"Application handler will receive raw payload."
+                    f"Application handler will receive raw payload.",
                 )
                 await app_handler(data_payload, message)
                 return

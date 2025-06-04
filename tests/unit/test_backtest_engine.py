@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
-"""
-Unit tests for the Backtesting Framework
+"""Unit tests for the Backtesting Framework
 """
 
 from datetime import datetime, timedelta

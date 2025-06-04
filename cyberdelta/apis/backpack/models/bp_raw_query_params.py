@@ -25,6 +25,7 @@ class BackpackRawGetTickerParams(BaseModel):
     Attributes:
         symbol: The trading symbol to get ticker data for (e.g., "SOL_USDC").
                 Must be a non-empty string with maximum 64 characters.
+
     """
 
     symbol: RawBpNonEmptyStringMax64 = Field(alias="symbol")
@@ -43,6 +44,7 @@ class BackpackRawGetOrderBookParams(BaseModel):
                 Must be a non-empty string with maximum 64 characters.
         limit: Optional maximum number of bids and asks to retrieve.
                Must be a non-negative integer if provided.
+
     """
 
     symbol: RawBpNonEmptyStringMax64 = Field(alias="symbol")
@@ -62,6 +64,7 @@ class BackpackRawGetRecentTradesParams(BaseModel):
                 Must be a non-empty string with maximum 64 characters.
         limit: Optional maximum number of trades to retrieve.
                Must be a non-negative integer if provided.
+
     """
 
     symbol: RawBpNonEmptyStringMax64 = Field(alias="symbol")
@@ -100,6 +103,7 @@ class BackpackRawGetOpenOrdersParams(BaseModel):
         symbol: Optional trading symbol to filter orders by (e.g., "SOL_USDC").
                 If None, returns orders for all symbols.
                 Must be a non-empty string with maximum 64 characters if provided.
+
     """
 
     symbol: RawBpNonEmptyStringMax64 | None = Field(default=None, alias="symbol")
@@ -116,6 +120,7 @@ class BackpackRawGetFundingRateParams(BaseModel):
     Attributes:
         symbol: The trading symbol to get funding rate for (e.g., "SOL_USDC").
                 Must be a non-empty string with maximum 64 characters.
+
     """
 
     symbol: RawBpNonEmptyStringMax64 = Field(alias="symbol")
@@ -138,6 +143,7 @@ class BackpackRawGetHistoricalFundingRatesParams(BaseModel):
                  Raw integer timestamp for filtering results.
         limit: Optional maximum number of funding rate records to retrieve.
                Must be a non-negative integer if provided.
+
     """
 
     symbol: RawBpNonEmptyStringMax64 = Field(alias="symbol")
@@ -177,6 +183,7 @@ class BackpackRawGetOrderHistoryParams(BaseModel):
                     Raw integer timestamp for filtering results.
         end_time: Optional end time in milliseconds since Unix epoch.
                   Raw integer timestamp for filtering results.
+
     """
 
     symbol: RawBpNonEmptyStringMax64 | None = Field(default=None, alias="symbol")
@@ -206,6 +213,7 @@ class BackpackRawGetTradeHistoryParams(BaseModel):
                   Raw integer timestamp for filtering results.
         fromId: Optional trade ID to start pagination from.
                 Must be a non-empty string with maximum 64 characters if provided.
+
     """
 
     symbol: RawBpNonEmptyStringMax64 | None = Field(default=None, alias="symbol")
@@ -235,11 +243,12 @@ class BackpackRawGetMarketDataParams(BaseModel):
                  Raw integer timestamp for filtering results.
         limit: Optional maximum number of candlesticks to retrieve.
                Must be a non-negative integer if provided.
+
     """
 
     symbol: RawBpNonEmptyStringMax64 = Field(alias="symbol")
     interval: Literal[
-        "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w"
+        "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w",
     ] = Field(alias="interval")
     startTime: int | None = Field(default=None, alias="startTime")
     endTime: int | None = Field(default=None, alias="endTime")
@@ -261,6 +270,7 @@ class BackpackRawGetHistoricalTradesParams(BaseModel):
                Must be a non-negative integer if provided.
         fromId: Optional trade ID to start pagination from.
                 Must be a non-empty string with maximum 64 characters if provided.
+
     """
 
     symbol: RawBpNonEmptyStringMax64 = Field(alias="symbol")
@@ -280,6 +290,7 @@ class BackpackRawGetOrderParams(BaseModel):
         symbol: The trading symbol for the order (e.g., "SOL_USDC").
                 Must be a non-empty string with maximum 64 characters.
                 Required as a query parameter for this endpoint.
+
     """
 
     symbol: RawBpNonEmptyStringMax64 = Field(alias="symbol")

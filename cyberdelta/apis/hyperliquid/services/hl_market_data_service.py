@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid Market Data Service
+"""CyberDeltaEngine: Hyperliquid Market Data Service
 -------------------------------------------------
 
 This service encapsulates the logic for fetching and processing market data
@@ -57,7 +56,7 @@ logger = get_logger(__name__)
 
 # Type alias for the HTTP client requester callable that the service will use.
 HttpClientRequesterSig = Callable[
-    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]]
+    ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
 ]
 
 if TYPE_CHECKING:
@@ -65,8 +64,7 @@ if TYPE_CHECKING:
 
 
 class HyperliquidMarketDataService:
-    """
-    Service class for handling Hyperliquid market data API endpoints.
+    """Service class for handling Hyperliquid market data API endpoints.
 
     This class centralizes the logic for fetching market data such as tickers,
     order books, trades, funding rates, and candlestick data.
@@ -88,8 +86,7 @@ class HyperliquidMarketDataService:
         mapper: HyperliquidMarketDataMapper,
         exchange_name: str,
     ) -> None:
-        """
-        Initialize the HyperliquidMarketDataService.
+        """Initialize the HyperliquidMarketDataService.
 
         Args:
             http_client_requester: An instance of HttpClientRequesterSig for making HTTP requests.
@@ -100,6 +97,7 @@ class HyperliquidMarketDataService:
             mapper: An instance of HyperliquidMarketDataMapper for mapping raw data to
                 internal models.
             exchange_name: The name of the exchange.
+
         """
         self._http_client_requester = http_client_requester
         self._request_builder = request_builder
@@ -108,8 +106,7 @@ class HyperliquidMarketDataService:
         self._exchange_name = exchange_name
 
     async def get_all_asset_contexts_raw(self) -> HyperliquidRawMetaAndAssetCtxsResponse:
-        """
-        Retrieves the metadata for all listed assets and their current context
+        """Retrieves the metadata for all listed assets and their current context
         (mark price, funding rate, etc.) by calling the /info endpoint.
         Hyperliquid's /info endpoint often returns multiple data types; the handler
         is responsible for extracting and validating the metaAndAssetCtxs part.
@@ -119,6 +116,7 @@ class HyperliquidMarketDataService:
 
         Raises:
             APIError: If the API request fails or the response is invalid.
+
         """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
@@ -158,7 +156,7 @@ class HyperliquidMarketDataService:
 
             logger.debug(
                 f"[{self._exchange_name}] Raw all_asset_contexts response: "
-                f"{raw_response_content!r}, Status: {status_code}, Headers: {headers}"
+                f"{raw_response_content!r}, Status: {status_code}, Headers: {headers}",
             )
 
             if raw_response_content is None:
@@ -239,8 +237,7 @@ class HyperliquidMarketDataService:
             ) from e_unexpected
 
     async def get_ticker(self, symbol: str) -> Ticker | None:
-        """
-        Retrieves the latest ticker/context information for a specific symbol.
+        """Retrieves the latest ticker/context information for a specific symbol.
         This involves fetching all asset contexts and then finding the specific one.
 
         Args:
@@ -253,6 +250,7 @@ class HyperliquidMarketDataService:
         Raises:
             APIError: If the underlying API request to fetch all contexts fails.
                       (Note: original hl_api.get_ticker raised SYMBOL_NOT_FOUND specifically)
+
         """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
@@ -276,7 +274,7 @@ class HyperliquidMarketDataService:
             # Symbol not found in the contexts
             logger.warning(
                 f"[{self._exchange_name}] Ticker data (asset context) not found "
-                f"for symbol '{symbol}' after fetching all asset contexts."
+                f"for symbol '{symbol}' after fetching all asset contexts.",
             )
             return None  # Consistent with method signature if not found
 
@@ -335,8 +333,7 @@ class HyperliquidMarketDataService:
             ) from e_unexpected
 
     async def get_order_book(self, symbol: str) -> OrderBook | None:
-        """
-        Retrieves the order book for a specific symbol using a POST request to /info
+        """Retrieves the order book for a specific symbol using a POST request to /info
         with a payload: {"type": "l2Book", "coin": "SYMBOL"}.
 
         Args:
@@ -347,6 +344,7 @@ class HyperliquidMarketDataService:
 
         Raises:
             APIError: If the API request fails or the response is invalid.
+
         """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
@@ -365,7 +363,7 @@ class HyperliquidMarketDataService:
             # Assuming HyperliquidRequestBuilder has or will have this method:
             try:
                 request_payload_model = self._request_builder.build_l2_book_request_payload(
-                    symbol=symbol
+                    symbol=symbol,
                 )
             except Exception as e:
                 # Wrap request builder exceptions in APIError
@@ -377,7 +375,7 @@ class HyperliquidMarketDataService:
                 ) from e
 
             request_payload_data: dict[str, Any] = request_payload_model.model_dump(
-                by_alias=True, exclude_none=True
+                by_alias=True, exclude_none=True,
             )
 
             raw_response_content_parsed: ParsedJsonResponse | None = None
@@ -396,7 +394,7 @@ class HyperliquidMarketDataService:
 
             logger.debug(
                 f"[{self._exchange_name}] Raw l2 orderbook response for {symbol}: "
-                f"{raw_response_content_parsed!r}, Status: {status_code}, Headers: {headers}"
+                f"{raw_response_content_parsed!r}, Status: {status_code}, Headers: {headers}",
             )
 
             if raw_response_content_parsed is None:
@@ -478,8 +476,7 @@ class HyperliquidMarketDataService:
         symbol: str,
         # limit: int = 100, # Limit is not part of HL /info request for recentTrades
     ) -> list[Trade]:
-        """
-        Retrieves recent public trades for a specific symbol using a POST request to /info
+        """Retrieves recent public trades for a specific symbol using a POST request to /info
         with a payload: {"type": "recentTrades", "coin": "SYMBOL"}.
 
         Args:
@@ -491,6 +488,7 @@ class HyperliquidMarketDataService:
 
         Raises:
             APIError: If the API request fails or the response is invalid.
+
         """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
@@ -508,10 +506,10 @@ class HyperliquidMarketDataService:
             endpoint_path = "/info"
             # Assuming HyperliquidRequestBuilder has or will have this method:
             request_payload_model = self._request_builder.build_recent_trades_request_payload(
-                symbol=symbol
+                symbol=symbol,
             )
             request_payload_data: dict[str, Any] = request_payload_model.model_dump(
-                by_alias=True, exclude_none=True
+                by_alias=True, exclude_none=True,
             )
 
             raw_response_content_parsed: ParsedJsonResponse | None = None
@@ -530,7 +528,7 @@ class HyperliquidMarketDataService:
 
             logger.debug(
                 f"[{self._exchange_name}] Raw recent_trades response for {symbol}: "
-                f"{raw_response_content_parsed!r}, Status: {status_code}, Headers: {headers}"
+                f"{raw_response_content_parsed!r}, Status: {status_code}, Headers: {headers}",
             )
 
             if raw_response_content_parsed is None:
@@ -563,11 +561,11 @@ class HyperliquidMarketDataService:
                 except (ValidationError, ValueError) as e_map_item:
                     logger.warning(
                         f"[{self._exchange_name}] Skipping mapping for recent trade item: "
-                        f"{e_map_item}. Raw: {raw_trade!r}"
+                        f"{e_map_item}. Raw: {raw_trade!r}",
                     )
 
             logger.debug(
-                f"[{self._exchange_name}] Mapped {len(internal_trades)} recent_trades for {symbol}"
+                f"[{self._exchange_name}] Mapped {len(internal_trades)} recent_trades for {symbol}",
             )
             return internal_trades
 
@@ -626,8 +624,7 @@ class HyperliquidMarketDataService:
             ) from e_unexpected
 
     async def get_funding_rate(self, symbol: str) -> FundingRate | None:
-        """
-        Retrieves the current funding rate information for a specific perpetual contract symbol.
+        """Retrieves the current funding rate information for a specific perpetual contract symbol.
         This is typically part of the broader asset context. It calls get_all_asset_contexts
         and extracts the relevant context.
 
@@ -640,6 +637,7 @@ class HyperliquidMarketDataService:
 
         Raises:
             APIError: If the underlying API request to fetch all contexts fails.
+
         """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
@@ -662,7 +660,7 @@ class HyperliquidMarketDataService:
 
             logger.warning(
                 f"[{self._exchange_name}] Funding rate data (from asset context) not found "
-                f"for symbol '{symbol}'."
+                f"for symbol '{symbol}'.",
             )
             return None
 
@@ -721,8 +719,7 @@ class HyperliquidMarketDataService:
             ) from e_unexpected
 
     async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
-        """
-        Retrieves current funding rates for specified symbols, or all if None.
+        """Retrieves current funding rates for specified symbols, or all if None.
 
         Args:
             args: GetFundingRatesArgs containing symbols list or None for all.
@@ -732,6 +729,7 @@ class HyperliquidMarketDataService:
 
         Raises:
             APIError: If the underlying API request to fetch all contexts fails.
+
         """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
@@ -744,7 +742,7 @@ class HyperliquidMarketDataService:
             for symbol in symbols:
                 if not symbol:
                     raise ValueError(
-                        f"[{current_method}] All symbols in list must be non-empty strings."
+                        f"[{current_method}] All symbols in list must be non-empty strings.",
                     )
 
         # Initialize context for error handling
@@ -757,7 +755,7 @@ class HyperliquidMarketDataService:
             all_contexts_response = await self.get_all_asset_contexts_raw()
             if not all_contexts_response or not all_contexts_response.asset_ctxs:
                 logger.warning(
-                    f"[{self._exchange_name}] No asset contexts found to derive funding rates."
+                    f"[{self._exchange_name}] No asset contexts found to derive funding rates.",
                 )
                 return []
 
@@ -783,14 +781,14 @@ class HyperliquidMarketDataService:
                             logger.error(
                                 f"[{self._exchange_name}] Error mapping funding rate for "
                                 f"{symbol_name} from context: {e_map}. "
-                                f"Context: {asset_ctx.model_dump_json(indent=2)}"
+                                f"Context: {asset_ctx.model_dump_json(indent=2)}",
                             )
                 if (
                     not found_ctx and symbols
                 ):  # Only warn if specific symbols were requested and not found
                     logger.warning(
                         f"[{self._exchange_name}] Context for symbol '{symbol_name}' not found in "
-                        f"fetched asset contexts."
+                        f"fetched asset contexts.",
                     )
             return rates
 
@@ -849,7 +847,7 @@ class HyperliquidMarketDataService:
             ) from e_unexpected
 
     async def get_historical_funding_rates(
-        self, args: GetHistoricalFundingRatesArgs
+        self, args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
         """Retrieves historical funding rates for a specific symbol and time range."""
         # Service Input Parameter Validation
@@ -876,7 +874,7 @@ class HyperliquidMarketDataService:
                 raise ValueError(f"[{current_method}] 'end_time_ms' must be positive.")
             if end_time_ms < start_time_ms:
                 raise ValueError(
-                    f"[{current_method}] 'end_time_ms' cannot be before 'start_time_ms'."
+                    f"[{current_method}] 'end_time_ms' cannot be before 'start_time_ms'.",
                 )
 
         # Initialize context for error handling
@@ -886,12 +884,12 @@ class HyperliquidMarketDataService:
         try:
             logger.debug(
                 f"[{self._exchange_name}] Getting historical funding rates for {args.symbol} "
-                f"from {start_time_ms} to {end_time_ms if end_time_ms is not None else 'now'}."
+                f"from {start_time_ms} to {end_time_ms if end_time_ms is not None else 'now'}.",
             )
 
             endpoint_path = "/info"
             payload = self._request_builder.build_historical_funding_rates_payload(
-                symbol=args.symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms
+                symbol=args.symbol, start_time_ms=start_time_ms, end_time_ms=end_time_ms,
             )
 
             raw_response_content, status_code, headers = await self._http_client_requester(
@@ -906,7 +904,7 @@ class HyperliquidMarketDataService:
             if raw_response_content is None:
                 logger.warning(
                     f"[{self._exchange_name}] No content for historical funding rates "
-                    f"for {args.symbol}. Status: {status_code}."
+                    f"for {args.symbol}. Status: {status_code}.",
                 )
                 raise APIError(
                     message=f"No data received for historical funding rates for {args.symbol}, "
@@ -927,13 +925,13 @@ class HyperliquidMarketDataService:
             for raw_item in raw_funding_history_items:
                 try:
                     internal_rate = self._mapper.transform_raw_funding_history_item_to_internal(
-                        raw_item
+                        raw_item,
                     )
                     internal_funding_rates.append(internal_rate)
                 except (ValidationError, ValueError) as e:
                     logger.error(
                         f"[{self._exchange_name}] Error mapping historical funding rate item: {e}. "
-                        f"Raw: {raw_item!r}"
+                        f"Raw: {raw_item!r}",
                     )
                     raise APIError(
                         message=f"Processing historical funding rate data failed: {e}",
@@ -1002,8 +1000,7 @@ class HyperliquidMarketDataService:
             ) from e_unexpected
 
     async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
-        """
-        Retrieves historical kline/candlestick data for a symbol and timeframe.
+        """Retrieves historical kline/candlestick data for a symbol and timeframe.
         Uses a POST request to /info with payload:
         {"type": "candleSnapshot",
          "req": {"coin": SYMBOL, "interval": INTERVAL,
@@ -1019,6 +1016,7 @@ class HyperliquidMarketDataService:
         Raises:
             APIError: If the API request fails or the response is invalid.
             ValueError: If input parameters are invalid.
+
         """
         # Service Input Parameter Validation is now handled by GetMarketDataArgs Pydantic model
         frame = inspect.currentframe()
@@ -1061,7 +1059,7 @@ class HyperliquidMarketDataService:
             # Core operational logic
             logger.debug(
                 f"[{self._exchange_name}] Getting market data (candles) for {symbol}, "
-                f"interval {interval}, start {start_time_ms}, end {end_time_ms}"
+                f"interval {interval}, start {start_time_ms}, end {end_time_ms}",
             )
             endpoint_path = "/info"
             try:
@@ -1074,7 +1072,7 @@ class HyperliquidMarketDataService:
             except Exception as e:
                 # Wrap request builder exceptions in APIError
                 logger.error(
-                    f"[{self._exchange_name}] Request builder failed for candle snapshot: {e}"
+                    f"[{self._exchange_name}] Request builder failed for candle snapshot: {e}",
                 )
                 raise APIError(
                     message=(
@@ -1088,7 +1086,7 @@ class HyperliquidMarketDataService:
                 method="POST",
                 endpoint=endpoint_path,
                 data=payload.model_dump(
-                    by_alias=True, exclude_none=True
+                    by_alias=True, exclude_none=True,
                 ),  # Payload itself is a dict[str, Any]
                 is_signed=False,
                 endpoint_group="public",
@@ -1101,7 +1099,7 @@ class HyperliquidMarketDataService:
             if raw_response_content_parsed is None:
                 logger.error(
                     f"[{self._exchange_name}] No content received for candles {symbol}, "
-                    f"status: {status_code}."
+                    f"status: {status_code}.",
                 )
                 # Consider raising APIError or returning empty list based on desired strictness
                 raise APIError(
@@ -1117,10 +1115,10 @@ class HyperliquidMarketDataService:
             # The handler expects raw JSON, not already Pydantic validated models typically
             # For candles, it might be list of lists or list of dicts
             raw_candles = self._response_handler.handle_info_candle_snapshot_response(
-                raw_response_content_parsed, symbol, interval, status_code, headers
+                raw_response_content_parsed, symbol, interval, status_code, headers,
             )
             return self._mapper.transform_raw_candle_snapshot_to_candles(
-                raw_candles, symbol, interval
+                raw_candles, symbol, interval,
             )
 
         except APIError:

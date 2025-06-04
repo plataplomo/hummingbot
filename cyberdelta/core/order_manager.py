@@ -1,5 +1,4 @@
-"""
-OrderManager: Business Logic Layer for Order State Management
+"""OrderManager: Business Logic Layer for Order State Management
 ------------------------------------------------------------
 
 Handles all order state mutation, fill reconciliation, average fill price calculation,
@@ -30,20 +29,20 @@ logger = logging.getLogger(__name__)
 
 
 class OrderManager:
-    """
-    Handles business logic for updating Order state in response to new fills/trades.
+    """Handles business logic for updating Order state in response to new fills/trades.
     This is the only place where order state mutation, snapping, and status transitions occur.
     """
 
     @staticmethod
     def apply_fill(order: "Order", trade: "Trade") -> None:
-        """
-        Apply a new fill/trade to the order, updating filled quantity, average fill price,
+        """Apply a new fill/trade to the order, updating filled quantity, average fill price,
         and status.
         Handles overfill (snapping) and logs inconsistencies.
+
         Args:
             order (Order): The order to update.
             trade (Trade): The new fill/trade to apply.
+
         """
         # Validate trade matches order
         if trade.order_id and order.exchange_order_id and trade.order_id != order.exchange_order_id:
@@ -75,14 +74,14 @@ class OrderManager:
             if (order.quantity_filled - order.quantity_requested) > tolerance:
                 logger.error(
                     f"Order {order.client_order_id}: quantity_filled ({order.quantity_filled}) > "
-                    f"quantity_requested ({order.quantity_requested})"
+                    f"quantity_requested ({order.quantity_requested})",
                 )
                 # Optionally raise or snap
                 order.quantity_filled = order.quantity_requested
             else:
                 logger.warning(
                     f"Order {order.client_order_id}: Snapping slightly overfilled qty "
-                    f"{order.quantity_filled} to requested {order.quantity_requested}."
+                    f"{order.quantity_filled} to requested {order.quantity_requested}.",
                 )
                 order.quantity_filled = order.quantity_requested
 

@@ -58,8 +58,7 @@ class BalanceAlert:
 
 
 class BalanceMonitor:
-    """
-    Monitor exchange balances and alert when manual transfers are needed.
+    """Monitor exchange balances and alert when manual transfers are needed.
 
     Responsible for:
     - Monitoring balances across exchanges
@@ -69,12 +68,12 @@ class BalanceMonitor:
     """
 
     def __init__(self, app_settings: AppSettings, portfolio_tracker: PortfolioTracker) -> None:
-        """
-        Initialize the balance monitor.
+        """Initialize the balance monitor.
 
         Args:
             app_settings: Application configuration
             portfolio_tracker: Portfolio tracker for balance information
+
         """
         self.app_settings = app_settings
         self.portfolio_tracker = portfolio_tracker
@@ -121,11 +120,11 @@ class BalanceMonitor:
             # Additional asset requirements would need to be added to the config model
 
     def check_balances(self) -> list[BalanceAlert]:
-        """
-        Check all exchange balances against requirements.
+        """Check all exchange balances against requirements.
 
         Returns:
             List of balance alerts
+
         """
         new_alerts: list[BalanceAlert] = []  # Explicit type annotation
         already_alerted: set[tuple[str, str]] = set()  # Track exchanges/assets already alerted
@@ -136,7 +135,7 @@ class BalanceMonitor:
             for asset, min_balance in min_balances.items():
                 # Use the correct type hint: SpotBalance
                 current_balance: SpotBalance | None = self.portfolio_tracker.get_exchange_balance(
-                    exchange_id, asset
+                    exchange_id, asset,
                 )
                 available_balance = (
                     current_balance.available_quantity  # Direct attribute access
@@ -186,10 +185,9 @@ class BalanceMonitor:
         return new_alerts
 
     def check_balance_for_opportunity(
-        self, exchange: str, asset: str, required_amount: Decimal
+        self, exchange: str, asset: str, required_amount: Decimal,
     ) -> BalanceAlert | None:
-        """
-        Check if a specific exchange has sufficient balance for a potential trade.
+        """Check if a specific exchange has sufficient balance for a potential trade.
 
         Args:
             exchange: Exchange name
@@ -198,10 +196,11 @@ class BalanceMonitor:
 
         Returns:
             BalanceAlert if insufficient, None otherwise
+
         """
         # Use the correct type hint: SpotBalance
         current_balance: SpotBalance | None = self.portfolio_tracker.get_exchange_balance(
-            exchange, asset
+            exchange, asset,
         )
         available_balance = (
             current_balance.available_quantity  # Direct attribute access
@@ -241,11 +240,11 @@ class BalanceMonitor:
         ]
 
     def get_balance_status(self) -> dict[str, Any]:
-        """
-        Get a summary of current balance status across all exchanges.
+        """Get a summary of current balance status across all exchanges.
 
         Returns:
             Dictionary summarizing balance status
+
         """
         status: dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
@@ -258,7 +257,7 @@ class BalanceMonitor:
             for asset in min_balances:
                 # Use the correct type hint: SpotBalance
                 current_balance: SpotBalance | None = self.portfolio_tracker.get_exchange_balance(
-                    exchange_id, asset
+                    exchange_id, asset,
                 )
                 available_balance = (
                     current_balance.available_quantity  # Direct attribute access

@@ -16,19 +16,18 @@ _T = TypeVar("_T")  # Define a TypeVar for generic parameter types
 
 
 class Strategy(ABC):
-    """
-    Abstract base class for all trading strategies.
+    """Abstract base class for all trading strategies.
     Strategies receive market data and generate trade signals.
     """
 
     def __init__(self, name: str, symbol: str, params: dict[str, Any] | None = None) -> None:
-        """
-        Initialize a strategy
+        """Initialize a strategy
 
         Args:
             name: Unique name for the strategy
             symbol: Trading symbol this strategy operates on
             params: Dictionary of strategy parameters
+
         """
         self.name = name
         self.symbol = symbol
@@ -42,24 +41,24 @@ class Strategy(ABC):
 
     @abstractmethod
     async def process_data(self, data: Candle) -> TradeSignal | list[TradeSignal] | None:
-        """
-        Asynchronously process new market data and optionally generate one or more trading signals.
+        """Asynchronously process new market data and optionally generate one or more trading signals.
 
         Args:
             data: Candle object containing market information.
 
         Returns:
             Optional TradeSignal, list of TradeSignals, or None if no trade should be executed
+
         """
         pass
 
     def update_historical_data(self, data: Candle, max_bars: int = 1000) -> None:
-        """
-        Update the strategy's historical data cache
+        """Update the strategy's historical data cache
 
         Args:
             data: New Candle object to add.
             max_bars: Maximum number of data points to keep
+
         """
         # Only store data for the symbol this strategy is configured for
         if data.symbol != self.symbol:
@@ -91,8 +90,7 @@ class Strategy(ABC):
 
     # Ensure correct indentation for methods within the class
     def get_param(self, name: str, default: object = None) -> object:
-        """
-        Get a strategy parameter.
+        """Get a strategy parameter.
 
         Args:
             name: Parameter name
@@ -100,26 +98,27 @@ class Strategy(ABC):
 
         Returns:
             Parameter value or default
+
         """
         return self.params.get(name, default)
 
     def set_param(self, name: str, value: object) -> None:
-        """
-        Set a strategy parameter.
+        """Set a strategy parameter.
 
         Args:
             name: Parameter name
             value: Parameter value
+
         """
         self.params[name] = value
         logger.info(f"Strategy '{self.name}' parameter '{name}' set to {value}")
 
     def get_strategy_info(self) -> dict[str, Any]:
-        """
-        Get information about the strategy's current state
+        """Get information about the strategy's current state
 
         Returns:
             Dictionary with strategy information
+
         """
         return {
             "name": self.name,
@@ -133,8 +132,7 @@ class Strategy(ABC):
 
     @property
     def performance_metrics(self) -> dict[str, Any]:
-        """
-        Return default performance metrics for the strategy.
+        """Return default performance metrics for the strategy.
         Subclasses can override to provide richer metrics.
         """
         return {

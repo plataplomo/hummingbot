@@ -18,8 +18,7 @@ logger = structlog.get_logger(__name__)
 
 
 class Engine:
-    """
-    Core trading engine responsible for:
+    """Core trading engine responsible for:
     - Managing strategies and their states (enabled/disabled).
     - Routing incoming market data to relevant, enabled strategies.
     - Receiving trade signals from strategies and forwarding them to a configured
@@ -42,12 +41,12 @@ class Engine:
         logger.info(f"Engine '{name}' initialized")
 
     def add_strategy(self, strategy: Strategy) -> None:
-        """
-        Add a strategy instance to the engine. Replaces existing strategy with the same name.
+        """Add a strategy instance to the engine. Replaces existing strategy with the same name.
         The strategy is disabled by default upon adding.
 
         Args:
             strategy: Strategy instance to add.
+
         """
         if strategy.name in self.strategies:
             logger.warning(f"Strategy '{strategy.name}' already exists, replacing.")
@@ -61,15 +60,15 @@ class Engine:
         self._refresh_active_symbols()
         logger.info(
             f"Added strategy '{strategy.name}' for symbol '{strategy.symbol}'. "
-            f"Strategy is initially disabled."
+            f"Strategy is initially disabled.",
         )
 
     def remove_strategy(self, strategy_name: str) -> None:
-        """
-        Remove a strategy from the engine.
+        """Remove a strategy from the engine.
 
         Args:
             strategy_name: Name of the strategy to remove.
+
         """
         if strategy_name in self.strategies:
             logger.info(f"Removing strategy '{strategy_name}'")
@@ -114,12 +113,12 @@ class Engine:
         logger.info(f"Disabled strategy '{strategy_name}'.")
 
     def set_signal_handler(self, handler: Callable[[TradeSignal], Awaitable[None]]) -> None:
-        """
-        Set the single async handler responsible for processing generated TradeSignals.
+        """Set the single async handler responsible for processing generated TradeSignals.
         This should typically be the entry point for the RiskManager or a SignalQueue.
 
         Args:
             handler: The async callable that accepts a TradeSignal.
+
         """
         self.signal_handler = handler
         # Use getattr for safe name retrieval, fallback to repr
@@ -127,13 +126,13 @@ class Engine:
         logger.info(f"Signal handler set to: {handler_name}")
 
     async def process_market_data(self, data: Candle) -> None:
-        """
-        Process incoming market data.
+        """Process incoming market data.
         Routes the data to relevant, enabled strategies based on symbol.
         Forwards any generated TradeSignals (list or None) to the configured signal_handler.
 
         Args:
             data: MarketData object containing market information.
+
         """
         if not self.is_running:
             logger.warning("Engine is not running, ignoring market data.")
@@ -173,13 +172,13 @@ class Engine:
                         # Defensive: check signal type
                         if not hasattr(signal, "symbol") or not hasattr(signal, "signal_type"):
                             logger.error(
-                                f"Invalid signal object returned by {strategy.name}: {signal}"
+                                f"Invalid signal object returned by {strategy.name}: {signal}",
                             )
                             continue
                         logger.info(
                             f"Strategy '{strategy.name}' generated signal: "
                             f"{getattr(signal, 'signal_type', 'UNKNOWN')} for "
-                            f"{getattr(signal, 'symbol', 'UNKNOWN')}."
+                            f"{getattr(signal, 'symbol', 'UNKNOWN')}.",
                         )
                         await self.signal_handler(signal)
                 except Exception as e:
@@ -191,14 +190,14 @@ class Engine:
                     )
 
     async def process_dataframe(self, df: pd.DataFrame, symbol: str) -> None:
-        """
-        Process a pandas DataFrame of historical/batch market data.
+        """Process a pandas DataFrame of historical/batch market data.
         Expects columns: timestamp (int/str), open/high/low/close/volume (float/str/Decimal).
         Converts rows to MarketData objects and feeds them to process_market_data.
 
         Args:
             df: DataFrame with market data (must have timestamp, open, high, low, close, volume).
             symbol: Symbol this data represents.
+
         """
         required_cols = ["timestamp", "open", "high", "low", "close", "volume"]
         missing = [col for col in required_cols if col not in df.columns]
@@ -206,7 +205,7 @@ class Engine:
         if missing:
             # Use logger for errors
             logger.error(
-                f"DataFrame processing failed for {symbol}: Missing required columns: {missing}"
+                f"DataFrame processing failed for {symbol}: Missing required columns: {missing}",
             )
             raise ValueError(f"DataFrame missing required columns: {missing}")
 
@@ -313,8 +312,7 @@ class Engine:
         logger.info(f"Engine '{self.name}' started with {enabled_count} enabled strategies.")
 
     def stop(self) -> None:
-        """
-        Stop the trading engine. Calls on_stop() for all enabled strategies
+        """Stop the trading engine. Calls on_stop() for all enabled strategies
         and ensures all strategies are marked as disabled.
         """
         if not self.is_running:
@@ -335,7 +333,7 @@ class Engine:
                     stopped_count += 1
                 except Exception as e:
                     logger.error(
-                        f"Error calling on_stop for strategy '{strategy.name}': {e}", exc_info=True
+                        f"Error calling on_stop for strategy '{strategy.name}': {e}", exc_info=True,
                     )
                 # Always disable after stopping, even if on_stop failed
                 self.disable_strategy(strategy_name)
@@ -345,7 +343,7 @@ class Engine:
             if strategy.enabled:  # Should not happen if logic is correct, but good safety check
                 logger.warning(
                     f"Strategy '{strategy_name}' was still marked as enabled during stop. "
-                    f"Forcibly disabling."
+                    f"Forcibly disabling.",
                 )
                 strategy.disable()
                 self.enabled_strategies.discard(strategy_name)
@@ -358,12 +356,12 @@ class Engine:
         logger.debug(f"Engine active symbols refreshed: {self.active_symbols}")
 
     def get_engine_info(self) -> dict[str, Any]:
-        """
-        Get basic information about the engine's operational state.
+        """Get basic information about the engine's operational state.
         Does NOT include position or P&L information.
 
         Returns:
             Dictionary with engine state information.
+
         """
         # Removed PNL calculation - Engine doesn't track closed positions
         # total_pnl_closed = sum(...)

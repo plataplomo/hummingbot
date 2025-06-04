@@ -1,5 +1,4 @@
-"""
-Shared fixtures for BackpackAccountService unit tests.
+"""Shared fixtures for BackpackAccountService unit tests.
 """
 
 from __future__ import annotations

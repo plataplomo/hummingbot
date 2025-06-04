@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Raw Models (WebSocket Events Group)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (WebSocket Events Group)
 --------------------------------------------------------------------
 
 This module provides strict, security-focused Pydantic models for validating the *raw*
@@ -68,8 +67,7 @@ U = TypeVar("U")
 
 
 class HyperliquidRawWsFillEvent(BaseModel):
-    """
-    Strict boundary model for a WebSocket fill event (user fill/execution) as received from the
+    """Strict boundary model for a WebSocket fill event (user fill/execution) as received from the
     Hyperliquid user channel.
 
     This model validates the structure and content of fill events, enforcing strict type and format
@@ -120,8 +118,7 @@ def is_non_empty_dict(obj: object) -> TypeGuard[dict[str, object]]:
 
 
 def is_list_of_list_of_dict(obj: object) -> TypeGuard[list[list[dict[str, object]]]]:
-    """
-    Type guard to check if an object is a list of two lists of dict[str, object].
+    """Type guard to check if an object is a list of two lists of dict[str, object].
     Enables static type narrowing for both Mypy and Pyright.
     """
     # Check if it's a list
@@ -147,8 +144,7 @@ def is_list_of_list_of_dict(obj: object) -> TypeGuard[list[list[dict[str, object
 
 
 class HyperliquidRawWsBookUpdate(BaseModel):
-    """
-    Strict boundary model for a WebSocket order book update event (l2Book channel).
+    """Strict boundary model for a WebSocket order book update event (l2Book channel).
 
     This model validates the structure and content of order
     book update events, enforcing strict type and format
@@ -168,8 +164,7 @@ class HyperliquidRawWsBookUpdate(BaseModel):
     @field_validator("levels", mode="before")
     @classmethod
     def validate_levels_structure(cls, v: object, info: ValidationInfo) -> list[list[object]]:
-        """
-        Validates that 'levels' is a list of length 2 (bids, asks), and each element is a list.
+        """Validates that 'levels' is a list of length 2 (bids, asks), and each element is a list.
         The inner elements will be parsed by Pydantic against HyperliquidRawBookLevel.
         Returns the raw validated structure for Pydantic to process further.
         """
@@ -186,8 +181,7 @@ class HyperliquidRawWsBookUpdate(BaseModel):
 
 
 class HyperliquidRawWsTradeEvent(BaseModel):
-    """
-    Represents a WebSocket trade event (trades channel) as received from the Hyperliquid public
+    """Represents a WebSocket trade event (trades channel) as received from the Hyperliquid public
     stream.
 
     This model is used to validate the structure of public trade events, which provide real-time
@@ -212,8 +206,7 @@ class HyperliquidRawWsTradeEvent(BaseModel):
 
 
 class HyperliquidRawWsOrderUpdate(BaseModel):
-    """
-    Represents a WebSocket order update event (user channel) as received from the Hyperliquid
+    """Represents a WebSocket order update event (user channel) as received from the Hyperliquid
     private stream.
 
     This model is used to validate the structure of order update events, which notify the user of
@@ -240,8 +233,7 @@ class HyperliquidRawWsOrderUpdate(BaseModel):
 
 
 class HyperliquidRawWsPositionUpdateEvent(BaseModel):
-    """
-    Represents a WebSocket position update event (user position change) as received from the
+    """Represents a WebSocket position update event (user position change) as received from the
     Hyperliquid private stream.
 
     This model is used to validate the structure of position update events, which notify the user

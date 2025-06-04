@@ -331,8 +331,7 @@ def mock_bp_http_client() -> MagicMock:
 
 @pytest.fixture
 def test_app_settings() -> AppSettings:
-    """
-    Provides a complete AppSettings instance for testing.
+    """Provides a complete AppSettings instance for testing.
 
     This replaces the old Config class usage in tests with proper Pydantic models.
     """
@@ -440,8 +439,7 @@ def test_app_settings() -> AppSettings:
 
 @pytest.fixture
 def test_config_dict() -> dict[str, Any]:
-    """
-    Provides a dictionary representation of test configuration for legacy test compatibility.
+    """Provides a dictionary representation of test configuration for legacy test compatibility.
 
     This helps transition tests that expect dictionary-style config access.
     """

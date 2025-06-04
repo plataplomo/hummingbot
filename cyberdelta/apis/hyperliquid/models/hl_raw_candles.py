@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Raw Models (Candles Group)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Candles Group)
 -----------------------------------------------------------
 
 This module provides strict, security-focused Pydantic models for validating the *raw*
@@ -54,8 +53,7 @@ from cyberdelta.utils.parsing import validate_str_field
 
 
 class HyperliquidRawCandleSnapshot(BaseModel):
-    """
-    Strict boundary model for a candle snapshot response from Hyperliquid's
+    """Strict boundary model for a candle snapshot response from Hyperliquid's
     'candleSnapshot' info endpoint.
 
     This model validates the raw API response which consists of parallel lists for
@@ -106,14 +104,13 @@ class HyperliquidRawCandleSnapshot(BaseModel):
             raise ValueError(
                 "Data lists (t, o, h, l, c, v) must all have the same length. "
                 f"Got lengths: t({len(self.t)}), o({len(self.o)}), h({len(self.h)}), "
-                f"l({len(self.l)}), c({len(self.c)}), v({len(self.v)})"
+                f"l({len(self.l)}), c({len(self.c)}), v({len(self.v)})",
             )
         return self
 
 
 class HyperliquidRawCandleRequestDetails(BaseModel):
-    """
-    Details for a candle snapshot request, nested under 'req' field.
+    """Details for a candle snapshot request, nested under 'req' field.
     """
 
     coin: RawDefaultString = Field(..., min_length=1, max_length=24)
@@ -125,15 +122,14 @@ class HyperliquidRawCandleRequestDetails(BaseModel):
 
 
 class HyperliquidRawCandleSnapshotRequestPayload(BaseModel):
-    """
-    Strict boundary model for the request payload for the 'candleSnapshot' info type.
+    """Strict boundary model for the request payload for the 'candleSnapshot' info type.
     Uses a nested 'req' object.
     """
 
     type: Annotated[
         Literal["candleSnapshot"],
         BeforeValidator(
-            lambda v: validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
+            lambda v: validate_str_field(v, field_name="type", max_length=32, allow_empty=False),
         ),
     ] = Field("candleSnapshot", alias="type")
     req: HyperliquidRawCandleRequestDetails

@@ -62,8 +62,7 @@ class HttpRequestFailedError(APIError):
 
 
 class HttpClient:
-    """
-    Generic HTTP client for making requests to exchange APIs.
+    """Generic HTTP client for making requests to exchange APIs.
     Handles session management, request signing, and retries.
     """
 
@@ -79,13 +78,13 @@ class HttpClient:
         config: HttpClientConfig,
         session: aiohttp.ClientSession | None = None,
     ) -> None:
-        """
-        Initializes the HttpClient.
+        """Initializes the HttpClient.
 
         Args:
             exchange_name: Name of the exchange (for logging).
             config: HttpClientConfig object with all necessary parameters.
             session: Optional pre-existing aiohttp.ClientSession.
+
         """
         self.exchange_name = exchange_name
         self.rest_endpoint = str(config.rest_endpoint).rstrip("/")
@@ -108,12 +107,11 @@ class HttpClient:
             self._session = None
             self._external_session = False
             logger.info(
-                f"[{self.exchange_name}] HttpClient initialized for endpoint: {self.rest_endpoint}"
+                f"[{self.exchange_name}] HttpClient initialized for endpoint: {self.rest_endpoint}",
             )
 
     async def _get_session(self) -> aiohttp.ClientSession:
-        """
-        Provides an active aiohttp.ClientSession.
+        """Provides an active aiohttp.ClientSession.
         Uses an externally provided session if available and valid,
         otherwise creates and manages one internally.
         """
@@ -126,10 +124,10 @@ class HttpClient:
             if self._session is None or self._session.closed:
                 logger.info(
                     f"[{self.exchange_name}] Creating new internal aiohttp ClientSession "
-                    f"(external_session={self._external_session})."
+                    f"(external_session={self._external_session}).",
                 )
                 self._session = aiohttp.ClientSession(
-                    headers={"User-Agent": f"CyberDeltaEngine/{self.exchange_name}"}
+                    headers={"User-Agent": f"CyberDeltaEngine/{self.exchange_name}"},
                 )
                 self._external_session = False  # Now internally managed
             else:
@@ -153,10 +151,9 @@ class HttpClient:
         response: aiohttp.ClientResponse,
         full_url: str,  # For logging context
     ) -> tuple[
-        ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str]
+        ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str],
     ]:
-        """
-        Parses the HTTP response, validates headers, and extracts content.
+        """Parses the HTTP response, validates headers, and extracts content.
         Returns content, status code, processed headers, and raw headers.
 
         Raises HttpRequestFailedError for issues like invalid Content-Type, body read errors,
@@ -174,7 +171,7 @@ class HttpClient:
             logger.warning(
                 f"[{self.exchange_name}] Invalid Content-Type from {full_url}: {ve}. "
                 f"Raw (first {MAX_CONTENT_TYPE_LENGTH + 20} chars): "
-                f"'{original_content_type[: MAX_CONTENT_TYPE_LENGTH + 20]}...'"
+                f"'{original_content_type[: MAX_CONTENT_TYPE_LENGTH + 20]}...'",
             )
             raise HttpRequestFailedError(
                 message=f"Invalid Content-Type header from server at {full_url}.",
@@ -198,7 +195,7 @@ class HttpClient:
         except aiohttp.ClientPayloadError as e_payload:
             logger.warning(
                 f"[{self.exchange_name}] Error reading response body for {full_url} "
-                f"(status {response.status}): {e_payload}"
+                f"(status {response.status}): {e_payload}",
             )
             raise HttpRequestFailedError(
                 message=f"Failed to read response body from {full_url}. Status: {response.status}",
@@ -210,7 +207,7 @@ class HttpClient:
         logger.debug(
             f"[{self.exchange_name}] Response from {full_url} (status {response.status}): "
             f"Headers={raw_response_headers}, "
-            f"Body='{response_text[:200] if response_text else '[Empty]'}'...'"
+            f"Body='{response_text[:200] if response_text else '[Empty]'}'...'",
         )
 
         # Double check 204, though it should be caught above. response.text() might be called.
@@ -228,7 +225,7 @@ class HttpClient:
             if "application/json" in processed_headers.content_type:
                 logger.warning(
                     f"[{self.exchange_name}] JSON content type, but response body is empty/None"
-                    f" for {full_url} (status {response.status})."
+                    f" for {full_url} (status {response.status}).",
                 )
                 raise HttpRequestFailedError(
                     message=f"JSON content type with empty/None body from {full_url}",
@@ -253,7 +250,7 @@ class HttpClient:
                     f"[{self.exchange_name}] JSON decode failed for {full_url} "
                     f"(status {response.status}, type: "
                     f"{processed_headers.content_type}). Error: {je}. "
-                    f"Text: '{response_text[:70]}...'"
+                    f"Text: '{response_text[:70]}...'",
                 )
                 raise HttpRequestFailedError(
                     message=(
@@ -281,16 +278,16 @@ class HttpClient:
         request_timeout: float | None = None,
         serialize_none_as_null: bool = False,
     ) -> tuple[
-        ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str]
+        ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str],
     ]:
-        """
-        Executes an HTTP request with authentication and retries.
+        """Executes an HTTP request with authentication and retries.
         Response parsing and validation are delegated to _parse_and_validate_response.
         Now returns content, status_code, processed_headers, and raw_headers.
 
         Args:
             serialize_none_as_null: If True, apply special Hyperliquid order type cleaning
                                   to remove None values from order type fields.
+
         """
         request_params = (params or {}).copy()
         request_data = data  # This is dict[str, Any] | None (BaseModel handling in ExchangeAPI)
@@ -309,7 +306,7 @@ class HttpClient:
 
             json_string = json.dumps(json_payload)
             logger.info(
-                f"[{self.exchange_name}] JSON payload to be sent to {endpoint_path}: {json_string}"
+                f"[{self.exchange_name}] JSON payload to be sent to {endpoint_path}: {json_string}",
             )
 
         if endpoint_path.startswith(("http://", "https://")):
@@ -335,7 +332,7 @@ class HttpClient:
         if is_signed:
             if not authenticator:
                 logger.error(
-                    f"[{self.exchange_name}] Signed request to {full_url} needs authenticator."
+                    f"[{self.exchange_name}] Signed request to {full_url} needs authenticator.",
                 )
                 raise APIError(
                     "Authenticator is required for signed requests.",
@@ -394,7 +391,7 @@ class HttpClient:
                             # Critical parse/validation errors, usually not retryable on same data
                             logger.warning(
                                 f"[{self.exchange_name}] Response parse/validation failed for "
-                                f"{full_url} (status {response.status}): {e_parse.message}"
+                                f"{full_url} (status {response.status}): {e_parse.message}",
                             )
                             last_exception = e_parse  # Store it
                             # Decide if this specific parsing error should allow a retry.
@@ -413,7 +410,7 @@ class HttpClient:
                     # However, the `continue` above should prevent falling through here
                     # for handled parse errors. This part is primarily for non-2xx.
                     logger.warning(
-                        f"[{self.exchange_name}] HTTP Error {response.status} for {full_url}. "
+                        f"[{self.exchange_name}] HTTP Error {response.status} for {full_url}. ",
                         # Attempt to read body for error context, but guard it
                     )
                     error_body_text: str | None = None
@@ -422,7 +419,7 @@ class HttpClient:
                         logger.debug(f"[{self.exchange_name}] Error body: {error_body_text[:200]}")
                     except Exception as e_text:
                         logger.warning(
-                            f"[{self.exchange_name}] Could not read error response body: {e_text}"
+                            f"[{self.exchange_name}] Could not read error response body: {e_text}",
                         )
 
                     last_exception = HttpRequestFailedError(
@@ -433,20 +430,20 @@ class HttpClient:
                     if response.status in [400, 401, 403, 404, 405, 406, 415]:
                         logger.warning(
                             f"[{self.exchange_name}] Non-retryable client error {response.status} "
-                            f"for {full_url}. Failing fast."
+                            f"for {full_url}. Failing fast.",
                         )
                         raise last_exception
 
             except (TimeoutError, aiohttp.ClientError) as e:
                 logger.warning(
                     f"[{self.exchange_name}] Request to {full_url} failed on attempt "
-                    f"{current_attempt}: {type(e).__name__} - {e}"
+                    f"{current_attempt}: {type(e).__name__} - {e}",
                 )
                 last_exception = e
             except HttpRequestFailedError as e_http_direct:  # Catch if raised directly
                 logger.warning(
                     f"[{self.exchange_name}] Error from response processing: "
-                    f"{e_http_direct.message}"
+                    f"{e_http_direct.message}",
                 )
                 last_exception = e_http_direct
                 if e_http_direct.code == APIErrorCode.INVALID_RESPONSE.value:
@@ -455,7 +452,7 @@ class HttpClient:
             if current_attempt > self.max_retries:
                 logger.error(
                     f"[{self.exchange_name}] Request to {full_url} failed after "
-                    f"{self.max_retries + 1} attempts. Last error: {last_exception}"
+                    f"{self.max_retries + 1} attempts. Last error: {last_exception}",
                 )
                 if isinstance(last_exception, APIError | HttpRequestFailedError):  # UP038
                     raise last_exception
@@ -487,11 +484,11 @@ class HttpClient:
                 # Check if the specific last_exception should prevent a retry
                 # (e.g., non-retryable HttpRequestFailedError already raised and caught)
                 if isinstance(
-                    last_exception, HttpRequestFailedError
+                    last_exception, HttpRequestFailedError,
                 ) and last_exception.http_status in [400, 401, 403, 404, 405, 406, 415]:
                     # This should have been raised and exited loop already
                     logger.debug(
-                        f"Non-retryable error caught again, should have exited: {last_exception}"
+                        f"Non-retryable error caught again, should have exited: {last_exception}",
                     )
                     raise last_exception
 

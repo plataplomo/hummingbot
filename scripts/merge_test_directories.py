@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Script to merge the /cyberdelta/tests directory into /tests
+"""Script to merge the /cyberdelta/tests directory into /tests
 This consolidates all tests into a single directory structure.
 
 This script uses the CyberDeltaEngine configuration system for proper logging setup.
@@ -20,11 +19,11 @@ logger = logging.getLogger(__name__)
 
 
 def ensure_directory_exists(directory: str | Path) -> None:
-    """
-    Ensure the specified directory exists, create it if it doesn't.
+    """Ensure the specified directory exists, create it if it doesn't.
 
     Args:
         directory: Directory path to create if it doesn't exist
+
     """
     if not os.path.exists(directory):
         os.makedirs(directory)
@@ -32,12 +31,12 @@ def ensure_directory_exists(directory: str | Path) -> None:
 
 
 def merge_directories(source_dir: str | Path, target_dir: str | Path) -> None:
-    """
-    Merge all files from source_dir into target_dir.
+    """Merge all files from source_dir into target_dir.
 
     Args:
         source_dir: Source directory to merge from
         target_dir: Target directory to merge into
+
     """
     # Ensure target directory exists
     ensure_directory_exists(target_dir)
@@ -69,11 +68,11 @@ def merge_directories(source_dir: str | Path, target_dir: str | Path) -> None:
 
 
 def update_imports(file_path: str | Path) -> None:
-    """
-    Update imports in the file to reflect the new directory structure.
+    """Update imports in the file to reflect the new directory structure.
 
     Args:
         file_path: Path to the Python file to update
+
     """
     try:
         with open(file_path, encoding="utf-8") as file:
@@ -99,8 +98,7 @@ def update_imports(file_path: str | Path) -> None:
 
 
 def main() -> None:
-    """
-    Main function to merge test directories.
+    """Main function to merge test directories.
     """
     # Initialize configuration and logging
     try:
@@ -110,7 +108,7 @@ def main() -> None:
     except Exception as e:
         # Fallback to basic logging if config fails
         logging.basicConfig(
-            level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         )
         logger.warning(f"Failed to initialize configuration: {e}. Using basic logging.")
 

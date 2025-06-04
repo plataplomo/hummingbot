@@ -1,5 +1,4 @@
-"""
-Unit tests for the CyberDeltaEngine internal Trade model.
+"""Unit tests for the CyberDeltaEngine internal Trade model.
 
 These tests validate the correctness, validation logic, and edge case handling of the Trade Pydantic
 model, which serves as a superset for both Backpack and Hyperliquid fills.

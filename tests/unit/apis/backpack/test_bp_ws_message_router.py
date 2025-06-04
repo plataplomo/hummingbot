@@ -1,5 +1,4 @@
-"""
-Unit tests for BackpackWsMessageRouter.
+"""Unit tests for BackpackWsMessageRouter.
 
 Tests the WebSocket message routing logic in isolation with mocked dependencies.
 """

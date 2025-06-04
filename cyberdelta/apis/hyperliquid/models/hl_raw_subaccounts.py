@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Raw Models (Subaccounts)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Subaccounts)
 ----------------------------------------------------------
 
 Strict boundary validation models for the Hyperliquid 'subAccounts' info endpoint.
@@ -20,8 +19,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import RawLaxEthereumAd
 
 
 class HyperliquidRawSubAccountsResponse(RootModel[list[RawLaxEthereumAddressStrHL]]):
-    """
-    Raw boundary model for the subaccounts list response.
+    """Raw boundary model for the subaccounts list response.
     The root object is expected to be a list of strings (validated Ethereum addresses).
     """
 

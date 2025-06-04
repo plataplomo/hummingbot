@@ -30,16 +30,14 @@ class SymbolMappingError(Exception):
 
 
 class SymbolMapper:
-    """
-    Centralized utility for mapping between internal symbols and exchange-specific symbols.
+    """Centralized utility for mapping between internal symbols and exchange-specific symbols.
 
     Loads mapping configuration and provides translation methods.
     Includes basic validation during initialization.
     """
 
     def __init__(self, exchanges_config: dict[str, Any]) -> None:
-        """
-        Initializes the SymbolMapper and loads mappings from the provided config.
+        """Initializes the SymbolMapper and loads mappings from the provided config.
 
         Args:
             exchanges_config: A dictionary where keys are exchange_ids and values are
@@ -48,12 +46,13 @@ class SymbolMapper:
 
         Raises:
             SymbolMappingError: If config structure is invalid or missing essential parts.
+
         """
         self._internal_to_exchange: dict[
-            str, dict[str, str]
+            str, dict[str, str],
         ] = {}  # {internal: {exchange: exchange_symbol}}
         self._exchange_to_internal: dict[
-            str, dict[str, str]
+            str, dict[str, str],
         ] = {}  # {exchange: {exchange_symbol: internal}}
         self._all_internal_symbols: set[str] = set()
         self.raw_config = exchanges_config  # Store for debugging
@@ -61,14 +60,14 @@ class SymbolMapper:
         if not isinstance(exchanges_config, dict):  # pyright: ignore [reportUnnecessaryIsInstance]
             raise SymbolMappingError(
                 f"Invalid configuration: Expected a dictionary of exchanges, "
-                f"got {type(exchanges_config)}"
+                f"got {type(exchanges_config)}",
             )
 
         for exchange_id, exchange_data_any in exchanges_config.items():
             if not isinstance(exchange_data_any, dict):
                 logger.warning(
                     f"Skipping exchange '{exchange_id}': Expected a dictionary for exchange data, "
-                    f"got {type(exchange_data_any)}."
+                    f"got {type(exchange_data_any)}.",
                 )
                 continue
 
@@ -76,14 +75,14 @@ class SymbolMapper:
 
             if "symbols" not in exchange_data:
                 logger.warning(
-                    f"Skipping exchange '{exchange_id}': Missing 'symbols' configuration."
+                    f"Skipping exchange '{exchange_id}': Missing 'symbols' configuration.",
                 )
                 continue
 
             symbol_map = exchange_data["symbols"]
             if not isinstance(symbol_map, dict):
                 logger.warning(
-                    f"Skipping exchange '{exchange_id}': 'symbols' must be a dictionary."
+                    f"Skipping exchange '{exchange_id}': 'symbols' must be a dictionary.",
                 )
                 continue
 
@@ -95,7 +94,7 @@ class SymbolMapper:
                 if not isinstance(exchange_symbol, str):
                     logger.warning(
                         f"Invalid symbol map value for ex '{exchange_id}': "
-                        f"Skip ({internal_symbol}: {exchange_symbol}). Value must be str."
+                        f"Skip ({internal_symbol}: {exchange_symbol}). Value must be str.",
                     )
                     continue
 
@@ -105,7 +104,7 @@ class SymbolMapper:
                 if exchange_id in self._internal_to_exchange[internal_symbol]:
                     logger.warning(
                         f"Duplicate internal symbol '{internal_symbol}' definition "
-                        f"for exchange '{exchange_id}'. Overwriting."
+                        f"for exchange '{exchange_id}'. Overwriting.",
                     )
                 self._internal_to_exchange[internal_symbol][exchange_id] = exchange_symbol
 
@@ -114,7 +113,7 @@ class SymbolMapper:
                     logger.warning(
                         f"Duplicate exchange symbol '{exchange_symbol}' mapped for "
                         f"exchange '{exchange_id}'. Overwriting mapping to internal "
-                        f"'{internal_symbol}'."
+                        f"'{internal_symbol}'.",
                     )
                 self._exchange_to_internal[exchange_id][exchange_symbol] = internal_symbol
 
@@ -125,12 +124,11 @@ class SymbolMapper:
         logger.info(
             f"SymbolMapper initialized. Loaded mappings for "
             f"{len(self._exchange_to_internal)} exchanges. Found "
-            f"{len(self._all_internal_symbols)} unique internal symbols."
+            f"{len(self._all_internal_symbols)} unique internal symbols.",
         )
 
     def _validate_config(self) -> None:
-        """
-        Performs validation checks on the loaded symbol mapping configuration.
+        """Performs validation checks on the loaded symbol mapping configuration.
         (Placeholder for more complex validation, e.g., checking for required symbols).
         """
         # Example validation: Ensure every internal symbol is mapped somewhere?
@@ -140,8 +138,7 @@ class SymbolMapper:
         # Add more sophisticated validation logic here in the future if required.
 
     def get_exchange_symbol(self, internal_symbol: str, exchange_id: str) -> str | None:
-        """
-        Get the exchange-specific symbol for a given internal symbol and exchange ID.
+        """Get the exchange-specific symbol for a given internal symbol and exchange ID.
 
         Args:
             internal_symbol: The internal symbol (e.g., "BTC").
@@ -149,12 +146,12 @@ class SymbolMapper:
 
         Returns:
             The exchange-specific symbol (e.g., "BTC-PERP"), or None if not found.
+
         """
         return self._internal_to_exchange.get(internal_symbol, {}).get(exchange_id)
 
     def get_internal_symbol(self, exchange_symbol: str, exchange_id: str) -> str | None:
-        """
-        Get the internal symbol for a given exchange-specific symbol and exchange ID.
+        """Get the internal symbol for a given exchange-specific symbol and exchange ID.
 
         Args:
             exchange_symbol: The exchange-specific symbol (e.g., "BTC-PERP").
@@ -162,21 +159,21 @@ class SymbolMapper:
 
         Returns:
             The internal symbol (e.g., "BTC"), or None if not found.
+
         """
         return self._exchange_to_internal.get(exchange_id, {}).get(exchange_symbol)
 
     def get_all_internal_symbols(self) -> list[str]:
-        """
-        Get a list of all unique internal symbols defined in the configuration.
+        """Get a list of all unique internal symbols defined in the configuration.
 
         Returns:
             A list of internal symbol strings.
+
         """
         return sorted(list(self._all_internal_symbols))
 
     def get_exchange_symbols_for_internal(self, internal_symbol: str) -> dict[str, str]:
-        """
-        Get a dictionary of all exchange-specific symbols for a given internal symbol.
+        """Get a dictionary of all exchange-specific symbols for a given internal symbol.
 
         Args:
             internal_symbol: The internal symbol.
@@ -184,12 +181,12 @@ class SymbolMapper:
         Returns:
             A dictionary where keys are exchange IDs and values are the corresponding
             exchange-specific symbols. Returns an empty dict if the internal symbol is unknown.
+
         """
         return self._internal_to_exchange.get(internal_symbol, {}).copy()  # Return a copy
 
     def get_internal_symbols_for_exchange(self, exchange_id: str) -> dict[str, str]:
-        """
-        Get a dictionary mapping exchange-specific symbols to internal symbols for a given exchange.
+        """Get a dictionary mapping exchange-specific symbols to internal symbols for a given exchange.
 
         Args:
             exchange_id: The ID of the exchange.
@@ -197,5 +194,6 @@ class SymbolMapper:
         Returns:
             A dictionary where keys are exchange-specific symbols and values are the
             corresponding internal symbols. Returns an empty dict if the exchange ID is unknown.
+
         """
         return self._exchange_to_internal.get(exchange_id, {}).copy()  # Return a copy

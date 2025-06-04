@@ -1,5 +1,4 @@
-"""
-Unit tests for the MarginAccountSummary core model and its Details sub-models.
+"""Unit tests for the MarginAccountSummary core model and its Details sub-models.
 """
 
 import logging

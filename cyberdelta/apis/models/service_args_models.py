@@ -1,5 +1,4 @@
-"""
-Service argument models for internal service layer interfaces.
+"""Service argument models for internal service layer interfaces.
 
 This module contains Pydantic models that encapsulate arguments for various service methods,
 centralizing validation logic and improving API clarity.
@@ -15,8 +14,7 @@ from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, va
 
 
 class PlaceOrderArgs(BaseModel):
-    """
-    Encapsulates all arguments for placing an order.
+    """Encapsulates all arguments for placing an order.
 
     This model centralizes input validation for order placement across all exchanges,
     including type checks, value constraints, and inter-parameter dependencies.
@@ -41,7 +39,7 @@ class PlaceOrderArgs(BaseModel):
         """Validate symbol is a non-empty string with max length 64."""
         # field_name is guaranteed by Pydantic to be correct here.
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=64, allow_empty=False
+            v, field_name=str(info.field_name), max_length=64, allow_empty=False,
         )
 
     @field_validator("client_order_id", mode="before")
@@ -51,13 +49,13 @@ class PlaceOrderArgs(BaseModel):
         if v is None:
             return None
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=64, allow_empty=False
+            v, field_name=str(info.field_name), max_length=64, allow_empty=False,
         )
 
     @field_validator("quantity", "price", "stop_price", mode="before")
     @classmethod
     def parse_decimal_fields(
-        cls, v: str | int | float | Decimal | None, info: ValidationInfo
+        cls, v: str | int | float | Decimal | None, info: ValidationInfo,
     ) -> Decimal | None:
         """Parse decimal fields and ensure they are finite."""
         field_name = str(info.field_name)
@@ -81,7 +79,7 @@ class PlaceOrderArgs(BaseModel):
             and self.stop_price is None
         ):
             raise ValueError(
-                f"A positive stop_price is required for {self.order_type.value} orders."
+                f"A positive stop_price is required for {self.order_type.value} orders.",
             )
         if self.post_only and self.order_type != OrderType.LIMIT:
             raise ValueError("Post-only (post_only=True) is only applicable to LIMIT orders.")
@@ -92,8 +90,7 @@ class PlaceOrderArgs(BaseModel):
 
 
 class TransferArgs(BaseModel):
-    """
-    Encapsulates arguments for internal fund transfers between account types within an exchange.
+    """Encapsulates arguments for internal fund transfers between account types within an exchange.
 
     This model centralizes validation for transfer operations, ensuring consistent
     handling of asset, amount, and account type parameters.
@@ -112,7 +109,7 @@ class TransferArgs(BaseModel):
     def validate_required_strings(cls, v: str, info: ValidationInfo) -> str:
         """Validate required string fields are non-empty with max length 64."""
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=64, allow_empty=False
+            v, field_name=str(info.field_name), max_length=64, allow_empty=False,
         )
 
     @field_validator("client_transfer_id", mode="before")
@@ -122,7 +119,7 @@ class TransferArgs(BaseModel):
         if v is None:
             return None
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=128, allow_empty=False
+            v, field_name=str(info.field_name), max_length=128, allow_empty=False,
         )
 
     @field_validator("amount", mode="before")
@@ -149,8 +146,7 @@ class TransferArgs(BaseModel):
 
 
 class WithdrawArgs(BaseModel):
-    """
-    Encapsulates arguments for fund withdrawals.
+    """Encapsulates arguments for fund withdrawals.
 
     This model handles withdrawal parameters including asset, amount, address, network,
     and optional tags or IDs, with support for exchange-specific extra parameters.
@@ -171,7 +167,7 @@ class WithdrawArgs(BaseModel):
     def validate_required_strings(cls, v: str, info: ValidationInfo) -> str:
         """Validate required string fields."""
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=128, allow_empty=False
+            v, field_name=str(info.field_name), max_length=128, allow_empty=False,
         )
 
     @field_validator("network", "tag", "client_withdrawal_id", "two_factor_token", mode="before")
@@ -182,7 +178,7 @@ class WithdrawArgs(BaseModel):
             return None
         # Shorter max_length for network/tag unless specific exchanges require longer
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=64, allow_empty=False
+            v, field_name=str(info.field_name), max_length=64, allow_empty=False,
         )
 
     @field_validator("amount", mode="before")
@@ -204,8 +200,7 @@ class WithdrawArgs(BaseModel):
 
 
 class GetOrderHistoryArgs(BaseModel):
-    """
-    Encapsulates arguments for fetching order history.
+    """Encapsulates arguments for fetching order history.
 
     This model centralizes validation for order history requests, including
     time range validation, positive limit constraints, and string field validation.
@@ -223,20 +218,20 @@ class GetOrderHistoryArgs(BaseModel):
     @field_validator("symbol", "order_id", "client_order_id", mode="before")
     @classmethod
     def validate_optional_strings(
-        cls, v: str | int | float | None, info: ValidationInfo
+        cls, v: str | int | float | None, info: ValidationInfo,
     ) -> str | None:
         """Validate optional string fields are non-empty with reasonable max length."""
         if v is None:
             return None
         # Assuming generic string validation for these, max_length can be adjusted
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=64, allow_empty=False
+            v, field_name=str(info.field_name), max_length=64, allow_empty=False,
         )
 
     @field_validator("start_time", "end_time", mode="before")
     @classmethod
     def parse_optional_datetime_utc(
-        cls, v: str | int | float | datetime | None, info: ValidationInfo
+        cls, v: str | int | float | datetime | None, info: ValidationInfo,
     ) -> datetime | None:
         """Parse optional datetime fields to UTC."""
         if v is None:
@@ -271,8 +266,7 @@ class GetOrderHistoryArgs(BaseModel):
 
 
 class GetMarketDataArgs(BaseModel):
-    """
-    Encapsulates arguments for fetching market data (candlesticks/OHLCV).
+    """Encapsulates arguments for fetching market data (candlesticks/OHLCV).
 
     This model centralizes validation for market data requests, including
     symbol validation, timeframe validation, and time range constraints.
@@ -291,7 +285,7 @@ class GetMarketDataArgs(BaseModel):
     def validate_required_strings(cls, v: object, info: ValidationInfo) -> str:
         """Validate required string fields are non-empty with reasonable max length."""
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=64, allow_empty=False
+            v, field_name=str(info.field_name), max_length=64, allow_empty=False,
         )
 
     @field_validator("limit", mode="before")
@@ -341,8 +335,7 @@ class GetMarketDataArgs(BaseModel):
 
 
 class CancelOrderArgs(BaseModel):
-    """
-    Encapsulates arguments for cancelling an order.
+    """Encapsulates arguments for cancelling an order.
 
     This model centralizes input validation for order cancellation across all exchanges,
     ensuring order_id is always a valid non-empty string and handling optional parameters
@@ -373,8 +366,7 @@ class CancelOrderArgs(BaseModel):
 
     @model_validator(mode="after")
     def check_identifiers_logic(self) -> "CancelOrderArgs":
-        """
-        Validate identifier logic.
+        """Validate identifier logic.
 
         Example: Some exchanges might require symbol if not using client_order_id,
         or only one of order_id/client_order_id.
@@ -392,8 +384,7 @@ class CancelOrderArgs(BaseModel):
 
 
 class GetFundingRatesArgs(BaseModel):
-    """
-    Encapsulates arguments for fetching funding rates.
+    """Encapsulates arguments for fetching funding rates.
 
     This model centralizes validation for funding rate requests, ensuring that if symbols
     are provided, it's a list of valid, non-empty strings, and that the list itself is
@@ -429,8 +420,7 @@ class GetFundingRatesArgs(BaseModel):
 
 
 class GetTradeHistoryArgs(BaseModel):
-    """
-    Encapsulates arguments for fetching trade history (fills).
+    """Encapsulates arguments for fetching trade history (fills).
 
     This model centralizes validation for trade history requests, ensuring consistent
     handling of optional symbol filters and limit constraints.
@@ -448,7 +438,7 @@ class GetTradeHistoryArgs(BaseModel):
         if v is None:
             return None
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=64, allow_empty=False
+            v, field_name=str(info.field_name), max_length=64, allow_empty=False,
         )
 
     @field_validator("limit", mode="before")
@@ -470,8 +460,7 @@ class GetTradeHistoryArgs(BaseModel):
 
 
 class GetAllOpenOrdersArgs(BaseModel):
-    """
-    Encapsulates arguments for fetching all open orders.
+    """Encapsulates arguments for fetching all open orders.
 
     This model centralizes validation for open orders requests, ensuring
     the optional symbol filter is correctly validated if provided.
@@ -488,13 +477,12 @@ class GetAllOpenOrdersArgs(BaseModel):
         if v is None:
             return None
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=64, allow_empty=False
+            v, field_name=str(info.field_name), max_length=64, allow_empty=False,
         )
 
 
 class GetOrderArgs(BaseModel):
-    """
-    Encapsulates arguments for fetching a specific order.
+    """Encapsulates arguments for fetching a specific order.
 
     This model centralizes validation for fetching order details, ensuring consistent
     handling of order_id (primary identifier) and optional parameters like symbol
@@ -525,8 +513,7 @@ class GetOrderArgs(BaseModel):
 
     @model_validator(mode="after")
     def check_identifier_logic(self) -> "GetOrderArgs":
-        """
-        Validate identifier logic.
+        """Validate identifier logic.
 
         While order_id is primary, some exchanges might heavily rely on symbol.
         Backpack requires symbol for its GET /order/{id} endpoint as a query param.
@@ -546,8 +533,7 @@ GetOrderStatusArgs = GetOrderArgs  # Alias for clarity in signatures
 
 
 class GetHistoricalFundingRatesArgs(BaseModel):
-    """
-    Encapsulates arguments for fetching historical funding rates.
+    """Encapsulates arguments for fetching historical funding rates.
 
     This model provides structured access to funding rate history with optional
     time range filtering and limit constraints.
@@ -565,13 +551,13 @@ class GetHistoricalFundingRatesArgs(BaseModel):
     def validate_symbol_str(cls, v: object, info: ValidationInfo) -> str:
         """Validate symbol is a non-empty string with max length."""
         return validate_str_field(
-            v, field_name=str(info.field_name), max_length=64, allow_empty=False
+            v, field_name=str(info.field_name), max_length=64, allow_empty=False,
         )
 
     @field_validator("start_time", "end_time", mode="before")
     @classmethod
     def parse_optional_datetime_utc(
-        cls, v: datetime | int | float | str | None, info: ValidationInfo
+        cls, v: datetime | int | float | str | None, info: ValidationInfo,
     ) -> datetime | None:
         """Parse optional datetime fields to UTC."""
         if v is None:

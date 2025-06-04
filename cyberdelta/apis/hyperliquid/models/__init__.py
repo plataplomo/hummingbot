@@ -1,5 +1,4 @@
-"""
-Exports for Hyperliquid raw API models.
+"""Exports for Hyperliquid raw API models.
 """
 
 from .hl_processed_exchange_responses import (

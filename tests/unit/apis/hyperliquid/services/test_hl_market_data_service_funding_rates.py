@@ -1,5 +1,4 @@
-"""
-Unit tests for HyperliquidMarketDataService funding rate functionality.
+"""Unit tests for HyperliquidMarketDataService funding rate functionality.
 """
 
 from datetime import UTC, datetime

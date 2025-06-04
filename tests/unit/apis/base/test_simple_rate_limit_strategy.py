@@ -1,5 +1,4 @@
-"""
-Unit tests for SimpleTokenBucketStrategy.
+"""Unit tests for SimpleTokenBucketStrategy.
 Tests the basic rate limiting strategy used by exchanges like Backpack.
 """
 

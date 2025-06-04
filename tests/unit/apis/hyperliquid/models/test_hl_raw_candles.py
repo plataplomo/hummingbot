@@ -1,5 +1,4 @@
-"""
-Unit Tests for HyperliquidRawCandleSnapshot Model
+"""Unit Tests for HyperliquidRawCandleSnapshot Model
 """
 
 from __future__ import annotations

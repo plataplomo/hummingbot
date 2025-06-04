@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Fetch raw JSON data from Backpack public REST API endpoints.
+"""Fetch raw JSON data from Backpack public REST API endpoints.
 
 This script collects fresh JSON responses from Backpack's public API endpoints
 and saves them as fixture files for testing purposes. It uses the CyberDeltaEngine
@@ -59,7 +58,7 @@ class BackpackDataCollector:
             logger.warning(f"Using fallback configuration: {self.api_base_url}")
 
     async def _fetch_json(
-        self, url: str, params: dict[str, Any] | None = None
+        self, url: str, params: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         """Fetch JSON data from a URL with error handling."""
         try:
@@ -278,7 +277,7 @@ class BackpackDataCollector:
             self._save_json(data, "bp_borrow_lend_markets.json")
 
     async def fetch_borrow_lend_markets_history(
-        self, interval: str, symbol: str | None = None
+        self, interval: str, symbol: str | None = None,
     ) -> None:
         """Fetch borrow lend markets history (requires interval parameter)."""
         url = f"{self.api_base_url}/api/v1/borrowLend/markets/history"

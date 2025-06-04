@@ -1,5 +1,4 @@
-"""
-Tests for the test configuration fixtures.
+"""Tests for the test configuration fixtures.
 
 This module verifies that the test configuration and secrets fixtures
 are working correctly.

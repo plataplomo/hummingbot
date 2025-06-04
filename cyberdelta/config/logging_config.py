@@ -12,11 +12,11 @@ DEFAULT_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
 def setup_logging(app_settings: AppSettings) -> None:
-    """
-    Set up logging based on configuration.
+    """Set up logging based on configuration.
 
     Args:
         app_settings: Application configuration settings
+
     """
     # Get log level from validated AppSettings (already validated as Literal)
     log_level_str = app_settings.general.log_level
@@ -93,14 +93,14 @@ def setup_logging(app_settings: AppSettings) -> None:
 
 
 def get_logger(name: str) -> logging.Logger:
-    """
-    Get a logger with the specified name.
+    """Get a logger with the specified name.
 
     Args:
         name: Logger name, usually __name__ of the module
 
     Returns:
         Logger instance
+
     """
     return logging.getLogger(name)
 
@@ -125,18 +125,17 @@ class CapturingMemoryHandler(logging.handlers.MemoryHandler):
 
 
 class LogCapture:
-    """
-    Context manager for capturing log messages.
+    """Context manager for capturing log messages.
 
     Use this to capture and inspect log messages for testing or debugging.
     """
 
     def __init__(self, level: int = logging.INFO) -> None:
-        """
-        Initialize log capture.
+        """Initialize log capture.
 
         Args:
             level: Minimum log level to capture
+
         """
         self.level = level
         self.handler: CapturingMemoryHandler | None = None
@@ -168,10 +167,10 @@ class LogCapture:
                 root_logger.removeHandler(self.handler)
 
     def get_logs(self) -> list[str]:
-        """
-        Get captured logs.
+        """Get captured logs.
 
         Returns:
             List of log messages
+
         """
         return self.logs

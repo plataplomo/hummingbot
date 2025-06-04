@@ -1,5 +1,4 @@
-"""
-Unit tests for cyberdelta.config.secrets_models module.
+"""Unit tests for cyberdelta.config.secrets_models module.
 
 Tests all Pydantic models for secrets configuration validation,
 including field validation, model validation, and security features.

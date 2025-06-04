@@ -1,5 +1,4 @@
-"""
-Unit tests for HyperliquidAccountService balance and position management functionality.
+"""Unit tests for HyperliquidAccountService balance and position management functionality.
 """
 
 from datetime import UTC, datetime

@@ -1,3 +1,2 @@
-"""
-Tests for validation components of the CyberDeltaEngine.
+"""Tests for validation components of the CyberDeltaEngine.
 """

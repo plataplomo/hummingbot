@@ -1,5 +1,4 @@
-"""
-Unit tests for BackpackMarketDataService funding rate functionality.
+"""Unit tests for BackpackMarketDataService funding rate functionality.
 """
 
 from __future__ import annotations

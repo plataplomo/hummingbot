@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Raw Models (Exchange Action Response)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Exchange Action Response)
 ----------------------------------------------------------------------
 
 This module defines Pydantic models for validating the *raw* structure of responses from
@@ -74,13 +73,13 @@ class HyperliquidRawExchangeStatusObject(BaseModel):
     resting: HyperliquidRawExchangeStatusResting | None = Field(None)
     filled: HyperliquidRawExchangeStatusFilled | None = Field(None)
     error: RawOptionalNonEmptyString1024HL = Field(
-        None, alias="error", description="Error message if any"
+        None, alias="error", description="Error message if any",
     )
     withdrawal_submitted: RawTxHashStr | None = Field(
-        default=None, alias="WithdrawalSubmitted", description="Withdrawal tx hash if submitted"
+        default=None, alias="WithdrawalSubmitted", description="Withdrawal tx hash if submitted",
     )
     success: RawOptionalNonEmptyString1024HL = Field(
-        default=None, alias="Success", description="Success message if any"
+        default=None, alias="Success", description="Success message if any",
     )
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
@@ -109,7 +108,7 @@ class HyperliquidRawExchangeResponse(BaseModel):
     status: Annotated[
         Literal["ok"],
         BeforeValidator(
-            lambda x: validate_str_field(x, field_name="status", max_length=16, allow_empty=False)
+            lambda x: validate_str_field(x, field_name="status", max_length=16, allow_empty=False),
         ),
     ] = Field(...)
     data: HyperliquidRawExchangeResponseData | None = Field(None)

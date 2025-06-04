@@ -29,8 +29,7 @@ class TestRiskManagerControls:
         mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
-        """
-        Verify portfolio controls are applied through the public size_opportunity interface.
+        """Verify portfolio controls are applied through the public size_opportunity interface.
         """
         # --- Arrange ---
         min_factor_test_val = Decimal("0.2")  # Corresponds to default mock_config_values

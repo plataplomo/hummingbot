@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid WebSocket Raw Message Handler
+"""CyberDeltaEngine: Hyperliquid WebSocket Raw Message Handler
 ---------------------------------------------------------
 
 This module defines the `HyperliquidWsRawMessageHandler` class. This class is
@@ -37,8 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 class HyperliquidWsRawMessageHandler:
-    """
-    Validates raw WebSocket message payloads from Hyperliquid.
+    """Validates raw WebSocket message payloads from Hyperliquid.
 
     This class provides static methods to validate different types of WebSocket
     message payloads (e.g., L2 book updates, public trades, user-specific events)
@@ -48,10 +46,9 @@ class HyperliquidWsRawMessageHandler:
 
     @staticmethod
     def _validate_payload(
-        payload: dict[str, Any], model_class: type[_BM], event_type_description: str
+        payload: dict[str, Any], model_class: type[_BM], event_type_description: str,
     ) -> _BM:
-        """
-        Perform generic validation of a payload against a Pydantic model.
+        """Perform generic validation of a payload against a Pydantic model.
 
         This private helper method is used by other static methods in this class
         to centralize the Pydantic validation logic and error handling for
@@ -70,6 +67,7 @@ class HyperliquidWsRawMessageHandler:
             APIError: If `pydantic.ValidationError` occurs, indicating the payload
                       does not conform to the `model_class` schema. The error
                       code will be `APIErrorCode.INVALID_RESPONSE`.
+
         """
         try:
             return model_class.model_validate(payload)
@@ -83,8 +81,7 @@ class HyperliquidWsRawMessageHandler:
 
     @staticmethod
     def handle_l2book_payload(payload: dict[str, Any]) -> HyperliquidRawWsBookUpdate:
-        """
-        Validate a raw WebSocket L2 book update payload from Hyperliquid.
+        """Validate a raw WebSocket L2 book update payload from Hyperliquid.
 
         This method checks if the given payload, presumably from Hyperliquid's
         'l2Book' WebSocket channel, conforms to the `HyperliquidRawWsBookUpdate`
@@ -98,17 +95,17 @@ class HyperliquidWsRawMessageHandler:
 
         Raises:
             APIError: If validation fails, with code `APIErrorCode.INVALID_RESPONSE`.
+
         """
         return HyperliquidWsRawMessageHandler._validate_payload(
-            payload, HyperliquidRawWsBookUpdate, "L2 book update"
+            payload, HyperliquidRawWsBookUpdate, "L2 book update",
         )
 
     @staticmethod
     def handle_public_trades_payload(
         payload_list: list[dict[str, Any]],
     ) -> list[HyperliquidRawWsTradeEvent]:
-        """
-        Validate a list of raw WebSocket public trade event payloads from Hyperliquid.
+        """Validate a list of raw WebSocket public trade event payloads from Hyperliquid.
 
         Hyperliquid's 'trades' channel sends a list of trade objects. This method
         iterates through the list, validating each item against the
@@ -125,14 +122,15 @@ class HyperliquidWsRawMessageHandler:
             APIError: If validation of any item in the list fails, with code
                       `APIErrorCode.INVALID_RESPONSE`. The error message will indicate
                       the index of the problematic item.
+
         """
         validated_trades: list[HyperliquidRawWsTradeEvent] = []
         for i, trade_payload in enumerate(payload_list):
             try:
                 validated_trades.append(
                     HyperliquidWsRawMessageHandler._validate_payload(
-                        trade_payload, HyperliquidRawWsTradeEvent, f"public trade item #{i}"
-                    )
+                        trade_payload, HyperliquidRawWsTradeEvent, f"public trade item #{i}",
+                    ),
                 )
             except APIError as e:
                 raise APIError(
@@ -149,8 +147,7 @@ class HyperliquidWsRawMessageHandler:
 
     @staticmethod
     def handle_user_fill_event_payload(payload: dict[str, Any]) -> HyperliquidRawWsFillEvent:
-        """
-        Validate a raw WebSocket user fill event payload from Hyperliquid's userEvents stream.
+        """Validate a raw WebSocket user fill event payload from Hyperliquid's userEvents stream.
 
         This method ensures the payload, representing a user's trade execution (fill),
         conforms to the `HyperliquidRawWsFillEvent` Pydantic model.
@@ -163,15 +160,15 @@ class HyperliquidWsRawMessageHandler:
 
         Raises:
             APIError: If validation fails, with code `APIErrorCode.INVALID_RESPONSE`.
+
         """
         return HyperliquidWsRawMessageHandler._validate_payload(
-            payload, HyperliquidRawWsFillEvent, "user fill event"
+            payload, HyperliquidRawWsFillEvent, "user fill event",
         )
 
     @staticmethod
     def handle_user_order_event_payload(payload: dict[str, Any]) -> HyperliquidRawOrder:
-        """
-        Validate the inner 'order' part of a user order event from Hyperliquid's userEvents stream.
+        """Validate the inner 'order' part of a user order event from Hyperliquid's userEvents stream.
 
         User order events in Hyperliquid's WebSocket stream are often wrapped.
         This method specifically validates the nested dictionary that contains the actual
@@ -186,17 +183,17 @@ class HyperliquidWsRawMessageHandler:
 
         Raises:
             APIError: If validation fails, with code `APIErrorCode.INVALID_RESPONSE`.
+
         """
         return HyperliquidWsRawMessageHandler._validate_payload(
-            payload, HyperliquidRawOrder, "user order event (inner detail)"
+            payload, HyperliquidRawOrder, "user order event (inner detail)",
         )
 
     @staticmethod
     def handle_user_order_update_wrapper_payload(
         payload: dict[str, Any],
     ) -> HyperliquidRawWsOrderUpdate:
-        """
-        Validate the outer wrapper of a user order update event from Hyperliquid.
+        """Validate the outer wrapper of a user order update event from Hyperliquid.
 
         This method validates the top-level structure of a user order update event
         (which typically contains fields like `eventType` and `data`) against the
@@ -210,17 +207,17 @@ class HyperliquidWsRawMessageHandler:
 
         Raises:
             APIError: If validation fails, with code `APIErrorCode.INVALID_RESPONSE`.
+
         """
         return HyperliquidWsRawMessageHandler._validate_payload(
-            payload, HyperliquidRawWsOrderUpdate, "user order update wrapper"
+            payload, HyperliquidRawWsOrderUpdate, "user order update wrapper",
         )
 
     @staticmethod
     def handle_user_position_update_event_payload(
         payload: dict[str, Any],
     ) -> HyperliquidRawWsPositionUpdateEvent:
-        """
-        Validate a raw WebSocket user position update event payload from Hyperliquid's
+        """Validate a raw WebSocket user position update event payload from Hyperliquid's
         userEvents stream.
 
         This method checks if the payload, detailing a change in a user's position,
@@ -234,15 +231,15 @@ class HyperliquidWsRawMessageHandler:
 
         Raises:
             APIError: If validation fails, with code `APIErrorCode.INVALID_RESPONSE`.
+
         """
         return HyperliquidWsRawMessageHandler._validate_payload(
-            payload, HyperliquidRawWsPositionUpdateEvent, "user position update event"
+            payload, HyperliquidRawWsPositionUpdateEvent, "user position update event",
         )
 
     @staticmethod
     def handle_all_mids_payload(payload: dict[str, Any]) -> HyperliquidRawAllMids:
-        """
-        Validate the raw payload for a Hyperliquid 'allMids' WebSocket message.
+        """Validate the raw payload for a Hyperliquid 'allMids' WebSocket message.
 
         The 'allMids' channel provides a dictionary mapping asset symbols to their
         mid prices. This method validates this dictionary against the
@@ -260,6 +257,7 @@ class HyperliquidWsRawMessageHandler:
                       if the payload is not a dictionary, or if keys/values
                       do not conform to `RawAssetString64HL` and `RawFiniteDecimalStr`).
                       The error code will be `APIErrorCode.INVALID_RESPONSE`.
+
         """
         try:
             # HyperliquidRawAllMids is a RootModel, expects the dict itself

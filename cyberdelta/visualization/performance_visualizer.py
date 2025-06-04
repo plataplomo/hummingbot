@@ -1,5 +1,4 @@
-"""
-Strategy Performance Visualization Tools.
+"""Strategy Performance Visualization Tools.
 
 This module provides tools for visualizing and analyzing strategy performance data.
 It provides a foundation for building both real-time performance monitoring dashboards
@@ -41,19 +40,18 @@ class VisualizationConfig:
 
 
 class PerformanceVisualizer:
-    """
-    Core class for generating strategy performance visualizations.
+    """Core class for generating strategy performance visualizations.
 
     This class provides methods for creating various visualizations of strategy
     performance data, including returns, drawdowns, trade analysis, and more.
     """
 
     def __init__(self, config: VisualizationConfig | None = None) -> None:
-        """
-        Initialize the performance visualizer.
+        """Initialize the performance visualizer.
 
         Args:
             config: Configuration for visualizations
+
         """
         self.config = config or VisualizationConfig()
 
@@ -66,8 +64,7 @@ class PerformanceVisualizer:
         height: int | None = None,
         width: int | None = None,
     ) -> go.Figure:
-        """
-        Create a cumulative returns chart for one or more strategies.
+        """Create a cumulative returns chart for one or more strategies.
 
         Args:
             returns_data: DataFrame with datetime index and strategy returns as columns
@@ -79,6 +76,7 @@ class PerformanceVisualizer:
 
         Returns:
             Plotly figure object
+
         """
         # Use a local variable to ensure type safety for strategy names
         names: list[str] = (
@@ -108,7 +106,7 @@ class PerformanceVisualizer:
                     mode="lines",
                     name=strategy,
                     line=dict(color=color, width=2),
-                )
+                ),
             )
 
         # Add benchmark if provided
@@ -122,7 +120,7 @@ class PerformanceVisualizer:
                     mode="lines",
                     name="Benchmark",
                     line=dict(color="gray", width=2, dash="dot"),
-                )
+                ),
             )
 
         # Update layout
@@ -158,8 +156,8 @@ class PerformanceVisualizer:
                         dict(count=1, label="YTD", step="year", stepmode="todate"),
                         dict(count=1, label="1y", step="year", stepmode="backward"),
                         dict(step="all"),
-                    ]
-                )
+                    ],
+                ),
             ),
         )
 
@@ -173,8 +171,7 @@ class PerformanceVisualizer:
         height: int | None = None,
         width: int | None = None,
     ) -> go.Figure:
-        """
-        Create a drawdown chart for one or more strategies.
+        """Create a drawdown chart for one or more strategies.
 
         Args:
             returns_data: DataFrame with datetime index and strategy returns as columns
@@ -185,6 +182,7 @@ class PerformanceVisualizer:
 
         Returns:
             Plotly figure object
+
         """
         # Use a local variable to ensure type safety for strategy names
         names: list[str] = (
@@ -215,7 +213,7 @@ class PerformanceVisualizer:
                     name=strategy,
                     line=dict(color=color, width=2),
                     fill="tozeroy",
-                )
+                ),
             )
 
         # Update layout
@@ -248,8 +246,8 @@ class PerformanceVisualizer:
                         dict(count=1, label="YTD", step="year", stepmode="todate"),
                         dict(count=1, label="1y", step="year", stepmode="backward"),
                         dict(step="all"),
-                    ]
-                )
+                    ],
+                ),
             ),
         )
 
@@ -262,8 +260,7 @@ class PerformanceVisualizer:
         height: int | None = None,
         width: int | None = None,
     ) -> go.Figure:
-        """
-        Create a scatter plot of trades showing PnL vs duration.
+        """Create a scatter plot of trades showing PnL vs duration.
 
         Args:
             trade_data: DataFrame with trade information
@@ -274,6 +271,7 @@ class PerformanceVisualizer:
 
         Returns:
             Plotly figure object
+
         """
         height = height or self.config.default_height
         width = width or self.config.default_width
@@ -306,7 +304,7 @@ class PerformanceVisualizer:
                         axis=1,
                     ),
                     hoverinfo="text",
-                )
+                ),
             )
 
         # Add losing trades
@@ -330,7 +328,7 @@ class PerformanceVisualizer:
                         axis=1,
                     ),
                     hoverinfo="text",
-                )
+                ),
             )
 
         # Add horizontal line at zero
@@ -368,8 +366,7 @@ class PerformanceVisualizer:
         height: int | None = None,
         width: int | None = None,
     ) -> go.Figure:
-        """
-        Create a heatmap of funding rates across assets and time.
+        """Create a heatmap of funding rates across assets and time.
 
         Args:
             funding_data: DataFrame with datetime index, assets as columns, funding rates as values
@@ -379,6 +376,7 @@ class PerformanceVisualizer:
 
         Returns:
             Plotly figure object
+
         """
         height = height or self.config.default_height
         width = width or self.config.default_width
@@ -399,7 +397,7 @@ class PerformanceVisualizer:
                 colorscale="RdBu",
                 zmid=0,  # Center colorscale at zero
                 colorbar=dict(title=dict(text="Funding Rate (%)", side="right")),
-            )
+            ),
         )
 
         # Update layout
@@ -424,8 +422,7 @@ class PerformanceVisualizer:
         height: int | None = None,
         width: int | None = None,
     ) -> go.Figure:
-        """
-        Create a comprehensive performance dashboard with multiple charts.
+        """Create a comprehensive performance dashboard with multiple charts.
 
         Args:
             returns_data: DataFrame with datetime index and strategy returns as columns
@@ -438,6 +435,7 @@ class PerformanceVisualizer:
 
         Returns:
             Plotly figure object
+
         """
         height = height or int(self.config.default_height * 2)
         width = width or int(self.config.default_width * 1.5)
@@ -629,20 +627,19 @@ class PerformanceVisualizer:
 
 
 class PerformanceMetricsCalculator:
-    """
-    Calculator for strategy performance metrics.
+    """Calculator for strategy performance metrics.
 
     This class provides methods to calculate various performance metrics
     from strategy returns and trade data.
     """
 
     def __init__(self, annualization_factor: int = 252) -> None:
-        """
-        Initialize the calculator.
+        """Initialize the calculator.
 
         Args:
             annualization_factor: Number of trading periods in a year
                 (252 for daily returns, 12 for monthly, etc.)
+
         """
         self.annualization_factor = annualization_factor
 
@@ -651,8 +648,7 @@ class PerformanceMetricsCalculator:
         returns: pd.Series,
         risk_free_rate: float = 0.0,
     ) -> float:
-        """
-        Calculate the Sharpe ratio.
+        """Calculate the Sharpe ratio.
 
         Args:
             returns: Series of period returns
@@ -660,6 +656,7 @@ class PerformanceMetricsCalculator:
 
         Returns:
             Sharpe ratio (annualized)
+
         """
         if len(returns) < 2:
             return 0.0
@@ -678,10 +675,9 @@ class PerformanceMetricsCalculator:
         return float(sharpe * np.sqrt(self.annualization_factor))
 
     def calculate_sortino_ratio(
-        self, returns: pd.Series, risk_free_rate: float = 0.0, target_return: float = 0.0
+        self, returns: pd.Series, risk_free_rate: float = 0.0, target_return: float = 0.0,
     ) -> float:
-        """
-        Calculate the Sortino ratio.
+        """Calculate the Sortino ratio.
 
         Args:
             returns: Series of period returns
@@ -690,6 +686,7 @@ class PerformanceMetricsCalculator:
 
         Returns:
             Sortino ratio (annualized)
+
         """
         if len(returns) < 2:
             return 0.0
@@ -715,14 +712,14 @@ class PerformanceMetricsCalculator:
         return float(sortino * np.sqrt(self.annualization_factor))
 
     def calculate_max_drawdown(self, returns: pd.Series) -> float:
-        """
-        Calculate the maximum drawdown percentage.
+        """Calculate the maximum drawdown percentage.
 
         Args:
             returns: Series of period returns
 
         Returns:
             Maximum drawdown as a percentage (0-100)
+
         """
         if len(returns) < 2:
             return 0.0
@@ -742,8 +739,7 @@ class PerformanceMetricsCalculator:
         return float(max_drawdown)
 
     def calculate_calmar_ratio(self, returns: pd.Series, period: int = 36) -> float:
-        """
-        Calculate the Calmar ratio.
+        """Calculate the Calmar ratio.
 
         Args:
             returns: Series of period returns
@@ -751,6 +747,7 @@ class PerformanceMetricsCalculator:
 
         Returns:
             Calmar ratio
+
         """
         if len(returns) < 2:
             return 0.0
@@ -768,14 +765,14 @@ class PerformanceMetricsCalculator:
         return ann_return / max_dd
 
     def calculate_annualized_return(self, returns: pd.Series) -> float:
-        """
-        Calculate the annualized return.
+        """Calculate the annualized return.
 
         Args:
             returns: Series of period returns
 
         Returns:
             Annualized return (decimal)
+
         """
         if len(returns) < 1:
             return 0.0
@@ -796,14 +793,14 @@ class PerformanceMetricsCalculator:
         return float(annualized_return)
 
     def calculate_annualized_volatility(self, returns: pd.Series) -> float:
-        """
-        Calculate the annualized volatility.
+        """Calculate the annualized volatility.
 
         Args:
             returns: Series of period returns
 
         Returns:
             Annualized volatility (decimal)
+
         """
         if len(returns) < 2:
             return 0.0
@@ -812,14 +809,14 @@ class PerformanceMetricsCalculator:
         return float(returns.std() * np.sqrt(self.annualization_factor))
 
     def calculate_win_rate(self, trades: pd.DataFrame) -> float:
-        """
-        Calculate the win rate.
+        """Calculate the win rate.
 
         Args:
             trades: DataFrame of trades with 'pnl' column
 
         Returns:
             Win rate as a percentage (0-100)
+
         """
         if len(trades) == 0:
             return 0.0
@@ -833,14 +830,14 @@ class PerformanceMetricsCalculator:
         return win_rate
 
     def calculate_profit_factor(self, trades: pd.DataFrame) -> float:
-        """
-        Calculate the profit factor.
+        """Calculate the profit factor.
 
         Args:
             trades: DataFrame of trades with 'pnl' column
 
         Returns:
             Profit factor (gross profit / gross loss)
+
         """
         if len(trades) == 0:
             return 0.0
@@ -858,8 +855,7 @@ class PerformanceMetricsCalculator:
         return gross_profit / gross_loss
 
     def calculate_average_trade(self, trades: pd.DataFrame, win_loss: str = "all") -> float:
-        """
-        Calculate the average trade P&L.
+        """Calculate the average trade P&L.
 
         Args:
             trades: DataFrame of trades with 'pnl' column
@@ -867,6 +863,7 @@ class PerformanceMetricsCalculator:
 
         Returns:
             Average trade P&L
+
         """
         if len(trades) == 0:
             return 0.0
@@ -884,10 +881,9 @@ class PerformanceMetricsCalculator:
         return filtered_trades["pnl"].mean()
 
     def calculate_all_metrics(
-        self, returns: pd.Series, trades: pd.DataFrame | None = None
+        self, returns: pd.Series, trades: pd.DataFrame | None = None,
     ) -> dict[str, float]:
-        """
-        Calculate all performance metrics.
+        """Calculate all performance metrics.
 
         Args:
             returns: Series of period returns
@@ -895,6 +891,7 @@ class PerformanceMetricsCalculator:
 
         Returns:
             Dictionary of performance metrics
+
         """
         metrics = {}
 
@@ -951,7 +948,7 @@ if __name__ == "__main__":
             "exit_time": np.random.choice(dates, 100),
             "duration": np.random.randint(1, 1000, 100),
             "pnl": np.random.normal(50, 200, 100),
-        }
+        },
     )
 
     # Generate sample funding rate data
@@ -961,7 +958,7 @@ if __name__ == "__main__":
             "asset": np.repeat(assets, len(dates)),
             "date": np.tile(dates, len(assets)),
             "funding_rate": np.random.normal(0, 0.01, len(dates) * len(assets)),
-        }
+        },
     )
     funding_data.set_index("date", inplace=True)
 

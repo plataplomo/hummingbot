@@ -19,8 +19,7 @@ from ..enums import OrderSide
 
 
 class Trade(BaseModel):
-    """
-    Lean core internal model for a single execution event (fill) across all supported exchanges.
+    """Lean core internal model for a single execution event (fill) across all supported exchanges.
     Contains only essential, universal fields. Immutable, robust, and validated.
 
     Fields:
@@ -74,7 +73,7 @@ class Trade(BaseModel):
     @field_validator("executed_at", mode="before")
     @classmethod
     def parse_executed_at(
-        cls, raw_value: str | int | float | datetime | None, info: object
+        cls, raw_value: str | int | float | datetime | None, info: object,
     ) -> datetime:
         dt = parse_datetime_utc(raw_value, field_name="executed_at")
         if dt is None:
@@ -84,7 +83,7 @@ class Trade(BaseModel):
     @field_validator("price", "quantity", "fee", mode="before")
     @classmethod
     def parse_decimal_fields(
-        cls, raw_value: str | int | float | Decimal | None, info: object
+        cls, raw_value: str | int | float | Decimal | None, info: object,
     ) -> Decimal:
         field_name = getattr(info, "field_name", None)
         d = parse_decimal_value(raw_value, allow_none=False, field_name=str(field_name))
@@ -125,8 +124,7 @@ class Trade(BaseModel):
 
 
 class HyperliquidTradeDetails(BaseModel):
-    """
-    Hyperliquid-specific trade enrichment fields for extension slot on Trade.
+    """Hyperliquid-specific trade enrichment fields for extension slot on Trade.
 
     Fields:
         trade_hash (str): Unique trade hash (ApiUserFill.hash)
@@ -161,7 +159,7 @@ class HyperliquidTradeDetails(BaseModel):
     @field_validator("liquidation_mark_px", "start_position", mode="before")
     @classmethod
     def validate_decimals(
-        cls, v: str | int | float | Decimal | None, info: object
+        cls, v: str | int | float | Decimal | None, info: object,
     ) -> Decimal | None:
         if v is None:
             return None
@@ -173,8 +171,7 @@ class HyperliquidTradeDetails(BaseModel):
 
 
 class BackpackTradeDetails(BaseModel):
-    """
-    Backpack-specific trade enrichment fields for extension slot on Trade.
+    """Backpack-specific trade enrichment fields for extension slot on Trade.
 
     Fields:
         system_order_type (Optional[str]): Type of system order that triggered the fill

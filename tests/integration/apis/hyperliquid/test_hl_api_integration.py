@@ -1,5 +1,4 @@
-"""
-Integration tests for the HyperliquidAPI client implementation.
+"""Integration tests for the HyperliquidAPI client implementation.
 Tests use environment-aware fixtures and test complete workflows through public interfaces.
 """
 
@@ -572,8 +571,7 @@ class TestHyperliquidAPIMarketDataOperations:
 
 
 class TestHyperliquidAPIComprehensiveErrorHandling:
-    """
-    Comprehensive error handling tests covering various failure scenarios
+    """Comprehensive error handling tests covering various failure scenarios
     and edge cases across all API operations.
     """
 

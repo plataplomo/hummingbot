@@ -1,5 +1,4 @@
-"""
-cyberdelta.utils.parsing
+"""cyberdelta.utils.parsing
 -----------------------
 Utility functions for robust, consistent parsing of datetimes and decimals across all core models.
 
@@ -16,24 +15,27 @@ logger = logging.getLogger(__name__)
 
 
 def parse_datetime_utc(
-    value: datetime | int | float | str | None, field_name: str = ""
+    value: datetime | int | float | str | None, field_name: str = "",
 ) -> datetime | None:
-    """
-    Parses various inputs into a timezone-aware UTC datetime object.
+    """Parses various inputs into a timezone-aware UTC datetime object.
     Accepts:
         - datetime (returns as UTC-aware)
         - int/float (epoch seconds or ms, auto-detects ms)
         - str (ISO 8601)
         - None (returns None)
+
     Args:
         value: The value to parse as a datetime.
         field_name: (Optional) The name of the field being parsed. If provided, it will be
             included in any error messages for better traceability.
+
     Returns:
         A timezone-aware UTC datetime object, or None if value is None and allowed.
+
     Raises:
         ValueError: If the value cannot be parsed as a datetime. The error message will include
             the field name if provided.
+
     """
     prefix = f"{field_name}: " if field_name else ""
     if value is None:
@@ -81,7 +83,7 @@ def parse_datetime_utc(
             except (ValueError, TypeError, OSError) as e_num:
                 raise ValueError(
                     f"{prefix}Cannot parse string '{value}' as ISO datetime ({e_iso}) "
-                    f"or as numeric timestamp ({e_num})"
+                    f"or as numeric timestamp ({e_num})",
                 ) from e_num
     else:
         raise ValueError(f"{prefix}Unsupported datetime type: {type(value)}")
@@ -92,22 +94,25 @@ def parse_decimal_value(
     allow_none: bool = True,
     field_name: str = "",
 ) -> Decimal | None:
-    """
-    Safely convert various inputs to Decimal, with robust error context.
+    """Safely convert various inputs to Decimal, with robust error context.
     Accepts:
         - Decimal (returns as is)
         - str/int/float (converts, strips commas from str)
         - None (returns None if allow_none, else raises)
+
     Args:
         value: The value to parse as a Decimal.
         allow_none: If True, None is allowed and will return None. If False, None will raise.
         field_name: (Optional) The name of the field being parsed. If provided, it will be
             included in any error messages for better traceability.
+
     Returns:
         A Decimal object, or None if value is None and allowed.
+
     Raises:
         ValueError: If the value cannot be parsed as a Decimal. The error message will include
             the field name if provided.
+
     """
     prefix = f"{field_name}: " if field_name else ""
     if value is None:
@@ -130,17 +135,20 @@ def validate_str_field(
     max_length: int | None = None,
     allow_empty: bool = False,
 ) -> str:
-    """
-    Validates that a value is a string, optionally non-empty, within max_length, and valid UTF-8.
+    """Validates that a value is a string, optionally non-empty, within max_length, and valid UTF-8.
+
     Args:
         value: The value to validate.
         field_name: Name of the field for error messages.
         max_length: Maximum allowed length (if any).
         allow_empty: If True, allow empty/whitespace-only strings.
+
     Returns:
         The validated string value.
+
     Raises:
         ValueError: If validation fails.
+
     """
     prefix = f"{field_name}: " if field_name else ""
     if not isinstance(value, str):
@@ -162,17 +170,20 @@ def validate_enum_field(
     field_name: str = "",
     max_length: int | None = 32,
 ) -> str:
-    """
-    Validates that a value is a string, a member of the allowed set, and valid UTF-8.
+    """Validates that a value is a string, a member of the allowed set, and valid UTF-8.
+
     Args:
         value: The value to validate.
         allowed: Set of allowed string values.
         field_name: Name of the field for error messages.
         max_length: Maximum allowed length for the string representation.
+
     Returns:
         The validated string value.
+
     Raises:
         ValueError: If validation fails.
+
     """
     s = validate_str_field(value, field_name=field_name, max_length=max_length, allow_empty=False)
 
@@ -196,6 +207,7 @@ def timeframe_to_ms(tf_str: str, default_to_minutes: int | None = 1) -> int:
 
     Raises:
         ValueError: If tf_str is unparseable and default_to_minutes is None.
+
     """
     tf_str_lower = tf_str.lower().strip()
     if not tf_str_lower:
@@ -223,17 +235,20 @@ def timeframe_to_ms(tf_str: str, default_to_minutes: int | None = 1) -> int:
 
 
 def check_str_parsable_to_finite_decimal(value: object, field_name: str = "") -> str:
-    """
-    Validates that a value is a string, is parsable to a finite Decimal.
+    """Validates that a value is a string, is parsable to a finite Decimal.
     Returns the original string if valid, otherwise raises ValueError.
     This is intended for use with Pydantic's AfterValidator on a string field.
+
     Args:
         value: The value to validate.
         field_name: Name of the field for error messages.
+
     Returns:
         The validated string value.
+
     Raises:
         ValueError: If validation fails.
+
     """
     # First, validate it's a proper string (non-empty, UTF-8, etc. as per validate_str_field)
     # Assuming basic string validation (e.g. non-empty) is desired for such fields.
@@ -248,11 +263,11 @@ def check_str_parsable_to_finite_decimal(value: object, field_name: str = "") ->
         if parsed_decimal is None:  # Should not happen due to allow_none=False
             raise ValueError(
                 f"Field {field_name or 'value'}: parsing unexpectedly returned None "
-                f"for '{validated_str}'."
+                f"for '{validated_str}'.",
             )
         if not parsed_decimal.is_finite():
             raise ValueError(
-                f"Field {field_name or 'value'}: parsed decimal '{validated_str}' is not finite."
+                f"Field {field_name or 'value'}: parsed decimal '{validated_str}' is not finite.",
             )
     except ValueError as e:  # Catch errors from validate_str_field or parse_decimal_value
         # Re-raise to ensure the message includes field_name if passed down.

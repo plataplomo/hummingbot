@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack Exchange Integration
+"""CyberDeltaEngine: Backpack Exchange Integration
 ----------------------------------------------
 
 This module implements the Backpack exchange adapter for CyberDeltaEngine, including:
@@ -77,8 +76,7 @@ logger = get_logger(__name__)
 
 
 class BackpackAPI(ExchangeAPI):
-    """
-    Backpack Exchange API Client.
+    """Backpack Exchange API Client.
 
     Implements connectivity and data handling for the Backpack exchange,
     adhering to the ExchangeAPI interface.
@@ -120,8 +118,7 @@ class BackpackAPI(ExchangeAPI):
         trading_service: BackpackTradingService | None = None,
         market_data_service: BackpackMarketDataService | None = None,
     ) -> None:
-        """
-        Initialize the BackpackAPI client with configuration and secrets.
+        """Initialize the BackpackAPI client with configuration and secrets.
 
         Args:
             exchange_config: Exchange-specific configuration model.
@@ -137,6 +134,7 @@ class BackpackAPI(ExchangeAPI):
             account_service: Optional account service instance for dependency injection
             trading_service: Optional trading service instance for dependency injection
             market_data_service: Optional market data service instance for dependency injection
+
         """
         # Create the factory to handle component instantiation
         factory = BackpackAPIComponentsFactory(exchange_config, exchange_secrets)
@@ -162,7 +160,7 @@ class BackpackAPI(ExchangeAPI):
                 raise ValueError("Testnet API URL not configured but testnet environment requested")
             if exchange_config.ws_url_testnet is None:
                 raise ValueError(
-                    "Testnet WebSocket URL not configured but testnet environment requested"
+                    "Testnet WebSocket URL not configured but testnet environment requested",
                 )
             rest_endpoint_str = str(exchange_config.api_base_url_testnet)
             ws_endpoint_str = str(exchange_config.ws_url_testnet)
@@ -176,10 +174,10 @@ class BackpackAPI(ExchangeAPI):
         rate_per_second = exchange_config.rate_limit_per_minute / 60.0
         bucket_size = max(1, int(rate_per_second * 2))
         bp_limiter_primitive = TokenBucketRateLimiterRuntime(
-            rate=rate_per_second, bucket_size=bucket_size
+            rate=rate_per_second, bucket_size=bucket_size,
         )
         bp_strategy = BackpackRateLimitStrategy(
-            limiter=bp_limiter_primitive, default_request_weight=1
+            limiter=bp_limiter_primitive, default_request_weight=1,
         )
 
         config_dict_for_super = {
@@ -219,7 +217,7 @@ class BackpackAPI(ExchangeAPI):
             # This should not happen if secrets validation is working correctly
             logger.error(
                 f"Backpack API received wrong auth type: {exchange_secrets.auth_type}. "
-                f"Expected 'api_key'. Authentication will fail."
+                f"Expected 'api_key'. Authentication will fail.",
             )
             secrets_dict_for_super = {
                 "BACKPACK_API_KEY": None,
@@ -303,6 +301,7 @@ class BackpackAPI(ExchangeAPI):
         Raises:
             ValueError: If topic format is invalid or required info is missing
             APIError: If topic is not supported by the exchange
+
         """
         # Determine if this is a private topic that requires authentication
         # According to Backpack API docs: "Private streams are prefixed with `account.`"
@@ -311,7 +310,7 @@ class BackpackAPI(ExchangeAPI):
         # Check if topic requires authentication (private streams start with "account.")
         if topic.startswith("account."):
             if not self._bp_authenticator or not hasattr(
-                self._bp_authenticator, "get_ws_subscription_signature_components"
+                self._bp_authenticator, "get_ws_subscription_signature_components",
             ):
                 raise APIError(
                     "ED25519 authenticator required for private WebSocket subscriptions",
@@ -326,15 +325,14 @@ class BackpackAPI(ExchangeAPI):
                 symbol = None
 
             signature_components = self._bp_authenticator.get_ws_subscription_signature_components(
-                subscription_type=subscription_type, symbol=symbol
+                subscription_type=subscription_type, symbol=symbol,
             )
 
         # Delegate to the WebSocket router with signature components
         return self._bp_ws_router.construct_subscription_payload(topic, signature_components)
 
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
-        """
-        Handle raw WebSocket message from WebSocketManager, then route it.
+        """Handle raw WebSocket message from WebSocketManager, then route it.
         This method is called by the WebSocketManager.
         """
         # Following the pattern from HyperliquidAPI, directly route to _route_ws_message.
@@ -428,7 +426,7 @@ class BackpackAPI(ExchangeAPI):
         order_topic = "orders"
         logger.debug(
             f"[{self.exchange_name}] Preparing subscription for account topics: "
-            f"{fill_topic}, {order_topic}"
+            f"{fill_topic}, {order_topic}",
         )
 
     async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
@@ -440,6 +438,7 @@ class BackpackAPI(ExchangeAPI):
 
         Args:
             args: Parameters for filtering trade history including symbol and limit.
+
         """
         return await self.account_service.get_trade_history(args=args)
 
@@ -470,8 +469,7 @@ class BackpackAPI(ExchangeAPI):
         method: str,
         path: str,
     ) -> None:
-        """
-        Update rate limit information based on response headers.
+        """Update rate limit information based on response headers.
 
         This method is a no-op for dynamic limiter adjustments due to lack of Backpack headers.
         Backpack Exchange does not provide standard or known non-standard HTTP response headers
@@ -496,6 +494,7 @@ class BackpackAPI(ExchangeAPI):
 
         Args:
             args: Parameters for filtering open orders including optional symbol.
+
         """
         return await self.trading_service.get_all_open_orders(args=args)
 
@@ -525,7 +524,7 @@ class BackpackAPI(ExchangeAPI):
         await super()._resubscribe()
 
     async def get_historical_funding_rates(
-        self, args: GetHistoricalFundingRatesArgs
+        self, args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
         """Get historical funding rates for a specific symbol."""
         return await self.market_data_service.get_historical_funding_rates(args=args)

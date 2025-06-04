@@ -19,8 +19,7 @@ logger = structlog.get_logger(__name__)
 
 
 class StrategyManager:
-    """
-    Manages multiple trading strategies, controlling their lifecycle,
+    """Manages multiple trading strategies, controlling their lifecycle,
     configuration, and execution. Acts as a central coordinator for
     strategy operations including:
 
@@ -55,11 +54,11 @@ class StrategyManager:
         logger.info("StrategyManager initialized")
 
     def register_strategy(self, strategy: Strategy) -> None:
-        """
-        Register a strategy with the manager.
+        """Register a strategy with the manager.
 
         Args:
             strategy: Strategy instance to register
+
         """
         if strategy.name in self.strategies:
             logger.warning(f"Strategy '{strategy.name}' already exists, replacing")
@@ -69,11 +68,11 @@ class StrategyManager:
         logger.info(f"Registered strategy '{strategy.name}' for symbol '{strategy.symbol}'")
 
     def unregister_strategy(self, strategy_name: str) -> None:
-        """
-        Unregister a strategy from the manager.
+        """Unregister a strategy from the manager.
 
         Args:
             strategy_name: Name of the strategy to unregister
+
         """
         if strategy_name not in self.strategies:
             logger.warning(f"Strategy '{strategy_name}' not found")
@@ -88,14 +87,14 @@ class StrategyManager:
         logger.info(f"Unregistered strategy '{strategy_name}'")
 
     def enable_strategy(self, strategy_name: str) -> bool:
-        """
-        Enable a registered strategy.
+        """Enable a registered strategy.
 
         Args:
             strategy_name: Name of the strategy to enable
 
         Returns:
             True if successful, False otherwise
+
         """
         if strategy_name not in self.strategies:
             logger.warning(f"Cannot enable non-existent strategy '{strategy_name}'")
@@ -108,14 +107,14 @@ class StrategyManager:
         return True
 
     def disable_strategy(self, strategy_name: str) -> bool:
-        """
-        Disable a registered strategy.
+        """Disable a registered strategy.
 
         Args:
             strategy_name: Name of the strategy to disable
 
         Returns:
             True if successful, False otherwise
+
         """
         if strategy_name not in self.strategies:
             logger.warning(f"Cannot disable non-existent strategy '{strategy_name}'")
@@ -128,8 +127,7 @@ class StrategyManager:
         return True
 
     async def process_market_data(self, data: Candle) -> None:
-        """
-        Process market data through relevant strategies and handle generated signals.
+        """Process market data through relevant strategies and handle generated signals.
 
         Handles:
         - Historical data update (fail-fast on error)
@@ -195,7 +193,7 @@ class StrategyManager:
                         getattr(signal, "side", None) is not None,
                         getattr(signal, "price", None) is not None,
                         getattr(signal, "quantity", None) is not None,
-                    ]
+                    ],
                 ):
                     # Attempt to get a structured representation if possible
                     if hasattr(signal, "model_dump") and callable(signal.model_dump):
@@ -257,8 +255,7 @@ class StrategyManager:
                     )
 
     async def on_market_data(self, market_data: Candle) -> None:
-        """
-        Entry point for market data. Processes data via relevant strategies.
+        """Entry point for market data. Processes data via relevant strategies.
         """
         await self.process_market_data(market_data)
 
@@ -277,8 +274,7 @@ class StrategyManager:
         ]
 
     def get_strategy_performance(self) -> dict[str, dict[str, Any]]:
-        """
-        Retrieves performance metrics for all registered strategies.
+        """Retrieves performance metrics for all registered strategies.
         Delegates to each strategy's performance_metrics property.
         """
         performance_data: dict[str, dict[str, Any]] = {}
@@ -289,7 +285,7 @@ class StrategyManager:
                 performance_data[name] = strategy.performance_metrics
             except Exception as e:
                 logger.error(
-                    f"Error getting performance metrics from strategy '{name}'", error=str(e)
+                    f"Error getting performance metrics from strategy '{name}'", error=str(e),
                 )
                 performance_data[name] = {"error": "Failed to retrieve metrics"}
         return performance_data

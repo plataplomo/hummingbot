@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid Trading Data Mapper
+"""CyberDeltaEngine: Hyperliquid Trading Data Mapper
 ------------------------------------------------
 
 This module provides the HyperliquidTradingDataMapper class for transforming
@@ -45,8 +44,7 @@ logger = logging.getLogger(__name__)
 
 
 class HyperliquidTradingDataMapper:
-    """
-    Domain-focused mapper for Hyperliquid trading data transformations.
+    """Domain-focused mapper for Hyperliquid trading data transformations.
 
     This class contains static methods for transforming validated Hyperliquid Raw models
     related to trading operations into CyberDeltaEngine Internal Domain Models.
@@ -54,8 +52,7 @@ class HyperliquidTradingDataMapper:
 
     @staticmethod
     def _map_side_to_internal(hl_side: str) -> OrderSide:
-        """
-        Maps a Hyperliquid order side string to internal OrderSide enum.
+        """Maps a Hyperliquid order side string to internal OrderSide enum.
 
         Args:
             hl_side: Raw side string from Hyperliquid ("B" or "A")
@@ -65,6 +62,7 @@ class HyperliquidTradingDataMapper:
 
         Raises:
             TransformationError: If side cannot be mapped
+
         """
         if hl_side == "B":
             return OrderSide.BUY
@@ -75,14 +73,14 @@ class HyperliquidTradingDataMapper:
 
     @staticmethod
     def _map_status_to_internal(hl_status: str) -> OrderStatus:
-        """
-        Maps a Hyperliquid order status string to internal OrderStatus enum.
+        """Maps a Hyperliquid order status string to internal OrderStatus enum.
 
         Args:
             hl_status: Raw status string from Hyperliquid
 
         Returns:
             OrderStatus: Mapped internal enum value
+
         """
         status_map = {
             "open": OrderStatus.OPEN,
@@ -96,10 +94,9 @@ class HyperliquidTradingDataMapper:
 
     @staticmethod
     def _map_type_to_internal(
-        order_type: dict[str, Any], trigger: HyperliquidRawTriggerInfo | None
+        order_type: dict[str, Any], trigger: HyperliquidRawTriggerInfo | None,
     ) -> OrderType:
-        """
-        Maps a Hyperliquid order type dict to internal OrderType enum.
+        """Maps a Hyperliquid order type dict to internal OrderType enum.
 
         Args:
             order_type: Raw order type dict from Hyperliquid
@@ -107,6 +104,7 @@ class HyperliquidTradingDataMapper:
 
         Returns:
             OrderType: Mapped internal enum value
+
         """
         # Hyperliquid uses nested dicts for orderType,
         # e.g. {"limit": {"tif": "Gtc"}}, {"market": {}}
@@ -127,20 +125,20 @@ class HyperliquidTradingDataMapper:
 
         logger.warning(
             f"[HyperliquidTradingDataMapper] Unknown orderType structure: {order_type}. "
-            "Defaulting to LIMIT."
+            "Defaulting to LIMIT.",
         )
         return OrderType.LIMIT
 
     @staticmethod
     def _map_time_in_force(order_type: dict[str, Any]) -> TimeInForce:
-        """
-        Maps a Hyperliquid order type dict to internal TimeInForce enum.
+        """Maps a Hyperliquid order type dict to internal TimeInForce enum.
 
         Args:
             order_type: Raw order type dict from Hyperliquid
 
         Returns:
             TimeInForce: Mapped internal enum value
+
         """
         # Only limit orders have TIF in HL
         if "limit" in order_type and isinstance(order_type["limit"], dict):
@@ -164,8 +162,7 @@ class HyperliquidTradingDataMapper:
         raw_order: HyperliquidRawOrder,
         trigger: HyperliquidRawTriggerInfo | None = None,
     ) -> Order:
-        """
-        Transforms a HyperliquidRawOrder to an Internal Order model.
+        """Transforms a HyperliquidRawOrder to an Internal Order model.
 
         Args:
             raw_order: Validated raw order data from Hyperliquid
@@ -176,25 +173,26 @@ class HyperliquidTradingDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Map enums
             side = HyperliquidTradingDataMapper._map_side_to_internal(raw_order.side)
             order_type = HyperliquidTradingDataMapper._map_type_to_internal(
-                raw_order.order_type, trigger
+                raw_order.order_type, trigger,
             )
             status = HyperliquidTradingDataMapper._map_status_to_internal(raw_order.status)
             time_in_force = HyperliquidTradingDataMapper._map_time_in_force(raw_order.order_type)
 
             # Parse quantities
             quantity_requested = parse_decimal_value(
-                raw_order.sz, allow_none=False, field_name="sz"
+                raw_order.sz, allow_none=False, field_name="sz",
             )
             if quantity_requested is None:
                 raise TransformationError("quantity_requested (sz) is required")
 
             remaining_sz = parse_decimal_value(
-                str(raw_order.remaining_sz), allow_none=True, field_name="remainingSz"
+                str(raw_order.remaining_sz), allow_none=True, field_name="remainingSz",
             )
             if remaining_sz is None:
                 remaining_sz = Decimal("0")
@@ -203,7 +201,7 @@ class HyperliquidTradingDataMapper:
 
             # Parse price - handle market orders correctly
             price = parse_decimal_value(
-                str(raw_order.limit_px), allow_none=True, field_name="limitPx"
+                str(raw_order.limit_px), allow_none=True, field_name="limitPx",
             )
             # For market orders, Hyperliquid uses limit_px="0", but internal Order
             # expects price=None
@@ -216,7 +214,7 @@ class HyperliquidTradingDataMapper:
                 raise TransformationError("created_at (timestamp) is required")
 
             updated_at = parse_datetime_utc(
-                raw_order.status_timestamp, field_name="statusTimestamp"
+                raw_order.status_timestamp, field_name="statusTimestamp",
             )
             if updated_at is None:
                 updated_at = created_at
@@ -226,7 +224,7 @@ class HyperliquidTradingDataMapper:
             trigger_by = None
             if trigger:
                 stop_price = parse_decimal_value(
-                    str(getattr(trigger, "trigger_px", "")), allow_none=True, field_name="triggerPx"
+                    str(getattr(trigger, "trigger_px", "")), allow_none=True, field_name="triggerPx",
                 )
 
                 # Map trigger type if available
@@ -253,7 +251,7 @@ class HyperliquidTradingDataMapper:
                     logger.warning(
                         f"Order {raw_order.oid}: quantity_filled={quantity_filled} "
                         f"but no valid price available. Setting quantity_filled=0 to "
-                        f"maintain model consistency."
+                        f"maintain model consistency.",
                     )
                     quantity_filled = Decimal("0")
 
@@ -304,7 +302,7 @@ class HyperliquidTradingDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform HyperliquidRawOrder to Order: {e}"
+                f"Failed to transform HyperliquidRawOrder to Order: {e}",
             ) from e
 
     @staticmethod
@@ -312,8 +310,7 @@ class HyperliquidTradingDataMapper:
         raw_historical_order: HyperliquidRawHistoricalOrder,
         trigger: HyperliquidRawTriggerInfo | None = None,
     ) -> Order:
-        """
-        Transforms a HyperliquidRawHistoricalOrder to an Internal Order model.
+        """Transforms a HyperliquidRawHistoricalOrder to an Internal Order model.
 
         Args:
             raw_historical_order: Validated raw historical order data from Hyperliquid
@@ -324,23 +321,24 @@ class HyperliquidTradingDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Map enums
             side = HyperliquidTradingDataMapper._map_side_to_internal(raw_historical_order.side)
             order_type = HyperliquidTradingDataMapper._map_type_to_internal(
-                raw_historical_order.order_type, trigger
+                raw_historical_order.order_type, trigger,
             )
             status = HyperliquidTradingDataMapper._map_status_to_internal(
-                raw_historical_order.status
+                raw_historical_order.status,
             )
             time_in_force = HyperliquidTradingDataMapper._map_time_in_force(
-                raw_historical_order.order_type
+                raw_historical_order.order_type,
             )
 
             # Parse quantities
             quantity_requested = parse_decimal_value(
-                raw_historical_order.sz, allow_none=False, field_name="sz"
+                raw_historical_order.sz, allow_none=False, field_name="sz",
             )
             if quantity_requested is None:
                 raise TransformationError("quantity_requested (sz) is required")
@@ -358,7 +356,7 @@ class HyperliquidTradingDataMapper:
 
             # Parse price - handle market orders correctly
             price = parse_decimal_value(
-                str(raw_historical_order.limit_px), allow_none=True, field_name="limitPx"
+                str(raw_historical_order.limit_px), allow_none=True, field_name="limitPx",
             )
             # For market orders, Hyperliquid uses limit_px="0", but internal Order
             # expects price=None
@@ -384,7 +382,7 @@ class HyperliquidTradingDataMapper:
             trigger_by = None
             if trigger:
                 stop_price = parse_decimal_value(
-                    str(getattr(trigger, "trigger_px", "")), allow_none=True, field_name="triggerPx"
+                    str(getattr(trigger, "trigger_px", "")), allow_none=True, field_name="triggerPx",
                 )
 
                 # Map trigger type if available
@@ -411,7 +409,7 @@ class HyperliquidTradingDataMapper:
                     logger.warning(
                         f"Order {raw_historical_order.oid}: quantity_filled={quantity_filled} "
                         f"but no valid price available. Setting quantity_filled=0 to "
-                        f"maintain model consistency."
+                        f"maintain model consistency.",
                     )
                     quantity_filled = Decimal("0")
 
@@ -464,7 +462,7 @@ class HyperliquidTradingDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform HyperliquidRawHistoricalOrder to Order: {e}"
+                f"Failed to transform HyperliquidRawHistoricalOrder to Order: {e}",
             ) from e
 
     @staticmethod
@@ -472,8 +470,7 @@ class HyperliquidTradingDataMapper:
         raw_order: HyperliquidRawOrder,
         trigger: HyperliquidRawTriggerInfo | None = None,
     ) -> Order:
-        """
-        Transforms a HyperliquidRawOrder (from WebSocket order update event) to an
+        """Transforms a HyperliquidRawOrder (from WebSocket order update event) to an
         Internal Order model.
 
         This is an alias for transform_raw_order_to_internal for consistency with
@@ -488,5 +485,6 @@ class HyperliquidTradingDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         return HyperliquidTradingDataMapper.transform_raw_order_to_internal(raw_order, trigger)

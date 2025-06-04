@@ -1,5 +1,4 @@
-"""
-Tests for WebSocketManager Pydantic BaseModel integration.
+"""Tests for WebSocketManager Pydantic BaseModel integration.
 """
 
 from collections.abc import AsyncGenerator

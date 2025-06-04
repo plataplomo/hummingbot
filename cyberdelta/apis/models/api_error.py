@@ -4,8 +4,7 @@ from .api_error_response import APIErrorResponse
 
 
 class APIError(Exception):
-    """
-    Custom exception for API-related errors with enhanced context information
+    """Custom exception for API-related errors with enhanced context information
     to enable better error handling and recovery mechanisms. Now Pydantic-compatible.
     Stores an APIErrorResponse as its model.
     """
@@ -67,8 +66,7 @@ class APIError(Exception):
 
     @property
     def is_retryable(self) -> bool:
-        """
-        Determines if this error can be retried based on its nature.
+        """Determines if this error can be retried based on its nature.
         Rate limits, timeouts and some server errors can be retried.
         """
         # Defensive: handle both int and str code

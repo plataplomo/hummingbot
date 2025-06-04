@@ -1,5 +1,4 @@
-"""
-Models for API-related functionality in CyberDeltaEngine.
+"""Models for API-related functionality in CyberDeltaEngine.
 
 This package contains shared models used across different exchange APIs,
 including error handling and configuration models.

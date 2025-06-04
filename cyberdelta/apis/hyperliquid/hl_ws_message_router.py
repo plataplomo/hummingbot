@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid WebSocket Message Router
+"""CyberDeltaEngine: Hyperliquid WebSocket Message Router
 -----------------------------------------------------
 
 This module implements the `HyperliquidWsMessageRouter` class, responsible for:
@@ -36,8 +35,7 @@ from cyberdelta.config.logging_config import get_logger
 
 
 class HyperliquidWsMessageRouter:
-    """
-    Routes and processes WebSocket messages for Hyperliquid exchange.
+    """Routes and processes WebSocket messages for Hyperliquid exchange.
 
     This class handles the entire WebSocket message processing pipeline:
     1. Constructs subscription payloads for various topics
@@ -54,8 +52,7 @@ class HyperliquidWsMessageRouter:
         raw_ws_handler: HyperliquidWsRawMessageHandler,
         exchange_name: str,
     ) -> None:
-        """
-        Initialize the WebSocket message router.
+        """Initialize the WebSocket message router.
 
         Args:
             market_data_mapper: Mapper for market data transformations
@@ -63,6 +60,7 @@ class HyperliquidWsMessageRouter:
             trading_data_mapper: Mapper for trading data transformations
             raw_ws_handler: Handler for raw WebSocket message validation
             exchange_name: Name of the exchange for logging purposes
+
         """
         self._market_data_mapper = market_data_mapper
         self._account_data_mapper = account_data_mapper
@@ -72,10 +70,9 @@ class HyperliquidWsMessageRouter:
         self.logger = get_logger(__name__)
 
     def construct_subscription_payload(
-        self, topic: str, wallet_address: str | None
+        self, topic: str, wallet_address: str | None,
     ) -> HyperliquidRawWsSubscribeRequest:
-        """
-        Construct the subscription payload for a given topic for Hyperliquid.
+        """Construct the subscription payload for a given topic for Hyperliquid.
 
         Hyperliquid uses a format like:
         {"method": "subscribe", "subscription": payload}
@@ -91,6 +88,7 @@ class HyperliquidWsMessageRouter:
         Raises:
             ValueError: If topic format is invalid or required info is missing
             APIError: If topic is not supported by the exchange
+
         """
         # Parse the topic to determine subscription type and parameters
         # Hyperliquid topics: "l2Book:ETH", "trades:BTC", "userEvents", "candle:BTC:1m", "allMids"
@@ -116,16 +114,16 @@ class HyperliquidWsMessageRouter:
                 if wallet_address is None:
                     raise ValueError(
                         "Cannot subscribe to userEvents without wallet address. "
-                        "Ensure private_key is configured in secrets."
+                        "Ensure private_key is configured in secrets.",
                     )
                 inner_payload = HyperliquidRawWsUserEventsSubscriptionPayload(
-                    type="userEvents", user=wallet_address
+                    type="userEvents", user=wallet_address,
                 )
             elif sub_type == "candle" and len(parts) >= 3:
                 coin = parts[1]
                 interval = parts[2]
                 inner_payload = HyperliquidRawWsCandleSubscriptionPayload(
-                    type="candle", coin=coin, interval=interval
+                    type="candle", coin=coin, interval=interval,
                 )
             elif sub_type == "allMids":
                 inner_payload = HyperliquidRawWsAllMidsSubscriptionPayload(type="allMids")
@@ -149,14 +147,13 @@ class HyperliquidWsMessageRouter:
         except Exception as e:
             # Wrap unexpected exceptions
             raise ValueError(
-                f"Failed to construct subscription payload for topic '{topic}': {e}"
+                f"Failed to construct subscription payload for topic '{topic}': {e}",
             ) from e
 
     async def route_message(
-        self, message: dict[str, Any], ws_handlers: dict[str, MessageHandler]
+        self, message: dict[str, Any], ws_handlers: dict[str, MessageHandler],
     ) -> None:
-        """
-        Route incoming WebSocket messages from Hyperliquid.
+        """Route incoming WebSocket messages from Hyperliquid.
 
         This method processes the complete WebSocket message handling pipeline:
         1. Extracts channel and data from the message
@@ -168,13 +165,14 @@ class HyperliquidWsMessageRouter:
         Args:
             message: The raw WebSocket message dictionary
             ws_handlers: Mapping of topic strings to application MessageHandler callbacks
+
         """
         channel: str | None = message.get("channel")
         raw_data_any: Any = message.get("data")  # Keep as Any initially
 
         if not channel:
             self.logger.debug(
-                f"[{self._exchange_name}] Unroutable WS message (no channel): {message}"
+                f"[{self._exchange_name}] Unroutable WS message (no channel): {message}",
             )
             return
 
@@ -193,7 +191,7 @@ class HyperliquidWsMessageRouter:
             else:
                 self.logger.warning(
                     f"[{self._exchange_name}] Expected dict for 'l2Book' data to derive topic key, "
-                    f"received other type. Msg: {message}"
+                    f"received other type. Msg: {message}",
                 )
         elif channel == "trades":
             coin_for_topic_str: str | None = None
@@ -237,7 +235,7 @@ class HyperliquidWsMessageRouter:
 
         if raw_data_any is None:
             self.logger.warning(
-                f"[{self._exchange_name}] WS '{channel}' has no data. Msg: {message}"
+                f"[{self._exchange_name}] WS '{channel}' has no data. Msg: {message}",
             )
             return
 
@@ -251,14 +249,14 @@ class HyperliquidWsMessageRouter:
                         code=APIErrorCode.INVALID_RESPONSE.value,
                     )
                 validated_book_model = self._raw_ws_handler.handle_l2book_payload(
-                    cast(dict[str, Any], raw_data_any)
+                    cast(dict[str, Any], raw_data_any),
                 )
 
                 try:
                     # Transform raw validated model to internal domain model
                     internal_orderbook = (
                         self._market_data_mapper.transform_ws_book_update_to_internal(
-                            validated_book_model
+                            validated_book_model,
                         )
                     )
                     # Convert internal model to dict for handler compatibility
@@ -266,7 +264,7 @@ class HyperliquidWsMessageRouter:
                     await app_handler(orderbook_dict, message)
                 except TransformationError as e_transform:
                     self.logger.error(
-                        f"[{self._exchange_name}] Failed to transform l2Book data: {e_transform}"
+                        f"[{self._exchange_name}] Failed to transform l2Book data: {e_transform}",
                     )
                 return
 
@@ -293,14 +291,14 @@ class HyperliquidWsMessageRouter:
 
                 if trade_payloads:
                     validated_trade_models = self._raw_ws_handler.handle_public_trades_payload(
-                        trade_payloads
+                        trade_payloads,
                     )
                     for validated_trade_model in validated_trade_models:
                         try:
                             # Transform raw validated model to internal domain model
                             internal_trade = (
                                 self._market_data_mapper.transform_ws_trade_event_to_internal(
-                                    validated_trade_model
+                                    validated_trade_model,
                                 )
                             )
                             # Convert internal model to dict for handler compatibility
@@ -309,7 +307,7 @@ class HyperliquidWsMessageRouter:
                         except TransformationError as e_transform:
                             self.logger.error(
                                 f"[{self._exchange_name}] Failed to transform trade "
-                                f"data: {e_transform}"
+                                f"data: {e_transform}",
                             )
                 return
 
@@ -335,7 +333,7 @@ class HyperliquidWsMessageRouter:
                     if not isinstance(event_type_any, str):
                         self.logger.warning(
                             f"[{self._exchange_name}] userEvent item has no 'type' string: "
-                            f"{event_item_dict}, skipping."
+                            f"{event_item_dict}, skipping.",
                         )
                         continue
 
@@ -344,7 +342,7 @@ class HyperliquidWsMessageRouter:
                     try:
                         if event_type_str == "fill":
                             validated_fill = self._raw_ws_handler.handle_user_fill_event_payload(
-                                event_item_dict
+                                event_item_dict,
                             )
                             try:
                                 # Transform raw validated model to internal domain model
@@ -358,7 +356,7 @@ class HyperliquidWsMessageRouter:
                             except TransformationError as e_transform:
                                 self.logger.error(
                                     f"[{self._exchange_name}] Failed to transform fill "
-                                    f"event: {e_transform}"
+                                    f"event: {e_transform}",
                                 )
 
                         elif event_type_str == "order":
@@ -382,7 +380,7 @@ class HyperliquidWsMessageRouter:
                             except TransformationError as e_transform:
                                 self.logger.error(
                                     f"[{self._exchange_name}] Failed to transform order "
-                                    f"event: {e_transform}"
+                                    f"event: {e_transform}",
                                 )
 
                         elif event_type_str == "positionUpdate":
@@ -396,7 +394,7 @@ class HyperliquidWsMessageRouter:
                                     self._account_data_mapper.transform_ws_position_update_to_internal_position
                                 )
                                 internal_position = position_transform_method(
-                                    validated_position_update
+                                    validated_position_update,
                                 )
                                 # Convert internal model to dict for handler compatibility
                                 position_dict = internal_position.model_dump(mode="json")
@@ -404,13 +402,13 @@ class HyperliquidWsMessageRouter:
                             except TransformationError as e_transform:
                                 self.logger.error(
                                     f"[{self._exchange_name}] Failed to transform position "
-                                    f"event: {e_transform}"
+                                    f"event: {e_transform}",
                                 )
 
                         else:
                             self.logger.debug(
                                 f"[{self._exchange_name}] Unhandled userEvent type: "
-                                f"{event_type_str}. Passing raw item: {event_item_dict}"
+                                f"{event_type_str}. Passing raw item: {event_item_dict}",
                             )
                             await app_handler(event_item_dict, message)
 
@@ -418,7 +416,7 @@ class HyperliquidWsMessageRouter:
                         self.logger.error(
                             f"[{self._exchange_name}] Error processing userEvent item "
                             f"(type: {event_type_str}): {e_user_event_item}. "
-                            f"Item: {event_item_dict}. Skipping item."
+                            f"Item: {event_item_dict}. Skipping item.",
                         )
                         continue
                 return  # All user events handled, exit
@@ -427,7 +425,7 @@ class HyperliquidWsMessageRouter:
                 if not isinstance(raw_data_any, dict):
                     self.logger.warning(
                         f"[{self._exchange_name}] 'allMids' channel data is not a dict or is None. "
-                        f"Data: {raw_data_any!r}. Skipping."
+                        f"Data: {raw_data_any!r}. Skipping.",
                     )
                     raise APIError(
                         "allMids data not dict or is None",
@@ -437,13 +435,13 @@ class HyperliquidWsMessageRouter:
                 raw_data_dict_all_mids = cast(dict[str, Any], raw_data_any)
 
                 validated_all_mids = self._raw_ws_handler.handle_all_mids_payload(
-                    raw_data_dict_all_mids
+                    raw_data_dict_all_mids,
                 )
                 payload_for_handler = validated_all_mids.model_dump(mode="json")
 
             elif channel == "pong" or channel == "subscriptionResponse":
                 self.logger.debug(
-                    f"[{self._exchange_name}] Control message on '{channel}': {message}"
+                    f"[{self._exchange_name}] Control message on '{channel}': {message}",
                 )
                 payload_for_handler = (
                     cast(dict[str, Any], raw_data_any) if isinstance(raw_data_any, dict) else {}
@@ -451,7 +449,7 @@ class HyperliquidWsMessageRouter:
             else:
                 self.logger.debug(
                     f"[{self._exchange_name}] Unhandled channel '{channel}' by specific "
-                    f"validation, passing raw data if dict. Msg: {message}"
+                    f"validation, passing raw data if dict. Msg: {message}",
                 )
                 payload_for_handler = (
                     cast(dict[str, Any], raw_data_any) if isinstance(raw_data_any, dict) else {}

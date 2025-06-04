@@ -194,8 +194,7 @@ def test_BackpackRawBalance_extra_field() -> None:
 
 
 def test_BackpackRawBalance_corruption_cases() -> None:
-    """
-    Test BackpackRawBalance with a variety of creative corruption cases to ensure robust validation.
+    """Test BackpackRawBalance with a variety of creative corruption cases to ensure robust validation.
     Each case simulates a different form of data corruption or hostile input.
     """
     base = valid_balance()

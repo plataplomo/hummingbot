@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid Trading Service
+"""CyberDeltaEngine: Hyperliquid Trading Service
 ----------------------------------------------
 
 This service encapsulates the logic for trading operations on the Hyperliquid Exchange.
@@ -69,13 +68,12 @@ logger = get_logger(__name__)
 
 
 HttpClientRequesterSig = Callable[
-    ..., Coroutine[Any, Any, tuple[ParsedJsonResponse | None, int, Mapping[str, str]]]
+    ..., Coroutine[Any, Any, tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
 ]
 
 
 class HyperliquidTradingService:
-    """
-    Service class for Hyperliquid trading operations. Returns Internal Domain Models.
+    """Service class for Hyperliquid trading operations. Returns Internal Domain Models.
     """
 
     def __init__(
@@ -106,8 +104,7 @@ class HyperliquidTradingService:
         self,
         place_order_payload: HyperliquidApiPlaceOrderRequest,
     ) -> tuple[HyperliquidRawExchangeResponse, int]:
-        """
-        Private method to place an order, using the API request payload model.
+        """Private method to place an order, using the API request payload model.
         The payload is already built by the request builder with the correct format.
         Returns the raw exchange response Pydantic model and HTTP status code.
         """
@@ -156,8 +153,7 @@ class HyperliquidTradingService:
         self,
         cancel_action: HyperliquidRawCancelOrderAction,
     ) -> tuple[HyperliquidRawExchangeResponse, int]:
-        """
-        Private method to cancel an order, using the raw action model.
+        """Private method to cancel an order, using the raw action model.
         The builder wraps this in HyperliquidApiCancelOrderRequest.
         Returns the raw exchange response Pydantic model and HTTP status code.
         """
@@ -173,7 +169,7 @@ class HyperliquidTradingService:
             raise APIError(_error_msg_wallet_addr, APIErrorCode.AUTHENTICATION_FAILED.value)
 
         request_payload_model: HyperliquidApiCancelOrderRequest = HyperliquidApiCancelOrderRequest(
-            type="cancel", action=cancel_action
+            type="cancel", action=cancel_action,
         )
 
         try:
@@ -204,8 +200,7 @@ class HyperliquidTradingService:
             raise APIError(_error_msg_unexpected, APIErrorCode.UNKNOWN.value) from e
 
     async def _get_open_orders_raw(self) -> list[HyperliquidRawOpenOrder]:
-        """
-        Private method to fetch raw open orders.
+        """Private method to fetch raw open orders.
         Returns a list of HyperliquidRawOpenOrder Pydantic models.
         """
         _error_msg_wallet_addr = "Wallet address is required to fetch open orders."
@@ -213,7 +208,7 @@ class HyperliquidTradingService:
             raise APIError(_error_msg_wallet_addr, APIErrorCode.AUTHENTICATION_FAILED.value)
 
         request_payload_model = self._request_builder.build_open_orders_payload(
-            wallet_address=self._wallet_address
+            wallet_address=self._wallet_address,
         )
 
         try:
@@ -229,7 +224,7 @@ class HyperliquidTradingService:
 
             validated_response: HyperliquidRawOpenOrdersResponse = (
                 self._response_handler.handle_info_open_orders_response(
-                    raw_response_content, user_address=self._wallet_address
+                    raw_response_content, user_address=self._wallet_address,
                 )
             )
             return validated_response.items
@@ -238,7 +233,7 @@ class HyperliquidTradingService:
             raise
         except Exception as e:
             logger.exception(
-                f"[{self._exchange_name}] Unexpected error fetching open orders raw: {e}"
+                f"[{self._exchange_name}] Unexpected error fetching open orders raw: {e}",
             )
             _error_msg_unexpected = f"Unexpected error fetching open orders raw: {e}"
             raise APIError(_error_msg_unexpected, APIErrorCode.UNKNOWN.value) from e
@@ -247,8 +242,7 @@ class HyperliquidTradingService:
         self,
         order_id: int,
     ) -> HyperliquidRawHistoricalOrder | None:
-        """
-        Private method to fetch raw order status.
+        """Private method to fetch raw order status.
         Returns a HyperliquidRawHistoricalOrder Pydantic model or None if not found.
         The actual response from HL for orderStatus is a HyperliquidRawHistoricalOrderResponse,
         which contains the HyperliquidRawHistoricalOrder.
@@ -259,7 +253,7 @@ class HyperliquidTradingService:
 
         request_payload_model: HyperliquidRawOrderStatusRequestPayload = (
             self._request_builder.build_order_status_payload(
-                wallet_address=self._wallet_address, order_id=order_id
+                wallet_address=self._wallet_address, order_id=order_id,
             )
         )
         try:
@@ -272,7 +266,7 @@ class HyperliquidTradingService:
             if raw_response_content is None:
                 logger.error(
                     f"[{self._exchange_name}] No content received for order status "
-                    f"for OID {order_id}."
+                    f"for OID {order_id}.",
                 )
                 raise APIError(
                     message=f"No data received for order status for OID {order_id}.",
@@ -281,7 +275,7 @@ class HyperliquidTradingService:
 
             historical_order_response: HyperliquidRawHistoricalOrderResponse = (
                 self._response_handler.handle_info_order_status_response(
-                    raw_response_content, user_address=self._wallet_address, order_id=order_id
+                    raw_response_content, user_address=self._wallet_address, order_id=order_id,
                 )
             )
             if historical_order_response and historical_order_response.order:
@@ -294,13 +288,13 @@ class HyperliquidTradingService:
                 return None
             logger.error(
                 f"[{self._exchange_name}] API error fetching order status raw for OID {order_id}: "
-                f"{e.message}"
+                f"{e.message}",
             )
             raise
         except Exception as e:
             logger.exception(
                 f"[{self._exchange_name}] Unexpected error fetching order status raw for OID "
-                f"{order_id}: {e}"
+                f"{order_id}: {e}",
             )
             _error_msg_unexpected = f"Unexpected error fetching order status raw: {e}"
             raise APIError(_error_msg_unexpected, APIErrorCode.UNKNOWN.value) from e
@@ -326,7 +320,7 @@ class HyperliquidTradingService:
                 order_id_int = int(args.order_id)
             except (ValueError, TypeError) as e:
                 raise ValueError(
-                    f"[{current_method}] 'order_id' must be a valid integer, got '{args.order_id}'"
+                    f"[{current_method}] 'order_id' must be a valid integer, got '{args.order_id}'",
                 ) from e
 
             raw_historical_order = await self._get_order_status_raw(order_id_int)
@@ -335,7 +329,7 @@ class HyperliquidTradingService:
 
             # Use trading mapper to convert to internal order
             internal_order = self._trading_mapper.transform_raw_historical_order_to_internal(
-                raw_historical_order=raw_historical_order, trigger=None
+                raw_historical_order=raw_historical_order, trigger=None,
             )
             return internal_order
 
@@ -394,8 +388,7 @@ class HyperliquidTradingService:
             ) from e_unexpected
 
     async def place_order(self, args: PlaceOrderArgs) -> Order:
-        """
-        Places an order and maps the raw response to an internal Order model.
+        """Places an order and maps the raw response to an internal Order model.
         """
         # Service Input Parameter Validation is now handled by PlaceOrderArgs model
         frame = inspect.currentframe()
@@ -413,7 +406,7 @@ class HyperliquidTradingService:
             asset_index = await self._get_asset_index_callable(args.symbol)
             if asset_index is None:
                 raise APIError(
-                    f"Asset index for {args.symbol} not found.", APIErrorCode.INVALID_SYMBOL.value
+                    f"Asset index for {args.symbol} not found.", APIErrorCode.INVALID_SYMBOL.value,
                 )
 
             # Use the request builder to create the proper payload format
@@ -439,10 +432,10 @@ class HyperliquidTradingService:
                     if first_status.resting:
                         new_oid = first_status.resting.oid
                         logger.info(
-                            f"Order placed with OID: {new_oid}. Re-fetching for full details."
+                            f"Order placed with OID: {new_oid}. Re-fetching for full details.",
                         )
                         internal_order = await self.get_order(
-                            GetOrderArgs(symbol=args.symbol, order_id=str(new_oid))
+                            GetOrderArgs(symbol=args.symbol, order_id=str(new_oid)),
                         )
                         if internal_order:
                             return internal_order
@@ -456,10 +449,10 @@ class HyperliquidTradingService:
                         filled_oid = first_status.filled.oid
                         logger.info(
                             f"Order OID {filled_oid} filled immediately. "
-                            f"Re-fetching for full details."
+                            f"Re-fetching for full details.",
                         )
                         internal_order = await self.get_order(
-                            GetOrderArgs(symbol=args.symbol, order_id=str(filled_oid))
+                            GetOrderArgs(symbol=args.symbol, order_id=str(filled_oid)),
                         )
                         if internal_order:
                             internal_order.status = OrderStatus.FILLED
@@ -472,7 +465,7 @@ class HyperliquidTradingService:
                                 or args.quantity
                             )
                             internal_order.average_fill_price = parse_decimal_value(
-                                first_status.filled.avg_px, allow_none=False, field_name="avgPx"
+                                first_status.filled.avg_px, allow_none=False, field_name="avgPx",
                             )
                             return internal_order
                         else:
@@ -483,12 +476,12 @@ class HyperliquidTradingService:
                     elif first_status.error:
                         # Use the error mapper to get the specific error code for this message
                         mapped_error = self._error_mapper.map_string_error(
-                            first_status.error, http_status=http_status
+                            first_status.error, http_status=http_status,
                         )
                         raise mapped_error
                 elif "error" in first_status.lower():
                     raise APIError(
-                        f"Failed to place order: {first_status}", APIErrorCode.UNKNOWN.value
+                        f"Failed to place order: {first_status}", APIErrorCode.UNKNOWN.value,
                     )
 
             raise APIError("Failed to place order or parse response.", APIErrorCode.UNKNOWN.value)
@@ -548,8 +541,7 @@ class HyperliquidTradingService:
             ) from e_unexpected
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
-        """
-        Retrieves all open orders, optionally filtered by symbol, and maps them
+        """Retrieves all open orders, optionally filtered by symbol, and maps them
         to a list of internal Order models.
         """
         # Service Input Parameter Validation
@@ -558,7 +550,7 @@ class HyperliquidTradingService:
 
         if symbol is not None and not symbol:
             raise ValueError(
-                f"[{current_method}] 'symbol' must be a non-empty string when provided."
+                f"[{current_method}] 'symbol' must be a non-empty string when provided.",
             )
 
         # Initialize context for error handling
@@ -577,19 +569,19 @@ class HyperliquidTradingService:
                 if symbol is None or raw_order_details.asset.upper() == symbol.upper():
                     try:
                         mapped_order = self._trading_mapper.transform_raw_order_to_internal(
-                            raw_order=raw_order_details, trigger=raw_trigger_details
+                            raw_order=raw_order_details, trigger=raw_trigger_details,
                         )
                         internal_orders.append(mapped_order)
                     except Exception as e:
                         logger.error(
                             f"[{self._exchange_name}] Error mapping raw open order to "
-                            f"internal: {e}. Raw order: {raw_order_details.model_dump_json()}"
+                            f"internal: {e}. Raw order: {raw_order_details.model_dump_json()}",
                         )
                         # Continue processing other orders
 
             logger.info(
                 f"[{self._exchange_name}] Retrieved {len(internal_orders)} open orders "
-                f"(symbol filter: {symbol})"
+                f"(symbol filter: {symbol})",
             )
             return internal_orders
 
@@ -648,8 +640,7 @@ class HyperliquidTradingService:
             ) from e_unexpected
 
     async def cancel_order(self, args: CancelOrderArgs) -> bool:
-        """
-        Cancels a specific order and returns True if successful.
+        """Cancels a specific order and returns True if successful.
         """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
@@ -668,7 +659,7 @@ class HyperliquidTradingService:
             order_id_int = int(order_id)
         except ValueError as e:
             raise ValueError(
-                f"[{current_method}] 'order_id' must be a valid integer: {order_id}"
+                f"[{current_method}] 'order_id' must be a valid integer: {order_id}",
             ) from e
 
         if order_id_int <= 0:
@@ -697,22 +688,22 @@ class HyperliquidTradingService:
                     if first_status.error:
                         # Use the error mapper to get the specific error code for this message
                         mapped_error = self._error_mapper.map_string_error(
-                            first_status.error, http_status=http_status
+                            first_status.error, http_status=http_status,
                         )
                         raise mapped_error
                     else:
                         logger.info(
                             f"[{self._exchange_name}] Successfully cancelled order "
-                            f"OID {order_id_int}"
+                            f"OID {order_id_int}",
                         )
                         return True
                 elif "error" in first_status.lower():
                     raise APIError(
-                        f"Failed to cancel order: {first_status}", APIErrorCode.UNKNOWN.value
+                        f"Failed to cancel order: {first_status}", APIErrorCode.UNKNOWN.value,
                     )
                 else:
                     logger.info(
-                        f"[{self._exchange_name}] Successfully cancelled order OID {order_id_int}"
+                        f"[{self._exchange_name}] Successfully cancelled order OID {order_id_int}",
                     )
                     return True
 
@@ -774,8 +765,7 @@ class HyperliquidTradingService:
             ) from e_unexpected
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
-        """
-        Cancels all open orders, optionally filtered by symbol.
+        """Cancels all open orders, optionally filtered by symbol.
         Returns a list of CancelOrderResult for each attempted cancellation.
         """
         # Service Input Parameter Validation
@@ -798,7 +788,7 @@ class HyperliquidTradingService:
             if not open_orders_internal:
                 logger.info(
                     f"[{self._exchange_name}] No open orders found matching symbol "
-                    f"'{symbol if symbol else 'any'}' to cancel."
+                    f"'{symbol if symbol else 'any'}' to cancel.",
                 )
                 return []
 
@@ -810,7 +800,7 @@ class HyperliquidTradingService:
                     logger.warning(
                         f"[{self._exchange_name}] Skipping cancellation for order without "
                         f"exchange_order_id: ClientOID {order_to_cancel.client_order_id}, "
-                        f"Symbol {order_to_cancel.symbol}"
+                        f"Symbol {order_to_cancel.symbol}",
                     )
                     results.append(
                         CancelOrderResult(
@@ -820,7 +810,7 @@ class HyperliquidTradingService:
                             success=False,
                             message="Order has no exchange_order_id, cannot be canceled by ID.",
                             status=CancelOrderResultStatus.FAILED,
-                        )
+                        ),
                     )
                     continue
 
@@ -832,11 +822,11 @@ class HyperliquidTradingService:
                     active_cancels_count += 1
                     logger.debug(
                         f"Attempting to cancel order {order_id_int} for symbol "
-                        f"{order_symbol_for_cancel}"
+                        f"{order_symbol_for_cancel}",
                     )
 
                     cancel_args = CancelOrderArgs(
-                        order_id=str(order_id_int), symbol=order_symbol_for_cancel
+                        order_id=str(order_id_int), symbol=order_symbol_for_cancel,
                     )
                     success_flag = await self.cancel_order(args=cancel_args)
 
@@ -852,12 +842,12 @@ class HyperliquidTradingService:
                             status=CancelOrderResultStatus.SUCCESS
                             if success_flag
                             else CancelOrderResultStatus.FAILED,
-                        )
+                        ),
                     )
                 except ValueError:
                     logger.error(
                         f"[{self._exchange_name}] Invalid order_id format "
-                        f"'{order_id_to_cancel_str}' for cancellation."
+                        f"'{order_id_to_cancel_str}' for cancellation.",
                     )
                     results.append(
                         CancelOrderResult(
@@ -867,12 +857,12 @@ class HyperliquidTradingService:
                             success=False,
                             message=f"Invalid order_id format: {order_id_to_cancel_str}.",
                             status=CancelOrderResultStatus.FAILED,
-                        )
+                        ),
                     )
                 except APIError as e_api:
                     logger.error(
                         f"[{self._exchange_name}] APIError cancelling order "
-                        f"{order_id_to_cancel_str} for {order_symbol_for_cancel}: {e_api.message}"
+                        f"{order_id_to_cancel_str} for {order_symbol_for_cancel}: {e_api.message}",
                     )
                     results.append(
                         CancelOrderResult(
@@ -886,12 +876,12 @@ class HyperliquidTradingService:
                                 "error_code": e_api.code,
                                 "http_status": e_api.http_status,
                             },
-                        )
+                        ),
                     )
                 except Exception as e_generic:
                     logger.exception(
                         f"[{self._exchange_name}] Unexpected error cancelling order "
-                        f"{order_id_to_cancel_str} for {order_symbol_for_cancel}: {e_generic}"
+                        f"{order_id_to_cancel_str} for {order_symbol_for_cancel}: {e_generic}",
                     )
                     results.append(
                         CancelOrderResult(
@@ -901,13 +891,13 @@ class HyperliquidTradingService:
                             success=False,
                             message=str(e_generic),
                             status=CancelOrderResultStatus.UNKNOWN,
-                        )
+                        ),
                     )
 
             if active_cancels_count == 0 and len(open_orders_internal) > 0:
                 logger.info(
                     f"[{self._exchange_name}] Found {len(open_orders_internal)} orders but none "
-                    f"had valid exchange_order_id for cancellation attempt."
+                    f"had valid exchange_order_id for cancellation attempt.",
                 )
 
             return results
@@ -969,11 +959,11 @@ class HyperliquidTradingService:
             ) from e_unexpected
 
     async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
-        """
-        Fetch all open orders, optionally filtering by symbol.
+        """Fetch all open orders, optionally filtering by symbol.
 
         Args:
             args: Parameters for filtering open orders including optional symbol.
+
         """
         # Service Input Parameter Validation is now handled by GetAllOpenOrdersArgs Pydantic model
         frame = inspect.currentframe()

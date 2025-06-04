@@ -1,5 +1,4 @@
-"""
-Unit tests for cyberdelta.config.config_models module.
+"""Unit tests for cyberdelta.config.config_models module.
 
 Tests all Pydantic models for application configuration validation,
 including field validation, model validation, and cross-references.

@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack Exchange API Package
+"""CyberDeltaEngine: Backpack Exchange API Package
 -----------------------------------------------
 
 This package contains all Backpack exchange-specific API implementations,

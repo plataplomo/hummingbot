@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack Account Data Mapper Account Operations Tests
+"""CyberDeltaEngine: Backpack Account Data Mapper Account Operations Tests
 -----------------------------------------------------------------------
 
 Comprehensive test suite for BackpackAccountDataMapper account operations methods.

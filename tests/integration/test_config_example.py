@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Tests for the config_example.py script.
+"""Tests for the config_example.py script.
 
 These tests ensure that the example script correctly:
 1. Creates example configuration files

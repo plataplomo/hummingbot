@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Raw Models (AllMids Group)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (AllMids Group)
 -----------------------------------------------------------
 
 This module provides strict, security-focused Pydantic models for validating the *raw*
@@ -51,8 +50,7 @@ from cyberdelta.utils.parsing import validate_str_field
 
 
 class HyperliquidRawAllMidsRequestPayload(BaseModel):
-    """
-    Strict boundary model for the request payload for the 'allMids' info type.
+    """Strict boundary model for the request payload for the 'allMids' info type.
 
     This model is used to construct and validate the payload sent to the Hyperliquid API when
     requesting all mid prices for tradable assets. Enforces strict type and format
@@ -68,15 +66,13 @@ class HyperliquidRawAllMidsRequestPayload(BaseModel):
     @field_validator("type", mode="before")
     @classmethod
     def validate_type_string(cls, v: object) -> str:
-        """
-        Validates the 'type' field is a valid string. The Literal check handles the value.
+        """Validates the 'type' field is a valid string. The Literal check handles the value.
         """
         return validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
 
 
 class HyperliquidRawAllMids(RootModel[dict[RawAssetString64HL, RawFiniteDecimalStr]]):
-    """
-    Strict boundary model for the response from the 'allMids' endpoint, mapping asset
+    """Strict boundary model for the response from the 'allMids' endpoint, mapping asset
     symbols to mid prices.
 
     This model validates the structure and content of the 'allMids' endpoint response,
@@ -94,13 +90,12 @@ class HyperliquidRawAllMids(RootModel[dict[RawAssetString64HL, RawFiniteDecimalS
     @field_validator("root", mode="before")
     @classmethod
     def ensure_root_is_dict(cls, v: object, info: ValidationInfo) -> dict[str, object]:
-        """
-        Validates that the root input is a dictionary. Pydantic will handle
+        """Validates that the root input is a dictionary. Pydantic will handle
         key/value type validation using RawAssetString64HL and RawFiniteDecimalStr.
         """
         if not isinstance(v, dict):
             field_name = info.field_name if info.field_name else "all_mids_response"
             raise ValueError(
-                f"Field '{field_name}': Expected a dictionary, got {type(v).__name__}."
+                f"Field '{field_name}': Expected a dictionary, got {type(v).__name__}.",
             )
         return cast(dict[str, object], v)

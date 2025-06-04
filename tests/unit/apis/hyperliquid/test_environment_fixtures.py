@@ -1,5 +1,4 @@
-"""
-Tests for environment-aware fixtures for Hyperliquid API testing.
+"""Tests for environment-aware fixtures for Hyperliquid API testing.
 
 This module tests the new environment-aware fixtures that allow tests
 to target mainnet or testnet based on configuration.

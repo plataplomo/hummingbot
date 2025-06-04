@@ -1,5 +1,4 @@
-"""
-Shared fixtures for HyperliquidAccountService tests.
+"""Shared fixtures for HyperliquidAccountService tests.
 """
 
 from collections.abc import Awaitable, Callable, Generator, Mapping

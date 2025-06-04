@@ -121,8 +121,7 @@ class TestOrderBook:
 
     # Add new combined test
     def test_level_validation_and_parsing(self) -> None:
-        """
-        Test the combined `validate_and_parse_levels` validator for bids/asks.
+        """Test the combined `validate_and_parse_levels` validator for bids/asks.
 
         Covers validation of:
         - Top-level list structure

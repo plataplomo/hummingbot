@@ -1,5 +1,4 @@
-"""
-Tests for the CircuitBreaker system.
+"""Tests for the CircuitBreaker system.
 """
 
 import time

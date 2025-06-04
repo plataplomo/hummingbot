@@ -6,8 +6,7 @@ from enum import Enum
 
 
 class OrderSide(Enum):
-    """
-    Enum representing the side of an order.
+    """Enum representing the side of an order.
     Used throughout CyberDeltaEngine for both REST and WebSocket APIs.
     - BUY: Represents intent to buy (often the Bid side of the book).
     - SELL: Represents intent to sell (often the Ask side of the book).
@@ -18,8 +17,7 @@ class OrderSide(Enum):
 
 
 class OrderType(Enum):
-    """
-    Enum representing the type of an order, merged from common types and exchange specifics.
+    """Enum representing the type of an order, merged from common types and exchange specifics.
     Used for both REST and WebSocket order placement and status.
     - MARKET: Market order
     - LIMIT: Limit order
@@ -41,8 +39,7 @@ class OrderType(Enum):
 
 
 class OrderStatus(Enum):
-    """
-    Enum representing the status of an order, merged from common states and exchange specifics.
+    """Enum representing the status of an order, merged from common states and exchange specifics.
     Used for tracking order lifecycle and state transitions.
     - NEW: Order received by system, not yet acknowledged by exchange.
     - OPEN: Order acknowledged and resting on the book (or waiting trigger).
@@ -104,8 +101,7 @@ class OrderStatus(Enum):
 
 
 class TimeInForce(Enum):
-    """
-    Enum representing the time in force for an order.
+    """Enum representing the time in force for an order.
     Used for both REST and WebSocket order placement.
     - GTC: Good 'Til Canceled
     - IOC: Immediate Or Cancel
@@ -120,8 +116,7 @@ class TimeInForce(Enum):
 
 
 class SelfTradePrevention(Enum):
-    """
-    Enum for self-trade prevention actions (from Backpack spec).
+    """Enum for self-trade prevention actions (from Backpack spec).
     - REJECT_TAKER: Reject the taker side of a self-trade.
     - REJECT_MAKER: Reject the maker side of a self-trade.
     - REJECT_BOTH: Reject both sides of a self-trade.
@@ -135,8 +130,7 @@ class SelfTradePrevention(Enum):
 
 
 class TriggerType(Enum):
-    """
-    Enum for reference price used for triggering conditional orders.
+    """Enum for reference price used for triggering conditional orders.
     - LAST_PRICE: Trigger based on the last traded price.
     - MARK_PRICE: Trigger based on the mark price.
     - INDEX_PRICE: Trigger based on the index price.
@@ -148,8 +142,7 @@ class TriggerType(Enum):
 
 
 class OrderUpdateOrigin(Enum):
-    """
-    Enum for the origin of an order update event (from Backpack WS spec).
+    """Enum for the origin of an order update event (from Backpack WS spec).
     - USER: User-initiated update.
     - LIQUIDATION_AUTOCLOSE: Liquidation event.
     - ADL_AUTOCLOSE: Auto-deleveraging event.
@@ -169,8 +162,7 @@ class OrderUpdateOrigin(Enum):
 
 
 class OrderExpiryReason(Enum):
-    """
-    Enum for reason for order expiry or cancellation (merged from Backpack spec).
+    """Enum for reason for order expiry or cancellation (merged from Backpack spec).
     - ACCOUNT_TRADING_SUSPENDED: Trading suspended on account.
     - FILL_OR_KILL: Order expired due to FOK policy.
     - INSUFFICIENT_BORROWABLE_QUANTITY: Not enough borrowable quantity.
@@ -218,8 +210,7 @@ class OrderExpiryReason(Enum):
 
 
 class SignalType(Enum):
-    """
-    Enum representing the type of a trading signal.
+    """Enum representing the type of a trading signal.
     Used for strategy logic and event handling.
     - ENTER_LONG: Signal to enter a long position.
     - EXIT_LONG: Signal to exit a long position.
@@ -243,8 +234,7 @@ class SignalType(Enum):
 
 
 class MarketType(Enum):
-    """
-    Enum for type of market (from Backpack spec).
+    """Enum for type of market (from Backpack spec).
     - SPOT: Spot market.
     - PERP: Perpetual futures market.
     - IPERP: Inverse perpetual market.
@@ -262,8 +252,7 @@ class MarketType(Enum):
 
 
 class Blockchain(Enum):
-    """
-    Enum for supported blockchains (expand as needed).
+    """Enum for supported blockchains (expand as needed).
     - SOLANA: Solana blockchain.
     - ETHEREUM: Ethereum blockchain.
     - ARBITRUM: Arbitrum blockchain.
@@ -276,8 +265,7 @@ class Blockchain(Enum):
 
 
 class CancelOrderResultStatus(Enum):
-    """
-    Enum representing the status of a cancel order operation for a single order or a batch.
+    """Enum representing the status of a cancel order operation for a single order or a batch.
     """
 
     SUCCESS = "SUCCESS"  # All specified orders were successfully canceled.
@@ -297,8 +285,7 @@ class CancelOrderResultStatus(Enum):
 
 
 class InternalTransferStatus(Enum):
-    """
-    Enum representing the internal, standardized status of a funds transfer operation.
+    """Enum representing the internal, standardized status of a funds transfer operation.
     """
 
     PENDING = "PENDING"  # Transfer initiated but not yet confirmed/failed.
@@ -309,8 +296,7 @@ class InternalTransferStatus(Enum):
 
 
 class InternalWithdrawalStatus(Enum):
-    """
-    Enum representing the internal, standardized status of a withdrawal operation.
+    """Enum representing the internal, standardized status of a withdrawal operation.
     """
 
     PENDING = "PENDING"  # Withdrawal request received, awaiting processing.

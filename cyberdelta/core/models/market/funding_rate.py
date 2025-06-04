@@ -9,8 +9,7 @@ from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, va
 
 
 class HyperliquidFundingDetails(BaseModel):
-    """
-    Hyperliquid-specific funding rate enrichment fields for extension slot on FundingRate.
+    """Hyperliquid-specific funding rate enrichment fields for extension slot on FundingRate.
 
     Fields:
         hl_funding_hourly (Decimal | None): Hourly funding rate representation (ApiAssetCtx.funding)
@@ -38,7 +37,7 @@ class HyperliquidFundingDetails(BaseModel):
     )
     @classmethod
     def parse_decimal_fields(
-        cls, raw_value: str | int | float | Decimal | None, info: object
+        cls, raw_value: str | int | float | Decimal | None, info: object,
     ) -> Decimal | None:
         """Parse and validate decimal fields to ensure they are valid finite Decimal objects."""
         value = parse_decimal_value(raw_value)
@@ -48,8 +47,7 @@ class HyperliquidFundingDetails(BaseModel):
 
 
 class BackpackFundingDetails(BaseModel):
-    """
-    Backpack-specific funding rate enrichment fields for extension slot on FundingRate.
+    """Backpack-specific funding rate enrichment fields for extension slot on FundingRate.
 
     # TODO: Add BP-specific enrichment fields if identified later.
     """
@@ -58,8 +56,7 @@ class BackpackFundingDetails(BaseModel):
 
 
 class FundingRate(BaseModel):
-    """
-    Core internal model for funding rate information across all supported exchanges.
+    """Core internal model for funding rate information across all supported exchanges.
     Contains only essential, universal fields with exchange-specific details in extension slots.
     Immutable (frozen=True) to ensure funding data is not altered after retrieval.
 
@@ -78,6 +75,7 @@ class FundingRate(BaseModel):
         - All rate/price fields use Decimal for precision.
         - All timestamp fields use timezone-aware UTC datetime objects.
         - This model and its extension slots are immutable after creation.
+
     """
 
     symbol: str
@@ -101,7 +99,7 @@ class FundingRate(BaseModel):
     @field_validator("funding_rate", "predicted_rate", "mark_price", "index_price", mode="before")
     @classmethod
     def parse_decimal_fields(
-        cls, raw_value: str | int | float | Decimal | None, info: object
+        cls, raw_value: str | int | float | Decimal | None, info: object,
     ) -> Decimal | None:
         """Parse and validate decimal fields to ensure they are valid finite Decimal objects."""
         value = parse_decimal_value(raw_value)
@@ -113,7 +111,7 @@ class FundingRate(BaseModel):
     @field_validator("timestamp", mode="before")
     @classmethod
     def validate_timestamp(
-        cls, raw_value: datetime | int | float | str | None, info: object
+        cls, raw_value: datetime | int | float | str | None, info: object,
     ) -> datetime:
         """Parse and validate timestamp to ensure it is a UTC-aware datetime object."""
         value = parse_datetime_utc(raw_value, field_name="timestamp")
@@ -124,7 +122,7 @@ class FundingRate(BaseModel):
     @field_validator("next_funding_time", mode="before")
     @classmethod
     def parse_next_funding_time(
-        cls, raw_value: datetime | int | float | str | None, info: object
+        cls, raw_value: datetime | int | float | str | None, info: object,
     ) -> datetime | None:
         """Parse and validate next_funding_time to ensure it is a UTC-aware datetime object."""
         return parse_datetime_utc(raw_value, field_name="next_funding_time")

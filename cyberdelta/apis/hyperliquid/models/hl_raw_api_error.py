@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Raw Models (API Error Group)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (API Error Group)
 -------------------------------------------------------------
 
 This module provides strict, security-focused Pydantic models for validating the *raw*
@@ -37,8 +36,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import RawApiErrorStrin
 
 
 class HyperliquidRawApiError(BaseModel):
-    """
-    Strict boundary model for a raw error response from the Hyperliquid API (REST or WebSocket).
+    """Strict boundary model for a raw error response from the Hyperliquid API (REST or WebSocket).
 
     This model validates the structure and content of error responses, enforcing strict type
     and format constraints for all fields. Never use for internal business logic.

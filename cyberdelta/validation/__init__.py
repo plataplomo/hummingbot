@@ -1,5 +1,4 @@
-"""
-Validation module for CyberDeltaEngine.
+"""Validation module for CyberDeltaEngine.
 
 This module provides components for validating trading signals,
 reconciling positions, and implementing safety mechanisms like

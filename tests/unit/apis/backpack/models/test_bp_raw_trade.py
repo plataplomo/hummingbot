@@ -92,8 +92,7 @@ def test_BackpackRawTrade_corruption_cases() -> None:
 
 
 def test_BackpackRawTrade_real_json_examples() -> None:
-    """
-    Validate BackpackRawTrade using real JSON payloads from the Backpack OpenAPI spec.
+    """Validate BackpackRawTrade using real JSON payloads from the Backpack OpenAPI spec.
     Covers both happy path and edge/boundary values.
     """
     # Example from OpenAPI (with plausible values)
@@ -130,8 +129,7 @@ def test_BackpackRawTrade_real_json_examples() -> None:
 
 
 def test_BackpackRawTrade_creative_corruption_cases() -> None:
-    """
-    Test BackpackRawTrade with 10 creative corruption cases simulating hostile or malformed input.
+    """Test BackpackRawTrade with 10 creative corruption cases simulating hostile or malformed input.
     Each case is described and should raise a ValidationError (unless otherwise noted).
     """
     base: dict[str, object] = {

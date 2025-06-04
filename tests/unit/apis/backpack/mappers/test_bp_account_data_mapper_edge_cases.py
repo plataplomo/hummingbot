@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack Account Data Mapper Edge Cases Tests
+"""CyberDeltaEngine: Backpack Account Data Mapper Edge Cases Tests
 ---------------------------------------------------------------
 
 Comprehensive test suite for BackpackAccountDataMapper edge cases and robustness.

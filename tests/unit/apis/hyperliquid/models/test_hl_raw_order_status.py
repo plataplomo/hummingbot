@@ -1,5 +1,4 @@
-"""
-Unit Tests for HyperliquidRawOrderStatusResponse Model
+"""Unit Tests for HyperliquidRawOrderStatusResponse Model
 """
 
 from typing import Any

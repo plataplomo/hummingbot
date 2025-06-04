@@ -1,5 +1,4 @@
-"""
-Unit tests for HyperliquidAPI WebSocket public interface.
+"""Unit tests for HyperliquidAPI WebSocket public interface.
 
 This module tests the public WebSocket interface of HyperliquidAPI,
 focusing on subscription management and public methods without accessing protected members.
@@ -28,8 +27,7 @@ def create_test_exchange_config(
     is_mainnet_environment: bool = False,  # Default to testnet for unit tests
     **kwargs: object,
 ) -> ExchangeSpecificConfig:
-    """
-    Create ExchangeSpecificConfig for testing by parsing from dict.
+    """Create ExchangeSpecificConfig for testing by parsing from dict.
     Defaults to testnet for unit tests.
     """
     config_dict = {

@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack Market Data Mapper
+"""CyberDeltaEngine: Backpack Market Data Mapper
 ---------------------------------------------
 
 This module provides the BackpackMarketDataMapper class for transforming
@@ -52,8 +51,7 @@ logger = logging.getLogger(__name__)
 
 
 class BackpackMarketDataMapper:
-    """
-    Domain-focused mapper for Backpack market data transformations.
+    """Domain-focused mapper for Backpack market data transformations.
 
     This class contains static methods for transforming validated Backpack Raw models
     related to market data into CyberDeltaEngine Internal Domain Models.
@@ -61,8 +59,7 @@ class BackpackMarketDataMapper:
 
     @staticmethod
     def _map_side_to_internal(bp_side: str) -> OrderSide:
-        """
-        Maps a Backpack order side string to internal OrderSide enum.
+        """Maps a Backpack order side string to internal OrderSide enum.
 
         Args:
             bp_side: Raw side string from Backpack ("Buy", "Sell", "Bid", "Ask")
@@ -72,6 +69,7 @@ class BackpackMarketDataMapper:
 
         Raises:
             TransformationError: If side cannot be mapped
+
         """
         side_lower = bp_side.lower() if bp_side else ""
         if side_lower in ("buy", "bid"):
@@ -83,10 +81,9 @@ class BackpackMarketDataMapper:
 
     @staticmethod
     def transform_raw_ticker_to_internal(
-        raw_ticker: BackpackRawTicker, symbol_override: str | None = None
+        raw_ticker: BackpackRawTicker, symbol_override: str | None = None,
     ) -> Ticker:
-        """
-        Transforms a BackpackRawTicker to an Internal Ticker model.
+        """Transforms a BackpackRawTicker to an Internal Ticker model.
 
         Args:
             raw_ticker: Validated raw ticker data from Backpack
@@ -97,6 +94,7 @@ class BackpackMarketDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Use symbol override if provided, otherwise use raw ticker symbol
@@ -107,7 +105,7 @@ class BackpackMarketDataMapper:
             bid_price = parse_decimal_value(raw_ticker.bid, allow_none=True, field_name="bid")
             ask_price = parse_decimal_value(raw_ticker.ask, allow_none=True, field_name="ask")
             volume_24h = parse_decimal_value(
-                raw_ticker.volume, allow_none=True, field_name="volume"
+                raw_ticker.volume, allow_none=True, field_name="volume",
             )
 
             # Parse timestamp
@@ -126,15 +124,14 @@ class BackpackMarketDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform BackpackRawTicker to Ticker: {e}"
+                f"Failed to transform BackpackRawTicker to Ticker: {e}",
             ) from e
 
     @staticmethod
     def transform_raw_order_book_to_internal(
-        symbol: str, raw_book: BackpackRawOrderBook
+        symbol: str, raw_book: BackpackRawOrderBook,
     ) -> OrderBook:
-        """
-        Transforms a BackpackRawOrderBook to an Internal OrderBook model.
+        """Transforms a BackpackRawOrderBook to an Internal OrderBook model.
 
         Args:
             symbol: Symbol for the order book
@@ -145,6 +142,7 @@ class BackpackMarketDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Parse bid levels
@@ -179,13 +177,12 @@ class BackpackMarketDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform BackpackRawOrderBook to OrderBook: {e}"
+                f"Failed to transform BackpackRawOrderBook to OrderBook: {e}",
             ) from e
 
     @staticmethod
     def transform_raw_trade_to_internal(raw_trade: BackpackRawTrade) -> Trade:
-        """
-        Transforms a BackpackRawTrade to an Internal Trade model.
+        """Transforms a BackpackRawTrade to an Internal Trade model.
 
         Args:
             raw_trade: Validated raw trade data from Backpack
@@ -195,6 +192,7 @@ class BackpackMarketDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Parse trade fields
@@ -203,7 +201,7 @@ class BackpackMarketDataMapper:
                 raise TransformationError("price is required for trade")
 
             quantity = parse_decimal_value(
-                raw_trade.quantity, allow_none=False, field_name="quantity"
+                raw_trade.quantity, allow_none=False, field_name="quantity",
             )
             if quantity is None:
                 raise TransformationError("quantity is required for trade")
@@ -233,8 +231,7 @@ class BackpackMarketDataMapper:
 
     @staticmethod
     def transform_raw_funding_rate_to_internal(raw_funding: BackpackRawFundingRate) -> FundingRate:
-        """
-        Transforms a BackpackRawFundingRate to an Internal FundingRate model.
+        """Transforms a BackpackRawFundingRate to an Internal FundingRate model.
 
         Args:
             raw_funding: Validated raw funding rate data from Backpack
@@ -244,11 +241,12 @@ class BackpackMarketDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Parse funding rate
             funding_rate = parse_decimal_value(
-                raw_funding.funding_rate, allow_none=False, field_name="fundingRate"
+                raw_funding.funding_rate, allow_none=False, field_name="fundingRate",
             )
             if funding_rate is None:
                 raise TransformationError("funding_rate is required")
@@ -260,10 +258,10 @@ class BackpackMarketDataMapper:
 
             # Parse mark price and index price
             mark_price = parse_decimal_value(
-                raw_funding.mark_price, allow_none=True, field_name="markPrice"
+                raw_funding.mark_price, allow_none=True, field_name="markPrice",
             )
             index_price = parse_decimal_value(
-                raw_funding.index_price, allow_none=True, field_name="indexPrice"
+                raw_funding.index_price, allow_none=True, field_name="indexPrice",
             )
 
             # Create BP-specific details
@@ -280,15 +278,14 @@ class BackpackMarketDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform BackpackRawFundingRate to FundingRate: {e}"
+                f"Failed to transform BackpackRawFundingRate to FundingRate: {e}",
             ) from e
 
     @staticmethod
     def transform_raw_funding_interval_rate_to_internal(
-        raw_funding: BackpackRawFundingIntervalRate, symbol: str
+        raw_funding: BackpackRawFundingIntervalRate, symbol: str,
     ) -> FundingRate:
-        """
-        Transforms a BackpackRawFundingIntervalRate to an Internal FundingRate model.
+        """Transforms a BackpackRawFundingIntervalRate to an Internal FundingRate model.
 
         Args:
             raw_funding: Validated raw funding interval rate data from Backpack
@@ -299,11 +296,12 @@ class BackpackMarketDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Parse funding rate
             funding_rate = parse_decimal_value(
-                raw_funding.rate, allow_none=False, field_name="rate"
+                raw_funding.rate, allow_none=False, field_name="rate",
             )
             if funding_rate is None:
                 raise TransformationError("funding_rate is required")
@@ -323,15 +321,14 @@ class BackpackMarketDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform BackpackRawFundingIntervalRate to FundingRate: {e}"
+                f"Failed to transform BackpackRawFundingIntervalRate to FundingRate: {e}",
             ) from e
 
     @staticmethod
     def transform_raw_kline_to_internal(
-        symbol: str, interval: str, raw_kline: BackpackRawKline
+        symbol: str, interval: str, raw_kline: BackpackRawKline,
     ) -> Candle:
-        """
-        Transforms a BackpackRawKline to an Internal Candle model.
+        """Transforms a BackpackRawKline to an Internal Candle model.
 
         Args:
             symbol: Symbol for the candle
@@ -343,20 +340,21 @@ class BackpackMarketDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Parse OHLCV data using correct field names
             open_price = parse_decimal_value(
-                raw_kline.open_price, allow_none=False, field_name="open_price"
+                raw_kline.open_price, allow_none=False, field_name="open_price",
             )
             high_price = parse_decimal_value(
-                raw_kline.high_price, allow_none=False, field_name="high_price"
+                raw_kline.high_price, allow_none=False, field_name="high_price",
             )
             low_price = parse_decimal_value(
-                raw_kline.low_price, allow_none=False, field_name="low_price"
+                raw_kline.low_price, allow_none=False, field_name="low_price",
             )
             close_price = parse_decimal_value(
-                raw_kline.close_price, allow_none=False, field_name="close_price"
+                raw_kline.close_price, allow_none=False, field_name="close_price",
             )
             volume = parse_decimal_value(raw_kline.volume, allow_none=False, field_name="volume")
 
@@ -389,8 +387,7 @@ class BackpackMarketDataMapper:
 
     @staticmethod
     def transform_ws_ticker_event_to_internal(raw_ticker: BackpackRawTickerEvent) -> Ticker:
-        """
-        Transforms a BackpackRawTickerEvent to an Internal Ticker model.
+        """Transforms a BackpackRawTickerEvent to an Internal Ticker model.
 
         Args:
             raw_ticker: Validated raw ticker event data from Backpack WebSocket
@@ -400,14 +397,15 @@ class BackpackMarketDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Parse core ticker fields
             last_price = parse_decimal_value(
-                raw_ticker.last_price, allow_none=True, field_name="lastPrice"
+                raw_ticker.last_price, allow_none=True, field_name="lastPrice",
             )
             volume_24h = parse_decimal_value(
-                raw_ticker.volume, allow_none=True, field_name="volume"
+                raw_ticker.volume, allow_none=True, field_name="volume",
             )
 
             # Parse timestamp from event_time
@@ -426,15 +424,14 @@ class BackpackMarketDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform BackpackRawTickerEvent to Ticker: {e}"
+                f"Failed to transform BackpackRawTickerEvent to Ticker: {e}",
             ) from e
 
     @staticmethod
     def transform_ws_depth_event_to_internal(
-        symbol: str, raw_depth: BackpackRawDepthUpdateEvent
+        symbol: str, raw_depth: BackpackRawDepthUpdateEvent,
     ) -> OrderBook:
-        """
-        Transforms a BackpackRawDepthUpdateEvent to an Internal OrderBook model.
+        """Transforms a BackpackRawDepthUpdateEvent to an Internal OrderBook model.
 
         Args:
             symbol: Symbol for the order book
@@ -445,6 +442,7 @@ class BackpackMarketDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Parse bid levels
@@ -479,13 +477,12 @@ class BackpackMarketDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform BackpackRawDepthUpdateEvent to OrderBook: {e}"
+                f"Failed to transform BackpackRawDepthUpdateEvent to OrderBook: {e}",
             ) from e
 
     @staticmethod
     def transform_ws_trade_event_to_internal(raw_trade: BackpackRawTradeEvent) -> Trade:
-        """
-        Transforms a BackpackRawTradeEvent to an Internal Trade model.
+        """Transforms a BackpackRawTradeEvent to an Internal Trade model.
 
         Args:
             raw_trade: Validated raw trade event data from Backpack WebSocket
@@ -495,6 +492,7 @@ class BackpackMarketDataMapper:
 
         Raises:
             TransformationError: If transformation fails
+
         """
         try:
             # Parse trade fields
@@ -503,7 +501,7 @@ class BackpackMarketDataMapper:
                 raise TransformationError("price is required for trade")
 
             quantity = parse_decimal_value(
-                raw_trade.quantity, allow_none=False, field_name="quantity"
+                raw_trade.quantity, allow_none=False, field_name="quantity",
             )
             if quantity is None:
                 raise TransformationError("quantity is required for trade")
@@ -534,5 +532,5 @@ class BackpackMarketDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform BackpackRawTradeEvent to Trade: {e}"
+                f"Failed to transform BackpackRawTradeEvent to Trade: {e}",
             ) from e

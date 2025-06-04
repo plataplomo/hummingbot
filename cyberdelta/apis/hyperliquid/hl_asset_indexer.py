@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid Asset Index Resolver
+"""CyberDeltaEngine: Hyperliquid Asset Index Resolver
 --------------------------------------------------
 
 Utility class responsible for fetching Hyperliquid's asset metadata and resolving
@@ -31,8 +30,7 @@ from cyberdelta.config.logging_config import get_logger
 
 
 class HyperliquidAssetIndexResolver:
-    """
-    Utility class responsible for fetching Hyperliquid's asset metadata and resolving
+    """Utility class responsible for fetching Hyperliquid's asset metadata and resolving
     string symbols to their integer asset indices. Implements caching for efficiency.
 
     This resolver handles the complex logic of fetching metaAndAssetCtxs from the /info
@@ -42,20 +40,20 @@ class HyperliquidAssetIndexResolver:
     def __init__(
         self,
         requester: Callable[
-            ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]]
+            ..., Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
         ],
         response_handler: HyperliquidResponseHandler,
         request_builder: HyperliquidRequestBuilder,
         exchange_name_for_log: str = "hyperliquid_asset_indexer",
     ) -> None:
-        """
-        Initialize the asset index resolver.
+        """Initialize the asset index resolver.
 
         Args:
             requester: HTTP client request function (typically HyperliquidAPI._request)
             response_handler: Response handler instance for validating API responses
             request_builder: Request builder instance for constructing API requests
             exchange_name_for_log: Exchange name for logging context
+
         """
         self._requester = requester
         self._response_handler = response_handler
@@ -65,8 +63,7 @@ class HyperliquidAssetIndexResolver:
         self.logger = get_logger(__name__)
 
     async def get_asset_index(self, symbol: str) -> int:
-        """
-        Fetch or retrieve from cache the asset_index for a given symbol.
+        """Fetch or retrieve from cache the asset_index for a given symbol.
 
         Args:
             symbol: The asset symbol to resolve (e.g., "BTC", "ETH")
@@ -76,12 +73,13 @@ class HyperliquidAssetIndexResolver:
 
         Raises:
             APIError: If the symbol is invalid, API request fails, or symbol not found
+
         """
         # Input validation
         if not symbol:
             self.logger.error(
                 f"[{self._exchange_name_for_log}] Invalid symbol for asset index resolution: "
-                f"{symbol!r}"
+                f"{symbol!r}",
             )
             raise APIError(
                 "Invalid symbol for asset index resolution.",
@@ -92,19 +90,19 @@ class HyperliquidAssetIndexResolver:
         if symbol in self._asset_to_index_cache:
             self.logger.debug(
                 f"[{self._exchange_name_for_log}] Asset index for {symbol} found in cache: "
-                f"{self._asset_to_index_cache[symbol]}"
+                f"{self._asset_to_index_cache[symbol]}",
             )
             return self._asset_to_index_cache[symbol]
 
         # Cache miss - fetch data
         self.logger.debug(
-            f"[{self._exchange_name_for_log}] Asset index for {symbol} not cached, fetching meta..."
+            f"[{self._exchange_name_for_log}] Asset index for {symbol} not cached, fetching meta...",
         )
 
         # Build request
         request_payload_model = self._request_builder.build_info_request_payload()
         request_payload_data_dict = request_payload_model.model_dump(
-            by_alias=True, exclude_none=True
+            by_alias=True, exclude_none=True,
         )
 
         # Make API call
@@ -117,7 +115,7 @@ class HyperliquidAssetIndexResolver:
         except APIError as e_api:
             self.logger.error(
                 f"[{self._exchange_name_for_log}] API Error fetching asset index for "
-                f"{symbol}: {e_api}"
+                f"{symbol}: {e_api}",
             )
             raise APIError(
                 f"Failed to fetch asset index for symbol '{symbol}': {e_api.message}",
@@ -141,7 +139,7 @@ class HyperliquidAssetIndexResolver:
         if raw_response_content is None:
             self.logger.error(
                 f"[{self._exchange_name_for_log}] Received None response from requester "
-                f"for metaAndAssetCtxs."
+                f"for metaAndAssetCtxs.",
             )
             raise APIError(
                 "No data received for market metadata.",
@@ -153,13 +151,13 @@ class HyperliquidAssetIndexResolver:
         try:
             validated_response: HyperliquidRawMetaAndAssetCtxsResponse = (
                 self._response_handler.handle_info_meta_and_asset_ctxs_response(
-                    cast(RawJsonResponse, raw_response_content)
+                    cast(RawJsonResponse, raw_response_content),
                 )
             )
         except ValidationError as e_val:
             self.logger.error(
                 f"[{self._exchange_name_for_log}] Failed to validate metaAndAssetCtxs: {e_val}. "
-                f"Raw: {raw_response_content!r}"
+                f"Raw: {raw_response_content!r}",
             )
             raise APIError(
                 "Failed to parse market metadata for asset index mapping.",
@@ -190,7 +188,7 @@ class HyperliquidAssetIndexResolver:
 
         self.logger.debug(
             f"[{self._exchange_name_for_log}] Repopulated asset index cache with "
-            f"{len(self._asset_to_index_cache)} assets"
+            f"{len(self._asset_to_index_cache)} assets",
         )
 
         # Return value or error
@@ -198,7 +196,7 @@ class HyperliquidAssetIndexResolver:
             return self._asset_to_index_cache[symbol]
         else:
             self.logger.error(
-                f"[{self._exchange_name_for_log}] Asset index for {symbol} not found after fetch."
+                f"[{self._exchange_name_for_log}] Asset index for {symbol} not found after fetch.",
             )
             raise APIError(
                 f"Asset index for symbol '{symbol}' not found.",

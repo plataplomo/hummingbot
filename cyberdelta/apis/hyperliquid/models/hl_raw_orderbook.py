@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Raw Models (Order Book Group)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Order Book Group)
 --------------------------------------------------------------
 
 This module provides strict, security-focused Pydantic models for validating the *raw*
@@ -69,8 +68,7 @@ def all_are_lists(items: list[object]) -> bool:
 
 # --- Price Level Submodel ---
 class HyperliquidRawBookLevel(BaseModel):
-    """
-    Strict boundary model for a single price level in the order book as returned in L2 book
+    """Strict boundary model for a single price level in the order book as returned in L2 book
     endpoints.
 
     This model validates the structure and content of each price level entry, enforcing
@@ -90,8 +88,7 @@ class HyperliquidRawBookLevel(BaseModel):
 
 # --- L2 Order Book Model ---
 class HyperliquidRawL2Book(BaseModel):
-    """
-    Strict boundary model for a full L2 order book snapshot as returned in order book
+    """Strict boundary model for a full L2 order book snapshot as returned in order book
     endpoints.
 
     This model validates the structure and content of the L2 book response, enforcing strict
@@ -111,17 +108,19 @@ class HyperliquidRawL2Book(BaseModel):
     @field_validator("levels", mode="before")
     @classmethod
     def validate_levels_structure(cls, v: object, info: ValidationInfo) -> list[list[object]]:
-        """
-        Validates that 'levels' is a list of length 2 (bids, asks), and each element is a list.
+        """Validates that 'levels' is a list of length 2 (bids, asks), and each element is a list.
         The inner elements will be parsed by Pydantic against HyperliquidRawBookLevel.
 
         Args:
             v (object): The value to validate (should be a list of two lists).
             info (ValidationInfo): Pydantic validation context.
+
         Returns:
             list[list[object]]: The validated raw structure for 'levels'.
+
         Raises:
             ValueError: If the input is not a valid structure for order book levels.
+
         """
         if not is_list(v):
             raise ValueError("levels: Must be a list.")
@@ -141,13 +140,12 @@ class HyperliquidRawL2Book(BaseModel):
         # will be handled by Pydantic when it parses into list[list[HyperliquidRawBookLevel]].
         # This validator ensures the basic [list, list] structure.
         return cast(
-            list[list[object]], v
+            list[list[object]], v,
         )  # Return the raw validated structure for Pydantic to process further
 
 
 class HyperliquidRawL2BookRequestPayload(BaseModel):
-    """
-    Strict boundary model for the request payload for the 'l2Book' info type.
+    """Strict boundary model for the request payload for the 'l2Book' info type.
 
     This model is used to construct and validate the payload sent to the Hyperliquid API when
     requesting a full L2 order book snapshot for a specific asset. Enforces strict type and format
@@ -161,7 +159,7 @@ class HyperliquidRawL2BookRequestPayload(BaseModel):
     type: Annotated[
         Literal["l2Book"],
         BeforeValidator(
-            lambda val: validate_str_field(val, "type", max_length=32, allow_empty=False)
+            lambda val: validate_str_field(val, "type", max_length=32, allow_empty=False),
         ),
     ] = Field("l2Book", alias="type")
     coin: RawAssetString64HL = Field(..., alias="coin")

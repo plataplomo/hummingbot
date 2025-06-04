@@ -1,5 +1,4 @@
-"""
-Testable class wrappers that expose protected methods for testing.
+"""Testable class wrappers that expose protected methods for testing.
 
 This module provides test-specific subclasses that expose protected methods
 as public test methods, following the recommendations from DETAILED_TEST_ANALYSIS.md.
@@ -20,6 +19,7 @@ class TestableExecutionHandler(ExecutionHandler):
 
     Note: This is not a pytest test class despite the name prefix.
     """
+
     __test__ = False  # Tell pytest this is not a test class
 
     async def test_place_order_with_retry(

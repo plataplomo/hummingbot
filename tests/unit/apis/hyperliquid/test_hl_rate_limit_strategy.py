@@ -1,5 +1,4 @@
-"""
-Unit tests for HyperliquidRateLimitStrategy.
+"""Unit tests for HyperliquidRateLimitStrategy.
 Tests the dual-limiter strategy that manages IP weights and address action counts for Hyperliquid.
 """
 

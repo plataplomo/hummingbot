@@ -34,8 +34,7 @@ type FundingRateObserver = Callable[[FundingRate], Coroutine[Any, Any, None]]
 
 
 class DataHandler:
-    """
-    Handles data collection and distribution from multiple exchanges.
+    """Handles data collection and distribution from multiple exchanges.
 
     Responsibilities:
     - Manage WebSocket connections to exchanges.
@@ -56,8 +55,7 @@ class DataHandler:
         loop: asyncio.AbstractEventLoop | None = None,
         clock: Callable[[Any], dt_real] | None = None,  # Add clock parameter
     ) -> None:
-        """
-        Initialize the DataHandler.
+        """Initialize the DataHandler.
 
         Args:
             app_settings: Application configuration object.
@@ -66,6 +64,7 @@ class DataHandler:
             symbol_mapper: SymbolMapper instance.
             loop: Event loop for async operations.
             clock: Callable for getting current datetime.
+
         """
         self.app_settings = app_settings
         self.api_clients = api_clients
@@ -125,20 +124,20 @@ class DataHandler:
             # Store thresholds as timedelta
             try:
                 self.staleness_thresholds[f"{exchange_id}_ticker"] = timedelta(
-                    seconds=ticker_thresh
+                    seconds=ticker_thresh,
                 )
                 self.staleness_thresholds[f"{exchange_id}_funding"] = timedelta(
-                    seconds=funding_thresh
+                    seconds=funding_thresh,
                 )
             except (ValueError, TypeError) as e:
                 logger.warning(
-                    f"Error creating timedelta for {exchange_id} staleness: {e}. Using defaults."
+                    f"Error creating timedelta for {exchange_id} staleness: {e}. Using defaults.",
                 )
                 self.staleness_thresholds[f"{exchange_id}_ticker"] = timedelta(
-                    seconds=default_ticker_sec
+                    seconds=default_ticker_sec,
                 )
                 self.staleness_thresholds[f"{exchange_id}_funding"] = timedelta(
-                    seconds=default_funding_sec
+                    seconds=default_funding_sec,
                 )
 
     def _setup_data_structures(self) -> None:
@@ -179,12 +178,12 @@ class DataHandler:
             logger.debug(f"Initialized data structures for {exchange_id} with symbols: {symbols}")
 
     def register_api_client(self, exchange_id: str, client: ExchangeAPI) -> None:
-        """
-        Register an API client for an exchange.
+        """Register an API client for an exchange.
 
         Args:
             exchange_id: Exchange identifier.
             client: ExchangeAPI implementation.
+
         """
         self.api_clients[exchange_id] = client
         logger.info(f"Registered API client for {exchange_id} in DataHandler.")
@@ -203,22 +202,22 @@ class DataHandler:
                 symbols_for_exchange = list(exchange_config.symbols.keys())
 
                 if client and hasattr(
-                    client, "connect_websocket"
+                    client, "connect_websocket",
                 ):  # Checking connect_websocket is enough for basic WS capability
                     # Schedule _maintain_websocket_connection, not _connect_and_subscribe directly
                     connect_tasks.append(
                         self._maintain_websocket_connection(
-                            exchange_id, client, symbols_for_exchange
-                        )
+                            exchange_id, client, symbols_for_exchange,
+                        ),
                     )
                 elif not client:
                     logger.error(
-                        f"Cannot start connection for {exchange_id}: API client not registered."
+                        f"Cannot start connection for {exchange_id}: API client not registered.",
                     )
                 else:  # Assuming client exists but lacks connect_websocket
                     logger.error(
                         f"Cannot start connection for {exchange_id}: Client missing "
-                        f"connect_websocket/subscribe methods or other required attributes."
+                        f"connect_websocket/subscribe methods or other required attributes.",
                     )
 
         if connect_tasks:
@@ -232,12 +231,12 @@ class DataHandler:
                     try:
                         exchange_id_for_error = list(exchanges_dict.keys())[i]
                         logger.error(
-                            f"Error starting connection for {exchange_id_for_error}: {result}"
+                            f"Error starting connection for {exchange_id_for_error}: {result}",
                         )
                     except IndexError:
                         logger.error(
                             f"Error starting connection for an unknown exchange "
-                            f"(index {i}): {result}"
+                            f"(index {i}): {result}",
                         )
 
             logger.info("WebSocket connection attempts completed.")
@@ -245,7 +244,7 @@ class DataHandler:
             logger.warning("No WebSocket connections configured or enabled.")
 
     async def _connect_and_subscribe(
-        self, exchange_id: str, client: ExchangeAPI, symbols: list[str]
+        self, exchange_id: str, client: ExchangeAPI, symbols: list[str],
     ) -> None:
         """Connect to WebSocket and subscribe to required data feeds."""
         try:
@@ -261,22 +260,22 @@ class DataHandler:
                 # Use the standard subscribe method from ExchangeAPI base class
                 # Define message handlers for different data types
                 async def ticker_handler(
-                    data_payload: dict[str, Any], full_message: dict[str, Any]
+                    data_payload: dict[str, Any], full_message: dict[str, Any],
                 ) -> None:
                     await self._handle_ticker_message(exchange_id, data_payload, full_message)
 
                 async def orderbook_handler(
-                    data_payload: dict[str, Any], full_message: dict[str, Any]
+                    data_payload: dict[str, Any], full_message: dict[str, Any],
                 ) -> None:
                     await self._handle_orderbook_message(exchange_id, data_payload, full_message)
 
                 async def funding_handler(
-                    data_payload: dict[str, Any], full_message: dict[str, Any]
+                    data_payload: dict[str, Any], full_message: dict[str, Any],
                 ) -> None:
                     await self._handle_funding_message(exchange_id, data_payload, full_message)
 
                 async def user_events_handler(
-                    data_payload: dict[str, Any], full_message: dict[str, Any]
+                    data_payload: dict[str, Any], full_message: dict[str, Any],
                 ) -> None:
                     await self._handle_user_events_message(exchange_id, data_payload, full_message)
 
@@ -289,7 +288,7 @@ class DataHandler:
                     if exchange_id == "hyperliquid":
                         # Hyperliquid uses l2Book for order book data
                         subscribe_tasks.append(
-                            client.subscribe(f"l2Book:{symbol}", orderbook_handler)
+                            client.subscribe(f"l2Book:{symbol}", orderbook_handler),
                         )
                         # Hyperliquid uses trades for trade data
                         subscribe_tasks.append(client.subscribe(f"trades:{symbol}", ticker_handler))
@@ -297,19 +296,19 @@ class DataHandler:
                         # Backpack topic formats (adjust based on actual implementation)
                         subscribe_tasks.append(client.subscribe(f"ticker.{symbol}", ticker_handler))
                         subscribe_tasks.append(
-                            client.subscribe(f"orderbook.{symbol}", orderbook_handler)
+                            client.subscribe(f"orderbook.{symbol}", orderbook_handler),
                         )
                         subscribe_tasks.append(
-                            client.subscribe(f"funding.{symbol}", funding_handler)
+                            client.subscribe(f"funding.{symbol}", funding_handler),
                         )
                     else:
                         # Generic fallback - adjust based on actual exchange implementations
                         subscribe_tasks.append(client.subscribe(f"ticker:{symbol}", ticker_handler))
                         subscribe_tasks.append(
-                            client.subscribe(f"orderbook:{symbol}", orderbook_handler)
+                            client.subscribe(f"orderbook:{symbol}", orderbook_handler),
                         )
                         subscribe_tasks.append(
-                            client.subscribe(f"funding:{symbol}", funding_handler)
+                            client.subscribe(f"funding:{symbol}", funding_handler),
                         )
 
                 # Subscribe to user events for account data
@@ -344,7 +343,7 @@ class DataHandler:
                 await client.close_websocket()
 
     async def _handle_ticker_message(
-        self, exchange_id: str, data_payload: dict[str, Any], full_message: dict[str, Any]
+        self, exchange_id: str, data_payload: dict[str, Any], full_message: dict[str, Any],
     ) -> None:
         """Handle ticker/price update messages."""
         try:
@@ -380,7 +379,7 @@ class DataHandler:
             logger.error(f"[{exchange_id}] Error handling ticker message: {e}")
 
     async def _handle_orderbook_message(
-        self, exchange_id: str, data_payload: dict[str, Any], full_message: dict[str, Any]
+        self, exchange_id: str, data_payload: dict[str, Any], full_message: dict[str, Any],
     ) -> None:
         """Handle order book update messages."""
         try:
@@ -407,7 +406,7 @@ class DataHandler:
             logger.error(f"[{exchange_id}] Error handling order book message: {e}")
 
     async def _handle_funding_message(
-        self, exchange_id: str, data_payload: dict[str, Any], full_message: dict[str, Any]
+        self, exchange_id: str, data_payload: dict[str, Any], full_message: dict[str, Any],
     ) -> None:
         """Handle funding rate update messages."""
         try:
@@ -431,7 +430,7 @@ class DataHandler:
             logger.error(f"[{exchange_id}] Error handling funding message: {e}")
 
     async def _handle_user_events_message(
-        self, exchange_id: str, data_payload: dict[str, Any], full_message: dict[str, Any]
+        self, exchange_id: str, data_payload: dict[str, Any], full_message: dict[str, Any],
     ) -> None:
         """Handle user account events (fills, orders, positions)."""
         try:
@@ -461,7 +460,7 @@ class DataHandler:
         # This method is no longer needed since message handling is done through
         # the registered handlers in the subscribe calls
         logger.info(
-            f"[{exchange_id}] WebSocket message processing is handled through registered handlers."
+            f"[{exchange_id}] WebSocket message processing is handled through registered handlers.",
         )
 
         # Keep the connection alive by monitoring the connection status
@@ -478,7 +477,7 @@ class DataHandler:
                 del self.ws_tasks[exchange_id]
 
     async def _update_and_notify(
-        self, exchange_id: str, message: dict[str, object] | list[object] | str
+        self, exchange_id: str, message: dict[str, object] | list[object] | str,
     ) -> None:
         """Parse raw message and update internal state / notify observers."""
         # This method is no longer needed since message parsing and handling
@@ -488,7 +487,7 @@ class DataHandler:
     # --- Internal Update Methods ---
 
     def _update_ticker(
-        self, exchange_id: str, symbol: str, data: Ticker, timestamp: dt_real
+        self, exchange_id: str, symbol: str, data: Ticker, timestamp: dt_real,
     ) -> None:
         """Update the ticker data for a given exchange and symbol."""
         if exchange_id not in self.tickers or symbol not in self.tickers[exchange_id]:
@@ -504,12 +503,12 @@ class DataHandler:
         logger.debug(f"Updated ticker: {exchange_id}/{symbol} - {data.price}")
 
     def _update_order_book(
-        self, exchange_id: str, symbol: str, data: OrderBook, timestamp: dt_real
+        self, exchange_id: str, symbol: str, data: OrderBook, timestamp: dt_real,
     ) -> None:
         """Update the order book data."""
         if exchange_id not in self.order_books or symbol not in self.order_books[exchange_id]:
             logger.warning(
-                f"Attempted to update order book for uninitialized {exchange_id}/{symbol}"
+                f"Attempted to update order book for uninitialized {exchange_id}/{symbol}",
             )
             return
         self.order_books[exchange_id][symbol] = data
@@ -519,7 +518,7 @@ class DataHandler:
         logger.debug(f"Updated order book: {exchange_id}/{symbol}")
 
     def _update_funding_rate(
-        self, exchange_id: str, symbol: str, data: FundingRate, timestamp: dt_real
+        self, exchange_id: str, symbol: str, data: FundingRate, timestamp: dt_real,
     ) -> None:
         """Update the latest funding rate for a symbol on an exchange."""
         if exchange_id not in self.funding_rates or symbol not in self.funding_rates[exchange_id]:
@@ -562,7 +561,7 @@ class DataHandler:
         # Actual fill update logic needs to be implemented.
         logger.warning(
             f"DataHandler._update_user_fills for {exchange_id}/{symbol} "
-            f"called but not fully implemented."
+            f"called but not fully implemented.",
         )
         pass
 
@@ -608,7 +607,7 @@ class DataHandler:
         if self._is_data_stale(exchange_id, symbol, "order_book"):
             logger.warning(
                 f"Order book data for {exchange_id} - {symbol} is stale. "
-                f"Last update: {self.last_update_time.get(exchange_id, {}).get(symbol)}"
+                f"Last update: {self.last_update_time.get(exchange_id, {}).get(symbol)}",
             )
             return None
         return order_book_obj
@@ -627,17 +626,17 @@ class DataHandler:
         if rate is None or next_time is None:
             logger.debug(
                 f"Incomplete funding data for {exchange_id}/{symbol}: "
-                f"rate={rate}, next_time={next_time}"
+                f"rate={rate}, next_time={next_time}",
             )
             return None
 
         # Check if data is stale
         # Use the timestamp from the FundingRate object for staleness check
         if timestamp < dt_real.now(UTC) - self.staleness_thresholds.get(
-            f"{exchange_id}_funding", self.default_staleness_threshold
+            f"{exchange_id}_funding", self.default_staleness_threshold,
         ):
             logger.warning(
-                f"Funding rate data for {exchange_id} - {symbol} is stale. Last update: {timestamp}"
+                f"Funding rate data for {exchange_id} - {symbol} is stale. Last update: {timestamp}",
             )
             return None
 
@@ -673,7 +672,7 @@ class DataHandler:
                 logger.warning(f"Could not determine observer type for: {observer.__name__}")
         else:
             logger.warning(
-                f"Could not register observer with complex/missing annotation: {observer.__name__}"
+                f"Could not register observer with complex/missing annotation: {observer.__name__}",
             )
 
     def unregister_observer(self, observer: Callable[..., Any]) -> None:
@@ -715,7 +714,7 @@ class DataHandler:
                         logger.warning(f"Error cancelling task-like object {type(task_like)}: {e}")
                     except Exception as e:
                         logger.warning(
-                            f"Unexpected error cancelling task-like object {type(task_like)}: {e}"
+                            f"Unexpected error cancelling task-like object {type(task_like)}: {e}",
                         )
 
             # Wait for all tasks to acknowledge cancellation or complete
@@ -760,25 +759,25 @@ class DataHandler:
             threshold = self.default_staleness_threshold
             logger.debug(
                 f"No specific or general staleness threshold for {staleness_key} "
-                f"or {data_type.lower()}, using absolute default: {threshold.total_seconds()}s"
+                f"or {data_type.lower()}, using absolute default: {threshold.total_seconds()}s",
             )
         else:
             logger.debug(
-                f"Using staleness threshold for {staleness_key}: {threshold.total_seconds()}s"
+                f"Using staleness threshold for {staleness_key}: {threshold.total_seconds()}s",
             )
 
         last_update = self.last_update_time.get(exchange_id, {}).get(symbol)
         if last_update is None:
             logger.debug(
                 f"No last_update_time for {exchange_id}/{symbol}/{data_type}, "
-                f"considering NOT stale."
+                f"considering NOT stale.",
             )
             return False  # No data yet, so not stale
 
         if last_update.tzinfo is None:
             last_update = last_update.replace(tzinfo=UTC)
             logger.warning(
-                f"Timestamp for {exchange_id}/{symbol}/{data_type} was naive, assumed UTC."
+                f"Timestamp for {exchange_id}/{symbol}/{data_type} was naive, assumed UTC.",
             )
 
         current_time = self.clock(UTC)  # Use the injectable clock
@@ -800,7 +799,7 @@ class DataHandler:
         return is_stale_result
 
     async def _maintain_websocket_connection(
-        self, exchange_id: str, client: ExchangeAPI, symbols: list[str]
+        self, exchange_id: str, client: ExchangeAPI, symbols: list[str],
     ) -> None:
         # TODO: Add websocket configuration to ExchangeSpecificConfig when needed
         # For now, use hardcoded defaults
@@ -825,7 +824,7 @@ class DataHandler:
                 # completed or was cancelled.
                 logger.info(
                     f"[{exchange_id}] _connect_and_subscribe completed its current run "
-                    f"(stream might have ended or been cancelled)."
+                    f"(stream might have ended or been cancelled).",
                 )
 
                 # Reset attempts if connection was successful at some point
@@ -837,19 +836,19 @@ class DataHandler:
             except ConnectionError as e:
                 logger.warning(
                     f"[{exchange_id}] ConnectionError in maintenance loop: {e}. "
-                    f"Attempt {attempt + 1}/{max_attempts if max_attempts > 0 else 'inf'}."
+                    f"Attempt {attempt + 1}/{max_attempts if max_attempts > 0 else 'inf'}.",
                 )
                 # This specific error type is usually retryable.
             except asyncio.CancelledError:
                 logger.info(
-                    f"[{exchange_id}] WebSocket maintenance task was cancelled. Exiting loop."
+                    f"[{exchange_id}] WebSocket maintenance task was cancelled. Exiting loop.",
                 )
                 break  # Exit the while True loop if the task itself is cancelled.
             except Exception as e:
                 # Catch any other unexpected exceptions from _connect_and_subscribe
                 logger.error(
                     f"[{exchange_id}] Unexpected error in WebSocket maintenance: {e}. "
-                    f"Attempt {attempt + 1}/{max_attempts if max_attempts > 0 else 'inf'}."
+                    f"Attempt {attempt + 1}/{max_attempts if max_attempts > 0 else 'inf'}.",
                 )
 
             # Check if the DataHandler is still supposed to be running
@@ -861,7 +860,7 @@ class DataHandler:
             if max_attempts > 0 and attempt >= max_attempts:
                 logger.error(
                     f"[{exchange_id}] Max reconnect attempts ({max_attempts}) reached "
-                    f"for initial connection. Stopping WebSocket maintenance for this exchange."
+                    f"for initial connection. Stopping WebSocket maintenance for this exchange.",
                 )
                 break  # Exit while True loop
 
@@ -869,7 +868,7 @@ class DataHandler:
             current_delay = min(current_delay * 2, max_reconnect_delay)
             logger.info(
                 f"[{exchange_id}] Retrying WebSocket connection in {current_delay:.2f}s... "
-                f"(Attempt {attempt + 1})"
+                f"(Attempt {attempt + 1})",
             )  # attempt is 0-indexed
             await asyncio.sleep(current_delay)
 

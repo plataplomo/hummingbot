@@ -1,5 +1,4 @@
-"""
-Comprehensive unit tests for Pydantic service arguments models.
+"""Comprehensive unit tests for Pydantic service arguments models.
 
 Tests all three models (PlaceOrderArgs, TransferArgs, WithdrawArgs) with:
 1. Valid inputs for all fields

@@ -1,5 +1,4 @@
-"""
-Unit tests for HyperliquidMarketDataService market data/candles functionality.
+"""Unit tests for HyperliquidMarketDataService market data/candles functionality.
 """
 
 from datetime import UTC, datetime

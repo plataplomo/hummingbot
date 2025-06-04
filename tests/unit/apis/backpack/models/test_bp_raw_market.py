@@ -99,8 +99,7 @@ def test_BackpackRawMarket_corruption_cases() -> None:
 
 
 def test_BackpackRawMarket_real_json_example() -> None:
-    """
-    Validate BackpackRawMarket using a real JSON payload from the Backpack OpenAPI spec.
+    """Validate BackpackRawMarket using a real JSON payload from the Backpack OpenAPI spec.
     Includes edge values.
     """
     payload = {
@@ -269,8 +268,7 @@ def test_BackpackRawTicker_corruption_cases() -> None:
 
 
 def test_BackpackRawTicker_real_json_example() -> None:
-    """
-    Validate BackpackRawTicker using a real JSON payload from the Backpack OpenAPI spec.
+    """Validate BackpackRawTicker using a real JSON payload from the Backpack OpenAPI spec.
     Includes edge values.
     """
     payload = {
@@ -400,8 +398,7 @@ def test_BackpackRawOpenInterest_corruption_cases() -> None:
 
 
 def test_BackpackRawOpenInterest_real_json_example() -> None:
-    """
-    Validate BackpackRawOpenInterest using a real JSON payload from the Backpack OpenAPI spec.
+    """Validate BackpackRawOpenInterest using a real JSON payload from the Backpack OpenAPI spec.
     Includes edge values.
     """
     payload = {

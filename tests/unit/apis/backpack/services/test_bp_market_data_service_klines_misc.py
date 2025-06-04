@@ -1,5 +1,4 @@
-"""
-Unit tests for BackpackMarketDataService klines and miscellaneous functionality.
+"""Unit tests for BackpackMarketDataService klines and miscellaneous functionality.
 """
 
 from __future__ import annotations

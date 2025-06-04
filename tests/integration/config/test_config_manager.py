@@ -1,5 +1,4 @@
-"""
-Unit tests for cyberdelta.config.config_manager module.
+"""Unit tests for cyberdelta.config.config_manager module.
 
 Tests the ConfigManager class for loading and validating application configuration,
 including file handling, validation, and error scenarios.

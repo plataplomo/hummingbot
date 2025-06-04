@@ -1,5 +1,4 @@
-"""
-Dashboard Integration Module for CyberDeltaEngine.
+"""Dashboard Integration Module for CyberDeltaEngine.
 
 This module provides tools for integrating the real-time dashboard
 with the performance tracker and other system components.
@@ -27,8 +26,7 @@ logger = structlog.get_logger(__name__)
 
 
 class DashboardIntegration:
-    """
-    Connects trading system components to the real-time dashboard.
+    """Connects trading system components to the real-time dashboard.
 
     This class provides an interface for strategies, exchange handlers,
     and other components to send data to the dashboard for visualization.
@@ -42,8 +40,7 @@ class DashboardIntegration:
         port: int = 8050,
         debug: bool = False,
     ) -> None:
-        """
-        Initialize the dashboard integration.
+        """Initialize the dashboard integration.
 
         Args:
             output_dir: Directory for saving performance data
@@ -51,6 +48,7 @@ class DashboardIntegration:
             update_interval: Dashboard update interval in seconds
             port: Port to run the dashboard on
             debug: Enable debug mode for the dashboard
+
         """
         self.output_dir = output_dir or os.path.join(os.getcwd(), "performance_data")
 
@@ -71,11 +69,11 @@ class DashboardIntegration:
             self.start_dashboard(update_interval=update_interval, port=port, debug=debug)
 
     def register_portfolio_tracker(self, portfolio_tracker: PortfolioTracker) -> None:
-        """
-        Register a portfolio tracker with the dashboard.
+        """Register a portfolio tracker with the dashboard.
 
         Args:
             portfolio_tracker: PortfolioTracker instance
+
         """
         self.portfolio_tracker = portfolio_tracker
 
@@ -85,11 +83,11 @@ class DashboardIntegration:
         logger.info("Portfolio tracker registered. Restart dashboard for changes to take effect.")
 
     def register_strategy(self, strategy: Strategy) -> None:
-        """
-        Register a strategy with the dashboard.
+        """Register a strategy with the dashboard.
 
         Args:
             strategy: Strategy instance
+
         """
         self.strategies[strategy.name] = strategy
         logger.info(f"Registered strategy {strategy.name} with dashboard")
@@ -101,8 +99,7 @@ class DashboardIntegration:
         debug: bool = False,
         in_thread: bool = True,
     ) -> None:
-        """
-        Start the real-time dashboard.
+        """Start the real-time dashboard.
 
         Args:
             update_interval: Dashboard update interval in seconds
@@ -112,6 +109,7 @@ class DashboardIntegration:
 
         Returns:
             Dashboard instance
+
         """
         if self.portfolio_tracker is None:
             logger.error("Portfolio tracker not registered. Cannot start dashboard.")
@@ -139,7 +137,7 @@ class DashboardIntegration:
             # For explicit termination, we would need to implement a shutdown mechanism
             logger.info(
                 "Dashboard is running in a separate thread and will terminate "
-                "when the main program ends"
+                "when the main program ends",
             )
 
         if self.dashboard:
@@ -147,13 +145,13 @@ class DashboardIntegration:
             self.dashboard = None
 
     def track_return(self, strategy_name: str, timestamp: datetime, return_value: Decimal) -> None:
-        """
-        Track a return for a strategy.
+        """Track a return for a strategy.
 
         Args:
             strategy_name: Name of the strategy
             timestamp: Timestamp of the return
             return_value: Return value (Decimal)
+
         """
         self.performance_tracker.track_return(strategy_name, timestamp, float(return_value))
 
@@ -172,8 +170,7 @@ class DashboardIntegration:
         pnl: Decimal | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        """
-        Track a trade.
+        """Track a trade.
 
         Args:
             trade_id: Unique ID for the trade
@@ -188,6 +185,7 @@ class DashboardIntegration:
             exit_time: Exit timestamp (optional)
             pnl: Profit/loss (optional, Decimal)
             metadata: Additional trade metadata (optional)
+
         """
         self.performance_tracker.track_trade(
             trade_id=trade_id,
@@ -212,8 +210,7 @@ class DashboardIntegration:
         pnl: Decimal,
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        """
-        Track the exit of a trade.
+        """Track the exit of a trade.
 
         Args:
             trade_id: ID of the trade to update
@@ -221,6 +218,7 @@ class DashboardIntegration:
             exit_time: Exit timestamp
             pnl: Profit/loss (Decimal)
             metadata: Additional exit metadata (optional)
+
         """
         self.performance_tracker.track_trade_exit(
             trade_id=trade_id,
@@ -231,11 +229,11 @@ class DashboardIntegration:
         )
 
     def track_signal(self, signal: TradeSignal) -> None:
-        """
-        Track a signal event.
+        """Track a signal event.
 
         Args:
             signal: The TradeSignal object to track.
+
         """
         if not self.performance_tracker or not signal:
             return
@@ -267,8 +265,7 @@ class DashboardIntegration:
         predicted_rate: Decimal | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        """
-        Track funding rate data.
+        """Track funding rate data.
 
         Args:
             timestamp: Funding rate timestamp
@@ -277,6 +274,7 @@ class DashboardIntegration:
             funding_rate: Funding rate value (Decimal)
             predicted_rate: Predicted funding rate (optional, Decimal)
             metadata: Additional metadata (optional)
+
         """
         self.performance_tracker.track_funding_rate(
             timestamp=timestamp,
@@ -299,8 +297,7 @@ def get_dashboard_integration(
     port: int = 8050,
     debug: bool = False,
 ) -> DashboardIntegration:
-    """
-    Get the global dashboard integration instance.
+    """Get the global dashboard integration instance.
 
     If no instance exists, one will be created.
 
@@ -313,6 +310,7 @@ def get_dashboard_integration(
 
     Returns:
         DashboardIntegration instance
+
     """
     global _dashboard_integration
 

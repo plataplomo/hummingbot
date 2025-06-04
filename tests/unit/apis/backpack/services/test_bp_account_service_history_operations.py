@@ -1,5 +1,4 @@
-"""
-Unit tests for BackpackAccountService history and operations functionality.
+"""Unit tests for BackpackAccountService history and operations functionality.
 """
 
 from __future__ import annotations

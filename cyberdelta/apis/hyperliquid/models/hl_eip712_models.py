@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid EIP-712 Pydantic Models
+"""CyberDeltaEngine: Hyperliquid EIP-712 Pydantic Models
 ----------------------------------------------------
 
 This module defines Pydantic models for EIP-712 type definitions and domain structures
@@ -11,8 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class EIP712TypeField(BaseModel):
-    """
-    Model for individual EIP-712 type field definitions.
+    """Model for individual EIP-712 type field definitions.
 
     Represents a single field in an EIP-712 type definition, such as
     {"name": "source", "type": "string"} or {"name": "chainId", "type": "uint256"}.
@@ -25,8 +23,7 @@ class EIP712TypeField(BaseModel):
 
 
 class HyperliquidAgentDomainData(BaseModel):
-    """
-    Model for EIP-712 domain data structure for Hyperliquid Exchange Agent signatures.
+    """Model for EIP-712 domain data structure for Hyperliquid Exchange Agent signatures.
 
     This represents the actual domain values used in EIP-712 signatures for the
     sign_l1_action scheme with "Exchange" domain name.
@@ -41,8 +38,7 @@ class HyperliquidAgentDomainData(BaseModel):
 
 
 class HyperliquidAgentTypes(BaseModel):
-    """
-    Model for EIP-712 type definitions for Hyperliquid Exchange Agent signatures.
+    """Model for EIP-712 type definitions for Hyperliquid Exchange Agent signatures.
 
     This represents the complete "types" structure required for EIP-712 signatures
     using the sign_l1_action scheme, containing both the EIP712Domain and Agent

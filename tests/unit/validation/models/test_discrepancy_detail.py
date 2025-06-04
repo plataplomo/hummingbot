@@ -12,8 +12,7 @@ from cyberdelta.validation.models.discrepancy_detail import (
 
 # Helper function for testing validate_assignment
 def _get_value_for_assignment_test() -> bool:
-    """
-    Helper function for testing.
+    """Helper function for testing.
     Typed to return bool, but will be mocked to return an invalid type (str)
     at runtime to test Pydantic's validate_assignment.
     """

@@ -27,8 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class FundingRateArbitrageStrategy(Strategy):
-    """
-    Implementation of a funding rate arbitrage strategy between exchanges.
+    """Implementation of a funding rate arbitrage strategy between exchanges.
 
     Primary approach for v0.0.1: Hyperliquid-Perp vs Backpack-Spot strategy
     This strategy:
@@ -46,8 +45,7 @@ class FundingRateArbitrageStrategy(Strategy):
         risk_manager: RiskManager | None = None,
         params: dict[str, Any] | None = None,
     ) -> None:
-        """
-        Initialize the funding rate arbitrage strategy.
+        """Initialize the funding rate arbitrage strategy.
 
         Args:
             name: Unique name for the strategy
@@ -56,6 +54,7 @@ class FundingRateArbitrageStrategy(Strategy):
             portfolio_tracker: Portfolio tracker for position management
             risk_manager: Risk manager for position sizing and risk controls
             params: Dictionary of strategy parameters
+
         """
         super().__init__(name, symbol, params)
         self.data_handler = data_handler
@@ -64,14 +63,14 @@ class FundingRateArbitrageStrategy(Strategy):
 
         # Use helpers for config-derived parameters
         self.min_funding_differential: Decimal = self._get_decimal_param(
-            "min_funding_differential", Decimal("0.0001")
+            "min_funding_differential", Decimal("0.0001"),
         )
         self.min_profit_threshold: Decimal = self._get_decimal_param(
-            "min_profit_threshold", Decimal("5.0")
+            "min_profit_threshold", Decimal("5.0"),
         )
         self.risk_aversion: Decimal = self._get_decimal_param("risk_aversion", Decimal("1.0"))
         self.rebalance_threshold: Decimal = self._get_decimal_param(
-            "rebalance_threshold", Decimal("0.05")
+            "rebalance_threshold", Decimal("0.05"),
         )
         self.check_interval: int = self._get_int_param("check_interval", 600)
 
@@ -100,7 +99,7 @@ class FundingRateArbitrageStrategy(Strategy):
 
         logger.info(
             f"Initialized {self.name} strategy for {self.symbol} "
-            f"between {self.perp_exchange} and {self.spot_exchange}"
+            f"between {self.perp_exchange} and {self.spot_exchange}",
         )
 
     def _get_decimal_param(self, key: str, default: Decimal) -> Decimal:
@@ -122,11 +121,11 @@ class FundingRateArbitrageStrategy(Strategy):
         return default
 
     async def _check_opportunity(self) -> ArbitrageOpportunity | None:
-        """
-        Check for funding rate arbitrage opportunity between perp and spot markets.
+        """Check for funding rate arbitrage opportunity between perp and spot markets.
 
         Returns:
             ArbitrageOpportunity if found, None otherwise
+
         """
         # Get max_history at the start so it's always defined
         max_history = self._get_int_param("history_length", 24)
@@ -159,7 +158,7 @@ class FundingRateArbitrageStrategy(Strategy):
         if current_perp_price is None or current_spot_price is None:
             logger.warning(
                 f"Ticker price is None for {self.symbol} or {spot_symbol}. "
-                f"Perp: {current_perp_price}, Spot: {current_spot_price}"
+                f"Perp: {current_perp_price}, Spot: {current_spot_price}",
             )
             return None
 
@@ -184,7 +183,7 @@ class FundingRateArbitrageStrategy(Strategy):
         if nfd is None:
             logger.warning(
                 f"Funding rate value is None for {self.symbol} on "
-                f"{self.perp_exchange} from {funding_rate}"
+                f"{self.perp_exchange} from {funding_rate}",
             )
             return None
 
@@ -215,7 +214,7 @@ class FundingRateArbitrageStrategy(Strategy):
         if expected_profit < self.min_profit_threshold:
             logger.debug(
                 f"Expected profit (${expected_profit:.2f}) below threshold "
-                f"(${self.min_profit_threshold:.2f})"
+                f"(${self.min_profit_threshold:.2f})",
             )
             return None
 
@@ -236,7 +235,7 @@ class FundingRateArbitrageStrategy(Strategy):
         if entry_perp_price is None or entry_spot_price is None:
             logger.warning(
                 f"Cannot determine entry prices due to None ticker price for "
-                f"{self.symbol} or {spot_symbol}."
+                f"{self.symbol} or {spot_symbol}.",
             )
             return None
 
@@ -264,14 +263,14 @@ class FundingRateArbitrageStrategy(Strategy):
         return opportunity
 
     def _calculate_basis_volatility(self, symbol: str) -> Decimal:
-        """
-        Calculate the volatility of the basis between perp and spot markets.
+        """Calculate the volatility of the basis between perp and spot markets.
 
         Args:
             symbol: Trading symbol
 
         Returns:
             Basis volatility as standard deviation
+
         """
         if symbol not in self.historical_basis or len(self.historical_basis[symbol]) < 2:
             return Decimal("0.01")
@@ -282,7 +281,7 @@ class FundingRateArbitrageStrategy(Strategy):
             if variance < 0:
                 logger.warning(
                     f"Calculated negative variance ({variance}) for basis volatility of {symbol}. "
-                    "Returning default."
+                    "Returning default.",
                 )
                 return Decimal("0.01")
             return variance.sqrt()
@@ -291,8 +290,7 @@ class FundingRateArbitrageStrategy(Strategy):
             return Decimal("0.01")
 
     def _estimate_slippage(self, symbol: str, size: Decimal, exchange: str) -> Decimal:
-        """
-        Estimate slippage for a given symbol, size, and exchange.
+        """Estimate slippage for a given symbol, size, and exchange.
 
         Args:
             symbol: Trading symbol
@@ -301,6 +299,7 @@ class FundingRateArbitrageStrategy(Strategy):
 
         Returns:
             Estimated slippage as a percentage (Decimal)
+
         """
         base_slippage = Decimal("0.0001")
         ref_size = Decimal("10000")
@@ -311,7 +310,7 @@ class FundingRateArbitrageStrategy(Strategy):
             if size_ratio < 0:
                 logger.warning(
                     f"Calculated negative size ratio ({size_ratio}) for slippage of {symbol}. "
-                    "Using base."
+                    "Using base.",
                 )
                 return base_slippage
             slippage_scaling = size_ratio.sqrt()
@@ -321,8 +320,7 @@ class FundingRateArbitrageStrategy(Strategy):
         return base_slippage * slippage_scaling
 
     async def process_data(self, data: Candle) -> list[TradeSignal]:
-        """
-        Process incoming market data (Candle).
+        """Process incoming market data (Candle).
 
         Args:
             data: Market data to process
@@ -331,6 +329,7 @@ class FundingRateArbitrageStrategy(Strategy):
             List of TradeSignals (multi-leg, e.g., for both perp and spot) if trades should be
             executed, or an empty list if no opportunity is found.
             The returned list may be empty if no valid signals are generated.
+
         """
         self.update_historical_data(data)
         now = datetime.now(UTC)
@@ -355,7 +354,7 @@ class FundingRateArbitrageStrategy(Strategy):
         spot_ticker_live: Ticker | None = None
         if spot_symbol_mapped:
             spot_ticker_live = self.data_handler.get_latest_ticker(
-                self.spot_exchange, spot_symbol_mapped
+                self.spot_exchange, spot_symbol_mapped,
             )
 
         if self._should_rebalance(perp_ticker_live, spot_ticker_live):
@@ -372,7 +371,7 @@ class FundingRateArbitrageStrategy(Strategy):
 
         if self.risk_manager is None:
             logger.error(
-                f"RiskManager not initialized in {self.name} for evaluate_entry_opportunity"
+                f"RiskManager not initialized in {self.name} for evaluate_entry_opportunity",
             )
             return None
 
@@ -384,7 +383,7 @@ class FundingRateArbitrageStrategy(Strategy):
         spot_ticker_live: Ticker | None = None
         if spot_symbol_mapped:
             spot_ticker_live = self.data_handler.get_latest_ticker(
-                self.spot_exchange, spot_symbol_mapped
+                self.spot_exchange, spot_symbol_mapped,
             )
 
         # Check for rebalancing first
@@ -394,7 +393,7 @@ class FundingRateArbitrageStrategy(Strategy):
                 signals.extend(rebalance_signals)
                 # Potentially return early or manage state to avoid conflicting entry signals
                 logger.info(
-                    f"Generated {len(rebalance_signals)} rebalance signals for {self.symbol}."
+                    f"Generated {len(rebalance_signals)} rebalance signals for {self.symbol}.",
                 )
                 return signals
 
@@ -413,22 +412,22 @@ class FundingRateArbitrageStrategy(Strategy):
             ):
                 self.sized_opportunities[opportunity.id] = sized_opportunity
                 entry_signals = self._generate_entry_signal(
-                    opportunity, sized_opportunity, perp_ticker_live, spot_ticker_live
+                    opportunity, sized_opportunity, perp_ticker_live, spot_ticker_live,
                 )
                 if entry_signals:
                     signals.extend(entry_signals)
                     logger.info(
-                        f"Generated {len(entry_signals)} entry signals for {opportunity.id}."
+                        f"Generated {len(entry_signals)} entry signals for {opportunity.id}.",
                     )
             else:
                 logger.info(
                     f"Opportunity {opportunity.id} not sized or size is zero, no entry "
-                    f"signals generated."
+                    f"signals generated.",
                 )
         return signals if signals else None
 
     def _should_rebalance(
-        self, perp_ticker_live: Ticker | None, spot_ticker_live: Ticker | None
+        self, perp_ticker_live: Ticker | None, spot_ticker_live: Ticker | None,
     ) -> bool:
         """Determine if rebalancing is needed based on current positions and market prices."""
         # The portfolio_tracker is guaranteed non-None by __init__.
@@ -551,7 +550,7 @@ class FundingRateArbitrageStrategy(Strategy):
             if perp_price_entry <= Decimal(0) or spot_price_entry <= Decimal(0):
                 logger.warning(
                     "Prices for non-sized opportunity are zero/None or invalid, "
-                    "cannot determine quantity."
+                    "cannot determine quantity.",
                 )
                 return []  # For safety, do not proceed if not properly sized.
             # Simplified: use a nominal quantity based on opportunity target if not sized
@@ -559,7 +558,7 @@ class FundingRateArbitrageStrategy(Strategy):
             # For now, we assume sizing is always done by risk manager if opportunity is pursued.
             logger.warning(
                 f"No sized_opportunity for {opportunity.id}, using fallback "
-                f"quantities might be risky."
+                f"quantities might be risky.",
             )
             # Example fallback (not recommended for live trading without proper sizing logic):
             # nominal_trade_value = Decimal("100") # e.g., $100 USD
@@ -593,7 +592,7 @@ class FundingRateArbitrageStrategy(Strategy):
                         "strategy_name": self.name,
                         "opportunity_id": opportunity.id,
                     },
-                )
+                ),
             )
         if spot_quantity > Decimal(0):
             # Map to spot symbol for the spot exchange signal
@@ -617,13 +616,13 @@ class FundingRateArbitrageStrategy(Strategy):
                         "strategy_name": self.name,
                         "opportunity_id": opportunity.id,
                     },
-                )
+                ),
             )
         self.signals_generated += len(signals)
         return signals
 
     def _generate_rebalance_signal(
-        self, perp_ticker_live: Ticker | None, spot_ticker_live: Ticker | None
+        self, perp_ticker_live: Ticker | None, spot_ticker_live: Ticker | None,
     ) -> list[TradeSignal]:
         """Generate rebalancing signals based on current positions and target delta."""
         signals: list[TradeSignal] = []
@@ -676,12 +675,12 @@ class FundingRateArbitrageStrategy(Strategy):
         if threshold_value == Decimal(0) and net_exposure != Decimal(0):
             logger.info(
                 f"Rebalance needed for {self.symbol} due to zero threshold and "
-                f"non-zero exposure: {net_exposure}"
+                f"non-zero exposure: {net_exposure}",
             )
         elif abs(net_exposure) > threshold_value and threshold_value > Decimal(0):
             logger.info(
                 f"Rebalance triggered for {self.symbol}. Net exposure: {net_exposure}, "
-                f"Threshold: {threshold_value}"
+                f"Threshold: {threshold_value}",
             )
         else:
             return signals  # No rebalancing needed
@@ -723,7 +722,7 @@ class FundingRateArbitrageStrategy(Strategy):
         if price_to_use <= Decimal(0):
             logger.warning(
                 f"Price for rebalancing {symbol_to_adjust} is zero or None, "
-                f"cannot calculate quantity."
+                f"cannot calculate quantity.",
             )
             return signals
 
@@ -746,11 +745,11 @@ class FundingRateArbitrageStrategy(Strategy):
                         "strategy_name": self.name,
                         "opportunity_id": "REBALANCE-" + datetime.now(UTC).isoformat(),
                     },
-                )
+                ),
             )
             logger.info(
                 f"Generated rebalance signal: {side} {quantity_to_rebalance} "
-                f"{symbol_to_adjust} on {exchange_to_adjust}"
+                f"{symbol_to_adjust} on {exchange_to_adjust}",
             )
 
         return signals

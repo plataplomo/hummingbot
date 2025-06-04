@@ -1,5 +1,4 @@
-"""
-Integration Tests for BackpackAPI WebSocket subscription functionality.
+"""Integration Tests for BackpackAPI WebSocket subscription functionality.
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch

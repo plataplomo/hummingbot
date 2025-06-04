@@ -146,8 +146,7 @@ def populate_data_handler(
     order_book: OrderBook | None,
     timestamp: datetime,
 ) -> None:
-    """
-    Populates the DataHandler with mock data using the correct nested structure
+    """Populates the DataHandler with mock data using the correct nested structure
     and updates last update times.
 
     Args:

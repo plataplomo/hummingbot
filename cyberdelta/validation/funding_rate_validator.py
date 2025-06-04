@@ -1,5 +1,4 @@
-"""
-Funding Rate Validation System
+"""Funding Rate Validation System
 
 This module implements the validation system for funding rate predictions
 against actual payments received/paid.
@@ -16,8 +15,7 @@ from cyberdelta.config.config_models import AppSettings  # Correct path
 
 
 class HistorySeries(TypedDict):
-    """
-    Represents a time series of funding rate predictions or actuals.
+    """Represents a time series of funding rate predictions or actuals.
     - timestamps: List of integer timestamps (ms since epoch)
     - datetimes: List of ISO-formatted datetime strings
     - rates: List of predicted or actual funding rates (float)
@@ -29,8 +27,7 @@ class HistorySeries(TypedDict):
 
 
 class PredictionHistory(TypedDict):
-    """
-    Structure for prediction history, containing both predictions and actuals.
+    """Structure for prediction history, containing both predictions and actuals.
     - predictions: HistorySeries of predicted rates
     - actuals: HistorySeries of actual rates
     """
@@ -40,8 +37,7 @@ class PredictionHistory(TypedDict):
 
 
 class MergedDataEntry(TypedDict):
-    """
-    Represents a merged prediction-payment pair for metric calculation.
+    """Represents a merged prediction-payment pair for metric calculation.
     """
 
     timestamp: int
@@ -53,17 +49,16 @@ class MergedDataEntry(TypedDict):
 
 
 class FundingRateValidator:
-    """
-    Validates funding rate data and predictions against actual payments.
+    """Validates funding rate data and predictions against actual payments.
     Tracks accuracy and provides metrics for improving predictions.
     """
 
     def __init__(self, config: AppSettings) -> None:
-        """
-        Initialize the FundingRateValidator.
+        """Initialize the FundingRateValidator.
 
         Args:
             config: Application configuration object
+
         """
         self.config = config
         self.logger = logging.getLogger(__name__)
@@ -80,8 +75,7 @@ class FundingRateValidator:
         method: str = "api",
         confidence: float = 1.0,
     ) -> None:
-        """
-        Record a funding rate prediction.
+        """Record a funding rate prediction.
 
         Args:
             exchange: Exchange identifier
@@ -89,6 +83,7 @@ class FundingRateValidator:
             predicted_rate: Predicted funding rate
             method: Method used for prediction (api, model, etc.)
             confidence: Confidence level in the prediction (0-1)
+
         """
         timestamp = int(time.time() * 1000)
 
@@ -105,7 +100,7 @@ class FundingRateValidator:
         self.predictions.append(prediction)
         self.logger.debug(
             f"Recorded funding rate prediction: {exchange}/{symbol}, "
-            f"rate={predicted_rate:.6f}, method={method}"
+            f"rate={predicted_rate:.6f}, method={method}",
         )
 
     def record_payment(
@@ -116,8 +111,7 @@ class FundingRateValidator:
         payment_amount: float,
         position_size: float,
     ) -> None:
-        """
-        Record an actual funding payment.
+        """Record an actual funding payment.
 
         Args:
             exchange: Exchange identifier
@@ -125,6 +119,7 @@ class FundingRateValidator:
             actual_rate: Actual funding rate that was applied
             payment_amount: Amount of funding paid/received
             position_size: Position size at time of payment
+
         """
         timestamp = int(time.time() * 1000)
 
@@ -141,14 +136,13 @@ class FundingRateValidator:
         self.payments.append(payment)
         self.logger.info(
             f"Recorded funding payment: {exchange}/{symbol}, rate={actual_rate:.6f}, "
-            f"amount={payment_amount:.8f}"
+            f"amount={payment_amount:.8f}",
         )
 
     def calculate_metrics(
-        self, exchange: str, symbol: str, days: int = 7
+        self, exchange: str, symbol: str, days: int = 7,
     ) -> dict[str, float | None]:
-        """
-        Calculate prediction accuracy metrics.
+        """Calculate prediction accuracy metrics.
 
         Args:
             exchange: Exchange identifier
@@ -157,6 +151,7 @@ class FundingRateValidator:
 
         Returns:
             Dictionary with accuracy metrics (RMSE, MAE, bias, etc.)
+
         """
         # Calculate time threshold (milliseconds)
         threshold_time = datetime.now(UTC) - timedelta(days=days)
@@ -221,7 +216,7 @@ class FundingRateValidator:
                         "method": method,
                         "confidence": confidence,
                         "error": predicted_rate - actual_rate,
-                    }
+                    },
                 )
 
         # If we couldn't match any predictions with payments
@@ -252,19 +247,19 @@ class FundingRateValidator:
 
         self.logger.info(
             f"Calculated metrics for {exchange}/{symbol}: "
-            f"RMSE={rmse:.6f}, MAE={mae:.6f}, Bias={bias:.6f}"
+            f"RMSE={rmse:.6f}, MAE={mae:.6f}, Bias={bias:.6f}",
         )
         return cast(dict[str, float | None], metrics)
 
     def get_validation_report(self, days: int = 7) -> dict[str, dict[str, dict[str, float | None]]]:
-        """
-        Generate a comprehensive validation report.
+        """Generate a comprehensive validation report.
 
         Args:
             days: Number of days to include in the report
 
         Returns:
             Dictionary with validation metrics by exchange and symbol
+
         """
         report: dict[str, dict[str, dict[str, float | None]]] = {}
 
@@ -288,10 +283,9 @@ class FundingRateValidator:
         return report
 
     def get_recent_predictions(
-        self, exchange: str | None = None, symbol: str | None = None, limit: int = 100
+        self, exchange: str | None = None, symbol: str | None = None, limit: int = 100,
     ) -> list[dict[str, Any]]:
-        """
-        Get recent funding rate predictions.
+        """Get recent funding rate predictions.
 
         Args:
             exchange: Optional exchange filter
@@ -300,6 +294,7 @@ class FundingRateValidator:
 
         Returns:
             List of prediction records
+
         """
         # Filter predictions
         filtered_predictions = self.predictions
@@ -312,15 +307,14 @@ class FundingRateValidator:
 
         # Sort by timestamp (newest first) and apply limit
         sorted_predictions = sorted(
-            filtered_predictions, key=lambda x: x["timestamp"], reverse=True
+            filtered_predictions, key=lambda x: x["timestamp"], reverse=True,
         )
         return sorted_predictions[:limit]
 
     def get_recent_payments(
-        self, exchange: str | None = None, symbol: str | None = None, limit: int = 100
+        self, exchange: str | None = None, symbol: str | None = None, limit: int = 100,
     ) -> list[dict[str, Any]]:
-        """
-        Get recent funding payments.
+        """Get recent funding payments.
 
         Args:
             exchange: Optional exchange filter
@@ -329,6 +323,7 @@ class FundingRateValidator:
 
         Returns:
             List of payment records
+
         """
         # Filter payments
         filtered_payments = self.payments
@@ -344,10 +339,9 @@ class FundingRateValidator:
         return sorted_payments[:limit]
 
     def get_prediction_history(
-        self, exchange: str, symbol: str, days: int = 30
+        self, exchange: str, symbol: str, days: int = 30,
     ) -> PredictionHistory:
-        """
-        Get prediction history for a specific exchange and symbol.
+        """Get prediction history for a specific exchange and symbol.
 
         Args:
             exchange: Exchange identifier
@@ -356,6 +350,7 @@ class FundingRateValidator:
 
         Returns:
             Dictionary with timestamp, predicted, and actual rate lists
+
         """
         # Calculate time threshold
         threshold_time = datetime.now(UTC) - timedelta(days=days)
@@ -397,11 +392,11 @@ class FundingRateValidator:
         }
 
     def clear_old_data(self, days_to_keep: int = 90) -> None:
-        """
-        Remove data older than the specified number of days.
+        """Remove data older than the specified number of days.
 
         Args:
             days_to_keep: Number of days of data to retain
+
         """
         threshold_time = datetime.now(UTC) - timedelta(days=days_to_keep)
         threshold_ms = int(threshold_time.timestamp() * 1000)
@@ -414,7 +409,7 @@ class FundingRateValidator:
 
         self.logger.info(
             f"Cleared data older than {days_to_keep} days. "
-            f"Remaining: {len(self.predictions)} predictions, {len(self.payments)} payments"
+            f"Remaining: {len(self.predictions)} predictions, {len(self.payments)} payments",
         )
 
     def get_symbol_metrics(self, exchange: str, symbol: str) -> dict[str, float | None]:

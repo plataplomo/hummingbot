@@ -1,5 +1,4 @@
-"""
-Tests for Hyperliquid test configuration fixtures.
+"""Tests for Hyperliquid test configuration fixtures.
 
 This module verifies that the Hyperliquid API fixtures are working correctly
 with the test configuration system.

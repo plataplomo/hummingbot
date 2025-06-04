@@ -1,5 +1,4 @@
-"""
-Data structures for funding rate data from multiple sources.
+"""Data structures for funding rate data from multiple sources.
 
 This module contains the data structures used for the multi-tier signal
 verification system, supporting the collection, integration, and validation
@@ -49,14 +48,14 @@ class FundingData:
     staleness: float = 0.0  # Measured in seconds
 
     def is_stale(self, max_age_seconds: float) -> bool:
-        """
-        Check if the funding data is considered stale.
+        """Check if the funding data is considered stale.
 
         Args:
             max_age_seconds: Maximum acceptable age in seconds
 
         Returns:
             True if data is stale, False otherwise
+
         """
         age = (datetime.now(UTC) - self.timestamp).total_seconds()
         return age > max_age_seconds
@@ -80,23 +79,23 @@ class IntegratedFundingData:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def get_age(self) -> float:
-        """
-        Get the age of the integrated data in seconds.
+        """Get the age of the integrated data in seconds.
 
         Returns:
             Age in seconds
+
         """
         return (datetime.now(UTC) - self.timestamp).total_seconds()
 
     def is_stale(self, max_age_seconds: float) -> bool:
-        """
-        Check if the integrated funding data is considered stale.
+        """Check if the integrated funding data is considered stale.
 
         Args:
             max_age_seconds: Maximum acceptable age in seconds
 
         Returns:
             True if data is stale, False otherwise
+
         """
         return self.get_age() > max_age_seconds
 
@@ -131,8 +130,7 @@ class ConfidenceFactors:
         dispersion_weight: float = 0.3,
         freshness_weight: float = 0.1,
     ) -> float:
-        """
-        Calculate weighted confidence score from factors.
+        """Calculate weighted confidence score from factors.
 
         Args:
             historical_weight: Weight for historical accuracy
@@ -142,6 +140,7 @@ class ConfidenceFactors:
 
         Returns:
             Weighted confidence score between 0.0 and 1.0
+
         """
         score = (
             self.historical_accuracy * historical_weight
@@ -187,8 +186,7 @@ class HistoricalTrade:
 
 
 class ArbitrageOpportunity(BaseModel):
-    """
-    ArbitrageOpportunity represents a funding rate arbitrage opportunity between two exchanges for a
+    """ArbitrageOpportunity represents a funding rate arbitrage opportunity between two exchanges for a
     given symbol. This model is mutable because it may be updated with analytics, sizing, or
     confidence scores after initial creation.
 
@@ -219,6 +217,7 @@ class ArbitrageOpportunity(BaseModel):
         - All financial fields use Decimal for accuracy.
         - Use this model for opportunity tracking, analytics, and strategy input.
         - This model is mutable to allow enrichment after creation.
+
     """
 
     symbol: str
@@ -235,7 +234,7 @@ class ArbitrageOpportunity(BaseModel):
     basis_volatility: float | None = None
     utility_score: float | None = None
     optimal_size: Decimal | None = Field(
-        default=None, gt=0, description="Optimal size, if calculated by risk/position sizing."
+        default=None, gt=0, description="Optimal size, if calculated by risk/position sizing.",
     )
     confidence_score: float | None = None
     integrated_funding_data: IntegratedFundingData | None = None
@@ -258,7 +257,7 @@ class ArbitrageOpportunity(BaseModel):
     )
     @classmethod
     def parse_decimal_fields(
-        cls, v: str | int | float | Decimal | None, info: object
+        cls, v: str | int | float | Decimal | None, info: object,
     ) -> Decimal | None:
         return parse_decimal_value(v)
 
@@ -272,14 +271,13 @@ class ArbitrageOpportunity(BaseModel):
 
     @model_validator(mode="after")
     def set_expiration(self) -> Self:
-        """
-        Set expiration_timestamp to 1 hour after timestamp (UTC).
+        """Set expiration_timestamp to 1 hour after timestamp (UTC).
         """
         if self.timestamp.tzinfo:
             object.__setattr__(self, "expiration_timestamp", self.timestamp.timestamp() + 3600)
         else:
             object.__setattr__(
-                self, "expiration_timestamp", self.timestamp.replace(tzinfo=UTC).timestamp() + 3600
+                self, "expiration_timestamp", self.timestamp.replace(tzinfo=UTC).timestamp() + 3600,
             )
         return self
 
@@ -290,8 +288,7 @@ class ArbitrageOpportunity(BaseModel):
 
     @model_validator(mode="after")
     def check_arbitrage_logic(self) -> Self:
-        """
-        Ensure all required financial fields are positive where appropriate.
+        """Ensure all required financial fields are positive where appropriate.
         """
         if self.long_price <= 0:
             raise ValueError("Long price must be positive.")

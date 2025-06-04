@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid Account Data Mapper Positions & Trades Tests
+"""CyberDeltaEngine: Hyperliquid Account Data Mapper Positions & Trades Tests
 --------------------------------------------------------------------------
 
 Comprehensive test suite for HyperliquidAccountDataMapper position and trade transformations.

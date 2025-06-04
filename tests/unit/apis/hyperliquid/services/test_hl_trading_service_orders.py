@@ -1,5 +1,4 @@
-"""
-Unit tests for HyperliquidTradingService order operations.
+"""Unit tests for HyperliquidTradingService order operations.
 """
 
 from collections.abc import Callable

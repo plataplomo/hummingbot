@@ -1,5 +1,4 @@
-"""
-cyberdelta.apis.hyperliquid.hl_rate_limit_strategy
+"""cyberdelta.apis.hyperliquid.hl_rate_limit_strategy
 ------------------------------------------------
 Hyperliquid-specific rate limiting strategy implementation.
 
@@ -22,8 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class HyperliquidRateLimitStrategy(RateLimitStrategy):
-    """
-    Rate limiting strategy for Hyperliquid exchange.
+    """Rate limiting strategy for Hyperliquid exchange.
 
     Implements Hyperliquid's dual rate limiting system:
     - IP weight-based limiting for all requests
@@ -31,23 +29,23 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
     """
 
     def __init__(self, hl_exchange_config: ExchangeSpecificConfig) -> None:
-        """
-        Initialize the Hyperliquid rate limit strategy.
+        """Initialize the Hyperliquid rate limit strategy.
 
         Args:
             hl_exchange_config: Hyperliquid-specific exchange configuration
                                containing rate limit parameters.
+
         """
         # Validate we have required Hyperliquid configuration
         if not all(
             [
                 hl_exchange_config.ip_weight_limit_per_minute,
                 hl_exchange_config.address_action_safety_net,
-            ]
+            ],
         ):
             raise ValueError(
                 "HyperliquidRateLimitStrategy requires ip_weight_limit_per_minute "
-                "and address_action_safety_net configuration"
+                "and address_action_safety_net configuration",
             )
 
         # Initialize request weighter utility
@@ -60,11 +58,11 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
         ip_rate_rps = ip_rate_rpm / 60.0
         ip_bucket = max(1, int(ip_rate_rps * 2))  # 2-second bucket
         self._ip_weight_limiter = TokenBucketRateLimiterRuntime(
-            rate=ip_rate_rps, bucket_size=ip_bucket
+            rate=ip_rate_rps, bucket_size=ip_bucket,
         )
         logger.info(
             f"Hyperliquid IP weight limiter initialized: "
-            f"rate={ip_rate_rps:.2f} weights/sec, bucket={ip_bucket} weights"
+            f"rate={ip_rate_rps:.2f} weights/sec, bucket={ip_bucket} weights",
         )
 
         # Address Action Count Limiter (Safety Net)
@@ -75,16 +73,15 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
         aa_rate_rps = aa_rate_rpm / 60.0
         aa_bucket = max(1, int(aa_rate_rps * 2))  # 2-second bucket
         self._address_action_limiter = TokenBucketRateLimiterRuntime(
-            rate=aa_rate_rps, bucket_size=aa_bucket
+            rate=aa_rate_rps, bucket_size=aa_bucket,
         )
         logger.info(
             f"Hyperliquid address action limiter initialized: "
-            f"rate={aa_rate_rps:.2f} actions/sec, bucket={aa_bucket} actions"
+            f"rate={aa_rate_rps:.2f} actions/sec, bucket={aa_bucket} actions",
         )
 
     async def prepare_and_acquire(self, request_context: dict[str, Any]) -> None:
-        """
-        Acquire necessary rate limit permissions for a Hyperliquid request.
+        """Acquire necessary rate limit permissions for a Hyperliquid request.
 
         This method:
         1. Calculates IP weight cost using the request weighter
@@ -103,6 +100,7 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
 
         Raises:
             APIError: If rate limit acquisition fails or times out.
+
         """
         endpoint = request_context.get("endpoint", "")
         action_payload = request_context.get("action_payload")
@@ -111,12 +109,12 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
         # Calculate costs using the weighter
         ip_cost = self._request_weighter.get_ip_weight(endpoint, action_payload)
         address_action_cost = self._request_weighter.get_address_action_count(
-            endpoint, action_payload
+            endpoint, action_payload,
         )
 
         logger.debug(
             f"Hyperliquid rate limit costs for {method} {endpoint}: "
-            f"ip_weight={ip_cost}, address_actions={address_action_cost}"
+            f"ip_weight={ip_cost}, address_actions={address_action_cost}",
         )
 
         # Acquire IP weight tokens if needed
@@ -133,22 +131,21 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
         return None
 
     async def trigger_ip_ban_on_main_pool(self, duration_seconds: float) -> None:
-        """
-        Trigger an IP ban on the main IP weight limiter.
+        """Trigger an IP ban on the main IP weight limiter.
 
         This method is called when the exchange returns an IP ban error,
         causing all subsequent requests to wait for the ban duration.
 
         Args:
             duration_seconds: Duration of the IP ban in seconds.
+
         """
         await self._ip_weight_limiter.trigger_ip_ban(duration_seconds)
 
     async def handle_exchange_retry_after(
-        self, duration_seconds: float, request_context: dict[str, Any]
+        self, duration_seconds: float, request_context: dict[str, Any],
     ) -> None:
-        """
-        Handles exchange-advised retry_after directives.
+        """Handles exchange-advised retry_after directives.
 
         Hyperliquid's primary rate limit feedback mechanism is an IP ban (403 error),
         which is handled by trigger_ip_ban_on_main_pool. If Hyperliquid were to
@@ -160,11 +157,12 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
         Args:
             duration_seconds: The exchange-advised delay in seconds.
             request_context: Context of the request that was rate-limited.
+
         """
         logger.info(
             f"HyperliquidRateLimitStrategy: Received exchange-advised retry_after of "
             f"{duration_seconds:.2f}s for {request_context.get('exchange_name', 'Hyperliquid')}. "
-            f"Applying as a temporary IP ban on the main pool."
+            f"Applying as a temporary IP ban on the main pool.",
         )
         await self.trigger_ip_ban_on_main_pool(duration_seconds)
         # If more granular control based on request_context (e.g., endpoint_group) is needed

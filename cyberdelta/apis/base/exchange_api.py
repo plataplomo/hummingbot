@@ -77,8 +77,7 @@ MessageHandler = Callable[[dict[str, Any], dict[str, Any]], Coroutine[Any, Any, 
 
 
 class ExchangeAPI(ABC):
-    """
-    Abstract base class defining the interface for all exchange API implementations.
+    """Abstract base class defining the interface for all exchange API implementations.
     Provides common functionality for API request handling, rate limiting, and error management.
     """
 
@@ -95,8 +94,7 @@ class ExchangeAPI(ABC):
         rate_limit_strategy: RateLimitStrategy | None = None,
         exchange_config: ExchangeSpecificConfig | None = None,
     ) -> None:
-        """
-        Initialize the exchange API client.
+        """Initialize the exchange API client.
 
         Args:
             exchange_name: Name of the exchange (e.g., 'hyperliquid', 'backpack')
@@ -109,6 +107,7 @@ class ExchangeAPI(ABC):
             ws_manager: Optional WebSocketManager instance for dependency injection (testing)
             rate_limit_strategy: Optional rate limiting strategy instance
             exchange_config: Optional ExchangeSpecificConfig for creating default strategy
+
         """
         self.exchange_name = exchange_name
         self._config = config
@@ -123,7 +122,7 @@ class ExchangeAPI(ABC):
                 logger.warning(  # Assuming 'logger' is defined in this class or module scope
                     f"[{self.exchange_name}] ExchangeAPI initialized without a running "
                     f"event loop and no loop provided. "
-                    f"Creating a new event loop. This might not be intended."
+                    f"Creating a new event loop. This might not be intended.",
                 )
                 self.loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(self.loop)
@@ -171,23 +170,23 @@ class ExchangeAPI(ABC):
                 rate_per_second = exchange_config.rate_limit_per_minute / 60.0
                 bucket_size = max(1, int(rate_per_second * 2))  # 2-second bucket
                 default_limiter_primitive = TokenBucketRateLimiterRuntime(
-                    rate=rate_per_second, bucket_size=bucket_size
+                    rate=rate_per_second, bucket_size=bucket_size,
                 )
                 self.rate_limit_strategy = SimpleTokenBucketStrategy(
-                    limiter=default_limiter_primitive, default_request_weight=1
+                    limiter=default_limiter_primitive, default_request_weight=1,
                 )
                 logger.info(f"[{self.exchange_name}] Created default simple rate limit strategy")
             else:
                 logger.warning(
                     f"[{self.exchange_name}] No rate limit strategy provided and no "
-                    f"rate_limit_per_minute in exchange config. Rate limiting may not work."
+                    f"rate_limit_per_minute in exchange config. Rate limiting may not work.",
                 )
 
         self.rest_endpoint = str(http_client_config.rest_endpoint)  # Get validated endpoint
         # Ensure rest_endpoint is still validated as before, though Pydantic does it now
         if not self.rest_endpoint:
             raise ValueError(
-                f"[{exchange_name}] Missing or invalid 'rest_endpoint' or 'base_url' in config"
+                f"[{exchange_name}] Missing or invalid 'rest_endpoint' or 'base_url' in config",
             )
 
         # Construct WebSocketManagerConfig using direct field mapping
@@ -196,13 +195,13 @@ class ExchangeAPI(ABC):
         if self.ws_endpoint and not isinstance(self.ws_endpoint, str):
             logger.warning(
                 f"[{exchange_name}] Invalid 'ws_url' in config (must be str). "
-                f"WebSocket functionality will be disabled."
+                f"WebSocket functionality will be disabled.",
             )
             self.ws_endpoint = None
         elif not self.ws_endpoint:
             logger.warning(
                 f"[{exchange_name}] Missing 'ws_url' in config. "
-                f"WebSocket functionality will be disabled."
+                f"WebSocket functionality will be disabled.",
             )
 
         # Use injected HttpClient if provided, otherwise create one
@@ -259,11 +258,11 @@ class ExchangeAPI(ABC):
                     ws_rate_per_second = ws_rate_per_minute / 60.0
                     ws_bucket_size = max(1, int(ws_rate_per_second * 2))
                     outgoing_message_limiter = TokenBucketRateLimiterRuntime(
-                        rate=ws_rate_per_second, bucket_size=ws_bucket_size
+                        rate=ws_rate_per_second, bucket_size=ws_bucket_size,
                     )
                     logger.info(
                         f"[{self.exchange_name}] Created WebSocket outgoing message limiter: "
-                        f"rate={ws_rate_per_second:.2f} msg/sec"
+                        f"rate={ws_rate_per_second:.2f} msg/sec",
                     )
 
                 self._ws_manager = WebSocketManager(
@@ -276,7 +275,7 @@ class ExchangeAPI(ABC):
 
         logger.info(
             f"[{self.exchange_name}] API initialized. REST: {self.rest_endpoint}, "
-            f"WS: {self.ws_endpoint}"
+            f"WS: {self.ws_endpoint}",
         )
 
     @property
@@ -296,8 +295,7 @@ class ExchangeAPI(ABC):
         request_weight: int = 1,
         serialize_none_as_null: bool = False,
     ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
-        """
-        Execute an API request, delegating to HttpClient and handling exchange-specific
+        """Execute an API request, delegating to HttpClient and handling exchange-specific
         error mapping.
 
         Args:
@@ -321,6 +319,7 @@ class ExchangeAPI(ABC):
 
         Raises:
             APIError: For mapped exchange-specific errors or unrecoverable issues.
+
         """
         request_url = urljoin(self.rest_endpoint, endpoint.lstrip("/"))
 
@@ -328,14 +327,14 @@ class ExchangeAPI(ABC):
         data_dict_for_http_client: dict[str, Any] | None
         if isinstance(data, BaseModel):
             data_dict_for_http_client = data.model_dump(
-                by_alias=True, exclude_none=not serialize_none_as_null
+                by_alias=True, exclude_none=not serialize_none_as_null,
             )
         elif isinstance(data, dict) or data is None:
             data_dict_for_http_client = data
         else:
             raise TypeError(
                 f"ExchangeAPI._request 'data' param must be BaseModel, dict, or None. "
-                f"Got {type(data)}"
+                f"Got {type(data)}",
             )
 
         response_content: ParsedJsonResponse | str | None = None
@@ -378,7 +377,7 @@ class ExchangeAPI(ABC):
             logger.warning(
                 f"[{self.exchange_name}] HTTP request failed for {method} "
                 f"{request_url}: Status={e_http_failed.http_status}, "
-                f"Body='{e_http_failed.exchange_message}'"
+                f"Body='{e_http_failed.exchange_message}'",
             )
             # Error is already HttpRequestFailedError (subclass of APIError)
             # We need to map its *contents* using the exchange-specific mapper
@@ -408,7 +407,7 @@ class ExchangeAPI(ABC):
             # These are already raised by HttpClient after its retries
             logger.error(
                 f"[{self.exchange_name}] Unrecoverable client error for {method} "
-                f"{request_url}: {e_client}"
+                f"{request_url}: {e_client}",
             )
             # Map to a generic APIError
             # Here, we don't have a specific exchange error body, so pass what we have.
@@ -426,7 +425,7 @@ class ExchangeAPI(ABC):
         except Exception as e_unhandled:
             logger.exception(
                 f"[{self.exchange_name}] Unhandled exception during request {method} "
-                f"{request_url}: {e_unhandled}"
+                f"{request_url}: {e_unhandled}",
             )
             # Map to a generic unknown APIError
             mapped_error = self.error_mapper.map_exchange_error(
@@ -440,16 +439,16 @@ class ExchangeAPI(ABC):
 
     @abstractmethod
     def _update_rate_limit_from_headers(
-        self, headers: Mapping[str, str], method: str, path: str
+        self, headers: Mapping[str, str], method: str, path: str,
     ) -> None:
-        """
-        Update rate limit information based on response headers.
+        """Update rate limit information based on response headers.
         This allows dynamic adaptation to exchange-reported limits.
 
         Args:
             headers: Response headers
             method: HTTP method used
             path: API endpoint path
+
         """
         # This is a base implementation - exchange-specific classes should override
         # to handle their specific rate limit header formats
@@ -469,7 +468,7 @@ class ExchangeAPI(ABC):
             # This should not happen if __init__ forces error_mapper
             logger.error(
                 f"[{self.exchange_name}] Error mapper not configured. "
-                f"Falling back to generic error."
+                f"Falling back to generic error.",
             )
             return APIError(
                 message=f"Exchange error (mapper not configured): {error_body}",
@@ -491,7 +490,7 @@ class ExchangeAPI(ABC):
             logger.info(f"HTTP client for {self.exchange_name} closed.")
         else:
             logger.info(
-                f"HTTP client for {self.exchange_name} was not initialized or already closed."
+                f"HTTP client for {self.exchange_name} was not initialized or already closed.",
             )
 
         if self._ws_manager:
@@ -499,7 +498,7 @@ class ExchangeAPI(ABC):
             logger.info(f"WebSocket manager for {self.exchange_name} closed.")
         else:
             logger.info(
-                f"WebSocket manager for {self.exchange_name} was not initialized or already closed."
+                f"WebSocket manager for {self.exchange_name} was not initialized or already closed.",
             )
 
         logger.info(f"ExchangeAPI for {self.exchange_name} closed successfully.")
@@ -522,17 +521,17 @@ class ExchangeAPI(ABC):
             except (ValueError, APIError) as e:
                 logger.warning(
                     f"[{self.exchange_name}] Could not construct/send subscription payload "
-                    f"for topic '{topic}': {e}. Not subscribing to this topic."
+                    f"for topic '{topic}': {e}. Not subscribing to this topic.",
                 )
         elif self._ws_manager:
             logger.warning(
                 f"[{self.exchange_name}] WebSocket not connected. Subscription to {topic} "
-                f"will be attempted upon connection."
+                f"will be attempted upon connection.",
             )
         else:
             logger.error(
                 f"[{self.exchange_name}] WebSocket manager not initialized. "
-                f"Cannot subscribe to {topic}."
+                f"Cannot subscribe to {topic}.",
             )
 
     @abstractmethod
@@ -550,7 +549,7 @@ class ExchangeAPI(ABC):
     async def _on_ws_connected(self) -> None:
         """Callback executed by WebSocketManager after a successful connection."""
         logger.info(
-            f"[{self.exchange_name}] WebSocket connected, attempting to resubscribe to topics."
+            f"[{self.exchange_name}] WebSocket connected, attempting to resubscribe to topics.",
         )
         await self._resubscribe()
 
@@ -561,7 +560,7 @@ class ExchangeAPI(ABC):
             return
 
         logger.info(
-            f"[{self.exchange_name}] Resubscribing to topics: {list(self._ws_handlers.keys())}"
+            f"[{self.exchange_name}] Resubscribing to topics: {list(self._ws_handlers.keys())}",
         )
         if self._ws_manager and self.is_connected:
             for topic, _handler in self._ws_handlers.copy().items():
@@ -570,22 +569,22 @@ class ExchangeAPI(ABC):
                     success = await self._ws_manager.send_json(subscription_payload)
                     if success:
                         logger.info(
-                            f"[{self.exchange_name}] Successfully re-sent subscription for {topic}."
+                            f"[{self.exchange_name}] Successfully re-sent subscription for {topic}.",
                         )
                     else:
                         logger.warning(
-                            f"[{self.exchange_name}] Failed to re-send subscription for {topic}."
+                            f"[{self.exchange_name}] Failed to re-send subscription for {topic}.",
                         )
                 except (ValueError, APIError) as e:
                     logger.warning(
                         f"[{self.exchange_name}] Could not construct/send resubscription "
-                        f"payload for topic '{topic}': {e}. Skipping this topic."
+                        f"payload for topic '{topic}': {e}. Skipping this topic.",
                     )
                 await asyncio.sleep(0.1)
         else:
             logger.warning(
                 f"[{self.exchange_name}] Cannot resubscribe, WebSocket not connected "
-                f"or manager not available."
+                f"or manager not available.",
             )
 
     @abstractmethod
@@ -617,7 +616,7 @@ class ExchangeAPI(ABC):
 
     @abstractmethod
     async def get_historical_funding_rates(
-        self, args: GetHistoricalFundingRatesArgs
+        self, args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
         """Fetch historical funding rates for a specific symbol.
 
@@ -631,6 +630,7 @@ class ExchangeAPI(ABC):
 
         Raises:
             APIError: If the API request fails.
+
         """
         raise NotImplementedError
 
@@ -641,6 +641,7 @@ class ExchangeAPI(ABC):
         Args:
             args: Parameters for market data request including symbol, timeframe,
                  limit, and optional time range constraints.
+
         """
         raise NotImplementedError
 
@@ -678,6 +679,7 @@ class ExchangeAPI(ABC):
 
         Raises:
             APIError: If the order placement fails.
+
         """
         raise NotImplementedError
 
@@ -699,6 +701,7 @@ class ExchangeAPI(ABC):
 
         Raises:
             APIError: If the API returns an error during the operation.
+
         """
         raise NotImplementedError
 
@@ -714,6 +717,7 @@ class ExchangeAPI(ABC):
         Args:
             args: Parameters for filtering order history including symbol, time range,
                  limit, order ID, and client order ID.
+
         """
         raise NotImplementedError
 
@@ -723,13 +727,13 @@ class ExchangeAPI(ABC):
 
         Args:
             args: Parameters for filtering trade history including symbol and limit.
+
         """
         raise NotImplementedError
 
     @abstractmethod
     async def get_order_status(self, args: GetOrderArgs) -> Order | None:
-        """
-        Fetch the current status of a specific order.
+        """Fetch the current status of a specific order.
 
         Args:
             args: GetOrderArgs model containing order_id (primary identifier)
@@ -740,13 +744,13 @@ class ExchangeAPI(ABC):
 
         Raises:
             APIError: If the API request fails.
+
         """
         raise NotImplementedError
 
     @abstractmethod
     async def get_order(self, args: GetOrderArgs) -> Order | None:
-        """
-        Get a specific order by its ID.
+        """Get a specific order by its ID.
 
         Args:
             args: GetOrderArgs model containing order_id (primary identifier)
@@ -757,6 +761,7 @@ class ExchangeAPI(ABC):
 
         Raises:
             APIError: If the API request fails.
+
         """
         raise NotImplementedError
 
@@ -766,7 +771,7 @@ class ExchangeAPI(ABC):
         if not self._ws_manager:
             logger.error(
                 f"[{self.exchange_name}] WebSocket manager not initialized. "
-                f"Cannot connect WebSocket."
+                f"Cannot connect WebSocket.",
             )
             raise APIError(
                 message=f"[{self.exchange_name}] WebSocket not configured or enabled.",
@@ -790,7 +795,7 @@ class ExchangeAPI(ABC):
         else:
             logger.info(
                 f"[{self.exchange_name}] WebSocket manager not active or not initialized. "
-                f"No WebSocket to close."
+                f"No WebSocket to close.",
             )
 
     async def ping_websocket(self) -> None:
@@ -800,12 +805,12 @@ class ExchangeAPI(ABC):
             # For now, log that standard ping is handled by WebSocketManager
             logger.debug(
                 f"[{self.exchange_name}] Standard WebSocket ping is handled by WebSocketManager "
-                f"if configured. Call this for custom pings."
+                f"if configured. Call this for custom pings.",
             )
         else:
             logger.warning(
                 f"[{self.exchange_name}] Cannot send custom ping, WebSocket not connected "
-                f"or manager not available."
+                f"or manager not available.",
             )
 
     # --- Helper Methods --- #
@@ -816,6 +821,7 @@ class ExchangeAPI(ABC):
 
         Args:
             args: Parameters for filtering open orders including optional symbol.
+
         """
         raise NotImplementedError
 
@@ -823,8 +829,7 @@ class ExchangeAPI(ABC):
 
     @abstractmethod
     async def transfer(self, args: TransferArgs) -> Transfer:
-        """
-        Execute an internal funds transfer between account types within the exchange.
+        """Execute an internal funds transfer between account types within the exchange.
 
         Args:
             args: TransferArgs model containing all transfer parameters including
@@ -836,13 +841,13 @@ class ExchangeAPI(ABC):
 
         Raises:
             APIError: If the transfer operation fails.
+
         """
         raise NotImplementedError
 
     @abstractmethod
     async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
-        """
-        Execute a fund withdrawal to an external address.
+        """Execute a fund withdrawal to an external address.
 
         Args:
             args: WithdrawArgs model containing all withdrawal parameters including
@@ -854,5 +859,6 @@ class ExchangeAPI(ABC):
 
         Raises:
             APIError: If the withdrawal operation fails.
+
         """
         raise NotImplementedError

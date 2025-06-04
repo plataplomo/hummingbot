@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Backpack WebSocket Raw Message Handler
+"""CyberDeltaEngine: Backpack WebSocket Raw Message Handler
 -------------------------------------------------------
 
 This module defines the `BackpackWsRawMessageHandler` class. This class is
@@ -29,8 +28,7 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
 
 class BackpackWsRawMessageHandler:
-    """
-    Handles the validation of raw WebSocket message payloads from Backpack.
+    """Handles the validation of raw WebSocket message payloads from Backpack.
 
     This class provides static methods, each designed to validate a specific
     type of WebSocket message payload (e.g., depth updates, ticker events)
@@ -40,8 +38,7 @@ class BackpackWsRawMessageHandler:
 
     @staticmethod
     def handle_depth_payload(payload: dict[str, Any]) -> BackpackRawDepthUpdateEvent:
-        """
-        Validate a raw WebSocket depth/order book update payload.
+        """Validate a raw WebSocket depth/order book update payload.
 
         This method takes a raw dictionary payload, presumably from a Backpack
         WebSocket message concerning depth or order book changes, and validates
@@ -59,6 +56,7 @@ class BackpackWsRawMessageHandler:
             APIError: If `pydantic.ValidationError` occurs, indicating the payload
                       does not match the `BackpackRawDepthUpdateEvent` schema.
                       The error code will be `APIErrorCode.INVALID_RESPONSE`.
+
         """
         try:
             validated_model = BackpackRawDepthUpdateEvent.model_validate(payload)
@@ -73,8 +71,7 @@ class BackpackWsRawMessageHandler:
 
     @staticmethod
     def handle_ticker_payload(payload: dict[str, Any]) -> BackpackRawTickerEvent:
-        """
-        Validate a raw WebSocket ticker update payload.
+        """Validate a raw WebSocket ticker update payload.
 
         This method validates a raw dictionary payload, expected to represent
         a ticker update from Backpack's WebSocket stream, against the
@@ -91,6 +88,7 @@ class BackpackWsRawMessageHandler:
             APIError: If `pydantic.ValidationError` occurs, signifying a mismatch
                       with the `BackpackRawTickerEvent` schema. The error code
                       will be `APIErrorCode.INVALID_RESPONSE`.
+
         """
         try:
             validated_model = BackpackRawTickerEvent.model_validate(payload)
@@ -105,8 +103,7 @@ class BackpackWsRawMessageHandler:
 
     @staticmethod
     def handle_trade_event_payload(payload: dict[str, Any]) -> BackpackRawTradeEvent:
-        """
-        Validate a raw WebSocket trade event (fill) payload.
+        """Validate a raw WebSocket trade event (fill) payload.
 
         This method ensures that a raw dictionary payload, representing a trade
         or fill event from Backpack's WebSocket stream, conforms to the
@@ -123,6 +120,7 @@ class BackpackWsRawMessageHandler:
             APIError: If `pydantic.ValidationError` occurs due to the payload not
                       matching the `BackpackRawTradeEvent` schema. The error code
                       will be `APIErrorCode.INVALID_RESPONSE`.
+
         """
         try:
             validated_model = BackpackRawTradeEvent.model_validate(payload)
@@ -137,8 +135,7 @@ class BackpackWsRawMessageHandler:
 
     @staticmethod
     def handle_order_update_payload(payload: dict[str, Any]) -> BackpackRawOrderUpdate:
-        """
-        Validate a raw WebSocket order update payload.
+        """Validate a raw WebSocket order update payload.
 
         This method validates a raw dictionary payload, which should represent
         an order update event from Backpack's WebSocket stream, against the
@@ -155,6 +152,7 @@ class BackpackWsRawMessageHandler:
             APIError: If `pydantic.ValidationError` occurs because the payload
                       deviates from the `BackpackRawOrderUpdate` schema. The
                       error code will be `APIErrorCode.INVALID_RESPONSE`.
+
         """
         try:
             validated_model = BackpackRawOrderUpdate.model_validate(payload)
@@ -169,8 +167,7 @@ class BackpackWsRawMessageHandler:
 
     @staticmethod
     def handle_position_update_payload(payload: dict[str, Any]) -> BackpackRawPositionUpdate:
-        """
-        Validate a raw WebSocket position update payload.
+        """Validate a raw WebSocket position update payload.
 
         This method checks a raw dictionary payload, expected to detail a position
         update from Backpack's WebSocket stream, for conformity with the
@@ -188,6 +185,7 @@ class BackpackWsRawMessageHandler:
             APIError: If `pydantic.ValidationError` occurs, indicating the payload
                       is not structured as per `BackpackRawPositionUpdate`. The
                       error code will be `APIErrorCode.INVALID_RESPONSE`.
+
         """
         try:
             validated_model = BackpackRawPositionUpdate.model_validate(payload)

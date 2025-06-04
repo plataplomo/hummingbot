@@ -17,8 +17,7 @@ from cyberdelta.enums.exchange_names import ExchangeName
 def active_hl_config(
     test_app_settings: AppSettings, hl_test_environment_from_config: str,
 ) -> ExchangeSpecificConfig:
-    """
-    Get ExchangeSpecificConfig for Hyperliquid from test configuration.
+    """Get ExchangeSpecificConfig for Hyperliquid from test configuration.
 
     Uses test_config.yaml settings with environment override support.
     """
@@ -31,8 +30,7 @@ def active_hl_config(
 
 @pytest.fixture(scope="session")
 def active_hl_secrets(test_secrets_config: SecretsConfig) -> PrivateKeyAuthSecrets:
-    """
-    Get PrivateKeyAuthSecrets for Hyperliquid from test secrets.
+    """Get PrivateKeyAuthSecrets for Hyperliquid from test secrets.
 
     Uses test_secrets.yaml settings.
     """
@@ -46,8 +44,7 @@ def create_test_exchange_config(
     env_type: Literal["mainnet", "testnet"] = "testnet",
     **kwargs: object,
 ) -> ExchangeSpecificConfig:
-    """
-    Create ExchangeSpecificConfig for testing with environment awareness.
+    """Create ExchangeSpecificConfig for testing with environment awareness.
 
     DEPRECATED: Use active_hl_config fixture instead.
 
@@ -232,8 +229,7 @@ def hl_api_for_test_env(
     active_hl_config: ExchangeSpecificConfig,
     active_hl_secrets: PrivateKeyAuthSecrets,
 ) -> HyperliquidAPI:
-    """
-    Create HyperliquidAPI instance for integration tests.
+    """Create HyperliquidAPI instance for integration tests.
 
     Uses configuration from test_config.yaml and test_secrets.yaml.
     For cassette recording/playback, this uses real components.
@@ -263,8 +259,7 @@ def hl_api_with_di(
     mock_hl_trading_service: MagicMock,
     mock_hl_market_data_service: MagicMock,
 ) -> Callable[..., Any]:
-    """
-    Factory fixture to create HyperliquidAPI instances with all dependencies injected.
+    """Factory fixture to create HyperliquidAPI instances with all dependencies injected.
     This enables black-box testing without accessing private members.
 
     UPDATED: Now uses active_hl_config and active_hl_secrets by default.

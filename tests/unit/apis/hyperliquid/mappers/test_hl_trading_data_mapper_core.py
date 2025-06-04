@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid Trading Data Mapper Core Tests
+"""CyberDeltaEngine: Hyperliquid Trading Data Mapper Core Tests
 -----------------------------------------------------------
 
 Comprehensive test suite for HyperliquidTradingDataMapper core transformation methods.

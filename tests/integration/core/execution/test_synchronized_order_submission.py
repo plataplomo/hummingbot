@@ -1,5 +1,4 @@
-"""
-Tests for the synchronize order submission module.
+"""Tests for the synchronize order submission module.
 """
 
 from __future__ import annotations

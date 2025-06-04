@@ -1,5 +1,4 @@
-"""
-Tests for Backpack test configuration fixtures.
+"""Tests for Backpack test configuration fixtures.
 
 This module verifies that the Backpack API fixtures are working correctly
 with the test configuration system.

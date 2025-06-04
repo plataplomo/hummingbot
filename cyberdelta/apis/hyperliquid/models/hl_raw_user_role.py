@@ -1,5 +1,4 @@
-"""
-CyberDeltaEngine: Hyperliquid API Raw Models (User Role)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (User Role)
 -------------------------------------------------------
 
 Strict boundary validation models for the Hyperliquid 'userRole' info endpoint.
@@ -20,8 +19,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
 
 
 class HyperliquidRawUserRoleData(BaseModel):
-    """
-    Raw boundary model for the optional 'data' field in the userRole response.
+    """Raw boundary model for the optional 'data' field in the userRole response.
     Structure varies based on the role.
     """
 
@@ -32,8 +30,7 @@ class HyperliquidRawUserRoleData(BaseModel):
 
 
 class HyperliquidRawUserRoleResponse(BaseModel):
-    """
-    Raw boundary model for the user role response.
+    """Raw boundary model for the user role response.
     """
 
     role: RawUserRoleString = Field(..., alias="role")

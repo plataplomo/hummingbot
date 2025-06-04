@@ -1,5 +1,4 @@
-"""
-Unit Tests for Hyperliquid Raw Builder Fee Approval Model
+"""Unit Tests for Hyperliquid Raw Builder Fee Approval Model
 """
 
 from typing import Any

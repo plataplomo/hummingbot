@@ -27,8 +27,7 @@ logger = logging.getLogger(__name__)
 
 # --- Core Order Model (Mutable) ---
 class Order(BaseModel):
-    """
-    Core internal model for a single order across all supported exchanges.
+    """Core internal model for a single order across all supported exchanges.
     Contains essential, universal fields. Mutable, robust, and validated.
     Follows the "Core + Typed Extension Slots" pattern (Idea 5).
     """
@@ -40,7 +39,7 @@ class Order(BaseModel):
     )
     exchange_order_id: str | None = Field(default=None, description="Exchange-provided order ID.")
     related_order_id: str | None = Field(
-        default=None, description="ID of related order (e.g., parent, trigger target)."
+        default=None, description="ID of related order (e.g., parent, trigger target).",
     )
     exchange: str = Field(..., description="Name of the exchange.")
     symbol: str = Field(..., description="Trading symbol.")
@@ -48,7 +47,7 @@ class Order(BaseModel):
     order_type: OrderType
     status: OrderStatus = Field(default=OrderStatus.NEW, description="Current status of the order.")
     quantity_requested: Decimal = Field(
-        ..., gt=Decimal("0"), description="Requested base quantity (must be positive)."
+        ..., gt=Decimal("0"), description="Requested base quantity (must be positive).",
     )
     quote_quantity_requested: Decimal | None = Field(
         default=None,
@@ -61,10 +60,10 @@ class Order(BaseModel):
         description="Total filled base quantity (non-negative).",
     )
     price: Decimal | None = Field(
-        default=None, gt=Decimal("0"), description="Limit price (positive if set)."
+        default=None, gt=Decimal("0"), description="Limit price (positive if set).",
     )
     stop_price: Decimal | None = Field(
-        default=None, gt=Decimal("0"), description="Stop trigger price (positive if set)."
+        default=None, gt=Decimal("0"), description="Stop trigger price (positive if set).",
     )
     average_fill_price: Decimal | None = Field(
         default=None,
@@ -72,16 +71,16 @@ class Order(BaseModel):
         description="Weighted average fill price (positive if filled > 0).",
     )
     trigger_by: TriggerType | None = Field(
-        default=None, description="Reference price for triggers (e.g., Mark, Index, Last)."
+        default=None, description="Reference price for triggers (e.g., Mark, Index, Last).",
     )
     time_in_force: TimeInForce = Field(
-        ..., description="Time in force for the order."
+        ..., description="Time in force for the order.",
     )  # Removed default=GTC, should be required
     reduce_only: bool = Field(
-        default=False, description="True if order can only reduce position size."
+        default=False, description="True if order can only reduce position size.",
     )
     post_only: bool = Field(
-        default=False, description="True if order should only provide liquidity (LIMIT types)."
+        default=False, description="True if order should only provide liquidity (LIMIT types).",
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
@@ -89,7 +88,7 @@ class Order(BaseModel):
     )
     updated_at: datetime | None = Field(None, description="Last status/fill update time (UTC).")
     triggered_at: datetime | None = Field(
-        None, description="Time the conditional order was triggered (UTC)."
+        None, description="Time the conditional order was triggered (UTC).",
     )
     strategy_name: str | None = Field(None, description="Optional strategy identifier.")
     signal_id: str | None = Field(None, description="Optional signal identifier.")
@@ -259,7 +258,7 @@ class Order(BaseModel):
         if self.quantity_filled > self.quantity_requested:
             raise ValueError(
                 f"quantity_filled ({self.quantity_filled}) cannot exceed "
-                f"quantity_requested ({self.quantity_requested})"
+                f"quantity_requested ({self.quantity_requested})",
             )
 
         # Check Extension Slot Consistency (Placeholder - can be more specific if needed)
@@ -276,7 +275,7 @@ class HyperliquidOrderDetails(BaseModel):
     """Hyperliquid-specific order enrichment fields. Immutable."""
 
     remaining_sz: Decimal | None = Field(
-        default=None, ge=Decimal("0"), description="Remaining unfilled size (non-negative)."
+        default=None, ge=Decimal("0"), description="Remaining unfilled size (non-negative).",
     )
     # Add other HL-specific fields as needed
     model_config = ConfigDict(extra="ignore", frozen=True)
@@ -355,28 +354,27 @@ class BackpackOrderDetails(BaseModel):
 
 # --- Cancel Order Result Model ---
 class CancelOrderResult(BaseModel):
-    """
-    Represents the result of a cancel order operation.
+    """Represents the result of a cancel order operation.
     """
 
     symbol: str | None = Field(
-        default=None, description="Symbol of the order(s) targeted for cancellation."
+        default=None, description="Symbol of the order(s) targeted for cancellation.",
     )
     order_id: str | None = Field(
         default=None,
         description="Specific order ID targeted, if applicable. 'ALL' for bulk symbol cancels.",
     )
     client_order_id: str | None = Field(
-        default=None, description="Client order ID, if provided in the cancel request."
+        default=None, description="Client order ID, if provided in the cancel request.",
     )
     success: bool = Field(
-        ..., description="True if the cancellation was broadly successful for the target."
+        ..., description="True if the cancellation was broadly successful for the target.",
     )
     message: str | None = Field(
-        default=None, description="Additional information or error message."
+        default=None, description="Additional information or error message.",
     )
     status: CancelOrderResultStatus = Field(
-        ..., description="Detailed status of the cancellation operation."
+        ..., description="Detailed status of the cancellation operation.",
     )
     raw_response: dict[str, Any] | None = Field(
         default=None,
