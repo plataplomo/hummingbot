@@ -1,4 +1,5 @@
 """CyberDeltaEngine: Backpack Trading Data Mapper Integration Tests.
+
 ---------------------------------------------------------------
 
 Comprehensive integration test suite for BackpackTradingDataMapper.
@@ -103,7 +104,8 @@ class TestTradingDataMapperIntegration:
     """Integration tests for the complete trading data mapper functionality."""
 
     def test_complete_order_transformation_consistency(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test that both transformation methods produce consistent results."""
         # Create raw order
@@ -175,7 +177,8 @@ class TestTradingDataMapperIntegration:
             )
 
     def test_all_mapping_logic_works_together(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test that all mapping logic works together properly in a transformation."""
         raw_order = create_raw_order(
@@ -205,7 +208,8 @@ class TestTradingDataMapperIntegration:
         assert result.created_at is not None
 
     def test_complex_order_scenario_with_all_fields(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test transformation of a complex order with all fields populated."""
         created_at = datetime.now(UTC).isoformat()
@@ -262,7 +266,8 @@ class TestTradingDataMapperIntegration:
         assert result.exchange == ExchangeName.BACKPACK.value
 
     def test_multiple_orders_transformation_consistency(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test that multiple order transformations maintain consistency."""
         orders_data = [
@@ -321,7 +326,8 @@ class TestTradingDataMapperIntegration:
             assert order.updated_at is not None
 
     def test_data_transformation_integrity(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test that data transformation maintains mathematical integrity."""
         # Test with high precision values
@@ -348,7 +354,8 @@ class TestTradingDataMapperIntegration:
         assert abs(remaining_quantity - expected_remaining) < Decimal("0.0000000001")
 
     def test_cross_symbol_transformation_consistency(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test transformation consistency across different trading symbols."""
         symbols = ["BTC_USDC", "ETH_USDC", "SOL_USDC", "DOGE_USDT", "ADA_BTC"]
@@ -375,7 +382,8 @@ class TestTradingDataMapperIntegration:
             assert result.exchange == ExchangeName.BACKPACK.value
 
     def test_time_field_transformation_consistency(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test that time field transformations are consistent and valid."""
         base_time = datetime.now(UTC)
@@ -410,7 +418,8 @@ class TestTradingDataMapperIntegration:
         assert result.triggered_at is not None
 
     def test_business_logic_validation_integration(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test integration of business logic validation across transformations."""
         # Test that orders with fills have appropriate average fill prices

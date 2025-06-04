@@ -353,7 +353,8 @@ class TestTransformRawOrderToInternal:
     """Tests for the transform_raw_order_to_internal method."""
 
     def test_transform_raw_order_buy_limit_happy_path(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test successful transformation of a BUY limit order."""
         raw_order = create_raw_order(
@@ -386,7 +387,8 @@ class TestTransformRawOrderToInternal:
         assert result.post_only is False
 
     def test_transform_raw_order_sell_market_happy_path(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test successful transformation of a SELL market order."""
         raw_order = create_raw_order(
@@ -418,7 +420,8 @@ class TestTransformRawOrderToInternal:
         assert result.client_order_id is not None and len(result.client_order_id) > 0
 
     def test_transform_raw_order_with_stop_price(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test transformation with stop price."""
         raw_order = create_raw_order(order_type="STOP", price="3000.00")
@@ -430,7 +433,8 @@ class TestTransformRawOrderToInternal:
         assert result.stop_price == Decimal("2900.00")
 
     def test_transform_raw_order_with_average_fill_price(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test transformation with average fill price."""
         raw_order = create_raw_order(executed_quantity="1.0")
@@ -483,12 +487,14 @@ class TestTransformRawOrderToInternal:
 
         raw_order = create_raw_order()
         with pytest.raises(
-            TransformationError, match="Failed to transform BackpackRawOrder to Order",
+            TransformationError,
+            match="Failed to transform BackpackRawOrder to Order",
         ):
             trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
     def test_transform_raw_order_with_triggered_at(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test transformation with triggered timestamp."""
         triggered_time = datetime.now(UTC).isoformat()
@@ -507,7 +513,8 @@ class TestTransformRawOrderToInternal:
         assert result.stop_price == Decimal("2900.00")
 
     def test_transform_raw_order_reduce_only_and_post_only(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test transformation with reduce_only and post_only flags."""
         raw_order = create_raw_order()
@@ -519,7 +526,8 @@ class TestTransformRawOrderToInternal:
         assert result.post_only is True
 
     def test_transform_raw_order_high_precision_values(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test transformation with high precision decimal values."""
         raw_order = create_raw_order(
@@ -537,7 +545,8 @@ class TestTransformRawOrderToInternal:
         assert result.average_fill_price == Decimal("50001.111111111111111")
 
     def test_transform_raw_order_zero_values_handled(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test transformation with zero values."""
         raw_order = create_raw_order(
@@ -555,7 +564,8 @@ class TestTransformOrderDataToInternal:
     """Tests for the transform_order_data_to_internal method."""
 
     def test_transform_order_data_happy_path(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test successful transformation of order data."""
         created_at = datetime.now(UTC).isoformat()
@@ -591,7 +601,8 @@ class TestTransformOrderDataToInternal:
         assert result.updated_at is not None
 
     def test_transform_order_data_minimal_params(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test transformation with minimal required parameters."""
         result = trading_data_mapper.transform_order_data_to_internal(
@@ -618,7 +629,8 @@ class TestTransformOrderDataToInternal:
         assert result.created_at is not None
 
     def test_transform_order_data_with_price(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test transformation with price parameter."""
         result = trading_data_mapper.transform_order_data_to_internal(
@@ -666,7 +678,8 @@ class TestTransformOrderDataToInternal:
         mock_parse.side_effect = ValueError("Mock parsing error")
 
         with pytest.raises(
-            TransformationError, match="Failed to transform Backpack order data to Order",
+            TransformationError,
+            match="Failed to transform Backpack order data to Order",
         ):
             trading_data_mapper.transform_order_data_to_internal(
                 order_id="123",
@@ -678,7 +691,8 @@ class TestTransformOrderDataToInternal:
             )
 
     def test_transform_order_data_case_insensitive_mappings(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test transformation with case insensitive enum values."""
         result = trading_data_mapper.transform_order_data_to_internal(
@@ -697,7 +711,8 @@ class TestTransformOrderDataToInternal:
         assert result.time_in_force == TimeInForce.IOC
 
     def test_transform_order_data_with_optional_fields(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test transformation with all optional fields provided."""
         created_at = datetime.now(UTC).isoformat()

@@ -1,5 +1,4 @@
-"""Unit Tests for Hyperliquid Raw Referral Info Models
-"""
+"""Unit Tests for Hyperliquid Raw Referral Info Models"""
 
 from typing import Any
 
@@ -80,7 +79,8 @@ def valid_referrer_state_data(valid_referrer_data_data: dict[str, Any]) -> dict[
 
 @pytest.fixture
 def valid_referral_response_data(
-    valid_referred_by_data: dict[str, Any], valid_referrer_state_data: dict[str, Any],
+    valid_referred_by_data: dict[str, Any],
+    valid_referrer_state_data: dict[str, Any],
 ) -> dict[str, Any]:
     """Return valid referral response data for testing."""
     data = VALID_REFERRAL_RESPONSE.copy()
@@ -102,10 +102,13 @@ def test_referred_by_valid(valid_referred_by_data: dict[str, str]) -> None:
 
 
 @pytest.mark.parametrize(
-    "field, value", [("referrer", "invalid"), ("code", None), ("referrer", "0x123")],
+    "field, value",
+    [("referrer", "invalid"), ("code", None), ("referrer", "0x123")],
 )
 def test_referred_by_invalid(
-    valid_referred_by_data: dict[str, str], field: str, value: str | None,
+    valid_referred_by_data: dict[str, str],
+    field: str,
+    value: str | None,
 ) -> None:
     """Test referred by invalid."""
     data_copy = valid_referred_by_data.copy()

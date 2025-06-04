@@ -41,8 +41,9 @@ def test_trade_minimal_valid() -> None:
 
 
 def test_trade_with_all_optionals() -> None:
-    """Test that a Trade instance with all optional fields is accepted and values are set
-    correctly.
+    """Test that a Trade instance with all optional fields is accepted and values are set correctly.
+
+    This test verifies that all optional fields can be set and are properly validated.
     """
     price = Decimal("100.0")
     quantity = Decimal("2.0")
@@ -244,8 +245,9 @@ def test_trade_decimal_parsing() -> None:
 
 
 def test_trade_optional_string_fields() -> None:
-    """Test that optional string fields accept None and valid strings, and reject invalid
-    strings.
+    """Test that optional string fields accept None and valid strings, and reject invalid strings.
+
+    This test verifies validation of optional string fields like client_order_id and fee_asset.
     """
     # Valid
     hl_details = HyperliquidTradeDetails(
@@ -303,8 +305,9 @@ def test_trade_optional_string_fields() -> None:
 
 
 def test_trade_optional_decimal_fields() -> None:
-    """Test that optional decimal fields accept None and valid decimals, and reject invalid
-    values.
+    """Test that optional decimal fields accept None and valid decimals, and reject invalid values.
+
+    This test verifies validation of optional decimal fields in enrichment details.
     """
     # Valid
     hl_details = HyperliquidTradeDetails(
@@ -355,8 +358,9 @@ def test_trade_optional_decimal_fields() -> None:
 
 
 def test_trade_custom_to_dict_serialization() -> None:
-    """Test that Trade.to_dict() (deprecated) serializes Decimal, Enum, and datetime fields
-    as expected.
+    """Test that Trade.to_dict() (deprecated) serializes Decimal, Enum, and datetime fields.
+
+    This test verifies the deprecated to_dict method still works correctly for serialization.
     """
     trade = Trade(
         id="abc123",
@@ -383,8 +387,9 @@ def test_trade_custom_to_dict_serialization() -> None:
 
 
 def test_trade_model_dump_json_serialization() -> None:
-    """Test that Trade.model_dump(mode='json') serializes all fields, including enrichment
-    slots, as expected.
+    """Test that Trade.model_dump(mode='json') serializes all fields, including enrichment slots.
+
+    This test verifies the modern model_dump method works correctly for JSON serialization.
     """
     hl_details = HyperliquidTradeDetails(
         trade_hash="hash-abc",

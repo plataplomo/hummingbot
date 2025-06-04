@@ -1,4 +1,5 @@
 """Unit tests for the HyperliquidAPI client implementation.
+
 Tests use dependency injection patterns to mock collaborators and focus on isolated logic testing.
 """
 
@@ -216,7 +217,8 @@ def hl_api_with_di(
     mock_hl_trading_service: MagicMock,
     mock_hl_market_data_service: MagicMock,
 ) -> Callable[..., Any]:
-    """Factory fixture to create HyperliquidAPI instances with all dependencies injected.
+    """Create HyperliquidAPI instances with all dependencies injected.
+
     This enables black-box testing without accessing private members.
     """
     from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
@@ -269,7 +271,8 @@ class TestHyperliquidAPIInitialization:
     """Test HyperliquidAPI initialization with dependency injection."""
 
     def test_api_creation_with_di_fixture(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI],
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
     ) -> None:
         """Test that the DI fixture creates a valid API instance."""
         api = hl_api_with_di()
@@ -282,7 +285,8 @@ class TestHyperliquidAPIInitialization:
         assert hasattr(api, "market_data_service")
 
     def test_api_creation_with_custom_config(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI],
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
     ) -> None:
         """Test API creation with custom configuration."""
         custom_config = create_test_exchange_config(
@@ -310,7 +314,8 @@ class TestHyperliquidAPIWebSocketOperations:
     """Test WebSocket operations."""
 
     def test_subscription_payload_construction_public_behavior(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI],
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
     ) -> None:
         """Test subscription payload construction through public interface."""
         api = hl_api_with_di()
@@ -327,7 +332,8 @@ class TestHyperliquidAPIDependencyIsolation:
     """Test dependency isolation and injection."""
 
     def test_custom_dependency_override(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI],
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
     ) -> None:
         """Test that custom dependencies can be injected."""
         custom_trading_service = MagicMock()
@@ -337,7 +343,8 @@ class TestHyperliquidAPIDependencyIsolation:
         assert api.trading_service is custom_trading_service
 
     def test_multiple_api_instances_are_isolated(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI],
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
     ) -> None:
         """Test that multiple API instances are different objects."""
         api1 = hl_api_with_di()
@@ -407,7 +414,8 @@ class TestHyperliquidAPIEnvironmentAwareness:
         assert config.chain_id == 42
 
     def test_api_environment_awareness_through_config(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI],
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
     ) -> None:
         """Test that API can be created with environment-aware config."""
         # Test with testnet config
@@ -438,7 +446,8 @@ class TestHyperliquidAPIResourceManagement:
 
     @pytest.mark.asyncio
     async def test_context_manager_behavior(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI],
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
     ) -> None:
         """Test that API can be used as a context manager."""
         api = hl_api_with_di()

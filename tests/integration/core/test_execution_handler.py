@@ -1,3 +1,10 @@
+"""Integration tests for ExecutionHandler component.
+
+Tests the complete execution workflow including order placement, monitoring,
+compensation logic, and integration with portfolio tracker and circuit breaker.
+Covers both successful and failure scenarios for trade execution.
+"""
+
 import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
@@ -57,7 +64,8 @@ class TestTradeExecution:
 
     @pytest.fixture
     def sized_opportunity(
-        self, mock_arbitrage_opportunity: ArbitrageOpportunity,
+        self,
+        mock_arbitrage_opportunity: ArbitrageOpportunity,
     ) -> SizedOpportunity:
         """Create a SizedOpportunity for testing."""
         return SizedOpportunity(
@@ -126,16 +134,19 @@ class TestExecutionHandler:
         execution_mock.max_slippage_pct = mock_config_dict.get("execution.max_slippage_pct", "0.01")
         execution_mock.max_retries = mock_config_dict.get("execution.max_retries", 3)
         execution_mock.retry_delay_base_sec = mock_config_dict.get(
-            "execution.retry_delay_base_sec", "1.0",
+            "execution.retry_delay_base_sec",
+            "1.0",
         )
 
         # Mock compensation sub-config
         compensation_mock = MagicMock()
         compensation_mock.use_limit_orders = mock_config_dict.get(
-            "execution.compensation.use_limit_orders", True,
+            "execution.compensation.use_limit_orders",
+            True,
         )
         compensation_mock.limit_price_offset_pct = mock_config_dict.get(
-            "execution.compensation.limit_price_offset_pct", "0.05",
+            "execution.compensation.limit_price_offset_pct",
+            "0.05",
         )
         execution_mock.compensation = compensation_mock
 
@@ -154,8 +165,7 @@ class TestExecutionHandler:
         def process_trade_side_effect(exchange_id: str, trade: Trade) -> None:
             """Helper function for process trade side effect."""
             logger.debug(
-                f"mock_portfolio_tracker.process_trade called with: "
-                f"{exchange_id}, {trade!r}",
+                f"mock_portfolio_tracker.process_trade called with: {exchange_id}, {trade!r}",
             )
             process_trade_call_tracker.append((exchange_id, trade))
             # original_process_trade_behavior_if_any() # If it had real behavior to mimic
@@ -272,7 +282,8 @@ class TestExecutionHandler:
 
     @pytest.fixture
     def sized_opportunity(
-        self, mock_arbitrage_opportunity: ArbitrageOpportunity,
+        self,
+        mock_arbitrage_opportunity: ArbitrageOpportunity,
     ) -> SizedOpportunity:
         """Helper function for sized opportunity."""
         return SizedOpportunity(
@@ -443,7 +454,9 @@ class TestExecutionHandler:
         mock_hl_api.get_order_status.return_value = mock_order
         execution = TradeExecution(sized_opportunity)
         result_status = await testable_execution_handler.test_get_order_status(
-            execution=execution, exchange_id="hyperliquid", order_id="HL-Status",
+            execution=execution,
+            exchange_id="hyperliquid",
+            order_id="HL-Status",
         )
         assert result_status == mock_order
         # Check that get_order_status was called with the correct args object
@@ -461,11 +474,14 @@ class TestExecutionHandler:
         sized_opportunity: SizedOpportunity,
     ) -> None:
         mock_hl_api.get_order_status.side_effect = APIError(
-            "Not Found", APIErrorCode.ORDER_NOT_FOUND.value,
+            "Not Found",
+            APIErrorCode.ORDER_NOT_FOUND.value,
         )
         execution = TradeExecution(sized_opportunity)
         result_status = await testable_execution_handler.test_get_order_status(
-            execution=execution, exchange_id="hyperliquid", order_id="HL-NotFound",
+            execution=execution,
+            exchange_id="hyperliquid",
+            order_id="HL-NotFound",
         )
         assert result_status is None
         assert mock_hl_api.get_order_status.call_count >= 1
@@ -490,7 +506,8 @@ class TestExecutionHandler:
         mock_hl_api.get_ticker.return_value = mock_ticker
 
         limit_price_offset_pct_str = mock_config.get(
-            "execution.compensation.limit_price_offset_pct", "0.05",
+            "execution.compensation.limit_price_offset_pct",
+            "0.05",
         )
         comp_price = None
         assert mock_ticker.ask is not None
@@ -555,7 +572,9 @@ class TestExecutionHandler:
         mock_portfolio_tracker.get_order.return_value = original_filled_order
 
         with patch.object(
-            testable_execution_handler, "_place_order_with_retry", return_value=mock_comp_order,
+            testable_execution_handler,
+            "_place_order_with_retry",
+            return_value=mock_comp_order,
         ) as mock_place_comp:
             result: bool = await testable_execution_handler.test_compensate_position(
                 execution=execution,
@@ -668,10 +687,16 @@ class TestExecutionHandler:
         """Test successful concurrent execution of an opportunity."""
         now_ts = datetime.now(UTC)
         hl_ticker = Ticker(
-            symbol="BTC-PERP", timestamp=now_ts, bid=Decimal("41000"), ask=Decimal("41050"),
+            symbol="BTC-PERP",
+            timestamp=now_ts,
+            bid=Decimal("41000"),
+            ask=Decimal("41050"),
         )
         bp_ticker = Ticker(
-            symbol="BTC_USDC", timestamp=now_ts, bid=Decimal("41100"), ask=Decimal("41150"),
+            symbol="BTC_USDC",
+            timestamp=now_ts,
+            bid=Decimal("41100"),
+            ask=Decimal("41150"),
         )
         mock_hl_api.get_ticker.return_value = hl_ticker
         mock_bp_api.get_ticker.return_value = bp_ticker
@@ -742,6 +767,7 @@ class TestExecutionHandler:
 
             # Extract all necessary parameters from kwargs with proper type casting
             from typing import cast
+
             execution: TradeExecution = cast("TradeExecution", kwargs["execution"])
             exchange_id: str = cast("str", kwargs["exchange_id"])
             symbol_from_kwargs: str = cast("str", kwargs["symbol"])
@@ -826,7 +852,9 @@ class TestExecutionHandler:
         # afterwards by _place_orders_for_opportunity.
         # So, we only mock _place_order_with_retry.
         with patch.object(
-            execution_handler, "_place_order_with_retry", side_effect=place_order_retry_side_effect,
+            execution_handler,
+            "_place_order_with_retry",
+            side_effect=place_order_retry_side_effect,
         ) as mock_place_retry_patcher:
             execution_result = await execution_handler.execute_opportunity(sized_opportunity)
 
@@ -921,7 +949,8 @@ class TestExecutionHandler:
 
         # Ensure the mock_config for this test uses specific values, including string for pct
         def config_get_side_effect_comp_failed_leg(
-            key: str, default: object | None = None,
+            key: str,
+            default: object | None = None,
         ) -> object | None:
             """Helper function for config get side effect comp failed leg."""
             values = {
@@ -1195,7 +1224,9 @@ class TestExecutionHandler:
                 side_effect=place_retry_side_effect,
             ) as mock_place_retry,
             patch.object(
-                testable_execution_handler, "_get_order_status", side_effect=get_status_side_effect,
+                testable_execution_handler,
+                "_get_order_status",
+                side_effect=get_status_side_effect,
             ),
             patch.object(
                 testable_execution_handler,
@@ -1305,7 +1336,9 @@ class TestExecutionHandler:
         assert "exec1" in history_ids and "exec2" in history_ids
 
     def test_get_active_executions(
-        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity,
+        self,
+        execution_handler: ExecutionHandler,
+        sized_opportunity: SizedOpportunity,
     ) -> None:
         """Test retrieving active executions."""
         exec1 = TradeExecution(sized_opportunity)
@@ -1333,7 +1366,9 @@ class TestExecutionHandler:
         assert "active_exec1" in active_ids and "active_exec2" in active_ids
 
     def test_reset_circuit_breaker(
-        self, execution_handler: ExecutionHandler, mock_circuit_breaker_system: MagicMock,
+        self,
+        execution_handler: ExecutionHandler,
+        mock_circuit_breaker_system: MagicMock,
     ) -> None:
         """Test resetting the circuit breaker for an exchange."""
         execution_handler.reset_circuit_breaker("hyperliquid")

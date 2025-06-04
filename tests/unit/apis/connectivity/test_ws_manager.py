@@ -257,7 +257,9 @@ class TestWebSocketManager:
         establish_conn_coro_mock = AsyncMock(return_value=None)
 
         with patch.object(
-            ws_manager_instance, "_establish_connection", side_effect=establish_conn_coro_mock,
+            ws_manager_instance,
+            "_establish_connection",
+            side_effect=establish_conn_coro_mock,
         ) as mock_establish_connection_method:
             connection_task = ws_manager_instance.connect()
             assert connection_task is not None
@@ -623,7 +625,8 @@ class TestWebSocketManager:
                     "[dynamic_ws_connect_side_effect] Attempt 1: Raising ClientConnectorError.",
                 )
                 raise aiohttp.ClientConnectorError(
-                    MagicMock(), OSError("Simulated immediate connection failure for attempt 1"),
+                    MagicMock(),
+                    OSError("Simulated immediate connection failure for attempt 1"),
                 )
 
             test_case_logger.info(
@@ -803,7 +806,8 @@ class TestWebSocketManager:
             await manager.close()
 
     def test_config_validation_invalid_url(
-        self, default_ws_manager_config: WebSocketManagerConfig,
+        self,
+        default_ws_manager_config: WebSocketManagerConfig,
     ) -> None:
         """Test that config validation fails with invalid WebSocket URL."""
         valid_base_data_for_url_test: dict[str, Any] = {
@@ -845,7 +849,8 @@ class TestWebSocketManager:
         assert error_part.lower() in str(exc_info.value).lower()
 
     def test_config_frozen_and_extra_forbid(
-        self, default_ws_manager_config: WebSocketManagerConfig,
+        self,
+        default_ws_manager_config: WebSocketManagerConfig,
     ) -> None:
         """Test that config model is frozen and forbids extra fields."""
         assert default_ws_manager_config.model_config.get("frozen") is True

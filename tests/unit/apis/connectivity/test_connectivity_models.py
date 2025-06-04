@@ -51,7 +51,9 @@ class TestProcessedResponseHeaders:
         ],
     )
     def test_invalid_content_type(
-        self, invalid_content_type: str, expected_error_part: str,
+        self,
+        invalid_content_type: str,
+        expected_error_part: str,
     ) -> None:
         """Test with invalid content_type values, expecting ValidationError."""
         with pytest.raises(ValidationError) as exc_info:
@@ -127,7 +129,10 @@ class TestHttpClientConfig:
         ],
     )
     def test_invalid_field_values(
-        self, field: str, invalid_value: str | float, error_part: str,
+        self,
+        field: str,
+        invalid_value: str | float,
+        error_part: str,
     ) -> None:
         """Test invalid values for various fields, expecting ValidationError."""
         init_data_corrected: dict[str, Any] = {"rest_endpoint": HttpUrl("https://api.example.com")}
@@ -228,7 +233,10 @@ class TestWebSocketManagerConfig:
         ],
     )
     def test_invalid_field_values(
-        self, field: str, invalid_value: str | float, error_part: str,
+        self,
+        field: str,
+        invalid_value: str | float,
+        error_part: str,
     ) -> None:
         """Test invalid values for various fields, expecting ValidationError."""
         init_data_corrected: dict[str, Any] = {"ws_url": AnyUrl("wss://ws.example.com")}
@@ -268,7 +276,8 @@ class TestWebSocketManagerConfig:
         assert config_valid_retries.max_reconnect_attempts == 1
 
         config_zero_retries = WebSocketManagerConfig(
-            ws_url=AnyUrl("ws://example.com"), max_reconnect_attempts=0,
+            ws_url=AnyUrl("ws://example.com"),
+            max_reconnect_attempts=0,
         )
         assert config_zero_retries.max_reconnect_attempts == 0
 

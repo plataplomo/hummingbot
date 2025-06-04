@@ -111,7 +111,9 @@ class TestBuildGetFundingRateParams:
         ],
     )
     def test_build_get_funding_rate_params_parametrized(
-        self, input_symbol: str, expected_symbol: str,
+        self,
+        input_symbol: str,
+        expected_symbol: str,
     ) -> None:
         """Test build_get_funding_rate_params with various perp symbols."""
         params = BackpackRequestBuilder.build_get_funding_rate_params(input_symbol)

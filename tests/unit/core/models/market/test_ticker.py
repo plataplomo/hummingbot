@@ -1,3 +1,8 @@
+"""Unit tests for the core Ticker model.
+
+Tests validation, parsing, immutability, and decimal field handling.
+"""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta

@@ -206,7 +206,8 @@ class TestHyperliquidRawTriggerDetails:
         data = VALID_TRIGGER_DETAILS_TP_MARKET_DATA.copy()
         data["tpsl"] = "stop"
         with pytest.raises(
-            ValidationError, match=r"Invalid value 'stop'\. Expected one of \['sl', 'tp'\]",
+            ValidationError,
+            match=r"Invalid value 'stop'\. Expected one of \['sl', 'tp'\]",
         ):
             HyperliquidRawTriggerDetails(**data)
 
@@ -353,8 +354,7 @@ class TestHyperliquidRawPlaceOrderAction:
 
 
 class TestHyperliquidRawOrder:
-    """Tests for the HyperliquidRawOrder model itself (representing an existing order).
-    """
+    """Tests for the HyperliquidRawOrder model itself (representing an existing order)."""
 
     def test_invalid_order_bad_status(self) -> None:
         """Test that an order with an invalid status raises ValidationError."""

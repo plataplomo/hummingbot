@@ -35,7 +35,8 @@ VALID_DATA_MULTIPLE_CANDLES: dict[str, Any] = {
 }
 
 VALID_DATA_EMPTY_LISTS: dict[
-    str, Any,
+    str,
+    Any,
 ] = {  # Assuming API can return empty lists if no candles in range
     "t": [],
     "o": [],

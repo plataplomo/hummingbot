@@ -54,14 +54,18 @@ def mock_session() -> MagicMock:
 
 @pytest_asyncio.fixture
 async def ws_manager(
-    ws_config: WebSocketManagerConfig, mock_websocket: MagicMock, mock_session: MagicMock,
+    ws_config: WebSocketManagerConfig,
+    mock_websocket: MagicMock,
+    mock_session: MagicMock,
 ) -> AsyncGenerator[WebSocketManager]:
     """Create WebSocketManager with mocked dependencies."""
     with patch("aiohttp.ClientSession", return_value=mock_session):
         mock_session.ws_connect.return_value.__aenter__.return_value = mock_websocket
 
         manager = WebSocketManager(
-            exchange_name="test_exchange", config=ws_config, message_handler=AsyncMock(),
+            exchange_name="test_exchange",
+            config=ws_config,
+            message_handler=AsyncMock(),
         )
 
         # Manually set the connection for testing using object.__setattr__ to bypass protection
@@ -79,12 +83,16 @@ class TestWebSocketManagerPydanticIntegration:
 
     @pytest.mark.asyncio
     async def test_send_json_with_basemodel(
-        self, ws_manager: WebSocketManager, mock_websocket: MagicMock,
+        self,
+        ws_manager: WebSocketManager,
+        mock_websocket: MagicMock,
     ) -> None:
         """Test sending JSON with Pydantic BaseModel."""
         # Create a test model
         model = MockSubscriptionModel(
-            method="subscribe", topic="ticker", params={"symbol": "BTC_USDC"},
+            method="subscribe",
+            topic="ticker",
+            params={"symbol": "BTC_USDC"},
         )
 
         # Send the model
@@ -105,7 +113,9 @@ class TestWebSocketManagerPydanticIntegration:
 
     @pytest.mark.asyncio
     async def test_send_json_excludes_none(
-        self, ws_manager: WebSocketManager, mock_websocket: MagicMock,
+        self,
+        ws_manager: WebSocketManager,
+        mock_websocket: MagicMock,
     ) -> None:
         """Test that send_json excludes None values."""
         model = MockSubscriptionModel(
@@ -124,7 +134,9 @@ class TestWebSocketManagerPydanticIntegration:
 
     @pytest.mark.asyncio
     async def test_send_json_uses_by_alias(
-        self, ws_manager: WebSocketManager, mock_websocket: MagicMock,
+        self,
+        ws_manager: WebSocketManager,
+        mock_websocket: MagicMock,
     ) -> None:
         """Test that send_json uses field aliases."""
 
@@ -160,7 +172,9 @@ class TestWebSocketManagerPydanticIntegration:
 
     @pytest.mark.asyncio
     async def test_send_json_handles_send_error(
-        self, ws_manager: WebSocketManager, mock_websocket: MagicMock,
+        self,
+        ws_manager: WebSocketManager,
+        mock_websocket: MagicMock,
     ) -> None:
         """Test send_json handles errors gracefully."""
         # Make send_json raise an exception
@@ -174,7 +188,9 @@ class TestWebSocketManagerPydanticIntegration:
 
     @pytest.mark.asyncio
     async def test_complex_nested_model(
-        self, ws_manager: WebSocketManager, mock_websocket: MagicMock,
+        self,
+        ws_manager: WebSocketManager,
+        mock_websocket: MagicMock,
     ) -> None:
         """Test sending complex nested Pydantic models."""
 
@@ -206,7 +222,9 @@ class TestWebSocketManagerPydanticIntegration:
 
     @pytest.mark.asyncio
     async def test_model_with_lists(
-        self, ws_manager: WebSocketManager, mock_websocket: MagicMock,
+        self,
+        ws_manager: WebSocketManager,
+        mock_websocket: MagicMock,
     ) -> None:
         """Test sending model with list fields."""
 
@@ -224,7 +242,9 @@ class TestWebSocketManagerPydanticIntegration:
 
     @pytest.mark.asyncio
     async def test_model_with_tuple_serialized_as_list(
-        self, ws_manager: WebSocketManager, mock_websocket: MagicMock,
+        self,
+        ws_manager: WebSocketManager,
+        mock_websocket: MagicMock,
     ) -> None:
         """Test that tuples in models are serialized as lists."""
 
@@ -249,7 +269,9 @@ class TestWebSocketManagerPydanticIntegration:
 
     @pytest.mark.asyncio
     async def test_frozen_model(
-        self, ws_manager: WebSocketManager, mock_websocket: MagicMock,
+        self,
+        ws_manager: WebSocketManager,
+        mock_websocket: MagicMock,
     ) -> None:
         """Test sending frozen (immutable) Pydantic models."""
 

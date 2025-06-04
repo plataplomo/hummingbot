@@ -28,6 +28,7 @@ def create_test_exchange_config(
     **kwargs: object,
 ) -> ExchangeSpecificConfig:
     """Create ExchangeSpecificConfig for testing by parsing from dict.
+
     Defaults to testnet for unit tests.
     """
     config_dict = {
@@ -71,7 +72,7 @@ def mock_exchange_config() -> ExchangeSpecificConfig:
 
 @pytest.fixture
 def hyperliquid_exchange_secrets() -> PrivateKeyAuthSecrets:
-    """Basic PrivateKeyAuthSecrets for HyperliquidAPI tests."""
+    """Create basic PrivateKeyAuthSecrets for HyperliquidAPI tests."""
     return PrivateKeyAuthSecrets(
         private_key=SecretStr("0x" + "0" * 64),  # Dummy private key
         passphrase=None,
@@ -292,7 +293,8 @@ class TestHyperliquidAPIWebSocketErrorHandling:
         # Test that None handler is handled appropriately
         # Cast None to the expected type to test runtime behavior
         none_handler = cast(
-            "Callable[[dict[str, Any], dict[str, Any]], Coroutine[Any, Any, None]]", None,
+            "Callable[[dict[str, Any], dict[str, Any]], Coroutine[Any, Any, None]]",
+            None,
         )
         try:
             await hl_api.subscribe("l2Book:ETH", none_handler)

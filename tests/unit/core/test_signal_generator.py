@@ -1,5 +1,4 @@
-"""Tests for the SignalGenerator class.
-"""
+"""Tests for the SignalGenerator class."""
 
 import logging
 
@@ -33,7 +32,7 @@ class TestSignalGenerator:
 
     @pytest.fixture
     def mock_config_dict(self) -> dict[str, Any]:
-        """Provides a dictionary for simple config mocking."""
+        """Provide a dictionary for simple config mocking."""
         return {
             "exchanges": {
                 "hyperliquid": {
@@ -65,7 +64,7 @@ class TestSignalGenerator:
 
         # Define side effect using nested function with type hints
         def config_get_side_effect(key: str, default: object | None = None) -> object | None:
-            """Helper function for config get side effect."""
+            """Handle config get side effect for testing."""
             if "." in key:
                 parts = key.split(".")
                 base = parts[0]
@@ -228,7 +227,10 @@ class TestSignalGenerator:
 
     @pytest.fixture
     def signal_generator(
-        self, test_app_settings: AppSettings, data_handler: MagicMock, symbol_mapper: SymbolMapper,
+        self,
+        test_app_settings: AppSettings,
+        data_handler: MagicMock,
+        symbol_mapper: SymbolMapper,
     ) -> SignalGenerator:
         """Create a SignalGenerator instance for testing."""
         return SignalGenerator(test_app_settings, data_handler, symbol_mapper)
@@ -252,7 +254,10 @@ class TestSignalGenerator:
 
     @patch("cyberdelta.core.signal_generator.datetime")
     def test_update_historical_data(
-        self, mock_datetime: MagicMock, signal_generator: SignalGenerator, data_handler: MagicMock,
+        self,
+        mock_datetime: MagicMock,
+        signal_generator: SignalGenerator,
+        data_handler: MagicMock,
     ) -> None:
         """Test updating historical funding rate and basis data using deque."""
         fixed_now = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
@@ -274,16 +279,22 @@ class TestSignalGenerator:
         sample_count = signal_generator.funding_sample_count
 
         def get_funding_iter(
-            exchange: str, symbol: str, rate_chg: Decimal = Decimal(0),
+            exchange: str,
+            symbol: str,
+            rate_chg: Decimal = Decimal(0),
         ) -> FundingRate | None:
             """Get funding iter for testing."""
             base_rate = Decimal("-0.001") if exchange == "hyperliquid" else Decimal("0.002")
             return FundingRate(
-                symbol=symbol, funding_rate=base_rate + rate_chg, timestamp=fixed_now,
+                symbol=symbol,
+                funding_rate=base_rate + rate_chg,
+                timestamp=fixed_now,
             )
 
         def get_ticker_iter(
-            exchange: str, symbol: str, price_chg: Decimal = Decimal(0),
+            exchange: str,
+            symbol: str,
+            price_chg: Decimal = Decimal(0),
         ) -> Ticker | None:
             """Get ticker iter for testing."""
             base_price = Decimal("30000") if exchange == "hyperliquid" else Decimal("30010")
@@ -349,7 +360,8 @@ class TestSignalGenerator:
         if exchange_id not in signal_generator.historical_funding_rates:
             signal_generator.historical_funding_rates[exchange_id] = {}
         signal_generator.historical_funding_rates[exchange_id].setdefault(
-            internal_symbol, deque(),
+            internal_symbol,
+            deque(),
         ).extend(zip(timestamps, rates, strict=False))  # Use extend
 
         # Expected volatility (sample std dev of 0.00010, 0.00012)
@@ -358,7 +370,8 @@ class TestSignalGenerator:
 
         # Calculate volatility
         volatility = signal_generator.calculate_funding_rate_volatility(
-            exchange_id, internal_symbol,
+            exchange_id,
+            internal_symbol,
         )
 
         # Assert the result
@@ -372,14 +385,17 @@ class TestSignalGenerator:
             [(now, Decimal("0.0001"))],
         )
         volatility_insufficient = signal_generator.calculate_funding_rate_volatility(
-            "test_ex", "TEST_INSUFFICIENT",
+            "test_ex",
+            "TEST_INSUFFICIENT",
         )
         assert volatility_insufficient == Decimal("0.0001")
 
         signal_generator.historical_basis["TEST"] = deque()  # Clear for next test
 
     def test_estimate_slippage(
-        self, signal_generator: SignalGenerator, data_handler: MagicMock,
+        self,
+        signal_generator: SignalGenerator,
+        data_handler: MagicMock,
     ) -> None:
         """Test estimating slippage (currently hardcoded)."""
         mock_orderbook = MagicMock(spec=OrderBook)
@@ -407,7 +423,10 @@ class TestSignalGenerator:
 
     @pytest.mark.asyncio
     async def test_generate_opportunities(
-        self, signal_generator: SignalGenerator, data_handler: MagicMock, config: MagicMock,
+        self,
+        signal_generator: SignalGenerator,
+        data_handler: MagicMock,
+        config: MagicMock,
     ) -> None:
         """Test generating arbitrage opportunities."""
         # now = datetime.now(UTC) # Unused variable
@@ -450,7 +469,10 @@ class TestSignalGenerator:
 
     @pytest.mark.asyncio
     async def test_generate_opportunities_no_eligible(
-        self, signal_generator: SignalGenerator, data_handler: MagicMock, config: MagicMock,
+        self,
+        signal_generator: SignalGenerator,
+        data_handler: MagicMock,
+        config: MagicMock,
     ) -> None:
         """Test when no opportunities meet the eligibility criteria."""
         now = datetime.now(UTC)  # This 'now' is used for mock_low_funding timestamps
@@ -520,7 +542,7 @@ class TestSignalGenerator:
         # now = datetime.now(UTC) # Unused variable
         # Define side effect with type hints
         def single_exchange_config_get(key: str, default: object | None = None) -> object | None:
-            """Helper function for single exchange config get."""
+            """Handle single exchange config get for testing."""
             mock_single_config_dict: dict[str, Any] = {
                 "exchanges": {"hyperliquid": {"enabled": True, "symbols": {"BTC": "BTC-PERP"}}},
                 "strategy.funding_rate.min_funding_differential": "0.0002",
@@ -630,7 +652,9 @@ class TestSignalGenerator:
 
 
 def assert_decimal_approx(
-    actual: Decimal, expected: Decimal, tol: Decimal = Decimal("1e-6"),
+    actual: Decimal,
+    expected: Decimal,
+    tol: Decimal = Decimal("1e-6"),
 ) -> None:
     """Assert that two Decimal values are approximately equal within a given tolerance.
 

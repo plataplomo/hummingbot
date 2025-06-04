@@ -1,5 +1,4 @@
-"""Unit Tests for Hyperliquid Raw User Role Models
-"""
+"""Unit Tests for Hyperliquid Raw User Role Models"""
 
 from typing import Any, cast
 
@@ -158,7 +157,10 @@ def test_user_role_response_valid(valid_user_role_data: dict[str, Any]) -> None:
     ],
 )
 def test_user_role_response_invalid(
-    valid_user_role_data: dict[str, Any], field: str, value: object, is_missing_test: bool,
+    valid_user_role_data: dict[str, Any],
+    field: str,
+    value: object,
+    is_missing_test: bool,
 ) -> None:
     """Test user role response invalid."""
     # Use a copy of one of the valid scenarios for manipulation

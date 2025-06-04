@@ -50,7 +50,8 @@ def valid_mmf_function_data() -> dict[str, str]:
 
 @pytest.fixture
 def valid_position_data(
-    valid_imf_function_data: dict[str, str], valid_mmf_function_data: dict[str, str],
+    valid_imf_function_data: dict[str, str],
+    valid_mmf_function_data: dict[str, str],
 ) -> dict[str, Any]:
     """Return valid position data for testing."""
     # Fixture now correctly depends on imf/mmf data fixtures

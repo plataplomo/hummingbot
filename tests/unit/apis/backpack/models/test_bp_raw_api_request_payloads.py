@@ -389,7 +389,8 @@ class TestBackpackRawAccountWithdrawalRequest:
         ["Arbitrum", "Base", "Bitcoin", "Solana", "XRP"],
     )
     def test_valid_various_blockchains(
-        self, blockchain: Literal["Arbitrum", "Base", "Bitcoin", "Solana", "XRP"],
+        self,
+        blockchain: Literal["Arbitrum", "Base", "Bitcoin", "Solana", "XRP"],
     ) -> None:
         """Test valid instantiation with various blockchain options."""
         request = BackpackRawAccountWithdrawalRequest(
@@ -405,7 +406,8 @@ class TestBackpackRawAccountWithdrawalRequest:
         ["BTC", "ETH", "SOL", "USDT", "DOGE", "ADA"],
     )
     def test_valid_various_symbols(
-        self, symbol: Literal["BTC", "ETH", "SOL", "USDT", "DOGE", "ADA"],
+        self,
+        symbol: Literal["BTC", "ETH", "SOL", "USDT", "DOGE", "ADA"],
     ) -> None:
         """Test valid instantiation with various symbol options."""
         request = BackpackRawAccountWithdrawalRequest(
@@ -480,7 +482,8 @@ class TestBackpackRawAccountConvertDustRequest:
         ["BTC", "ETH", "SOL", "USDT", "DOGE", "ADA"],
     )
     def test_valid_various_symbols(
-        self, symbol: Literal["BTC", "ETH", "SOL", "USDT", "DOGE", "ADA"],
+        self,
+        symbol: Literal["BTC", "ETH", "SOL", "USDT", "DOGE", "ADA"],
     ) -> None:
         """Test valid instantiation with various symbols."""
         request = BackpackRawAccountConvertDustRequest(symbol=symbol)

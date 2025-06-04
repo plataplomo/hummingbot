@@ -551,7 +551,8 @@ class TestErrorRecoveryScenarios:
 
         # Transform should raise TransformationError when side mapping fails
         with pytest.raises(
-            TransformationError, match="Failed to transform HyperliquidRawPublicTrade",
+            TransformationError,
+            match="Failed to transform HyperliquidRawPublicTrade",
         ):
             market_data_mapper.transform_raw_public_trade_to_internal(valid_trade)
 

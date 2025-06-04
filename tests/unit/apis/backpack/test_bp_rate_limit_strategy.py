@@ -26,7 +26,9 @@ class TestBackpackRateLimitStrategy:
 
     @pytest.mark.asyncio
     async def test_handle_exchange_retry_after(
-        self, strategy: BackpackRateLimitStrategy, mock_limiter: MagicMock,
+        self,
+        strategy: BackpackRateLimitStrategy,
+        mock_limiter: MagicMock,
     ) -> None:
         """Test that handle_exchange_retry_after triggers IP ban on limiter."""
         # Arrange
@@ -46,7 +48,9 @@ class TestBackpackRateLimitStrategy:
 
     @pytest.mark.asyncio
     async def test_handle_exchange_retry_after_no_exchange_name(
-        self, strategy: BackpackRateLimitStrategy, mock_limiter: MagicMock,
+        self,
+        strategy: BackpackRateLimitStrategy,
+        mock_limiter: MagicMock,
     ) -> None:
         """Test handle_exchange_retry_after with missing exchange_name in context."""
         # Arrange
@@ -64,7 +68,9 @@ class TestBackpackRateLimitStrategy:
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_inherited(
-        self, strategy: BackpackRateLimitStrategy, mock_limiter: MagicMock,
+        self,
+        strategy: BackpackRateLimitStrategy,
+        mock_limiter: MagicMock,
     ) -> None:
         """Test that prepare_and_acquire works as inherited from SimpleTokenBucketStrategy."""
         # Arrange
@@ -86,7 +92,9 @@ class TestBackpackRateLimitStrategy:
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_default_weight(
-        self, strategy: BackpackRateLimitStrategy, mock_limiter: MagicMock,
+        self,
+        strategy: BackpackRateLimitStrategy,
+        mock_limiter: MagicMock,
     ) -> None:
         """Test prepare_and_acquire with default weight when not specified in context."""
         # Arrange

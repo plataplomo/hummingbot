@@ -1,4 +1,5 @@
 """Integration Tests for BackpackAPI WebSocket Integration.
+
 -----------------------------------------------------
 
 This module tests the WebSocket integration in BackpackAPI,
@@ -28,6 +29,7 @@ def create_test_exchange_config(
     **kwargs: object,
 ) -> ExchangeSpecificConfig:
     """Create ExchangeSpecificConfig for testing by parsing from dict.
+
     This works with the validator that expects string inputs.
     """
     config_dict = {
@@ -58,8 +60,6 @@ def mock_exchange_secrets() -> ApiKeyAuthSecrets:
         api_key=SecretStr("61D/XTRs1Es8SgdZN4xO438vv1ls0aWhJSs//JDNxLk="),
         api_secret=SecretStr("7s6pf6Xs8VJDMTNmcseiLge61XCSZeQ6GW8PP6odR1c="),
     )
-
-
 
 
 @pytest.fixture
@@ -97,7 +97,8 @@ class TestBackpackAPIWebSocketDelegation:
 
     @pytest.mark.asyncio
     async def test_websocket_subscription_public_interface(
-        self, bp_api_with_mocked_router: BackpackAPI,
+        self,
+        bp_api_with_mocked_router: BackpackAPI,
     ) -> None:
         """Test that WebSocket subscription works through public API without errors."""
         # Register a handler to verify the subscription system works
@@ -112,7 +113,8 @@ class TestBackpackAPIWebSocketDelegation:
 
     @pytest.mark.asyncio
     async def test_multiple_subscriptions_public_interface(
-        self, bp_api_with_mocked_router: BackpackAPI,
+        self,
+        bp_api_with_mocked_router: BackpackAPI,
     ) -> None:
         """Test that multiple subscriptions work through public interface."""
         # Test that the subscription mechanism works for multiple topics
@@ -131,7 +133,8 @@ class TestBackpackAPIWebSocketDelegation:
 
     @pytest.mark.asyncio
     async def test_websocket_connection_status_consistent(
-        self, bp_api_with_mocked_router: BackpackAPI,
+        self,
+        bp_api_with_mocked_router: BackpackAPI,
     ) -> None:
         """Test that WebSocket connection status remains consistent through public operations."""
         # Test various public operations maintain consistent connection state
@@ -317,7 +320,8 @@ class TestBackpackAPIWebSocketEdgeCases:
 
     @pytest.mark.asyncio
     async def test_subscription_special_characters_topic(
-        self, bp_api_edge_case: BackpackAPI,
+        self,
+        bp_api_edge_case: BackpackAPI,
     ) -> None:
         """Test subscription with special characters in topic."""
         handler = AsyncMock()
@@ -369,7 +373,8 @@ class TestBackpackAPIWebSocketEdgeCases:
 
     @pytest.mark.asyncio
     async def test_websocket_connection_status_consistency(
-        self, bp_api_edge_case: BackpackAPI,
+        self,
+        bp_api_edge_case: BackpackAPI,
     ) -> None:
         """Test that WebSocket connection status remains consistent."""
         # Test various operations maintain consistent state
@@ -424,7 +429,8 @@ class TestBackpackAPIWebSocketEdgeCases:
 
     @pytest.mark.asyncio
     async def test_api_state_consistency_across_operations(
-        self, bp_api_edge_case: BackpackAPI,
+        self,
+        bp_api_edge_case: BackpackAPI,
     ) -> None:
         """Test that API state remains consistent across various operations."""
         handler = AsyncMock()

@@ -1,5 +1,4 @@
-"""Unit tests for HyperliquidAccountService order and trade history functionality.
-"""
+"""Unit tests for HyperliquidAccountService order and trade history functionality."""
 
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
@@ -78,7 +77,8 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             user_address="0xTestWalletAddress",
         )
         mock_hl_trading_mapper.transform_raw_historical_order_to_internal.assert_called_once_with(
-            raw_historical_order=mock_raw_order, trigger=None,
+            raw_historical_order=mock_raw_order,
+            trigger=None,
         )
 
     @pytest.mark.asyncio
@@ -133,7 +133,8 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         mapped_order2 = MagicMock(symbol="ETH")
 
         def map_side_effect(
-            raw_historical_order: MagicMock, trigger: MagicMock | None = None,
+            raw_historical_order: MagicMock,
+            trigger: MagicMock | None = None,
         ) -> MagicMock:
             """Helper function for map side effect."""
             return mapped_order1 if raw_historical_order is mock_raw_order1 else mapped_order2

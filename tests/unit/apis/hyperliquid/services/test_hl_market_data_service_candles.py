@@ -393,7 +393,11 @@ class TestHyperliquidMarketDataServiceCandles:
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Invalid candle snapshot response structure" in exc_info.value.message
         mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
-            mock_malformed_response, symbol, interval, 200, {},
+            mock_malformed_response,
+            symbol,
+            interval,
+            200,
+            {},
         )
 
     @pytest.mark.asyncio
@@ -464,7 +468,9 @@ class TestHyperliquidMarketDataServiceCandles:
             assert isinstance(exc_info.value.__cause__, ValueError)
             assert "Mapper processing failed for candle data" in str(exc_info.value.__cause__)
             mock_mapper_instance.transform_raw_candle_snapshot_to_candles.assert_called_once_with(
-                mock_validated_candle_snapshot, symbol, interval,
+                mock_validated_candle_snapshot,
+                symbol,
+                interval,
             )
 
     @pytest.mark.asyncio
@@ -509,7 +515,13 @@ class TestHyperliquidMarketDataServiceCandles:
 
         # Mock response handler to return empty validated candle snapshot
         mock_empty_candle_snapshot = HyperliquidRawCandleSnapshot(
-            t=[], o=[], h=[], l=[], c=[], v=[], s="no_data",
+            t=[],
+            o=[],
+            h=[],
+            l=[],
+            c=[],
+            v=[],
+            s="no_data",
         )
         mock_hl_response_handler.handle_info_candle_snapshot_response.return_value = (
             mock_empty_candle_snapshot
@@ -530,10 +542,16 @@ class TestHyperliquidMarketDataServiceCandles:
 
             assert result == []
             mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
-                mock_empty_candle_response, symbol, interval, 200, {},
+                mock_empty_candle_response,
+                symbol,
+                interval,
+                200,
+                {},
             )
             mock_mapper_instance.transform_raw_candle_snapshot_to_candles.assert_called_once_with(
-                mock_empty_candle_snapshot, symbol, interval,
+                mock_empty_candle_snapshot,
+                symbol,
+                interval,
             )
 
     @pytest.mark.asyncio

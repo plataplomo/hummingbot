@@ -32,7 +32,8 @@ from tests.integration.mocks.mock_exchange import MockExchangeAPI
 # Configure logging for tests
 logging.getLogger().setLevel(logging.INFO)
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -159,8 +160,9 @@ class TestFailureScenarios:
             pytest.fail(f"Circuit breaker did not trip after {max_failures_to_trip + 1} attempts.")
 
         # 3. Verify Breaker State
-        assert (not isinstance(breaker, dict) and
-                breaker.state == BreakerState.OPEN), "Breaker should be OPEN"
+        assert not isinstance(breaker, dict) and breaker.state == BreakerState.OPEN, (
+            "Breaker should be OPEN"
+        )
 
         # --- MODIFIED: Attempt execution *after* breaker is confirmed OPEN ---
         breaker_name_for_log = api_breaker.name if not isinstance(api_breaker, dict) else "dict"
@@ -239,7 +241,8 @@ class TestFailureScenarios:
         )
         # Ensure the other exchange's breaker is CLOSED before attempting
         other_breaker = circuit_breaker_system.get_exchange_breaker(
-            other_exchange, target_breaker_type,
+            other_exchange,
+            target_breaker_type,
         )
         assert other_breaker is not None
         assert not isinstance(other_breaker, dict) and other_breaker.state == BreakerState.CLOSED, (
@@ -348,7 +351,8 @@ class TestFailureScenarios:
 
     @pytest.mark.asyncio
     async def test_manual_breaker_control(
-        self, circuit_breaker_system: CircuitBreakerSystem,
+        self,
+        circuit_breaker_system: CircuitBreakerSystem,
     ) -> None:
         """Tests manual tripping and resetting of breakers."""
         breaker_name = "exchange:mock_hl:api_errors"

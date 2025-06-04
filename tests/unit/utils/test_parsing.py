@@ -1,3 +1,8 @@
+"""Unit tests for parsing utilities.
+
+Tests parsing functions for various data types including decimals, datetimes, and validation.
+"""
+
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -7,6 +12,8 @@ from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 
 class TestParseDecimalValue:
+    """Test cases for parse_decimal_value function."""
+
     def test_decimal_passthrough(self) -> None:
         """Should return Decimal unchanged."""
         d = Decimal("1.23")
@@ -79,6 +86,8 @@ class TestParseDecimalValue:
 
 
 class TestParseDatetimeUTC:
+    """Test cases for parse_datetime_utc function."""
+
     def test_datetime_passthrough(self) -> None:
         """Should return aware datetime unchanged, or make naive datetime UTC-aware."""
         dt_aware = datetime(2023, 1, 1, 12, 0, tzinfo=UTC)
@@ -118,6 +127,7 @@ class TestParseDatetimeUTC:
         """Should raise ValueError for unsupported type."""
         # Testing with an invalid type by using cast to bypass type checking
         from typing import cast
+
         invalid_value = cast("str", [])  # Cast list to str to satisfy type checker
         with pytest.raises(ValueError, match="Unsupported datetime type"):
             parse_datetime_utc(invalid_value)
@@ -125,7 +135,8 @@ class TestParseDatetimeUTC:
     def test_invalid_string(self) -> None:
         """Should raise ValueError for invalid ISO string."""
         with pytest.raises(
-            ValueError, match="Cannot parse string .* as ISO datetime .* or as numeric timestamp",
+            ValueError,
+            match="Cannot parse string .* as ISO datetime .* or as numeric timestamp",
         ):
             parse_datetime_utc("not-a-date")
 

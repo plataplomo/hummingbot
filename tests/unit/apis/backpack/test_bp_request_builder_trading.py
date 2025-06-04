@@ -14,7 +14,10 @@ class TestBuildGetTradeHistoryParams:
     """Tests for build_get_trade_history_params method (fills)."""
 
     def test_build_get_trade_history_params_basic(
-        self, symbol_btc_spot: str, current_timestamp_ms: int, past_timestamp_ms: int,
+        self,
+        symbol_btc_spot: str,
+        current_timestamp_ms: int,
+        past_timestamp_ms: int,
     ) -> None:
         """Test build_get_trade_history_params with basic parameters."""
         params = BackpackRequestBuilder.build_get_trade_history_params(
@@ -116,7 +119,10 @@ class TestBuildGetTradeHistoryParams:
         assert params_dict == expected
 
     def test_build_get_trade_history_params_time_range_only(
-        self, symbol_spot: str, current_timestamp_ms: int, past_timestamp_ms: int,
+        self,
+        symbol_spot: str,
+        current_timestamp_ms: int,
+        past_timestamp_ms: int,
     ) -> None:
         """Test build_get_trade_history_params with time range only."""
         params = BackpackRequestBuilder.build_get_trade_history_params(

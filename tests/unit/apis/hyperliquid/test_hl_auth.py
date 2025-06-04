@@ -34,7 +34,8 @@ def mock_account() -> MagicMock:
 
 @patch("eth_account.Account.from_key")
 def test_hl_auth_init_success_with_private_key(
-    mock_from_key: MagicMock, mock_account: MagicMock,
+    mock_from_key: MagicMock,
+    mock_account: MagicMock,
 ) -> None:
     """Test successful initialization with valid credentials."""
     mock_from_key.return_value = mock_account
@@ -64,7 +65,8 @@ def test_hl_auth_init_success_with_account_object(mock_account: MagicMock) -> No
 def test_hl_auth_init_no_key_or_account() -> None:
     """Test initialization with no private key or account object raises ValueError."""
     with pytest.raises(
-        ValueError, match="Either wallet_private_key_secret or account_object must be provided.",
+        ValueError,
+        match="Either wallet_private_key_secret or account_object must be provided.",
     ):
         HyperliquidEip712Authenticator(chain_id=VALID_CHAIN_ID)
 
@@ -72,7 +74,8 @@ def test_hl_auth_init_no_key_or_account() -> None:
 def test_hl_auth_init_both_key_and_account(mock_account: MagicMock) -> None:
     """Test initialization with both private key and account object raises ValueError."""
     with pytest.raises(
-        ValueError, match="Provide either wallet_private_key_secret or account_object, not both.",
+        ValueError,
+        match="Provide either wallet_private_key_secret or account_object, not both.",
     ):
         HyperliquidEip712Authenticator(
             wallet_private_key_secret=SecretStr(VALID_PRIVATE_KEY_HEX),
@@ -250,9 +253,11 @@ class TestHyperliquidEip712Authenticator:
 
     @pytest.fixture
     def auth_with_mock_account(
-        self, mock_account: MagicMock, mock_logger: MagicMock,
+        self,
+        mock_account: MagicMock,
+        mock_logger: MagicMock,
     ) -> HyperliquidEip712Authenticator:
-        """Authenticator instance using a mocked account object."""
+        """Create authenticator instance using a mocked account object."""
         mock_account.address = VALID_WALLET_ADDRESS
         return HyperliquidEip712Authenticator(
             account_object=mock_account,
@@ -261,7 +266,9 @@ class TestHyperliquidEip712Authenticator:
         )
 
     def test_instantiation_with_account_object(
-        self, mock_account: MagicMock, mock_logger: MagicMock,
+        self,
+        mock_account: MagicMock,
+        mock_logger: MagicMock,
     ) -> None:
         """Test instantiation with a pre-configured account object."""
         mock_account.address = VALID_WALLET_ADDRESS
@@ -283,7 +290,9 @@ class TestHyperliquidEip712Authenticator:
             HyperliquidEip712Authenticator(chain_id=VALID_CHAIN_ID, logger_param=mock_logger)
 
     def test_instantiation_both_key_and_account_object(
-        self, mock_account: MagicMock, mock_logger: MagicMock,
+        self,
+        mock_account: MagicMock,
+        mock_logger: MagicMock,
     ) -> None:
         """Test ValueError if both private key and account object are provided."""
         with pytest.raises(ValueError, match="not both"):
@@ -296,7 +305,9 @@ class TestHyperliquidEip712Authenticator:
 
     @pytest.mark.asyncio
     async def test_prepare_request_with_valid_action_payload(
-        self, auth_with_mock_account: HyperliquidEip712Authenticator, mock_account: MagicMock,
+        self,
+        auth_with_mock_account: HyperliquidEip712Authenticator,
+        mock_account: MagicMock,
     ) -> None:
         """Test prepare_request with a valid dictionary payload for 'data'."""
         # Set up the mock to return a proper signature structure

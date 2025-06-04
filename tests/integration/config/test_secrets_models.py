@@ -172,6 +172,7 @@ class TestAnyExchangeSecrets:
 
         # Parse as the union type
         from pydantic import TypeAdapter
+
         adapter: TypeAdapter[AnyExchangeSecrets] = TypeAdapter(AnyExchangeSecrets)
         secrets = adapter.validate_python(data)
 
@@ -187,6 +188,7 @@ class TestAnyExchangeSecrets:
 
         # Parse as the union type
         from pydantic import TypeAdapter
+
         adapter: TypeAdapter[AnyExchangeSecrets] = TypeAdapter(AnyExchangeSecrets)
         secrets = adapter.validate_python(data)
 
@@ -202,6 +204,7 @@ class TestAnyExchangeSecrets:
         }
 
         from pydantic import TypeAdapter
+
         adapter: TypeAdapter[AnyExchangeSecrets] = TypeAdapter(AnyExchangeSecrets)
         with pytest.raises(ValidationError) as exc_info:
             adapter.validate_python(data)
@@ -446,9 +449,8 @@ class TestSecretsConfig:
 
         with pytest.raises(ValidationError) as exc_info:
             SecretsConfig.model_validate(data)
-        assert (
-            "Hyperliquid configuration in secrets must have auth_type 'private_key'"
-            in str(exc_info.value)
+        assert "Hyperliquid configuration in secrets must have auth_type 'private_key'" in str(
+            exc_info.value,
         )
 
     def test_hyperliquid_empty_private_key(self) -> None:
@@ -473,9 +475,8 @@ class TestSecretsConfig:
 
         with pytest.raises(ValidationError) as exc_info:
             SecretsConfig.model_validate(data)
-        assert (
-            "Backpack configuration in secrets must have auth_type 'api_key'"
-            in str(exc_info.value)
+        assert "Backpack configuration in secrets must have auth_type 'api_key'" in str(
+            exc_info.value,
         )
 
     def test_backpack_empty_api_credentials(self) -> None:

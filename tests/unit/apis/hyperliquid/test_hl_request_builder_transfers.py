@@ -31,7 +31,8 @@ class TestHyperliquidRequestBuilderTransfers:
     def test_build_l2_usd_transfer_payload(self, valid_wallet_address: str) -> None:
         """Test build_l2_usd_transfer_payload with valid inputs."""
         request_model = HyperliquidRequestBuilder.build_l2_usd_transfer_payload(
-            destination_address=valid_wallet_address, amount=Decimal("100.50"),
+            destination_address=valid_wallet_address,
+            amount=Decimal("100.50"),
         )
         assert isinstance(request_model, HyperliquidApiL2UsdTransferRequest)
         assert request_model.type == "usdTransfer"
@@ -44,24 +45,28 @@ class TestHyperliquidRequestBuilderTransfers:
         assert action.payload.amount == "100.50"
 
     def test_build_l2_usd_transfer_payload_different_amounts(
-        self, valid_wallet_address: str,
+        self,
+        valid_wallet_address: str,
     ) -> None:
         """Test build_l2_usd_transfer_payload with various decimal amounts."""
         # Test with small amount
         request_small = HyperliquidRequestBuilder.build_l2_usd_transfer_payload(
-            destination_address=valid_wallet_address, amount=Decimal("0.01"),
+            destination_address=valid_wallet_address,
+            amount=Decimal("0.01"),
         )
         assert request_small.action.payload.amount == "0.01"
 
         # Test with large amount
         request_large = HyperliquidRequestBuilder.build_l2_usd_transfer_payload(
-            destination_address=valid_wallet_address, amount=Decimal("999999.999999"),
+            destination_address=valid_wallet_address,
+            amount=Decimal("999999.999999"),
         )
         assert request_large.action.payload.amount == "999999.999999"
 
         # Test with integer amount
         request_int = HyperliquidRequestBuilder.build_l2_usd_transfer_payload(
-            destination_address=valid_wallet_address, amount=Decimal("1000"),
+            destination_address=valid_wallet_address,
+            amount=Decimal("1000"),
         )
         assert request_int.action.payload.amount == "1000"
 
@@ -75,7 +80,8 @@ class TestHyperliquidRequestBuilderTransfers:
 
         with pytest.raises(ValidationError, match="String cannot be empty"):
             HyperliquidRequestBuilder.build_l2_usd_transfer_payload(
-                destination_address="", amount=Decimal("100"),
+                destination_address="",
+                amount=Decimal("100"),
             )
 
     def test_build_l2_usd_transfer_payload_invalid_whitespace_address(self) -> None:
@@ -84,13 +90,16 @@ class TestHyperliquidRequestBuilderTransfers:
 
         with pytest.raises(ValidationError, match="String cannot be empty"):
             HyperliquidRequestBuilder.build_l2_usd_transfer_payload(
-                destination_address="   ", amount=Decimal("100"),
+                destination_address="   ",
+                amount=Decimal("100"),
             )
 
     def test_build_withdrawal_payload_eth(self, valid_wallet_address: str) -> None:
         """Test build_withdrawal_payload for ETH withdrawals."""
         request_model = HyperliquidRequestBuilder.build_withdrawal_payload(
-            asset="ETH", amount=Decimal("1.23"), destination_address=valid_wallet_address,
+            asset="ETH",
+            amount=Decimal("1.23"),
+            destination_address=valid_wallet_address,
         )
         assert isinstance(request_model, HyperliquidApiEthWithdrawalRequest)
         assert request_model.type == "withdrawEth"
@@ -100,25 +109,32 @@ class TestHyperliquidRequestBuilderTransfers:
         assert action.amount == "1.23"
 
     def test_build_withdrawal_payload_eth_different_amounts(
-        self, valid_wallet_address: str,
+        self,
+        valid_wallet_address: str,
     ) -> None:
         """Test build_withdrawal_payload for ETH with various amounts."""
         # Test with small ETH amount
         request_small = HyperliquidRequestBuilder.build_withdrawal_payload(
-            asset="ETH", amount=Decimal("0.001"), destination_address=valid_wallet_address,
+            asset="ETH",
+            amount=Decimal("0.001"),
+            destination_address=valid_wallet_address,
         )
         assert request_small.action.amount == "0.001"
 
         # Test with precise ETH amount
         request_precise = HyperliquidRequestBuilder.build_withdrawal_payload(
-            asset="ETH", amount=Decimal("2.123456789"), destination_address=valid_wallet_address,
+            asset="ETH",
+            amount=Decimal("2.123456789"),
+            destination_address=valid_wallet_address,
         )
         assert request_precise.action.amount == "2.123456789"
 
     def test_build_withdrawal_payload_token(self, valid_wallet_address: str) -> None:
         """Test build_withdrawal_payload for generic token (USDC) withdrawals."""
         request_model = HyperliquidRequestBuilder.build_withdrawal_payload(
-            asset="USDC", amount=Decimal("500"), destination_address=valid_wallet_address,
+            asset="USDC",
+            amount=Decimal("500"),
+            destination_address=valid_wallet_address,
         )
         assert isinstance(request_model, HyperliquidApiTokenWithdrawalRequest)
         assert request_model.type == "withdraw"
@@ -132,7 +148,9 @@ class TestHyperliquidRequestBuilderTransfers:
         """Test build_withdrawal_payload for various token types."""
         # Test with USDT
         request_usdt = HyperliquidRequestBuilder.build_withdrawal_payload(
-            asset="USDT", amount=Decimal("1000.50"), destination_address=valid_wallet_address,
+            asset="USDT",
+            amount=Decimal("1000.50"),
+            destination_address=valid_wallet_address,
         )
         assert isinstance(request_usdt.action, HyperliquidRawWithdrawalToL1ActionPayload)
         assert request_usdt.action.token == "USDT"
@@ -140,7 +158,9 @@ class TestHyperliquidRequestBuilderTransfers:
 
         # Test with arbitrary token
         request_arb = HyperliquidRequestBuilder.build_withdrawal_payload(
-            asset="ARB", amount=Decimal("25.75"), destination_address=valid_wallet_address,
+            asset="ARB",
+            amount=Decimal("25.75"),
+            destination_address=valid_wallet_address,
         )
         assert isinstance(request_arb.action, HyperliquidRawWithdrawalToL1ActionPayload)
         assert request_arb.action.token == "ARB"
@@ -156,7 +176,9 @@ class TestHyperliquidRequestBuilderTransfers:
 
         with pytest.raises(ValidationError, match="String cannot be empty"):
             HyperliquidRequestBuilder.build_withdrawal_payload(
-                asset="USDC", amount=Decimal("100"), destination_address="",
+                asset="USDC",
+                amount=Decimal("100"),
+                destination_address="",
             )
 
     def test_build_withdrawal_payload_invalid_whitespace_address(self) -> None:
@@ -165,14 +187,18 @@ class TestHyperliquidRequestBuilderTransfers:
 
         with pytest.raises(ValidationError, match="String cannot be empty"):
             HyperliquidRequestBuilder.build_withdrawal_payload(
-                asset="USDC", amount=Decimal("100"), destination_address="   ",
+                asset="USDC",
+                amount=Decimal("100"),
+                destination_address="   ",
             )
 
     def test_build_withdrawal_payload_case_sensitivity(self, valid_wallet_address: str) -> None:
         """Test that asset case is handled correctly in withdrawal payloads."""
         # Test ETH (uppercase) creates ETH withdrawal
         request_eth_upper = HyperliquidRequestBuilder.build_withdrawal_payload(
-            asset="ETH", amount=Decimal("1.0"), destination_address=valid_wallet_address,
+            asset="ETH",
+            amount=Decimal("1.0"),
+            destination_address=valid_wallet_address,
         )
         assert isinstance(request_eth_upper, HyperliquidApiEthWithdrawalRequest)
         assert request_eth_upper.type == "withdrawEth"
@@ -180,14 +206,18 @@ class TestHyperliquidRequestBuilderTransfers:
         # Test with lowercase eth - the request builder converts to uppercase,
         # so it also creates ETH withdrawal
         request_eth_lower = HyperliquidRequestBuilder.build_withdrawal_payload(
-            asset="eth", amount=Decimal("1.0"), destination_address=valid_wallet_address,
+            asset="eth",
+            amount=Decimal("1.0"),
+            destination_address=valid_wallet_address,
         )
         assert isinstance(request_eth_lower, HyperliquidApiEthWithdrawalRequest)
         assert request_eth_lower.type == "withdrawEth"
 
         # Test with a different token to ensure token withdrawal works
         request_usdc = HyperliquidRequestBuilder.build_withdrawal_payload(
-            asset="USDC", amount=Decimal("1.0"), destination_address=valid_wallet_address,
+            asset="USDC",
+            amount=Decimal("1.0"),
+            destination_address=valid_wallet_address,
         )
         assert isinstance(request_usdc, HyperliquidApiTokenWithdrawalRequest)
         assert request_usdc.type == "withdraw"

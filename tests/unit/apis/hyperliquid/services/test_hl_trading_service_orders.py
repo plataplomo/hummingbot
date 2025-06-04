@@ -473,7 +473,9 @@ class TestHyperliquidTradingServiceOrders:
 
         # Mock the get_order method that place_order calls internally
         with patch.object(
-            hl_trading_service, "get_order", return_value=expected_order,
+            hl_trading_service,
+            "get_order",
+            return_value=expected_order,
         ) as mock_get_order:
             args = PlaceOrderArgs(
                 symbol=symbol,
@@ -497,7 +499,8 @@ class TestHyperliquidTradingServiceOrders:
             )
             # Fix the method call signature - handle_exchange_response takes (content, action_type)
             mock_hl_response_handler.handle_exchange_response.assert_called_once_with(
-                mock_response_content, action_type="order",
+                mock_response_content,
+                action_type="order",
             )
             # Verify get_order was called with the returned OID
             mock_get_order.assert_called_once_with(GetOrderArgs(symbol=symbol, order_id="123456"))
@@ -522,7 +525,9 @@ class TestHyperliquidTradingServiceOrders:
         )
 
         mock_payload = HyperliquidRawOrderStatusRequestPayload(
-            type="orderStatus", user=wallet_address, oid=int(order_id),
+            type="orderStatus",
+            user=wallet_address,
+            oid=int(order_id),
         )
         mock_hl_request_builder.build_order_status_payload.return_value = mock_payload
 
@@ -553,7 +558,9 @@ class TestHyperliquidTradingServiceOrders:
 
         # Mock payload building for order status
         mock_payload_model = HyperliquidRawOrderStatusRequestPayload(
-            type="orderStatus", user=wallet_address, oid=int(order_id),
+            type="orderStatus",
+            user=wallet_address,
+            oid=int(order_id),
         )
         mock_hl_request_builder.build_order_status_payload.return_value = mock_payload_model
 
@@ -627,10 +634,13 @@ class TestHyperliquidTradingServiceOrders:
             is_signed=True,
         )
         mock_hl_response_handler.handle_info_order_status_response.assert_called_once_with(
-            mock_response_content, user_address=wallet_address, order_id=int(order_id),
+            mock_response_content,
+            user_address=wallet_address,
+            order_id=int(order_id),
         )
         mock_hl_trading_mapper.transform_raw_historical_order_to_internal.assert_called_once_with(
-            raw_historical_order=mock_historical_order, trigger=None,
+            raw_historical_order=mock_historical_order,
+            trigger=None,
         )
 
     @pytest.mark.asyncio
@@ -652,7 +662,8 @@ class TestHyperliquidTradingServiceOrders:
         )
 
         mock_payload = HyperliquidRawOpenOrdersRequestPayload(
-            type="openOrders", user=wallet_address,
+            type="openOrders",
+            user=wallet_address,
         )
         mock_hl_request_builder.build_open_orders_payload.return_value = mock_payload
 
@@ -729,7 +740,8 @@ class TestHyperliquidTradingServiceOrders:
         )
 
         mock_payload = HyperliquidRawOpenOrdersRequestPayload(
-            type="openOrders", user=wallet_address,
+            type="openOrders",
+            user=wallet_address,
         )
         mock_hl_request_builder.build_open_orders_payload.return_value = mock_payload
 
@@ -786,7 +798,8 @@ class TestHyperliquidTradingServiceOrders:
             is_signed=True,
         )
         mock_hl_response_handler.handle_info_open_orders_response.assert_called_once_with(
-            mock_response_content, user_address=wallet_address,
+            mock_response_content,
+            user_address=wallet_address,
         )
         mock_hl_trading_mapper.transform_raw_order_to_internal.assert_has_calls(
             [
@@ -876,5 +889,6 @@ class TestHyperliquidTradingServiceOrders:
         # doesn't use request builder
         mock_http_client_requester.assert_called_once()
         mock_hl_response_handler.handle_exchange_response.assert_called_once_with(
-            mock_response_content, action_type="cancel",
+            mock_response_content,
+            action_type="cancel",
         )

@@ -29,8 +29,7 @@ class TestRiskManagerControls:
         mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
-        """Verify portfolio controls are applied through the public size_opportunity interface.
-        """
+        """Verify portfolio controls are applied through the public size_opportunity interface."""
         # --- Arrange ---
         min_factor_test_val = Decimal("0.2")  # Corresponds to default mock_config_values
         test_overrides = {
@@ -43,7 +42,8 @@ class TestRiskManagerControls:
         combined_config: dict[str, object] = {**mock_config_dict, **test_overrides}
 
         def config_get_side_effect_for_test(
-            key: str, default: object | None = None,
+            key: str,
+            default: object | None = None,
         ) -> object | None:
             """Helper function for config get side effect for test."""
             return combined_config.get(key, default)

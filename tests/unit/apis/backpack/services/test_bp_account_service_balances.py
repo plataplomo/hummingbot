@@ -1,5 +1,4 @@
-"""Unit tests for BackpackAccountService balance functionality.
-"""
+"""Unit tests for BackpackAccountService balance functionality."""
 
 from __future__ import annotations
 
@@ -75,7 +74,8 @@ class TestBackpackAccountServiceBalances:
             mock_raw_response_data_dict,
         )
         mock_mapper.transform_raw_balance_to_internal.assert_called_once_with(
-            "USDC", mock_validated_raw_balances_dict["USDC"],
+            "USDC",
+            mock_validated_raw_balances_dict["USDC"],
         )
 
         assert result["USDC"].exchange == expected_final_balances_result["USDC"].exchange
@@ -159,7 +159,8 @@ class TestBackpackAccountServiceBalances:
         )
 
         def mapper_side_effect(
-            asset_symbol: str, raw_balance_model: BackpackRawBalance,
+            asset_symbol: str,
+            raw_balance_model: BackpackRawBalance,
         ) -> SpotBalance:
             """Helper function for mapper side effect."""
             if asset_symbol == "USDC" and raw_balance_model == mock_raw_balances_payload["USDC"]:
@@ -194,10 +195,12 @@ class TestBackpackAccountServiceBalances:
 
         assert mock_mapper.transform_raw_balance_to_internal.call_count == 2
         mock_mapper.transform_raw_balance_to_internal.assert_any_call(
-            "USDC", mock_raw_balances_payload["USDC"],
+            "USDC",
+            mock_raw_balances_payload["USDC"],
         )
         mock_mapper.transform_raw_balance_to_internal.assert_any_call(
-            "SOL", mock_raw_balances_payload["SOL"],
+            "SOL",
+            mock_raw_balances_payload["SOL"],
         )
 
         assert len(result_balances) == len(expected_internal_balances)

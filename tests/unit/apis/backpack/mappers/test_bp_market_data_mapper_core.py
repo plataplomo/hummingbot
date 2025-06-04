@@ -173,7 +173,9 @@ class TestTickerTransformation:
     """Test cases for ticker transformation functionality."""
 
     def test_transform_raw_ticker_to_internal_happy_path(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp: str,
     ) -> None:
         """Test successful transformation of BackpackRawTicker to internal Ticker."""
         raw_ticker = create_raw_ticker(
@@ -196,7 +198,9 @@ class TestTickerTransformation:
         assert result.timestamp == datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)
 
     def test_transform_raw_ticker_with_symbol_override(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp: str,
     ) -> None:
         """Test ticker transformation with symbol override."""
         raw_ticker = create_raw_ticker(symbol="SOL-USDC", time=test_timestamp)
@@ -206,7 +210,9 @@ class TestTickerTransformation:
         assert result.symbol == "BTC-USDC"
 
     def test_transform_raw_ticker_with_none_values(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp: str,
     ) -> None:
         """Test ticker transformation with None values for optional fields."""
         # Create ticker with None values by constructing directly
@@ -228,7 +234,9 @@ class TestTickerTransformation:
 
     @patch("cyberdelta.apis.backpack.mappers.bp_market_data_mapper.datetime")
     def test_transform_raw_ticker_with_none_timestamp(
-        self, mock_datetime: MagicMock, mapper: BackpackMarketDataMapper,
+        self,
+        mock_datetime: MagicMock,
+        mapper: BackpackMarketDataMapper,
     ) -> None:
         """Test ticker transformation with None timestamp uses current time."""
         mock_now = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
@@ -257,7 +265,8 @@ class TestTickerTransformation:
             mock_datetime.now.assert_called_once_with(UTC)
 
     def test_transform_raw_ticker_transformation_error(
-        self, mapper: BackpackMarketDataMapper,
+        self,
+        mapper: BackpackMarketDataMapper,
     ) -> None:
         """Test that transformation errors are properly wrapped."""
         # Create a valid ticker but patch parsing to cause error
@@ -271,12 +280,15 @@ class TestTickerTransformation:
             mock_parse.side_effect = ValueError("Invalid decimal")
 
             with pytest.raises(
-                TransformationError, match="Failed to transform BackpackRawTicker to Ticker",
+                TransformationError,
+                match="Failed to transform BackpackRawTicker to Ticker",
             ):
                 mapper.transform_raw_ticker_to_internal(raw_ticker)
 
     def test_transform_raw_ticker_with_extreme_values(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp: str,
     ) -> None:
         """Test ticker transformation with extreme decimal values."""
         raw_ticker = create_raw_ticker(
@@ -295,7 +307,9 @@ class TestTickerTransformation:
         assert result.volume == Decimal("0.000000001")
 
     def test_transform_raw_ticker_with_zero_values(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp: str,
     ) -> None:
         """Test ticker transformation with zero values."""
         raw_ticker = create_raw_ticker(
@@ -318,7 +332,9 @@ class TestOrderBookTransformation:
     """Test cases for order book transformation functionality."""
 
     def test_transform_raw_order_book_to_internal_happy_path(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp: str,
     ) -> None:
         """Test successful transformation of BackpackRawOrderBook to internal OrderBook."""
         raw_book = create_raw_order_book(
@@ -338,7 +354,9 @@ class TestOrderBookTransformation:
         assert result.timestamp == datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)
 
     def test_transform_raw_order_book_empty_levels(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp: str,
     ) -> None:
         """Test order book transformation with empty bid/ask levels."""
         raw_book = create_raw_order_book(
@@ -353,7 +371,9 @@ class TestOrderBookTransformation:
         assert len(result.asks) == 0
 
     def test_transform_raw_order_book_large_number_of_levels(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp: str,
     ) -> None:
         """Test order book transformation with large number of levels."""
         # Create 100 bid and ask levels
@@ -375,7 +395,9 @@ class TestOrderBookTransformation:
 
     @patch("cyberdelta.apis.backpack.mappers.bp_market_data_mapper.datetime")
     def test_transform_raw_order_book_with_none_timestamp(
-        self, mock_datetime: MagicMock, mapper: BackpackMarketDataMapper,
+        self,
+        mock_datetime: MagicMock,
+        mapper: BackpackMarketDataMapper,
     ) -> None:
         """Test order book transformation with None timestamp uses current time."""
         mock_now = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
@@ -399,7 +421,8 @@ class TestOrderBookTransformation:
             assert result.timestamp == mock_now
 
     def test_transform_raw_order_book_transformation_error(
-        self, mapper: BackpackMarketDataMapper,
+        self,
+        mapper: BackpackMarketDataMapper,
     ) -> None:
         """Test that transformation errors are properly wrapped."""
         # Create a valid order book and mock parsing to cause error
@@ -411,12 +434,15 @@ class TestOrderBookTransformation:
             mock_parse.side_effect = ValueError("Invalid decimal")
 
             with pytest.raises(
-                TransformationError, match="Failed to transform BackpackRawOrderBook to OrderBook",
+                TransformationError,
+                match="Failed to transform BackpackRawOrderBook to OrderBook",
             ):
                 mapper.transform_raw_order_book_to_internal("SOL-USDC", raw_book)
 
     def test_transform_raw_order_book_with_extreme_values(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp: str,
     ) -> None:
         """Test order book transformation with extreme price and quantity values."""
         raw_book = create_raw_order_book(
@@ -431,7 +457,9 @@ class TestOrderBookTransformation:
         assert result.asks[0] == (Decimal("1000000.000001"), Decimal("0.000000001"))
 
     def test_transform_raw_order_book_with_unicode_symbol(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp: str,
     ) -> None:
         """Test order book transformation with unicode symbol."""
         raw_book = create_raw_order_book(timestamp=test_timestamp)
@@ -445,7 +473,9 @@ class TestTradeTransformation:
     """Test cases for trade transformation functionality."""
 
     def test_transform_raw_trade_to_internal_happy_path(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp: str,
     ) -> None:
         """Test successful transformation of BackpackRawTrade to internal Trade."""
         raw_trade = create_raw_trade(
@@ -470,7 +500,9 @@ class TestTradeTransformation:
         assert result.bp_details is not None
 
     def test_transform_raw_trade_missing_price(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp: str,
     ) -> None:
         """Test that missing price raises TransformationError."""
         # Cannot create BackpackRawTrade with None price, so patch parsing to return None
@@ -485,7 +517,9 @@ class TestTradeTransformation:
                 mapper.transform_raw_trade_to_internal(raw_trade)
 
     def test_transform_raw_trade_missing_quantity(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp: str,
     ) -> None:
         """Test that missing quantity raises TransformationError."""
         # Cannot create BackpackRawTrade with None qty, so patch parsing to return None
@@ -496,7 +530,9 @@ class TestTradeTransformation:
         ) as mock_parse:
             # Return None only for quantity field
             def mock_parse_side_effect(
-                value: object, allow_none: bool = False, field_name: str = "",
+                value: object,
+                allow_none: bool = False,
+                field_name: str = "",
             ) -> Decimal | None:
                 """Return mock parse side effect for testing."""
                 if field_name == "quantity":
@@ -510,7 +546,9 @@ class TestTradeTransformation:
 
     @patch("cyberdelta.apis.backpack.mappers.bp_market_data_mapper.datetime")
     def test_transform_raw_trade_with_none_timestamp(
-        self, mock_datetime: MagicMock, mapper: BackpackMarketDataMapper,
+        self,
+        mock_datetime: MagicMock,
+        mapper: BackpackMarketDataMapper,
     ) -> None:
         """Test trade transformation with None timestamp uses current time."""
         mock_now = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
@@ -537,7 +575,8 @@ class TestTradeTransformation:
             assert result.executed_at == mock_now
 
     def test_transform_raw_trade_transformation_error(
-        self, mapper: BackpackMarketDataMapper,
+        self,
+        mapper: BackpackMarketDataMapper,
     ) -> None:
         """Test that transformation errors are properly wrapped."""
         raw_trade = create_raw_trade(price="100.50")
@@ -548,12 +587,15 @@ class TestTradeTransformation:
             mock_parse.side_effect = ValueError("Invalid decimal")
 
             with pytest.raises(
-                TransformationError, match="Failed to transform BackpackRawTrade to Trade",
+                TransformationError,
+                match="Failed to transform BackpackRawTrade to Trade",
             ):
                 mapper.transform_raw_trade_to_internal(raw_trade)
 
     def test_transform_raw_trade_with_extreme_values(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp: str,
     ) -> None:
         """Test trade transformation with extreme decimal values."""
         raw_trade = create_raw_trade(
@@ -568,7 +610,9 @@ class TestTradeTransformation:
         assert result.quantity == Decimal("999999999.999999")
 
     def test_transform_raw_trade_with_very_long_id(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp: str,
     ) -> None:
         """Test trade transformation with maximum allowed trade ID length."""
         long_id = "a" * 64  # 64 character ID (max allowed by BackpackRawTrade.id)
@@ -586,7 +630,9 @@ class TestFundingRateTransformation:
     """Test cases for funding rate transformation functionality."""
 
     def test_transform_raw_funding_rate_to_internal_happy_path(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp: str,
     ) -> None:
         """Test successful transformation of BackpackRawFundingRate to internal FundingRate."""
         raw_funding = create_raw_funding_rate(
@@ -606,7 +652,9 @@ class TestFundingRateTransformation:
         assert result.bp_details is not None
 
     def test_transform_raw_funding_interval_rate_to_internal_happy_path(
-        self, mapper: BackpackMarketDataMapper, test_timestamp: str,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp: str,
     ) -> None:
         """Test successful transformation of BackpackRawFundingIntervalRate to FundingRate."""
         raw_funding = create_raw_funding_interval_rate(
@@ -624,7 +672,8 @@ class TestFundingRateTransformation:
         assert result.bp_details is not None
 
     def test_transform_raw_funding_rate_with_extreme_rates(
-        self, mapper: BackpackMarketDataMapper,
+        self,
+        mapper: BackpackMarketDataMapper,
     ) -> None:
         """Test funding rate transformation with extreme rate values."""
         # Very high positive rate
@@ -643,7 +692,8 @@ class TestFundingRateTransformation:
         assert result_small.funding_rate == Decimal("0.000000001")
 
     def test_transform_raw_funding_rate_transformation_error(
-        self, mapper: BackpackMarketDataMapper,
+        self,
+        mapper: BackpackMarketDataMapper,
     ) -> None:
         """Test that funding rate transformation errors are properly wrapped."""
         raw_funding = create_raw_funding_rate()
@@ -654,7 +704,8 @@ class TestFundingRateTransformation:
             mock_parse.side_effect = ValueError("Invalid decimal")
 
             with pytest.raises(
-                TransformationError, match="Failed to transform BackpackRawFundingRate",
+                TransformationError,
+                match="Failed to transform BackpackRawFundingRate",
             ):
                 mapper.transform_raw_funding_rate_to_internal(raw_funding)
 
@@ -663,7 +714,9 @@ class TestKlineTransformation:
     """Test cases for kline transformation functionality."""
 
     def test_transform_raw_kline_to_internal_happy_path(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test successful transformation of BackpackRawKline to internal Candle."""
         raw_kline = create_raw_kline(
@@ -688,7 +741,8 @@ class TestKlineTransformation:
         assert result.volume == Decimal("1000.0")
 
     def test_transform_raw_kline_to_internal_transformation_error(
-        self, mapper: BackpackMarketDataMapper,
+        self,
+        mapper: BackpackMarketDataMapper,
     ) -> None:
         """Test that transformation errors are properly wrapped."""
         # Create a valid raw kline
@@ -707,7 +761,9 @@ class TestKlineTransformation:
                 mapper.transform_raw_kline_to_internal("SOL-USDC", "1h", raw_kline)
 
     def test_transform_raw_kline_with_extreme_values(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test kline transformation with extreme price and volume values."""
         raw_kline = create_raw_kline(
@@ -728,7 +784,9 @@ class TestKlineTransformation:
         assert result.volume == Decimal("1000000000.999999")
 
     def test_transform_raw_kline_with_different_intervals(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test kline transformation with different interval values."""
         raw_kline = create_raw_kline(start_time_ms=test_timestamp_ms)

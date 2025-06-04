@@ -360,7 +360,10 @@ class TestBuildInternalTransferPayload:
         ],
     )
     def test_build_internal_transfer_payload_account_combinations(
-        self, usdc_asset: str, from_account: str, to_account: str,
+        self,
+        usdc_asset: str,
+        from_account: str,
+        to_account: str,
     ) -> None:
         """Test build_internal_transfer_payload with various account combinations."""
         payload = BackpackRequestBuilder.build_internal_transfer_payload(

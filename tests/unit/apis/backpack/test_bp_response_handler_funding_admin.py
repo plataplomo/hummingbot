@@ -26,7 +26,10 @@ class TestHandleGetFundingRateResponse:
         """Test handling a valid raw funding rate response."""
         funding_rate: BackpackRawFundingRate = (
             BackpackResponseHandler.handle_get_funding_rate_response(
-                cast("RawJsonResponse", valid_raw_funding_rate), symbol_perp, 200, {},
+                cast("RawJsonResponse", valid_raw_funding_rate),
+                symbol_perp,
+                200,
+                {},
             )
         )
         assert isinstance(funding_rate, BackpackRawFundingRate)
@@ -47,7 +50,10 @@ class TestHandleGetFundingRateResponse:
         }
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_funding_rate_response(
-                cast("RawJsonResponse", raw_data), symbol_perp, 200, {},
+                cast("RawJsonResponse", raw_data),
+                symbol_perp,
+                200,
+                {},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert f"funding rate ({symbol_perp})" in exc_info.value.message
@@ -64,7 +70,10 @@ class TestHandleGetFundingRateResponse:
         }
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_funding_rate_response(
-                cast("RawJsonResponse", raw_data), symbol_perp, 200, {},
+                cast("RawJsonResponse", raw_data),
+                symbol_perp,
+                200,
+                {},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert isinstance(exc_info.value.original_exception, ValidationError)
@@ -74,7 +83,10 @@ class TestHandleGetFundingRateResponse:
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_funding_rate_response(
-                cast("RawJsonResponse", raw_data), symbol_perp, 400, {},
+                cast("RawJsonResponse", raw_data),
+                symbol_perp,
+                400,
+                {},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "expected dict" in exc_info.value.message
@@ -95,7 +107,10 @@ class TestHandleGetFundingRateResponse:
         }
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_funding_rate_response(
-                cast("RawJsonResponse", raw_data), symbol_perp, 200, {},
+                cast("RawJsonResponse", raw_data),
+                symbol_perp,
+                200,
+                {},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert isinstance(exc_info.value.original_exception, ValidationError)
@@ -114,7 +129,10 @@ class TestFundingRateEdgeCases:
             "time": 1678887000000,
         }
         funding_rate = BackpackResponseHandler.handle_get_funding_rate_response(
-            cast("RawJsonResponse", raw_data), symbol_perp, 200, {},
+            cast("RawJsonResponse", raw_data),
+            symbol_perp,
+            200,
+            {},
         )
         assert funding_rate.funding_rate == "0.0"
 
@@ -128,7 +146,10 @@ class TestFundingRateEdgeCases:
             "time": 1678887000000,
         }
         funding_rate = BackpackResponseHandler.handle_get_funding_rate_response(
-            cast("RawJsonResponse", raw_data), symbol_perp, 200, {},
+            cast("RawJsonResponse", raw_data),
+            symbol_perp,
+            200,
+            {},
         )
         assert funding_rate.funding_rate == "-0.000456"
 
@@ -142,7 +163,10 @@ class TestFundingRateEdgeCases:
             "time": 1678887000000,
         }
         funding_rate = BackpackResponseHandler.handle_get_funding_rate_response(
-            cast("RawJsonResponse", raw_data), symbol_perp, 200, {},
+            cast("RawJsonResponse", raw_data),
+            symbol_perp,
+            200,
+            {},
         )
         assert funding_rate.funding_rate == "0.000123456789"
         assert funding_rate.mark_price == "140.123456789"

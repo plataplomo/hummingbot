@@ -1,5 +1,4 @@
-"""Unit Tests for Hyperliquid Raw Vault Details Models
-"""
+"""Unit Tests for Hyperliquid Raw Vault Details Models"""
 
 from typing import Any
 
@@ -111,7 +110,9 @@ def test_perf_history_item_valid(valid_perf_history_data: dict[str, Any]) -> Non
     ],
 )
 def test_perf_history_item_invalid_fields(
-    valid_perf_history_data: dict[str, Any], field: str, value: object,
+    valid_perf_history_data: dict[str, Any],
+    field: str,
+    value: object,
 ) -> None:
     """Test perf history item invalid fields."""
     data_copy = valid_perf_history_data.copy()
@@ -154,7 +155,9 @@ def test_user_equity_valid(valid_user_equity_data: dict[str, Any]) -> None:
     ],
 )
 def test_user_equity_invalid_fields(
-    valid_user_equity_data: dict[str, Any], field: str, value: object,
+    valid_user_equity_data: dict[str, Any],
+    field: str,
+    value: object,
 ) -> None:
     """Test user equity invalid fields."""
     data_copy = valid_user_equity_data.copy()
@@ -191,7 +194,9 @@ def test_relationship_data_valid(valid_relationship_data: dict[str, list[str]]) 
     ],
 )
 def test_relationship_data_invalid(
-    valid_relationship_data: dict[str, list[str]], field: str, value: object,
+    valid_relationship_data: dict[str, list[str]],
+    field: str,
+    value: object,
 ) -> None:
     """Test relationship data invalid."""
     data_copy = valid_relationship_data.copy()
@@ -218,7 +223,9 @@ def test_relationship_valid(valid_relationship: dict[str, Any]) -> None:
     ],
 )
 def test_relationship_invalid(
-    valid_relationship: dict[str, Any], field: str, value: object,
+    valid_relationship: dict[str, Any],
+    field: str,
+    value: object,
 ) -> None:
     """Test relationship invalid."""
     data_copy = valid_relationship.copy()
@@ -274,7 +281,10 @@ def test_vault_details_valid(valid_vault_details_data: dict[str, Any]) -> None:
     ],
 )
 def test_vault_details_invalid(
-    valid_vault_details_data: dict[str, Any], field: str, value: object, is_missing_test: bool,
+    valid_vault_details_data: dict[str, Any],
+    field: str,
+    value: object,
+    is_missing_test: bool,
 ) -> None:
     """Test vault details invalid."""
     data_copy = valid_vault_details_data.copy()

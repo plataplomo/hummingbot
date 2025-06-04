@@ -1,4 +1,5 @@
 """Unit tests for the core SpotBalance model and its Details sub-models.
+
 Focuses on validation, parsing, immutability, and the Core+Details pattern.
 """
 
@@ -24,7 +25,7 @@ TestParamValue = PrimitiveTestVal | list[PrimitiveTestVal] | dict[str, Primitive
 # --- Helper Fixtures ---
 @pytest.fixture
 def valid_bp_spot_details_data() -> dict[str, Any]:
-    """Provides valid data for BackpackSpotBalanceDetails."""
+    """Provide valid data for BackpackSpotBalanceDetails."""
     return {
         "open_order_quantity": Decimal("2.5"),
         "lend_quantity": Decimal("1.0"),
@@ -34,7 +35,7 @@ def valid_bp_spot_details_data() -> dict[str, Any]:
 
 @pytest.fixture
 def base_spot_balance_data() -> dict[str, Any]:
-    """Provides a dictionary with valid core data for SpotBalance creation."""
+    """Provide a dictionary with valid core data for SpotBalance creation."""
     return {
         "exchange": "backpack",
         "asset": "SOL",

@@ -1,5 +1,4 @@
-"""Unit tests for BackpackAccountService position functionality.
-"""
+"""Unit tests for BackpackAccountService position functionality."""
 
 from __future__ import annotations
 
@@ -116,7 +115,8 @@ class TestBackpackAccountServicePositions:
             request_weight=1,
         )
         mock_response_handler.handle_get_positions_response.assert_called_with(
-            mock_raw_positions_data_item_dict, None,
+            mock_raw_positions_data_item_dict,
+            None,
         )
         mock_mapper.transform_raw_position_to_internal.assert_called_with(
             mock_validated_raw_positions[0],
@@ -160,7 +160,8 @@ class TestBackpackAccountServicePositions:
             request_weight=1,
         )
         mock_response_handler.handle_get_positions_response.assert_called_with(
-            mock_raw_positions_data_item_dict, symbol_arg,
+            mock_raw_positions_data_item_dict,
+            symbol_arg,
         )
         mock_mapper.transform_raw_position_to_internal.assert_called_with(
             mock_validated_raw_positions[0],

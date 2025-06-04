@@ -149,7 +149,8 @@ class TestTransformRawOrderToInternal:
     """Tests for transform_raw_order_to_internal method."""
 
     def test_transform_raw_order_buy_limit_happy_path(
-        self, trading_data_mapper: HyperliquidTradingDataMapper,
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test successful transformation of a buy limit order."""
         raw_order = create_raw_order(
@@ -183,7 +184,8 @@ class TestTransformRawOrderToInternal:
         assert isinstance(result.updated_at, datetime)
 
     def test_transform_raw_order_sell_market_happy_path(
-        self, trading_data_mapper: HyperliquidTradingDataMapper,
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test successful transformation of a sell market order."""
         raw_order = create_raw_historical_order(
@@ -281,7 +283,9 @@ class TestTransformRawOrderToInternal:
         raw_order = create_raw_order()
 
         def mock_parse_side_effect(
-            value: object, allow_none: bool = False, field_name: str = "",
+            value: object,
+            allow_none: bool = False,
+            field_name: str = "",
         ) -> Decimal | None:
             """Return mock parse side effect for testing."""
             if field_name == "remaining_sz":
@@ -310,7 +314,9 @@ class TestTransformRawOrderToInternal:
         raw_order = create_raw_order(order_type={"market": {}})
 
         def mock_parse_side_effect(
-            value: object, allow_none: bool = False, field_name: str = "",
+            value: object,
+            allow_none: bool = False,
+            field_name: str = "",
         ) -> Decimal | None:
             """Return mock parse side effect for testing."""
             if field_name == "limit_px":
@@ -336,7 +342,8 @@ class TestTransformRawOrderToInternal:
         """Test transformation with trigger information."""
         raw_order = create_raw_order()
         result = trading_data_mapper.transform_raw_order_to_internal(
-            raw_order, hyperliquid_raw_trigger_info_stop_loss_fixture,
+            raw_order,
+            hyperliquid_raw_trigger_info_stop_loss_fixture,
         )
 
         assert result.order_type == OrderType.STOP_LIMIT
@@ -383,7 +390,8 @@ class TestTransformRawHistoricalOrderToInternal:
     """Tests for transform_raw_historical_order_to_internal method."""
 
     def test_transform_raw_historical_order_happy_path(
-        self, trading_data_mapper: HyperliquidTradingDataMapper,
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test successful transformation of a historical order."""
         raw_order = create_raw_historical_order(
@@ -522,7 +530,8 @@ class TestTransformRawHistoricalOrderToInternal:
         """Test transformation of historical order with trigger."""
         raw_order = create_raw_historical_order()
         result = trading_data_mapper.transform_raw_historical_order_to_internal(
-            raw_order, hyperliquid_raw_trigger_info_take_profit_fixture,
+            raw_order,
+            hyperliquid_raw_trigger_info_take_profit_fixture,
         )
 
         assert result.order_type == OrderType.TAKE_PROFIT_LIMIT
@@ -573,7 +582,8 @@ class TestTransformationIntegration:
         partial_result = trading_data_mapper.transform_raw_order_to_internal(partial_order)
         filled_result = trading_data_mapper.transform_raw_historical_order_to_internal(filled_order)
         trigger_result = trading_data_mapper.transform_raw_order_to_internal(
-            trigger_order, hyperliquid_raw_trigger_info_stop_loss_fixture,
+            trigger_order,
+            hyperliquid_raw_trigger_info_stop_loss_fixture,
         )
 
         # Verify progression
@@ -613,7 +623,8 @@ class TestTransformationIntegration:
             trading_data_mapper.transform_raw_historical_order_to_internal(historical_order)
 
     def test_all_mapping_logic_works_together(
-        self, trading_data_mapper: HyperliquidTradingDataMapper,
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test that all mapping logic works together correctly."""
         # Use historical order for canceled status since HyperliquidRawOrder only allows "open"
@@ -651,7 +662,8 @@ class TestAdvancedScenarios:
     """Tests for advanced transformation scenarios and edge cases."""
 
     def test_high_precision_decimal_handling(
-        self, trading_data_mapper: HyperliquidTradingDataMapper,
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test transformation with high precision decimal values."""
         raw_order = create_raw_order(
@@ -666,7 +678,8 @@ class TestAdvancedScenarios:
         assert result.quantity_requested == Decimal("10.987654321098765")
 
     def test_large_order_ids_handling(
-        self, trading_data_mapper: HyperliquidTradingDataMapper,
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test transformation with very large order IDs."""
         large_oid = 999999999999999999
@@ -676,7 +689,8 @@ class TestAdvancedScenarios:
         assert result.exchange_order_id == str(large_oid)
 
     def test_unicode_symbol_handling(
-        self, trading_data_mapper: HyperliquidTradingDataMapper,
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test transformation with Unicode characters in symbol names."""
         unicode_symbol = "BTC-PERP🚀"
@@ -686,7 +700,8 @@ class TestAdvancedScenarios:
         assert result.symbol == unicode_symbol
 
     def test_very_long_client_order_ids(
-        self, trading_data_mapper: HyperliquidTradingDataMapper,
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test transformation with very long client order IDs."""
         long_cloid = "client_order_" + "a" * 50  # 63 characters total

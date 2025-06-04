@@ -269,7 +269,8 @@ class TestMultiTierFundingProvider:
 
         # Expect exception
         with pytest.raises(
-            FundingRateSourceError, match="No funding rate data available for hyperliquid:BTC-PERP",
+            FundingRateSourceError,
+            match="No funding rate data available for hyperliquid:BTC-PERP",
         ):
             await self.provider.get_funding_rate("hyperliquid", "BTC-PERP")
 
@@ -381,7 +382,11 @@ class TestMultiTierFundingProvider:
 
         # Integrate data
         integrated = self.provider._integrate_funding_data(
-            "hyperliquid", "BTC-PERP", primary_data, secondary_data, tertiary_data,
+            "hyperliquid",
+            "BTC-PERP",
+            primary_data,
+            secondary_data,
+            tertiary_data,
         )
 
         # Verify result

@@ -26,7 +26,7 @@ from cyberdelta.core.models.trade_signal import TradeSignal
 
 @pytest.fixture
 def minimal_signal_data() -> dict[str, Any]:
-    """Provides data for a minimal valid TradeSignal."""
+    """Provide data for a minimal valid TradeSignal."""
     return {
         "symbol": "BTC-PERP",
         "signal_type": SignalType.ENTER_LONG,
@@ -39,7 +39,7 @@ def minimal_signal_data() -> dict[str, Any]:
 
 @pytest.fixture
 def full_signal_data(minimal_signal_data: dict[str, Any]) -> dict[str, Any]:
-    """Provides data for a TradeSignal with all fields populated."""
+    """Provide data for a TradeSignal with all fields populated."""
     # Ensure enum is recognized
     assert isinstance(SignalType.ENTER_LONG, SignalType)
     now = datetime.now(UTC)

@@ -179,7 +179,8 @@ class TestBackpackMarketDataServicePublicData:
                 request_weight=1,
             )
             mock_mapper.transform_raw_ticker_to_internal.assert_called_once_with(
-                mock_raw_ticker, symbol_override=symbol,
+                mock_raw_ticker,
+                symbol_override=symbol,
             )
             mock_response_handler.handle_get_ticker_response.assert_called_once_with(
                 mock_raw_response_content,
@@ -307,7 +308,8 @@ class TestBackpackMarketDataServicePublicData:
             result = await backpack_market_data_service.get_order_book(symbol, limit=depth)
 
             mock_request_builder.build_get_order_book_params.assert_called_once_with(
-                symbol=symbol, limit=depth,
+                symbol=symbol,
+                limit=depth,
             )
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
@@ -319,7 +321,8 @@ class TestBackpackMarketDataServicePublicData:
             )
             mock_response_handler.handle_get_order_book_response.assert_called_once()
             mock_mapper.transform_raw_order_book_to_internal.assert_called_once_with(
-                symbol, mock_validated_book,
+                symbol,
+                mock_validated_book,
             )
             assert result == mock_internal_book
 
@@ -347,7 +350,8 @@ class TestBackpackMarketDataServicePublicData:
         )
 
         mock_request_builder.build_get_order_book_params.assert_called_once_with(
-            symbol=symbol, limit=depth,
+            symbol=symbol,
+            limit=depth,
         )
         mock_http_client_requester.assert_called_once_with(
             method="GET",
@@ -417,7 +421,8 @@ class TestBackpackMarketDataServicePublicData:
         assert "Unexpected error occurred." in exc_info.value.message
 
         mock_request_builder.build_get_order_book_params.assert_called_once_with(
-            symbol=symbol, limit=depth,
+            symbol=symbol,
+            limit=depth,
         )
         mock_http_client_requester.assert_called_once_with(
             method="GET",
@@ -479,7 +484,8 @@ class TestBackpackMarketDataServicePublicData:
             result = await backpack_market_data_service.get_recent_trades(symbol, limit=limit)
 
             mock_request_builder.build_get_recent_trades_params.assert_called_once_with(
-                symbol=symbol, limit=limit,
+                symbol=symbol,
+                limit=limit,
             )
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
@@ -527,7 +533,8 @@ class TestBackpackMarketDataServicePublicData:
             )
 
             mock_request_builder.build_get_recent_trades_params.assert_called_once_with(
-                symbol=symbol, limit=limit,
+                symbol=symbol,
+                limit=limit,
             )
             mock_http_client_requester.assert_called_once_with(
                 method="GET",

@@ -1,3 +1,8 @@
+"""Mock strategy implementations for testing.
+
+Provides mock strategy classes and utilities for testing strategy-related functionality.
+"""
+
 from __future__ import annotations
 
 import asyncio

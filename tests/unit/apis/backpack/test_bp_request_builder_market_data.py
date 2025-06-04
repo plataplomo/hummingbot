@@ -48,7 +48,9 @@ class TestBuildGetTickerParams:
         ],
     )
     def test_build_get_ticker_params_parametrized(
-        self, input_symbol: str, expected_symbol: str,
+        self,
+        input_symbol: str,
+        expected_symbol: str,
     ) -> None:
         """Test build_get_ticker_params with various symbol formats."""
         params = BackpackRequestBuilder.build_get_ticker_params(input_symbol)
@@ -91,7 +93,9 @@ class TestBuildGetOrderBookParams:
         ],
     )
     def test_build_get_order_book_params_parametrized(
-        self, limit: int | None, expected_params: dict[str, Any],
+        self,
+        limit: int | None,
+        expected_params: dict[str, Any],
     ) -> None:
         """Test build_get_order_book_params with various limits."""
         params = BackpackRequestBuilder.build_get_order_book_params("SOL_USDC", limit)
@@ -133,7 +137,10 @@ class TestBuildGetRecentTradesParams:
         ],
     )
     def test_build_get_recent_trades_params_parametrized(
-        self, symbol: str, limit: int | None, expected_params: dict[str, Any],
+        self,
+        symbol: str,
+        limit: int | None,
+        expected_params: dict[str, Any],
     ) -> None:
         """Test build_get_recent_trades_params with various combinations."""
         params = BackpackRequestBuilder.build_get_recent_trades_params(symbol, limit)
@@ -148,7 +155,11 @@ class TestBuildGetMarketDataParams:
     def test_build_get_market_data_params_basic(self, symbol_spot: str) -> None:
         """Test build_get_market_data_params with basic parameters."""
         params = BackpackRequestBuilder.build_get_market_data_params(
-            symbol_spot, "1h", None, None, 100,
+            symbol_spot,
+            "1h",
+            None,
+            None,
+            100,
         )
         assert isinstance(params, BackpackRawGetMarketDataParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
@@ -156,11 +167,18 @@ class TestBuildGetMarketDataParams:
         assert params_dict == expected
 
     def test_build_get_market_data_params_with_times(
-        self, symbol_spot: str, current_timestamp_ms: int, past_timestamp_ms: int,
+        self,
+        symbol_spot: str,
+        current_timestamp_ms: int,
+        past_timestamp_ms: int,
     ) -> None:
         """Test build_get_market_data_params with start and end times."""
         params = BackpackRequestBuilder.build_get_market_data_params(
-            symbol_spot, "5m", past_timestamp_ms, current_timestamp_ms, 50,
+            symbol_spot,
+            "5m",
+            past_timestamp_ms,
+            current_timestamp_ms,
+            50,
         )
         assert isinstance(params, BackpackRawGetMarketDataParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
@@ -176,7 +194,11 @@ class TestBuildGetMarketDataParams:
     def test_build_get_market_data_params_formats_symbol(self) -> None:
         """Test build_get_market_data_params formats symbol correctly."""
         params = BackpackRequestBuilder.build_get_market_data_params(
-            "SOL-USDC", "1m", None, None, 200,
+            "SOL-USDC",
+            "1m",
+            None,
+            None,
+            200,
         )
         assert isinstance(params, BackpackRawGetMarketDataParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
@@ -219,7 +241,9 @@ class TestBuildGetHistoricalTradesParams:
     def test_build_get_historical_trades_params_basic(self, symbol_eth_spot: str) -> None:
         """Test build_get_historical_trades_params with basic parameters."""
         params = BackpackRequestBuilder.build_get_historical_trades_params(
-            symbol_eth_spot, 50, None,
+            symbol_eth_spot,
+            50,
+            None,
         )
         assert isinstance(params, BackpackRawGetHistoricalTradesParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
@@ -229,7 +253,9 @@ class TestBuildGetHistoricalTradesParams:
     def test_build_get_historical_trades_params_with_from_id(self, symbol_perp: str) -> None:
         """Test build_get_historical_trades_params with from_id."""
         params = BackpackRequestBuilder.build_get_historical_trades_params(
-            symbol_perp, 50, "trade123",
+            symbol_perp,
+            50,
+            "trade123",
         )
         assert isinstance(params, BackpackRawGetHistoricalTradesParams)
         expected_symbol = symbol_perp.replace("-", "_").upper()
@@ -240,7 +266,9 @@ class TestBuildGetHistoricalTradesParams:
     def test_build_get_historical_trades_params_formats_symbol(self) -> None:
         """Test build_get_historical_trades_params formats symbol correctly."""
         params = BackpackRequestBuilder.build_get_historical_trades_params(
-            "ETH-PERP", 100, "trade456",
+            "ETH-PERP",
+            100,
+            "trade456",
         )
         assert isinstance(params, BackpackRawGetHistoricalTradesParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
@@ -256,7 +284,11 @@ class TestBuildGetHistoricalTradesParams:
         ],
     )
     def test_build_get_historical_trades_params_parametrized(
-        self, symbol: str, limit: int, from_id: str | None, expected_params: dict[str, Any],
+        self,
+        symbol: str,
+        limit: int,
+        from_id: str | None,
+        expected_params: dict[str, Any],
     ) -> None:
         """Test build_get_historical_trades_params with various combinations."""
         params = BackpackRequestBuilder.build_get_historical_trades_params(symbol, limit, from_id)

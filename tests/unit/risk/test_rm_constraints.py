@@ -19,7 +19,9 @@ class TestRiskManagerConstraints:
 
     @pytest.mark.asyncio
     async def test_portfolio_constraints_pass_through_size_opportunity(
-        self, risk_manager: RiskManager, mock_portfolio_tracker: MagicMock,
+        self,
+        risk_manager: RiskManager,
+        mock_portfolio_tracker: MagicMock,
     ) -> None:
         """Test portfolio constraint checking logic (passing case) through public interface."""
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
@@ -44,7 +46,9 @@ class TestRiskManagerConstraints:
 
     @pytest.mark.asyncio
     async def test_portfolio_constraints_fail_through_size_opportunity(
-        self, risk_manager: RiskManager, mock_portfolio_tracker: MagicMock,
+        self,
+        risk_manager: RiskManager,
+        mock_portfolio_tracker: MagicMock,
     ) -> None:
         """Test failure due to exceeding constraints through public interface."""
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("1000.0")

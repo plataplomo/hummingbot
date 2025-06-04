@@ -385,9 +385,8 @@ class TestSecretsManager:
             with pytest.raises(ConfigurationError) as exc_info:
                 SecretsManager(str(secrets_path))
 
-            assert (
-                "Hyperliquid configuration in secrets must have auth_type 'private_key'"
-                in str(exc_info.value)
+            assert "Hyperliquid configuration in secrets must have auth_type 'private_key'" in str(
+                exc_info.value,
             )
 
     @patch("cyberdelta.config.secrets_manager.logger")

@@ -1,3 +1,8 @@
+"""Unit tests for the SymbolMapper component.
+
+Tests symbol mapping functionality between different exchanges and internal representations.
+"""
+
 import logging
 from typing import Any, cast  # Added Dict, Any and cast
 

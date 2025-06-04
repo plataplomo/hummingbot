@@ -1,4 +1,5 @@
 """Module docstring."""
+
 import logging
 import types
 from collections.abc import Callable
@@ -47,6 +48,8 @@ def create_test_url(url_str: str) -> Any:
 
 # Mock aiohttp ClientSession and Response for API testing
 class MockResponse:
+    """Mock implementation of aiohttp ClientResponse for testing."""
+
     def __init__(
         self,
         data: dict[str, Any] | list[Any] | str,  # More specific than Any
@@ -54,6 +57,7 @@ class MockResponse:
         headers: dict[str, str] | None = None,
         content_type: str = "application/json",
     ) -> None:
+        """Initialize MockResponse with test data and HTTP status."""
         self._data = data
         self.status = status
         self.headers = headers or {}
@@ -61,12 +65,15 @@ class MockResponse:
         self._raise_for_status_called = False
 
     async def json(self) -> dict[str, Any] | list[Any] | str:  # Match data type hint
+        """Return the mock response data as JSON."""
         return self._data
 
     async def text(self) -> str:
+        """Return the mock response data as text."""
         return str(self._data)
 
     async def __aenter__(self) -> "MockResponse":
+        """Enter async context manager."""
         return self
 
     async def __aexit__(
@@ -75,24 +82,31 @@ class MockResponse:
         exc_val: BaseException | None,
         exc_tb: types.TracebackType | None,
     ) -> None:
+        """Exit async context manager."""
         pass
 
     def raise_for_status(self) -> None:  # Add return type hint
-        """Helper function for raise for status."""
+        """Raise an exception for HTTP error status codes."""
         self._raise_for_status_called = True
         if self.status >= 400:
             raise aiohttp.ClientResponseError(
-                request_info=MagicMock(), history=(), status=self.status,
+                request_info=MagicMock(),
+                history=(),
+                status=self.status,
             )
 
 
 class MockClientSession:
+    """Mock implementation of aiohttp ClientSession for testing."""
+
     def __init__(self, responses: dict[tuple[str, str], MockResponse] | None = None) -> None:
+        """Initialize MockClientSession with optional response mappings."""
         self.responses = responses or {}
         self.requests: list[dict[str, Any]] = []
         self.closed = False
 
     async def __aenter__(self) -> "MockClientSession":
+        """Enter async context manager."""
         return self
 
     async def __aexit__(
@@ -101,9 +115,11 @@ class MockClientSession:
         exc_val: BaseException | None,
         exc_tb: types.TracebackType | None,
     ) -> None:
+        """Exit async context manager."""
         pass
 
     async def close(self) -> None:
+        """Close the mock session."""
         self.closed = True
 
     async def _request(self, method: str, url: str, **kwargs: dict[str, Any]) -> MockResponse:
@@ -111,10 +127,8 @@ class MockClientSession:
 
         # Find match in responses
         for pattern, response in (self.responses or {}).items():
-            if (
-                (method, url) == pattern
-                or ((method, pattern[1]) == pattern
-                and url.startswith(pattern[1]))
+            if (method, url) == pattern or (
+                (method, pattern[1]) == pattern and url.startswith(pattern[1])
             ):
                 return response
 
@@ -122,15 +136,19 @@ class MockClientSession:
         return MockResponse({}, status=404)
 
     async def get(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:
+        """Send a GET request to the specified URL."""
         return await self._request("GET", url, **kwargs)
 
     async def post(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:
+        """Send a POST request to the specified URL."""
         return await self._request("POST", url, **kwargs)
 
     async def put(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:
+        """Send a PUT request to the specified URL."""
         return await self._request("PUT", url, **kwargs)
 
     async def delete(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:
+        """Send a DELETE request to the specified URL."""
         return await self._request("DELETE", url, **kwargs)
 
 
@@ -196,7 +214,7 @@ def hyperliquid_secrets() -> dict[str, str]:
 
 @pytest.fixture
 def backpack_secrets() -> dict[str, str | None]:
-    """Default secrets for BackpackAPI testing."""
+    """Provide default secrets for BackpackAPI testing."""
     return {
         "BACKPACK_API_KEY": "test_api_key",
         "BACKPACK_API_SECRET": "test_api_secret",

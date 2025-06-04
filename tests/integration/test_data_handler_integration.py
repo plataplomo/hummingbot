@@ -36,7 +36,10 @@ class TestDataHandlerIntegration:
 
     @pytest.fixture
     def data_handler(
-        self, mock_config: MagicMock, mock_exchange_api: AsyncMock, mock_symbol_mapper: MagicMock,
+        self,
+        mock_config: MagicMock,
+        mock_exchange_api: AsyncMock,
+        mock_symbol_mapper: MagicMock,
     ) -> DataHandler:
         """Create a DataHandler instance with mocked dependencies."""
         # Ensure mock_config.get is a MagicMock if mock_config is to be used directly
@@ -95,7 +98,9 @@ class TestDataHandlerIntegration:
 
     @pytest.mark.asyncio
     async def test_register_api_client(
-        self, data_handler: DataHandler, mock_exchange_api: AsyncMock,
+        self,
+        data_handler: DataHandler,
+        mock_exchange_api: AsyncMock,
     ) -> None:
         """Test that API clients can be registered."""
         # Register a new API client
@@ -226,7 +231,9 @@ class TestDataHandlerIntegration:
 
     @pytest.mark.asyncio
     async def test_websocket_message_handling_integration(
-        self, data_handler: DataHandler, mock_exchange_api: AsyncMock,
+        self,
+        data_handler: DataHandler,
+        mock_exchange_api: AsyncMock,
     ) -> None:
         """Test integration of WebSocket message handling with the data handler."""
         # Set up mock exchange API with message handling capabilities
@@ -244,7 +251,9 @@ class TestDataHandlerIntegration:
 
     @pytest.mark.asyncio
     async def test_data_handler_init(
-        self, mock_config: MagicMock, mock_symbol_mapper: MagicMock,
+        self,
+        mock_config: MagicMock,
+        mock_symbol_mapper: MagicMock,
     ) -> None:
         """Test DataHandler initialization with configuration."""
 
@@ -284,7 +293,9 @@ class TestDataHandlerIntegration:
 
     @pytest.mark.asyncio
     async def test_websocket_reconnect_scenario(
-        self, mock_config: MagicMock, mock_symbol_mapper: MagicMock,
+        self,
+        mock_config: MagicMock,
+        mock_symbol_mapper: MagicMock,
     ) -> None:
         """Test WebSocket reconnection scenario."""
 

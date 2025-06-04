@@ -87,7 +87,8 @@ class TestHyperliquidWsMessageRouter:
         assert hasattr(router, "logger")
 
     def test_construct_subscription_payload_l2book(
-        self, router: HyperliquidWsMessageRouter,
+        self,
+        router: HyperliquidWsMessageRouter,
     ) -> None:
         """Test subscription payload construction for l2Book."""
         result = router.construct_subscription_payload("l2Book:SOL", None)
@@ -103,7 +104,8 @@ class TestHyperliquidWsMessageRouter:
         assert result.subscription.coin == "SOL"
 
     def test_construct_subscription_payload_trades(
-        self, router: HyperliquidWsMessageRouter,
+        self,
+        router: HyperliquidWsMessageRouter,
     ) -> None:
         """Test subscription payload construction for trades."""
         result = router.construct_subscription_payload("trades:BTC", None)
@@ -118,7 +120,8 @@ class TestHyperliquidWsMessageRouter:
         assert result.subscription.coin == "BTC"
 
     def test_construct_subscription_payload_user_events(
-        self, router: HyperliquidWsMessageRouter,
+        self,
+        router: HyperliquidWsMessageRouter,
     ) -> None:
         """Test subscription payload construction for userEvents."""
         wallet_address = "0x1234567890abcdef"
@@ -134,16 +137,19 @@ class TestHyperliquidWsMessageRouter:
         assert result.subscription.user == wallet_address
 
     def test_construct_subscription_payload_user_events_no_wallet(
-        self, router: HyperliquidWsMessageRouter,
+        self,
+        router: HyperliquidWsMessageRouter,
     ) -> None:
         """Test subscription payload construction for userEvents without wallet address."""
         with pytest.raises(
-            ValueError, match="Cannot subscribe to userEvents without wallet address",
+            ValueError,
+            match="Cannot subscribe to userEvents without wallet address",
         ):
             router.construct_subscription_payload("userEvents", None)
 
     def test_construct_subscription_payload_candle(
-        self, router: HyperliquidWsMessageRouter,
+        self,
+        router: HyperliquidWsMessageRouter,
     ) -> None:
         """Test subscription payload construction for candle."""
         result = router.construct_subscription_payload("candle:ETH:1m", None)
@@ -159,7 +165,8 @@ class TestHyperliquidWsMessageRouter:
         assert result.subscription.interval == "1m"
 
     def test_construct_subscription_payload_invalid_topic(
-        self, router: HyperliquidWsMessageRouter,
+        self,
+        router: HyperliquidWsMessageRouter,
     ) -> None:
         """Test subscription payload construction for invalid topic."""
         from cyberdelta.apis.models.api_error import APIError
@@ -378,7 +385,8 @@ class TestHyperliquidWsMessageRouter:
     ) -> None:
         """Test handling APIError from raw message handler."""
         mock_raw_ws_handler.handle_l2book_payload.side_effect = APIError(
-            "Invalid l2Book data", code="INVALID_DATA",
+            "Invalid l2Book data",
+            code="INVALID_DATA",
         )
 
         message: dict[str, Any] = {

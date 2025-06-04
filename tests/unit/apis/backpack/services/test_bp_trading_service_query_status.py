@@ -114,7 +114,8 @@ class TestBackpackTradingServiceQueryStatus:
                 request_weight=1,
             )
             mock_response_handler.handle_get_open_orders_response.assert_called_once_with(
-                mock_raw_response_content, symbol,
+                mock_raw_response_content,
+                symbol,
             )
             assert mock_mapper.transform_raw_order_to_internal.call_count == len(mock_raw_orders)
             assert result == mock_internal_orders
@@ -303,7 +304,8 @@ class TestBackpackTradingServiceQueryStatus:
                 request_weight=1,
             )
             mock_response_handler.handle_get_order_status_response.assert_called_once_with(
-                mock_raw_response_content, order_id,
+                mock_raw_response_content,
+                order_id,
             )
             mock_mapper.transform_raw_order_to_internal.assert_called_once_with(mock_raw_order)
             assert result == mock_internal_order
@@ -510,7 +512,9 @@ class TestBackpackTradingServiceQueryStatus:
 
             result = await bp_trading_service.get_order(
                 args=GetOrderArgs(
-                    order_id=order_id, symbol=symbol, client_order_id=client_order_id,
+                    order_id=order_id,
+                    symbol=symbol,
+                    client_order_id=client_order_id,
                 ),
             )
 
@@ -524,7 +528,8 @@ class TestBackpackTradingServiceQueryStatus:
                 request_weight=1,
             )
             mock_response_handler.handle_get_order_status_response.assert_called_once_with(
-                mock_raw_response_content, order_id,
+                mock_raw_response_content,
+                order_id,
             )
             mock_mapper.transform_raw_order_to_internal.assert_called_once_with(mock_raw_order)
             assert result == mock_internal_order
@@ -742,7 +747,8 @@ class TestBackpackTradingServiceQueryStatus:
                 request_weight=1,
             )
             mock_response_handler.handle_get_open_orders_response.assert_called_once_with(
-                mock_raw_response_content, None,
+                mock_raw_response_content,
+                None,
             )
             assert mock_mapper.transform_raw_order_to_internal.call_count == len(mock_raw_orders)
             assert result == mock_internal_orders

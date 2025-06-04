@@ -85,7 +85,8 @@ class TestBackpackWsMessageRouter:
         assert hasattr(router, "logger")
 
     def test_construct_subscription_payload_basic_topic(
-        self, router: BackpackWsMessageRouter,
+        self,
+        router: BackpackWsMessageRouter,
     ) -> None:
         """Test subscription payload construction for basic topics."""
         result = router.construct_subscription_payload("depth.SOL_USDC")
@@ -99,7 +100,8 @@ class TestBackpackWsMessageRouter:
         assert result.signature is None
 
     def test_construct_subscription_payload_various_topics(
-        self, router: BackpackWsMessageRouter,
+        self,
+        router: BackpackWsMessageRouter,
     ) -> None:
         """Test subscription payload construction for various topic types."""
         from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
@@ -140,7 +142,8 @@ class TestBackpackWsMessageRouter:
 
         # Verify mapper was called with correct symbol
         mock_market_data_mapper.transform_ws_depth_event_to_internal.assert_called_once_with(
-            "SOL_USDC", {"mock": "depth_data"},
+            "SOL_USDC",
+            {"mock": "depth_data"},
         )
 
         # Verify app handler was called
@@ -340,7 +343,8 @@ class TestBackpackWsMessageRouter:
     ) -> None:
         """Test handling APIError from raw message handler."""
         mock_raw_ws_handler.handle_depth_payload.side_effect = APIError(
-            "Invalid depth data", code="INVALID_DATA",
+            "Invalid depth data",
+            code="INVALID_DATA",
         )
 
         message = {
@@ -424,5 +428,6 @@ class TestBackpackWsMessageRouter:
             await router.route_message(message, ws_handlers)
 
             mock_market_data_mapper.transform_ws_depth_event_to_internal.assert_called_once_with(
-                expected_symbol, {"mock": "depth_data"},
+                expected_symbol,
+                {"mock": "depth_data"},
             )

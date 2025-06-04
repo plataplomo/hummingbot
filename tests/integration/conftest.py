@@ -1,3 +1,10 @@
+"""Integration test fixtures and helpers for CyberDeltaEngine.
+
+Provides shared fixtures for integration testing including mock exchange APIs,
+core component instances, and test data helpers. These fixtures support
+end-to-end testing of the trading engine components working together.
+"""
+
 import logging
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
@@ -38,7 +45,7 @@ def create_mock_ticker(
     price: str | float | Decimal,
     timestamp: datetime,  # Expect datetime object
 ) -> Ticker:  # Return Ticker object
-    """Helper to create a Ticker object with Decimal conversion."""
+    """Create a Ticker object with Decimal conversion."""
     return Ticker(
         symbol=symbol,
         bid=Decimal(str(bid)),
@@ -50,7 +57,7 @@ def create_mock_ticker(
 
 @pytest.fixture(scope="function")
 def basic_opportunity() -> ArbitrageOpportunity:
-    """Provides a basic ArbitrageOpportunity instance for integration tests."""
+    """Provide a basic ArbitrageOpportunity instance for integration tests."""
     # Note: basis_volatility is set after creation currently, which is fine.
     # Ensure all required fields are present.
     opp = ArbitrageOpportunity(
@@ -75,13 +82,16 @@ def basic_opportunity() -> ArbitrageOpportunity:
 def mock_pt_config() -> PortfolioTrackerConfig:
     """Create a PortfolioTrackerConfig for testing."""
     return PortfolioTrackerConfig(
-        data_freshness_seconds=60, initial_balances={}, initial_positions=[],
+        data_freshness_seconds=60,
+        initial_balances={},
+        initial_positions=[],
     )
 
 
 @pytest_asyncio.fixture(scope="function")
 async def real_portfolio_tracker(
-    mock_config: AppSettings, mock_pt_config: PortfolioTrackerConfig,
+    mock_config: AppSettings,
+    mock_pt_config: PortfolioTrackerConfig,
 ) -> AsyncGenerator[PortfolioTracker]:
     """Provides a real PortfolioTracker instance initialized with mock config."""
     tracker = PortfolioTracker(mock_config, mock_pt_config)
@@ -108,7 +118,8 @@ def mock_secrets() -> dict[str, dict[str, str | None]]:
 
 @pytest_asyncio.fixture(scope="function")
 async def mock_hl_api(
-    mock_config: AppSettings, mock_secrets: dict[str, dict[str, str | None]],
+    mock_config: AppSettings,
+    mock_secrets: dict[str, dict[str, str | None]],
 ) -> AsyncGenerator[MockExchangeAPI]:
     """Function-scoped mock HyperLiquid API with patched clients."""
     exchange_name = "mock_hl"
@@ -120,7 +131,8 @@ async def mock_hl_api(
     with (
         patch("cyberdelta.apis.connectivity.http_client.HttpClient.__init__", return_value=None),
         patch(
-            "cyberdelta.apis.connectivity.ws_manager.WebSocketManager.__init__", return_value=None,
+            "cyberdelta.apis.connectivity.ws_manager.WebSocketManager.__init__",
+            return_value=None,
         ),
     ):
         api = MockExchangeAPI(
@@ -137,7 +149,8 @@ async def mock_hl_api(
 
 @pytest_asyncio.fixture(scope="function")
 async def mock_bp_api(
-    mock_config: AppSettings, mock_secrets: dict[str, dict[str, str | None]],
+    mock_config: AppSettings,
+    mock_secrets: dict[str, dict[str, str | None]],
 ) -> AsyncGenerator[MockExchangeAPI]:
     """Function-scoped mock Backpack API with patched clients."""
     exchange_name = "mock_bp"
@@ -211,7 +224,9 @@ def symbol_mapper(mock_config: AppSettings) -> SymbolMapper:
 
 @pytest.fixture(scope="function")
 def signal_generator(
-    mock_config: AppSettings, data_handler: DataHandler, symbol_mapper: SymbolMapper,
+    mock_config: AppSettings,
+    data_handler: DataHandler,
+    symbol_mapper: SymbolMapper,
 ) -> SignalGenerator:
     """Fixture for a SignalGenerator instance with mock data handler."""
     return SignalGenerator(mock_config, data_handler, symbol_mapper)

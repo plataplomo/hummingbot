@@ -16,39 +16,42 @@ from cyberdelta.enums.exchange_names import ExchangeName
 
 @pytest.fixture(scope="module")
 def simple_hl_config() -> ExchangeSpecificConfig:
-    """Simple Hyperliquid configuration fixture that doesn't depend on complex test configurations.
+    """Provide simple Hyperliquid configuration fixture that doesn't depend on complex test configurations.
+
     Uses environment variable or defaults to testnet.
     """
     # Default to mainnet for VCR tests to match existing cassettes
     test_env = os.environ.get("CYBERDELTA_TEST_ENV_HL", "mainnet")
     is_mainnet = test_env == "mainnet"
 
-    return ExchangeSpecificConfig.model_validate({
-        "exchange_name": ExchangeName.HYPERLIQUID,
-        "api_base_url_mainnet": "https://api.hyperliquid.xyz",
-        "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
-        "api_base_url_testnet": "https://api.hyperliquid-testnet.xyz",
-        "ws_url_testnet": "wss://api.hyperliquid-testnet.xyz/ws",
-        "is_mainnet_environment": is_mainnet,
-        "rate_limit_per_minute": 300,
-        "symbols": {"BTC": "BTC", "ETH": "ETH"},
-        # Hyperliquid-specific required fields
-        "ip_weight_limit_per_minute": 1200,
-        "info_request_type_ip_weights": {
-            "l2Book": 2,
-            "allMids": 2,
-            "meta": 2,
+    return ExchangeSpecificConfig.model_validate(
+        {
+            "exchange_name": ExchangeName.HYPERLIQUID,
+            "api_base_url_mainnet": "https://api.hyperliquid.xyz",
+            "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
+            "api_base_url_testnet": "https://api.hyperliquid-testnet.xyz",
+            "ws_url_testnet": "wss://api.hyperliquid-testnet.xyz/ws",
+            "is_mainnet_environment": is_mainnet,
+            "rate_limit_per_minute": 300,
+            "symbols": {"BTC": "BTC", "ETH": "ETH"},
+            # Hyperliquid-specific required fields
+            "ip_weight_limit_per_minute": 1200,
+            "info_request_type_ip_weights": {
+                "l2Book": 2,
+                "allMids": 2,
+                "meta": 2,
+            },
+            "default_info_weight": 20,
+            "exchange_action_base_ip_weight": 1,
+            "address_action_safety_net": {"rate_per_minute": 300},
+            "websocket_send_rate_per_minute": 1800,
         },
-        "default_info_weight": 20,
-        "exchange_action_base_ip_weight": 1,
-        "address_action_safety_net": {"rate_per_minute": 300},
-        "websocket_send_rate_per_minute": 1800,
-    })
+    )
 
 
 @pytest.fixture(scope="module")
 def simple_backpack_config() -> dict[str, Any]:
-    """Simple Backpack configuration fixture."""
+    """Provide simple Backpack configuration fixture."""
     return {
         "rest_endpoint": "https://api.backpack.exchange",
         "ws_endpoint": "wss://ws.backpack.exchange",
@@ -324,9 +327,9 @@ async def test_backpack_public_markets_endpoint(
             for market in data:
                 assert isinstance(market, dict), "Each market should be a dict"
                 assert "symbol" in market, "Each market should have a 'symbol' field"
-                assert (
-                    "orderBookState" in market
-                ), "Each market should have a 'orderBookState' field"
+                assert "orderBookState" in market, (
+                    "Each market should have a 'orderBookState' field"
+                )
                 assert "baseSymbol" in market, "Each market should have a 'baseSymbol' field"
                 assert "quoteSymbol" in market, "Each market should have a 'quoteSymbol' field"
 

@@ -117,7 +117,8 @@ class TestHandleGetPositionsResponse:
         """Test handling a valid raw positions response."""
         positions: list[BackpackRawPosition] = (
             BackpackResponseHandler.handle_get_positions_response(
-                cast("RawJsonResponse", valid_raw_positions), None,
+                cast("RawJsonResponse", valid_raw_positions),
+                None,
             )
         )
         assert isinstance(positions, list)
@@ -147,7 +148,8 @@ class TestHandleGetPositionsResponse:
         """Test handling empty positions response."""
         raw_data: list[Any] = []
         positions = BackpackResponseHandler.handle_get_positions_response(
-            cast("RawJsonResponse", raw_data), None,
+            cast("RawJsonResponse", raw_data),
+            None,
         )
         assert isinstance(positions, list)
         assert len(positions) == 0
@@ -177,7 +179,8 @@ class TestHandleGetPositionsResponse:
         }
         raw_data = [valid_position, "not_a_dict"]  # Invalid item
         positions = BackpackResponseHandler.handle_get_positions_response(
-            cast("RawJsonResponse", raw_data), None,
+            cast("RawJsonResponse", raw_data),
+            None,
         )
         assert len(positions) == 1  # Only valid position processed
         assert positions[0].position_id == "pos123"
@@ -212,7 +215,8 @@ class TestHandleGetPositionsResponse:
         raw_data = [invalid_position]
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_positions_response(
-                cast("RawJsonResponse", raw_data), None,
+                cast("RawJsonResponse", raw_data),
+                None,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "positions" in exc_info.value.message
@@ -223,7 +227,8 @@ class TestHandleGetPositionsResponse:
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_positions_response(
-                cast("RawJsonResponse", raw_data), None,
+                cast("RawJsonResponse", raw_data),
+                None,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "expected list" in exc_info.value.message
@@ -300,7 +305,8 @@ class TestHandleGetOpenOrdersResponse:
     def test_valid(self, valid_raw_open_orders: list[dict[str, Any]]) -> None:
         """Test handling a valid raw open orders response."""
         orders: list[BackpackRawOrder] = BackpackResponseHandler.handle_get_open_orders_response(
-            cast("RawJsonResponse", valid_raw_open_orders), None,
+            cast("RawJsonResponse", valid_raw_open_orders),
+            None,
         )
         assert isinstance(orders, list)
         assert len(orders) == 2
@@ -330,7 +336,8 @@ class TestHandleGetOpenOrdersResponse:
         """Test handling empty open orders response."""
         raw_data: list[Any] = []
         orders = BackpackResponseHandler.handle_get_open_orders_response(
-            cast("RawJsonResponse", raw_data), None,
+            cast("RawJsonResponse", raw_data),
+            None,
         )
         assert isinstance(orders, list)
         assert len(orders) == 0
@@ -353,7 +360,8 @@ class TestHandleGetOpenOrdersResponse:
         }
         raw_data = [valid_order, "not_a_dict"]  # Invalid item
         orders = BackpackResponseHandler.handle_get_open_orders_response(
-            cast("RawJsonResponse", raw_data), None,
+            cast("RawJsonResponse", raw_data),
+            None,
         )
         assert len(orders) == 1  # Only valid order processed
         assert orders[0].id == "987654321"
@@ -382,7 +390,8 @@ class TestHandleGetOpenOrdersResponse:
         raw_data = [invalid_order]
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_open_orders_response(
-                cast("RawJsonResponse", raw_data), None,
+                cast("RawJsonResponse", raw_data),
+                None,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "open orders" in exc_info.value.message
@@ -393,7 +402,8 @@ class TestHandleGetOpenOrdersResponse:
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_open_orders_response(
-                cast("RawJsonResponse", raw_data), None,
+                cast("RawJsonResponse", raw_data),
+                None,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "expected list" in exc_info.value.message
@@ -406,7 +416,8 @@ class TestHandleGetOrderHistoryResponse:
     def test_valid(self, valid_raw_order_history: list[dict[str, Any]]) -> None:
         """Test handling a valid raw order history response."""
         orders: list[BackpackRawOrder] = BackpackResponseHandler.handle_get_order_history_response(
-            cast("RawJsonResponse", valid_raw_order_history), None,
+            cast("RawJsonResponse", valid_raw_order_history),
+            None,
         )
         assert isinstance(orders, list)
         assert len(orders) == 2
@@ -433,7 +444,8 @@ class TestHandleGetOrderHistoryResponse:
         """Test handling empty order history response."""
         raw_data: list[Any] = []
         orders = BackpackResponseHandler.handle_get_order_history_response(
-            cast("RawJsonResponse", raw_data), None,
+            cast("RawJsonResponse", raw_data),
+            None,
         )
         assert isinstance(orders, list)
         assert len(orders) == 0
@@ -456,7 +468,8 @@ class TestHandleGetOrderHistoryResponse:
         }
         raw_data = [valid_order, "not_a_dict"]  # Invalid item
         orders = BackpackResponseHandler.handle_get_order_history_response(
-            cast("RawJsonResponse", raw_data), None,
+            cast("RawJsonResponse", raw_data),
+            None,
         )
         assert len(orders) == 1  # Only valid order processed
         assert orders[0].id == "histOrder001"
@@ -486,7 +499,8 @@ class TestHandleGetOrderHistoryResponse:
         raw_data = [invalid_order]
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_order_history_response(
-                cast("RawJsonResponse", raw_data), None,
+                cast("RawJsonResponse", raw_data),
+                None,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "order history" in exc_info.value.message
@@ -497,7 +511,8 @@ class TestHandleGetOrderHistoryResponse:
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_order_history_response(
-                cast("RawJsonResponse", raw_data), None,
+                cast("RawJsonResponse", raw_data),
+                None,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "expected list" in exc_info.value.message
@@ -510,7 +525,8 @@ class TestHandleGetTradeHistoryResponse:
     def test_valid(self, valid_raw_trade_history: list[dict[str, Any]]) -> None:
         """Test handling a valid raw trade history response."""
         trades: list[BackpackRawTrade] = BackpackResponseHandler.handle_get_trade_history_response(
-            cast("RawJsonResponse", valid_raw_trade_history), None,
+            cast("RawJsonResponse", valid_raw_trade_history),
+            None,
         )
         assert isinstance(trades, list)
         assert len(trades) == 2
@@ -535,7 +551,8 @@ class TestHandleGetTradeHistoryResponse:
         """Test handling empty trade history response."""
         raw_data: list[Any] = []
         trades = BackpackResponseHandler.handle_get_trade_history_response(
-            cast("RawJsonResponse", raw_data), None,
+            cast("RawJsonResponse", raw_data),
+            None,
         )
         assert isinstance(trades, list)
         assert len(trades) == 0
@@ -552,7 +569,8 @@ class TestHandleGetTradeHistoryResponse:
         }
         raw_data = [valid_trade, "not_a_dict"]  # Invalid item
         trades = BackpackResponseHandler.handle_get_trade_history_response(
-            cast("RawJsonResponse", raw_data), None,
+            cast("RawJsonResponse", raw_data),
+            None,
         )
         assert len(trades) == 1  # Only valid trade processed
         assert trades[0].id == "tradeHist001"
@@ -576,7 +594,8 @@ class TestHandleGetTradeHistoryResponse:
         raw_data = [invalid_trade]
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_trade_history_response(
-                cast("RawJsonResponse", raw_data), None,
+                cast("RawJsonResponse", raw_data),
+                None,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "trade history" in exc_info.value.message
@@ -587,7 +606,8 @@ class TestHandleGetTradeHistoryResponse:
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_trade_history_response(
-                cast("RawJsonResponse", raw_data), None,
+                cast("RawJsonResponse", raw_data),
+                None,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "expected list" in exc_info.value.message
@@ -600,7 +620,8 @@ class TestHandleGetOrderStatusResponse:
     def test_valid(self, valid_raw_order_status: dict[str, Any], order_id: str) -> None:
         """Test handling a valid raw order status response."""
         order: BackpackRawOrder = BackpackResponseHandler.handle_get_order_status_response(
-            cast("RawJsonResponse", valid_raw_order_status), order_id,
+            cast("RawJsonResponse", valid_raw_order_status),
+            order_id,
         )
         assert isinstance(order, BackpackRawOrder)
         assert order.id == "statusOrder123"
@@ -629,7 +650,8 @@ class TestHandleGetOrderStatusResponse:
         }
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_order_status_response(
-                cast("RawJsonResponse", raw_data), order_id,
+                cast("RawJsonResponse", raw_data),
+                order_id,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert f"order status (id={order_id})" in exc_info.value.message
@@ -640,7 +662,8 @@ class TestHandleGetOrderStatusResponse:
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_order_status_response(
-                cast("RawJsonResponse", raw_data), order_id,
+                cast("RawJsonResponse", raw_data),
+                order_id,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "expected dict" in exc_info.value.message
@@ -692,7 +715,8 @@ class TestAccountTradingEdgeCases:
             },
         ]
         positions = BackpackResponseHandler.handle_get_positions_response(
-            cast("RawJsonResponse", raw_data), None,
+            cast("RawJsonResponse", raw_data),
+            None,
         )
         assert len(positions) == 1
         position = positions[0]
@@ -718,7 +742,8 @@ class TestAccountTradingEdgeCases:
             },
         ]
         orders = BackpackResponseHandler.handle_get_open_orders_response(
-            cast("RawJsonResponse", raw_data), None,
+            cast("RawJsonResponse", raw_data),
+            None,
         )
         assert len(orders) == 1
         order = orders[0]

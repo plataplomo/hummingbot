@@ -1,5 +1,6 @@
 # tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_response.py
 """Module docstring."""
+
 import logging
 from typing import Any
 
@@ -50,7 +51,8 @@ def valid_status_object_error() -> dict[str, Any]:
 
 @pytest.fixture
 def valid_response_data_dict(
-    valid_status_object_resting: dict[str, Any], valid_status_object_filled: dict[str, Any],
+    valid_status_object_resting: dict[str, Any],
+    valid_status_object_filled: dict[str, Any],
 ) -> dict[str, Any]:
     """Return valid response data dict for testing."""
     return {
@@ -212,7 +214,8 @@ def test_hl_resting_extra_fields_ignored() -> None:
     ],
 )
 def test_hl_filled_invalid(
-    invalid_data: dict[str, Any], expected_keywords: tuple[str, ...],
+    invalid_data: dict[str, Any],
+    expected_keywords: tuple[str, ...],
 ) -> None:
     """Test hl filled invalid."""
     with pytest.raises(ValidationError) as exc_info:
@@ -242,7 +245,8 @@ def test_hl_filled_extra_fields_ignored() -> None:
     ],
 )
 def test_hl_status_object_invalid(
-    invalid_data: dict[str, Any], expected_keywords: tuple[str, ...],
+    invalid_data: dict[str, Any],
+    expected_keywords: tuple[str, ...],
 ) -> None:
     """Test hl status object invalid."""
     with pytest.raises(ValidationError) as exc_info:
@@ -365,10 +369,7 @@ def test_hl_response_invalid(
     ],
 )
 def test_hl_response_data_statuses_validation(
-    statuses_list: list[dict[str, Any]]
-    | str
-    | int
-    | None,  # Invalid types for Pydantic
+    statuses_list: list[dict[str, Any]] | str | int | None,  # Invalid types for Pydantic
     is_valid: bool,
 ) -> None:
     """Test the validation logic for the 'statuses' field specifically."""

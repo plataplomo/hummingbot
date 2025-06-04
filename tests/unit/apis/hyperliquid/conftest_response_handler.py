@@ -1,5 +1,4 @@
-"""Shared fixtures for HyperliquidResponseHandler tests.
-"""
+"""Shared fixtures for HyperliquidResponseHandler tests."""
 
 from typing import Any
 

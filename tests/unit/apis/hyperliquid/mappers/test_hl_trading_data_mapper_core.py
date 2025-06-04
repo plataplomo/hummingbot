@@ -374,7 +374,8 @@ class TestCoreValidationLogic:
     """Tests for core validation logic in trading data transformations."""
 
     def test_consistent_transformation_across_methods(
-        self, trading_data_mapper: HyperliquidTradingDataMapper,
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test that transformation methods produce consistent results."""
         # Use historical order for filled status since HyperliquidRawOrder only allows "open"
@@ -400,7 +401,8 @@ class TestCoreValidationLogic:
         assert result.quantity_filled == Decimal("5.0")
 
     def test_symbol_consistency_across_transformations(
-        self, trading_data_mapper: HyperliquidTradingDataMapper,
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test that symbol names are consistently handled across different transformations."""
         test_symbols = [
@@ -424,7 +426,8 @@ class TestCoreValidationLogic:
             assert historical_result.symbol == symbol
 
     def test_decimal_precision_handling(
-        self, trading_data_mapper: HyperliquidTradingDataMapper,
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test that decimal precision is maintained consistently."""
         high_precision_price = "1234.123456789012345"
@@ -443,7 +446,8 @@ class TestCoreValidationLogic:
         assert result.quantity_requested == Decimal(high_precision_size)
 
     def test_exchange_assignment_consistency(
-        self, trading_data_mapper: HyperliquidTradingDataMapper,
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test that exchange name is consistently assigned."""
         from cyberdelta.enums.exchange_names import ExchangeName

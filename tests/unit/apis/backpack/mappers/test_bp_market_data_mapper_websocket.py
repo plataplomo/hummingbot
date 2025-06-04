@@ -116,7 +116,9 @@ class TestSideMapping:
     """Test cases for side mapping functionality through WebSocket trade events."""
 
     def test_side_mapping_buyer_is_maker(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test side mapping when buyer is the maker (BUY side)."""
         raw_trade_event = create_raw_trade_event(
@@ -132,7 +134,9 @@ class TestSideMapping:
         assert result.side == OrderSide.BUY
 
     def test_side_mapping_buyer_is_not_maker(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test side mapping when buyer is not the maker (SELL side)."""
         raw_trade_event = create_raw_trade_event(
@@ -148,7 +152,9 @@ class TestSideMapping:
         assert result.side == OrderSide.SELL
 
     def test_side_mapping_consistency_across_multiple_trades(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test that side mapping is consistent across multiple trade events."""
         # Create multiple trades with different maker status
@@ -170,7 +176,9 @@ class TestSideMapping:
             assert result.side == expected_side
 
     def test_side_mapping_with_different_symbols(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test that side mapping works correctly with different trading symbols."""
         symbols = ["SOL-USDC", "BTC-USDC", "ETH-USDC", "DOGE-USDC"]
@@ -194,7 +202,9 @@ class TestWebSocketTickerEventTransformation:
     """Test cases for WebSocket ticker event transformation functionality."""
 
     def test_transform_ws_ticker_event_to_internal_happy_path(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test successful transformation of BackpackRawTickerEvent to internal Ticker."""
         raw_ticker = create_raw_ticker_event(
@@ -217,7 +227,9 @@ class TestWebSocketTickerEventTransformation:
         assert result.timestamp == datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)
 
     def test_transform_ws_ticker_event_with_different_symbols(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket ticker event transformation with various symbols."""
         symbols = ["BTC-USDC", "ETH-USDC", "SOL-USDC", "DOGE-USDC"]
@@ -232,7 +244,9 @@ class TestWebSocketTickerEventTransformation:
             assert result.symbol == symbol
 
     def test_transform_ws_ticker_event_with_extreme_values(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket ticker event transformation with extreme price values."""
         raw_ticker = create_raw_ticker_event(
@@ -249,7 +263,9 @@ class TestWebSocketTickerEventTransformation:
         # Note: We're only testing price here as the mapper may not expose all fields
 
     def test_transform_ws_ticker_event_with_zero_values(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket ticker event transformation with zero values."""
         raw_ticker = create_raw_ticker_event(
@@ -265,7 +281,9 @@ class TestWebSocketTickerEventTransformation:
         assert result.price == Decimal("0.0")
 
     def test_transform_ws_ticker_event_transformation_error(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test that WebSocket ticker event transformation errors are properly wrapped."""
         raw_ticker = create_raw_ticker_event(event_time=test_timestamp_ms)
@@ -276,12 +294,15 @@ class TestWebSocketTickerEventTransformation:
             mock_parse.side_effect = ValueError("Invalid decimal")
 
             with pytest.raises(
-                TransformationError, match="Failed to transform BackpackRawTickerEvent",
+                TransformationError,
+                match="Failed to transform BackpackRawTickerEvent",
             ):
                 mapper.transform_ws_ticker_event_to_internal(raw_ticker)
 
     def test_transform_ws_ticker_event_with_unicode_symbol(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket ticker event transformation with unicode symbol."""
         raw_ticker = create_raw_ticker_event(
@@ -298,7 +319,9 @@ class TestWebSocketDepthEventTransformation:
     """Test cases for WebSocket depth event transformation functionality."""
 
     def test_transform_ws_depth_event_to_internal_happy_path(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test successful transformation of BackpackRawDepthUpdateEvent to OrderBook."""
         raw_depth = create_raw_depth_event(
@@ -318,7 +341,9 @@ class TestWebSocketDepthEventTransformation:
         assert result.asks[0] == (Decimal("100.75"), Decimal("8.0"))
 
     def test_transform_ws_depth_event_with_empty_levels(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket depth event transformation with empty bid/ask levels."""
         raw_depth = create_raw_depth_event(
@@ -333,7 +358,9 @@ class TestWebSocketDepthEventTransformation:
         assert len(result.asks) == 0
 
     def test_transform_ws_depth_event_with_single_level(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket depth event transformation with single bid/ask level."""
         raw_depth = create_raw_depth_event(
@@ -350,7 +377,9 @@ class TestWebSocketDepthEventTransformation:
         assert result.asks[0] == (Decimal("100.75"), Decimal("8.0"))
 
     def test_transform_ws_depth_event_with_multiple_levels(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket depth event transformation with multiple price levels."""
         # Create 10 bid and ask levels
@@ -371,7 +400,9 @@ class TestWebSocketDepthEventTransformation:
         assert result.asks[0] == (Decimal("101.00"), Decimal("8.0"))
 
     def test_transform_ws_depth_event_with_extreme_values(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket depth event transformation with extreme price/quantity values."""
         raw_depth = create_raw_depth_event(
@@ -386,7 +417,9 @@ class TestWebSocketDepthEventTransformation:
         assert result.asks[0] == (Decimal("1000000.000001"), Decimal("0.000000001"))
 
     def test_transform_ws_depth_event_transformation_error(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test that WebSocket depth event transformation errors are properly wrapped."""
         raw_depth = create_raw_depth_event(event_time=test_timestamp_ms)
@@ -397,12 +430,15 @@ class TestWebSocketDepthEventTransformation:
             mock_parse.side_effect = ValueError("Invalid decimal")
 
             with pytest.raises(
-                TransformationError, match="Failed to transform BackpackRawDepthUpdateEvent",
+                TransformationError,
+                match="Failed to transform BackpackRawDepthUpdateEvent",
             ):
                 mapper.transform_ws_depth_event_to_internal("SOL-USDC", raw_depth)
 
     def test_transform_ws_depth_event_with_different_symbols(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket depth event transformation with different symbols."""
         symbols = ["BTC-USDC", "ETH-USDC", "SOL-USDC", "DOGE-USDC"]
@@ -417,7 +453,9 @@ class TestWebSocketTradeEventTransformation:
     """Test cases for WebSocket trade event transformation functionality."""
 
     def test_transform_ws_trade_event_to_internal_happy_path(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test successful transformation of BackpackRawTradeEvent to internal Trade."""
         raw_trade = create_raw_trade_event(
@@ -443,7 +481,9 @@ class TestWebSocketTradeEventTransformation:
         assert result.bp_details is not None
 
     def test_transform_ws_trade_event_buyer_side(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket trade event transformation with buyer side."""
         raw_trade = create_raw_trade_event(
@@ -460,7 +500,9 @@ class TestWebSocketTradeEventTransformation:
         assert result.side == OrderSide.BUY
 
     def test_transform_ws_trade_event_seller_side(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket trade event transformation with seller side."""
         raw_trade = create_raw_trade_event(
@@ -477,7 +519,9 @@ class TestWebSocketTradeEventTransformation:
         assert result.side == OrderSide.SELL
 
     def test_transform_ws_trade_event_with_extreme_values(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket trade event transformation with extreme price/quantity values."""
         raw_trade = create_raw_trade_event(
@@ -492,7 +536,9 @@ class TestWebSocketTradeEventTransformation:
         assert result.quantity == Decimal("999999999.999999")
 
     def test_transform_ws_trade_event_with_zero_values(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket trade event transformation with zero price/quantity raises error."""
         raw_trade = create_raw_trade_event(
@@ -507,7 +553,9 @@ class TestWebSocketTradeEventTransformation:
             mapper.transform_ws_trade_event_to_internal(raw_trade)
 
     def test_transform_ws_trade_event_with_very_long_id(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket trade event transformation with very long trade ID."""
         long_id = "a" * 64  # Maximum allowed length
@@ -521,7 +569,9 @@ class TestWebSocketTradeEventTransformation:
         assert result.id == long_id
 
     def test_transform_ws_trade_event_transformation_error(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test that WebSocket trade event transformation errors are properly wrapped."""
         raw_trade = create_raw_trade_event(event_time=test_timestamp_ms)
@@ -532,12 +582,15 @@ class TestWebSocketTradeEventTransformation:
             mock_parse.side_effect = ValueError("Invalid decimal")
 
             with pytest.raises(
-                TransformationError, match="Failed to transform BackpackRawTradeEvent",
+                TransformationError,
+                match="Failed to transform BackpackRawTradeEvent",
             ):
                 mapper.transform_ws_trade_event_to_internal(raw_trade)
 
     def test_transform_ws_trade_event_with_different_symbols(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket trade event transformation with different trading symbols."""
         symbols = ["BTC-USDC", "ETH-USDC", "SOL-USDC", "DOGE-USDC"]
@@ -553,7 +606,9 @@ class TestWebSocketTradeEventTransformation:
             assert result.symbol == symbol
 
     def test_transform_ws_trade_event_missing_required_fields(
-        self, mapper: BackpackMarketDataMapper, test_timestamp_ms: int,
+        self,
+        mapper: BackpackMarketDataMapper,
+        test_timestamp_ms: int,
     ) -> None:
         """Test that WebSocket trade event with missing required fields raises error."""
         raw_trade = create_raw_trade_event(event_time=test_timestamp_ms)
@@ -568,7 +623,8 @@ class TestWebSocketTradeEventTransformation:
                 mapper.transform_ws_trade_event_to_internal(raw_trade)
 
     def test_transform_ws_trade_event_real_time_scenarios(
-        self, mapper: BackpackMarketDataMapper,
+        self,
+        mapper: BackpackMarketDataMapper,
     ) -> None:
         """Test WebSocket trade event transformation in real-time scenarios."""
         # Simulate rapid succession of trades with different timestamps

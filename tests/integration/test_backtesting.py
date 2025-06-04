@@ -90,7 +90,10 @@ class TestBacktestingIntegration:
         # Create a mock strategy
         class MockStrategy(Strategy):
             def __init__(
-                self, name: str, symbol: str, exchange_name: str = "mock_exchange",
+                self,
+                name: str,
+                symbol: str,
+                exchange_name: str = "mock_exchange",
             ) -> None:
                 super().__init__(name, symbol, {})  # Use provided symbol
                 self.entry_threshold = Decimal("0")  # Initialize attribute
@@ -119,7 +122,9 @@ class TestBacktestingIntegration:
         # Instantiate with a symbol present in the test data
         target_test_symbol = TEST_SYMBOL  # Use the consistent TEST_SYMBOL
         mock_strategy = MockStrategy(
-            "MockStrategy", target_test_symbol, exchange_name="test_exchange_A",
+            "MockStrategy",
+            target_test_symbol,
+            exchange_name="test_exchange_A",
         )
         mock_strategy.entry_threshold = Decimal("30000.0")
 

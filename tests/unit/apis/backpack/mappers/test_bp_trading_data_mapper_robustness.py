@@ -193,7 +193,8 @@ class TestBoundaryValueHandling:
         assert result.average_fill_price is None
 
     def test_maximum_precision_decimals(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test transformation with maximum precision decimal values."""
         precision_order = create_raw_order(
@@ -222,7 +223,8 @@ class TestUnicodeAndEncodingSupport:
     """Tests for Unicode symbol support and encoding handling."""
 
     def test_unicode_symbols_in_symbol_field(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test transformation with Unicode characters in symbol field."""
         unicode_symbols = [
@@ -246,7 +248,8 @@ class TestUnicodeAndEncodingSupport:
             assert result.exchange_order_id == f"order_{len(symbol)}"
 
     def test_unicode_in_client_order_id(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test transformation with Unicode characters in client order ID."""
         unicode_client_ids = [
@@ -356,7 +359,8 @@ class TestErrorHandlingAndRecovery:
             trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
     def test_graceful_degradation_with_partial_data(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test graceful handling when optional fields are missing or invalid."""
         # Create order with minimal data
@@ -397,7 +401,8 @@ class TestPerformanceAndMemoryConsiderations:
     """Tests for performance and memory efficiency."""
 
     def test_large_batch_transformation_efficiency(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test transformation efficiency with large batches of orders."""
         # Create a large number of orders
@@ -428,7 +433,8 @@ class TestPerformanceAndMemoryConsiderations:
             assert result.symbol == f"SYMBOL{i % 10}_USDC"
 
     def test_memory_efficiency_with_large_objects(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test memory efficiency when handling large order objects."""
         # Create orders with large string fields but within validation limits
@@ -446,7 +452,8 @@ class TestPerformanceAndMemoryConsiderations:
         assert result.symbol == "c" * 60
 
     def test_concurrent_transformation_safety(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test that transformations are safe for concurrent usage."""
         # Create multiple orders that could potentially interfere
@@ -509,7 +516,8 @@ class TestDataConsistencyAndValidation:
         assert result.status == expected_output
 
     def test_case_insensitive_mappings_comprehensive(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test that all enum mappings are case insensitive."""
         result = trading_data_mapper.transform_order_data_to_internal(
@@ -528,7 +536,8 @@ class TestDataConsistencyAndValidation:
         assert result.time_in_force == TimeInForce.IOC
 
     def test_decimal_precision_consistency(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test that decimal precision is maintained consistently."""
         test_values = [
@@ -551,7 +560,8 @@ class TestDataConsistencyAndValidation:
             assert result.price == Decimal(value)
 
     def test_none_value_handling_consistency(
-        self, trading_data_mapper: BackpackTradingDataMapper,
+        self,
+        trading_data_mapper: BackpackTradingDataMapper,
     ) -> None:
         """Test consistent handling of None values across transformations."""
         # Test with various None scenarios

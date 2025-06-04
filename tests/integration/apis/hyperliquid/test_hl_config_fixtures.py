@@ -34,7 +34,9 @@ class TestHyperliquidConfigFixtures:
         assert active_hl_secrets.private_key is not None
 
     def test_hl_api_for_test_env(
-        self, hl_api_for_test_env: HyperliquidAPI, active_hl_config: ExchangeSpecificConfig,
+        self,
+        hl_api_for_test_env: HyperliquidAPI,
+        active_hl_config: ExchangeSpecificConfig,
     ) -> None:
         """Test that hl_api_for_test_env creates a proper API instance."""
         assert isinstance(hl_api_for_test_env, HyperliquidAPI)

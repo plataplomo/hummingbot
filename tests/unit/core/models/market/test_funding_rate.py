@@ -1,3 +1,8 @@
+"""Unit tests for the core FundingRate model and its Details sub-models.
+
+Tests validation, parsing, immutability, and the Core+Details pattern.
+"""
+
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
@@ -13,6 +18,8 @@ from cyberdelta.core.models.market.funding_rate import (
 
 
 class TestFundingRate:
+    """Test cases for the core FundingRate model."""
+
     def test_core_required_fields(self) -> None:
         """Test that required fields are actually required."""
         # Symbol and timestamp are required
@@ -380,6 +387,8 @@ class TestFundingRate:
 
 
 class TestHyperliquidFundingDetails:
+    """Test cases for the HyperliquidFundingDetails model."""
+
     def test_creation(self) -> None:
         """Test creating HyperliquidFundingDetails."""
         hl = HyperliquidFundingDetails(
@@ -460,6 +469,8 @@ class TestHyperliquidFundingDetails:
 
 
 class TestBackpackFundingDetails:
+    """Test cases for the BackpackFundingDetails model."""
+
     def test_creation(self) -> None:
         """Test creating empty BackpackFundingDetails."""
         # Create an instance to verify it can be instantiated without errors

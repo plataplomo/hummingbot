@@ -224,7 +224,9 @@ class TestHyperliquidMarketDataServicePublicData:
             request_weight=1,
         )
         mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.assert_called_once_with(
-            mock_raw_response_content, status_code=200, headers=mock_headers,
+            mock_raw_response_content,
+            status_code=200,
+            headers=mock_headers,
         )
         assert result == mock_validated_response
 
@@ -292,10 +294,16 @@ class TestHyperliquidMarketDataServicePublicData:
         mock_meta_response = HyperliquidRawMetaResponse(
             universe=[
                 HyperliquidRawAssetDefinition(
-                    name="BTC", szDecimals=5, maxLeverage=100, onlyIsolated=False,
+                    name="BTC",
+                    szDecimals=5,
+                    maxLeverage=100,
+                    onlyIsolated=False,
                 ),
                 HyperliquidRawAssetDefinition(
-                    name="ETH", szDecimals=5, maxLeverage=100, onlyIsolated=False,
+                    name="ETH",
+                    szDecimals=5,
+                    maxLeverage=100,
+                    onlyIsolated=False,
                 ),
             ],
         )
@@ -338,7 +346,8 @@ class TestHyperliquidMarketDataServicePublicData:
         symbol = "UNKNOWN"
         mock_meta_response = HyperliquidRawMetaResponse(universe=[])
         mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse(
-            meta=mock_meta_response, asset_ctxs=[],
+            meta=mock_meta_response,
+            asset_ctxs=[],
         )
 
         with patch.object(
@@ -375,7 +384,8 @@ class TestHyperliquidMarketDataServicePublicData:
 
         # Mock response handler to raise APIError wrapping ValidationError
         validation_error = ValidationError.from_exception_data(
-            title="HyperliquidRawMetaAndAssetCtxsResponse", line_errors=[],
+            title="HyperliquidRawMetaAndAssetCtxsResponse",
+            line_errors=[],
         )
         mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.side_effect = APIError(
             message="Invalid response structure for metaAndAssetCtxs",
@@ -417,7 +427,9 @@ class TestHyperliquidMarketDataServicePublicData:
             "time": 1234567890,
         }  # Raw L2Book structure
         mock_validated_response = HyperliquidRawL2Book(
-            coin=symbol_to_find, time=1234567890, levels=[[], []],
+            coin=symbol_to_find,
+            time=1234567890,
+            levels=[[], []],
         )
         expected_internal_order_book = OrderBook(
             symbol=symbol_to_find,
@@ -444,7 +456,8 @@ class TestHyperliquidMarketDataServicePublicData:
         )
         # Ensure the mocked model's dump was called
         mock_l2_book_request_payload_model.model_dump.assert_called_once_with(
-            by_alias=True, exclude_none=True,
+            by_alias=True,
+            exclude_none=True,
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
@@ -455,7 +468,10 @@ class TestHyperliquidMarketDataServicePublicData:
             request_weight=1,
         )
         mock_hl_response_handler.handle_info_l2_book_response.assert_called_once_with(
-            mock_raw_response_content, symbol=symbol_to_find, status_code=200, headers=mock_headers,
+            mock_raw_response_content,
+            symbol=symbol_to_find,
+            status_code=200,
+            headers=mock_headers,
         )
         mock_hl_mapper.transform_raw_order_book_to_internal.assert_called_once_with(
             mock_validated_response,
@@ -608,7 +624,10 @@ class TestHyperliquidMarketDataServicePublicData:
             request_weight=1,
         )
         mock_hl_response_handler.handle_info_recent_trades_response.assert_called_once_with(
-            mock_raw_response_content, symbol=symbol_to_find, status_code=200, headers=mock_headers,
+            mock_raw_response_content,
+            symbol=symbol_to_find,
+            status_code=200,
+            headers=mock_headers,
         )
         # Mapper is called with validated raw trades, and no limit as service doesn't pass it.
         for raw_trade in mock_validated_response_from_handler:
@@ -686,7 +705,10 @@ class TestHyperliquidMarketDataServicePublicData:
 
         assert result == []
         mock_hl_response_handler.handle_info_recent_trades_response.assert_called_once_with(
-            mock_empty_response, symbol=symbol, status_code=200, headers={},
+            mock_empty_response,
+            symbol=symbol,
+            status_code=200,
+            headers={},
         )
         # Mapper should not be called with empty list
         mock_hl_mapper.transform_raw_public_trade_to_internal.assert_not_called()
@@ -758,7 +780,10 @@ class TestHyperliquidMarketDataServicePublicData:
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "L2Book response validation failed" in exc_info.value.message
         mock_hl_response_handler.handle_info_l2_book_response.assert_called_once_with(
-            mock_raw_response, symbol=symbol, status_code=200, headers={},
+            mock_raw_response,
+            symbol=symbol,
+            status_code=200,
+            headers={},
         )
 
     @pytest.mark.asyncio

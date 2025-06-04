@@ -1,4 +1,5 @@
 """Unit tests for HyperliquidRateLimitStrategy.
+
 Tests the dual-limiter strategy that manages IP weights and address action counts for Hyperliquid.
 """
 
@@ -53,7 +54,8 @@ class TestHyperliquidRateLimitStrategy:
         asyncio.run(strategy.prepare_and_acquire(request_context))
 
     def test_initialization_calculates_correct_rates(
-        self, hl_config: ExchangeSpecificConfig,
+        self,
+        hl_config: ExchangeSpecificConfig,
     ) -> None:
         """Test that limiter rates are calculated correctly from config."""
         strategy = HyperliquidRateLimitStrategy(hl_config)
@@ -83,7 +85,8 @@ class TestHyperliquidRateLimitStrategy:
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_exchange_endpoint_single_action(
-        self, hl_config: ExchangeSpecificConfig,
+        self,
+        hl_config: ExchangeSpecificConfig,
     ) -> None:
         """Test prepare_and_acquire for /exchange endpoint with single action."""
         strategy = HyperliquidRateLimitStrategy(hl_config)
@@ -102,7 +105,8 @@ class TestHyperliquidRateLimitStrategy:
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_exchange_endpoint_multiple_actions(
-        self, hl_config: ExchangeSpecificConfig,
+        self,
+        hl_config: ExchangeSpecificConfig,
     ) -> None:
         """Test prepare_and_acquire for /exchange endpoint with multiple actions."""
         strategy = HyperliquidRateLimitStrategy(hl_config)
@@ -122,7 +126,8 @@ class TestHyperliquidRateLimitStrategy:
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_info_endpoint_known_type(
-        self, hl_config: ExchangeSpecificConfig,
+        self,
+        hl_config: ExchangeSpecificConfig,
     ) -> None:
         """Test prepare_and_acquire for /info endpoint with known type."""
         strategy = HyperliquidRateLimitStrategy(hl_config)
@@ -140,7 +145,8 @@ class TestHyperliquidRateLimitStrategy:
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_info_endpoint_expensive_type(
-        self, hl_config: ExchangeSpecificConfig,
+        self,
+        hl_config: ExchangeSpecificConfig,
     ) -> None:
         """Test prepare_and_acquire for expensive /info endpoint type."""
         strategy = HyperliquidRateLimitStrategy(hl_config)
@@ -158,7 +164,8 @@ class TestHyperliquidRateLimitStrategy:
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_info_endpoint_unknown_type(
-        self, hl_config: ExchangeSpecificConfig,
+        self,
+        hl_config: ExchangeSpecificConfig,
     ) -> None:
         """Test prepare_and_acquire for unknown /info endpoint type."""
         strategy = HyperliquidRateLimitStrategy(hl_config)
@@ -176,7 +183,8 @@ class TestHyperliquidRateLimitStrategy:
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_info_endpoint_none_payload(
-        self, hl_config: ExchangeSpecificConfig,
+        self,
+        hl_config: ExchangeSpecificConfig,
     ) -> None:
         """Test prepare_and_acquire for /info endpoint with None payload."""
         strategy = HyperliquidRateLimitStrategy(hl_config)
@@ -194,7 +202,8 @@ class TestHyperliquidRateLimitStrategy:
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_exchange_endpoint_empty_actions(
-        self, hl_config: ExchangeSpecificConfig,
+        self,
+        hl_config: ExchangeSpecificConfig,
     ) -> None:
         """Test prepare_and_acquire for /exchange with empty actions array."""
         strategy = HyperliquidRateLimitStrategy(hl_config)
@@ -212,7 +221,8 @@ class TestHyperliquidRateLimitStrategy:
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_unknown_endpoint(
-        self, hl_config: ExchangeSpecificConfig,
+        self,
+        hl_config: ExchangeSpecificConfig,
     ) -> None:
         """Test prepare_and_acquire for unknown endpoint."""
         strategy = HyperliquidRateLimitStrategy(hl_config)
@@ -230,7 +240,8 @@ class TestHyperliquidRateLimitStrategy:
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_concurrent_calls(
-        self, hl_config: ExchangeSpecificConfig,
+        self,
+        hl_config: ExchangeSpecificConfig,
     ) -> None:
         """Test concurrent calls to prepare_and_acquire."""
         import asyncio
@@ -288,7 +299,8 @@ class TestHyperliquidRateLimitStrategyIntegration:
 
     @pytest.mark.asyncio
     async def test_real_limiters_rate_limiting_behavior(
-        self, hl_config: ExchangeSpecificConfig,
+        self,
+        hl_config: ExchangeSpecificConfig,
     ) -> None:
         """Test that real limiters enforce rate limits through observable timing."""
         import time

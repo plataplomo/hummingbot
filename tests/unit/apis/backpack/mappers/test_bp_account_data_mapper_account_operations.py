@@ -188,7 +188,8 @@ class TestTransferTransformation:
     """Test cases for transfer transformation functionality."""
 
     def test_transform_raw_transfer_to_internal_happy_path(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test successful transformation of transfer data to internal Transfer."""
         raw_response = create_raw_transfer_response(
@@ -222,7 +223,8 @@ class TestTransferTransformation:
         assert isinstance(result.timestamp, datetime)
 
     def test_transform_raw_transfer_different_statuses(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test transfer transformation with different status values."""
         status_mappings = [
@@ -253,7 +255,8 @@ class TestTransferTransformation:
             assert result.status == expected_internal_status
 
     def test_transform_raw_transfer_missing_id_raises_error(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that missing transfer ID raises TransformationError."""
         raw_response: RawJsonResponse = cast(
@@ -276,7 +279,8 @@ class TestTransferTransformation:
             )
 
     def test_transform_raw_transfer_invalid_response_type_raises_error(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that non-dict response type raises TransformationError."""
         with pytest.raises(TransformationError, match="Raw transfer response is not a dict"):
@@ -291,7 +295,8 @@ class TestTransferTransformation:
             )
 
     def test_transform_raw_transfer_none_status_handled_gracefully(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that None status is handled gracefully."""
         # Create a proper mutable dict that can be modified
@@ -313,7 +318,8 @@ class TestTransferTransformation:
         assert result.status == InternalTransferStatus.UNKNOWN
 
     def test_transform_raw_transfer_invalid_timestamp_handled_gracefully(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that invalid timestamp is handled gracefully."""
         raw_response = create_raw_transfer_response(timestamp="invalid_timestamp")
@@ -353,7 +359,8 @@ class TestWithdrawalTransformation:
     """Test cases for withdrawal transformation functionality."""
 
     def test_transform_raw_withdrawal_response_to_internal_happy_path(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test successful transformation of withdrawal response to internal Withdrawal."""
         raw_response = create_raw_withdrawal_response(
@@ -394,7 +401,8 @@ class TestWithdrawalTransformation:
         assert result.bp_details.client_id == "client123"
 
     def test_transform_raw_withdrawal_different_statuses(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test withdrawal status mapping for different statuses."""
         # Test valid statuses that the raw model accepts
@@ -469,7 +477,8 @@ class TestWithdrawalTransformation:
         assert result.bp_details is not None
 
     def test_transform_raw_withdrawal_internal_transfer(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test withdrawal transformation for internal transfers."""
         raw_response = create_raw_withdrawal_response(
@@ -496,7 +505,8 @@ class TestWithdrawalTransformation:
         assert result.tx_hash is None
 
     def test_transform_raw_withdrawal_invalid_timestamp_handled_gracefully(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that invalid withdrawal timestamp is handled gracefully."""
         # Create a valid raw response first
@@ -523,7 +533,8 @@ class TestWithdrawalTransformation:
             assert isinstance(result.timestamp, datetime)
 
     def test_transform_raw_withdrawal_none_fee_handled_gracefully(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that None fee value is handled gracefully."""
         # Create a valid raw response first
@@ -535,7 +546,9 @@ class TestWithdrawalTransformation:
         ) as mock_parse:
 
             def side_effect(
-                value: str, allow_none: bool = False, field_name: str = "",
+                value: str,
+                allow_none: bool = False,
+                field_name: str = "",
             ) -> Decimal | None:
                 """Helper function for side effect."""
                 if field_name == "fee":
@@ -561,7 +574,8 @@ class TestWithdrawalTransformation:
             assert result.fee is None
 
     def test_transform_raw_withdrawal_large_amounts(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test withdrawal transformation with large amounts."""
         raw_response = create_raw_withdrawal_response(
@@ -589,7 +603,8 @@ class TestWebSocketFillTransformation:
     """Test cases for WebSocket fill event transformation functionality."""
 
     def test_transform_ws_fill_event_to_internal_trade_happy_path(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test successful WebSocket fill event transformation to Trade."""
         raw_fill = create_raw_fill(
@@ -634,7 +649,8 @@ class TestWebSocketFillTransformation:
         assert not result.is_maker
 
     def test_transform_ws_fill_event_zero_price_returns_none(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that WebSocket fill with zero price returns None."""
         raw_fill = create_raw_fill(price="0.0")
@@ -644,7 +660,8 @@ class TestWebSocketFillTransformation:
         assert result is None
 
     def test_transform_ws_fill_event_zero_quantity_returns_none(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that WebSocket fill with zero quantity returns None."""
         raw_fill = create_raw_fill(quantity="0.0")
@@ -654,7 +671,8 @@ class TestWebSocketFillTransformation:
         assert result is None
 
     def test_transform_ws_fill_event_none_client_id_handled_gracefully(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that None client_id is handled gracefully."""
         raw_fill = create_raw_fill(client_id=None)
@@ -665,7 +683,8 @@ class TestWebSocketFillTransformation:
         assert result.client_order_id is None
 
     def test_transform_ws_fill_event_transformation_error(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that WebSocket fill transformation errors are properly wrapped."""
         raw_fill = create_raw_fill()
@@ -677,12 +696,14 @@ class TestWebSocketFillTransformation:
             mock_parse.side_effect = ValueError("Invalid decimal value")
 
             with pytest.raises(
-                TransformationError, match="Failed to transform BackpackRawFill to Trade",
+                TransformationError,
+                match="Failed to transform BackpackRawFill to Trade",
             ):
                 mapper.transform_ws_fill_event_to_internal_trade(raw_fill)
 
     def test_transform_ws_fill_event_high_precision_values(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test WebSocket fill transformation with high precision values."""
         raw_fill = create_raw_fill(
@@ -703,7 +724,8 @@ class TestWebSocketPositionUpdateTransformation:
     """Test cases for WebSocket position update transformation functionality."""
 
     def test_transform_ws_position_update_to_internal_position_happy_path(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test successful WebSocket position update transformation to DerivativePosition."""
         raw_position_update = create_raw_position_update(
@@ -735,7 +757,8 @@ class TestWebSocketPositionUpdateTransformation:
         assert isinstance(result.timestamp, datetime)
 
     def test_transform_ws_position_update_short_position(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test WebSocket position update transformation for short position."""
         raw_position_update = create_raw_position_update(
@@ -748,7 +771,8 @@ class TestWebSocketPositionUpdateTransformation:
         assert result.size == Decimal("-5.0")
 
     def test_transform_ws_position_update_none_optional_fields_handled_gracefully(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test WebSocket position update with None optional fields."""
         raw_position_update = create_raw_position_update(
@@ -768,7 +792,8 @@ class TestWebSocketPositionUpdateTransformation:
         assert result.bp_details.mmf_base is None
 
     def test_transform_ws_position_update_zero_quantity_handled_gracefully(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test WebSocket position update with zero quantity."""
         raw_position_update = create_raw_position_update(q="0.0")
@@ -779,7 +804,8 @@ class TestWebSocketPositionUpdateTransformation:
         assert result.side == OrderSide.SELL  # Zero defaults to SELL
 
     def test_transform_ws_position_update_missing_net_quantity_handled_gracefully(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that missing net quantity defaults to zero gracefully."""
         raw_position_update = create_raw_position_update(q=None)  # No net quantity
@@ -792,7 +818,8 @@ class TestWebSocketPositionUpdateTransformation:
         assert result.entry_price is None  # Entry price should be None for zero size
 
     def test_transform_ws_position_update_transformation_error(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that WebSocket position update transformation errors are properly wrapped."""
         raw_position_update = create_raw_position_update()
@@ -810,7 +837,8 @@ class TestWebSocketPositionUpdateTransformation:
                 mapper.transform_ws_position_update_to_internal_position(raw_position_update)
 
     def test_transform_ws_position_update_high_precision_values(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test WebSocket position update with high precision values."""
         raw_position_update = create_raw_position_update(

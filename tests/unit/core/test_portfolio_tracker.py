@@ -42,7 +42,8 @@ class TestPortfolioTracker:
 
         # Explicitly type the side effect function for config.get
         def get_config_value(key: str, default: object = None) -> object:
-            """Mocked config.get implementation.
+            """Mock config.get implementation.
+
             Returns values for known keys, otherwise returns the provided default.
             Type: (str, object) -> object
             Note: This is a test mock; in production, config values should be strictly typed.
@@ -62,7 +63,9 @@ class TestPortfolioTracker:
     def pt_config(self) -> PortfolioTrackerConfig:
         """Create a PortfolioTrackerConfig for testing."""
         return PortfolioTrackerConfig(
-            data_freshness_seconds=60, initial_balances={}, initial_positions=[],
+            data_freshness_seconds=60,
+            initial_balances={},
+            initial_positions=[],
         )
 
     @pytest.fixture
@@ -287,7 +290,7 @@ class TestPortfolioTracker:
 
     @pytest.fixture
     def now(self) -> datetime:
-        """Provides the current time in UTC."""
+        """Provide the current time in UTC."""
         return datetime.now(UTC)
 
     @pytest.fixture
@@ -549,7 +552,9 @@ class TestPortfolioTracker:
 
     @pytest.mark.asyncio
     async def test_reconcile_portfolio_state_success(
-        self, portfolio_tracker: PortfolioTracker, api_clients: dict[str, AsyncMock],
+        self,
+        portfolio_tracker: PortfolioTracker,
+        api_clients: dict[str, AsyncMock],
     ) -> None:
         """Test successful reconciliation of portfolio state."""
         # ADDED: Initialize portfolio state, so last_reconciliation_time is set for all exchanges
@@ -658,7 +663,9 @@ class TestPortfolioTracker:
 
     @pytest.mark.asyncio
     async def test_reconcile_portfolio_state_api_error(
-        self, portfolio_tracker: PortfolioTracker, api_clients: dict[str, AsyncMock],
+        self,
+        portfolio_tracker: PortfolioTracker,
+        api_clients: dict[str, AsyncMock],
     ) -> None:
         """Test reconciliation with API errors."""
         # Store initial state for comparison
@@ -756,7 +763,8 @@ class TestPortfolioTracker:
         # If the error occurs during update *after* a successful init, state should persist.
         # Here, initial_balances reflects the state *before* this failing update.
         assert portfolio_tracker.balances.get(
-            "hyperliquid", dict[str, SpotBalance](),
+            "hyperliquid",
+            dict[str, SpotBalance](),
         ) == initial_balances.get("hyperliquid", dict[str, SpotBalance]())
 
         # Positions and orders should reflect the successful API calls for those parts
@@ -895,7 +903,9 @@ class TestPortfolioTracker:
         assert original_total_qty != updated_balance_obj.total_quantity
 
     def test_get_exchange_balance(
-        self, portfolio_tracker: PortfolioTracker, sample_balances_state: ExchangeBalances,
+        self,
+        portfolio_tracker: PortfolioTracker,
+        sample_balances_state: ExchangeBalances,
     ) -> None:
         """Test retrieving a specific exchange balance."""
         # Setup initial state
@@ -1013,7 +1023,9 @@ class TestPortfolioTracker:
         )  # Unpriced asset should not change total
 
     def test_get_position(
-        self, portfolio_tracker: PortfolioTracker, sample_positions: ExchangePositions,
+        self,
+        portfolio_tracker: PortfolioTracker,
+        sample_positions: ExchangePositions,
     ) -> None:
         """Test retrieving a specific position."""
         portfolio_tracker.positions.update(sample_positions)  # type: ignore
@@ -1032,7 +1044,9 @@ class TestPortfolioTracker:
         assert non_existent_exchange is None
 
     def test_get_positions_by_symbol(
-        self, portfolio_tracker: PortfolioTracker, sample_positions: ExchangePositions,
+        self,
+        portfolio_tracker: PortfolioTracker,
+        sample_positions: ExchangePositions,
     ) -> None:
         """Test retrieving positions by symbol."""
         portfolio_tracker.positions.update(sample_positions)  # type: ignore
@@ -1107,7 +1121,9 @@ class TestPortfolioTracker:
         assert eth_positions_bp[0].symbol == "ETH"
 
     def test_get_all_positions(
-        self, portfolio_tracker: PortfolioTracker, sample_positions: ExchangePositions,
+        self,
+        portfolio_tracker: PortfolioTracker,
+        sample_positions: ExchangePositions,
     ) -> None:
         """Test retrieving all positions across all exchanges."""
         portfolio_tracker.positions.update(sample_positions)  # type: ignore
@@ -1129,7 +1145,9 @@ class TestPortfolioTracker:
         assert len(portfolio_tracker.get_all_positions()) == 0
 
     def test_get_order_by_id(
-        self, portfolio_tracker: PortfolioTracker, sample_orders: ExchangeOrders,
+        self,
+        portfolio_tracker: PortfolioTracker,
+        sample_orders: ExchangeOrders,
     ) -> None:
         """Test retrieving a specific order by its ID."""
         portfolio_tracker.orders.update(sample_orders)
@@ -1148,7 +1166,9 @@ class TestPortfolioTracker:
         assert non_existent_exchange is None
 
     def test_get_open_orders(
-        self, portfolio_tracker: PortfolioTracker, sample_orders: ExchangeOrders,
+        self,
+        portfolio_tracker: PortfolioTracker,
+        sample_orders: ExchangeOrders,
     ) -> None:
         """Test retrieving open orders."""
         portfolio_tracker.orders.update(sample_orders)
@@ -1207,7 +1227,9 @@ class TestPortfolioTracker:
         assert len(open_orders_hl_empty) == 0
 
     def test_get_all_orders(
-        self, portfolio_tracker: PortfolioTracker, sample_orders: ExchangeOrders,
+        self,
+        portfolio_tracker: PortfolioTracker,
+        sample_orders: ExchangeOrders,
     ) -> None:
         """Test retrieving all orders for an exchange (open and closed)."""
         portfolio_tracker.orders.update(sample_orders)
@@ -1226,7 +1248,9 @@ class TestPortfolioTracker:
         assert len(all_btc_orders_hl) == 0  # Corrected assertion: expect 0 BTC orders
 
     def test_calculate_pnl(
-        self, portfolio_tracker: PortfolioTracker, sample_positions: ExchangePositions,
+        self,
+        portfolio_tracker: PortfolioTracker,
+        sample_positions: ExchangePositions,
     ) -> None:
         """Test PNL calculation logic (simplified, focuses on unrealized PNL from model)."""
         # This test is simplified as full PNL calculation depends on market data

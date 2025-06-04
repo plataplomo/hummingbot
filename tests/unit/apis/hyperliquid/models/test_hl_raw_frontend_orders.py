@@ -1,5 +1,4 @@
-"""Unit Tests for Hyperliquid Raw Frontend Open Orders Models
-"""
+"""Unit Tests for Hyperliquid Raw Frontend Open Orders Models"""
 
 from typing import Any
 

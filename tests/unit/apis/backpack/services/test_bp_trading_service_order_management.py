@@ -605,7 +605,8 @@ class TestBackpackTradingServiceOrderManagement:
         )
 
         mock_request_builder.build_cancel_order_payload.assert_called_once_with(
-            symbol=symbol, order_id=order_id,
+            symbol=symbol,
+            order_id=order_id,
         )
         mock_http_client_requester.assert_called_once_with(
             method="DELETE",

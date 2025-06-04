@@ -308,7 +308,8 @@ class TestBackpackMarketDataServiceKlinesMisc:
 
     @pytest.mark.asyncio
     async def test_get_all_tickers_not_implemented(
-        self, backpack_market_data_service: BackpackMarketDataService,
+        self,
+        backpack_market_data_service: BackpackMarketDataService,
     ) -> None:
         """Test that get_all_tickers raises APIError for not implemented functionality."""
         with pytest.raises(APIError) as exc_info:
@@ -370,7 +371,8 @@ class TestBackpackMarketDataServiceKlinesMisc:
 
         # Mock the static method on the class
         with patch.object(
-            BackpackMarketDataMapper, "transform_raw_ticker_to_internal",
+            BackpackMarketDataMapper,
+            "transform_raw_ticker_to_internal",
         ) as mock_transform:
             mock_transform.return_value = MagicMock()
             await service.get_ticker("TEST")

@@ -1,3 +1,8 @@
+"""Unit tests for the signal queue functionality.
+
+Tests signal queue operations including priority handling, expiration, and circuit breaker integration.
+"""
+
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import MagicMock
@@ -16,13 +21,13 @@ def mock_config() -> MagicMock:
 
 @pytest.fixture
 def signal_queue(mock_config: MagicMock) -> PrioritySignalQueue:
-    """Helper function for signal queue."""
+    """Create signal queue for testing."""
     return PrioritySignalQueue(mock_config)
 
 
 @pytest.fixture
 def sample_signal() -> TradeSignal:
-    """Helper function for sample signal."""
+    """Create sample signal for testing."""
     now = datetime.now(UTC)
     return TradeSignal(
         timestamp=now,

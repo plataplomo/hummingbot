@@ -1,5 +1,4 @@
-"""Unit Tests for Hyperliquid Raw Subaccounts Model
-"""
+"""Unit Tests for Hyperliquid Raw Subaccounts Model"""
 
 from typing import Any
 

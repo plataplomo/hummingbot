@@ -14,7 +14,10 @@ class TestRiskManagerInit:
     """Test suite for RiskManager initialization."""
 
     def test_init(
-        self, risk_manager: RiskManager, mock_config: MagicMock, mock_portfolio_tracker: MagicMock,
+        self,
+        risk_manager: RiskManager,
+        mock_config: MagicMock,
+        mock_portfolio_tracker: MagicMock,
     ) -> None:
         """Test initializing the risk manager."""
         # Verify risk parameters were loaded and converted to Decimal

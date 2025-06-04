@@ -144,13 +144,15 @@ class TestRiskManagerSizingSimple:
 
         # Explicitly define and type the 'risk' sub-dictionary
         risk_config_to_update: dict[str, Any] = cast(
-            "dict[str, Any]", current_test_config_dict["risk"],
+            "dict[str, Any]",
+            current_test_config_dict["risk"],
         )
         risk_config_to_update.update(test_risk_overrides)
 
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
         if "global" not in current_test_config_dict["risk"] or not isinstance(
-            current_test_config_dict["risk"]["global"], dict,
+            current_test_config_dict["risk"]["global"],
+            dict,
         ):
             current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "5000.0"
@@ -230,13 +232,15 @@ class TestRiskManagerSizingSimple:
 
         # Explicitly define and type the 'risk' sub-dictionary
         risk_config_to_update: dict[str, Any] = cast(
-            "dict[str, Any]", current_test_config_dict["risk"],
+            "dict[str, Any]",
+            current_test_config_dict["risk"],
         )
         risk_config_to_update.update(test_risk_overrides)
 
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
         if "global" not in current_test_config_dict["risk"] or not isinstance(
-            current_test_config_dict["risk"]["global"], dict,
+            current_test_config_dict["risk"]["global"],
+            dict,
         ):
             current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "5000.0"
@@ -291,13 +295,15 @@ class TestRiskManagerSizingSimple:
 
         # Explicitly define and type the 'risk' sub-dictionary
         risk_config_to_update: dict[str, Any] = cast(
-            "dict[str, Any]", current_test_config_dict["risk"],
+            "dict[str, Any]",
+            current_test_config_dict["risk"],
         )
         risk_config_to_update.update(test_risk_overrides)
 
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
         if "global" not in current_test_config_dict["risk"] or not isinstance(
-            current_test_config_dict["risk"]["global"], dict,
+            current_test_config_dict["risk"]["global"],
+            dict,
         ):
             current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "10000.0"
@@ -353,13 +359,15 @@ class TestRiskManagerSizingSimple:
 
         # Explicitly define and type the 'risk' sub-dictionary
         risk_config_to_update: dict[str, Any] = cast(
-            "dict[str, Any]", current_test_config_dict["risk"],
+            "dict[str, Any]",
+            current_test_config_dict["risk"],
         )
         risk_config_to_update.update(test_risk_overrides)
 
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
         if "global" not in current_test_config_dict["risk"] or not isinstance(
-            current_test_config_dict["risk"]["global"], dict,
+            current_test_config_dict["risk"]["global"],
+            dict,
         ):
             current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "3000.0"
@@ -414,7 +422,8 @@ class TestRiskManagerSizingSimple:
 
         # Explicitly define and type the 'risk' sub-dictionary
         risk_config_to_update_safety: dict[str, Any] = cast(
-            "dict[str, Any]", current_test_config_dict["risk"],
+            "dict[str, Any]",
+            current_test_config_dict["risk"],
         )
         risk_config_to_update_safety.update(test_risk_overrides)
 
@@ -483,7 +492,8 @@ class TestRiskManagerSizingSimple:
 
         # Explicitly define and type the 'risk' sub-dictionary
         risk_config_to_update: dict[str, Any] = cast(
-            "dict[str, Any]", current_test_config_dict["risk"],
+            "dict[str, Any]",
+            current_test_config_dict["risk"],
         )
         risk_config_to_update.update(test_risk_overrides)
 
@@ -550,7 +560,8 @@ class TestRiskManagerSizingSimple:
 
         # Explicitly define and type the 'risk' sub-dictionary
         risk_config_to_update: dict[str, Any] = cast(
-            "dict[str, Any]", current_test_config_dict["risk"],
+            "dict[str, Any]",
+            current_test_config_dict["risk"],
         )
         risk_config_to_update.update(test_risk_overrides)
 
@@ -629,7 +640,8 @@ class TestRiskManagerSizingSimple:
         if not isinstance(live_test_config_data.get("risk"), dict):
             live_test_config_data["risk"] = {}
         if "global" not in live_test_config_data["risk"] or not isinstance(
-            live_test_config_data["risk"]["global"], dict,
+            live_test_config_data["risk"]["global"],
+            dict,
         ):
             live_test_config_data["risk"]["global"] = {}
         # Set initial max_position_usd high enough for the first trade to pass this constraint
@@ -638,7 +650,8 @@ class TestRiskManagerSizingSimple:
         if not isinstance(live_test_config_data.get("risk"), dict):
             live_test_config_data["risk"] = {}
         risk_config_live_update_target: dict[str, Any] = cast(
-            "dict[str, Any]", live_test_config_data["risk"],
+            "dict[str, Any]",
+            live_test_config_data["risk"],
         )
         risk_config_live_update_target.update(initial_risk_config_overrides)
         # Lower min_nfd_bps for this test to allow sizing
@@ -685,16 +698,19 @@ class TestRiskManagerSizingSimple:
         # The problematic isinstance check was removed from here previously, which was correct.
         # live_test_config_data["risk"] is now ensured to be a dict.
         risk_config_dict_for_opp2: dict[str, Any] = cast(
-            "dict[str, Any]", live_test_config_data["risk"],
+            "dict[str, Any]",
+            live_test_config_data["risk"],
         )
 
         if "global" not in risk_config_dict_for_opp2 or not isinstance(
-            risk_config_dict_for_opp2["global"], dict,
+            risk_config_dict_for_opp2["global"],
+            dict,
         ):
             risk_config_dict_for_opp2["global"] = {}  # Should not be needed
         # Direct assignment to the typed dict
         global_config_for_opp2: dict[str, Any] = cast(
-            "dict[str, Any]", risk_config_dict_for_opp2["global"],
+            "dict[str, Any]",
+            risk_config_dict_for_opp2["global"],
         )
         global_config_for_opp2["max_position_usd"] = "10.0"
 
@@ -747,7 +763,8 @@ class TestRiskManagerSizingSimple:
         current_test_config_dict["risk"].update(test_risk_overrides)
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
         if "global" not in current_test_config_dict["risk"] or not isinstance(
-            current_test_config_dict["risk"]["global"], dict,
+            current_test_config_dict["risk"]["global"],
+            dict,
         ):
             current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "10000.0"
@@ -804,7 +821,8 @@ class TestRiskManagerSizingSimple:
         current_test_config_dict["risk"].update(test_risk_overrides)
         # Ensure 'global' sub-key under 'risk' exists and is a dictionary
         if "global" not in current_test_config_dict["risk"] or not isinstance(
-            current_test_config_dict["risk"]["global"], dict,
+            current_test_config_dict["risk"]["global"],
+            dict,
         ):
             current_test_config_dict["risk"]["global"] = {}
         current_test_config_dict["risk"]["global"]["max_position_usd"] = "10000.0"

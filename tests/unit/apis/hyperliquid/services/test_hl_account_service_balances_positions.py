@@ -83,7 +83,8 @@ class TestHyperliquidAccountServiceBalancesPositions:
             unrealizedPnl="0",
         )
         mock_raw_asset_position_usdc = HyperliquidRawAssetPosition(
-            asset="USDC", position=mock_raw_position_info,
+            asset="USDC",
+            position=mock_raw_position_info,
         )
         mock_raw_margin_summary = HyperliquidRawMarginSummary(
             accountValue="1000.5",
@@ -182,7 +183,8 @@ class TestHyperliquidAccountServiceBalancesPositions:
         }
         mock_request_builder.build_user_state_payload.return_value = mock_user_state_payload_model
         expected_error = APIError(
-            "Failed to get raw state via HTTP", APIErrorCode.SERVER_ERROR.value,
+            "Failed to get raw state via HTTP",
+            APIErrorCode.SERVER_ERROR.value,
         )
         mock_http_client_requester.side_effect = expected_error
         with pytest.raises(APIError) as excinfo:
@@ -417,7 +419,8 @@ class TestHyperliquidAccountServiceBalancesPositions:
         # The service wraps ValueError in APIError with "Service internal logic error." message
         assert "Service internal logic error." in str(excinfo.value)
         assert isinstance(
-            excinfo.value.__cause__, ValueError,
+            excinfo.value.__cause__,
+            ValueError,
         )  # Check that original ValueError is preserved
         assert str(excinfo.value.__cause__) == "bad map"
         mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")

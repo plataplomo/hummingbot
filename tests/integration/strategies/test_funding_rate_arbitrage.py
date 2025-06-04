@@ -1,3 +1,10 @@
+"""Integration tests for FundingRateArbitrageStrategy.
+
+Tests the complete funding rate arbitrage strategy including opportunity
+detection, signal generation, position management, and integration with
+data handler, portfolio tracker, and risk manager components.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -182,14 +189,16 @@ async def fake_get_funding_rate(exchange_id: str, symbol: str) -> FundingRate | 
 @pytest.mark.asyncio
 @patch("asyncio.create_task", new_callable=lambda: MagicMock(return_value=asyncio.Future()))
 async def test_process_data_scheduling(
-    mock_create_task: MagicMock, strategy: FundingRateArbitrageStrategy,
+    mock_create_task: MagicMock,
+    strategy: FundingRateArbitrageStrategy,
 ) -> None:
     mock_create_task.return_value.set_result(None)
     mock_data: Candle = create_mock_candle()
     strategy.last_opportunity_check = None
     cast("AsyncMock", strategy.data_handler).get_latest_ticker.side_effect = fake_get_ticker
     cast(
-        "AsyncMock", strategy.data_handler,
+        "AsyncMock",
+        strategy.data_handler,
     ).get_latest_funding_rate.side_effect = fake_get_funding_rate
 
     with patch.object(strategy.portfolio_tracker, "get_position", return_value=None) as _:
@@ -200,7 +209,8 @@ async def test_process_data_scheduling(
 @pytest.mark.asyncio
 @patch("asyncio.create_task", new_callable=lambda: MagicMock(return_value=asyncio.Future()))
 async def test_process_data_no_scheduling_if_recent_check(
-    mock_create_task: MagicMock, strategy: FundingRateArbitrageStrategy,
+    mock_create_task: MagicMock,
+    strategy: FundingRateArbitrageStrategy,
 ) -> None:
     mock_create_task.return_value.set_result(None)
     strategy.last_opportunity_check = datetime.now(UTC) - timedelta(
@@ -209,7 +219,8 @@ async def test_process_data_no_scheduling_if_recent_check(
     mock_data: Candle = create_mock_candle()
     cast("AsyncMock", strategy.data_handler).get_latest_ticker.side_effect = fake_get_ticker
     cast(
-        "AsyncMock", strategy.data_handler,
+        "AsyncMock",
+        strategy.data_handler,
     ).get_latest_funding_rate.side_effect = fake_get_funding_rate
 
     with patch.object(strategy.portfolio_tracker, "get_position", return_value=None) as _:
@@ -220,7 +231,8 @@ async def test_process_data_no_scheduling_if_recent_check(
 @pytest.mark.asyncio
 @patch("asyncio.create_task", new_callable=lambda: MagicMock(return_value=asyncio.Future()))
 async def test_process_data_rebalance_signal_generation(
-    mock_create_task: MagicMock, strategy: FundingRateArbitrageStrategy,
+    mock_create_task: MagicMock,
+    strategy: FundingRateArbitrageStrategy,
 ) -> None:
     mock_create_task.return_value.set_result(None)
     strategy.active_opportunities = [create_mock_opportunity(symbol="BTC-PERP")]
@@ -249,7 +261,8 @@ async def test_process_data_rebalance_signal_generation(
 
     cast("AsyncMock", strategy.data_handler).get_latest_ticker.side_effect = rebalance_ticker_prices
     cast(
-        "AsyncMock", strategy.data_handler,
+        "AsyncMock",
+        strategy.data_handler,
     ).get_latest_funding_rate.side_effect = fake_get_funding_rate
     strategy.rebalance_threshold = Decimal("0.01")
     strategy.last_opportunity_check = datetime.now(UTC) - timedelta(
@@ -259,7 +272,9 @@ async def test_process_data_rebalance_signal_generation(
     mock_data: Candle = create_mock_candle()
     with (
         patch.object(
-            strategy.portfolio_tracker, "get_position", side_effect=fake_get_position,
+            strategy.portfolio_tracker,
+            "get_position",
+            side_effect=fake_get_position,
         ) as _,
         patch.object(strategy, "_should_rebalance", return_value=True) as mock_should_rebalance,
         patch.object(
@@ -268,7 +283,10 @@ async def test_process_data_rebalance_signal_generation(
             return_value=[create_mock_signal(symbol="BTC-PERP", signal_type=SignalType.REBALANCE)],
         ) as mock_gen_rebal_signal,
         patch.object(
-            strategy, "evaluate_entry_opportunity", new_callable=AsyncMock, return_value=None,
+            strategy,
+            "evaluate_entry_opportunity",
+            new_callable=AsyncMock,
+            return_value=None,
         ) as mock_eval_entry_opp,
     ):
         signals = await strategy.process_data(mock_data)
@@ -285,11 +303,13 @@ async def test_process_data_rebalance_signal_generation(
 @pytest.mark.asyncio
 @patch("cyberdelta.strategies.funding_rate_arbitrage.logger")
 async def test_evaluate_entry_opportunity_found(
-    mock_logger: MagicMock, strategy: FundingRateArbitrageStrategy,
+    mock_logger: MagicMock,
+    strategy: FundingRateArbitrageStrategy,
 ) -> None:
     cast("AsyncMock", strategy.data_handler).get_latest_ticker.side_effect = fake_get_ticker
     cast(
-        "AsyncMock", strategy.data_handler,
+        "AsyncMock",
+        strategy.data_handler,
     ).get_latest_funding_rate.side_effect = fake_get_funding_rate
 
     mock_opportunity = create_mock_opportunity(symbol="BTC-PERP", expected_profit=Decimal("100"))
@@ -307,10 +327,15 @@ async def test_evaluate_entry_opportunity_found(
     with (
         patch.object(strategy.portfolio_tracker, "get_position", return_value=None) as _,
         patch.object(
-            strategy, "_check_opportunity", new_callable=AsyncMock, return_value=mock_opportunity,
+            strategy,
+            "_check_opportunity",
+            new_callable=AsyncMock,
+            return_value=mock_opportunity,
         ) as mock_check_internal,
         patch.object(
-            strategy.risk_manager, "calculate_position_size", return_value=mock_sized_opportunity,
+            strategy.risk_manager,
+            "calculate_position_size",
+            return_value=mock_sized_opportunity,
         ) as mock_calc_size,
         patch.object(
             strategy,
@@ -334,17 +359,22 @@ async def test_evaluate_entry_opportunity_found(
 @pytest.mark.asyncio
 @patch("cyberdelta.strategies.funding_rate_arbitrage.logger")
 async def test_evaluate_entry_opportunity_no_opportunity(
-    mock_logger: MagicMock, strategy: FundingRateArbitrageStrategy,
+    mock_logger: MagicMock,
+    strategy: FundingRateArbitrageStrategy,
 ) -> None:
     cast("AsyncMock", strategy.data_handler).get_latest_ticker.side_effect = fake_get_ticker
     cast(
-        "AsyncMock", strategy.data_handler,
+        "AsyncMock",
+        strategy.data_handler,
     ).get_latest_funding_rate.side_effect = fake_get_funding_rate
 
     with (
         patch.object(strategy.portfolio_tracker, "get_position", return_value=None) as _,
         patch.object(
-            strategy, "_check_opportunity", new_callable=AsyncMock, return_value=None,
+            strategy,
+            "_check_opportunity",
+            new_callable=AsyncMock,
+            return_value=None,
         ) as mock_check_internal,
         patch.object(strategy.risk_manager, "calculate_position_size") as mock_calc_size,
         patch.object(strategy, "_generate_entry_signal") as mock_gen_signal,

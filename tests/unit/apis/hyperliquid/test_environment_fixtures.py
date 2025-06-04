@@ -41,7 +41,8 @@ class TestEnvironmentAwareFixtures:
         assert active_hl_config.chain_id == 1337
 
     def test_active_hl_config_has_rate_limiting(
-        self, active_hl_config: ExchangeSpecificConfig,
+        self,
+        active_hl_config: ExchangeSpecificConfig,
     ) -> None:
         """Test that active_hl_config includes Hyperliquid-specific rate limiting."""
         assert active_hl_config.ip_weight_limit_per_minute == 1200
@@ -96,7 +97,9 @@ class TestEnvironmentConfigurationIntegration:
     """Test integration between environment configuration and API components."""
 
     def test_config_and_secrets_compatibility(
-        self, active_hl_config: ExchangeSpecificConfig, active_hl_secrets: PrivateKeyAuthSecrets,
+        self,
+        active_hl_config: ExchangeSpecificConfig,
+        active_hl_secrets: PrivateKeyAuthSecrets,
     ) -> None:
         """Test that active config and secrets are compatible."""
         # Both should be for Hyperliquid
@@ -113,7 +116,9 @@ class TestEnvironmentConfigurationIntegration:
         assert active_hl_secrets.private_key is not None
 
     def test_testnet_environment_configuration(
-        self, hl_test_environment: str, active_hl_config: ExchangeSpecificConfig,
+        self,
+        hl_test_environment: str,
+        active_hl_config: ExchangeSpecificConfig,
     ) -> None:
         """Test that testnet environment produces correct configuration."""
         # Default should be testnet
@@ -127,7 +132,9 @@ class TestEnvironmentConfigurationIntegration:
         assert "testnet" in str(active_hl_config.ws_url_testnet)
 
     def test_fixture_integration_with_api_instantiation(
-        self, active_hl_config: ExchangeSpecificConfig, active_hl_secrets: PrivateKeyAuthSecrets,
+        self,
+        active_hl_config: ExchangeSpecificConfig,
+        active_hl_secrets: PrivateKeyAuthSecrets,
     ) -> None:
         """Test that fixtures can be used to instantiate HyperliquidAPI components."""
         # This test verifies that the fixtures produce valid configuration
@@ -151,7 +158,8 @@ class TestEnvironmentConfigurationIntegration:
         assert factory.exchange_secrets == active_hl_secrets
 
     def test_environment_aware_url_selection_testnet(
-        self, active_hl_config: ExchangeSpecificConfig,
+        self,
+        active_hl_config: ExchangeSpecificConfig,
     ) -> None:
         """Test URL selection logic for testnet environment."""
         # When is_mainnet_environment is False, testnet URLs should be available

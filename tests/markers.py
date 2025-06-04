@@ -6,4 +6,3 @@ integration = pytest.mark.integration
 slow = pytest.mark.slow
 network = pytest.mark.network
 file_io = pytest.mark.file_io
-

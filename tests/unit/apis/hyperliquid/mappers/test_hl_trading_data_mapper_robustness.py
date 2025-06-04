@@ -241,7 +241,8 @@ class TestUnicodeAndSpecialCharacters:
             assert result.symbol == symbol
 
     def test_unicode_client_order_ids(
-        self, trading_data_mapper: HyperliquidTradingDataMapper,
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test transformation with Unicode characters in client order IDs."""
         unicode_cloids = [
@@ -258,7 +259,8 @@ class TestUnicodeAndSpecialCharacters:
             assert result.client_order_id == cloid
 
     def test_special_characters_in_strings(
-        self, trading_data_mapper: HyperliquidTradingDataMapper,
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test transformation with special characters and edge cases."""
         # Test each case individually to avoid type issues
@@ -369,7 +371,8 @@ class TestPerformanceAndMemory:
     """Tests for performance and memory considerations."""
 
     def test_large_batch_transformation_stability(
-        self, trading_data_mapper: HyperliquidTradingDataMapper,
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test that large batches of transformations remain stable."""
         # Create a large number of orders
@@ -394,7 +397,8 @@ class TestPerformanceAndMemory:
         assert all(result is not None for result in results)
 
     def test_memory_efficiency_with_large_strings(
-        self, trading_data_mapper: HyperliquidTradingDataMapper,
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test memory efficiency with very large string values."""
         # Create order with very long strings (but within limits)
@@ -412,7 +416,8 @@ class TestPerformanceAndMemory:
         assert result.symbol == long_asset
 
     def test_high_precision_calculation_stability(
-        self, trading_data_mapper: HyperliquidTradingDataMapper,
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test stability with high precision decimal calculations."""
         # Create orders with maximum precision decimals
@@ -442,7 +447,8 @@ class TestComplexIntegrationScenarios:
     """Tests for complex integration scenarios and real-world edge cases."""
 
     def test_rapid_status_changes_simulation(
-        self, trading_data_mapper: HyperliquidTradingDataMapper,
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test simulation of rapid order status changes."""
         # Simulate order lifecycle: open -> partially filled -> filled
@@ -480,7 +486,8 @@ class TestComplexIntegrationScenarios:
         assert result.status == OrderStatus.FILLED
 
     def test_concurrent_transformation_consistency(
-        self, trading_data_mapper: HyperliquidTradingDataMapper,
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test that concurrent-like transformations maintain consistency."""
         # Create identical orders to simulate concurrent processing
@@ -510,7 +517,8 @@ class TestComplexIntegrationScenarios:
             assert result.status == first_result.status
 
     def test_mixed_order_types_batch_processing(
-        self, trading_data_mapper: HyperliquidTradingDataMapper,
+        self,
+        trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test batch processing of mixed order types and configurations."""
         mixed_orders = [

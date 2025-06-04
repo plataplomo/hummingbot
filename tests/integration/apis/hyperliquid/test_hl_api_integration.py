@@ -42,7 +42,9 @@ class TestHyperliquidAPIAssetIndexingIntegration:
 
     @pytest.mark.asyncio
     async def test_place_order_with_asset_indexing_success(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
     ) -> None:
         """Test that place_order works correctly when asset indexing succeeds."""
         api = hl_api_with_di()
@@ -87,7 +89,9 @@ class TestHyperliquidAPIAssetIndexingIntegration:
 
     @pytest.mark.asyncio
     async def test_place_order_with_asset_indexing_failure(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
     ) -> None:
         """Test that place_order properly handles asset indexing failures."""
         api = hl_api_with_di()
@@ -120,7 +124,9 @@ class TestHyperliquidAPIAssetIndexingIntegration:
 
     @pytest.mark.asyncio
     async def test_cancel_order_with_asset_indexing_success(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
     ) -> None:
         """Test that cancel_order works correctly when asset indexing succeeds."""
         api = hl_api_with_di()
@@ -142,7 +148,9 @@ class TestHyperliquidAPIAssetIndexingIntegration:
 
     @pytest.mark.asyncio
     async def test_cancel_order_with_asset_indexing_failure(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
     ) -> None:
         """Test that cancel_order properly handles asset indexing failures."""
         api = hl_api_with_di()
@@ -167,7 +175,9 @@ class TestHyperliquidAPIAssetIndexingIntegration:
 
     @pytest.mark.asyncio
     async def test_get_order_with_asset_indexing_success(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
     ) -> None:
         """Test that get_order works correctly when asset indexing succeeds."""
         api = hl_api_with_di()
@@ -204,7 +214,9 @@ class TestHyperliquidAPIAssetIndexingIntegration:
 
     @pytest.mark.asyncio
     async def test_get_order_with_asset_indexing_failure(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
     ) -> None:
         """Test that get_order properly handles asset indexing failures."""
         api = hl_api_with_di()
@@ -228,7 +240,9 @@ class TestHyperliquidAPIAssetIndexingIntegration:
 
     @pytest.mark.asyncio
     async def test_multiple_operations_asset_indexing_consistency(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
     ) -> None:
         """Test that multiple operations using the same symbol work consistently."""
         api = hl_api_with_di()
@@ -292,7 +306,9 @@ class TestHyperliquidAPIAccountOperations:
 
     @pytest.mark.asyncio
     async def test_get_balances_delegates_to_account_service(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_account_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_account_service: MagicMock,
     ) -> None:
         """Test that get_balances properly delegates to account service."""
         api = hl_api_with_di()
@@ -320,7 +336,9 @@ class TestHyperliquidAPIAccountOperations:
 
     @pytest.mark.asyncio
     async def test_get_account_summary_delegates_to_account_service(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_account_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_account_service: MagicMock,
     ) -> None:
         """Test that get_account_summary properly delegates to account service."""
         api = hl_api_with_di()
@@ -348,7 +366,9 @@ class TestHyperliquidAPIAccountOperations:
 
     @pytest.mark.asyncio
     async def test_get_positions_delegates_to_account_service(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_account_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_account_service: MagicMock,
     ) -> None:
         """Test that get_positions properly delegates to account service."""
         api = hl_api_with_di()
@@ -368,7 +388,9 @@ class TestHyperliquidAPIAccountOperations:
 
     @pytest.mark.asyncio
     async def test_get_positions_with_symbol_delegates_to_account_service(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_account_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_account_service: MagicMock,
     ) -> None:
         """Test that get_positions with symbol delegates to account service."""
         api = hl_api_with_di()
@@ -381,7 +403,9 @@ class TestHyperliquidAPIAccountOperations:
 
     @pytest.mark.asyncio
     async def test_get_order_history_delegates_to_account_service(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_account_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_account_service: MagicMock,
     ) -> None:
         """Test that get_order_history properly delegates to account service."""
         api = hl_api_with_di()
@@ -402,7 +426,9 @@ class TestHyperliquidAPIAccountOperations:
 
     @pytest.mark.asyncio
     async def test_get_trade_history_delegates_to_account_service(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_account_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_account_service: MagicMock,
     ) -> None:
         """Test that get_trade_history properly delegates to account service."""
         api = hl_api_with_di()
@@ -428,7 +454,9 @@ class TestHyperliquidAPITradingOperations:
 
     @pytest.mark.asyncio
     async def test_place_order_delegates_to_trading_service(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
     ) -> None:
         """Test that place_order properly delegates to trading service."""
         api = hl_api_with_di()
@@ -469,7 +497,9 @@ class TestHyperliquidAPITradingOperations:
 
     @pytest.mark.asyncio
     async def test_cancel_order_delegates_to_trading_service(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
     ) -> None:
         """Test that cancel_order properly delegates to trading service."""
         api = hl_api_with_di()
@@ -489,7 +519,9 @@ class TestHyperliquidAPITradingOperations:
 
     @pytest.mark.asyncio
     async def test_get_order_delegates_to_trading_service(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
     ) -> None:
         """Test that get_order properly delegates to trading service."""
         api = hl_api_with_di()
@@ -524,7 +556,9 @@ class TestHyperliquidAPITradingOperations:
 
     @pytest.mark.asyncio
     async def test_get_open_orders_delegates_to_trading_service(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
     ) -> None:
         """Test that get_open_orders delegates to trading service."""
         api = hl_api_with_di()
@@ -541,7 +575,9 @@ class TestHyperliquidAPIMarketDataOperations:
 
     @pytest.mark.asyncio
     async def test_get_ticker_delegates_to_market_data_service(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_market_data_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test that get_ticker delegates to market data service."""
         api = hl_api_with_di()
@@ -557,7 +593,9 @@ class TestHyperliquidAPIMarketDataOperations:
 
     @pytest.mark.asyncio
     async def test_get_funding_rates_delegates_to_market_data_service(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_market_data_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test that get_funding_rates delegates to market data service."""
         api = hl_api_with_di()
@@ -577,14 +615,17 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
 
     @pytest.mark.asyncio
     async def test_get_balances_service_validation_error(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_account_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_account_service: MagicMock,
     ) -> None:
         """Test get_balances exact propagation of service validation errors."""
         api = hl_api_with_di()
 
         # Configure mock to raise validation error
         validation_error = APIError(
-            "Invalid balance data format", code=APIErrorCode.INVALID_RESPONSE.value,
+            "Invalid balance data format",
+            code=APIErrorCode.INVALID_RESPONSE.value,
         )
         mock_hl_account_service.get_balances.side_effect = validation_error
 
@@ -599,7 +640,9 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
 
     @pytest.mark.asyncio
     async def test_get_ticker_empty_successful_response(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_market_data_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test that get_ticker handles empty successful response correctly."""
         api = hl_api_with_di()
@@ -612,7 +655,9 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
 
     @pytest.mark.asyncio
     async def test_get_positions_rate_limited_propagation(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_account_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_account_service: MagicMock,
     ) -> None:
         """Test that rate limited errors from account service are propagated correctly."""
         api = hl_api_with_di()
@@ -630,14 +675,18 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
 
     @pytest.mark.asyncio
     async def test_get_account_summary_server_error_propagation(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_account_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_account_service: MagicMock,
     ) -> None:
         """Test get_account_summary exact propagation of server errors."""
         api = hl_api_with_di()
 
         # Configure mock to raise server error
         server_error = APIError(
-            "Internal server error", code=APIErrorCode.SERVER_ERROR.value, http_status=500,
+            "Internal server error",
+            code=APIErrorCode.SERVER_ERROR.value,
+            http_status=500,
         )
         mock_hl_account_service.get_account_summary.side_effect = server_error
 
@@ -652,7 +701,9 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
 
     @pytest.mark.asyncio
     async def test_get_order_book_timeout_error_propagation(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_market_data_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test get_order_book exact propagation of timeout errors."""
         api = hl_api_with_di()
@@ -671,7 +722,9 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_service_unavailable_propagation(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_market_data_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test get_recent_trades exact propagation of service unavailable errors."""
         api = hl_api_with_di()
@@ -695,7 +748,9 @@ class TestHyperliquidAPIComprehensiveErrorHandling:
 
     @pytest.mark.asyncio
     async def test_place_order_service_unexpected_exception(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
     ) -> None:
         """Test place_order exact propagation of unexpected exceptions from service."""
         api = hl_api_with_di()
@@ -725,7 +780,8 @@ class TestHyperliquidAPIWebSocketOperations:
 
     @pytest.mark.asyncio
     async def test_subscribe_delegates_to_ws_manager(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI],
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
     ) -> None:
         """Test that subscribe properly delegates to WebSocket manager."""
         api = hl_api_with_di()
@@ -745,7 +801,8 @@ class TestHyperliquidAPIWebSocketOperations:
 
     @pytest.mark.asyncio
     async def test_websocket_message_handling_public_behavior(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI],
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
     ) -> None:
         """Test WebSocket message handling through public interface."""
         api = hl_api_with_di()
@@ -765,7 +822,9 @@ class TestHyperliquidAPIErrorHandlingIntegration:
 
     @pytest.mark.asyncio
     async def test_service_apierror_propagation_exact_passthrough(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
     ) -> None:
         """Test that APIError from service is propagated exactly without wrapping."""
         api = hl_api_with_di()
@@ -800,7 +859,9 @@ class TestHyperliquidAPIErrorHandlingIntegration:
 
     @pytest.mark.asyncio
     async def test_service_valueerror_propagation_exact_passthrough(
-        self, hl_api_with_di: Callable[..., HyperliquidAPI], mock_hl_trading_service: MagicMock,
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
     ) -> None:
         """Test that ValueError from service is propagated exactly without wrapping."""
         api = hl_api_with_di()

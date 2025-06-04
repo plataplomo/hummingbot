@@ -98,7 +98,7 @@ def create_test_signal(
     source_strategy: str = "test_strategy",
     exchange_pair: tuple[str, str] | None = None,
 ) -> TradeSignal:
-    """Helper function to create a test signal with a utility score."""
+    """Create a test signal with a utility score."""
     now = datetime.now(UTC)  # Use UTC
     expiration = now + timedelta(seconds=expiration_offset)
     metadata = {"utility_score": score}
@@ -161,7 +161,8 @@ async def test_add_signal(signal_queue: PrioritySignalQueue, sample_signal: Trad
 
 @pytest.mark.asyncio
 async def test_add_signal_idempotency(
-    signal_queue: PrioritySignalQueue, sample_signal: TradeSignal,
+    signal_queue: PrioritySignalQueue,
+    sample_signal: TradeSignal,
 ) -> None:
     """Test idempotency of adding a signal to the queue."""
     result1 = await signal_queue.add_signal(sample_signal)
@@ -197,7 +198,9 @@ async def test_add_signal_full_queue(signal_queue: PrioritySignalQueue) -> None:
 
     # Add one more signal (should trigger trim)
     signal_extra = create_test_signal(
-        symbol="EXTRA", score=0.05, price=Decimal("10"),
+        symbol="EXTRA",
+        score=0.05,
+        price=Decimal("10"),
     )  # Lowest score, should be trimmed if logic is correct
     result = await queue.add_signal(signal_extra)
     assert result is True  # Add should be successful, even if it triggers trimming
@@ -215,7 +218,9 @@ async def test_add_signal_full_queue(signal_queue: PrioritySignalQueue) -> None:
 
 @pytest.mark.asyncio
 async def test_add_signal_with_circuit_breaker_open(
-    mock_config: AppSettings, mock_circuit_breaker: MagicMock, sample_signal: TradeSignal,
+    mock_config: AppSettings,
+    mock_circuit_breaker: MagicMock,
+    sample_signal: TradeSignal,
 ) -> None:
     """Test adding a signal is rejected when the relevant circuit breaker is OPEN."""
     # Set the mock can_execute to return False for the target exchange
@@ -224,7 +229,7 @@ async def test_add_signal_with_circuit_breaker_open(
 
     # Define the side_effect function with type hints
     def can_execute_side_effect(exchange_id: str, symbol: str) -> tuple[bool, str | None]:
-        """Helper function for can execute side effect."""
+        """Handle can execute side effect for testing."""
         if exchange_id == target_exchange:
             return (False, "Test trip")
         return (True, None)
@@ -243,7 +248,9 @@ async def test_add_signal_with_circuit_breaker_open(
 
 @pytest.mark.asyncio
 async def test_add_signal_with_circuit_breaker_closed(
-    signal_queue: PrioritySignalQueue, mock_circuit_breaker: MagicMock, sample_signal: TradeSignal,
+    signal_queue: PrioritySignalQueue,
+    mock_circuit_breaker: MagicMock,
+    sample_signal: TradeSignal,
 ) -> None:
     """Test adding a signal succeeds when the relevant circuit breaker is CLOSED."""
     # Ensure the mock can_execute returns True (default fixture behavior)
@@ -265,7 +272,8 @@ async def test_add_signal_with_circuit_breaker_closed(
 
 @pytest.mark.asyncio
 async def test_add_from_opportunity(
-    signal_queue: PrioritySignalQueue, sample_opportunity: ArbitrageOpportunity,
+    signal_queue: PrioritySignalQueue,
+    sample_opportunity: ArbitrageOpportunity,
 ) -> None:
     """Test adding a signal derived from an arbitrage opportunity asynchronously."""
     result_signal = await signal_queue.add_from_opportunity(sample_opportunity, "test_strat")
@@ -280,7 +288,8 @@ async def test_add_from_opportunity(
 
 @pytest.mark.asyncio
 async def test_get_next_signal(
-    signal_queue: PrioritySignalQueue, sample_signal: TradeSignal,
+    signal_queue: PrioritySignalQueue,
+    sample_signal: TradeSignal,
 ) -> None:
     """Test retrieving the highest priority signal asynchronously."""
     await signal_queue.add_signal(sample_signal)
@@ -291,7 +300,8 @@ async def test_get_next_signal(
 
 @pytest.mark.asyncio
 async def test_peek_next_signal(
-    signal_queue: PrioritySignalQueue, sample_signal: TradeSignal,
+    signal_queue: PrioritySignalQueue,
+    sample_signal: TradeSignal,
 ) -> None:
     """Test peeking at the highest priority signal without removing it asynchronously."""
     await signal_queue.add_signal(sample_signal)
@@ -365,8 +375,9 @@ async def test_clean_expired_signals_direct_patch(
     mock_config: MagicMock,
     mock_circuit_breaker: MagicMock,
 ) -> None:  # Needs to be async
-    """Test cleaning expired signals using patched datetime (decorators replaced by
-    context managers).
+    """Test cleaning expired signals using patched datetime (decorators replaced by context managers).
+
+    This test verifies that expired signals are properly removed from the queue.
     """
     real_start_time = datetime.now(UTC)
     future_time_for_expirations = real_start_time + timedelta(seconds=100)
@@ -387,7 +398,7 @@ async def test_clean_expired_signals_direct_patch(
 
         # Override config values for the test
         def specific_get_for_cleanup_test(key: str, default: object = None) -> object:
-            """Helper function for specific get for cleanup test."""
+            """Handle specific get for cleanup test."""
             if key == "queue_cleanup_interval":
                 return 1.0  # Short interval for testing
             if key == "default_signal_expiration_seconds":
@@ -484,7 +495,8 @@ async def test_trim_queue(mock_config: AppSettings, mock_circuit_breaker: MagicM
 
 @pytest.mark.asyncio  # Mark as async
 async def test_signal_expiration_logic(
-    mock_config: AppSettings, mock_circuit_breaker: MagicMock,
+    mock_config: AppSettings,
+    mock_circuit_breaker: MagicMock,
 ) -> None:  # Needs to be async to use await
     """Test signal expiration logic with explicit cleanup task management."""
     # Create queue and reduce expiration and cleanup times for faster testing
@@ -571,7 +583,8 @@ async def test_signal_expiration_logic(
 
 @pytest.mark.asyncio  # Mark as async
 async def test_clean_expired_signals_with_helper(
-    mock_config: AppSettings, mock_circuit_breaker: MagicMock,
+    mock_config: AppSettings,
+    mock_circuit_breaker: MagicMock,
 ) -> None:  # Needs to be async
     """Test cleaning expired signals using the helper and patching datetime."""
     # Use real datetime for test setup and defining future points
@@ -661,7 +674,8 @@ def test_signal_creation(sample_signal: TradeSignal) -> None:
 
 @pytest.mark.asyncio
 async def test_add_signal_different_priorities(
-    signal_queue: PrioritySignalQueue, mock_circuit_breaker: MagicMock,
+    signal_queue: PrioritySignalQueue,
+    mock_circuit_breaker: MagicMock,
 ) -> None:
     """Test adding signals with different priorities and retrieving them in order."""
     signal_low = create_test_signal(symbol="LOW", score=0.1, price=Decimal("10"))

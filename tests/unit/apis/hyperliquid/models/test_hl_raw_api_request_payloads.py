@@ -27,7 +27,8 @@ class TestHyperliquidApiL2UsdTransferRequest:
         }
         payload_model = HyperliquidRawL2UsdTransferPayload(**payload_data)
         action_details_model = HyperliquidRawL2UsdTransferActionDetails(
-            chain="L2", payload=payload_model,
+            chain="L2",
+            payload=payload_model,
         )
 
         req = HyperliquidApiL2UsdTransferRequest(type="usdTransfer", action=action_details_model)
@@ -48,7 +49,8 @@ class TestHyperliquidApiL2UsdTransferRequest:
         with pytest.raises(ValidationError):
             payload_model = HyperliquidRawL2UsdTransferPayload(**payload_data)
             action_details_model = HyperliquidRawL2UsdTransferActionDetails(
-                chain="L2", payload=payload_model,
+                chain="L2",
+                payload=payload_model,
             )
             HyperliquidApiL2UsdTransferRequest(type="usdTransfer", action=action_details_model)
 
@@ -63,7 +65,8 @@ class TestHyperliquidApiL2UsdTransferRequest:
             # Pydantic should raise when HyperliquidRawL2UsdTransferPayload is instantiated
             payload_model = HyperliquidRawL2UsdTransferPayload(**payload_data)
             action_details_model = HyperliquidRawL2UsdTransferActionDetails(
-                chain="L2", payload=payload_model,
+                chain="L2",
+                payload=payload_model,
             )
             HyperliquidApiL2UsdTransferRequest(type="usdTransfer", action=action_details_model)
 
@@ -79,7 +82,8 @@ class TestHyperliquidApiL2UsdTransferRequest:
         # Instantiate inner models explicitly if **request_data is problematic
         payload_model = HyperliquidRawL2UsdTransferPayload(**payload_dict)
         action_details_model = HyperliquidRawL2UsdTransferActionDetails(
-            chain="L2", payload=payload_model,
+            chain="L2",
+            payload=payload_model,
         )
 
         request_data_for_unpack: dict[str, Any] = {
@@ -102,7 +106,8 @@ class TestHyperliquidApiL2UsdTransferRequest:
         }
         payload_model = HyperliquidRawL2UsdTransferPayload(**payload_dict)
         action_details_model = HyperliquidRawL2UsdTransferActionDetails(
-            chain="L2", payload=payload_model,
+            chain="L2",
+            payload=payload_model,
         )
 
         request_data_for_unpack: dict[str, Any] = {
@@ -149,7 +154,8 @@ class TestHyperliquidApiEthWithdrawalRequest:
     def test_eth_withdrawal_explicit_type_provided_direct_unpack(self) -> None:
         """Test eth withdrawal explicit type provided direct unpack."""
         action_payload_model = HyperliquidRawEthWithdrawalActionPayload(
-            destination="0x1234567890abcdef1234567890abcdef12345678", amount="1.234",
+            destination="0x1234567890abcdef1234567890abcdef12345678",
+            amount="1.234",
         )
         request_data_for_unpack: dict[str, Any] = {
             "type": "withdrawEth",
@@ -163,7 +169,8 @@ class TestHyperliquidApiEthWithdrawalRequest:
     def test_eth_withdrawal_incorrect_outer_type(self) -> None:
         """Test eth withdrawal incorrect outer type."""
         action_payload_model = HyperliquidRawEthWithdrawalActionPayload(
-            destination="0x1234567890abcdef1234567890abcdef12345678", amount="1.234",
+            destination="0x1234567890abcdef1234567890abcdef12345678",
+            amount="1.234",
         )
         request_data_for_unpack: dict[str, Any] = {
             "type": "wrongWithdrawType",  # Incorrect type

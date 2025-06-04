@@ -1,3 +1,8 @@
+"""Unit tests for discrepancy detail models.
+
+Tests validation and functionality of DiscrepancyDetail and HistoricalDiscrepancyRecord models.
+"""
+
 from datetime import UTC, datetime
 from unittest.mock import patch
 
@@ -12,7 +17,8 @@ from cyberdelta.validation.models.discrepancy_detail import (
 
 # Helper function for testing validate_assignment
 def _get_value_for_assignment_test() -> bool:
-    """Helper function for testing.
+    """Test helper function for validate_assignment testing.
+
     Typed to return bool, but will be mocked to return an invalid type (str)
     at runtime to test Pydantic's validate_assignment.
     """

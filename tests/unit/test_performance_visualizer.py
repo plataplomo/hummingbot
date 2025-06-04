@@ -1,3 +1,8 @@
+"""Unit tests for the PerformanceVisualizer component.
+
+Tests performance visualization functionality including chart generation and data presentation.
+"""
+
 from typing import Any
 
 import numpy as np
@@ -105,7 +110,8 @@ class TestPerformanceVisualizer:
 
         # Test with specific strategies
         fig = self.visualizer.create_returns_chart(
-            self.returns_data, strategy_names=["Strategy1", "Strategy2"],
+            self.returns_data,
+            strategy_names=["Strategy1", "Strategy2"],
         )
         assert isinstance(fig, go.Figure)
         if isinstance(fig.data, tuple):

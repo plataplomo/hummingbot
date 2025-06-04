@@ -36,13 +36,13 @@ from cyberdelta.core.models.market.trade import Trade  # Needed for Order.trades
 # --- Helper Fixtures ---
 @pytest.fixture
 def valid_hl_order_details_data() -> dict[str, Any]:
-    """Provides valid data for HyperliquidOrderDetails."""
+    """Provide valid data for HyperliquidOrderDetails."""
     return {"remaining_sz": Decimal("0.5")}
 
 
 @pytest.fixture
 def valid_bp_order_details_data() -> dict[str, Any]:
-    """Provides valid data for BackpackOrderDetails."""
+    """Provide valid data for BackpackOrderDetails."""
     return {
         "executed_quote_quantity": Decimal("1000.50"),
         "self_trade_prevention": SelfTradePrevention.REJECT_TAKER,
@@ -60,7 +60,7 @@ def valid_bp_order_details_data() -> dict[str, Any]:
 
 @pytest.fixture
 def base_order_data() -> dict[str, Any]:
-    """Provides a dictionary with valid core data for Order creation."""
+    """Provide a dictionary with valid core data for Order creation."""
     return {
         "exchange": "backpack",
         "symbol": "BTC-PERP",
@@ -253,7 +253,8 @@ def test_order_model_validation_failures(base_order_data: dict[str, Any]) -> Non
     data["order_type"] = OrderType.LIMIT
     del data["price"]
     with pytest.raises(
-        ValidationError, match=r"Value error, Order type LIMIT requires a positive price",
+        ValidationError,
+        match=r"Value error, Order type LIMIT requires a positive price",
     ):
         Order(**data)
 
@@ -289,7 +290,8 @@ def test_order_model_validation_failures(base_order_data: dict[str, Any]) -> Non
     data["quantity_filled"] = data["quantity_requested"] + Decimal("0.01")
     data["average_fill_price"] = Decimal("50000")
     with pytest.raises(
-        ValidationError, match=r"Value error, quantity_filled .* cannot exceed quantity_requested",
+        ValidationError,
+        match=r"Value error, quantity_filled .* cannot exceed quantity_requested",
     ):
         Order(**data)
 
@@ -349,7 +351,8 @@ def test_order_mutability(base_order_data: dict[str, Any]) -> None:
 
     # Invalid assignment (violates model validator - qty filled > requested)
     with pytest.raises(
-        ValidationError, match=r"Value error, quantity_filled .* cannot exceed quantity_requested",
+        ValidationError,
+        match=r"Value error, quantity_filled .* cannot exceed quantity_requested",
     ):
         order.average_fill_price = new_avg_price + 1
         order.quantity_filled = order.quantity_requested + Decimal("0.01")

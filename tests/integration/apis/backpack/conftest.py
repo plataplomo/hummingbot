@@ -1,3 +1,9 @@
+"""Integration test fixtures for Backpack API testing.
+
+Provides fixtures for both real and mocked BackpackAPI instances, supporting
+both cassette-based integration tests and dependency-injected unit tests.
+Uses test configuration from tests/config/test_config.yaml.
+"""
 # Integration test fixtures for Backpack API
 # Uses test configuration from tests/config/test_config.yaml
 
@@ -13,7 +19,7 @@ from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, SecretsConfig
 
 @pytest.fixture(scope="session")
 def active_bp_config(test_app_settings: AppSettings) -> ExchangeSpecificConfig:
-    """Get ExchangeSpecificConfig for Backpack from test configuration.
+    """Provide ExchangeSpecificConfig for Backpack from test configuration.
 
     Uses test_config.yaml settings. Backpack always uses mainnet.
     """
@@ -22,7 +28,7 @@ def active_bp_config(test_app_settings: AppSettings) -> ExchangeSpecificConfig:
 
 @pytest.fixture(scope="session")
 def active_bp_secrets(test_secrets_config: SecretsConfig) -> ApiKeyAuthSecrets:
-    """Get ApiKeyAuthSecrets for Backpack from test secrets.
+    """Provide ApiKeyAuthSecrets for Backpack from test secrets.
 
     Uses test_secrets.yaml settings.
     """
@@ -35,7 +41,7 @@ def active_bp_secrets(test_secrets_config: SecretsConfig) -> ApiKeyAuthSecrets:
 # Mock fixtures for Backpack components
 @pytest.fixture
 def mock_bp_authenticator() -> MagicMock:
-    """Mock BackpackEd25519Authenticator."""
+    """Provide mock BackpackEd25519Authenticator."""
     from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
 
     mock_auth = MagicMock(spec=BackpackEd25519Authenticator)
@@ -45,7 +51,7 @@ def mock_bp_authenticator() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_error_mapper() -> MagicMock:
-    """Mock BackpackErrorMapper."""
+    """Provide mock BackpackErrorMapper."""
     from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
 
     return MagicMock(spec=BackpackErrorMapper)
@@ -53,7 +59,7 @@ def mock_bp_error_mapper() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_request_builder() -> MagicMock:
-    """Mock BackpackRequestBuilder."""
+    """Provide mock BackpackRequestBuilder."""
     from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 
     return MagicMock(spec=BackpackRequestBuilder)
@@ -61,7 +67,7 @@ def mock_bp_request_builder() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_response_handler() -> MagicMock:
-    """Mock BackpackResponseHandler."""
+    """Provide mock BackpackResponseHandler."""
     from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 
     return MagicMock(spec=BackpackResponseHandler)
@@ -69,7 +75,7 @@ def mock_bp_response_handler() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_account_data_mapper() -> MagicMock:
-    """Mock BackpackAccountDataMapper."""
+    """Provide mock BackpackAccountDataMapper."""
     from cyberdelta.apis.backpack.mappers import BackpackAccountDataMapper
 
     return MagicMock(spec=BackpackAccountDataMapper)
@@ -77,7 +83,7 @@ def mock_bp_account_data_mapper() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_market_data_mapper() -> MagicMock:
-    """Mock BackpackMarketDataMapper."""
+    """Provide mock BackpackMarketDataMapper."""
     from cyberdelta.apis.backpack.mappers import BackpackMarketDataMapper
 
     return MagicMock(spec=BackpackMarketDataMapper)
@@ -85,7 +91,7 @@ def mock_bp_market_data_mapper() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_trading_data_mapper() -> MagicMock:
-    """Mock BackpackTradingDataMapper."""
+    """Provide mock BackpackTradingDataMapper."""
     from cyberdelta.apis.backpack.mappers import BackpackTradingDataMapper
 
     return MagicMock(spec=BackpackTradingDataMapper)
@@ -93,7 +99,7 @@ def mock_bp_trading_data_mapper() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_account_service() -> MagicMock:
-    """Mock BackpackAccountService."""
+    """Provide mock BackpackAccountService."""
     from cyberdelta.apis.backpack.services import BackpackAccountService
 
     mock_service = MagicMock(spec=BackpackAccountService)
@@ -108,7 +114,7 @@ def mock_bp_account_service() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_market_data_service() -> MagicMock:
-    """Mock BackpackMarketDataService."""
+    """Provide mock BackpackMarketDataService."""
     from cyberdelta.apis.backpack.services import BackpackMarketDataService
 
     mock_service = MagicMock(spec=BackpackMarketDataService)
@@ -122,7 +128,7 @@ def mock_bp_market_data_service() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_trading_service() -> MagicMock:
-    """Mock BackpackTradingService."""
+    """Provide mock BackpackTradingService."""
     from cyberdelta.apis.backpack.services import BackpackTradingService
 
     mock_service = MagicMock(spec=BackpackTradingService)
@@ -136,7 +142,7 @@ def mock_bp_trading_service() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_http_client() -> MagicMock:
-    """Mock HttpClient for BackpackAPI."""
+    """Provide mock HttpClient for BackpackAPI."""
     mock_client = MagicMock()
     mock_client.request = AsyncMock()
     mock_client.close_session = AsyncMock()
@@ -175,7 +181,8 @@ def bp_api_with_di(
     mock_bp_market_data_service: MagicMock,
     mock_bp_trading_service: MagicMock,
 ) -> Callable[..., BackpackAPI]:
-    """Factory fixture to create BackpackAPI instances with all dependencies injected.
+    """Create factory fixture for BackpackAPI instances with all dependencies injected.
+
     This enables black-box testing without accessing protected members.
     """
 

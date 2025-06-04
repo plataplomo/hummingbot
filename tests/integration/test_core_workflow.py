@@ -1,3 +1,10 @@
+"""Integration tests for core trading engine workflow.
+
+Tests the complete end-to-end workflow including data handling, signal generation,
+risk management, execution, and portfolio tracking. Covers happy path scenarios
+as well as error conditions and edge cases.
+"""
+
 import asyncio
 import logging  # Import logging
 from collections import defaultdict
@@ -57,7 +64,9 @@ from tests.integration.mocks.mock_exchange import MockAPIError, MockExchangeAPI
 
 
 def create_mock_funding_rate(
-    symbol: str, rate: str | Decimal | None, next_time: datetime,
+    symbol: str,
+    rate: str | Decimal | None,
+    next_time: datetime,
 ) -> FundingRate:
     """Create mock funding rate for testing."""
     # Convert rate to Decimal, ensuring string conversion for floats/others
@@ -346,7 +355,8 @@ def mock_secrets() -> dict[str, dict[str, str | None]]:
 
 @pytest.fixture
 def mock_hl_api(
-    mock_config: AppSettings, mock_secrets: dict[str, dict[str, str | None]],
+    mock_config: AppSettings,
+    mock_secrets: dict[str, dict[str, str | None]],
 ) -> MockExchangeAPI:
     """Instantiate the actual Mock API for Hyperliquid."""
     # Use empty dict for exchange config since it's a mock
@@ -362,7 +372,8 @@ def mock_hl_api(
 
 @pytest.fixture
 def mock_bp_api(
-    mock_config: AppSettings, mock_secrets: dict[str, dict[str, str | None]],
+    mock_config: AppSettings,
+    mock_secrets: dict[str, dict[str, str | None]],
 ) -> MockExchangeAPI:
     """Instantiate the actual Mock API for Backpack."""
     # Use empty dict for exchange config since it's a mock
@@ -378,7 +389,9 @@ def mock_bp_api(
 
 @pytest.fixture
 def portfolio_tracker(
-    mock_config: AppSettings, mock_hl_api: MockExchangeAPI, mock_bp_api: MockExchangeAPI,
+    mock_config: AppSettings,
+    mock_hl_api: MockExchangeAPI,
+    mock_bp_api: MockExchangeAPI,
 ) -> PortfolioTracker:
     """Portfolio Tracker instance with APIs registered."""
     tracker = PortfolioTracker(mock_config, mock_config.portfolio_tracker)
@@ -425,7 +438,9 @@ def symbol_mapper(mock_config: AppSettings) -> SymbolMapper:
 
 @pytest.fixture
 def signal_generator(
-    mock_config: AppSettings, data_handler: DataHandler, symbol_mapper: SymbolMapper,
+    mock_config: AppSettings,
+    data_handler: DataHandler,
+    symbol_mapper: SymbolMapper,
 ) -> SignalGenerator:
     """Signal Generator instance."""
     return SignalGenerator(mock_config, data_handler, symbol_mapper)
@@ -564,7 +579,9 @@ async def test_happy_path_full_cycle(
 
     # Funding Rates
     mock_hl_funding = create_mock_funding_rate(
-        symbol_hl, "-0.0002", start_time + timedelta(hours=1),
+        symbol_hl,
+        "-0.0002",
+        start_time + timedelta(hours=1),
     )
     mock_bp_funding = create_mock_funding_rate(symbol_bp, "0.0001", start_time + timedelta(hours=1))
     mock_hl_api.set_mock_funding_rate(mock_hl_funding)
@@ -572,10 +589,18 @@ async def test_happy_path_full_cycle(
 
     # <<< ADDED >>> Set mock tickers for USD/USDC conversion
     mock_usd_usdc_ticker = create_mock_ticker(
-        "USD-USDC", bid="0.9998", ask="1.0002", price="1.0", timestamp=start_time,
+        "USD-USDC",
+        bid="0.9998",
+        ask="1.0002",
+        price="1.0",
+        timestamp=start_time,
     )
     mock_usdc_usd_ticker = create_mock_ticker(
-        "USDC-USD", bid="0.9998", ask="1.0002", price="1.0", timestamp=start_time,
+        "USDC-USD",
+        bid="0.9998",
+        ask="1.0002",
+        price="1.0",
+        timestamp=start_time,
     )
     mock_hl_api.set_mock_ticker(mock_usd_usdc_ticker)
     mock_hl_api.set_mock_ticker(mock_usdc_usd_ticker)
@@ -900,10 +925,18 @@ async def test_partial_fill(
     # New prices for better spread: Short HL (sell at HL bid), Long BP (buy at BP ask)
     # We want HL_bid >= BP_ask for positive price component of profit
     mock_hl_ticker = create_mock_ticker(
-        hl_symbol, "40005.0", "40007.0", "40006.0", now,
+        hl_symbol,
+        "40005.0",
+        "40007.0",
+        "40006.0",
+        now,
     )  # bid, ask, price
     mock_bp_ticker = create_mock_ticker(
-        bp_symbol, "40000.0", "40002.0", "40001.0", now,
+        bp_symbol,
+        "40000.0",
+        "40002.0",
+        "40001.0",
+        now,
     )  # bid, ask, price
 
     mock_hl_api.set_mock_ticker(mock_hl_ticker)
@@ -1060,7 +1093,9 @@ async def test_partial_fill(
     # mock_bp_api.get_order_status.side_effect = get_order_status_side_effect_bp
     # Replaced by mocker.patch
     mocker.patch.object(
-        mock_bp_api, "get_order_status", side_effect=get_order_status_side_effect_bp,
+        mock_bp_api,
+        "get_order_status",
+        side_effect=get_order_status_side_effect_bp,
     )
 
     # HL (Short) - Fills completely initially, then needs compensation
@@ -1097,7 +1132,8 @@ async def test_partial_fill(
     )
 
     async def place_order_side_effect_hl(
-        *args: object, **kwargs: object,
+        *args: object,
+        **kwargs: object,
     ) -> Order:  # Corrected return type to Order
         nonlocal hl_place_call_count
         hl_place_call_count += 1
@@ -1135,7 +1171,9 @@ async def test_partial_fill(
     # mock_hl_api.get_order_status.side_effect = get_order_status_side_effect_hl
     # Replaced by mocker.patch
     mocker.patch.object(
-        mock_hl_api, "get_order_status", side_effect=get_order_status_side_effect_hl,
+        mock_hl_api,
+        "get_order_status",
+        side_effect=get_order_status_side_effect_hl,
     )
 
     # --- Execute Test ---
@@ -1309,10 +1347,18 @@ async def test_execution_failure_compensation(
     mock_hl_ticker = create_mock_ticker(hl_symbol, 2000.0, 2000.5, 2000.25, now)
     mock_bp_ticker = create_mock_ticker(bp_symbol, 2001.0, 2001.5, 2001.25, now)
     mock_usd_usdc_hl_ticker = create_mock_ticker(
-        "USD-USDC", "0.999", "1.001", "1.0", now,
+        "USD-USDC",
+        "0.999",
+        "1.001",
+        "1.0",
+        now,
     )  # For HL USD to USDC
     mock_usdc_usd_bp_ticker = create_mock_ticker(
-        "USDC-USD", "0.999", "1.001", "1.0", now,
+        "USDC-USD",
+        "0.999",
+        "1.001",
+        "1.0",
+        now,
     )  # For BP USDC to USD
 
     mock_hl_api.set_mock_ticker(mock_hl_ticker)
@@ -1514,7 +1560,8 @@ async def test_execution_failure_compensation(
     )
 
     async def place_order_side_effect_hl(
-        *args: object, **kwargs: object,
+        *args: object,
+        **kwargs: object,
     ) -> Order:  # Corrected return type to Order
         nonlocal hl_place_call_count
         hl_place_call_count += 1
@@ -1555,7 +1602,9 @@ async def test_execution_failure_compensation(
     # side_effect=get_order_status_side_effect_hl)
     if not hasattr(mock_hl_api.get_order_status, "call_args_list"):
         mocker.patch.object(
-            mock_hl_api, "get_order_status", side_effect=get_order_status_side_effect_hl,
+            mock_hl_api,
+            "get_order_status",
+            side_effect=get_order_status_side_effect_hl,
         )
 
     # --- Execute Test ---
@@ -1793,7 +1842,8 @@ async def test_failed_execution(
     target_qty = Decimal("0.5")
     # Correctly mock mock_hl_api.place_order to *raise* an APIError when called
     simulated_error = APIError(
-        "Simulated placement error", code=APIErrorCode.CONNECTION_ERROR.value,
+        "Simulated placement error",
+        code=APIErrorCode.CONNECTION_ERROR.value,
     )  # Use .value
     # mock_hl_api.place_order = AsyncMock(side_effect=simulated_error) # Replaced
     mocker.patch.object(mock_hl_api, "place_order", side_effect=simulated_error)

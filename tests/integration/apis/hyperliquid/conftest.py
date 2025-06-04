@@ -1,3 +1,9 @@
+"""Integration test fixtures for Hyperliquid API testing.
+
+Provides fixtures for both real and mocked HyperliquidAPI instances, supporting
+both cassette-based integration tests and dependency-injected unit tests.
+Uses test configuration from tests/config/test_config.yaml.
+"""
 # Integration test fixtures for Hyperliquid API
 # Uses test configuration from tests/config/test_config.yaml
 
@@ -15,9 +21,10 @@ from cyberdelta.enums.exchange_names import ExchangeName
 
 @pytest.fixture(scope="session")
 def active_hl_config(
-    test_app_settings: AppSettings, hl_test_environment_from_config: str,
+    test_app_settings: AppSettings,
+    hl_test_environment_from_config: str,
 ) -> ExchangeSpecificConfig:
-    """Get ExchangeSpecificConfig for Hyperliquid from test configuration.
+    """Provide ExchangeSpecificConfig for Hyperliquid from test configuration.
 
     Uses test_config.yaml settings with environment override support.
     """
@@ -30,7 +37,7 @@ def active_hl_config(
 
 @pytest.fixture(scope="session")
 def active_hl_secrets(test_secrets_config: SecretsConfig) -> PrivateKeyAuthSecrets:
-    """Get PrivateKeyAuthSecrets for Hyperliquid from test secrets.
+    """Provide PrivateKeyAuthSecrets for Hyperliquid from test secrets.
 
     Uses test_secrets.yaml settings.
     """
@@ -89,7 +96,7 @@ def create_test_exchange_config(
 
 @pytest.fixture
 def mock_hl_http_client() -> MagicMock:
-    """Mock HttpClient for HyperliquidAPI main endpoint."""
+    """Provide mock HttpClient for HyperliquidAPI main endpoint."""
     mock_client = MagicMock()
     mock_client.request = AsyncMock()
     mock_client.close_session = AsyncMock()
@@ -98,7 +105,7 @@ def mock_hl_http_client() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_authenticator() -> MagicMock:
-    """Mock HyperliquidEip712Authenticator."""
+    """Provide mock HyperliquidEip712Authenticator."""
     from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 
     mock_auth = MagicMock(spec=HyperliquidEip712Authenticator)
@@ -109,7 +116,7 @@ def mock_hl_authenticator() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_error_mapper() -> MagicMock:
-    """Mock HyperliquidErrorMapper."""
+    """Provide mock HyperliquidErrorMapper."""
     from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 
     mock_mapper = MagicMock(spec=HyperliquidErrorMapper)
@@ -118,7 +125,7 @@ def mock_hl_error_mapper() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_request_builder() -> MagicMock:
-    """Mock HyperliquidRequestBuilder."""
+    """Provide mock HyperliquidRequestBuilder."""
     from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 
     mock_builder = MagicMock(spec=HyperliquidRequestBuilder)
@@ -127,7 +134,7 @@ def mock_hl_request_builder() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_response_handler() -> MagicMock:
-    """Mock HyperliquidResponseHandler."""
+    """Provide mock HyperliquidResponseHandler."""
     from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
 
     mock_handler = MagicMock(spec=HyperliquidResponseHandler)
@@ -136,7 +143,7 @@ def mock_hl_response_handler() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_mapper() -> MagicMock:
-    """Mock HyperliquidMarketDataMapper (for backwards compatibility)."""
+    """Provide mock HyperliquidMarketDataMapper (for backwards compatibility)."""
     from cyberdelta.apis.hyperliquid.mappers import HyperliquidMarketDataMapper
 
     mock_mapper = MagicMock(spec=HyperliquidMarketDataMapper)
@@ -145,7 +152,7 @@ def mock_hl_mapper() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_account_mapper() -> MagicMock:
-    """Mock HyperliquidAccountDataMapper."""
+    """Provide mock HyperliquidAccountDataMapper."""
     from cyberdelta.apis.hyperliquid.mappers import HyperliquidAccountDataMapper
 
     mock_mapper = MagicMock(spec=HyperliquidAccountDataMapper)
@@ -154,7 +161,7 @@ def mock_hl_account_mapper() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_order_mapper() -> MagicMock:
-    """Mock HyperliquidTradingDataMapper (legacy order mapper)."""
+    """Provide mock HyperliquidTradingDataMapper (legacy order mapper)."""
     from cyberdelta.apis.hyperliquid.mappers import HyperliquidTradingDataMapper
 
     mock_mapper = MagicMock(spec=HyperliquidTradingDataMapper)
@@ -163,7 +170,7 @@ def mock_hl_order_mapper() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_trading_mapper() -> MagicMock:
-    """Mock HyperliquidTradingDataMapper."""
+    """Provide mock HyperliquidTradingDataMapper."""
     from cyberdelta.apis.hyperliquid.mappers import HyperliquidTradingDataMapper
 
     mock_mapper = MagicMock(spec=HyperliquidTradingDataMapper)
@@ -172,7 +179,7 @@ def mock_hl_trading_mapper() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_user_fill_mapper() -> MagicMock:
-    """Mock HyperliquidAccountDataMapper (for user fills)."""
+    """Provide mock HyperliquidAccountDataMapper (for user fills)."""
     from cyberdelta.apis.hyperliquid.mappers import HyperliquidAccountDataMapper
 
     mock_mapper = MagicMock(spec=HyperliquidAccountDataMapper)
@@ -181,7 +188,7 @@ def mock_hl_user_fill_mapper() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_account_service() -> MagicMock:
-    """Mock HyperliquidAccountService."""
+    """Provide mock HyperliquidAccountService."""
     from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 
     mock_service = MagicMock(spec=HyperliquidAccountService)
@@ -195,7 +202,7 @@ def mock_hl_account_service() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_trading_service() -> MagicMock:
-    """Mock HyperliquidTradingService."""
+    """Provide mock HyperliquidTradingService."""
     from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
 
     mock_service = MagicMock(spec=HyperliquidTradingService)
@@ -209,7 +216,7 @@ def mock_hl_trading_service() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_market_data_service() -> MagicMock:
-    """Mock HyperliquidMarketDataService."""
+    """Provide mock HyperliquidMarketDataService."""
     from cyberdelta.apis.hyperliquid.services.hl_market_data_service import (
         HyperliquidMarketDataService,
     )
@@ -259,7 +266,8 @@ def hl_api_with_di(
     mock_hl_trading_service: MagicMock,
     mock_hl_market_data_service: MagicMock,
 ) -> Callable[..., Any]:
-    """Factory fixture to create HyperliquidAPI instances with all dependencies injected.
+    """Create factory fixture for HyperliquidAPI instances with all dependencies injected.
+
     This enables black-box testing without accessing private members.
 
     UPDATED: Now uses active_hl_config and active_hl_secrets by default.

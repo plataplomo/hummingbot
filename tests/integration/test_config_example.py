@@ -59,7 +59,10 @@ def test_create_example(example_test_setup: tuple[str, str]) -> None:
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
         cyberdelta_config_example = os.path.join(
-            project_root, "cyberdelta", "config", "config.yaml.example",
+            project_root,
+            "cyberdelta",
+            "config",
+            "config.yaml.example",
         )
         root_config_example = os.path.join(project_root, "config", "config.example.yaml")
         home_config_example = os.path.join(temp_dir_name, ".cyberdelta", "secrets.yaml.example")

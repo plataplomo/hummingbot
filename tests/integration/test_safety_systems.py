@@ -40,7 +40,8 @@ from tests.integration.mocks.mock_exchange import MockExchangeAPI  # Added MockE
 # === FORCE ROOT LOGGER LEVEL ===
 logging.getLogger().setLevel(logging.INFO)
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)  # ADD logger instance
 # ============================
@@ -519,7 +520,8 @@ async def test_position_reconciler_detects_discrepancy(
     # Force the check to bypass interval caching
     discrepancies_reverse_result = await position_reconciler.check_positions(force=True)
     discrepancies_reverse = discrepancies_reverse_result.get(exchange_id, {}).get(
-        "discrepancies", [],
+        "discrepancies",
+        [],
     )
 
     # 5. Verify Reverse Discrepancy Detection

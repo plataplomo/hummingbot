@@ -139,7 +139,9 @@ def test_eth_withdrawal_payload_valid() -> None:
     ],
 )
 def test_eth_withdrawal_payload_invalid_fields(
-    field: str, value: str | None, expected_error_part: str,
+    field: str,
+    value: str | None,
+    expected_error_part: str,
 ) -> None:
     """Test eth withdrawal payload invalid fields."""
     data = {"amount": VALID_DECIMAL_STR, "destination": VALID_ETH_ADDRESS}
@@ -237,7 +239,9 @@ def test_order_item_spec_valid_market_no_cloid() -> None:
     ],
 )
 def test_order_item_spec_invalid_fields(
-    field_alias: str, value: object, expected_error_part: str,
+    field_alias: str,
+    value: object,
+    expected_error_part: str,
 ) -> None:
     """Test order item spec invalid fields."""
     base_data = {
@@ -342,7 +346,9 @@ def test_batch_place_order_payload_valid() -> None:
     ],
 )
 def test_batch_place_order_payload_invalid_fields(
-    field_path: tuple[str | int, ...], value: object, expected_error_part: str,
+    field_path: tuple[str | int, ...],
+    value: object,
+    expected_error_part: str,
 ) -> None:
     """Test batch place order payload invalid fields."""
     # Base valid data structure for a batch order item
@@ -435,7 +441,9 @@ def test_l2_usd_transfer_action_details_valid() -> None:
     ],
 )
 def test_l2_usd_transfer_action_details_invalid(
-    field: str, value: object, expected_error_part: str,
+    field: str,
+    value: object,
+    expected_error_part: str,
 ) -> None:
     """Test l2 usd transfer action details invalid."""
     base_payload_data = {

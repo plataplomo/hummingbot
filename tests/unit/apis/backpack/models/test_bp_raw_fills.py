@@ -174,7 +174,8 @@ def test_backpack_raw_fill_invalid_formats_and_values(
     ],
 )
 def test_backpack_raw_fill_missing_required(
-    valid_fill_data: dict[str, Any], field_to_remove: str,
+    valid_fill_data: dict[str, Any],
+    field_to_remove: str,
 ) -> None:
     """Test ValidationError when required fields are missing."""
     del valid_fill_data[field_to_remove]

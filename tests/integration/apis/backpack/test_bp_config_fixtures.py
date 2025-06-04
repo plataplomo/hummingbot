@@ -33,7 +33,9 @@ class TestBackpackConfigFixtures:
         assert active_bp_secrets.api_secret is not None
 
     def test_bp_api_for_test_env(
-        self, bp_api_for_test_env: BackpackAPI, active_bp_config: ExchangeSpecificConfig,
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        active_bp_config: ExchangeSpecificConfig,
     ) -> None:
         """Test that bp_api_for_test_env creates a proper API instance."""
         assert isinstance(bp_api_for_test_env, BackpackAPI)

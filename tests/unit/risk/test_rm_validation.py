@@ -18,7 +18,9 @@ class TestRiskManagerValidation:
 
     @pytest.mark.asyncio
     async def test_validate_opportunities(
-        self, risk_manager: RiskManager, sample_opportunity: ArbitrageOpportunity,
+        self,
+        risk_manager: RiskManager,
+        sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test validating opportunities."""
         # Test with a valid opportunity (needs size_opportunity to return something)

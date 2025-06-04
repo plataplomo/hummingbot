@@ -1,3 +1,10 @@
+"""Mock exchange API implementation for integration testing.
+
+Provides a complete mock implementation of ExchangeAPI that simulates
+exchange behavior including order management, market data, WebSocket
+interactions, and error conditions for comprehensive testing.
+"""
+
 import asyncio
 import logging
 import uuid
@@ -131,7 +138,10 @@ class MockExchangeAPI(ExchangeAPI):
 
         mock_error_mapper = MockErrorMapper()  # Use the placeholder ErrorMapper
         super().__init__(
-            exchange_name, config_copy, secrets, error_mapper=mock_error_mapper,
+            exchange_name,
+            config_copy,
+            secrets,
+            error_mapper=mock_error_mapper,
         )  # Pass the modified copy
         self.full_config = config_obj  # Store the full config object if provided
         self._order_id_counter = 1
@@ -355,7 +365,9 @@ class MockExchangeAPI(ExchangeAPI):
         """Configure an APIError to be raised by a specific method."""
         # DEFENSIVE CHECK: Convert enum to str for APIError
         error = APIError(
-            message=message, code=str(error_code.value), exchange_code=self.exchange_name,
+            message=message,
+            code=str(error_code.value),
+            exchange_code=self.exchange_name,
         )
         self._error_config[method_name] = (error, trigger_after_n_calls)
         self._call_counts[method_name] = 0  # Reset count when configuring
@@ -414,7 +426,9 @@ class MockExchangeAPI(ExchangeAPI):
                 raise error
 
     def configure_failure(
-        self, method_name: str | None = None, exception: Exception | None = None,
+        self,
+        method_name: str | None = None,
+        exception: Exception | None = None,
     ) -> None:
         """Configure the mock to fail on a specific method call."""
         self._fail_on_method = method_name
@@ -442,7 +456,10 @@ class MockExchangeAPI(ExchangeAPI):
         return {}
 
     def _update_rate_limit_from_headers(
-        self, headers: Mapping[str, str], method: str, path: str,
+        self,
+        headers: Mapping[str, str],
+        method: str,
+        path: str,
     ) -> None:
         """No-op for mock. Exchanges might use this to update internal rate limit states."""
         logger.debug(
@@ -473,7 +490,8 @@ class MockExchangeAPI(ExchangeAPI):
             try:
                 # Call handler with both data_payload and the full_message
                 await handler_to_call(
-                    data_payload, message,
+                    data_payload,
+                    message,
                 )  # MODIFIED: Ensure two arguments are passed
             except Exception as e:
                 logger.error(f"Error in WS handler for topic {topic}: {e}", exc_info=True)
@@ -481,7 +499,9 @@ class MockExchangeAPI(ExchangeAPI):
             logger.warning(f"No handler for WS message topic/type: {topic}. Message: {message}")
 
     async def subscribe(
-        self, topic: str, handler: MessageHandler,
+        self,
+        topic: str,
+        handler: MessageHandler,
     ) -> None:  # Ensure handler type is correct
         """Subscribe to a WebSocket topic."""
         self._ws_subscriptions[topic] = handler  # Storing in _ws_subscriptions
@@ -561,7 +581,8 @@ class MockExchangeAPI(ExchangeAPI):
 
         if args.order_type == OrderType.LIMIT and args.price is None:
             raise APIError(
-                "Price must be specified for LIMIT orders", code=APIErrorCode.INVALID_PARAMS.value,
+                "Price must be specified for LIMIT orders",
+                code=APIErrorCode.INVALID_PARAMS.value,
             )
         if args.order_type == OrderType.MARKET and args.price is not None:
             logger.warning("Price is ignored for MARKET orders")
@@ -587,7 +608,8 @@ class MockExchangeAPI(ExchangeAPI):
                 args.price
                 if args.price
                 else self._mock_tickers.get(
-                    args.symbol, Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=now),
+                    args.symbol,
+                    Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=now),
                 ).price
                 or Decimal("0")
             )
@@ -624,7 +646,8 @@ class MockExchangeAPI(ExchangeAPI):
                 if args.order_type == OrderType.LIMIT
                 else (
                     self._mock_tickers.get(
-                        args.symbol, Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=now),
+                        args.symbol,
+                        Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=now),
                     ).price
                     or Decimal("0")
                 )
@@ -637,7 +660,8 @@ class MockExchangeAPI(ExchangeAPI):
                 if args.order_type == OrderType.LIMIT
                 else (
                     self._mock_tickers.get(
-                        args.symbol, Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=now),
+                        args.symbol,
+                        Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=now),
                     ).price
                     or Decimal("0")
                 )
@@ -876,7 +900,8 @@ class MockExchangeAPI(ExchangeAPI):
         return rates
 
     async def get_historical_funding_rates(
-        self, args: GetHistoricalFundingRatesArgs,
+        self,
+        args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
         """Return mock historical funding rates."""
         self._check_error("get_historical_funding_rates")
@@ -1042,7 +1067,9 @@ class MockExchangeAPI(ExchangeAPI):
         # pass # This line will be removed
 
     def set_order_book_behavior(
-        self, behavior: str, data: dict[str, str | int | float] | None = None,
+        self,
+        behavior: str,
+        data: dict[str, str | int | float] | None = None,
     ) -> None:
         """Configures the behavior of get_order_book."""
         # ... existing code ...

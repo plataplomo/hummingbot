@@ -22,7 +22,7 @@ TestParamValue = PrimitiveTestVal | list[PrimitiveTestVal] | dict[str, Primitive
 # --- Helper Fixtures ---
 @pytest.fixture
 def valid_hl_margin_details_data() -> dict[str, Any]:
-    """Provides valid data for HyperliquidMarginDetails."""
+    """Provide valid data for HyperliquidMarginDetails."""
     return {
         "cross_maintenance_margin_used": Decimal("1234.56"),
         "isolated_maintenance_margin_used": Decimal("789.10"),
@@ -31,7 +31,7 @@ def valid_hl_margin_details_data() -> dict[str, Any]:
 
 @pytest.fixture
 def valid_bp_margin_details_data() -> dict[str, Any]:
-    """Provides valid data for BackpackMarginDetails."""
+    """Provide valid data for BackpackMarginDetails."""
     return {
         "assets_value": Decimal("15000.0"),
         "borrow_liability": Decimal("500.0"),
@@ -45,7 +45,7 @@ def valid_bp_margin_details_data() -> dict[str, Any]:
 
 @pytest.fixture
 def base_margin_summary_data() -> dict[str, Any]:
-    """Provides valid core data for MarginAccountSummary creation."""
+    """Provide valid core data for MarginAccountSummary creation."""
     return {
         "exchange": "backpack",
         "timestamp": datetime.now(UTC),

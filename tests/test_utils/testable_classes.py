@@ -38,8 +38,17 @@ class TestableExecutionHandler(ExecutionHandler):
     ) -> Order | None:
         """Test wrapper for _place_order_with_retry."""
         return await self._place_order_with_retry(
-            execution, exchange_id, symbol, side, quantity, order_type,
-            price, time_in_force, reduce_only, post_only, is_long_leg,
+            execution,
+            exchange_id,
+            symbol,
+            side,
+            quantity,
+            order_type,
+            price,
+            time_in_force,
+            reduce_only,
+            post_only,
+            is_long_leg,
         )
 
     async def test_get_order_status(
@@ -52,7 +61,11 @@ class TestableExecutionHandler(ExecutionHandler):
     ) -> Order | None:
         """Test wrapper for _get_order_status."""
         return await self._get_order_status(
-            execution, exchange_id, order_id, symbol, client_order_id,
+            execution,
+            exchange_id,
+            order_id,
+            symbol,
+            client_order_id,
         )
 
     async def test_compensate_position(

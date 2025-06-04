@@ -142,7 +142,8 @@ class TestBalanceTransformation:
     """Test cases for balance transformation functionality."""
 
     def test_transform_balance_data_to_spot_balance_happy_path(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test successful transformation of balance data to SpotBalance."""
         result = mapper.transform_balance_data_to_spot_balance(
@@ -172,7 +173,8 @@ class TestBalanceTransformation:
         assert result.asset == "BTC"
 
     def test_transform_balance_data_transformation_error(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that transformation errors are properly wrapped."""
         # Mock parse_decimal_value to raise an error
@@ -182,14 +184,18 @@ class TestBalanceTransformation:
             mock_parse.side_effect = ValueError("Invalid decimal value")
 
             with pytest.raises(
-                TransformationError, match="Failed to transform balance data to SpotBalance",
+                TransformationError,
+                match="Failed to transform balance data to SpotBalance",
             ):
                 mapper.transform_balance_data_to_spot_balance(
-                    asset="USDC", total_balance="invalid", available_balance="900.0",
+                    asset="USDC",
+                    total_balance="invalid",
+                    available_balance="900.0",
                 )
 
     def test_transform_raw_balance_to_internal_happy_path(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test successful transformation of BackpackRawBalance to SpotBalance."""
         raw_balance = create_raw_balance(asset="USDC", available="900.0", total="1100.0")
@@ -204,7 +210,8 @@ class TestBalanceTransformation:
         assert result.bp_details is not None
 
     def test_transform_raw_balance_different_assets(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test balance transformation with different asset types."""
         assets = ["BTC", "ETH", "SOL", "AVAX"]
@@ -218,7 +225,8 @@ class TestBalanceTransformation:
             assert result.total_quantity == Decimal("600.0")
 
     def test_transform_raw_balance_missing_total_raises_error(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that missing total raises TransformationError."""
         raw_balance = create_raw_balance()
@@ -229,7 +237,9 @@ class TestBalanceTransformation:
         ) as mock_parse:
 
             def side_effect(
-                value: str, allow_none: bool = False, field_name: str = "",
+                value: str,
+                allow_none: bool = False,
+                field_name: str = "",
             ) -> Decimal | None:
                 """Helper function for side effect."""
                 if field_name.endswith("_total"):
@@ -246,7 +256,8 @@ class TestBalanceTransformation:
                 mapper.transform_raw_balance_to_internal("USDC", raw_balance)
 
     def test_transform_raw_balance_missing_available_raises_error(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that missing available raises TransformationError."""
         raw_balance = create_raw_balance()
@@ -257,7 +268,9 @@ class TestBalanceTransformation:
         ) as mock_parse:
 
             def side_effect(
-                value: str, allow_none: bool = False, field_name: str = "",
+                value: str,
+                allow_none: bool = False,
+                field_name: str = "",
             ) -> Decimal | None:
                 """Helper function for side effect."""
                 if field_name.endswith("_available"):
@@ -286,7 +299,8 @@ class TestBalanceTransformation:
         assert result.total_quantity == Decimal("999999999.999999")
 
     def test_transform_raw_balance_high_precision_decimals(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test balance transformation with high precision decimal values."""
         raw_balance = create_raw_balance(
@@ -304,7 +318,8 @@ class TestPositionTransformation:
     """Test cases for position transformation functionality."""
 
     def test_transform_raw_position_to_internal_happy_path(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test successful transformation of BackpackRawPosition to DerivativePosition."""
         raw_position = create_raw_position(
@@ -357,7 +372,8 @@ class TestPositionTransformation:
         assert result.unrealized_pnl == Decimal("-2.5")
 
     def test_transform_raw_position_zero_size_no_entry_price(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test position transformation with zero size sets entry price to None."""
         raw_position = create_raw_position(
@@ -372,7 +388,8 @@ class TestPositionTransformation:
         assert result.side == OrderSide.SELL
 
     def test_transform_raw_position_missing_net_quantity_raises_error(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that missing net_quantity raises TransformationError."""
         raw_position = create_raw_position()
@@ -383,7 +400,9 @@ class TestPositionTransformation:
         ) as mock_parse:
 
             def side_effect(
-                value: str, allow_none: bool = False, field_name: str = "",
+                value: str,
+                allow_none: bool = False,
+                field_name: str = "",
             ) -> Decimal | None:
                 """Helper function for side effect."""
                 if field_name == "net_quantity":
@@ -403,7 +422,8 @@ class TestPositionTransformation:
                 mapper.transform_raw_position_to_internal(raw_position)
 
     def test_transform_raw_position_transformation_error(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that transformation errors are properly wrapped."""
         raw_position = create_raw_position()
@@ -415,12 +435,14 @@ class TestPositionTransformation:
             mock_parse.side_effect = ValueError("Invalid decimal value")
 
             with pytest.raises(
-                TransformationError, match="Failed to transform raw position to internal",
+                TransformationError,
+                match="Failed to transform raw position to internal",
             ):
                 mapper.transform_raw_position_to_internal(raw_position)
 
     def test_transform_raw_position_negative_values(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test position transformation with negative cost and PnL values."""
         raw_position = create_raw_position(
@@ -455,7 +477,8 @@ class TestPositionTransformation:
         assert result.unrealized_pnl == Decimal("1000000.0")
 
     def test_transform_raw_position_high_precision_decimals(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test position transformation with high precision decimal values."""
         raw_position = create_raw_position(
@@ -471,7 +494,8 @@ class TestPositionTransformation:
         assert result.unrealized_pnl == Decimal("5.555555555555555")
 
     def test_transform_raw_position_optional_fields_none(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test position transformation when optional fields can be parsed as None."""
         # The raw model doesn't allow empty strings, but parse_decimal_value can return None
@@ -484,7 +508,9 @@ class TestPositionTransformation:
         ) as mock_parse:
 
             def side_effect(
-                value: str, allow_none: bool = False, field_name: str = "",
+                value: str,
+                allow_none: bool = False,
+                field_name: str = "",
             ) -> Decimal | None:
                 """Helper function for side effect."""
                 # Return valid values for required fields
@@ -532,7 +558,8 @@ class TestAccountSummaryTransformation:
     """Test cases for account summary transformation functionality."""
 
     def test_transform_raw_account_summary_to_internal_happy_path(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test successful transformation of account summary data to MarginAccountSummary."""
         raw_summary = create_raw_account_summary()
@@ -540,7 +567,9 @@ class TestAccountSummaryTransformation:
         positions = [create_raw_position()]
 
         result = mapper.transform_raw_account_summary_to_internal(
-            raw_summary, spot_balances, positions,
+            raw_summary,
+            spot_balances,
+            positions,
         )
 
         assert isinstance(result, MarginAccountSummary)
@@ -552,7 +581,8 @@ class TestAccountSummaryTransformation:
         assert isinstance(result.timestamp, datetime)
 
     def test_transform_raw_account_summary_empty_collections(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test account summary transformation with empty balances and positions."""
         raw_summary = create_raw_account_summary()
@@ -565,7 +595,8 @@ class TestAccountSummaryTransformation:
         assert result.total_unrealized_pnl == Decimal("0.0")
 
     def test_transform_raw_account_summary_multiple_balances(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test account summary with multiple USD-like balances."""
         raw_summary = create_raw_account_summary()
@@ -582,7 +613,8 @@ class TestAccountSummaryTransformation:
         assert result.available_equity == Decimal("1350.0")  # 900 + 450
 
     def test_transform_raw_account_summary_multiple_positions(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test account summary with multiple positions."""
         raw_summary = create_raw_account_summary()
@@ -603,7 +635,9 @@ class TestAccountSummaryTransformation:
         ]
 
         result = mapper.transform_raw_account_summary_to_internal(
-            raw_summary, spot_balances, positions,
+            raw_summary,
+            spot_balances,
+            positions,
         )
 
         # Total equity = 1000 (balance) + 50 - 25 (unrealized PnL) = 1025
@@ -613,7 +647,8 @@ class TestAccountSummaryTransformation:
         assert result.total_position_notional == Decimal("6000.0")
 
     def test_transform_raw_account_summary_none_unrealized_pnl_handled(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test account summary when positions have None unrealized PnL."""
         raw_summary = create_raw_account_summary()
@@ -638,7 +673,9 @@ class TestAccountSummaryTransformation:
             mock_transform.return_value = mock_position
 
             result = mapper.transform_raw_account_summary_to_internal(
-                raw_summary, spot_balances, [position],
+                raw_summary,
+                spot_balances,
+                [position],
             )
 
             # Should handle None unrealized_pnl gracefully (no PnL added)
@@ -646,7 +683,8 @@ class TestAccountSummaryTransformation:
             assert result.total_unrealized_pnl == Decimal("0.0")
 
     def test_transform_raw_account_summary_none_entry_price_handled(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test account summary when positions have zero size (which sets entry_price to None)."""
         raw_summary = create_raw_account_summary()
@@ -656,7 +694,9 @@ class TestAccountSummaryTransformation:
         position = create_raw_position(net_quantity="0.0", pnl_unrealized="0.0")
 
         result = mapper.transform_raw_account_summary_to_internal(
-            raw_summary, spot_balances, [position],
+            raw_summary,
+            spot_balances,
+            [position],
         )
 
         # Should handle None entry_price gracefully (no notional calculated for zero size)
@@ -695,7 +735,9 @@ class TestErrorHandling:
         ) as mock_parse:
 
             def side_effect(
-                value: str, allow_none: bool = False, field_name: str = "",
+                value: str,
+                allow_none: bool = False,
+                field_name: str = "",
             ) -> Decimal | None:
                 """Helper function for side effect."""
                 if field_name == "total_balance":
@@ -705,14 +747,18 @@ class TestErrorHandling:
             mock_parse.side_effect = side_effect
 
             with pytest.raises(
-                TransformationError, match="Total and available balances are required",
+                TransformationError,
+                match="Total and available balances are required",
             ):
                 mapper.transform_balance_data_to_spot_balance(
-                    asset="USDC", total_balance="invalid", available_balance="900.0",
+                    asset="USDC",
+                    total_balance="invalid",
+                    available_balance="900.0",
                 )
 
     def test_balance_data_none_available_raises_error(
-        self, mapper: BackpackAccountDataMapper,
+        self,
+        mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that None available balance raises TransformationError."""
         # Mock parse_decimal_value to return None for available_balance
@@ -721,7 +767,9 @@ class TestErrorHandling:
         ) as mock_parse:
 
             def side_effect(
-                value: str, allow_none: bool = False, field_name: str = "",
+                value: str,
+                allow_none: bool = False,
+                field_name: str = "",
             ) -> Decimal | None:
                 """Helper function for side effect."""
                 if field_name == "available_balance":
@@ -731,8 +779,11 @@ class TestErrorHandling:
             mock_parse.side_effect = side_effect
 
             with pytest.raises(
-                TransformationError, match="Total and available balances are required",
+                TransformationError,
+                match="Total and available balances are required",
             ):
                 mapper.transform_balance_data_to_spot_balance(
-                    asset="USDC", total_balance="1000.0", available_balance="invalid",
+                    asset="USDC",
+                    total_balance="1000.0",
+                    available_balance="invalid",
                 )

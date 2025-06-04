@@ -25,7 +25,8 @@ class TestTokenBucketRateLimiterRuntime:
 
     @pytest.mark.asyncio
     async def test_acquire_single_token_default(
-        self, limiter: TokenBucketRateLimiterRuntime,
+        self,
+        limiter: TokenBucketRateLimiterRuntime,
     ) -> None:
         """Test acquiring single token with default parameter."""
         wait_time = await limiter.acquire()
@@ -34,7 +35,8 @@ class TestTokenBucketRateLimiterRuntime:
 
     @pytest.mark.asyncio
     async def test_acquire_single_token_explicit(
-        self, limiter: TokenBucketRateLimiterRuntime,
+        self,
+        limiter: TokenBucketRateLimiterRuntime,
     ) -> None:
         """Test acquiring single token with explicit parameter."""
         wait_time = await limiter.acquire(tokens_to_consume=1)
@@ -57,7 +59,8 @@ class TestTokenBucketRateLimiterRuntime:
 
     @pytest.mark.asyncio
     async def test_acquire_more_than_available_triggers_wait(
-        self, slow_limiter: TokenBucketRateLimiterRuntime,
+        self,
+        slow_limiter: TokenBucketRateLimiterRuntime,
     ) -> None:
         """Test that requesting more tokens than available triggers a wait."""
         # slow_limiter starts with 2 tokens, rate 1.0/sec
@@ -146,7 +149,8 @@ class TestTokenBucketRateLimiterRuntimeIPBan:
 
     @pytest.mark.asyncio
     async def test_ip_ban_clears_after_duration(
-        self, limiter: TokenBucketRateLimiterRuntime,
+        self,
+        limiter: TokenBucketRateLimiterRuntime,
     ) -> None:
         """Test that IP ban clears automatically after duration."""
         await limiter.trigger_ip_ban(0.1)
@@ -173,7 +177,8 @@ class TestTokenBucketRateLimiterRuntimeIPBan:
 
     @pytest.mark.asyncio
     async def test_acquire_with_expired_ip_ban(
-        self, limiter: TokenBucketRateLimiterRuntime,
+        self,
+        limiter: TokenBucketRateLimiterRuntime,
     ) -> None:
         """Test acquire when IP ban has already expired."""
         # Set ban in the past

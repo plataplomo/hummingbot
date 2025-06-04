@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
-"""Unit tests for the Backtesting Framework
-"""
+"""Unit tests for the Backtesting Framework."""
 
 from datetime import datetime, timedelta
 from typing import Any
@@ -13,13 +12,14 @@ import pytest
 # Mock the modules
 # Create mock classes instead of importing from a non-existent module
 class TradingStrategy:
-    """Base class for trading strategies"""
+    """Base class for trading strategies."""
 
     def __init__(self, name: str = "") -> None:
+        """Initialize the trading strategy with a name."""
         self.name = name
 
     def analyze_market(self, market_data: dict[str, Any]) -> dict[str, int]:
-        """Helper function for analyze market."""
+        """Analyze market data and return trading signals."""
         raise NotImplementedError
 
     def execute_trades(
@@ -28,7 +28,7 @@ class TradingStrategy:
         market_data: dict[str, Any],
         current_positions: dict[str, float],
     ) -> dict[str, dict[str, Any]]:
-        """Helper function for execute trades."""
+        """Execute trades based on signals and market data."""
         raise NotImplementedError
 
     def calculate_metrics(
@@ -36,20 +36,21 @@ class TradingStrategy:
         trades: dict[str, dict[str, Any]],
         market_data: dict[str, Any],
     ) -> dict[str, Any]:
-        """Helper function for calculate metrics."""
+        """Calculate performance metrics from trades and market data."""
         raise NotImplementedError
 
 
 class BacktestEngine:
-    """Mock implementation of BacktestEngine"""
+    """Mock implementation of BacktestEngine."""
 
     def __init__(self, strategy: TradingStrategy) -> None:
+        """Initialize the backtest engine with a trading strategy."""
         self.strategy = strategy
         self.current_positions: dict[str, float] = {}
         self.trade_history: list[dict[str, Any]] = []
 
     def run_backtest(self, market_data: dict[str, Any]) -> dict[str, Any]:
-        """Helper function for run backtest."""
+        """Run backtest simulation with market data."""
         signals = self.strategy.analyze_market(market_data)
         trades = self.strategy.execute_trades(signals, market_data, self.current_positions)
         metrics = self.strategy.calculate_metrics(trades, market_data)
@@ -60,7 +61,7 @@ class BacktestEngine:
         }
 
     def calculate_performance_metrics(self) -> dict[str, Any]:
-        """Helper function for calculate performance metrics."""
+        """Calculate performance metrics from trade history."""
         # Simplified calculation for testing
         profit_loss = 0
         # Sum the actual transaction values, not just the product
@@ -99,7 +100,7 @@ class BacktestEngine:
         }
 
     def update_positions(self, trades: dict[str, dict[str, Any]]) -> None:
-        """Helper function for update positions."""
+        """Update current positions based on executed trades."""
         for asset, trade in trades.items():
             if asset in self.current_positions:
                 self.current_positions[asset] += trade["size"]
@@ -111,9 +112,10 @@ class BacktestEngine:
 
 
 class MockTradingStrategy(TradingStrategy):
-    """Mock implementation of TradingStrategy for testing"""
+    """Mock implementation of TradingStrategy for testing."""
 
     def __init__(self, name: str = "MockStrategy") -> None:
+        """Initialize the mock trading strategy."""
         super().__init__(name)
         self.analyze_market_called = False
         self.execute_trades_called = False
@@ -204,7 +206,7 @@ def backtest_setup() -> tuple[BacktestEngine, MockTradingStrategy, dict[str, Any
 def test_initialization(
     backtest_setup: tuple[BacktestEngine, MockTradingStrategy, dict[str, Any]],
 ) -> None:
-    """Test initialization of BacktestEngine"""
+    """Test initialization of BacktestEngine."""
     engine, _, _ = backtest_setup
     assert engine.strategy.name == "MockStrategy"
     assert engine.current_positions == {}
@@ -214,7 +216,7 @@ def test_initialization(
 def test_run_backtest(
     backtest_setup: tuple[BacktestEngine, MockTradingStrategy, dict[str, Any]],
 ) -> None:
-    """Test running a backtest"""
+    """Test running a backtest."""
     engine, strategy, market_data = backtest_setup
     results = engine.run_backtest(market_data)
 
@@ -232,7 +234,7 @@ def test_run_backtest(
 def test_calculate_performance_metrics(
     backtest_setup: tuple[BacktestEngine, MockTradingStrategy, dict[str, Any]],
 ) -> None:
-    """Test calculation of performance metrics"""
+    """Test calculation of performance metrics."""
     engine, _, _ = backtest_setup
     # Set up trade history
     engine.trade_history = [
@@ -280,7 +282,7 @@ def test_calculate_performance_metrics(
 def test_update_positions(
     backtest_setup: tuple[BacktestEngine, MockTradingStrategy, dict[str, Any]],
 ) -> None:
-    """Test updating positions based on trades"""
+    """Test updating positions based on trades."""
     engine, _, _ = backtest_setup
     trades = {
         "BTC-USD": {"size": 1.5, "price": 10200, "timestamp": datetime.now()},
@@ -300,7 +302,7 @@ def test_update_positions(
 def test_update_positions_existing(
     backtest_setup: tuple[BacktestEngine, MockTradingStrategy, dict[str, Any]],
 ) -> None:
-    """Test updating existing positions"""
+    """Test updating existing positions."""
     engine, _, _ = backtest_setup
     # Set initial positions
     engine.current_positions = {"BTC-USD": 1.0, "ETH-USD": -1.0}

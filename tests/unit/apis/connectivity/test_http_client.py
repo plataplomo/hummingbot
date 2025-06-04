@@ -197,7 +197,8 @@ class TestHttpClient:
         }
 
         async with HttpClient(
-            exchange_name="test_ctx", config=default_http_client_config,
+            exchange_name="test_ctx",
+            config=default_http_client_config,
         ) as _:  # Changed 'client' to '_' as it's unused
             MockAiohttpSession.assert_called_once_with(headers=expected_headers)
 
@@ -271,7 +272,8 @@ class TestHttpClient:
         mock_session_request_method.return_value.__aenter__.return_value = mock_aio_response
 
         content, status_code, processed_headers, raw_headers = await http_client_instance.request(
-            method="GET", endpoint_path="/test",
+            method="GET",
+            endpoint_path="/test",
         )
 
         assert content == expected_body_dict
@@ -316,7 +318,8 @@ class TestHttpClient:
         mock_session_request_method.return_value.__aenter__.return_value = mock_aio_response
 
         content, status_code, processed_headers, raw_headers = await http_client_instance.request(
-            method="GET", endpoint_path="/text",
+            method="GET",
+            endpoint_path="/text",
         )
 
         assert content == expected_text_content
@@ -467,7 +470,8 @@ class TestHttpClient:
 
     @pytest.mark.asyncio
     async def test_request_signed_no_authenticator_raises_api_error(
-        self, http_client_instance: HttpClient,
+        self,
+        http_client_instance: HttpClient,
     ) -> None:
         """Test signed request raises APIError if no authenticator is provided."""
         with pytest.raises(APIError) as excinfo:
@@ -797,12 +801,15 @@ class TestHttpClientRequestResponseParsing:
         expected_data = {"key": "value", "num": 123}
         headers = {"Content-Type": "application/json; charset=utf-8"}
         mock_aio_response = mock_aiohttp_response_factory(
-            status_code=200, json_body=expected_data, headers_dict=headers,
+            status_code=200,
+            json_body=expected_data,
+            headers_dict=headers,
         )
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         content, status_code, processed_headers, raw_headers = await http_client_instance.request(
-            "GET", "/test_json",
+            "GET",
+            "/test_json",
         )
         assert status_code == 200
 
@@ -826,12 +833,15 @@ class TestHttpClientRequestResponseParsing:
         expected_text = "Hello, World!"
         headers = {"Content-Type": "text/plain"}
         mock_aio_response = mock_aiohttp_response_factory(
-            status_code=200, body_text=expected_text, headers_dict=headers,
+            status_code=200,
+            body_text=expected_text,
+            headers_dict=headers,
         )
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         content, status_code, processed_headers, raw_headers = await http_client_instance.request(
-            "GET", "/test_text",
+            "GET",
+            "/test_text",
         )
         assert status_code == 200
 
@@ -853,7 +863,8 @@ class TestHttpClientRequestResponseParsing:
         MockAiohttpSession.return_value = mock_session_instance
 
         mock_aio_response = mock_aiohttp_response_factory(
-            status_code=204, headers_dict={},
+            status_code=204,
+            headers_dict={},
         )  # Empty headers for 204
         # For 204, text() should ideally not be called by the client code,
         # but if it were, factory provides "" by default for body_text=None.
@@ -861,7 +872,9 @@ class TestHttpClientRequestResponseParsing:
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         content, status_code, processed_headers, raw_headers = await http_client_instance.request(
-            "POST", "/test_204", data={},
+            "POST",
+            "/test_204",
+            data={},
         )
         assert status_code == 204
 
@@ -925,7 +938,8 @@ class TestHttpClientRequestResponseParsing:
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         content, status_code, processed_headers, _ = await http_client_instance.request(
-            "GET", "/test_ct_missing",
+            "GET",
+            "/test_ct_missing",
         )
         assert status_code == 200
         assert content == expected_text  # Should be treated as text
@@ -947,7 +961,9 @@ class TestHttpClientRequestResponseParsing:
         malformed_json = "not valid json{"
         headers = {"Content-Type": "application/json"}
         mock_aio_response = mock_aiohttp_response_factory(
-            status_code=200, headers_dict=headers, body_text=malformed_json,
+            status_code=200,
+            headers_dict=headers,
+            body_text=malformed_json,
         )
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 

@@ -1,3 +1,8 @@
+"""Test fixtures for risk management tests.
+
+Provides common fixtures and utilities for testing risk management components.
+"""
+
 # Fixtures for RiskManager tests
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -140,7 +145,7 @@ def mock_funding_validator() -> MagicMock:
 
     # Always return high-confidence metrics for any call
     def symbol_metrics_side_effect(exchange: str, symbol: str) -> dict[str, float]:
-        """Helper function for symbol metrics side effect."""
+        """Handle symbol metrics side effect for testing."""
         return {"rmse": 0.0, "bias": 0.0}
 
     fv.get_symbol_metrics.side_effect = symbol_metrics_side_effect
@@ -180,7 +185,7 @@ def risk_manager(
 
 @fixture
 def sample_opportunity_dict() -> dict[str, Any]:
-    """Helper function for sample opportunity dict."""
+    """Create sample opportunity dict for testing."""
     now = datetime.now(UTC)
     return {
         "symbol": "BTC-PERP",
@@ -203,7 +208,7 @@ def sample_opportunity_dict() -> dict[str, Any]:
 
 @fixture
 def sample_opportunity(sample_opportunity_dict: dict[str, Any]) -> ArbitrageOpportunity:
-    """Helper function for sample opportunity."""
+    """Create sample opportunity for testing."""
     return ArbitrageOpportunity(**sample_opportunity_dict)
 
 

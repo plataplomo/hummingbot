@@ -1,3 +1,8 @@
+"""Unit tests for the ExecutionHandler component.
+
+Tests execution handling functionality including order execution and position management.
+"""
+
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -15,6 +20,8 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 # Define SizedOpportunity locally or import if moved
 @dataclass
 class SizedOpportunity:
+    """Represents a sized arbitrage opportunity for testing."""
+
     opportunity: ArbitrageOpportunity
     long_size: Decimal
     short_size: Decimal

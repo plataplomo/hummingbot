@@ -2,6 +2,7 @@
 
 This module provides pytest fixtures and configuration for testing the CyberDelta trading engine.
 """
+
 from __future__ import annotations  # Enable postponed evaluation
 
 import os
@@ -76,13 +77,14 @@ class MockResponse:
         text_data: str | None = None,  # Added for direct initialization
     ) -> None:
         """Initialize mock response with test data and status.
-        
+
         Args:
             data: JSON-serializable test data
             status: HTTP status code (default: 200)
             headers: HTTP response headers
             content_type: Response content type
             text_data: Raw text data for response
+
         """
         self._data = data
         self.status = status
@@ -138,9 +140,10 @@ class MockClientSession:
         responses: dict[tuple[str, str], MockResponse] | None = None,
     ) -> None:
         """Initialize mock session with predefined responses.
-        
+
         Args:
             responses: Mapping of (method, url) tuples to mock responses
+
         """
         self.responses = responses or {}
         self.requests: list[dict[str, Any]] = []  # Flexible for test requests
@@ -164,16 +167,17 @@ class MockClientSession:
         self.closed = True
 
     async def _request(
-        self, method: str, url: str, **kwargs: dict[str, Any],
+        self,
+        method: str,
+        url: str,
+        **kwargs: dict[str, Any],
     ) -> MockResponse:  # Accepts any kwargs
         self.requests.append({"method": method, "url": url, "kwargs": kwargs})
 
         # Find match in responses
         for pattern, response in self.responses.items():
-            if (
-                (method, url) == pattern
-                or ((method, pattern[1]) == pattern
-                and url.startswith(pattern[1]))
+            if (method, url) == pattern or (
+                (method, pattern[1]) == pattern and url.startswith(pattern[1])
             ):
                 return response
 
@@ -193,7 +197,9 @@ class MockClientSession:
         return await self._request("PUT", url, **kwargs)
 
     async def delete(
-        self, url: str, **kwargs: dict[str, Any],
+        self,
+        url: str,
+        **kwargs: dict[str, Any],
     ) -> MockResponse:  # Accepts any kwargs
         """Execute DELETE request."""
         return await self._request("DELETE", url, **kwargs)
@@ -201,7 +207,8 @@ class MockClientSession:
 
 @pytest.fixture
 def mock_client_session() -> Callable[
-    [dict[tuple[str, str], MockResponse] | None], MockClientSession,
+    [dict[tuple[str, str], MockResponse] | None],
+    MockClientSession,
 ]:
     """Fixture to provide a mock aiohttp ClientSession."""
 
@@ -613,7 +620,8 @@ def active_hl_secrets() -> PrivateKeyAuthSecrets:
     """
     # Main private key (always required)
     main_private_key = os.environ.get(
-        "HL_PRIVATE_KEY", "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        "HL_PRIVATE_KEY",
+        "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
     )
 
     # Optional testnet-specific private key
@@ -777,7 +785,11 @@ async def mock_request(
     text_data = str(json) if json else ""
     actual_headers = headers if headers else {}
     mock_resp = MockResponse(
-        json, status_code, actual_headers, "application/json", text_data=text_data,
+        json,
+        status_code,
+        actual_headers,
+        "application/json",
+        text_data=text_data,
     )
     # Attributes are now set in MockResponse.__init__
     if status_code >= 400 and mock_resp.raise_for_status.side_effect is None:
@@ -883,17 +895,19 @@ def vcr_config() -> dict[str, Any]:
     """
 
     def filter_request_body(request: Any) -> Any:
-        """Custom filter to sanitize request body content."""
+        """Filter and sanitize request body content."""
         if hasattr(request, "body") and getattr(request, "body", None):
             # Filter known sensitive patterns in request bodies
             request_body = request.body
             body_str = (
-                request_body.decode("utf-8") if isinstance(request_body, bytes)
+                request_body.decode("utf-8")
+                if isinstance(request_body, bytes)
                 else str(request_body)
             )
 
             # Replace common sensitive patterns
             import re
+
             # Filter private keys (hex strings that look like private keys)
             body_str = re.sub(
                 r'"private_key":\s*"0x[a-fA-F0-9]{64}"',
@@ -904,7 +918,9 @@ def vcr_config() -> dict[str, Any]:
             body_str = re.sub(r'"api_key":\s*"[^"]*"', '"api_key": "FILTERED_API_KEY"', body_str)
             # Filter signatures
             body_str = re.sub(
-                r'"signature":\s*"[^"]*"', '"signature": "FILTERED_SIGNATURE"', body_str,
+                r'"signature":\s*"[^"]*"',
+                '"signature": "FILTERED_SIGNATURE"',
+                body_str,
             )
             # Filter timestamps to make tests more deterministic
             body_str = re.sub(r'"timestamp":\s*\d+', '"timestamp": 1234567890', body_str)
@@ -913,7 +929,7 @@ def vcr_config() -> dict[str, Any]:
         return request
 
     def filter_response_body(response: Any) -> Any:
-        """Custom filter to sanitize response body content."""
+        """Filter and sanitize response body content."""
         if hasattr(response, "body") and getattr(response, "body", None):
             # For now, we don't filter response bodies as they typically don't contain
             # user credentials, but this hook is available for future use
@@ -928,7 +944,6 @@ def vcr_config() -> dict[str, Any]:
             ("Bearer", "FILTERED_BEARER_TOKEN"),
             ("Cookie", "FILTERED_COOKIE"),
             ("Set-Cookie", "FILTERED_SET_COOKIE"),
-
             # API key headers (various formats)
             ("X-API-Key", "FILTERED_API_KEY"),
             ("X-Api-Key", "FILTERED_API_KEY"),  # Case variation
@@ -936,45 +951,36 @@ def vcr_config() -> dict[str, Any]:
             ("Api-Key", "FILTERED_API_KEY"),
             ("X-Auth-Token", "FILTERED_AUTH_TOKEN"),
             ("X-Access-Token", "FILTERED_ACCESS_TOKEN"),
-
             # Signature headers (for HMAC-based auth)
             ("X-Signature", "FILTERED_SIGNATURE"),
             ("X-Sig", "FILTERED_SIGNATURE"),
             ("Signature", "FILTERED_SIGNATURE"),
-
             # Timestamp headers (for replay protection)
             ("X-Timestamp", "FILTERED_TIMESTAMP"),
             ("X-Time", "FILTERED_TIMESTAMP"),
             ("Timestamp", "FILTERED_TIMESTAMP"),
-
             # Window headers (for time-based auth)
             ("X-Window", "FILTERED_WINDOW"),
             ("X-Time-Window", "FILTERED_WINDOW"),
-
             # User agent (normalize for consistency)
             ("User-Agent", "CyberDeltaEngine-Test-Suite/1.0"),
-
             # ===== EXCHANGE-SPECIFIC HEADERS =====
             # Backpack Exchange headers
             ("X-BP-API-Key", "FILTERED_BACKPACK_API_KEY"),
             ("X-BP-Signature", "FILTERED_BACKPACK_SIGNATURE"),
             ("X-BP-Timestamp", "FILTERED_BACKPACK_TIMESTAMP"),
-
             # Hyperliquid Exchange headers
             ("X-HL-Agent", "FILTERED_HYPERLIQUID_AGENT"),
             ("X-HL-Signature", "FILTERED_HYPERLIQUID_SIGNATURE"),
-
             # Common exchange headers that might contain sensitive data
             ("X-Nonce", "FILTERED_NONCE"),
             ("X-Request-Id", "FILTERED_REQUEST_ID"),
             ("X-Client-Id", "FILTERED_CLIENT_ID"),
-
             # Session and tracking headers
             ("X-Session-Id", "FILTERED_SESSION_ID"),
             ("X-Trace-Id", "FILTERED_TRACE_ID"),
             ("X-Correlation-Id", "FILTERED_CORRELATION_ID"),
         ],
-
         "filter_query_parameters": [
             # ===== AUTHENTICATION PARAMETERS =====
             ("api_key", "FILTERED_QUERY_API_KEY"),
@@ -983,31 +989,26 @@ def vcr_config() -> dict[str, Any]:
             ("token", "FILTERED_QUERY_TOKEN"),
             ("auth", "FILTERED_QUERY_AUTH"),
             ("authorization", "FILTERED_QUERY_AUTHORIZATION"),
-
             # ===== SIGNATURE PARAMETERS =====
             ("signature", "FILTERED_QUERY_SIGNATURE"),
             ("sig", "FILTERED_QUERY_SIGNATURE"),
             ("sign", "FILTERED_QUERY_SIGNATURE"),
             ("hmac", "FILTERED_QUERY_HMAC"),
-
             # ===== TIMESTAMP PARAMETERS =====
             ("timestamp", "FILTERED_QUERY_TIMESTAMP"),
             ("ts", "FILTERED_QUERY_TIMESTAMP"),
             ("time", "FILTERED_QUERY_TIMESTAMP"),
             ("nonce", "FILTERED_QUERY_NONCE"),
-
             # ===== SESSION PARAMETERS =====
             ("session", "FILTERED_QUERY_SESSION"),
             ("session_id", "FILTERED_QUERY_SESSION_ID"),
             ("request_id", "FILTERED_QUERY_REQUEST_ID"),
-
             # ===== USER IDENTIFICATION =====
             ("user_id", "FILTERED_QUERY_USER_ID"),
             ("client_id", "FILTERED_QUERY_CLIENT_ID"),
             ("wallet", "FILTERED_QUERY_WALLET"),
             ("address", "FILTERED_QUERY_ADDRESS"),
         ],
-
         "filter_post_data_parameters": [
             # ===== POST BODY PARAMETERS =====
             # Same patterns as query parameters but for POST body
@@ -1021,32 +1022,25 @@ def vcr_config() -> dict[str, Any]:
             ("mnemonic", "FILTERED_POST_MNEMONIC"),
             ("seed", "FILTERED_POST_SEED"),
         ],
-
         # ===== CUSTOM FILTERS =====
         "before_record_request": filter_request_body,
         "before_record_response": filter_response_body,
-
         # ===== MATCHING CONFIGURATION =====
         # Match on method, URI components, but NOT on filtered query params
         "match_on": ["method", "scheme", "host", "port", "path"],
-
         # ===== CASSETTE CONFIGURATION =====
         "cassette_library_dir": "tests/cassettes",
-
         # Record mode can be controlled via environment variable
         # - 'once': Record if cassette doesn't exist, otherwise replay (default)
         # - 'new_episodes': Record new interactions, replay existing ones
         # - 'all': Always record (overwrite cassettes)
         # - 'none': Never record, only replay (fail if cassette missing)
         "record_mode": os.environ.get("VCR_RECORD_MODE", "once"),
-
         # ===== RESPONSE PROCESSING =====
         "decode_compressed_response": True,  # Handle gzipped responses
-
         # ===== SECURITY OPTIONS =====
         # Ignore certain hosts that shouldn't be recorded (if any)
         "ignore_hosts": [],
-
         # Ignore localhost/development endpoints that might contain secrets
         "ignore_localhost": True,
     }

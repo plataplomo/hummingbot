@@ -154,7 +154,8 @@ async def test_position_sizing_integration(
 
         # Mock the opportunity checking to return our test opportunity
         with patch.object(
-            strategy_with_risk_manager, "evaluate_entry_opportunity",
+            strategy_with_risk_manager,
+            "evaluate_entry_opportunity",
         ) as mock_evaluate:
             # Configure the mock to simulate the full workflow
             mock_evaluate.return_value = [
@@ -231,7 +232,8 @@ async def test_risk_manager_rejection(
 
         # Mock the evaluation to return None (rejected)
         with patch.object(
-            strategy_with_risk_manager, "evaluate_entry_opportunity",
+            strategy_with_risk_manager,
+            "evaluate_entry_opportunity",
         ) as mock_evaluate:
             mock_evaluate.return_value = None
 

@@ -1,5 +1,4 @@
-"""Unit Tests for Hyperliquid Raw Staking Info Models
-"""
+"""Unit Tests for Hyperliquid Raw Staking Info Models"""
 
 from typing import Any
 
@@ -110,10 +109,13 @@ def test_delegation_item_valid(valid_delegation_item_data: dict[str, Any]) -> No
 
 
 @pytest.mark.parametrize(
-    "field,val", [("validator", "short"), ("amount", "nan"), ("lockedUntilTimestamp", -1)],
+    "field,val",
+    [("validator", "short"), ("amount", "nan"), ("lockedUntilTimestamp", -1)],
 )
 def test_delegation_item_invalid(
-    valid_delegation_item_data: dict[str, Any], field: str, val: object,
+    valid_delegation_item_data: dict[str, Any],
+    field: str,
+    val: object,
 ) -> None:
     """Test delegation item invalid."""
     d = valid_delegation_item_data.copy()
@@ -146,10 +148,13 @@ def test_delegator_summary_valid(valid_delegator_summary_data: dict[str, Any]) -
 
 
 @pytest.mark.parametrize(
-    "field,val", [("delegated", "nan"), ("nPendingWithdrawals", "abc"), ("undelegated", None)],
+    "field,val",
+    [("delegated", "nan"), ("nPendingWithdrawals", "abc"), ("undelegated", None)],
 )
 def test_delegator_summary_invalid(
-    valid_delegator_summary_data: dict[str, Any], field: str, val: object | None,
+    valid_delegator_summary_data: dict[str, Any],
+    field: str,
+    val: object | None,
 ) -> None:
     """Test delegator summary invalid."""
     d = valid_delegator_summary_data.copy()
@@ -206,7 +211,10 @@ class TestHyperliquidRawDelegatorHistoryItem:
         ],
     )
     def test_hist_item_invalid(
-        self, valid_history_item_data: dict[str, Any], field: str, val: object,
+        self,
+        valid_history_item_data: dict[str, Any],
+        field: str,
+        val: object,
     ) -> None:
         """Test hist item invalid."""
         d = valid_history_item_data.copy()

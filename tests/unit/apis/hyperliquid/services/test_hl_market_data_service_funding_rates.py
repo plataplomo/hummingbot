@@ -61,10 +61,16 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
         mock_meta_response = HyperliquidRawMetaResponse(
             universe=[
                 HyperliquidRawAssetDefinition(
-                    name="BTC", szDecimals=5, maxLeverage=100, onlyIsolated=False,
+                    name="BTC",
+                    szDecimals=5,
+                    maxLeverage=100,
+                    onlyIsolated=False,
                 ),
                 HyperliquidRawAssetDefinition(
-                    name="ETH", szDecimals=5, maxLeverage=100, onlyIsolated=False,
+                    name="ETH",
+                    szDecimals=5,
+                    maxLeverage=100,
+                    onlyIsolated=False,
                 ),
             ],
         )
@@ -108,7 +114,8 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
         symbol = "UNKNOWN"
         mock_meta_response = HyperliquidRawMetaResponse(universe=[])
         mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse(
-            meta=mock_meta_response, asset_ctxs=[],
+            meta=mock_meta_response,
+            asset_ctxs=[],
         )
 
         with patch.object(
@@ -206,7 +213,9 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
 
         # Call service method with correct parameter names
         args = GetHistoricalFundingRatesArgs(
-            symbol=symbol, start_time=start_time, end_time=end_time,
+            symbol=symbol,
+            start_time=start_time,
+            end_time=end_time,
         )
         result_funding_rates = await hyperliquid_market_data_service.get_historical_funding_rates(
             args,
@@ -270,7 +279,9 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
 
         with pytest.raises(APIError) as exc_info:
             args = GetHistoricalFundingRatesArgs(
-                symbol=symbol, start_time=start_time, end_time=end_time,
+                symbol=symbol,
+                start_time=start_time,
+                end_time=end_time,
             )
             await hyperliquid_market_data_service.get_historical_funding_rates(args)
 
@@ -329,7 +340,8 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
 
         # Mock response handler to raise ValidationError
         validation_error = ValidationError.from_exception_data(
-            title="HyperliquidRawFundingHistoryItem", line_errors=[],
+            title="HyperliquidRawFundingHistoryItem",
+            line_errors=[],
         )
         mock_hl_response_handler.handle_historical_funding_rates_response.side_effect = APIError(
             message="Invalid funding history response structure",
@@ -339,7 +351,9 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
 
         with pytest.raises(APIError) as exc_info:
             args = GetHistoricalFundingRatesArgs(
-                symbol=symbol, start_time=start_time, end_time=end_time,
+                symbol=symbol,
+                start_time=start_time,
+                end_time=end_time,
             )
             await hyperliquid_market_data_service.get_historical_funding_rates(args)
 
@@ -382,7 +396,10 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
         mock_http_client_requester.return_value = (mock_raw_response_content, 200, {})
 
         mock_validated_funding_item = HyperliquidRawFundingHistoryItem(
-            coin=RawHlCoinName(symbol), fundingRate="0.0001", premium="0.00005", time=1672531200000,
+            coin=RawHlCoinName(symbol),
+            fundingRate="0.0001",
+            premium="0.00005",
+            time=1672531200000,
         )
         mock_hl_response_handler.handle_historical_funding_rates_response.return_value = [
             mock_validated_funding_item,
@@ -395,7 +412,9 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
 
         with pytest.raises(APIError) as exc_info:
             args = GetHistoricalFundingRatesArgs(
-                symbol=symbol, start_time=start_time, end_time=end_time,
+                symbol=symbol,
+                start_time=start_time,
+                end_time=end_time,
             )
             await hyperliquid_market_data_service.get_historical_funding_rates(args)
 
@@ -443,13 +462,17 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
 
         with pytest.raises(APIError) as exc_info:
             args = GetHistoricalFundingRatesArgs(
-                symbol=symbol, start_time=start_time, end_time=end_time,
+                symbol=symbol,
+                start_time=start_time,
+                end_time=end_time,
             )
             await hyperliquid_market_data_service.get_historical_funding_rates(args)
 
         assert exc_info.value == api_error
         mock_hl_response_handler.handle_historical_funding_rates_response.assert_called_once_with(
-            raw_response_content=mock_response_content, status_code=200, headers={},
+            raw_response_content=mock_response_content,
+            status_code=200,
+            headers={},
         )
 
     @pytest.mark.asyncio
@@ -507,7 +530,9 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
         mock_hl_response_handler.handle_historical_funding_rates_response.return_value = []
 
         args = GetHistoricalFundingRatesArgs(
-            symbol=symbol, start_time=start_time, end_time=end_time,
+            symbol=symbol,
+            start_time=start_time,
+            end_time=end_time,
         )
         result_empty = await hyperliquid_market_data_service.get_historical_funding_rates(args)
         assert result_empty == []
@@ -550,7 +575,9 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
         # Should fail on the second item and raise APIError
         with pytest.raises(APIError) as exc_info:
             args = GetHistoricalFundingRatesArgs(
-                symbol=symbol, start_time=start_time, end_time=end_time,
+                symbol=symbol,
+                start_time=start_time,
+                end_time=end_time,
             )
             await hyperliquid_market_data_service.get_historical_funding_rates(args)
 
@@ -578,12 +605,15 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
 
         # Mock HTTP client to raise network error
         mock_http_client_requester.side_effect = APIError(
-            message="Connection failed", code=APIErrorCode.NETWORK_ISSUE.value,
+            message="Connection failed",
+            code=APIErrorCode.NETWORK_ISSUE.value,
         )
 
         with pytest.raises(APIError) as exc_info:
             args = GetHistoricalFundingRatesArgs(
-                symbol=symbol, start_time=start_time, end_time=end_time,
+                symbol=symbol,
+                start_time=start_time,
+                end_time=end_time,
             )
             await hyperliquid_market_data_service.get_historical_funding_rates(args)
 
@@ -616,7 +646,10 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
         mock_meta_response = HyperliquidRawMetaResponse(
             universe=[
                 HyperliquidRawAssetDefinition(
-                    name="BTC", szDecimals=5, maxLeverage=100, onlyIsolated=False,
+                    name="BTC",
+                    szDecimals=5,
+                    maxLeverage=100,
+                    onlyIsolated=False,
                 ),
             ],
         )

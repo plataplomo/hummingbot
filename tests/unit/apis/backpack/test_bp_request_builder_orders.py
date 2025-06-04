@@ -201,7 +201,10 @@ class TestBuildPlaceOrderPayload:
         ],
     )
     def test_build_place_order_payload_side_mapping(
-        self, symbol_spot: str, side: OrderSide, expected_side_str: str,
+        self,
+        symbol_spot: str,
+        side: OrderSide,
+        expected_side_str: str,
     ) -> None:
         """Test build_place_order_payload correctly maps order sides."""
         payload = BackpackRequestBuilder.build_place_order_payload(
@@ -224,7 +227,10 @@ class TestBuildPlaceOrderPayload:
         ],
     )
     def test_build_place_order_payload_type_mapping(
-        self, symbol_spot: str, order_type: OrderType, expected_type_str: str,
+        self,
+        symbol_spot: str,
+        order_type: OrderType,
+        expected_type_str: str,
     ) -> None:
         """Test build_place_order_payload correctly maps order types."""
         kwargs: dict[str, Any] = {
@@ -261,7 +267,8 @@ class TestBuildCancelOrderPayload:
         """Test build_cancel_order_payload with client order ID."""
         client_order_id = 98765  # Use integer for RawBpUint32
         payload = BackpackRequestBuilder.build_cancel_order_payload(
-            symbol_spot, client_order_id=str(client_order_id),
+            symbol_spot,
+            client_order_id=str(client_order_id),
         )
 
         assert isinstance(payload, BackpackRawOrderCancelRequest)
@@ -296,7 +303,9 @@ class TestBuildCancelOrderPayload:
         """Test build_cancel_order_payload with various combinations."""
         client_id_str = str(client_id_int) if client_id_int is not None else None
         payload = BackpackRequestBuilder.build_cancel_order_payload(
-            symbol, order_id=order_id, client_order_id=client_id_str,
+            symbol,
+            order_id=order_id,
+            client_order_id=client_id_str,
         )
 
         assert isinstance(payload, BackpackRawOrderCancelRequest)
@@ -342,7 +351,9 @@ class TestBuildGetOpenOrdersParams:
         ],
     )
     def test_build_get_open_orders_params_parametrized(
-        self, symbol: str | None, expected_dict: dict[str, str],
+        self,
+        symbol: str | None,
+        expected_dict: dict[str, str],
     ) -> None:
         """Test build_get_open_orders_params with various symbols."""
         params = BackpackRequestBuilder.build_get_open_orders_params(symbol)
@@ -380,7 +391,9 @@ class TestBuildGetOrderParams:
         ],
     )
     def test_build_get_order_params_parametrized(
-        self, input_symbol: str, expected_symbol: str,
+        self,
+        input_symbol: str,
+        expected_symbol: str,
     ) -> None:
         """Test build_get_order_params with various symbol formats."""
         params = BackpackRequestBuilder.build_get_order_params(input_symbol)
@@ -438,7 +451,10 @@ class TestBuildGetOrderHistoryParams:
     def test_build_get_order_history_params_minimal(self) -> None:
         """Test build_get_order_history_params with minimal parameters."""
         params = BackpackRequestBuilder.build_get_order_history_params(
-            symbol=None, start_time_ms=None, end_time_ms=None, limit=None,
+            symbol=None,
+            start_time_ms=None,
+            end_time_ms=None,
+            limit=None,
         )
 
         assert isinstance(params, BackpackRawGetOrderHistoryParams)
@@ -448,7 +464,10 @@ class TestBuildGetOrderHistoryParams:
     def test_build_get_order_history_params_formats_symbol(self) -> None:
         """Test build_get_order_history_params formats symbol correctly."""
         params = BackpackRequestBuilder.build_get_order_history_params(
-            symbol="SOL-USDC", start_time_ms=None, end_time_ms=None, limit=None,
+            symbol="SOL-USDC",
+            start_time_ms=None,
+            end_time_ms=None,
+            limit=None,
         )
 
         assert isinstance(params, BackpackRawGetOrderHistoryParams)
@@ -464,11 +483,17 @@ class TestBuildGetOrderHistoryParams:
         ],
     )
     def test_build_get_order_history_params_parametrized(
-        self, symbol: str | None, limit: int | None, expected_base: dict[str, Any],
+        self,
+        symbol: str | None,
+        limit: int | None,
+        expected_base: dict[str, Any],
     ) -> None:
         """Test build_get_order_history_params with various parameters."""
         params = BackpackRequestBuilder.build_get_order_history_params(
-            symbol=symbol, start_time_ms=None, end_time_ms=None, limit=limit,
+            symbol=symbol,
+            start_time_ms=None,
+            end_time_ms=None,
+            limit=limit,
         )
 
         assert isinstance(params, BackpackRawGetOrderHistoryParams)
@@ -504,7 +529,9 @@ class TestBuildCancelAllOrdersPayload:
         ],
     )
     def test_build_cancel_all_orders_payload_parametrized(
-        self, symbol: str, expected_dict: dict[str, str],
+        self,
+        symbol: str,
+        expected_dict: dict[str, str],
     ) -> None:
         """Test build_cancel_all_orders_payload with various symbols."""
         payload = BackpackRequestBuilder.build_cancel_all_orders_payload(symbol)
