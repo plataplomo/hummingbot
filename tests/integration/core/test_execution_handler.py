@@ -13,6 +13,7 @@ from cyberdelta.core.execution_handler import (
     ExecutionStatus,
     TradeExecution,
 )
+from tests.test_utils.testable_classes import TestableExecutionHandler
 from cyberdelta.core.models import (
     Order,
     OrderSide,
@@ -113,12 +114,20 @@ class TestExecutionHandler:
     def mock_config(self, mock_config_dict: dict[str, Any]) -> MagicMock:
         """Provides a mock Config object using the dictionary."""
         cfg = MagicMock(spec=AppSettings)
-
-        def config_get_side_effect(key: str, default: object | None = None) -> Any:
-            # Allow Any return type for mock flexibility
-            return mock_config_dict.get(key, default)
-
-        cfg.get.side_effect = config_get_side_effect
+        
+        # Mock the execution attribute structure
+        execution_mock = MagicMock()
+        execution_mock.max_slippage_pct = mock_config_dict.get("execution.max_slippage_pct", "0.01")
+        execution_mock.max_retries = mock_config_dict.get("execution.max_retries", 3)
+        execution_mock.retry_delay_base_sec = mock_config_dict.get("execution.retry_delay_base_sec", "1.0")
+        
+        # Mock compensation sub-config
+        compensation_mock = MagicMock()
+        compensation_mock.use_limit_orders = mock_config_dict.get("execution.compensation.use_limit_orders", True)
+        compensation_mock.limit_price_offset_pct = mock_config_dict.get("execution.compensation.limit_price_offset_pct", "0.05")
+        execution_mock.compensation = compensation_mock
+        
+        cfg.execution = execution_mock
         return cfg
 
     @pytest.fixture
@@ -219,6 +228,27 @@ class TestExecutionHandler:
         return handler
 
     @pytest.fixture
+    def testable_execution_handler(
+        self,
+        mock_config: MagicMock,
+        mock_portfolio_tracker: MagicMock,
+        mock_symbol_mapper: MagicMock,
+        mock_circuit_breaker_system: MagicMock,
+        mock_hl_api: AsyncMock,
+        mock_bp_api: AsyncMock,
+    ) -> TestableExecutionHandler:
+        """Fixture for TestableExecutionHandler that exposes protected methods."""
+        handler = TestableExecutionHandler(
+            app_settings=mock_config,
+            portfolio_tracker=mock_portfolio_tracker,
+            symbol_mapper=mock_symbol_mapper,
+            circuit_breaker_system=mock_circuit_breaker_system,
+        )
+        handler.register_api_client(mock_hl_api.exchange_name, mock_hl_api)
+        handler.register_api_client(mock_bp_api.exchange_name, mock_bp_api)
+        return handler
+
+    @pytest.fixture
     def sized_opportunity(
         self, mock_arbitrage_opportunity: ArbitrageOpportunity
     ) -> SizedOpportunity:
@@ -282,7 +312,7 @@ class TestExecutionHandler:
     @pytest.mark.asyncio
     async def test_place_order_with_retry_success(
         self,
-        execution_handler: ExecutionHandler,
+        testable_execution_handler: TestableExecutionHandler,
         mock_hl_api: AsyncMock,
         sized_opportunity: SizedOpportunity,
     ) -> None:
@@ -316,7 +346,7 @@ class TestExecutionHandler:
         )
         mock_hl_api.place_order.return_value = mock_order
         execution = TradeExecution(sized_opportunity)
-        result_order = await execution_handler._place_order_with_retry(
+        result_order = await testable_execution_handler.test_place_order_with_retry(
             execution=execution,
             exchange_id="hyperliquid",
             symbol="BTC-PERP",
@@ -331,14 +361,14 @@ class TestExecutionHandler:
     @pytest.mark.asyncio
     async def test_place_order_with_retry_failure(
         self,
-        execution_handler: ExecutionHandler,
+        testable_execution_handler: TestableExecutionHandler,
         mock_hl_api: AsyncMock,
         sized_opportunity: SizedOpportunity,
     ) -> None:
         mock_hl_api.place_order.side_effect = APIError("Timeout", APIErrorCode.TIMEOUT.value)
         execution = TradeExecution(sized_opportunity)
         with pytest.raises(APIError):
-            await execution_handler._place_order_with_retry(
+            await testable_execution_handler.test_place_order_with_retry(
                 execution=execution,
                 exchange_id="hyperliquid",
                 symbol="BTC-PERP",
@@ -348,12 +378,12 @@ class TestExecutionHandler:
                 time_in_force=TimeInForce.IOC,
             )
         # result should be None as all retries failed
-        assert mock_hl_api.place_order.call_count == execution_handler.max_retries
+        assert mock_hl_api.place_order.call_count == testable_execution_handler.max_retries
 
     @pytest.mark.asyncio
     async def test_get_order_status_success(
         self,
-        execution_handler: ExecutionHandler,
+        testable_execution_handler: TestableExecutionHandler,
         mock_hl_api: AsyncMock,
         sized_opportunity: SizedOpportunity,
     ) -> None:
@@ -387,18 +417,21 @@ class TestExecutionHandler:
         )
         mock_hl_api.get_order_status.return_value = mock_order
         execution = TradeExecution(sized_opportunity)
-        result_status = await execution_handler._get_order_status(
+        result_status = await testable_execution_handler.test_get_order_status(
             execution=execution, exchange_id="hyperliquid", order_id="HL-Status"
         )
         assert result_status == mock_order
-        mock_hl_api.get_order_status.assert_called_once_with(
-            order_id="HL-Status", symbol=None, client_order_id=None
-        )
+        # Check that get_order_status was called with the correct args object
+        mock_hl_api.get_order_status.assert_called_once()
+        call_args = mock_hl_api.get_order_status.call_args
+        assert call_args.kwargs["args"].order_id == "HL-Status"
+        assert call_args.kwargs["args"].symbol is None
+        assert call_args.kwargs["args"].client_order_id is None
 
     @pytest.mark.asyncio
     async def test_get_order_status_failure(
         self,
-        execution_handler: ExecutionHandler,
+        testable_execution_handler: TestableExecutionHandler,
         mock_hl_api: AsyncMock,
         sized_opportunity: SizedOpportunity,
     ) -> None:
@@ -406,7 +439,7 @@ class TestExecutionHandler:
             "Not Found", APIErrorCode.ORDER_NOT_FOUND.value
         )
         execution = TradeExecution(sized_opportunity)
-        result_status = await execution_handler._get_order_status(
+        result_status = await testable_execution_handler.test_get_order_status(
             execution=execution, exchange_id="hyperliquid", order_id="HL-NotFound"
         )
         assert result_status is None
@@ -415,7 +448,7 @@ class TestExecutionHandler:
     @pytest.mark.asyncio
     async def test_compensate_position_success(
         self,
-        execution_handler: ExecutionHandler,
+        testable_execution_handler: TestableExecutionHandler,
         mock_hl_api: AsyncMock,
         mock_portfolio_tracker: MagicMock,
         sized_opportunity: SizedOpportunity,
@@ -497,9 +530,9 @@ class TestExecutionHandler:
         mock_portfolio_tracker.get_order.return_value = original_filled_order
 
         with patch.object(
-            execution_handler, "_place_order_with_retry", return_value=mock_comp_order
+            testable_execution_handler, "_place_order_with_retry", return_value=mock_comp_order
         ) as mock_place_comp:
-            result: bool = await execution_handler._compensate_position(
+            result: bool = await testable_execution_handler.test_compensate_position(
                 execution=execution,
                 exchange_id="hyperliquid",
                 symbol="BTC-PERP",
@@ -523,7 +556,7 @@ class TestExecutionHandler:
     @pytest.mark.asyncio
     async def test_compensate_position_mapping_failure(
         self,
-        execution_handler: ExecutionHandler,
+        testable_execution_handler: TestableExecutionHandler,
         mock_hl_api: AsyncMock,
         mock_symbol_mapper: MagicMock,
         sized_opportunity: SizedOpportunity,
@@ -576,12 +609,12 @@ class TestExecutionHandler:
             raise APIError("Comp Failed", APIErrorCode.UNKNOWN.value)
 
         with patch.object(
-            execution_handler,
+            testable_execution_handler,
             "_place_order_with_retry",
             side_effect=async_api_error_side_effect,  # Use the async side_effect
         ) as mock_place_retry_method:
             with pytest.raises(APIError) as exc_info:
-                await execution_handler._compensate_position(
+                await testable_execution_handler.test_compensate_position(
                     execution=execution,
                     exchange_id="hyperliquid",
                     symbol="BTC-PERP",
@@ -1210,7 +1243,7 @@ class TestExecutionHandler:
         mock_portfolio_tracker.process_trade_call_tracker.clear()
 
     def test_get_execution_history(
-        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity
+        self, testable_execution_handler: TestableExecutionHandler, sized_opportunity: SizedOpportunity
     ) -> None:
         """Test retrieving the execution history."""
         exec1 = TradeExecution(sized_opportunity)
@@ -1219,10 +1252,10 @@ class TestExecutionHandler:
         exec2 = TradeExecution(sized_opportunity)
         exec2.id = "exec2"
         exec2.status = ExecutionStatus.FAILED
-        execution_handler.executions = []
-        execution_handler._add_to_history(exec1)
-        execution_handler._add_to_history(exec2)
-        history = execution_handler.executions
+        testable_execution_handler.executions = []
+        testable_execution_handler.test_add_to_history(exec1)
+        testable_execution_handler.test_add_to_history(exec2)
+        history = testable_execution_handler.executions
         assert isinstance(history, list) and len(history) == 2
         history_ids = {ex.id for ex in history}
         assert "exec1" in history_ids and "exec2" in history_ids

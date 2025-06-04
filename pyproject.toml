@@ -86,6 +86,10 @@ testpaths = ["tests"]
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
     "unit: marks tests as unit tests (deselect with '-m \"not unit\"')",
+    "slow: marks tests as slow running (deselect with '-m \"not slow\"')",
+    "file_io: marks tests that perform file I/O operations",
+    "network: marks tests that require network access",
+    "timing: marks tests that depend on timing/sleep operations",
 ]
 
 # Ruff configuration for linting

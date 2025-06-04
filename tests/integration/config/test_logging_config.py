@@ -32,10 +32,11 @@ class TestSetupLogging:
                 "log_level": log_level,
             },
             "exchanges": {
-                "test_exchange": {
+                "backpack": {
                     "enabled": True,
-                    "api_base_url": "https://api.test.com",
-                    "ws_url": "wss://ws.test.com",
+                    "api_base_url_mainnet": "https://api.test.com",
+                    "ws_url_mainnet": "wss://ws.test.com",
+                    "exchange_name": "backpack",
                     "rate_limit_per_minute": 60,
                     "symbols": {"BTC": "BTC-USD"},
                 }
@@ -43,8 +44,8 @@ class TestSetupLogging:
             "strategies": {
                 "hl_perp_bp_spot": {
                     "enabled": True,
-                    "long_exchange": "test_exchange",
-                    "short_exchange": "test_exchange",
+                    "long_exchange": "backpack",
+                    "short_exchange": "backpack",
                     "symbol_long": "BTC",
                     "symbol_short": "BTC",
                     "params": {
@@ -67,9 +68,13 @@ class TestSetupLogging:
             "safety_systems": {
                 "circuit_breakers": {},
                 "position_reconciliation": {},
-                "balance_monitoring": {"min_balance_thresholds_usd": {"test_exchange": "100.0"}},
+                "balance_monitoring": {"min_balance_thresholds_usd": {"backpack": "100.0"}},
             },
             "monitoring": {},
+            "portfolio_tracker": {
+                "data_freshness_seconds": 30,
+                "initial_positions": [],
+            },
         }
 
         # Add optional fields if provided

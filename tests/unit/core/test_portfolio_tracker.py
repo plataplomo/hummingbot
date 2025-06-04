@@ -8,7 +8,7 @@ import logging  # Add logging import
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
@@ -853,7 +853,8 @@ class TestPortfolioTracker:
         )  # Approximate
         assert original_size != new_size
 
-    def test_update_balance(
+    @pytest.mark.asyncio
+    async def test_update_balance(
         self,
         portfolio_tracker: PortfolioTracker,
         sample_balances_state: ExchangeBalances,  # Use pre-loaded state
@@ -947,10 +948,11 @@ class TestPortfolioTracker:
         #        portfolio_tracker.register_api_client(client.exchange_id, client)
 
         # Expected total capital based on sample_balances_state and mocked prices
-        # HyperLiquid: USDC 10000.0 (price 1.0) = 10000.0
-        # Backpack:    USDC 20000.0 (price 1.0) = 20000.0
-        #              BTC  0.5 (price 50000.0) = 25000.0
-        # Total expected = 10000 + 20000 + 25000 = 55000.0
+        # HyperLiquid: USDC 100000.0 (price 1.0) = 100000.0
+        #              ETH  5.0 (price 3000.0) = 15000.0
+        # Backpack:    USDC 5000.0 (price 1.0) = 5000.0
+        #              BTC  0.1 (price 50000.0) = 5000.0
+        # Total expected = 100000 + 15000 + 5000 + 5000 = 125000.0
         # This calculation depends on _get_asset_price_in_base using api_clients correctly.
 
         # Verify the mocked get_ticker within api_clients works as expected
@@ -975,10 +977,10 @@ class TestPortfolioTracker:
         bp_usdc_val = sample_balances_state["backpack"]["USDC"].total_quantity * Decimal("1.0")
         # Test the total capital calculation result instead of individual price lookups
         # Based on our mocked ticker data and balance quantities:
-        # HyperLiquid: 1000 USDC + (0.5 ETH * 3000) = 1000 + 1500 = 2500 USDC  
-        # Backpack: 500 USDC + (0.1 BTC * 50000) = 500 + 5000 = 5500 USDC
-        # Expected total: 2500 + 5500 = 8000 USDC
-        expected_total_capital = Decimal("8000.0")
+        # HyperLiquid: 100000 USDC + (5.0 ETH * 3000) = 100000 + 15000 = 115000 USDC  
+        # Backpack: 5000 USDC + (0.1 BTC * 50000) = 5000 + 5000 = 10000 USDC
+        # Expected total: 115000 + 10000 = 125000 USDC
+        expected_total_capital = Decimal("125000.0")
         # --- END DETAILED ASSERTIONS ---
 
         assert total_capital == expected_total_capital

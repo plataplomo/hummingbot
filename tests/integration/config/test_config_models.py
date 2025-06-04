@@ -157,9 +157,16 @@ class TestExchangeSpecificConfig:
         """Create valid exchange configuration data."""
         data: dict[str, Any] = {
             "enabled": True,
-            "api_base_url": "https://api.exchange.com",
-            "ws_url": "wss://ws.exchange.com",
+            "api_base_url_mainnet": "https://api.exchange.com",
+            "ws_url_mainnet": "wss://ws.exchange.com",
+            "exchange_name": "hyperliquid",
             "rate_limit_per_minute": 60,
+            "chain_id": 1337,
+            "ip_weight_limit_per_minute": 1200,
+            "info_request_type_ip_weights": {"meta": 2, "orderStatus": 1},
+            "default_info_weight": 2,
+            "exchange_action_base_ip_weight": 10,
+            "address_action_safety_net": {"rate_per_minute": 60},
             "symbols": {
                 "BTC": "BTC-USD",
                 "ETH": "ETH-USD",
@@ -174,16 +181,17 @@ class TestExchangeSpecificConfig:
         config = ExchangeSpecificConfig.model_validate(data)
 
         assert config.enabled is True
-        assert str(config.api_base_url) == "https://api.exchange.com/"
-        assert str(config.ws_url) == "wss://ws.exchange.com/"
+        assert str(config.api_base_url_mainnet) == "https://api.exchange.com/"
+        assert str(config.ws_url_mainnet) == "wss://ws.exchange.com/"
         assert config.rate_limit_per_minute == 60
         assert config.symbols == {"BTC": "BTC-USD", "ETH": "ETH-USD"}
 
     def test_exchange_config_defaults(self) -> None:
         """Test ExchangeSpecificConfig with default values."""
         data = {
-            "api_base_url": "https://api.exchange.com",
-            "ws_url": "wss://ws.exchange.com",
+            "api_base_url_mainnet": "https://api.exchange.com",
+            "ws_url_mainnet": "wss://ws.exchange.com",
+            "exchange_name": "backpack",
             "rate_limit_per_minute": 60,
             "symbols": {"BTC": "BTC-USD"},
         }
@@ -598,15 +606,23 @@ class TestAppSettings:
             "exchanges": {
                 "backpack": {
                     "enabled": True,
-                    "api_base_url": "https://api.backpack.exchange",
-                    "ws_url": "wss://ws.backpack.exchange",
+                    "api_base_url_mainnet": "https://api.backpack.exchange",
+                    "ws_url_mainnet": "wss://ws.backpack.exchange",
+                    "exchange_name": "backpack",
                     "rate_limit_per_minute": 60,
                     "symbols": {"BTC": "BTC_USDC"},
                 },
                 "hyperliquid": {
                     "enabled": True,
-                    "api_base_url": "https://api.hyperliquid.xyz",
-                    "ws_url": "wss://api.hyperliquid.xyz/ws",
+                    "api_base_url_mainnet": "https://api.hyperliquid.xyz",
+                    "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
+                    "exchange_name": "hyperliquid",
+                    "chain_id": 1337,
+                    "ip_weight_limit_per_minute": 1200,
+                    "info_request_type_ip_weights": {"meta": 2, "orderStatus": 1},
+                    "default_info_weight": 2,
+                    "exchange_action_base_ip_weight": 10,
+                    "address_action_safety_net": {"rate_per_minute": 60},
                     "rate_limit_per_minute": 120,
                     "symbols": {"BTC": "BTC-USD"},
                 },
@@ -646,6 +662,10 @@ class TestAppSettings:
                 },
             },
             "monitoring": {},
+            "portfolio_tracker": {
+                "data_freshness_seconds": 30,
+                "initial_positions": [],
+            },
         }
         return data
 

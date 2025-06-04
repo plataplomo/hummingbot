@@ -22,7 +22,7 @@ CHAIN_ID = 1337
 class TestHyperliquidSignL1Action:
     """Test suite for the sign_l1_action authentication scheme."""
 
-    def _verify_domain_configuration_through_behavior(
+    def verify_domain_configuration_through_behavior(
         self, authenticator: HyperliquidEip712Authenticator
     ) -> None:
         """Verify domain configuration indirectly through authenticator behavior."""
@@ -32,7 +32,7 @@ class TestHyperliquidSignL1Action:
         assert authenticator.wallet_address.startswith("0x")
         assert len(authenticator.wallet_address) == 42
 
-    def _verify_agent_types_through_behavior(
+    def verify_agent_types_through_behavior(
         self, authenticator: HyperliquidEip712Authenticator
     ) -> None:
         """Verify agent types configuration indirectly through successful signing."""
@@ -207,7 +207,7 @@ class TestHyperliquidSignL1Action:
     ) -> None:
         """Test that EIP-712 domain is correctly configured through successful signing."""
         # Verify domain configuration indirectly through behavior
-        self._verify_domain_configuration_through_behavior(authenticator)
+        self.verify_domain_configuration_through_behavior(authenticator)
 
         # Test that the authenticator can successfully sign requests
         # which indicates the domain configuration is correct
@@ -403,7 +403,7 @@ class TestHyperliquidSignL1Action:
     ) -> None:
         """Test that Agent types are correctly configured through successful signing."""
         # Verify agent types configuration indirectly through behavior
-        self._verify_agent_types_through_behavior(authenticator)
+        self.verify_agent_types_through_behavior(authenticator)
 
         # Test that the authenticator can successfully sign multiple different requests
         # which indicates the EIP-712 types are correctly configured

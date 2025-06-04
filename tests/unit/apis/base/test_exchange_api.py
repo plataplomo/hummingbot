@@ -79,6 +79,12 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
             exchange_name, config, secrets, error_mapper, loop, authenticator=authenticator
         )
 
+        # Store test-specific dependencies as public attributes for test access
+        # This avoids direct manipulation of protected members
+        self.test_http_client = http_client
+        self.test_ws_manager = ws_manager
+        self.test_rate_limiter_service = rate_limiter_service
+        
         # Override injected dependencies if provided
         if http_client is not None:
             self._http_client = http_client

@@ -427,12 +427,9 @@ async def test_clean_expired_signals_direct_patch(
 
             assert await queue.count() == 4
 
-            # Allow cleanup task to potentially run (interval is 1s mocked)
-            await asyncio.sleep(0.1)  # Short real sleep, cleanup uses mocked time
-
-            # Wait for automatic cleanup to occur via background task
-            # The cleanup task should run automatically based on the cleanup interval
-            await asyncio.sleep(1.5)  # Wait longer than cleanup_interval (1.0s)
+            # Trigger cleanup by calling get_signals() which checks cleanup interval
+            # Since cleanup_interval is 1.0s and we're using mocked time, this will trigger cleanup
+            await queue.get_signals()  # This will trigger cleanup internally
 
             # Assertions after explicit cleanup
             current_signals = await queue.get_signals()
@@ -621,9 +618,10 @@ async def test_clean_expired_signals_with_helper(
         await queue.add_signal(signal_valid)
         await queue.add_signal(signal_expired)
 
-        # *** Explicitly call cleanup AFTER adding signals ***
-        # Allow cleanup to occur via the background task
-        await asyncio.sleep(1.5)  # Wait for automatic cleanup
+        # *** Explicitly trigger cleanup AFTER adding signals ***
+        # Cleanup happens during queue operations when interval has passed
+        # Trigger cleanup by calling get_signals() which checks cleanup interval
+        await queue.get_signals()  # This will trigger cleanup internally
 
         # Assertions after explicit cleanup
         current_signals = await queue.get_signals()

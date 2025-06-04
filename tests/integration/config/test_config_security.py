@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Tests for the secure configuration system.
+Integration tests for the secure configuration system.
 
 These tests verify that:
 1. Secrets are properly loaded from secure locations
@@ -8,6 +8,8 @@ These tests verify that:
 3. Fallback paths are properly handled
 4. Validation of configuration works correctly
 5. Dot notation access to nested values works properly
+
+Marked as integration tests because they perform file I/O operations.
 """
 
 import os
@@ -45,17 +47,25 @@ general:
 exchanges:
   hyperliquid:
     enabled: true
-    api_base_url: "https://api.test.xyz"
-    ws_url: "wss://ws.test.xyz"
+    api_base_url_mainnet: "https://api.test.xyz"
+    ws_url_mainnet: "wss://ws.test.xyz"
     rate_limit_per_minute: 120
     symbols:
       BTC: "BTC-USD"
     exchange_name: "hyperliquid"
     chain_id: 1
+    ip_weight_limit_per_minute: 1200
+    info_request_type_ip_weights:
+      meta: 2
+      orderStatus: 1
+    default_info_weight: 2
+    exchange_action_base_ip_weight: 10
+    address_action_safety_net:
+      rate_per_minute: 60
   backpack:
     enabled: true
-    api_base_url: "https://api.test2.xyz"
-    ws_url: "wss://ws.test2.xyz"
+    api_base_url_mainnet: "https://api.test2.xyz"
+    ws_url_mainnet: "wss://ws.test2.xyz"
     rate_limit_per_minute: 60
     symbols:
       BTC: "BTC_USDC"
@@ -104,6 +114,11 @@ monitoring:
   notifications_enabled: true
   alert_methods:
     - "log"
+
+# Portfolio tracker
+portfolio_tracker:
+  data_freshness_seconds: 30
+  initial_positions: []
             """)
 
         invalid_config_path = os.path.join(temp_dir_name, "invalid_config.yaml")
@@ -322,17 +337,25 @@ general:
 exchanges:
   hyperliquid:
     enabled: true
-    api_base_url: "https://api.test.xyz"
-    ws_url: "wss://ws.test.xyz"
+    api_base_url_mainnet: "https://api.test.xyz"
+    ws_url_mainnet: "wss://ws.test.xyz"
     rate_limit_per_minute: 120
     symbols:
       BTC: "BTC-USD"
     exchange_name: "hyperliquid"
     chain_id: 1
+    ip_weight_limit_per_minute: 1200
+    info_request_type_ip_weights:
+      meta: 2
+      orderStatus: 1
+    default_info_weight: 2
+    exchange_action_base_ip_weight: 10
+    address_action_safety_net:
+      rate_per_minute: 60
   backpack:
     enabled: true
-    api_base_url: "https://api.test2.xyz"
-    ws_url: "wss://ws.test2.xyz"
+    api_base_url_mainnet: "https://api.test2.xyz"
+    ws_url_mainnet: "wss://ws.test2.xyz"
     rate_limit_per_minute: 60
     symbols:
       BTC: "BTC_USDC"
@@ -371,6 +394,9 @@ monitoring:
   notifications_enabled: true
   alert_methods:
     - "log"
+portfolio_tracker:
+  data_freshness_seconds: 30
+  initial_positions: []
             """)
 
         secrets_path = os.path.join(temp_dir_name, "secrets.yaml")
@@ -384,6 +410,12 @@ exchanges:
     auth_type: "api_key"
     api_key: "integrated_api_key"
     api_secret: "integrated_api_secret"
+notifications:
+  telegram:
+    bot_token: "test_bot_token"
+    chat_id: "123456789"
+logfire:
+  write_token: "test_logfire_token"
             """)
 
         config_manager = ConfigManager(config_path)

@@ -31,17 +31,24 @@ class TestConfigManager:
             "exchanges": {
                 "backpack": {
                     "enabled": True,
-                    "api_base_url": "https://api.backpack.exchange",
-                    "ws_url": "wss://ws.backpack.exchange",
+                    "api_base_url_mainnet": "https://api.backpack.exchange",
+                    "ws_url_mainnet": "wss://ws.backpack.exchange",
                     "rate_limit_per_minute": 60,
                     "symbols": {"BTC": "BTC_USDC"},
+                    "exchange_name": "backpack",
                 },
                 "hyperliquid": {
                     "enabled": True,
-                    "api_base_url": "https://api.hyperliquid.xyz",
-                    "ws_url": "wss://api.hyperliquid.xyz/ws",
-                    "rate_limit_per_minute": 120,
+                    "api_base_url_mainnet": "https://api.hyperliquid.xyz",
+                    "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
                     "symbols": {"BTC": "BTC-USD"},
+                    "exchange_name": "hyperliquid",
+                    "chain_id": 1337,
+                    "ip_weight_limit_per_minute": 1200,
+                    "info_request_type_ip_weights": {"meta": 2, "orderStatus": 1},
+                    "default_info_weight": 2,
+                    "exchange_action_base_ip_weight": 10,
+                    "address_action_safety_net": {"rate_per_minute": 60},
                 },
             },
             "strategies": {
@@ -89,6 +96,10 @@ class TestConfigManager:
             "monitoring": {
                 "notifications_enabled": True,
                 "alert_methods": ["log"],
+            },
+            "portfolio_tracker": {
+                "data_freshness_seconds": 30,
+                "initial_positions": [],
             },
         }
 
@@ -355,13 +366,9 @@ class TestConfigManager:
             # Modify the config file
             modified_data = self.create_valid_config_dict()
             modified_data["general"]["log_level"] = "DEBUG"
-            modified_data["exchanges"]["new_exchange"] = {
-                "enabled": True,
-                "api_base_url": "https://api.new.com",
-                "ws_url": "wss://ws.new.com",
-                "rate_limit_per_minute": 30,
-                "symbols": {"ETH": "ETH-USD"},
-            }
+            # Update existing backpack config instead of adding new exchange
+            modified_data["exchanges"]["backpack"]["rate_limit_per_minute"] = 30
+            modified_data["exchanges"]["backpack"]["symbols"]["ETH"] = "ETH-USD"
 
             with open(config_path, "w") as f:
                 yaml.safe_dump(modified_data, f)
@@ -373,7 +380,8 @@ class TestConfigManager:
             assert manager.loaded is True
             assert manager.settings is not None
             assert manager.settings.general.log_level == "DEBUG"
-            assert "new_exchange" in manager.settings.exchanges
+            assert manager.settings.exchanges["backpack"].rate_limit_per_minute == 30
+            assert "ETH" in manager.settings.exchanges["backpack"].symbols
             assert manager.settings is not original_settings  # Should be a new instance
 
     def test_reload_method_failure(self) -> None:
@@ -502,7 +510,7 @@ class TestConfigManager:
             # Test accessing exchange settings
             backpack_config = manager.settings.exchanges["backpack"]
             assert backpack_config.enabled is True
-            assert str(backpack_config.api_base_url) == "https://api.backpack.exchange/"
+            assert str(backpack_config.api_base_url_mainnet) == "https://api.backpack.exchange/"
             assert backpack_config.rate_limit_per_minute == 60
 
             # Test accessing strategy settings
@@ -552,8 +560,9 @@ general:
 exchanges:
   test:
     enabled: true
-    api_base_url: "https://api.test.com"
-    ws_url: "wss://ws.test.com"
+    api_base_url_mainnet: "https://api.test.com"
+    ws_url_mainnet: "wss://ws.test.com"
+    exchange_name: "test"
     rate_limit_per_minute: 60
     symbols:
       BTC: "BTC-USD"
@@ -582,6 +591,9 @@ safety_systems:
     min_balance_thresholds_usd:
       test: "100.0"
 monitoring: {}
+portfolio_tracker:
+  data_freshness_seconds: 30
+  initial_positions: []
 # This would be dangerous with yaml.load but safe with yaml.safe_load
 dangerous_tag: !!python/object/apply:os.system ["echo 'this should not execute'"]
 """
@@ -618,8 +630,9 @@ dangerous_tag: !!python/object/apply:os.system ["echo 'this should not execute'"
                 "exchanges": {
                     "backpack": {
                         "enabled": True,
-                        "api_base_url": "https://api.backpack.exchange",
-                        "ws_url": "wss://ws.backpack.exchange",
+                        "api_base_url_mainnet": "https://api.backpack.exchange",
+                        "ws_url_mainnet": "wss://ws.backpack.exchange",
+                        "exchange_name": "backpack",
                         "rate_limit_per_minute": 60,
                         "symbols": {
                             "BTC": "BTC_USDC",
@@ -629,8 +642,15 @@ dangerous_tag: !!python/object/apply:os.system ["echo 'this should not execute'"
                     },
                     "hyperliquid": {
                         "enabled": True,
-                        "api_base_url": "https://api.hyperliquid.xyz",
-                        "ws_url": "wss://api.hyperliquid.xyz/ws",
+                        "api_base_url_mainnet": "https://api.hyperliquid.xyz",
+                        "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
+                        "exchange_name": "hyperliquid",
+                        "chain_id": 1337,
+                        "ip_weight_limit_per_minute": 1200,
+                        "info_request_type_ip_weights": {"meta": 2, "orderStatus": 1},
+                        "default_info_weight": 2,
+                        "exchange_action_base_ip_weight": 10,
+                        "address_action_safety_net": {"rate_per_minute": 60},
                         "rate_limit_per_minute": 120,
                         "symbols": {
                             "BTC": "BTC-USD",
@@ -698,6 +718,10 @@ dangerous_tag: !!python/object/apply:os.system ["echo 'this should not execute'"
                 "monitoring": {
                     "notifications_enabled": True,
                     "alert_methods": ["log", "telegram"],
+                },
+                "portfolio_tracker": {
+                    "data_freshness_seconds": 30,
+                    "initial_positions": [],
                 },
             }
 

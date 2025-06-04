@@ -214,56 +214,34 @@ class TestSignalGenerator:
         return handler
 
     @pytest.fixture
-    def symbol_mapper(self, config: MagicMock) -> SymbolMapper:
-        """Fixture for a SymbolMapper using the mock config."""
+    def symbol_mapper(self, test_app_settings: AppSettings) -> SymbolMapper:
+        """Fixture for a SymbolMapper using the test AppSettings."""
         exchanges_map_for_mapper: dict[str, Any] = {}
-        exchanges_config_from_main = config.get("exchanges")
-        if exchanges_config_from_main and isinstance(exchanges_config_from_main, dict):
-            for ex_id, exchange_details_any in exchanges_config_from_main.items():
-                if isinstance(exchange_details_any, dict):
-                    exchange_details: dict[str, Any] = exchange_details_any
-                    # Check for enabled status directly from the already fetched exchange_details
-                    enabled = exchange_details.get("enabled", False)
-                    symbols = exchange_details.get("symbols", {})
-                    if enabled and isinstance(symbols, dict):
-                        # SymbolMapper expects a dict of exchange_id -> { "symbols": {...},
-                        # ...other_keys_if_needed }
-                        # We only need to pass the symbols map for each enabled exchange.
-                        # The SymbolMapper itself will handle the structure if it gets the
-                        # raw exchanges_config part.
-                        # Let's simplify to pass the relevant part of exchanges_config_from_main
-                        exchanges_map_for_mapper[ex_id] = (
-                            exchange_details  # Pass the whole exchange detail if it has symbols
-                        )
-                    elif enabled:  # Enabled but no symbols dict
-                        logger.warning(
-                            f"Exchange {ex_id} enabled but no valid 'symbols' map found."
-                        )
-                else:
-                    logger.warning(f"Exchange data for {ex_id} is not a dictionary.")
-        # SymbolMapper expects a dictionary where keys are exchange_ids
-        # and values are dictionaries containing at least a "symbols" map.
+        for ex_id, exchange_config in test_app_settings.exchanges.items():
+            if exchange_config.enabled:
+                # SymbolMapper expects the exchange config to have a "symbols" key
+                exchanges_map_for_mapper[ex_id] = {"symbols": exchange_config.symbols}
         return SymbolMapper(exchanges_map_for_mapper)
 
     @pytest.fixture
     def signal_generator(
-        self, config: MagicMock, data_handler: MagicMock, symbol_mapper: SymbolMapper
+        self, test_app_settings: AppSettings, data_handler: MagicMock, symbol_mapper: SymbolMapper
     ) -> SignalGenerator:
         """Create a SignalGenerator instance for testing."""
-        return SignalGenerator(config, data_handler, symbol_mapper)
+        return SignalGenerator(test_app_settings, data_handler, symbol_mapper)
 
     def test_init(
-        self, signal_generator: SignalGenerator, config: MagicMock, data_handler: MagicMock
+        self, signal_generator: SignalGenerator, test_app_settings: AppSettings, data_handler: MagicMock
     ) -> None:
         """Test initializing the signal generator."""
-        assert signal_generator.min_funding_differential == Decimal("0.0002")
-        assert signal_generator.min_profit_threshold == Decimal("3.0")
+        assert signal_generator.min_funding_differential == Decimal("0.0001")
+        assert signal_generator.min_profit_threshold == Decimal("1.0")
         assert "hyperliquid" in signal_generator.historical_funding_rates
         assert "BTC" in signal_generator.historical_funding_rates["hyperliquid"]
         assert isinstance(signal_generator.historical_funding_rates["hyperliquid"]["BTC"], deque)
         assert "BTC" in signal_generator.historical_basis
         assert isinstance(signal_generator.historical_basis["BTC"], deque)
-        assert signal_generator.app_settings == config
+        assert signal_generator.app_settings == test_app_settings
         assert signal_generator.data_handler == data_handler
 
     @patch("cyberdelta.core.signal_generator.datetime")
@@ -574,7 +552,8 @@ class TestSignalGenerator:
         )
         assert len(opportunities) == 0
 
-    def test_arbitrage_opportunity_creation(self, signal_generator: SignalGenerator) -> None:
+    @pytest.mark.asyncio
+    async def test_arbitrage_opportunity_creation(self, signal_generator: SignalGenerator) -> None:
         """Test the internal creation logic for ArbitrageOpportunity."""
         now = datetime.now(UTC)
         funding_data = {

@@ -11,6 +11,7 @@ from web3.auto import w3  # Import w3
 
 from cyberdelta.config import AppSettings
 from cyberdelta.config.config_models import (
+    AddressActionSafetyNetConfig,
     BalanceMonitoringSettings,
     CircuitBreakerSettings,
     ExchangeSpecificConfig,
@@ -334,24 +335,23 @@ def test_app_settings() -> AppSettings:
             "hyperliquid": ExchangeSpecificConfig(
                 exchange_name=ExchangeName.HYPERLIQUID,
                 enabled=True,
-                api_base_url=HttpUrl("https://api.hyperliquid.xyz"),
-                ws_url=AnyUrl("wss://api.hyperliquid.xyz/ws"),
-                rate_limit_per_minute=120,
+                api_base_url_mainnet="https://api.hyperliquid.xyz",
+                ws_url_mainnet="wss://api.hyperliquid.xyz/ws",
                 symbols={"BTC": "BTC", "ETH": "ETH"},
                 chain_id=1337,
-                request_timeout_seconds=20.0,
-                ws_ping_interval_seconds=25.0,
+                ip_weight_limit_per_minute=1200,
+                info_request_type_ip_weights={"meta": 2, "orderStatus": 1},
+                default_info_weight=2,
+                exchange_action_base_ip_weight=10,
+                address_action_safety_net=AddressActionSafetyNetConfig(rate_per_minute=60),
             ),
             "backpack": ExchangeSpecificConfig(
                 exchange_name=ExchangeName.BACKPACK,
                 enabled=True,
-                api_base_url=HttpUrl("https://api.backpack.exchange"),
-                ws_url=AnyUrl("wss://api.backpack.exchange/ws"),
+                api_base_url_mainnet="https://api.backpack.exchange",
+                ws_url_mainnet="wss://api.backpack.exchange/ws",
                 rate_limit_per_minute=100,
                 symbols={"BTC": "BTC-USDC", "ETH": "ETH-USDC"},
-                chain_id=1,
-                request_timeout_seconds=15.0,
-                ws_ping_interval_seconds=30.0,
             ),
         },
         strategies=StrategiesSettings(
