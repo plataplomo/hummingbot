@@ -89,7 +89,7 @@ class BackpackRawPositionMmfFunction(BaseModel):
 
 class BackpackRawMarginCoverage(BaseModel):
     """Raw model for margin coverage data, indicating if current margin covers requirements.
-    
+
     Example: `{"type": "marginCoverage", "marginCoverage": "good"}`
     """
 

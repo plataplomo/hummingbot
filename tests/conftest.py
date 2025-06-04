@@ -1,3 +1,7 @@
+"""Test configuration and fixtures for CyberDeltaEngine test suite.
+
+This module provides pytest fixtures and configuration for testing the CyberDelta trading engine.
+"""
 from __future__ import annotations  # Enable postponed evaluation
 
 import os
@@ -61,6 +65,8 @@ sys.path.insert(0, PROJECT_ROOT)
 
 # Mock aiohttp ClientSession and Response for API testing
 class MockResponse:
+    """Mock aiohttp response for testing API clients."""
+
     def __init__(
         self,
         data: object,  # Test data can be any JSON-serializable object
@@ -69,6 +75,15 @@ class MockResponse:
         content_type: str = "application/json",
         text_data: str | None = None,  # Added for direct initialization
     ) -> None:
+        """Initialize mock response with test data and status.
+        
+        Args:
+            data: JSON-serializable test data
+            status: HTTP status code (default: 200)
+            headers: HTTP response headers
+            content_type: Response content type
+            text_data: Raw text data for response
+        """
         self._data = data
         self.status = status
         self.headers = headers if headers is not None else {}  # Ensure headers is a dict
@@ -98,9 +113,11 @@ class MockResponse:
             )
 
     async def json(self) -> object:  # JSON data can be any serializable object
+        """Return JSON data from response."""
         return self._data
 
     async def __aenter__(self) -> MockResponse:
+        """Enter async context manager."""
         return self
 
     async def __aexit__(
@@ -109,19 +126,28 @@ class MockResponse:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
+        """Exit async context manager."""
         pass
 
 
 class MockClientSession:
+    """Mock aiohttp ClientSession for testing HTTP clients."""
+
     def __init__(
         self,
         responses: dict[tuple[str, str], MockResponse] | None = None,
     ) -> None:
+        """Initialize mock session with predefined responses.
+        
+        Args:
+            responses: Mapping of (method, url) tuples to mock responses
+        """
         self.responses = responses or {}
         self.requests: list[dict[str, Any]] = []  # Flexible for test requests
         self.closed = False
 
     async def __aenter__(self) -> MockClientSession:
+        """Enter async context manager."""
         return self
 
     async def __aexit__(
@@ -130,9 +156,11 @@ class MockClientSession:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
+        """Exit async context manager."""
         pass
 
     async def close(self) -> None:
+        """Close the session."""
         self.closed = True
 
     async def _request(
@@ -153,17 +181,21 @@ class MockClientSession:
         return MockResponse({}, status=404)
 
     async def get(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:  # Accepts any kwargs
+        """Execute GET request."""
         return await self._request("GET", url, **kwargs)
 
     async def post(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:  # Accepts any kwargs
+        """Execute POST request."""
         return await self._request("POST", url, **kwargs)
 
     async def put(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:  # Accepts any kwargs
+        """Execute PUT request."""
         return await self._request("PUT", url, **kwargs)
 
     async def delete(
         self, url: str, **kwargs: dict[str, Any],
     ) -> MockResponse:  # Accepts any kwargs
+        """Execute DELETE request."""
         return await self._request("DELETE", url, **kwargs)
 
 
@@ -741,6 +773,7 @@ async def mock_request(
     status_code: int = 200,
     **kwargs: object,  # Additional kwargs for flexibility
 ) -> MockResponse:
+    """Create mock HTTP request for testing."""
     text_data = str(json) if json else ""
     actual_headers = headers if headers else {}
     mock_resp = MockResponse(

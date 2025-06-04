@@ -1,4 +1,5 @@
 """Hyperliquid order status request payload models."""
+
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field

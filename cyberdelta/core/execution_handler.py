@@ -180,7 +180,7 @@ class ExecutionHandler:
 
     async def execute_opportunity(self, opportunity: SizedOpportunity) -> TradeExecution:
         """Execute an arbitrage opportunity.
-        
+
         Uses SymbolMapper to get exchange-specific symbols.
 
         Args:
@@ -387,7 +387,7 @@ class ExecutionHandler:
         short_symbol: str,
     ) -> None:
         """Places orders for both legs of the opportunity.
-        
+
         Handles sequential placement and compensation.
         This is a reconstructed method body.
         """
@@ -1119,7 +1119,7 @@ class ExecutionHandler:
 
     async def _update_pnl(self, execution: TradeExecution) -> None:
         """Calculate and update the realized PnL for a completed execution.
-        
+
         This is a basic implementation assuming market orders and fills match requests.
         Needs refinement for limit orders, partial fills, and accurate fee data.
         """

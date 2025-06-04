@@ -120,7 +120,7 @@ class WebSocketManager:
     def connect(self) -> asyncio.Task[None] | None:
         """Initiates the WebSocket connection process by creating and returning a task
         for _establish_connection.
-        
+
         Does not await the task itself.
         This method is idempotent based on task status.
 
@@ -164,7 +164,7 @@ class WebSocketManager:
 
     async def _establish_connection(self) -> None:
         """Establishes and maintains the WebSocket connection.
-        
+
         Includes retry logic with exponential backoff.
         """
         self._logger.info(

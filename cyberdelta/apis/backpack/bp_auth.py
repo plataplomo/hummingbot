@@ -3,6 +3,7 @@
 This module provides authentication functionality for the Backpack Exchange API,
 including ED25519 signature generation for REST API requests and WebSocket subscriptions.
 """
+
 import base64
 import time
 import urllib.parse

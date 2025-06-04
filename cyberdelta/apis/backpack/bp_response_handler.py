@@ -249,7 +249,7 @@ class BackpackResponseHandler:
         symbol: str,
     ) -> bool:
         """Validate the raw response for the Cancel Order endpoint.
-        
+
         Expects no content on success.
         """
         if raw_response_content not in [None, {}]:
@@ -616,7 +616,7 @@ class BackpackResponseHandler:
         raw_response_content: RawJsonResponse,
     ) -> RawJsonResponse:  # Returns the validated raw dict
         """Validate the raw response for an internal capital transfer.
-        
+
         Expects a dict with 'success' (bool), optional 'message' (str), and
         optional 'transferId' (str).
         """

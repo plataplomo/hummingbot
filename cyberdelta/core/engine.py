@@ -1,4 +1,5 @@
 """Core trading engine for strategy management and signal routing."""
+
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable

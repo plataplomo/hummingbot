@@ -1,4 +1,5 @@
 """API error exception class for exchange API operations."""
+
 from typing import Any
 
 from .api_error_response import APIErrorResponse
@@ -68,7 +69,7 @@ class APIError(Exception):
     @property
     def is_retryable(self) -> bool:
         """Determines if this error can be retried based on its nature.
-        
+
         Rate limits, timeouts and some server errors can be retried.
         """
         # Defensive: handle both int and str code

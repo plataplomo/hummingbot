@@ -1,4 +1,5 @@
 """Hyperliquid exchange action payload models."""
+
 from __future__ import annotations
 
 from typing import Literal

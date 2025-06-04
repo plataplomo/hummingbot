@@ -1,4 +1,5 @@
 """Hyperliquid EIP-712 authentication implementation."""
+
 from __future__ import annotations
 
 import asyncio
@@ -212,7 +213,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _clean_order_type_fields(self, data: dict[str, Any]) -> None:
         """Recursively clean None values from order type structures in JSON payload.
-        
+
         This is specifically for Hyperliquid API which expects order types to have
         only the active field (limit OR market), not both with one as null.
         """
@@ -259,7 +260,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _lowercase_addresses_in_payload(self, data: dict[str, Any]) -> None:
         """Recursively convert Ethereum addresses to lowercase in the payload.
-        
+
         This ensures consistent hashing as addresses are case-sensitive in msgpack.
 
         Args:
