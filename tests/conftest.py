@@ -5,6 +5,7 @@ import sys
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from types import TracebackType  # Import TracebackType
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
@@ -13,6 +14,7 @@ import aiohttp
 import pytest
 from pydantic import AnyUrl, HttpUrl
 
+from cyberdelta.config.config_manager import ConfigManager, ConfigurationError
 from cyberdelta.config.config_models import (
     AppSettings,
     BalanceMonitoringSettings,
@@ -32,7 +34,7 @@ from cyberdelta.config.config_models import (
     StrategyParamsHLPerpBPSpot,
 )
 from cyberdelta.config.secrets_manager import SecretsManager
-from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
+from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets, SecretsConfig
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -525,7 +527,7 @@ def mock_secrets_manager_with_missing() -> MagicMock:
 def hl_test_environment() -> str:
     """
     Fixture to determine Hyperliquid test environment.
-    
+
     Defaults to 'testnet' but can be overridden with CYBERDELTA_TEST_ENV_HL environment variable.
     """
     return os.environ.get("CYBERDELTA_TEST_ENV_HL", "testnet")
@@ -535,68 +537,71 @@ def hl_test_environment() -> str:
 def active_hl_config(hl_test_environment: str) -> ExchangeSpecificConfig:
     """
     Environment-aware ExchangeSpecificConfig fixture for Hyperliquid.
-    
+
     Configures the exchange for mainnet or testnet based on hl_test_environment.
     Always includes both mainnet and testnet URLs.
     """
     is_mainnet_env_flag = hl_test_environment == "mainnet"
-    
-    return ExchangeSpecificConfig.model_validate({
-        "exchange_name": ExchangeName.HYPERLIQUID,
-        "api_base_url_mainnet": "https://api.hyperliquid.xyz",
-        "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
-        "api_base_url_testnet": "https://api.hyperliquid-testnet.xyz",
-        "ws_url_testnet": "wss://api.hyperliquid-testnet.xyz/ws",
-        "is_mainnet_environment": is_mainnet_env_flag,
-        "chain_id": 1337,
-        "rate_limit_per_minute": 300,
-        "symbols": {"BTC": "BTC", "ETH": "ETH"},
-        # Hyperliquid-specific rate limiting configuration
-        "ip_weight_limit_per_minute": 1200,
-        "info_request_type_ip_weights": {
-            "l2Book": 2,
-            "allMids": 2,
-            "meta": 2,
-            "userRole": 60,
-            "clearinghouseState": 10,
-            "openOrders": 1,
-        },
-        "default_info_weight": 20,
-        "exchange_action_base_ip_weight": 1,
-        "address_action_safety_net": {"rate_per_minute": 300},
-        "websocket_send_rate_per_minute": 1800,
-    })
+
+    return ExchangeSpecificConfig.model_validate(
+        {
+            "exchange_name": ExchangeName.HYPERLIQUID,
+            "api_base_url_mainnet": "https://api.hyperliquid.xyz",
+            "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
+            "api_base_url_testnet": "https://api.hyperliquid-testnet.xyz",
+            "ws_url_testnet": "wss://api.hyperliquid-testnet.xyz/ws",
+            "is_mainnet_environment": is_mainnet_env_flag,
+            "chain_id": 1337,
+            "rate_limit_per_minute": 300,
+            "symbols": {"BTC": "BTC", "ETH": "ETH"},
+            # Hyperliquid-specific rate limiting configuration
+            "ip_weight_limit_per_minute": 1200,
+            "info_request_type_ip_weights": {
+                "l2Book": 2,
+                "allMids": 2,
+                "meta": 2,
+                "userRole": 60,
+                "clearinghouseState": 10,
+                "openOrders": 1,
+            },
+            "default_info_weight": 20,
+            "exchange_action_base_ip_weight": 1,
+            "address_action_safety_net": {"rate_per_minute": 300},
+            "websocket_send_rate_per_minute": 1800,
+        }
+    )
 
 
 @pytest.fixture(scope="session")
 def active_hl_secrets() -> PrivateKeyAuthSecrets:
     """
     Environment-aware PrivateKeyAuthSecrets fixture for Hyperliquid.
-    
+
     Uses environment variables if available, otherwise provides test placeholders.
     Supports both dedicated testnet credentials and main credentials.
     """
     # Main private key (always required)
     main_private_key = os.environ.get(
-        "HL_PRIVATE_KEY", 
-        "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        "HL_PRIVATE_KEY", "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
     )
-    
+
     # Optional testnet-specific private key
     testnet_private_key = os.environ.get("HL_TESTNET_PRIVATE_KEY")
-    
+
     # Optional testnet seed passphrase
     testnet_seed = os.environ.get("HL_TESTNET_SEED_PASSPHRASE")
-    
+
     # Optional passphrase for main key encryption
     passphrase = os.environ.get("HL_PASSPHRASE")
-    
-    return PrivateKeyAuthSecrets.model_validate({
-        "private_key": main_private_key,
-        "passphrase": passphrase,
-        "private_key_testnet": testnet_private_key,
-        "testnet_seed_passphrase": testnet_seed,
-    })
+
+    return PrivateKeyAuthSecrets.model_validate(
+        {
+            "private_key": main_private_key,
+            "passphrase": passphrase,
+            "private_key_testnet": testnet_private_key,
+            "testnet_seed_passphrase": testnet_seed,
+        }
+    )
 
 
 # --- Async Mocking Helpers ---
@@ -756,3 +761,77 @@ async def mock_request(
             headers=cast(Any, actual_headers),
         )
     return mock_resp
+
+
+# --- New Test Configuration Fixtures ---
+
+
+@pytest.fixture(scope="session")
+def test_config_file_path() -> Path:
+    """Path to the test configuration file."""
+    # Assumes test_config.yaml is in tests/config/ relative to project root
+    return Path(__file__).parent / "config" / "test_config.yaml"
+
+
+@pytest.fixture(scope="session")
+def test_secrets_file_path() -> Path:
+    """Path to the test secrets file."""
+    return Path(__file__).parent / "config" / "test_secrets.yaml"
+
+
+@pytest.fixture(scope="session")
+def test_app_settings(test_config_file_path: Path) -> AppSettings:
+    """Load test-specific AppSettings from test_config.yaml."""
+    if not test_config_file_path.exists():
+        pytest.skip(
+            f"Test config file not found at {test_config_file_path}, skipping tests that need it."
+        )
+    try:
+        manager = ConfigManager(str(test_config_file_path))
+        if manager.settings is None:  # Should be caught by ConfigManager raising ConfigurationError
+            raise ConfigurationError("ConfigManager loaded but settings are None.")
+        return manager.settings
+    except ConfigurationError as e:
+        pytest.fail(f"Failed to load test AppSettings from {test_config_file_path}: {e}")
+    # Add a default return to satisfy linters, though pytest.fail should exit
+    # This path should ideally not be reached if pytest.fail works as expected.
+    raise RuntimeError("test_app_settings fixture failed unexpectedly.")
+
+
+@pytest.fixture(scope="session")
+def test_secrets_config(test_secrets_file_path: Path) -> SecretsConfig:
+    """Load test-specific SecretsConfig from test_secrets.yaml."""
+    if not test_secrets_file_path.exists():
+        pytest.skip(
+            f"Test secrets file not found at {test_secrets_file_path}, skipping tests that need it."
+        )
+    try:
+        manager = SecretsManager(str(test_secrets_file_path))
+        if (
+            manager.secrets_data is None
+        ):  # Should be caught by SecretsManager raising ConfigurationError
+            raise ConfigurationError("SecretsManager loaded but secrets_data is None.")
+        return manager.secrets_data
+    except ConfigurationError as e:
+        pytest.fail(f"Failed to load test SecretsConfig from {test_secrets_file_path}: {e}")
+    # Add a default return to satisfy linters
+    raise RuntimeError("test_secrets_config fixture failed unexpectedly.")
+
+
+@pytest.fixture(scope="session")
+def hl_test_environment_from_config(test_app_settings: AppSettings) -> str:
+    """
+    Get the default Hyperliquid test environment from test_config.yaml.
+
+    Can be overridden with CYBERDELTA_TEST_ENV_HL environment variable.
+    """
+    hl_config = test_app_settings.exchanges.get("hyperliquid")
+    is_mainnet_from_config = False  # Default to testnet
+    if hl_config and hasattr(hl_config, "is_mainnet_environment"):
+        is_mainnet_from_config = hl_config.is_mainnet_environment
+
+    # Allow override via environment variable
+    env_override = os.environ.get("CYBERDELTA_TEST_ENV_HL")
+    if env_override:
+        return env_override.lower()
+    return "mainnet" if is_mainnet_from_config else "testnet"

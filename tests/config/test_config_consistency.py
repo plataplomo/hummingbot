@@ -151,7 +151,7 @@ class TestConfigConsistency:
                 f"Example config {EXAMPLE_CONFIG_PATH} did not load as a dictionary "
                 f"(loaded type: {type(example_config_any)}). Cannot validate."
             )
-        
+
         # Cast to proper type after isinstance check
         example_config_dict = cast(dict[str, Any], example_config_any)
 

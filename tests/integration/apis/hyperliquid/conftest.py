@@ -1,17 +1,45 @@
 # Integration test fixtures for Hyperliquid API
-# Copy of necessary fixtures from unit tests
+# Uses test configuration from tests/config/test_config.yaml
 
 from collections.abc import Callable
 from typing import Any, Literal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic import SecretStr
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.config.config_models import ExchangeSpecificConfig
-from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
+from cyberdelta.config.config_models import AppSettings, ExchangeSpecificConfig
+from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets, SecretsConfig
 from cyberdelta.enums.exchange_names import ExchangeName
+
+
+@pytest.fixture(scope="session")
+def active_hl_config(
+    test_app_settings: AppSettings, hl_test_environment_from_config: str
+) -> ExchangeSpecificConfig:
+    """
+    Get ExchangeSpecificConfig for Hyperliquid from test configuration.
+
+    Uses test_config.yaml settings with environment override support.
+    """
+    hl_config_from_file = test_app_settings.exchanges["hyperliquid"]
+    # Override is_mainnet_environment based on hl_test_environment_from_config fixture
+    return hl_config_from_file.model_copy(
+        update={"is_mainnet_environment": hl_test_environment_from_config == "mainnet"}
+    )
+
+
+@pytest.fixture(scope="session")
+def active_hl_secrets(test_secrets_config: SecretsConfig) -> PrivateKeyAuthSecrets:
+    """
+    Get PrivateKeyAuthSecrets for Hyperliquid from test secrets.
+
+    Uses test_secrets.yaml settings.
+    """
+    secrets = test_secrets_config.exchanges["hyperliquid"]
+    if not isinstance(secrets, PrivateKeyAuthSecrets):
+        pytest.fail("Hyperliquid secrets in test_secrets.yaml are not PrivateKeyAuthSecrets type.")
+    return secrets
 
 
 def create_test_exchange_config(
@@ -20,6 +48,8 @@ def create_test_exchange_config(
 ) -> ExchangeSpecificConfig:
     """
     Create ExchangeSpecificConfig for testing with environment awareness.
+
+    DEPRECATED: Use active_hl_config fixture instead.
 
     Args:
         env_type: Environment type ("mainnet" or "testnet")
@@ -197,7 +227,27 @@ def mock_hl_market_data_service() -> MagicMock:
 
 
 @pytest.fixture
+def hl_api_for_test_env(
+    active_hl_config: ExchangeSpecificConfig,
+    active_hl_secrets: PrivateKeyAuthSecrets,
+) -> HyperliquidAPI:
+    """
+    Create HyperliquidAPI instance for integration tests.
+
+    Uses configuration from test_config.yaml and test_secrets.yaml.
+    For cassette recording/playback, this uses real components.
+    """
+    # Let HyperliquidAPI create its own real components via factory
+    return HyperliquidAPI(
+        exchange_config=active_hl_config,
+        exchange_secrets=active_hl_secrets,
+    )
+
+
+@pytest.fixture
 def hl_api_with_di(
+    active_hl_config: ExchangeSpecificConfig,
+    active_hl_secrets: PrivateKeyAuthSecrets,
     mock_hl_authenticator: MagicMock,
     mock_hl_error_mapper: MagicMock,
     mock_hl_request_builder: MagicMock,
@@ -215,6 +265,8 @@ def hl_api_with_di(
     """
     Factory fixture to create HyperliquidAPI instances with all dependencies injected.
     This enables black-box testing without accessing private members.
+
+    UPDATED: Now uses active_hl_config and active_hl_secrets by default.
     """
 
     def _create_api(
@@ -224,17 +276,12 @@ def hl_api_with_di(
         **overrides: MagicMock,
     ) -> HyperliquidAPI:
         """Create HyperliquidAPI with injected dependencies."""
-        # Create default Pydantic models if not provided
+        # Use active fixtures if not overridden
         if config is None:
-            config = create_test_exchange_config()
+            config = active_hl_config
 
         if secrets is None:
-            secrets = PrivateKeyAuthSecrets(
-                private_key=SecretStr("0x" + "1" * 64),
-                passphrase=None,
-                private_key_testnet=None,
-                testnet_seed_passphrase=None,
-            )
+            secrets = active_hl_secrets
 
         return HyperliquidAPI(
             exchange_config=config,
