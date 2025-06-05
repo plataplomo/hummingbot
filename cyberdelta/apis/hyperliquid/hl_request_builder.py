@@ -143,7 +143,7 @@ class HyperliquidRequestBuilder:
         """
         transfer_payload_model = HyperliquidRawL2UsdTransferPayload(
             destination=destination_address,
-            token="USDC",
+            token="USDC",  # noqa: S106
             amount=str(amount),
         )
         action_details_model = HyperliquidRawL2UsdTransferActionDetails(

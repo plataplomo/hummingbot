@@ -122,7 +122,8 @@ select = [  # Linting rules to apply
     "T",   # typing
     "D",   # docstrings
     "Q",   # quality
-    "COM", 
+    "COM", # comments
+    "S",   # security
 ]
 
 # Ignore rules that conflict with current codebase formatting
@@ -132,6 +133,10 @@ ignore = [
 ]
 
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"  # Regex for dummy variable names
+
+# Per-path ignores
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S105", "S106"]  # Allow assert statements in tests
 
 # Configure pydocstyle to match current docstring conventions
 [tool.ruff.lint.pydocstyle]
