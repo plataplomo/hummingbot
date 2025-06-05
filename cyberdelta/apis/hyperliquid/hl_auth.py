@@ -374,7 +374,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
         # Calculate action_hash (mimicking SDK's action_hash function)
         msgpacked_action = msgpack.packb(action_payload_dict)
-        assert isinstance(msgpacked_action, bytes), "msgpack.packb should return bytes"
+        if not isinstance(msgpacked_action, bytes):
+            raise ValueError("msgpack.packb should return bytes")
         action_hash_data_parts: list[bytes] = [msgpacked_action]
         action_hash_data_parts.append(current_nonce_ms.to_bytes(8, "big"))
 

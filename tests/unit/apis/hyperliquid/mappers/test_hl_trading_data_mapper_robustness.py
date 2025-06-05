@@ -337,8 +337,9 @@ class TestErrorHandlingAndExceptions:
         with caplog.at_level(logging.WARNING):
             try:
                 trading_data_mapper.transform_raw_order_to_internal(problematic_order)
-            except Exception:
-                pass  # We expect this to fail, we're testing logging
+            except Exception as e:
+                # We expect this to fail, we're testing logging
+                logger.debug(f"Expected exception during robustness test: {e}")
 
         # Check that warning was logged with correct logger name
         assert any(

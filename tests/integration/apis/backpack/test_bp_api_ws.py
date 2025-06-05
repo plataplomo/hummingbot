@@ -7,6 +7,7 @@ specifically focusing on delegation to the router and WebSocket lifecycle manage
 The detailed routing logic is tested in test_bp_ws_message_router.py.
 """
 
+import logging
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -18,6 +19,8 @@ from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.enums.exchange_names import ExchangeName
 
 pytestmark = pytest.mark.integration
+
+logger = logging.getLogger(__name__)
 
 
 def create_test_exchange_config(
@@ -332,9 +335,9 @@ class TestBackpackAPIWebSocketEdgeCases:
             await bp_api_edge_case.subscribe(special_topic, handler)
             # If successful, verify state is consistent
             assert bp_api_edge_case.is_connected is False
-        except Exception:
+        except Exception as e:
             # If it fails due to validation, that's also acceptable
-            pass
+            logger.debug(f"Expected exception during special character test: {e}")
 
     @pytest.mark.asyncio
     async def test_subscription_very_long_topic(self, bp_api_edge_case: BackpackAPI) -> None:
@@ -368,8 +371,8 @@ class TestBackpackAPIWebSocketEdgeCases:
         try:
             await bp_api_edge_case.subscribe("", handler)
             assert bp_api_edge_case.is_connected is False
-        except (ValueError, Exception):
-            pass  # Either behavior is acceptable
+        except (ValueError, Exception) as e:
+            logger.debug(f"Expected exception during empty topic test: {e}")
 
     @pytest.mark.asyncio
     async def test_websocket_connection_status_consistency(
@@ -423,9 +426,9 @@ class TestBackpackAPIWebSocketEdgeCases:
         try:
             await bp_api_edge_case.subscribe(unicode_topic, handler)
             assert bp_api_edge_case.is_connected is False
-        except Exception:
+        except Exception as e:
             # If it fails due to validation, that's also acceptable
-            pass
+            logger.debug(f"Expected exception during unicode test: {e}")
 
     @pytest.mark.asyncio
     async def test_api_state_consistency_across_operations(

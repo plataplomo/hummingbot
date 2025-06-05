@@ -201,7 +201,8 @@ class BackpackRawOrderBook(BaseModel):
         # #[CAST-REVIEW-REQUIRED]
 
         # Runtime Verification:
-        assert isinstance(v, list), "Input must be a list (already checked, but for cast safety)"
+        if not isinstance(v, list):
+            raise ValueError("Input must be a list (already checked, but for cast safety)")
         # More detailed structural assertions (e.g., on v[0]) are omitted here;
         # Pydantic's subsequent validation on element types is comprehensive.
 

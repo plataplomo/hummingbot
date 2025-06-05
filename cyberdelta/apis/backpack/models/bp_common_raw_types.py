@@ -47,10 +47,11 @@ def _validate_raw_string_to_finite_decimal(v: object, info: ValidationInfo) -> D
     decimal_value = parse_decimal_value(validated_str, field_name=field_name, allow_none=False)
     # DEFENSIVE CHECK: parse_decimal_value with allow_none=False should not return None.
     # Mypy=[assert-type] Ruff=[N/A]
-    assert decimal_value is not None, (
-        f"Field {field_name}: parse_decimal_value unexpectedly returned None"
-        f" despite allow_none=False"
-    )
+    if decimal_value is None:
+        raise ValueError(
+            f"Field {field_name}: parse_decimal_value unexpectedly returned None"
+            f" despite allow_none=False",
+        )
     return decimal_value
 
 
@@ -78,10 +79,11 @@ def _validate_raw_parsable_finite_decimal_string(v: object, info: ValidationInfo
     d = parse_decimal_value(s, allow_none=False, field_name=actual_field_name)
     # DEFENSIVE CHECK: parse_decimal_value with allow_none=False should not return None.
     # Mypy=[assert-type] Ruff=[N/A]
-    assert d is not None, (
-        f"Field {actual_field_name}: parse_decimal_value unexpectedly returned None"
-        f" for '{s}' despite allow_none=False"
-    )
+    if d is None:
+        raise ValueError(
+            f"Field {actual_field_name}: parse_decimal_value unexpectedly returned None"
+            f" for '{s}' despite allow_none=False",
+        )
     if not d.is_finite():
         # This generic message for non-finite values was already confirmed to work with tests.
         raise ValueError("Value must be a finite decimal")
@@ -103,10 +105,11 @@ def _validate_raw_parsable_non_negative_finite_decimal_string(
     d = parse_decimal_value(s, allow_none=False, field_name=field_name)
     # DEFENSIVE CHECK: parse_decimal_value with allow_none=False should not return None.
     # Mypy=[assert-type] Ruff=[N/A]
-    assert d is not None, (
-        f"Field {field_name}: parse_decimal_value unexpectedly returned None"
-        f" for non-negative check of '{s}' despite allow_none=False"
-    )
+    if d is None:
+        raise ValueError(
+            f"Field {field_name}: parse_decimal_value unexpectedly returned None"
+            f" for non-negative check of '{s}' despite allow_none=False",
+        )
     if d < Decimal(0):
         raise ValueError(f"Field {field_name}: Value '{s}' must represent a non-negative decimal.")
     return s
@@ -203,7 +206,8 @@ def _validate_raw_funding_rate_timestamp(v: object, info: ValidationInfo) -> int
     if isinstance(v, int | float):
         try:
             dt_object = parse_datetime_utc(v, field_name=field_name)
-            assert dt_object is not None
+            if dt_object is None:
+                raise ValueError(f"Field {field_name}: parse_datetime_utc returned None for '{v}'")
             if dt_object.year < 1970 or dt_object.year > 2070:  # Strict range 1970-2070
                 raise ValueError(
                     f"Field {field_name}: Timestamp '{v}' results in an implausible year "
@@ -232,7 +236,11 @@ def _validate_raw_funding_rate_timestamp(v: object, info: ValidationInfo) -> int
         if is_numeric_string and numeric_value is not None:
             try:
                 dt_object = parse_datetime_utc(numeric_value, field_name=field_name)
-                assert dt_object is not None
+                if dt_object is None:
+                    raise ValueError(
+                        f"Field {field_name}: parse_datetime_utc returned None for "
+                        f"'{numeric_value}'"
+                    )
                 if dt_object.year < 1970 or dt_object.year > 2070:  # Strict range 1970-2070
                     raise ValueError(
                         f"Field {field_name}: Timestamp str '{s_val}' (parsed as {numeric_value}) "
@@ -246,7 +254,10 @@ def _validate_raw_funding_rate_timestamp(v: object, info: ValidationInfo) -> int
         else:  # Standard ISO string
             try:
                 dt_object = parse_datetime_utc(s_val, field_name=field_name)
-                assert dt_object is not None
+                if dt_object is None:
+                    raise ValueError(
+                        f"Field {field_name}: parse_datetime_utc returned None for '{s_val}'",
+                    )
                 if dt_object.year < 1970 or dt_object.year > 2070:  # Strict range 1970-2070
                     raise ValueError(
                         f"Field {field_name}: ISO str '{s_val}' gives year {dt_object.year} "
@@ -276,9 +287,8 @@ def _validate_raw_flexible_timestamp(v: object, info: ValidationInfo) -> int | f
     if isinstance(v, int | float):  # UP038 Fix
         try:
             dt_object = parse_datetime_utc(v, field_name=field_name)
-            assert (
-                dt_object is not None
-            )  # Should be true if parse_datetime_utc doesn't return None without raising
+            if dt_object is None:
+                raise ValueError(f"Field {field_name}: parse_datetime_utc returned None for '{v}'")
             # Reverted to wider year range 1970-2300 for general flexible timestamp
             if dt_object.year < 1970 or dt_object.year > 2300:  # Reverted to 2300
                 raise ValueError(
@@ -313,7 +323,11 @@ def _validate_raw_flexible_timestamp(v: object, info: ValidationInfo) -> int | f
                     numeric_value,
                     field_name=field_name,
                 )  # Use numeric_value for parsing
-                assert dt_object is not None
+                if dt_object is None:
+                    raise ValueError(
+                        f"Field {field_name}: parse_datetime_utc returned None for "
+                        f"'{numeric_value}'"
+                    )
                 # Reverted to wider year range 1970-2300
                 if dt_object.year < 1970 or dt_object.year > 2300:  # Reverted to 2300
                     raise ValueError(
@@ -331,7 +345,10 @@ def _validate_raw_flexible_timestamp(v: object, info: ValidationInfo) -> int | f
         else:  # Standard ISO string timestamp (or non-numeric string)
             try:
                 dt_object = parse_datetime_utc(s_val, field_name=field_name)
-                assert dt_object is not None
+                if dt_object is None:
+                    raise ValueError(
+                        f"Field {field_name}: parse_datetime_utc returned None for '{s_val}'",
+                    )
                 # Reverted to wider year range 1970-2300
                 if dt_object.year < 1970 or dt_object.year > 2300:  # Reverted to 2300
                     raise ValueError(
@@ -851,10 +868,11 @@ def _validate_raw_parsable_positive_finite_decimal_string(v: object, info: Valid
     d = parse_decimal_value(s, allow_none=False, field_name=field_name)
     # DEFENSIVE CHECK: parse_decimal_value with allow_none=False should not return None.
     # Mypy=[assert-type] Ruff=[N/A]
-    assert d is not None, (
-        f"Field {field_name}: parse_decimal_value unexpectedly returned None"
-        f" for positive check of '{s}' despite allow_none=False"
-    )
+    if d is None:
+        raise ValueError(
+            f"Field {field_name}: parse_decimal_value unexpectedly returned None"
+            f" for positive check of '{s}' despite allow_none=False",
+        )
     if d <= Decimal(0):
         raise ValueError(f"Field {field_name}: Value '{s}' must represent a positive decimal.")
     return s
@@ -930,9 +948,10 @@ def _validate_raw_string_to_datetime(v: object, info: ValidationInfo) -> datetim
     # Add assertion for defensiveness, though parse_datetime_utc's contract should guarantee it.
     # DEFENSIVE CHECK: parse_datetime_utc should return datetime or raise.
     # Mypy=[assert-type] Ruff=[N/A]
-    assert isinstance(dt, datetime), (
-        f"Field {field_name}: parse_datetime_utc returned non-datetime for '{validated_str}'"
-    )
+    if not isinstance(dt, datetime):
+        raise ValueError(
+            f"Field {field_name}: parse_datetime_utc returned non-datetime for '{validated_str}'",
+        )
     return dt
 
 
@@ -1091,9 +1110,10 @@ def _validate_raw_liquidation_quantity_string(v: object, info: ValidationInfo) -
     d = parse_decimal_value(s, allow_none=False, field_name=field_name)
     # DEFENSIVE CHECK: parse_decimal_value with allow_none=False should not return None.
     # Mypy=[assert-type] Ruff=[N/A]
-    assert d is not None, (
-        f"Field {field_name}: parse_decimal_value unexpectedly returned None for '{s}'"
-    )
+    if d is None:
+        raise ValueError(
+            f"Field {field_name}: parse_decimal_value unexpectedly returned None for '{s}'",
+        )
 
     if not d.is_finite():
         raise ValueError("Value must be a finite decimal")  # Specific error message for test
@@ -1120,9 +1140,10 @@ def _validate_raw_liquidation_price_string(v: object, info: ValidationInfo) -> s
 
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-    assert d is not None, (
-        f"Field {field_name}: parse_decimal_value unexpectedly returned None for '{s}'"
-    )
+    if d is None:
+        raise ValueError(
+            f"Field {field_name}: parse_decimal_value unexpectedly returned None for '{s}'",
+        )
 
     if not d.is_finite():
         raise ValueError("Value must be a finite decimal")
@@ -1152,9 +1173,10 @@ def _validate_raw_withdrawal_amount_string(v: object, info: ValidationInfo) -> s
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=False, field_name=field_name)
     # DEFENSIVE CHECK
-    assert d is not None, (
-        f"Field {field_name}: parse_decimal_value unexpectedly returned None for '{s}'"
-    )
+    if d is None:
+        raise ValueError(
+            f"Field {field_name}: parse_decimal_value unexpectedly returned None for '{s}'",
+        )
 
     if not d.is_finite():
         # Standard finite message, as test focuses on negative for this model
@@ -1183,9 +1205,10 @@ def _validate_raw_deposit_amount_string(v: object, info: ValidationInfo) -> str:
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=False, field_name=field_name)
     # DEFENSIVE CHECK
-    assert d is not None, (
-        f"Field {field_name}: parse_decimal_value unexpectedly returned None for '{s}'"
-    )
+    if d is None:
+        raise ValueError(
+            f"Field {field_name}: parse_decimal_value unexpectedly returned None for '{s}'",
+        )
 
     if not d.is_finite():
         # Standard finite message
@@ -1214,10 +1237,11 @@ def _validate_raw_fill_fee_string(v: object, info: ValidationInfo) -> str:
         raise ValueError(f"{actual_field_name}: Raw value must be a string")
     s = validate_str_field(v, field_name=actual_field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=False, field_name=actual_field_name)
-    assert d is not None, (
-        f"Field {actual_field_name}: parse_decimal_value unexpectedly returned None"
-        f" for '{s}' despite allow_none=False"
-    )
+    if d is None:
+        raise ValueError(
+            f"Field {actual_field_name}: parse_decimal_value unexpectedly returned None"
+            f" for '{s}' despite allow_none=False",
+        )
     if not d.is_finite():
         raise ValueError("Value must be a finite decimal")  # Matches test expectation
     return s
@@ -1238,10 +1262,11 @@ def _validate_raw_fill_price_string(v: object, info: ValidationInfo) -> str:
         raise ValueError(f"{actual_field_name}: Raw value must be a string")
     s = validate_str_field(v, field_name=actual_field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=False, field_name=actual_field_name)
-    assert d is not None, (
-        f"Field {actual_field_name}: parse_decimal_value unexpectedly returned None"
-        f" for '{s}' despite allow_none=False"
-    )
+    if d is None:
+        raise ValueError(
+            f"Field {actual_field_name}: parse_decimal_value unexpectedly returned None"
+            f" for '{s}' despite allow_none=False",
+        )
     if not d.is_finite():
         raise ValueError("Value must be a finite decimal")  # Matches test expectation
     return s
@@ -1262,10 +1287,11 @@ def _validate_raw_fill_quantity_string(v: object, info: ValidationInfo) -> str:
         raise ValueError(f"{actual_field_name}: Raw value must be a string")
     s = validate_str_field(v, field_name=actual_field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=False, field_name=actual_field_name)
-    assert d is not None, (
-        f"Field {actual_field_name}: parse_decimal_value unexpectedly returned None"
-        f" for '{s}' despite allow_none=False"
-    )
+    if d is None:
+        raise ValueError(
+            f"Field {actual_field_name}: parse_decimal_value unexpectedly returned None"
+            f" for '{s}' despite allow_none=False",
+        )
     if not d.is_finite():
         raise ValueError("Value must be a finite decimal")  # Matches test expectation
     return s

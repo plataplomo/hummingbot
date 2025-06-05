@@ -284,9 +284,10 @@ class HttpClient:
                     api_error_code=APIErrorCode.INVALID_RESPONSE,
                 ) from je
         else:  # Not JSON, return raw text
-            assert response_text is not None, (
-                f"DEFENSIVE: response_text is None for {full_url} with non-JSON 2xx non-204 status"
-            )
+            if response_text is None:
+                raise ValueError(
+                    f"DEFENSIVE: response_text is None for {full_url} with non-JSON 2xx non-204 status"
+                )
             return response_text, response.status, processed_headers, raw_response_headers
 
     async def request(
@@ -493,9 +494,10 @@ class HttpClient:
                 )
                 if isinstance(last_exception, APIError | HttpRequestFailedError):  # UP038
                     raise last_exception
-                assert last_exception is not None, (
-                    "DEFENSIVE: last_exception is None after all retries failed"
-                )
+                if last_exception is None:
+                    raise ValueError(
+                        "DEFENSIVE: last_exception is None after all retries failed"
+                    )
                 # Wrap other client-side exceptions specifically
                 if isinstance(last_exception, TimeoutError):
                     raise HttpRequestFailedError(

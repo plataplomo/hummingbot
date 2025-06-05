@@ -9,6 +9,7 @@ These tests ensure that the example script correctly:
 """
 
 import os
+import subprocess
 import sys
 import tempfile
 from collections.abc import Generator
@@ -51,8 +52,13 @@ def test_create_example(example_test_setup: tuple[str, str]) -> None:
     with patch.dict("os.environ", {"HOME": temp_dir_name}):
         script_dir = os.path.dirname(example_script)
 
-        command = f"cd {script_dir} && python {os.path.basename(example_script)} --create-example"
-        exit_code = os.system(command)
+        result = subprocess.run(
+            ["python", os.path.basename(example_script), "--create-example"],
+            cwd=script_dir,
+            capture_output=True,
+            text=True,
+        )
+        exit_code = result.returncode
 
         assert exit_code == 0, f"Script failed with exit code {exit_code}"
 
@@ -128,11 +134,21 @@ exchanges:
             """)
 
     script_dir = os.path.dirname(example_script)
-    command = (
-        f"cd {script_dir} && python {os.path.basename(example_script)} "
-        f"--benchmark --config {config_path} --secrets {secrets_path}"
+    result = subprocess.run(
+        [
+            "python",
+            os.path.basename(example_script),
+            "--benchmark",
+            "--config",
+            str(config_path),
+            "--secrets",
+            str(secrets_path),
+        ],
+        cwd=script_dir,
+        capture_output=True,
+        text=True,
     )
-    exit_code = os.system(command)
+    exit_code = result.returncode
     assert exit_code == 0, f"Benchmark failed with exit code {exit_code}"
 
 
@@ -184,9 +200,18 @@ exchanges:
             """)
 
     script_dir = os.path.dirname(example_script)
-    command = (
-        f"cd {script_dir} && python {os.path.basename(example_script)} "
-        f"--config {config_path} --secrets {secrets_path}"
+    result = subprocess.run(
+        [
+            "python",
+            os.path.basename(example_script),
+            "--config",
+            str(config_path),
+            "--secrets",
+            str(secrets_path),
+        ],
+        cwd=script_dir,
+        capture_output=True,
+        text=True,
     )
-    exit_code = os.system(command)
+    exit_code = result.returncode
     assert exit_code == 0, f"Display config failed with exit code {exit_code}"

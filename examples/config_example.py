@@ -241,16 +241,17 @@ def main() -> None:
             if exchange_name in secrets_config.exchanges:
                 exchange_secrets = secrets_config.exchanges[exchange_name]
                 # Check if API key is configured (without showing actual values)
-                if hasattr(exchange_secrets, 'api_key') and exchange_secrets.api_key:
+                if hasattr(exchange_secrets, "api_key") and exchange_secrets.api_key:
                     if isinstance(exchange_secrets.api_key, str):
-                        masked_key = exchange_secrets.api_key[-4:] if len(exchange_secrets.api_key) >= 4 else "****"
+                        api_key_str = exchange_secrets.api_key
+                        masked_key = api_key_str[-4:] if len(api_key_str) >= 4 else "****"
                         logger.info(f"    API Key: Set (ending with ...{masked_key})")
                     else:
                         logger.info("    API Key: Set (complex structure)")
                 else:
                     logger.info("    API Key: Not Set")
                     
-                if hasattr(exchange_secrets, 'api_secret') and exchange_secrets.api_secret:
+                if hasattr(exchange_secrets, "api_secret") and exchange_secrets.api_secret:
                     logger.info("    API Secret: Set")
                 else:
                     logger.info("    API Secret: Not Set")
@@ -263,7 +264,7 @@ def main() -> None:
     # Example of retrieving a specific secret using the new system
     if "hyperliquid" in secrets_config.exchanges:
         hyperliquid_secrets = secrets_config.exchanges["hyperliquid"]
-        if hasattr(hyperliquid_secrets, 'api_key') and hyperliquid_secrets.api_key:
+        if hasattr(hyperliquid_secrets, "api_key") and hyperliquid_secrets.api_key:
             logger.info("Hyperliquid API Key: Loaded successfully")
         else:
             logger.info("Hyperliquid API Key: Not found")

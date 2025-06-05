@@ -390,12 +390,17 @@ class BackpackMarketDataMapper:
             # Parse timestamp from start_time_ms (convert milliseconds to datetime)
             open_time = datetime.fromtimestamp(raw_kline.start_time_ms / 1000, tz=UTC)
 
-            # Type assertions since we already checked for None values above
-            assert open_price is not None
-            assert high_price is not None
-            assert low_price is not None
-            assert close_price is not None
-            assert volume is not None
+            # Type checks since we already validated None values above
+            if open_price is None:
+                raise ValueError(f"open_price is None for symbol {symbol}")
+            if high_price is None:
+                raise ValueError(f"high_price is None for symbol {symbol}")
+            if low_price is None:
+                raise ValueError(f"low_price is None for symbol {symbol}")
+            if close_price is None:
+                raise ValueError(f"close_price is None for symbol {symbol}")
+            if volume is None:
+                raise ValueError(f"volume is None for symbol {symbol}")
 
             return Candle(
                 symbol=symbol,
