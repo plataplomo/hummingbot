@@ -23,52 +23,18 @@ pytestmark = pytest.mark.integration
 logger = logging.getLogger(__name__)
 
 
-def create_test_exchange_config(
-    api_base_url_mainnet: str = "https://api.backpack.exchange",
-    ws_url_mainnet: str = "wss://ws.backpack.exchange",
-    api_base_url_testnet: str | None = None,
-    ws_url_testnet: str | None = None,
-    is_mainnet_environment: bool = True,
-    **kwargs: object,
-) -> ExchangeSpecificConfig:
-    """Create ExchangeSpecificConfig for testing by parsing from dict.
+# Removed create_test_exchange_config function - now using active_bp_config from conftest.py
 
-    This works with the validator that expects string inputs.
-    """
-    config_dict = {
-        "exchange_name": ExchangeName.BACKPACK,
-        "api_base_url_mainnet": api_base_url_mainnet,
-        "ws_url_mainnet": ws_url_mainnet,
-        "api_base_url_testnet": api_base_url_testnet,
-        "ws_url_testnet": ws_url_testnet,
-        "is_mainnet_environment": is_mainnet_environment,
-        "rate_limit_per_minute": 120,
-        "symbols": {"SOL_USDC": "SOL_USDC", "BTC_USDC": "BTC_USDC"},
-        "request_timeout_seconds": 30.0,
-        **kwargs,
-    }
-    return ExchangeSpecificConfig.model_validate(config_dict)
+# Note: active_bp_config fixture removed - tests should use active_bp_config directly
 
 
-@pytest.fixture
-def mock_exchange_config() -> ExchangeSpecificConfig:
-    """Mock ExchangeSpecificConfig."""
-    return create_test_exchange_config(request_timeout_seconds=30.0)
-
-
-@pytest.fixture
-def mock_exchange_secrets() -> ApiKeyAuthSecrets:
-    """Mock ApiKeyAuthSecrets configuration."""
-    return ApiKeyAuthSecrets(
-        api_key=SecretStr("61D/XTRs1Es8SgdZN4xO438vv1ls0aWhJSs//JDNxLk="),
-        api_secret=SecretStr("7s6pf6Xs8VJDMTNmcseiLge61XCSZeQ6GW8PP6odR1c="),
-    )
+# Removed active_bp_secrets fixture - now using active_bp_secrets from conftest.py
 
 
 @pytest.fixture
 def bp_api_with_mocked_router(
-    mock_exchange_config: ExchangeSpecificConfig,
-    mock_exchange_secrets: ApiKeyAuthSecrets,
+    active_bp_config: ExchangeSpecificConfig,
+    active_bp_secrets: ApiKeyAuthSecrets,
 ) -> BackpackAPI:
     """Create BackpackAPI instance with mocked dependencies using proper dependency injection."""
     # Mock the WebSocketManager to avoid creating real connections
@@ -89,8 +55,8 @@ def bp_api_with_mocked_router(
                         MockWSManager.return_value = mock_ws_manager
                         # Create API using standard constructor - no protected member access
                         api = BackpackAPI(
-                            exchange_config=mock_exchange_config,
-                            exchange_secrets=mock_exchange_secrets,
+                            exchange_config=active_bp_config,
+                            exchange_secrets=active_bp_secrets,
                         )
                         return api
 
@@ -160,8 +126,8 @@ class TestBackpackAPIWebSocketLifecycle:
     @pytest.fixture
     def bp_api(
         self,
-        mock_exchange_config: ExchangeSpecificConfig,
-        mock_exchange_secrets: ApiKeyAuthSecrets,
+        active_bp_config: ExchangeSpecificConfig,
+        active_bp_secrets: ApiKeyAuthSecrets,
     ) -> BackpackAPI:
         """Create BackpackAPI instance with mocked dependencies for lifecycle tests."""
         with patch("cyberdelta.apis.backpack.bp_api.BackpackEd25519Authenticator"):
@@ -169,8 +135,8 @@ class TestBackpackAPIWebSocketLifecycle:
                 with patch("cyberdelta.apis.backpack.bp_api.BackpackResponseHandler"):
                     with patch("cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder"):
                         return BackpackAPI(
-                            exchange_config=mock_exchange_config,
-                            exchange_secrets=mock_exchange_secrets,
+                            exchange_config=active_bp_config,
+                            exchange_secrets=active_bp_secrets,
                         )
 
     @pytest.mark.asyncio
@@ -228,8 +194,8 @@ class TestBackpackAPIWebSocketIntegration:
     @pytest.fixture
     def bp_api(
         self,
-        mock_exchange_config: ExchangeSpecificConfig,
-        mock_exchange_secrets: ApiKeyAuthSecrets,
+        active_bp_config: ExchangeSpecificConfig,
+        active_bp_secrets: ApiKeyAuthSecrets,
     ) -> BackpackAPI:
         """Create BackpackAPI instance with real router for integration tests."""
         with patch("cyberdelta.apis.backpack.bp_api.BackpackEd25519Authenticator"):
@@ -237,8 +203,8 @@ class TestBackpackAPIWebSocketIntegration:
                 with patch("cyberdelta.apis.backpack.bp_api.BackpackResponseHandler"):
                     with patch("cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder"):
                         return BackpackAPI(
-                            exchange_config=mock_exchange_config,
-                            exchange_secrets=mock_exchange_secrets,
+                            exchange_config=active_bp_config,
+                            exchange_secrets=active_bp_secrets,
                         )
 
     def test_router_initialization(self, bp_api: BackpackAPI) -> None:
@@ -294,8 +260,8 @@ class TestBackpackAPIWebSocketEdgeCases:
     @pytest.fixture
     def bp_api_edge_case(
         self,
-        mock_exchange_config: ExchangeSpecificConfig,
-        mock_exchange_secrets: ApiKeyAuthSecrets,
+        active_bp_config: ExchangeSpecificConfig,
+        active_bp_secrets: ApiKeyAuthSecrets,
     ) -> BackpackAPI:
         """Create BackpackAPI instance for edge case testing."""
         with patch("cyberdelta.apis.backpack.bp_api.BackpackEd25519Authenticator"):
@@ -303,8 +269,8 @@ class TestBackpackAPIWebSocketEdgeCases:
                 with patch("cyberdelta.apis.backpack.bp_api.BackpackResponseHandler"):
                     with patch("cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder"):
                         return BackpackAPI(
-                            exchange_config=mock_exchange_config,
-                            exchange_secrets=mock_exchange_secrets,
+                            exchange_config=active_bp_config,
+                            exchange_secrets=active_bp_secrets,
                         )
 
     @pytest.mark.asyncio

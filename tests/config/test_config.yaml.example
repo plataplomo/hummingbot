@@ -43,11 +43,65 @@ exchanges:
   
   # Add other exchanges if they need specific test configurations
 
-# Other sections like strategies, risk, etc., can be minimal or omitted
-# if not directly needed for API client testing, or include test-specific values.
-strategies: {} # Minimal
-risk: {}       # Minimal
-execution: {}  # Minimal
-safety_systems: {} # Minimal
-monitoring: {} # Minimal
-portfolio_tracker: {} # Minimal
+# Strategy configuration for testing (minimal but valid)
+strategies:
+  hl_perp_bp_spot:
+    enabled: true
+    long_exchange: "hyperliquid"
+    short_exchange: "backpack"
+    symbol_long: "BTC"
+    symbol_short: "SOL_USDC"
+    params:
+      funding_threshold: 0.0001
+      max_price_spread_pct: 0.001
+      min_profit_usd: 1.0
+
+# Risk management settings for testing (minimal but valid)
+risk:
+  global:
+    max_position_usd: 100.0
+    max_total_exposure_usd: 200.0
+  use_simple_sizing_path: true
+  simple_sizing_method: "fixed_usd"
+  simple_fixed_fraction: 0.01
+  simple_fixed_usd_size: 10.0
+
+# Execution settings for testing (minimal but valid)
+execution:
+  max_slippage_pct: 0.005
+  max_retries: 2
+  retry_delay_base_sec: 0.5
+  settlement_delay: 1.0
+  compensation:
+    use_limit_orders: true
+    limit_price_offset_pct: 0.01
+
+# Safety systems for testing (minimal but valid)
+safety_systems:
+  circuit_breakers:
+    enabled: true
+    global_consecutive_failures: 3
+    global_reset_timeout_sec: 180
+    exchange_consecutive_failures: 2
+    exchange_reset_timeout_sec: 120
+  position_reconciliation:
+    enabled: true
+    check_interval_sec: 300
+    max_discrepancy_pct: 0.02
+  balance_monitoring:
+    enabled: true
+    check_interval_sec: 180
+    min_balance_thresholds_usd:
+      hyperliquid: 50.0
+      backpack: 50.0
+
+# Monitoring settings for testing (minimal but valid)
+monitoring:
+  notifications_enabled: false  # Disabled for testing
+  alert_methods: ["log"]
+
+# Portfolio tracker settings for testing (minimal but valid)
+portfolio_tracker:
+  data_freshness_seconds: 30
+  initial_balances: {}
+  initial_positions: []

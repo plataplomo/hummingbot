@@ -47,51 +47,7 @@ def active_hl_secrets(test_secrets_config: SecretsConfig) -> PrivateKeyAuthSecre
     return secrets
 
 
-def create_test_exchange_config(
-    env_type: Literal["mainnet", "testnet"] = "testnet",
-    **kwargs: object,
-) -> ExchangeSpecificConfig:
-    """Create ExchangeSpecificConfig for testing with environment awareness.
-
-    DEPRECATED: Use active_hl_config fixture instead.
-
-    Args:
-        env_type: Environment type ("mainnet" or "testnet")
-        **kwargs: Additional config overrides
-
-    """
-    is_mainnet_env = env_type == "mainnet"
-
-    config_dict = {
-        "exchange_name": ExchangeName.HYPERLIQUID,
-        # Mainnet URLs
-        "api_base_url_mainnet": "https://api.hyperliquid.xyz",
-        "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
-        # Testnet URLs
-        "api_base_url_testnet": "https://api.hyperliquid-testnet.xyz",
-        "ws_url_testnet": "wss://api.hyperliquid-testnet.xyz/ws",
-        # Environment flag
-        "is_mainnet_environment": is_mainnet_env,
-        "rate_limit_per_minute": 300,
-        "symbols": {"ETH": "ETH", "BTC": "BTC"},
-        "chain_id": 1337,
-        # Hyperliquid-specific rate limiting configuration
-        "ip_weight_limit_per_minute": 1200,
-        "info_request_type_ip_weights": {
-            "l2Book": 2,
-            "allMids": 2,
-            "meta": 2,
-            "userRole": 60,
-            "clearinghouseState": 10,
-            "openOrders": 1,
-        },
-        "default_info_weight": 20,
-        "exchange_action_base_ip_weight": 1,
-        "address_action_safety_net": {"rate_per_minute": 300},
-        "websocket_send_rate_per_minute": 1800,
-        **kwargs,
-    }
-    return ExchangeSpecificConfig.model_validate(config_dict)
+# Removed deprecated create_test_exchange_config function - now using active_hl_config fixture
 
 
 @pytest.fixture

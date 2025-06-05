@@ -360,6 +360,30 @@ class ExchangeSpecificConfig(BaseModel):
                 )
         return self
 
+    @property
+    def active_api_base_url(self) -> HttpUrl:
+        """Return the active API base URL based on environment setting."""
+        if self.is_mainnet_environment:
+            return self.api_base_url_mainnet
+        if self.api_base_url_testnet is None:
+            raise ValueError(
+                f"Cannot get active_api_base_url for {self.exchange_name.value}: "
+                f"testnet environment requested but api_base_url_testnet is None",
+            )
+        return self.api_base_url_testnet
+
+    @property
+    def active_ws_url(self) -> AnyUrl:
+        """Return the active WebSocket URL based on environment setting."""
+        if self.is_mainnet_environment:
+            return self.ws_url_mainnet
+        if self.ws_url_testnet is None:
+            raise ValueError(
+                f"Cannot get active_ws_url for {self.exchange_name.value}: "
+                f"testnet environment requested but ws_url_testnet is None",
+            )
+        return self.ws_url_testnet
+
 
 class StrategyParamsHLPerpBPSpot(BaseModel):
     """Parameters for HyperLiquid Perpetual vs Backpack Spot strategy."""

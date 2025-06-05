@@ -16,49 +16,7 @@ from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
-def create_test_exchange_config(
-    env_type: Literal["mainnet", "testnet"] = "testnet",
-    **kwargs: object,
-) -> ExchangeSpecificConfig:
-    """Create ExchangeSpecificConfig for testing with environment awareness.
-
-    Args:
-        env_type: Environment type ("mainnet" or "testnet")
-        **kwargs: Additional config overrides
-
-    """
-    is_mainnet_env = env_type == "mainnet"
-
-    config_dict = {
-        "exchange_name": ExchangeName.HYPERLIQUID,
-        # Mainnet URLs
-        "api_base_url_mainnet": "https://api.hyperliquid.xyz",
-        "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
-        # Testnet URLs
-        "api_base_url_testnet": "https://api.hyperliquid-testnet.xyz",
-        "ws_url_testnet": "wss://api.hyperliquid-testnet.xyz/ws",
-        # Environment flag
-        "is_mainnet_environment": is_mainnet_env,
-        "rate_limit_per_minute": 300,
-        "symbols": {"ETH": "ETH", "BTC": "BTC"},
-        "chain_id": 1337,
-        # Hyperliquid-specific rate limiting configuration
-        "ip_weight_limit_per_minute": 1200,
-        "info_request_type_ip_weights": {
-            "l2Book": 2,
-            "allMids": 2,
-            "meta": 2,
-            "userRole": 60,
-            "clearinghouseState": 10,
-            "openOrders": 1,
-        },
-        "default_info_weight": 20,
-        "exchange_action_base_ip_weight": 1,
-        "address_action_safety_net": {"rate_per_minute": 300},
-        "websocket_send_rate_per_minute": 1800,
-        **kwargs,
-    }
-    return ExchangeSpecificConfig.model_validate(config_dict)
+# Removed create_test_exchange_config function - now using active_hl_config fixture
 
 
 # --- Dependency Injection Test Fixtures for HyperliquidAPI ---
@@ -203,6 +161,8 @@ def mock_hl_market_data_service() -> MagicMock:
 
 @pytest.fixture
 def hl_api_with_di(
+    active_hl_config: ExchangeSpecificConfig,
+    active_hl_secrets: PrivateKeyAuthSecrets,
     mock_hl_authenticator: MagicMock,
     mock_hl_error_mapper: MagicMock,
     mock_hl_request_builder: MagicMock,
@@ -220,6 +180,7 @@ def hl_api_with_di(
     """Create HyperliquidAPI instances with all dependencies injected.
 
     This enables black-box testing without accessing private members.
+    Uses active configuration and secrets from test fixtures.
     """
     from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 
@@ -230,17 +191,11 @@ def hl_api_with_di(
         **overrides: MagicMock,
     ) -> HyperliquidAPI:
         """Create HyperliquidAPI with injected dependencies."""
-        # Create default Pydantic models if not provided
+        # Use active fixtures as defaults
         if config is None:
-            config = create_test_exchange_config()
-
+            config = active_hl_config
         if secrets is None:
-            secrets = PrivateKeyAuthSecrets(
-                private_key=SecretStr("0x" + "1" * 64),
-                passphrase=None,
-                private_key_testnet=None,
-                testnet_seed_passphrase=None,
-            )
+            secrets = active_hl_secrets
 
         return HyperliquidAPI(
             exchange_config=config,
@@ -284,19 +239,17 @@ class TestHyperliquidAPIInitialization:
         assert hasattr(api, "account_service")
         assert hasattr(api, "market_data_service")
 
-    def test_api_creation_with_custom_config(
+    def test_api_creation_with_active_config(
         self,
         hl_api_with_di: Callable[..., HyperliquidAPI],
+        active_hl_config: ExchangeSpecificConfig,
     ) -> None:
-        """Test API creation with custom configuration."""
-        custom_config = create_test_exchange_config(
-            env_type="testnet",
-            api_base_url_testnet="https://custom.hyperliquid.api",
-            ws_url_testnet="wss://custom.hyperliquid.ws",
-        )
-
-        api = hl_api_with_di(config=custom_config)
+        """Test API creation with active configuration fixture."""
+        # Use the active configuration from test config
+        api = hl_api_with_di(config=active_hl_config)
         assert api is not None
+        # Verify that the API uses the active configuration  
+        assert api.exchange_name == "hyperliquid"
 
     def test_api_has_required_services(self, hl_api_with_di: Callable[..., HyperliquidAPI]) -> None:
         """Test that API instance has all required services initialized."""
@@ -368,69 +321,46 @@ class TestHyperliquidAPIDependencyIsolation:
         assert api1_id != api2_id
 
 
-class TestHyperliquidAPIEnvironmentAwareness:
-    """Test environment awareness features for mainnet/testnet support."""
+class TestHyperliquidAPIConfigurationIntegration:
+    """Test configuration integration with active fixtures."""
 
-    def test_create_test_exchange_config_testnet_default(self) -> None:
-        """Test that create_test_exchange_config defaults to testnet."""
-        config = create_test_exchange_config()
+    def test_active_config_environment_awareness(
+        self,
+        active_hl_config: ExchangeSpecificConfig,
+    ) -> None:
+        """Test that active_hl_config fixture provides valid configuration."""
+        # Verify that the active configuration has required URLs
+        assert active_hl_config.api_base_url_mainnet is not None
+        assert active_hl_config.ws_url_mainnet is not None
+        assert active_hl_config.exchange_name.value == "hyperliquid"
+        
+        # Test computed properties work
+        assert active_hl_config.active_api_base_url is not None
+        assert active_hl_config.active_ws_url is not None
 
-        assert config.is_mainnet_environment is False
-        assert str(config.api_base_url_mainnet) == "https://api.hyperliquid.xyz/"
-        assert str(config.ws_url_mainnet) == "wss://api.hyperliquid.xyz/ws"
-        assert str(config.api_base_url_testnet) == "https://api.hyperliquid-testnet.xyz/"
-        assert str(config.ws_url_testnet) == "wss://api.hyperliquid-testnet.xyz/ws"
+    def test_api_creation_with_active_fixtures(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        active_hl_config: ExchangeSpecificConfig,
+        active_hl_secrets: PrivateKeyAuthSecrets,
+    ) -> None:
+        """Test that API can be created with active configuration fixtures."""
+        # Test with active config and secrets
+        api = hl_api_with_di(config=active_hl_config, secrets=active_hl_secrets)
 
-    def test_create_test_exchange_config_mainnet_explicit(self) -> None:
-        """Test that create_test_exchange_config can be set to mainnet."""
-        config = create_test_exchange_config(env_type="mainnet")
+        assert api is not None
+        assert api.exchange_name == "hyperliquid"
 
-        assert config.is_mainnet_environment is True
-        assert str(config.api_base_url_mainnet) == "https://api.hyperliquid.xyz/"
-        assert str(config.ws_url_mainnet) == "wss://api.hyperliquid.xyz/ws"
-        assert str(config.api_base_url_testnet) == "https://api.hyperliquid-testnet.xyz/"
-        assert str(config.ws_url_testnet) == "wss://api.hyperliquid-testnet.xyz/ws"
-
-    def test_create_test_exchange_config_testnet_explicit(self) -> None:
-        """Test that create_test_exchange_config can be explicitly set to testnet."""
-        config = create_test_exchange_config(env_type="testnet")
-
-        assert config.is_mainnet_environment is False
-        assert str(config.api_base_url_mainnet) == "https://api.hyperliquid.xyz/"
-        assert str(config.ws_url_mainnet) == "wss://api.hyperliquid.xyz/ws"
-        assert str(config.api_base_url_testnet) == "https://api.hyperliquid-testnet.xyz/"
-        assert str(config.ws_url_testnet) == "wss://api.hyperliquid-testnet.xyz/ws"
-
-    def test_create_test_exchange_config_with_overrides(self) -> None:
-        """Test that create_test_exchange_config accepts kwargs overrides."""
-        config = create_test_exchange_config(
-            env_type="testnet",
-            api_base_url_testnet="https://custom-testnet.hyperliquid.xyz",
-            chain_id=42,
-        )
-
-        assert config.is_mainnet_environment is False
-        assert str(config.api_base_url_testnet) == "https://custom-testnet.hyperliquid.xyz/"
-        assert config.chain_id == 42
-
-    def test_api_environment_awareness_through_config(
+    def test_api_uses_default_active_config(
         self,
         hl_api_with_di: Callable[..., HyperliquidAPI],
     ) -> None:
-        """Test that API can be created with environment-aware config."""
-        # Test with testnet config
-        testnet_config = create_test_exchange_config(env_type="testnet")
-        api_testnet = hl_api_with_di(config=testnet_config)
+        """Test that API uses active configuration by default."""
+        # No explicit config/secrets provided - should use active fixtures
+        api = hl_api_with_di()
 
-        assert api_testnet is not None
-        assert api_testnet.exchange_name == "hyperliquid"
-
-        # Test with mainnet config
-        mainnet_config = create_test_exchange_config(env_type="mainnet")
-        api_mainnet = hl_api_with_di(config=mainnet_config)
-
-        assert api_mainnet is not None
-        assert api_mainnet.exchange_name == "hyperliquid"
+        assert api is not None
+        assert api.exchange_name == "hyperliquid"
 
 
 class TestHyperliquidAPIResourceManagement:

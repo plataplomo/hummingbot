@@ -4,65 +4,23 @@ These tests make real HTTP requests to Hyperliquid's public API endpoints and us
 cassette-based recording to avoid repeated network calls while maintaining test reliability.
 """
 
-import os
 from typing import Any
 
 import aiohttp
 import pytest
 
 from cyberdelta.config.config_models import ExchangeSpecificConfig
-from cyberdelta.enums.exchange_names import ExchangeName
 
-
-@pytest.fixture(scope="module")
-def simple_hl_config() -> ExchangeSpecificConfig:
-    """Provide simple Hyperliquid configuration fixture for test configurations.
-
-    Uses environment variable or defaults to testnet.
-    """
-    # Default to mainnet for VCR tests to match existing cassettes
-    test_env = os.environ.get("CYBERDELTA_TEST_ENV_HL", "mainnet")
-    is_mainnet = test_env == "mainnet"
-
-    return ExchangeSpecificConfig.model_validate(
-        {
-            "exchange_name": ExchangeName.HYPERLIQUID,
-            "api_base_url_mainnet": "https://api.hyperliquid.xyz",
-            "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
-            "api_base_url_testnet": "https://api.hyperliquid-testnet.xyz",
-            "ws_url_testnet": "wss://api.hyperliquid-testnet.xyz/ws",
-            "is_mainnet_environment": is_mainnet,
-            "rate_limit_per_minute": 300,
-            "symbols": {"BTC": "BTC", "ETH": "ETH"},
-            # Hyperliquid-specific required fields
-            "ip_weight_limit_per_minute": 1200,
-            "info_request_type_ip_weights": {
-                "l2Book": 2,
-                "allMids": 2,
-                "meta": 2,
-            },
-            "default_info_weight": 20,
-            "exchange_action_base_ip_weight": 1,
-            "address_action_safety_net": {"rate_per_minute": 300},
-            "websocket_send_rate_per_minute": 1800,
-        },
-    )
-
-
-@pytest.fixture(scope="module")
-def simple_backpack_config() -> dict[str, Any]:
-    """Provide simple Backpack configuration fixture."""
-    return {
-        "rest_endpoint": "https://api.backpack.exchange",
-        "ws_endpoint": "wss://ws.backpack.exchange",
-    }
+# Now using standardized fixtures from conftest.py:
+# - active_hl_config: Environment-aware ExchangeSpecificConfig for Hyperliquid
+# - active_bp_config: ExchangeSpecificConfig for Backpack (if needed)
 
 
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
 async def test_hyperliquid_info_meta_and_asset_ctxs_public_endpoint(
-    simple_hl_config: ExchangeSpecificConfig,
+    active_hl_config: ExchangeSpecificConfig,
 ) -> None:
     """Test Hyperliquid's public /info endpoint with metaAndAssetCtxs type.
 
@@ -79,11 +37,7 @@ async def test_hyperliquid_info_meta_and_asset_ctxs_public_endpoint(
     - It demonstrates the basic API functionality
     """
     # Use configuration system to get the correct API base URL
-    base_url = (
-        str(simple_hl_config.api_base_url_mainnet)
-        if simple_hl_config.is_mainnet_environment
-        else str(simple_hl_config.api_base_url_testnet)
-    ).rstrip("/")
+    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
     url = f"{base_url}/info"
     payload = {"type": "metaAndAssetCtxs"}
 
@@ -206,7 +160,7 @@ async def test_vcr_sensitive_data_filtering_demo() -> None:
 @pytest.mark.integration
 @pytest.mark.vcr
 async def test_hyperliquid_info_l2_book_public_endpoint(
-    simple_hl_config: ExchangeSpecificConfig,
+    active_hl_config: ExchangeSpecificConfig,
 ) -> None:
     """Test Hyperliquid's public /info endpoint with l2Book type for order book data.
 
@@ -214,11 +168,7 @@ async def test_hyperliquid_info_l2_book_public_endpoint(
     order book data. Shows how VCR works with various API response structures.
     """
     # Use configuration system to get the correct API base URL
-    base_url = (
-        str(simple_hl_config.api_base_url_mainnet)
-        if simple_hl_config.is_mainnet_environment
-        else str(simple_hl_config.api_base_url_testnet)
-    ).rstrip("/")
+    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
     url = f"{base_url}/info"
     payload = {"type": "l2Book", "coin": "BTC"}
 
@@ -253,7 +203,7 @@ async def test_hyperliquid_info_l2_book_public_endpoint(
 @pytest.mark.integration
 @pytest.mark.vcr
 async def test_hyperliquid_info_all_mids_public_endpoint(
-    simple_hl_config: ExchangeSpecificConfig,
+    active_hl_config: ExchangeSpecificConfig,
 ) -> None:
     """Test Hyperliquid's public /info endpoint with allMids type for mid prices.
 
@@ -261,11 +211,7 @@ async def test_hyperliquid_info_all_mids_public_endpoint(
     showing how the same infrastructure handles different data types.
     """
     # Use configuration system to get the correct API base URL
-    base_url = (
-        str(simple_hl_config.api_base_url_mainnet)
-        if simple_hl_config.is_mainnet_environment
-        else str(simple_hl_config.api_base_url_testnet)
-    ).rstrip("/")
+    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
     url = f"{base_url}/info"
     payload = {"type": "allMids"}
 
@@ -302,15 +248,15 @@ async def test_hyperliquid_info_all_mids_public_endpoint(
 @pytest.mark.integration
 @pytest.mark.vcr
 async def test_backpack_public_markets_endpoint(
-    simple_backpack_config: dict[str, Any],
+    active_bp_config: ExchangeSpecificConfig,
 ) -> None:
     """Test Backpack's public markets endpoint.
 
     This test demonstrates VCR usage with a different exchange (Backpack)
     to show cross-exchange compatibility and different API patterns.
     """
-    # Use configuration system to get the correct API base URL
-    base_url = simple_backpack_config["rest_endpoint"].rstrip("/")
+    # Use active configuration to get the correct API base URL
+    base_url = str(active_bp_config.active_api_base_url).rstrip("/")
     url = f"{base_url}/api/v1/markets"
 
     async with aiohttp.ClientSession() as session:

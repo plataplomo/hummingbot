@@ -36,36 +36,10 @@ from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, Time
 from cyberdelta.core.models.market.order import Order
 from cyberdelta.enums.exchange_names import ExchangeName
 
-# Constants for testing - Valid base64-encoded ED25519 keys
-TEST_API_KEY = "61D/XTRs1Es8SgdZN4xO438vv1ls0aWhJSs//JDNxLk="
-TEST_API_SECRET = "7s6pf6Xs8VJDMTNmcseiLge61XCSZeQ6GW8PP6odR1c="
+# Removed hardcoded test constants - now using active fixtures from conftest.py
 
 
-def create_test_exchange_config(
-    api_base_url_mainnet: str = "https://api.backpack.exchange",
-    ws_url_mainnet: str = "wss://ws.backpack.exchange",
-    api_base_url_testnet: str | None = None,
-    ws_url_testnet: str | None = None,
-    is_mainnet_environment: bool = True,
-    **kwargs: object,
-) -> ExchangeSpecificConfig:
-    """Create ExchangeSpecificConfig for testing by parsing from dict.
-    
-    This works with the validator that expects string inputs.
-    """
-    config_dict = {
-        "exchange_name": ExchangeName.BACKPACK,
-        "api_base_url_mainnet": api_base_url_mainnet,
-        "ws_url_mainnet": ws_url_mainnet,
-        "api_base_url_testnet": api_base_url_testnet,
-        "ws_url_testnet": ws_url_testnet,
-        "is_mainnet_environment": is_mainnet_environment,
-        "rate_limit_per_minute": 120,
-        "symbols": {"SOL_USDC": "SOL_USDC", "BTC_USDC": "BTC_USDC"},
-        "request_timeout_seconds": 30.0,
-        **kwargs,
-    }
-    return ExchangeSpecificConfig.model_validate(config_dict)
+# Removed create_test_exchange_config function - now using active_bp_config fixture
 
 
 # --- Dependency Injection Test Fixtures for BackpackAPI ---
@@ -174,6 +148,8 @@ def mock_bp_ws_manager() -> MagicMock:
 
 @pytest.fixture
 def bp_api_with_di(
+    active_bp_config: ExchangeSpecificConfig,
+    active_bp_secrets: ApiKeyAuthSecrets,
     mock_bp_account_service: MagicMock,
     mock_bp_trading_service: MagicMock,
     mock_bp_market_data_service: MagicMock,
@@ -181,6 +157,7 @@ def bp_api_with_di(
     """Create BackpackAPI instances with all dependencies injected for testing.
     
     This enables black-box testing without accessing private members.
+    Uses active configuration and secrets from test fixtures.
     """
     from cyberdelta.apis.backpack.bp_api import BackpackAPI
 
@@ -190,18 +167,11 @@ def bp_api_with_di(
         secrets: ApiKeyAuthSecrets | None = None,
         **overrides: MagicMock,
     ) -> BackpackAPI:
-        # Create default Pydantic models if not provided
+        # Use active fixtures as defaults
         if config is None:
-            config = create_test_exchange_config(
-                request_timeout_seconds=10.0,
-                ws_ping_interval_seconds=30.0,
-            )
-
+            config = active_bp_config
         if secrets is None:
-            secrets = ApiKeyAuthSecrets(
-                api_key=SecretStr(TEST_API_KEY),
-                api_secret=SecretStr(TEST_API_SECRET),
-            )
+            secrets = active_bp_secrets
 
         # Create the API instance
         api = BackpackAPI(exchange_config=config, exchange_secrets=secrets)
@@ -230,19 +200,17 @@ class TestBackpackAPIInitialization:
         assert hasattr(api, "account_service")
         assert hasattr(api, "market_data_service")
 
-    def test_api_creation_with_custom_config(
+    def test_api_creation_with_active_config(
         self,
         bp_api_with_di: Callable[..., BackpackAPI],
+        active_bp_config: ExchangeSpecificConfig,
     ) -> None:
-        """Test API creation with custom configuration."""
-        custom_config = create_test_exchange_config(
-            api_base_url_mainnet="https://custom.backpack.api",
-            ws_url_mainnet="wss://custom.backpack.ws",
-            symbols={"SOL_USDC": "SOL_USDC"},
-        )
-
-        api = bp_api_with_di(config=custom_config)
+        """Test API creation with active configuration fixture."""
+        # Use the active configuration from test config
+        api = bp_api_with_di(config=active_bp_config)
         assert api is not None
+        # Verify that the API uses the active configuration  
+        assert api.exchange_name == "backpack"
 
 
 class TestBackpackAPIAccountOperations:

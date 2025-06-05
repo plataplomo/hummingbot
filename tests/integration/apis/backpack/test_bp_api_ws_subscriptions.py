@@ -13,29 +13,10 @@ from cyberdelta.enums.exchange_names import ExchangeName
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture
-def bp_config() -> ExchangeSpecificConfig:
-    """Create test configuration for BackpackAPI."""
-    config_dict: dict[str, object] = {
-        "exchange_name": ExchangeName.BACKPACK,
-        "symbols": {},  # Add required symbols field
-        "api_base_url_mainnet": "https://api.backpack.exchange",
-        "ws_url_mainnet": "wss://ws.backpack.exchange",
-        "api_base_url_testnet": None,
-        "ws_url_testnet": None,
-        "is_mainnet_environment": True,
-        "rate_limit_per_minute": 1200,
-    }
-    return ExchangeSpecificConfig.model_validate(config_dict)
+# Removed hardcoded bp_config fixture - now using active_bp_config from conftest.py
 
 
-@pytest.fixture
-def bp_secrets() -> ApiKeyAuthSecrets:
-    """Create test secrets for BackpackAPI."""
-    return ApiKeyAuthSecrets(
-        api_key=SecretStr("61D/XTRs1Es8SgdZN4xO438vv1ls0aWhJSs//JDNxLk="),
-        api_secret=SecretStr("7s6pf6Xs8VJDMTNmcseiLge61XCSZeQ6GW8PP6odR1c="),
-    )
+# Removed hardcoded bp_secrets fixture - now using active_bp_secrets from conftest.py
 
 
 @pytest.fixture
@@ -58,8 +39,8 @@ def mock_ws_manager() -> MagicMock:
 
 @pytest.fixture
 def bp_api(
-    bp_config: ExchangeSpecificConfig,
-    bp_secrets: ApiKeyAuthSecrets,
+    active_bp_config: ExchangeSpecificConfig,
+    active_bp_secrets: ApiKeyAuthSecrets,
     mock_ws_manager: MagicMock,
 ) -> BackpackAPI:
     """Create BackpackAPI instance with mocked dependencies using public interfaces only."""
@@ -68,7 +49,7 @@ def bp_api(
         return_value=mock_ws_manager,
     ):
         # Create API using standard constructor - no protected member access
-        api = BackpackAPI(exchange_config=bp_config, exchange_secrets=bp_secrets)
+        api = BackpackAPI(exchange_config=active_bp_config, exchange_secrets=active_bp_secrets)
         return api
 
 

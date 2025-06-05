@@ -19,65 +19,13 @@ from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
-def create_test_exchange_config(
-    api_base_url_mainnet: str = "https://api.hyperliquid.xyz",
-    ws_url_mainnet: str = "wss://api.hyperliquid.xyz/ws",
-    api_base_url_testnet: str = "https://api.hyperliquid-testnet.xyz",
-    ws_url_testnet: str = "wss://api.hyperliquid-testnet.xyz/ws",
-    is_mainnet_environment: bool = False,  # Default to testnet for unit tests
-    **kwargs: object,
-) -> ExchangeSpecificConfig:
-    """Create ExchangeSpecificConfig for testing by parsing from dict.
-
-    Defaults to testnet for unit tests.
-    """
-    config_dict = {
-        "exchange_name": ExchangeName.HYPERLIQUID,
-        "api_base_url_mainnet": api_base_url_mainnet,
-        "ws_url_mainnet": ws_url_mainnet,
-        "api_base_url_testnet": api_base_url_testnet,
-        "ws_url_testnet": ws_url_testnet,
-        "is_mainnet_environment": is_mainnet_environment,
-        "rate_limit_per_minute": 300,
-        "symbols": {"ETH": "ETH", "BTC": "BTC"},
-        "chain_id": 1337,
-        # Hyperliquid-specific rate limiting fields
-        "ip_weight_limit_per_minute": 1200,
-        "info_request_type_ip_weights": {
-            "l2Book": 2,
-            "allMids": 2,
-            "meta": 2,
-            "userRole": 60,
-            "clearinghouseState": 10,
-            "openOrders": 1,
-        },
-        "default_info_weight": 20,
-        "exchange_action_base_ip_weight": 1,
-        "address_action_safety_net": {
-            "rate_per_minute": 300,
-        },
-        "websocket_send_rate_per_minute": 1800,
-        **kwargs,
-    }
-    return ExchangeSpecificConfig.model_validate(config_dict)
+# Removed create_test_exchange_config function - now using active_hl_config fixture
 
 
-@pytest.fixture
-def mock_exchange_config() -> ExchangeSpecificConfig:
-    """Mock ExchangeSpecificConfig."""
-    return create_test_exchange_config(
-        request_timeout_seconds=30.0,
-    )
+# Removed active_hl_config fixture - now using active_hl_config from conftest.py
 
 
-@pytest.fixture
-def hyperliquid_exchange_secrets() -> PrivateKeyAuthSecrets:
-    """Create basic PrivateKeyAuthSecrets for HyperliquidAPI tests."""
-    return PrivateKeyAuthSecrets(
-        private_key=SecretStr("0x" + "0" * 64),  # Dummy private key
-        passphrase=None,
-        private_key_testnet=SecretStr("0x" + "1" * 64),  # Dummy testnet private key
-        testnet_seed_passphrase=None,
+# Removed active_hl_secrets fixture - now using active_hl_secrets from conftest.py
     )
 
 
@@ -87,8 +35,8 @@ class TestHyperliquidAPIWebSocketPublicInterface:
     @pytest.fixture
     def hl_api(
         self,
-        mock_exchange_config: ExchangeSpecificConfig,
-        hyperliquid_exchange_secrets: PrivateKeyAuthSecrets,
+        active_hl_config: ExchangeSpecificConfig,
+        active_hl_secrets: PrivateKeyAuthSecrets,
     ) -> HyperliquidAPI:
         """Create HyperliquidAPI instance with all dependencies mocked."""
         with (
@@ -107,8 +55,8 @@ class TestHyperliquidAPIWebSocketPublicInterface:
             patch("cyberdelta.apis.connectivity.ws_manager.WebSocketManager"),
         ):
             return HyperliquidAPI(
-                exchange_config=mock_exchange_config,
-                exchange_secrets=hyperliquid_exchange_secrets,
+                exchange_config=active_hl_config,
+                exchange_secrets=active_hl_secrets,
             )
 
     @pytest.mark.asyncio
@@ -178,15 +126,12 @@ class TestHyperliquidAPIWebSocketPublicInterface:
 class TestHyperliquidAPIWebSocketConfiguration:
     """Test WebSocket configuration and initialization."""
 
-    def test_api_initialization_with_testnet_config(self) -> None:
-        """Test that API can be initialized with testnet configuration."""
-        config = create_test_exchange_config()
-        secrets = PrivateKeyAuthSecrets(
-            private_key=SecretStr("0x" + "a" * 64),
-            passphrase=None,
-            private_key_testnet=SecretStr("0x" + "b" * 64),
-            testnet_seed_passphrase=None,
-        )
+    def test_api_initialization_with_active_config(
+        self,
+        active_hl_config: ExchangeSpecificConfig,
+        active_hl_secrets: PrivateKeyAuthSecrets,
+    ) -> None:
+        """Test that API can be initialized with active configuration fixtures."""
 
         with (
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidEip712Authenticator"),
@@ -203,22 +148,20 @@ class TestHyperliquidAPIWebSocketConfiguration:
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidRateLimitStrategy"),
             patch("cyberdelta.apis.connectivity.ws_manager.WebSocketManager"),
         ):
-            api = HyperliquidAPI(exchange_config=config, exchange_secrets=secrets)
+            api = HyperliquidAPI(exchange_config=active_hl_config, exchange_secrets=active_hl_secrets)
             assert api is not None
             assert api.exchange_name == "hyperliquid"
 
-    def test_api_initialization_with_mainnet_config(self) -> None:
-        """Test that API can be initialized with mainnet configuration."""
-        config = create_test_exchange_config(
-            api_base_url_mainnet="https://api.hyperliquid.xyz",
-            ws_url_mainnet="wss://api.hyperliquid.xyz/ws",
-            is_mainnet_environment=True,
-        )
-        secrets = PrivateKeyAuthSecrets(
-            private_key=SecretStr("0x" + "c" * 64),
-            passphrase=None,
-        )
-
+    def test_api_initialization_uses_active_configuration(
+        self,
+        active_hl_config: ExchangeSpecificConfig,
+        active_hl_secrets: PrivateKeyAuthSecrets,
+    ) -> None:
+        """Test that API uses active configuration consistently."""
+        # Test that active configuration works properly
+        assert active_hl_config.exchange_name.value == "hyperliquid"
+        assert active_hl_secrets.private_key is not None
+        
         with (
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidEip712Authenticator"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidErrorMapper"),
@@ -234,7 +177,7 @@ class TestHyperliquidAPIWebSocketConfiguration:
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidRateLimitStrategy"),
             patch("cyberdelta.apis.connectivity.ws_manager.WebSocketManager"),
         ):
-            api = HyperliquidAPI(exchange_config=config, exchange_secrets=secrets)
+            api = HyperliquidAPI(exchange_config=active_hl_config, exchange_secrets=active_hl_secrets)
             assert api is not None
             assert api.exchange_name == "hyperliquid"
 
@@ -245,8 +188,8 @@ class TestHyperliquidAPIWebSocketErrorHandling:
     @pytest.fixture
     def hl_api(
         self,
-        mock_exchange_config: ExchangeSpecificConfig,
-        hyperliquid_exchange_secrets: PrivateKeyAuthSecrets,
+        active_hl_config: ExchangeSpecificConfig,
+        active_hl_secrets: PrivateKeyAuthSecrets,
     ) -> HyperliquidAPI:
         """Create HyperliquidAPI instance with mocked dependencies."""
         with (
@@ -265,8 +208,8 @@ class TestHyperliquidAPIWebSocketErrorHandling:
             patch("cyberdelta.apis.connectivity.ws_manager.WebSocketManager"),
         ):
             return HyperliquidAPI(
-                exchange_config=mock_exchange_config,
-                exchange_secrets=hyperliquid_exchange_secrets,
+                exchange_config=active_hl_config,
+                exchange_secrets=active_hl_secrets,
             )
 
     @pytest.mark.asyncio

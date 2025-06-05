@@ -26,63 +26,13 @@ from cyberdelta.enums.exchange_names import ExchangeName
 pytestmark = pytest.mark.integration
 
 
-def create_test_exchange_config(
-    api_base_url: str = "https://api.hyperliquid-testnet.xyz",
-    ws_url: str = "wss://api.hyperliquid-testnet.xyz/ws",
-    **kwargs: object,
-) -> ExchangeSpecificConfig:
-    """Create ExchangeSpecificConfig for testing by parsing from dict.
-    
-    Defaults to testnet for integration tests.
-    """
-    config_dict = {
-        "exchange_name": ExchangeName.HYPERLIQUID,
-        "api_base_url_mainnet": "https://api.hyperliquid.xyz",
-        "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
-        "api_base_url_testnet": api_base_url,
-        "ws_url_testnet": ws_url,
-        "is_mainnet_environment": False,  # Default to testnet for integration tests
-        "rate_limit_per_minute": 300,
-        "symbols": {"ETH": "ETH", "BTC": "BTC"},
-        "chain_id": 1337,
-        # Hyperliquid-specific rate limiting fields
-        "ip_weight_limit_per_minute": 1200,
-        "info_request_type_ip_weights": {
-            "l2Book": 2,
-            "allMids": 2,
-            "meta": 2,
-            "userRole": 60,
-            "clearinghouseState": 10,
-            "openOrders": 1,
-        },
-        "default_info_weight": 20,
-        "exchange_action_base_ip_weight": 1,
-        "address_action_safety_net": {
-            "rate_per_minute": 300,
-        },
-        "websocket_send_rate_per_minute": 1800,
-        **kwargs,
-    }
-    return ExchangeSpecificConfig.model_validate(config_dict)
+# Removed create_test_exchange_config function - now using active_hl_config fixture
 
 
-@pytest.fixture
-def mock_exchange_config() -> ExchangeSpecificConfig:
-    """Mock ExchangeSpecificConfig for integration tests."""
-    return create_test_exchange_config(
-        request_timeout_seconds=30.0,
-    )
+# Removed mock_exchange_config fixture - now using active_hl_config from conftest.py
 
 
-@pytest.fixture
-def hyperliquid_exchange_secrets() -> PrivateKeyAuthSecrets:
-    """Provide basic PrivateKeyAuthSecrets for HyperliquidAPI integration tests."""
-    return PrivateKeyAuthSecrets(
-        private_key=SecretStr("0x" + "0" * 64),  # Dummy private key
-        passphrase=None,
-        private_key_testnet=SecretStr("0x" + "1" * 64),  # Dummy testnet private key
-        testnet_seed_passphrase=None,
-    )
+# Removed hyperliquid_exchange_secrets fixture - now using active_hl_secrets from conftest.py
 
 
 @pytest.fixture
@@ -98,8 +48,8 @@ def mock_hl_ws_router() -> Mock:
 
 @pytest.fixture
 def hl_api_with_mocked_router(
-    mock_exchange_config: ExchangeSpecificConfig,
-    hyperliquid_exchange_secrets: PrivateKeyAuthSecrets,
+    active_hl_config: ExchangeSpecificConfig,
+    active_hl_secrets: PrivateKeyAuthSecrets,
     mock_hl_ws_router: Mock,
 ) -> HyperliquidAPI:
     """Create HyperliquidAPI instance with mocked router and other dependencies."""
@@ -118,8 +68,8 @@ def hl_api_with_mocked_router(
         patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidRateLimitStrategy"),
     ):
         api = HyperliquidAPI(
-            exchange_config=mock_exchange_config,
-            exchange_secrets=hyperliquid_exchange_secrets,
+            exchange_config=active_hl_config,
+            exchange_secrets=active_hl_secrets,
         )
 
         # Replace router with mock using object.__setattr__ to bypass protection
@@ -243,47 +193,9 @@ class TestHyperliquidAPIWebSocketDelegationIntegration:
 class TestHyperliquidAPIWebSocketSubscriptionIntegration:
     """Integration tests for WebSocket subscription functionality."""
 
-    @pytest.fixture
-    def hl_config(self) -> ExchangeSpecificConfig:
-        """Create test configuration for HyperliquidAPI."""
-        config_dict: dict[str, Any] = {
-            "exchange_name": ExchangeName.HYPERLIQUID,
-            "symbols": {},  # Add required symbols field
-            "api_base_url_mainnet": "https://api.hyperliquid.xyz",
-            "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
-            "api_base_url_testnet": "https://api.hyperliquid-testnet.xyz",
-            "ws_url_testnet": "wss://api.hyperliquid-testnet.xyz/ws",
-            "is_mainnet_environment": False,  # Default to testnet
-            "rate_limit_per_minute": 1200,
-            "chain_id": 1337,
-            # Hyperliquid-specific rate limiting fields
-            "ip_weight_limit_per_minute": 1200,
-            "info_request_type_ip_weights": {
-                "l2Book": 2,
-                "allMids": 2,
-                "meta": 2,
-                "userRole": 60,
-                "clearinghouseState": 10,
-                "openOrders": 1,
-            },
-            "default_info_weight": 20,
-            "exchange_action_base_ip_weight": 1,
-            "address_action_safety_net": {
-                "rate_per_minute": 300,
-            },
-            "websocket_send_rate_per_minute": 1800,
-        }
-        return ExchangeSpecificConfig.model_validate(config_dict)
+    # Removed hardcoded hl_config fixture - using active_hl_config from conftest.py
 
-    @pytest.fixture
-    def hl_secrets(self) -> PrivateKeyAuthSecrets:
-        """Create test secrets for HyperliquidAPI."""
-        return PrivateKeyAuthSecrets(
-            private_key=SecretStr("0x" + "a" * 64),  # Mock private key
-            passphrase=None,
-            private_key_testnet=SecretStr("0x" + "b" * 64),  # Mock testnet private key
-            testnet_seed_passphrase=None,
-        )
+    # Removed hardcoded hl_secrets fixture - using active_hl_secrets from conftest.py
 
     @pytest.fixture
     def mock_ws_manager(self) -> AsyncMock:
@@ -296,8 +208,8 @@ class TestHyperliquidAPIWebSocketSubscriptionIntegration:
     @pytest.fixture
     def hl_api(
         self,
-        hl_config: ExchangeSpecificConfig,
-        hl_secrets: PrivateKeyAuthSecrets,
+        active_hl_config: ExchangeSpecificConfig,
+        active_hl_secrets: PrivateKeyAuthSecrets,
         mock_ws_manager: AsyncMock,
     ) -> HyperliquidAPI:
         """Create HyperliquidAPI instance with mocked dependencies."""
@@ -305,7 +217,7 @@ class TestHyperliquidAPIWebSocketSubscriptionIntegration:
             "cyberdelta.apis.connectivity.ws_manager.WebSocketManager",
             return_value=mock_ws_manager,
         ):
-            api = HyperliquidAPI(exchange_config=hl_config, exchange_secrets=hl_secrets)
+            api = HyperliquidAPI(exchange_config=active_hl_config, exchange_secrets=active_hl_secrets)
             # Use object.__setattr__ to bypass protection for integration testing setup
             object.__setattr__(api, "_ws_manager", mock_ws_manager)
             return api
