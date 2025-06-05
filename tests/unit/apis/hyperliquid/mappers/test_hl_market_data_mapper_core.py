@@ -1,4 +1,5 @@
 """CyberDeltaEngine: Hyperliquid Market Data Mapper Core Tests.
+
 -----------------------------------------------------------
 
 Comprehensive test suite for HyperliquidMarketDataMapper core transformation methods.
@@ -43,7 +44,7 @@ def market_data_mapper() -> HyperliquidMarketDataMapper:
 
 @pytest.fixture
 def hyperliquid_raw_asset_ctx_eth_fixture() -> HyperliquidRawAssetCtx:
-    """Provides a valid HyperliquidRawAssetCtx for ETH-PERP."""
+    """Provide a valid HyperliquidRawAssetCtx for ETH-PERP."""
     return HyperliquidRawAssetCtx(
         name="ETH-PERP",
         funding="0.00001234",
@@ -56,7 +57,7 @@ def hyperliquid_raw_asset_ctx_eth_fixture() -> HyperliquidRawAssetCtx:
 
 @pytest.fixture
 def hyperliquid_raw_asset_ctx_btc_no_impact_px_fixture() -> HyperliquidRawAssetCtx:
-    """Provides a valid HyperliquidRawAssetCtx for BTC-PERP with no impactPx."""
+    """Provide a valid HyperliquidRawAssetCtx for BTC-PERP with no impactPx."""
     return HyperliquidRawAssetCtx(
         name="BTC-PERP",
         funding="-0.00000567",

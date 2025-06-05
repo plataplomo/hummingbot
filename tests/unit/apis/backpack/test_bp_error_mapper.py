@@ -1,3 +1,28 @@
+"""Unit tests for Backpack Error Mapping Implementation.
+
+Comprehensive test suite for the BackpackErrorMapper class covering:
+- HTTP status code to API error code mapping
+- Backpack-specific error code translation
+- Error message extraction and formatting
+- Retry-after parsing for rate limiting scenarios
+- JSON and non-JSON error body handling
+- Edge cases and malformed error responses
+
+These tests ensure the error mapper correctly translates Backpack exchange errors
+into standardized API error codes used throughout the CyberDeltaEngine trading system.
+The mapper handles various error formats, extracts relevant information, and provides
+consistent error handling across all Backpack API interactions.
+
+Key test categories:
+- Standard HTTP error code mapping (400, 401, 403, 429, 500, 503)
+- Backpack-specific error code translation
+- Rate limiting and retry-after parsing
+- Authentication and authorization errors
+- Insufficient funds and order-related errors
+- Server errors and maintenance scenarios
+- Malformed error response handling
+"""
+
 import json
 
 import pytest
@@ -8,11 +33,32 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
 @pytest.fixture
 def backpack_error_mapper() -> BackpackErrorMapper:
-    """Provides a BackpackErrorMapper instance for tests."""
+    """Create a BackpackErrorMapper instance for testing.
+
+    Provides a fresh BackpackErrorMapper instance for each test to ensure
+    isolation and consistent behavior across all error mapping tests.
+    """
     return BackpackErrorMapper()
 
 
 class TestBackpackErrorMapper:
+    """Test suite for BackpackErrorMapper error translation functionality.
+
+    Comprehensive testing of the Backpack exchange error mapping implementation
+    including HTTP status code translation, exchange-specific error handling,
+    retry-after parsing, and edge case scenarios. These tests ensure consistent
+    error handling across all Backpack API interactions in the CyberDeltaEngine.
+
+    Test coverage includes:
+    - Standard HTTP error code mapping
+    - Backpack-specific error code translation
+    - Rate limiting and retry-after extraction
+    - Authentication and authorization errors
+    - Financial operation errors (insufficient funds, order not found)
+    - Server errors and maintenance scenarios
+    - Malformed error response handling
+    """
+
     @pytest.mark.parametrize(
         "http_status, error_body, expected_code, expected_message_contains",
         [
@@ -37,7 +83,12 @@ class TestBackpackErrorMapper:
         expected_code: APIErrorCode,
         expected_message_contains: str,
     ) -> None:
-        """Test map generic 400 error."""
+        """Test mapping of generic 400 Bad Request errors to standardized API error codes.
+
+        Validates that the error mapper correctly translates generic client errors
+        from Backpack into the appropriate INVALID_REQUEST error code while preserving
+        the original error message for debugging purposes.
+        """
         mapper = BackpackErrorMapper()
         api_error = mapper.map_exchange_error(
             http_status,
@@ -73,7 +124,12 @@ class TestBackpackErrorMapper:
         expected_code: APIErrorCode,
         expected_message_contains: str,
     ) -> None:
-        """Test map authentication failed 401 error."""
+        """Test mapping of authentication and authorization errors to AUTHENTICATION_FAILED.
+
+        Validates that both 401 Unauthorized and 403 Forbidden errors are correctly
+        mapped to AUTHENTICATION_FAILED, as both typically indicate credential or
+        permission issues in trading contexts.
+        """
         mapper = BackpackErrorMapper()
         api_error = mapper.map_exchange_error(
             http_status,
@@ -112,7 +168,12 @@ class TestBackpackErrorMapper:
         expected_api_code: APIErrorCode,
         expected_message_contains: str,
     ) -> None:
-        """Test map insufficient funds error."""
+        """Test mapping of financial operation errors to specific API error codes.
+
+        Validates that Backpack-specific error codes like INSUFFICIENT_FUNDS and
+        RESOURCE_NOT_FOUND are correctly translated to their corresponding API
+        error codes, enabling proper error handling in trading operations.
+        """
         mapper = BackpackErrorMapper()
         api_error = mapper.map_exchange_error(
             http_status,
@@ -141,7 +202,12 @@ class TestBackpackErrorMapper:
         expected_code: APIErrorCode,
         expected_message_contains: str,
     ) -> None:
-        """Test map rate limited 429 error."""
+        """Test mapping of rate limiting errors to RATE_LIMITED API error code.
+
+        Validates that 429 Too Many Requests errors are correctly mapped to
+        RATE_LIMITED, which is essential for implementing proper backoff
+        strategies in the trading system.
+        """
         mapper = BackpackErrorMapper()
         api_error = mapper.map_exchange_error(
             http_status,
@@ -171,7 +237,12 @@ class TestBackpackErrorMapper:
         expected_code: APIErrorCode,
         expected_message_contains: str,
     ) -> None:
-        """Test map server error 500."""
+        """Test mapping of server errors to appropriate API error codes.
+
+        Validates that 500 Internal Server Error responses are correctly mapped,
+        handling both JSON and plain text error formats. This ensures proper
+        error handling when Backpack experiences server-side issues.
+        """
         mapper = BackpackErrorMapper()
         # error_data might not be parsable if body is not JSON
         error_data = None

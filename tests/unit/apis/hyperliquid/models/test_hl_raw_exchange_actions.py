@@ -1,3 +1,5 @@
+"""Unit tests for Hyperliquid Raw Exchange Action Models."""
+
 from __future__ import annotations
 
 from typing import Any, cast
@@ -41,7 +43,7 @@ def set_nested_value(
     path: tuple[str | int, ...],
     value: object,  # Accept any test value for Pydantic validation testing
 ) -> None:
-    """Utility to set nested values in dict/list structures for testing.
+    """Set nested values in dict/list structures for testing.
 
     This function dynamically traverses nested dict/list structures using mixed
     str/int path elements. The runtime isinstance checks ensure type safety

@@ -1,3 +1,5 @@
+"""Unit tests for Hyperliquid Raw API Error Models."""
+
 import pytest
 from pydantic import ValidationError
 

@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid Trading Data Mapper Transformations Tests
+"""CyberDeltaEngine: Hyperliquid Trading Data Mapper Transformations Tests.
+
 -----------------------------------------------------------------------
 
 Comprehensive test suite for HyperliquidTradingDataMapper transformation methods.
@@ -124,7 +125,7 @@ def create_raw_historical_order(
 
 @pytest.fixture
 def hyperliquid_raw_trigger_info_stop_loss_fixture() -> HyperliquidRawTriggerInfo:
-    """Provides a valid HyperliquidRawTriggerInfo for a stop loss."""
+    """Provide a valid HyperliquidRawTriggerInfo for a stop loss."""
     return HyperliquidRawTriggerInfo(
         triggerPx="2900.00",
         isMarket=True,
@@ -134,7 +135,7 @@ def hyperliquid_raw_trigger_info_stop_loss_fixture() -> HyperliquidRawTriggerInf
 
 @pytest.fixture
 def hyperliquid_raw_trigger_info_take_profit_fixture() -> HyperliquidRawTriggerInfo:
-    """Provides a valid HyperliquidRawTriggerInfo for a take profit."""
+    """Provide a valid HyperliquidRawTriggerInfo for a take profit."""
     return HyperliquidRawTriggerInfo(
         triggerPx="3200.00",
         isMarket=False,

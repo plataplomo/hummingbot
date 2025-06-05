@@ -1,4 +1,38 @@
-"""Unit tests for Backpack Raw Fill model."""
+"""Unit tests for Backpack Raw Fill model validation and parsing.
+
+This module provides comprehensive validation testing for the BackpackRawFill Pydantic model,
+which serves as the strict validation boundary for raw fill data received from the Backpack
+exchange API. The BackpackRawFill model is a critical component in the data ingestion
+pipeline, ensuring that all external fill data is properly validated before transformation
+into internal Trade models.
+
+Key Testing Areas:
+- Raw API data structure validation and type checking
+- Field-level validation for all Backpack fill attributes
+- String parsing and constraint enforcement (lengths, formats)
+- Numeric validation for trade IDs, prices, quantities, and fees
+- Enum validation for trading sides and other categorical fields
+- Error handling for malformed, missing, or invalid data
+- Edge cases and boundary conditions for all field types
+
+Architecture Compliance:
+- Follows RULE-ARCH-MODEL-DESIGN-V2 for Raw API model separation
+- Implements strict validation boundary per external API contract
+- Uses RULE-NO-SILENCING-V4 compliant validation without suppressions
+- Enforces RULE-RUNTIME-SAFETY-V4 for Decimal parsing and finite checks
+
+The BackpackRawFill model ensures data integrity at the API boundary, preventing
+malformed or malicious data from entering the core trading system. This validation
+is essential for maintaining system stability and preventing trading errors that
+could result from corrupted or unexpected API responses.
+
+Test Structure:
+- Success cases: Valid data scenarios and optional field handling
+- Type errors: Invalid data types for each field
+- Format errors: Invalid formats, constraints, and business rule violations
+- Missing field errors: Required field validation
+- Extra field errors: Strict schema enforcement with extra='forbid'
+"""
 
 from typing import Any
 
@@ -11,7 +45,18 @@ from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
 # --- Fixtures ---
 @pytest.fixture
 def valid_fill_data() -> dict[str, Any]:
-    """Provides a dictionary with valid raw fill data."""
+    """Provides a dictionary with valid raw fill data from Backpack API.
+
+    This fixture creates a complete, valid fill record that matches the expected
+    structure and data types from the Backpack exchange API. It serves as the
+    baseline for testing both successful validation and error conditions by
+    modifying specific fields.
+
+    Returns:
+        dict: Complete valid fill data including all required fields and one
+              optional field (clientId) to test optional field handling.
+
+    """
     return {
         "fee": "0.1",
         "feeSymbol": "USDC",
@@ -29,7 +74,14 @@ def valid_fill_data() -> dict[str, Any]:
 
 # --- Success Cases ---
 def test_backpack_raw_fill_valid(valid_fill_data: dict[str, Any]) -> None:
-    """Test successful validation with completely valid data."""
+    """Test successful validation with completely valid data.
+
+    This test validates that the BackpackRawFill model correctly accepts and
+    processes a complete, valid fill record from the Backpack API. It verifies
+    that all fields are properly parsed, type-converted, and accessible, and
+    that the model configuration (frozen=True, extra='forbid') is correctly
+    applied for immutability and strict schema enforcement.
+    """
     fill = BackpackRawFill.model_validate(valid_fill_data)
 
     assert fill.fee == "0.1"
@@ -48,14 +100,26 @@ def test_backpack_raw_fill_valid(valid_fill_data: dict[str, Any]) -> None:
 
 
 def test_backpack_raw_fill_optional_client_id_none(valid_fill_data: dict[str, Any]) -> None:
-    """Test validation succeeds when optional clientId is None."""
+    """Test validation succeeds when optional clientId is explicitly None.
+
+    This test ensures that the optional clientId field correctly handles explicit
+    None values, which may be sent by the Backpack API when no client order ID
+    was provided. This is important for robust handling of API responses that
+    include null values for optional fields.
+    """
     valid_fill_data["clientId"] = None
     fill = BackpackRawFill.model_validate(valid_fill_data)
     assert fill.client_id is None
 
 
 def test_backpack_raw_fill_optional_client_id_missing(valid_fill_data: dict[str, Any]) -> None:
-    """Test validation succeeds when optional clientId is missing."""
+    """Test validation succeeds when optional clientId is missing from the data.
+
+    This test verifies that the model correctly handles API responses where
+    optional fields are completely omitted rather than set to null. This
+    scenario is common in REST APIs where optional fields may not be included
+    in the response payload at all.
+    """
     del valid_fill_data["clientId"]
     fill = BackpackRawFill.model_validate(valid_fill_data)
     assert fill.client_id is None  # Default is None
@@ -82,7 +146,16 @@ def test_backpack_raw_fill_invalid_types(
     field: str,
     invalid_value: object,  # Changed from Any to object
 ) -> None:
-    """Test ValidationError is raised for incorrect field types."""
+    """Test ValidationError is raised for incorrect field types.
+
+    This parameterized test validates that the model correctly rejects data
+    with incorrect types for each field. Type validation is critical at the
+    API boundary to ensure that downstream processing can rely on consistent
+    data types and prevent runtime errors from unexpected type coercion.
+
+    The test covers common type confusion scenarios that might occur due to
+    API changes, serialization errors, or malicious input.
+    """
     valid_fill_data[field] = invalid_value
     with pytest.raises(ValidationError) as exc_info:
         BackpackRawFill.model_validate(valid_fill_data)
@@ -139,7 +212,23 @@ def test_backpack_raw_fill_invalid_formats_and_values(
     invalid_value: object,  # Changed from Any to object
     expected_msg_part: str | tuple[str, str],
 ) -> None:
-    """Test ValidationError for format/value/constraint violations."""
+    """Test ValidationError for format/value/constraint violations.
+
+    This comprehensive parameterized test validates that the model correctly
+    enforces all field-level constraints including string length limits,
+    numeric parsing requirements, enum value restrictions, and business rules.
+
+    The test ensures that malformed data is properly rejected with descriptive
+    error messages, which is essential for debugging API integration issues
+    and preventing corrupted data from entering the trading system.
+
+    Key validation areas:
+    - String length constraints to prevent buffer overflows
+    - Decimal parsing for financial values with finite number validation
+    - Enum validation for categorical fields like trading side
+    - Timestamp format validation for proper datetime parsing
+    - Non-negative constraints for trade IDs and other count fields
+    """
     valid_fill_data[field] = invalid_value
     with pytest.raises(ValidationError) as exc_info:
         BackpackRawFill.model_validate(valid_fill_data)
@@ -177,7 +266,17 @@ def test_backpack_raw_fill_missing_required(
     valid_fill_data: dict[str, Any],
     field_to_remove: str,
 ) -> None:
-    """Test ValidationError when required fields are missing."""
+    """Test ValidationError when required fields are missing.
+
+    This test ensures that all required fields are properly enforced by the
+    model validation. Missing required fields could indicate API changes,
+    network corruption, or incomplete data transmission, all of which must
+    be detected and handled appropriately to prevent trading errors.
+
+    The test validates that each required field is individually necessary
+    and that the model provides clear error messages identifying which
+    specific field is missing.
+    """
     del valid_fill_data[field_to_remove]
     with pytest.raises(ValidationError) as exc_info:
         BackpackRawFill.model_validate(valid_fill_data)
@@ -186,7 +285,17 @@ def test_backpack_raw_fill_missing_required(
 
 # --- Failure Cases: Extra Fields ---
 def test_backpack_raw_fill_extra_field(valid_fill_data: dict[str, Any]) -> None:
-    """Test ValidationError when extra fields are provided (extra='forbid')."""
+    """Test ValidationError when extra fields are provided (extra='forbid').
+
+    This test validates that the model strictly enforces the expected schema
+    by rejecting any additional fields not defined in the model. This is
+    critical for detecting API changes, preventing injection of unexpected
+    data, and ensuring that the model contract remains stable.
+
+    The extra='forbid' configuration helps catch API evolution issues early
+    and prevents silent acceptance of potentially malicious or corrupted
+    data that includes unexpected fields.
+    """
     valid_fill_data["extraField"] = "should_not_be_here"
     with pytest.raises(ValidationError) as exc_info:
         BackpackRawFill.model_validate(valid_fill_data)

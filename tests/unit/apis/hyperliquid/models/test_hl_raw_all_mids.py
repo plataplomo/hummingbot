@@ -1,3 +1,5 @@
+"""Unit tests for Hyperliquid Raw All Mids Models."""
+
 import pytest
 from pydantic import ValidationError
 

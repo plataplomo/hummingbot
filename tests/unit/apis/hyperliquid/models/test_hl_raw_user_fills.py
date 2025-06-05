@@ -4,6 +4,8 @@
 # - Strictly follows Raw Model Validation Policy
 # - Covers all edge cases, adversarial input, and structure validation
 
+"""Unit tests for Hyperliquid Raw User Fills Models."""
+
 from typing import Any
 
 import pytest

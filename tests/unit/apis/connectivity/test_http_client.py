@@ -1,3 +1,9 @@
+"""Unit tests for HttpClient.
+
+Tests HTTP client functionality including session management, request handling,
+and error scenarios with comprehensive mocking.
+"""
+
 import json  # For JSONDecodeError test
 from collections.abc import AsyncGenerator, Callable
 from typing import Any, cast
@@ -29,7 +35,7 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
 @pytest.fixture
 def default_http_client_config() -> HttpClientConfig:
-    """Helper function for default http client config."""
+    """Provide default http client config."""
     return HttpClientConfig(rest_endpoint=HttpUrl("http://test.api"))
 
 
@@ -49,6 +55,7 @@ def mock_authenticator() -> IAuthenticator:
 async def http_client_instance(
     default_http_client_config: HttpClientConfig,
 ) -> AsyncGenerator[HttpClient]:
+    """Provide HttpClient instance for testing."""
     client = HttpClient(exchange_name="test_exchange", config=default_http_client_config)
     yield client
     await client.close_session()
@@ -56,7 +63,7 @@ async def http_client_instance(
 
 @pytest.fixture
 def mock_aiohttp_response_factory() -> Callable[..., AsyncMock]:
-    """Factory fixture to create AsyncMock(spec=aiohttp.ClientResponse) instances."""
+    """Create AsyncMock(spec=aiohttp.ClientResponse) instances."""
 
     def _factory(
         status_code: int = 200,
@@ -83,6 +90,8 @@ def mock_aiohttp_response_factory() -> Callable[..., AsyncMock]:
 
 
 class TestHttpClient:
+    """Test suite for HttpClient functionality."""
+
     @pytest.mark.asyncio
     @patch("cyberdelta.apis.connectivity.http_client.aiohttp.ClientSession")
     async def test_internal_session_creation_reuse_and_closure(
@@ -91,6 +100,7 @@ class TestHttpClient:
         http_client_instance: HttpClient,  # Uses internal session by default
     ) -> None:
         """Test internal session is created on first request, reused, and closed correctly.
+
         Relies on public HttpClient.request() and HttpClient.close_session().
         """
         # --- First request: Session Creation ---
@@ -786,6 +796,8 @@ class TestHttpClient:
 
 # New Test Class for _parse_and_validate_response logic, tested via public request()
 class TestHttpClientRequestResponseParsing:
+    """Test suite for HttpClient request and response parsing logic."""
+
     @pytest.mark.asyncio
     @patch("cyberdelta.apis.connectivity.http_client.aiohttp.ClientSession")
     async def test_parse_valid_json_response(
@@ -1041,7 +1053,9 @@ class TestHttpClientRequestResponseParsing:
     # (though its direct tests are usually in test_connectivity_models.py)
 
 
-class TestRateLimiterIntegration:  # This class can remain as is or be expanded
+class TestRateLimiterIntegration:
+    """Test suite for rate limiter integration with HttpClient."""
+
     @pytest.mark.asyncio
     async def test_rate_limiter_integration(self, http_client_instance: HttpClient) -> None:
         """Test that rate limiter integration works correctly."""

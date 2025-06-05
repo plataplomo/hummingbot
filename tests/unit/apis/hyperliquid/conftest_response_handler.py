@@ -7,19 +7,19 @@ import pytest
 
 @pytest.fixture
 def user_address() -> str:
-    """Helper function for user address."""
+    """Provide user address for testing."""
     return "0xTestUserAddress1234567890abcdef"
 
 
 @pytest.fixture
 def symbol() -> str:
-    """Helper function for symbol."""
+    """Provide symbol for testing."""
     return "ETH-PERP"
 
 
 @pytest.fixture
 def order_id() -> int:
-    """Helper function for order id."""
+    """Provide order id for testing."""
     return 98765
 
 

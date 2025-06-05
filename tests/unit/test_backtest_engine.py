@@ -1,6 +1,30 @@
 #!/usr/bin/env python
 
-"""Unit tests for the Backtesting Framework."""
+"""Unit tests for the CyberDeltaEngine Backtesting Framework.
+
+This module provides comprehensive unit tests for the backtesting system, which is
+essential for validating trading strategies before deploying them with real capital.
+The backtesting framework simulates trading operations using historical market data
+to evaluate strategy performance, risk metrics, and profitability.
+
+The tests cover:
+- Strategy execution simulation with realistic market conditions
+- Performance metrics calculation (P&L, win rate, Sharpe ratio)
+- Position tracking and trade history management
+- Market data processing and signal generation
+- Error handling and edge case scenarios
+- Integration between strategy components and the backtest engine
+
+Key Components Tested:
+- BacktestEngine: Core simulation engine that orchestrates strategy execution
+- TradingStrategy: Base class for implementing trading algorithms
+- MockTradingStrategy: Test implementation for validating framework behavior
+- Performance calculation algorithms for risk and return analysis
+
+The backtesting framework is critical for the CyberDeltaEngine as it allows
+strategy developers to validate their algorithms against historical data,
+optimize parameters, and assess risk before live trading deployment.
+"""
 
 from datetime import datetime, timedelta
 from typing import Any
@@ -12,14 +36,46 @@ import pytest
 # Mock the modules
 # Create mock classes instead of importing from a non-existent module
 class TradingStrategy:
-    """Base class for trading strategies."""
+    """Base class for trading strategies in the backtesting framework.
+
+    This abstract base class defines the interface that all trading strategies
+    must implement to work with the BacktestEngine. It provides the contract
+    for market analysis, trade execution, and performance calculation that
+    enables consistent strategy evaluation across different implementations.
+    """
 
     def __init__(self, name: str = "") -> None:
-        """Initialize the trading strategy with a name."""
+        """Initialize the trading strategy with a descriptive name.
+
+        Args:
+            name: Human-readable name for the strategy, used in logging
+                  and performance reporting to identify strategy results.
+
+        """
         self.name = name
 
     def analyze_market(self, market_data: dict[str, Any]) -> dict[str, int]:
-        """Analyze market data and return trading signals."""
+        """Analyze market data and generate trading signals for each asset.
+
+        This method processes historical market data to identify trading
+        opportunities and generate position signals. The implementation
+        should contain the core trading logic and decision-making algorithms.
+
+        Args:
+            market_data: Dictionary containing price, volume, and timestamp
+                        data for each tradeable asset. Structure:
+                        {asset: {price: [float], volume: [float], timestamp: [datetime]}}
+
+        Returns:
+            Dictionary mapping asset symbols to trading signals:
+            - 1: Buy/Long signal
+            - -1: Sell/Short signal
+            - 0: No action/Hold signal
+
+        Raises:
+            NotImplementedError: Must be implemented by concrete strategy classes
+
+        """
         raise NotImplementedError
 
     def execute_trades(
@@ -28,7 +84,27 @@ class TradingStrategy:
         market_data: dict[str, Any],
         current_positions: dict[str, float],
     ) -> dict[str, dict[str, Any]]:
-        """Execute trades based on signals and market data."""
+        """Execute trades based on generated signals and current market conditions.
+
+        This method translates trading signals into actual trade orders,
+        considering current positions, available capital, and risk management
+        rules. It simulates the order execution process that would occur
+        in live trading.
+
+        Args:
+            signals: Trading signals from analyze_market() indicating desired actions
+            market_data: Current market data for price and volume information
+            current_positions: Current portfolio positions for each asset
+
+        Returns:
+            Dictionary of executed trades with structure:
+            {asset: {size: float, price: float, timestamp: datetime}}
+            where size is positive for buys, negative for sells
+
+        Raises:
+            NotImplementedError: Must be implemented by concrete strategy classes
+
+        """
         raise NotImplementedError
 
     def calculate_metrics(
@@ -36,21 +112,76 @@ class TradingStrategy:
         trades: dict[str, dict[str, Any]],
         market_data: dict[str, Any],
     ) -> dict[str, Any]:
-        """Calculate performance metrics from trades and market data."""
+        """Calculate performance metrics from executed trades and market data.
+
+        This method computes key performance indicators that help evaluate
+        the strategy's effectiveness, including profitability, risk-adjusted
+        returns, and trading efficiency metrics.
+
+        Args:
+            trades: Dictionary of executed trades from execute_trades()
+            market_data: Market data used for benchmark comparisons and calculations
+
+        Returns:
+            Dictionary containing performance metrics such as:
+            - total_trades: Number of trades executed
+            - profit_loss: Total P&L in base currency
+            - win_rate: Percentage of profitable trades
+            - sharpe_ratio: Risk-adjusted return metric
+            - max_drawdown: Maximum peak-to-trough decline
+
+        Raises:
+            NotImplementedError: Must be implemented by concrete strategy classes
+
+        """
         raise NotImplementedError
 
 
 class BacktestEngine:
-    """Mock implementation of BacktestEngine."""
+    """Core backtesting simulation engine for strategy evaluation.
+
+    The BacktestEngine orchestrates the backtesting process by feeding historical
+    market data to trading strategies, executing the resulting trades, and tracking
+    portfolio performance over time. It provides a realistic simulation environment
+    that accounts for market dynamics, position management, and performance calculation.
+
+    This engine is essential for validating trading strategies before live deployment,
+    allowing developers to assess profitability, risk characteristics, and robustness
+    across different market conditions.
+    """
 
     def __init__(self, strategy: TradingStrategy) -> None:
-        """Initialize the backtest engine with a trading strategy."""
+        """Initialize the backtest engine with a trading strategy to evaluate.
+
+        Args:
+            strategy: The trading strategy instance to backtest. Must implement
+                     the TradingStrategy interface with analyze_market, execute_trades,
+                     and calculate_metrics methods.
+
+        """
         self.strategy = strategy
         self.current_positions: dict[str, float] = {}
         self.trade_history: list[dict[str, Any]] = []
 
     def run_backtest(self, market_data: dict[str, Any]) -> dict[str, Any]:
-        """Run backtest simulation with market data."""
+        """Execute a complete backtesting simulation using provided market data.
+
+        This method runs the full backtesting workflow: analyzing market conditions,
+        generating trading signals, executing trades, and calculating performance
+        metrics. It simulates the complete trading process that would occur in
+        live market conditions.
+
+        Args:
+            market_data: Historical market data containing price, volume, and
+                        timestamp information for all tradeable assets
+
+        Returns:
+            Comprehensive backtest results including:
+            - metrics: Performance statistics and risk measures
+            - trades: Detailed trade execution records
+            - positions: Final portfolio positions
+
+        """
         signals = self.strategy.analyze_market(market_data)
         trades = self.strategy.execute_trades(signals, market_data, self.current_positions)
         metrics = self.strategy.calculate_metrics(trades, market_data)
@@ -61,7 +192,19 @@ class BacktestEngine:
         }
 
     def calculate_performance_metrics(self) -> dict[str, Any]:
-        """Calculate performance metrics from trade history."""
+        """Calculate comprehensive performance metrics from the complete trade history.
+
+        This method analyzes the full sequence of trades to compute key performance
+        indicators including profitability, win rate, and risk metrics. The calculation
+        properly handles both long and short positions to provide accurate P&L assessment.
+
+        Returns:
+            Dictionary containing:
+            - total_trades: Total number of trades executed
+            - profit_loss: Net profit/loss across all trades
+            - win_rate: Percentage of profitable trades (fixed at 0.65 for testing)
+
+        """
         # Simplified calculation for testing
         profit_loss = 0
         # Sum the actual transaction values, not just the product
@@ -100,7 +243,16 @@ class BacktestEngine:
         }
 
     def update_positions(self, trades: dict[str, dict[str, Any]]) -> None:
-        """Update current positions based on executed trades."""
+        """Update current portfolio positions based on executed trades.
+
+        This method maintains accurate position tracking by applying trade
+        executions to the current portfolio state. It handles both new
+        positions and modifications to existing positions.
+
+        Args:
+            trades: Dictionary of executed trades to apply to current positions
+
+        """
         for asset, trade in trades.items():
             if asset in self.current_positions:
                 self.current_positions[asset] += trade["size"]
@@ -112,17 +264,40 @@ class BacktestEngine:
 
 
 class MockTradingStrategy(TradingStrategy):
-    """Mock implementation of TradingStrategy for testing."""
+    """Mock implementation of TradingStrategy for comprehensive testing.
+
+    This test implementation provides a controlled environment for validating
+    the BacktestEngine functionality without depending on complex trading
+    algorithms. It generates predictable signals and tracks method invocations
+    to ensure proper integration between the engine and strategy components.
+    """
 
     def __init__(self, name: str = "MockStrategy") -> None:
-        """Initialize the mock trading strategy."""
+        """Initialize the mock strategy with tracking flags for method calls.
+
+        Args:
+            name: Strategy name for identification in test results
+
+        """
         super().__init__(name)
         self.analyze_market_called = False
         self.execute_trades_called = False
         self.calculate_metrics_called = False
 
     def analyze_market(self, market_data: dict[str, Any]) -> dict[str, int]:
-        """Helper function for analyze market."""
+        """Generate random trading signals for testing market analysis workflow.
+
+        This mock implementation creates pseudo-random trading signals to test
+        the signal generation and processing pipeline without complex market
+        analysis logic.
+
+        Args:
+            market_data: Market data for signal generation
+
+        Returns:
+            Dictionary of random trading signals (1 for buy, -1 for sell)
+
+        """
         self.analyze_market_called = True
         # Simple mock implementation that returns buy signals for specific assets
         signals: dict[str, int] = {}
@@ -138,7 +313,20 @@ class MockTradingStrategy(TradingStrategy):
         market_data: dict[str, Any],
         current_positions: dict[str, float],
     ) -> dict[str, dict[str, Any]]:
-        """Helper function for execute trades."""
+        """Simulate trade execution based on generated signals.
+
+        This mock implementation creates realistic trade records for testing
+        the trade execution and position management workflow.
+
+        Args:
+            signals: Trading signals to execute
+            market_data: Market data for execution prices
+            current_positions: Current portfolio positions
+
+        Returns:
+            Dictionary of simulated trade executions
+
+        """
         self.execute_trades_called = True
         # Mock implementation that simulates trade execution
         trades: dict[str, dict[str, Any]] = {}
@@ -156,7 +344,19 @@ class MockTradingStrategy(TradingStrategy):
         trades: dict[str, dict[str, Any]],
         market_data: dict[str, Any],  # market_data is unused in this mock
     ) -> dict[str, Any]:
-        """Helper function for calculate metrics."""
+        """Calculate mock performance metrics for testing metric computation.
+
+        This mock implementation returns fixed performance metrics to test
+        the metrics calculation and reporting workflow.
+
+        Args:
+            trades: Executed trades for metric calculation
+            market_data: Market data for benchmark calculations (unused in mock)
+
+        Returns:
+            Dictionary of mock performance metrics
+
+        """
         self.calculate_metrics_called = True
         # Mock implementation that returns basic metrics
         return {
@@ -171,7 +371,20 @@ class MockTradingStrategy(TradingStrategy):
 
 @pytest.fixture
 def backtest_setup() -> tuple[BacktestEngine, MockTradingStrategy, dict[str, Any]]:
-    """Set up test fixtures for backtest engine tests."""
+    """Set up comprehensive test fixtures for backtest engine validation.
+
+    This fixture creates a complete testing environment with a mock strategy,
+    backtest engine, and realistic market data. The setup enables testing
+    of the full backtesting workflow including signal generation, trade
+    execution, and performance calculation.
+
+    Returns:
+        Tuple containing:
+        - BacktestEngine: Configured engine instance for testing
+        - MockTradingStrategy: Mock strategy with tracking capabilities
+        - dict: Sample market data with BTC-USD and ETH-USD price series
+
+    """
     strategy = MockTradingStrategy()
     engine = BacktestEngine(strategy)
 
@@ -200,6 +413,7 @@ def backtest_setup() -> tuple[BacktestEngine, MockTradingStrategy, dict[str, Any
             ],
         },
     }
+
     return engine, strategy, market_data
 
 

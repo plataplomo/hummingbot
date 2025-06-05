@@ -1,3 +1,5 @@
+"""Unit tests for Hyperliquid raw user state models."""
+
 import pytest
 from pydantic import ValidationError
 

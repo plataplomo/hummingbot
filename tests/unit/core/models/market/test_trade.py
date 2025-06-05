@@ -1,9 +1,33 @@
 """Unit tests for the CyberDeltaEngine internal Trade model.
 
-These tests validate the correctness, validation logic, and edge case handling of the Trade Pydantic
-model, which serves as a superset for both Backpack and Hyperliquid fills.
-Tests cover field validation,
-cost calculation, cross-field logic, serialization, and handling of optional and required fields.
+This module provides comprehensive validation of the Trade Pydantic model, which serves
+as the unified internal representation for trade executions (fills) across all supported
+exchanges in the CyberDeltaEngine. The Trade model is a critical component that ensures
+consistent data handling and validation for trading operations.
+
+Key Testing Areas:
+- Field validation and type safety for all trade attributes
+- Decimal precision handling for financial calculations (price, quantity, fees)
+- Cross-field validation logic (fee/fee_asset relationship)
+- Extension slot functionality for exchange-specific enrichment
+- Serialization and deserialization for data persistence
+- Edge case handling and error conditions
+- Performance characteristics under various data loads
+
+The Trade model implements the "Core + Typed Extension Slots" pattern, providing:
+- Lean core fields common to all exchanges
+- Optional exchange-specific details slots (HyperliquidTradeDetails, BackpackTradeDetails)
+- Immutable snapshots with strict validation
+- Computed fields for derived values (cost calculation)
+
+This testing ensures the Trade model maintains data integrity, type safety, and
+consistent behavior across different exchange integrations while supporting
+future extensibility for additional exchanges and trading features.
+
+Architecture Compliance:
+- Follows RULE-ARCH-MODEL-DESIGN-V2 for strict model separation
+- Implements RULE-RUNTIME-SAFETY-V4 for Decimal usage and validation
+- Adheres to RULE-NO-SILENCING-V4 for type safety without suppressions
 """
 
 from datetime import datetime
@@ -17,7 +41,13 @@ from cyberdelta.core.models.market.trade import BackpackTradeDetails, Hyperliqui
 
 
 def test_trade_minimal_valid() -> None:
-    """Test that a minimal valid Trade instance is accepted and fields are set correctly."""
+    """Test that a minimal valid Trade instance is accepted and fields are set correctly.
+
+    This test validates the core functionality of the Trade model with only required
+    fields, ensuring that the model can be instantiated with minimal data while
+    maintaining proper defaults for optional fields. This is essential for handling
+    basic trade data from exchanges that may not provide all optional information.
+    """
     price = Decimal("100.0")
     quantity = Decimal("2.0")
     trade = Trade(
@@ -43,7 +73,10 @@ def test_trade_minimal_valid() -> None:
 def test_trade_with_all_optionals() -> None:
     """Test that a Trade instance with all optional fields is accepted and values are set correctly.
 
-    This test verifies that all optional fields can be set and are properly validated.
+    This test verifies that all optional fields can be set and are properly validated,
+    including exchange-specific extension slots. This ensures the model supports rich
+    trade data from exchanges that provide comprehensive fill information, including
+    fees, maker/taker status, and exchange-specific metadata.
     """
     price = Decimal("100.0")
     quantity = Decimal("2.0")
@@ -84,7 +117,13 @@ def test_trade_with_all_optionals() -> None:
 
 
 def test_trade_cost_computed() -> None:
-    """Test that cost is always computed as price * quantity."""
+    """Test that cost is always computed as price * quantity.
+
+    This test validates the computed field functionality for trade cost calculation,
+    ensuring that the cost is always accurately derived from price and quantity
+    regardless of the specific values. This computed field is critical for P&L
+    calculations and portfolio valuation in the trading engine.
+    """
     trade = Trade(
         id="abc123",
         symbol="BTC-PERP",
@@ -99,7 +138,13 @@ def test_trade_cost_computed() -> None:
 
 
 def test_trade_id_and_order_id_validation() -> None:
-    """Test that id and order_id accept only valid non-empty strings, and reject invalid values."""
+    """Test that id and order_id accept only valid non-empty strings, and reject invalid values.
+
+    This test ensures robust validation of trade and order identifiers, which are
+    critical for trade tracking, reconciliation, and debugging. The validation
+    prevents empty strings, excessive lengths, and invalid types that could cause
+    issues in downstream processing or database storage.
+    """
     # Valid strings
     for valid_id in ["idstr", "order-xyz", "1.23", "114", "abc", "hash-abc", "A" * 64]:
         trade = Trade(
@@ -166,7 +211,13 @@ def test_trade_id_and_order_id_validation() -> None:
 
 
 def test_trade_fee_asset_required() -> None:
-    """Test that a ValueError is raised if fee is nonzero and fee_asset is not provided."""
+    """Test that a ValueError is raised if fee is nonzero and fee_asset is not provided.
+
+    This test validates the critical business rule that fee_asset must be specified
+    whenever a fee is charged. This cross-field validation ensures proper fee
+    accounting and prevents ambiguous fee records that could lead to incorrect
+    P&L calculations or regulatory reporting issues.
+    """
     with pytest.raises(ValueError, match="fee_asset must be provided if fee is nonzero"):
         Trade(
             id="abc123",
@@ -182,7 +233,13 @@ def test_trade_fee_asset_required() -> None:
 
 
 def test_trade_negative_fee_allowed() -> None:
-    """Test that a negative fee (rebate) is accepted if fee_asset is provided."""
+    """Test that a negative fee (rebate) is accepted if fee_asset is provided.
+
+    This test ensures the model correctly handles fee rebates, which are common
+    in cryptocurrency trading when providing liquidity. Negative fees represent
+    rebates or rewards paid to the trader, and proper handling is essential for
+    accurate P&L calculation and fee accounting.
+    """
     trade = Trade(
         id="abc123",
         symbol="BTC-PERP",

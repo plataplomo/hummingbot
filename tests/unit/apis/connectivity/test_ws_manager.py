@@ -1,4 +1,5 @@
 """Unit tests for WebSocketManager.
+
 Tests WebSocket connection management, message handling, and error scenarios.
 """
 
@@ -28,10 +29,12 @@ logger = logging.getLogger(__name__)
 
 # Define a dummy message handler for tests
 async def dummy_message_handler(message: dict[str, Any]) -> None:
+    """Handle WebSocket messages for testing purposes."""
     pass
 
 
 async def dummy_on_connected_callback() -> None:
+    """Handle WebSocket connection events for testing purposes."""
     pass
 
 
@@ -46,17 +49,17 @@ def create_async_mock_task_for_side_effect(
     *args: object,
     **kwargs: object,  # Generic pass-through for mock/callback
 ) -> AsyncMock:
-    """Helper to create an AsyncMock, intended for use as a side_effect."""
+    """Create an AsyncMock, intended for use as a side_effect."""
     return AsyncMock()
 
 
 async def completed_dummy_coro() -> None:
-    """A dummy coroutine that completes immediately."""
+    """Complete immediately as a dummy coroutine."""
 
 
 @pytest.fixture
 def default_ws_manager_config() -> WebSocketManagerConfig:
-    """Provides a default WebSocketManagerConfig for tests."""
+    """Provide a default WebSocketManagerConfig for tests."""
     return WebSocketManagerConfig(
         ws_url=AnyUrl("ws://test.websocket.api/ws"),
         connection_timeout=10.0,
@@ -70,7 +73,7 @@ def default_ws_manager_config() -> WebSocketManagerConfig:
 async def ws_manager_instance(
     default_ws_manager_config: WebSocketManagerConfig,
 ) -> AsyncGenerator[WebSocketManager]:
-    """Provides a WebSocketManager instance for testing."""
+    """Provide a WebSocketManager instance for testing."""
     manager = WebSocketManager(
         exchange_name="test_exchange_ws",
         message_handler=dummy_message_handler,
@@ -84,7 +87,7 @@ async def ws_manager_instance(
 
 @pytest_asyncio.fixture
 async def mock_aiohttp_client_session() -> AsyncMock:
-    """Provides a mock aiohttp.ClientSession instance."""
+    """Provide a mock aiohttp.ClientSession instance."""
     session_mock = AsyncMock(spec=aiohttp.ClientSession)
     session_mock.closed = False
     session_mock.close = AsyncMock()
@@ -95,7 +98,7 @@ async def mock_aiohttp_client_session() -> AsyncMock:
 
 @pytest.fixture
 def mock_ws_connection_factory() -> Callable[..., AsyncMock]:
-    """Factory to create mock WebSocket connection objects."""
+    """Create factory to create mock WebSocket connection objects."""
 
     def _factory(
         closed: bool = False,
@@ -228,9 +231,7 @@ def mock_ws_connection_factory() -> Callable[..., AsyncMock]:
 async def patched_ws_connect(
     mock_ws_connection_factory: Callable[..., AsyncMock],
 ) -> AsyncGenerator[tuple[AsyncMock, AsyncMock]]:
-    """Patches aiohttp.ClientSession.ws_connect globally and provides a default mock
-    WS connection.
-    """
+    """Patch aiohttp.ClientSession.ws_connect globally and provide a default mock WS connection."""
     default_mock_conn = mock_ws_connection_factory(closed=False, block_indefinitely=False)
 
     async def default_connect_side_effect() -> AsyncMock:  # Removed *args, **kwargs
@@ -413,7 +414,7 @@ class TestWebSocketManager:
             name: str | None = None,
             **kwargs_capture: object,
         ) -> asyncio.Task[Any]:
-            """Helper function for side effect for create task capture."""
+            """Create side effect for create task capture."""
             task = original_asyncio_create_task(coro, name=name)
             if name:
                 created_tasks_map[name] = task
@@ -657,7 +658,7 @@ class TestWebSocketManager:
             name: str | None = None,
             **kwargs_capture: object,
         ) -> asyncio.Task[Any]:
-            """Helper function for side effect for create task capture listen test."""
+            """Create side effect for create task capture listen test."""
             task = original_asyncio_create_task_listen_test(coro, name=name)
             if name:
                 created_tasks_map_listen_test[name] = task

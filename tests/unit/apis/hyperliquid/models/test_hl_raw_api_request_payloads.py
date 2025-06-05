@@ -1,3 +1,5 @@
+"""Unit tests for Hyperliquid Raw API Request Payload Models."""
+
 from typing import Any  # Added for casting
 
 import pytest
@@ -17,6 +19,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
 
 
 class TestHyperliquidApiL2UsdTransferRequest:
+    """Test class for HyperliquidApiL2UsdTransferRequest model."""
+
     def test_valid_l2_usd_transfer(self) -> None:
         """Test valid l2 usd transfer."""
         payload_data: dict[str, Any] = {
@@ -119,6 +123,8 @@ class TestHyperliquidApiL2UsdTransferRequest:
 
 
 class TestHyperliquidApiEthWithdrawalRequest:
+    """Test class for HyperliquidApiEthWithdrawalRequest model."""
+
     def test_valid_eth_withdrawal(self) -> None:
         """Test valid eth withdrawal."""
         action_payload_data: dict[str, Any] = {

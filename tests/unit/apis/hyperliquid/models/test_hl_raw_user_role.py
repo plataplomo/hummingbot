@@ -1,4 +1,4 @@
-"""Unit Tests for Hyperliquid Raw User Role Models"""
+"""Unit Tests for Hyperliquid Raw User Role Models."""
 
 from typing import Any, cast
 

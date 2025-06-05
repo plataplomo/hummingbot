@@ -1,4 +1,5 @@
 """CyberDeltaEngine: Hyperliquid Market Data Mapper Order Book & Trades Tests.
+
 --------------------------------------------------------------------------
 
 Comprehensive test suite for HyperliquidMarketDataMapper order book and
@@ -17,11 +18,11 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import pytest
-from _pytest.logging import LogCaptureFixture
 from pydantic import ValidationError
 
 # Third-party imports for type checking only
 if TYPE_CHECKING:
+    from pytest import LogCaptureFixture
     from pytest_mock import MockerFixture
 
 # Project-specific imports
@@ -52,19 +53,19 @@ def market_data_mapper() -> HyperliquidMarketDataMapper:
 
 @pytest.fixture
 def hyperliquid_raw_book_level_fixture_bid() -> HyperliquidRawBookLevel:
-    """Provides a valid HyperliquidRawBookLevel for a bid."""
+    """Provide a valid HyperliquidRawBookLevel for a bid."""
     return HyperliquidRawBookLevel(px="2999.50", sz="10.5", n=2)
 
 
 @pytest.fixture
 def hyperliquid_raw_book_level_fixture_ask() -> HyperliquidRawBookLevel:
-    """Provides a valid HyperliquidRawBookLevel for an ask."""
+    """Provide a valid HyperliquidRawBookLevel for an ask."""
     return HyperliquidRawBookLevel(px="3000.50", sz="5.25", n=3)
 
 
 @pytest.fixture
 def hyperliquid_raw_l2_book_eth_fixture() -> HyperliquidRawL2Book:
-    """Provides a valid HyperliquidRawL2Book for ETH-PERP."""
+    """Provide a valid HyperliquidRawL2Book for ETH-PERP."""
     # Create more levels for a more realistic book
     bid_levels = [
         HyperliquidRawBookLevel(px="2999.50", sz="10.5", n=2),
@@ -85,7 +86,7 @@ def hyperliquid_raw_l2_book_eth_fixture() -> HyperliquidRawL2Book:
 
 @pytest.fixture
 def hyperliquid_raw_l2_book_empty_fixture() -> HyperliquidRawL2Book:
-    """Provides an empty HyperliquidRawL2Book."""
+    """Provide an empty HyperliquidRawL2Book."""
     return HyperliquidRawL2Book(
         coin="BTC-PERP",
         levels=[[], []],  # Empty bids and asks
@@ -95,7 +96,7 @@ def hyperliquid_raw_l2_book_empty_fixture() -> HyperliquidRawL2Book:
 
 @pytest.fixture
 def hyperliquid_raw_public_trade_buy_fixture() -> HyperliquidRawPublicTrade:
-    """Provides a valid HyperliquidRawPublicTrade for a BUY trade."""
+    """Provide a valid HyperliquidRawPublicTrade for a BUY trade."""
     return HyperliquidRawPublicTrade(
         coin="ETH-PERP",
         side="B",
@@ -108,7 +109,7 @@ def hyperliquid_raw_public_trade_buy_fixture() -> HyperliquidRawPublicTrade:
 
 @pytest.fixture
 def hyperliquid_raw_public_trade_sell_fixture() -> HyperliquidRawPublicTrade:
-    """Provides a valid HyperliquidRawPublicTrade for a SELL trade."""
+    """Provide a valid HyperliquidRawPublicTrade for a SELL trade."""
     return HyperliquidRawPublicTrade(
         coin="BTC-PERP",
         side="A",  # Sell

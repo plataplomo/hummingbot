@@ -1,4 +1,4 @@
-# tests/unit/apis/hyperliquid/models/test_hl_raw_fill.py imports
+"""Unit tests for Hyperliquid Raw Fill Models."""
 
 from typing import Any
 
@@ -10,7 +10,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
 # Placeholder valid data for the fixture
 @pytest.fixture
 def valid_fill_data() -> dict[str, Any]:
-    """Provides a dictionary with minimal valid data for HyperliquidRawFill."""
+    """Provide a dictionary with minimal valid data for HyperliquidRawFill."""
     return {
         "tid": 12345,
         "oid": 67890,

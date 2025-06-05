@@ -1,4 +1,5 @@
 """Unit tests for connectivity models.
+
 Tests the Pydantic models used for HTTP client and WebSocket manager configuration.
 """
 

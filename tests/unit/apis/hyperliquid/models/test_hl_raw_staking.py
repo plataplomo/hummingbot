@@ -1,4 +1,4 @@
-"""Unit Tests for Hyperliquid Raw Staking Info Models"""
+"""Unit Tests for Hyperliquid Raw Staking Info Models."""
 
 from typing import Any
 
@@ -178,6 +178,8 @@ def test_hist_delegate_delta_valid(valid_history_delegate_delta_data: dict[str, 
 
 # HyperliquidRawDelegatorHistoryDelta
 class TestHyperliquidRawDelegatorHistoryDelta:
+    """Test class for HyperliquidRawDelegatorHistoryDelta model."""
+
     def test_hist_delta_valid(self, valid_history_delegate_delta_data: dict[str, Any]) -> None:
         """Test hist delta valid."""
         data = {"delegate": valid_history_delegate_delta_data}

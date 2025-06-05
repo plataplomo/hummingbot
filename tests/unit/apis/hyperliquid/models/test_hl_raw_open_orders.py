@@ -1,8 +1,11 @@
-# CyberDeltaEngine: Hyperliquid Raw Open Orders Model Test Suite
-# --------------------------------------------------------------
-# Comprehensive tests for all models in hl_raw_open_orders.py
-# - Strictly follows Raw Model Validation Policy
-# - Covers all edge cases, adversarial input, and structure validation
+"""Unit tests for Hyperliquid Raw Open Orders Models.
+
+CyberDeltaEngine: Hyperliquid Raw Open Orders Model Test Suite
+--------------------------------------------------------------
+Comprehensive tests for all models in hl_raw_open_orders.py
+- Strictly follows Raw Model Validation Policy
+- Covers all edge cases, adversarial input, and structure validation
+"""
 
 import pytest
 from pydantic import ValidationError

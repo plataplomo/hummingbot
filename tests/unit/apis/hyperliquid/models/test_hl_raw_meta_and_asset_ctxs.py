@@ -1,3 +1,5 @@
+"""Unit tests for Hyperliquid Raw Meta and Asset Context Models."""
+
 import pytest
 from pydantic import ValidationError
 

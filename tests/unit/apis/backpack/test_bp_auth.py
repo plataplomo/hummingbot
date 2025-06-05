@@ -1,3 +1,28 @@
+"""Unit tests for Backpack ED25519 Authentication Implementation.
+
+Comprehensive test suite for the BackpackEd25519Authenticator class covering:
+- Credential validation and initialization scenarios
+- HTTP request signing for GET, POST, and DELETE methods
+- WebSocket subscription signature generation
+- Authentication header generation and merging
+- Signing string construction for various request types
+- Error handling for invalid credentials and malformed requests
+
+These tests ensure the authentication implementation correctly follows Backpack's
+ED25519 signature scheme, properly handles various request formats, and maintains
+security best practices for the CyberDeltaEngine trading system. The tests cover
+both happy path scenarios and error conditions to ensure robust authentication
+in production trading environments.
+
+Key test categories:
+- Credential validation and error handling
+- HTTP request authentication for all supported methods
+- WebSocket authentication for real-time data streams
+- Signature generation and verification
+- Header management and merging
+- Edge cases and malformed input handling
+"""
+
 import base64
 from collections.abc import Generator
 from unittest.mock import MagicMock, patch
@@ -13,14 +38,23 @@ from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestCom
 
 @pytest.fixture
 def mock_time_patch() -> Generator[MagicMock]:
-    """Return mock time patch for testing."""
+    """Return mock time patch for consistent timestamp testing.
+
+    Provides a fixed timestamp (1678886400.0) for all authentication tests
+    to ensure deterministic signature generation and validation.
+    """
     with patch("time.time", return_value=1678886400.0) as mock_time:
         yield mock_time
 
 
 @pytest.fixture
 def test_ed25519_keys() -> dict[str, str]:
-    """Generate test ED25519 keys for testing."""
+    """Generate test ED25519 key pair for authentication testing.
+
+    Creates a fresh ED25519 private/public key pair for each test to ensure
+    isolation and security. Returns base64-encoded keys suitable for use
+    with the BackpackEd25519Authenticator.
+    """
     # Generate a test private key
     private_key = Ed25519PrivateKey.generate()
     public_key = private_key.public_key()
@@ -33,11 +67,32 @@ def test_ed25519_keys() -> dict[str, str]:
 
 
 class TestBackpackEd25519Authenticator:
+    """Test suite for BackpackEd25519Authenticator authentication functionality.
+
+    Comprehensive testing of the Backpack exchange ED25519 authentication implementation
+    including credential validation, request signing, WebSocket authentication, and
+    error handling. These tests ensure the authenticator correctly implements Backpack's
+    security requirements and maintains compatibility with their API specifications.
+
+    Test coverage includes:
+    - Initialization with valid and invalid credentials
+    - HTTP request signing for GET, POST, DELETE methods
+    - WebSocket subscription signature generation
+    - Header management and merging
+    - Signing string construction and validation
+    - Error scenarios and edge cases
+    """
+
     def test_initialization_missing_api_key_raises_value_error(
         self,
         test_ed25519_keys: dict[str, str],
     ) -> None:
-        """Test that initialization fails when API key is missing."""
+        """Test that initialization fails when API key is missing.
+
+        Ensures that the authenticator properly validates the presence of the
+        API key (public key) during initialization and raises a clear error
+        when it's missing or empty.
+        """
         with pytest.raises(
             ValueError,
             match="API key \\(Base64 public ED25519 key\\) cannot be empty",
@@ -51,7 +106,12 @@ class TestBackpackEd25519Authenticator:
         self,
         test_ed25519_keys: dict[str, str],
     ) -> None:
-        """Test that initialization fails when private key is missing."""
+        """Test that initialization fails when private key is missing.
+
+        Ensures that the authenticator properly validates the presence of the
+        private key during initialization and raises a clear error when it's
+        missing or empty.
+        """
         with pytest.raises(
             ValueError,
             match="Private key \\(Base64 private ED25519 key\\) cannot be empty",
@@ -65,7 +125,11 @@ class TestBackpackEd25519Authenticator:
         self,
         test_ed25519_keys: dict[str, str],
     ) -> None:
-        """Test that initialization fails with invalid private key format."""
+        """Test that initialization fails with invalid private key format.
+
+        Ensures that the authenticator validates the format and structure of
+        the private key during initialization and rejects malformed keys.
+        """
         with pytest.raises(ValueError, match="Invalid Base64 ED25519 private key"):
             BackpackEd25519Authenticator(
                 api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
@@ -73,7 +137,12 @@ class TestBackpackEd25519Authenticator:
             )
 
     def test_initialization_missing_both_credentials_raises_value_error(self) -> None:
-        """Test that initialization fails when both credentials are missing."""
+        """Test that initialization fails when both credentials are missing.
+
+        Ensures that the authenticator properly handles the case where both
+        the API key and private key are missing, prioritizing the API key
+        validation error message.
+        """
         with pytest.raises(
             ValueError,
             match="API key \\(Base64 public ED25519 key\\) cannot be empty",
@@ -84,7 +153,12 @@ class TestBackpackEd25519Authenticator:
             )
 
     def test_initialization_success(self, test_ed25519_keys: dict[str, str]) -> None:
-        """Test that authenticator initializes correctly with valid ED25519 credentials."""
+        """Test that authenticator initializes correctly with valid ED25519 credentials.
+
+        Verifies that the authenticator successfully initializes when provided with
+        valid ED25519 key pairs and that the internal state is properly set up
+        for subsequent authentication operations.
+        """
         auth = BackpackEd25519Authenticator(
             api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
             private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
@@ -102,7 +176,12 @@ class TestBackpackEd25519Authenticator:
         test_ed25519_keys: dict[str, str],
         mock_time_patch: MagicMock,
     ) -> None:
-        """Test preparing a signed GET request for balance query."""
+        """Test preparing a signed GET request for balance query.
+
+        Validates that the authenticator correctly signs GET requests for balance
+        queries, including proper header generation, timestamp handling, and
+        signature creation according to Backpack's authentication specification.
+        """
         auth = BackpackEd25519Authenticator(
             api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
             private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
@@ -138,7 +217,12 @@ class TestBackpackEd25519Authenticator:
         test_ed25519_keys: dict[str, str],
         mock_time_patch: MagicMock,
     ) -> None:
-        """Test preparing a signed GET request with query parameters."""
+        """Test preparing a signed GET request with query parameters.
+
+        Validates that the authenticator correctly handles GET requests with
+        query parameters, ensuring that parameters are properly included in
+        the signature calculation while being preserved in the request.
+        """
         auth = BackpackEd25519Authenticator(
             api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
             private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
@@ -164,7 +248,12 @@ class TestBackpackEd25519Authenticator:
         test_ed25519_keys: dict[str, str],
         mock_time_patch: MagicMock,
     ) -> None:
-        """Test preparing a signed POST request with JSON data."""
+        """Test preparing a signed POST request with JSON data.
+
+        Validates that the authenticator correctly handles POST requests with
+        JSON payloads, ensuring that the request body is properly included in
+        the signature calculation while being preserved in the request.
+        """
         auth = BackpackEd25519Authenticator(
             api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
             private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
@@ -190,7 +279,12 @@ class TestBackpackEd25519Authenticator:
         test_ed25519_keys: dict[str, str],
         mock_time_patch: MagicMock,
     ) -> None:
-        """Test that existing headers are preserved and merged with auth headers."""
+        """Test that existing headers are preserved and merged with auth headers.
+
+        Ensures that the authenticator properly merges existing request headers
+        with the required authentication headers without overwriting important
+        existing headers or causing conflicts.
+        """
         auth = BackpackEd25519Authenticator(
             api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
             private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),

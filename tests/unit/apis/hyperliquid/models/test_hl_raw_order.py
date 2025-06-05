@@ -1,4 +1,5 @@
 """Unit tests for Hyperliquid Raw Order Action Pydantic models.
+
 Validates parsing, aliases, and error handling for raw order request structures.
 """
 
@@ -107,6 +108,8 @@ def assert_common_place_order_fields(
 
 
 class TestHyperliquidRawOrderType:
+    """Test class for HyperliquidRawOrderType model."""
+
     def test_valid_limit_order_type(self) -> None:
         """Test valid limit order type."""
         limit_details = HyperliquidRawLimitOrderTypeDetails(tif="Gtc")
@@ -154,6 +157,8 @@ class TestHyperliquidRawOrderType:
 
 
 class TestHyperliquidRawTriggerDetails:
+    """Test class for HyperliquidRawTriggerDetails model."""
+
     def test_valid_trigger_details_tp_market(self) -> None:
         """Test valid trigger details tp market."""
         parsed = HyperliquidRawTriggerDetails(**VALID_TRIGGER_DETAILS_TP_MARKET_DATA)
@@ -226,6 +231,8 @@ class TestHyperliquidRawTriggerDetails:
 
 
 class TestHyperliquidRawPlaceOrderAction:
+    """Test class for HyperliquidRawPlaceOrderAction model."""
+
     EXPECTED_PYTHON_TYPES_AFTER_PARSING: dict[str, type] = {
         "asset": int,
         "is_buy": bool,
