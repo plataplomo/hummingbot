@@ -11,12 +11,10 @@ import logging
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from pydantic import SecretStr
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
-from cyberdelta.enums.exchange_names import ExchangeName
 
 pytestmark = pytest.mark.integration
 

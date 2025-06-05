@@ -11,13 +11,10 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from pydantic import SecretStr
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
-from cyberdelta.enums.exchange_names import ExchangeName
-
 
 # Removed create_test_exchange_config function - now using active_hl_config fixture
 
@@ -26,7 +23,6 @@ from cyberdelta.enums.exchange_names import ExchangeName
 
 
 # Removed active_hl_secrets fixture - now using active_hl_secrets from conftest.py
-    )
 
 
 class TestHyperliquidAPIWebSocketPublicInterface:
@@ -132,7 +128,6 @@ class TestHyperliquidAPIWebSocketConfiguration:
         active_hl_secrets: PrivateKeyAuthSecrets,
     ) -> None:
         """Test that API can be initialized with active configuration fixtures."""
-
         with (
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidEip712Authenticator"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidErrorMapper"),
@@ -148,7 +143,9 @@ class TestHyperliquidAPIWebSocketConfiguration:
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidRateLimitStrategy"),
             patch("cyberdelta.apis.connectivity.ws_manager.WebSocketManager"),
         ):
-            api = HyperliquidAPI(exchange_config=active_hl_config, exchange_secrets=active_hl_secrets)
+            api = HyperliquidAPI(
+                exchange_config=active_hl_config, exchange_secrets=active_hl_secrets,
+            )
             assert api is not None
             assert api.exchange_name == "hyperliquid"
 
@@ -177,7 +174,9 @@ class TestHyperliquidAPIWebSocketConfiguration:
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidRateLimitStrategy"),
             patch("cyberdelta.apis.connectivity.ws_manager.WebSocketManager"),
         ):
-            api = HyperliquidAPI(exchange_config=active_hl_config, exchange_secrets=active_hl_secrets)
+            api = HyperliquidAPI(
+                exchange_config=active_hl_config, exchange_secrets=active_hl_secrets,
+            )
             assert api is not None
             assert api.exchange_name == "hyperliquid"
 

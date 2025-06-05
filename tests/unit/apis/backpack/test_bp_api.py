@@ -10,7 +10,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic import SecretStr
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
@@ -34,7 +33,6 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
-from cyberdelta.enums.exchange_names import ExchangeName
 
 # Removed hardcoded test constants - now using active fixtures from conftest.py
 

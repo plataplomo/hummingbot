@@ -4,17 +4,14 @@ Tests use dependency injection patterns to mock collaborators and focus on isola
 """
 
 from collections.abc import Callable
-from typing import Any, Literal
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic import SecretStr
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
-from cyberdelta.enums.exchange_names import ExchangeName
-
 
 # Removed create_test_exchange_config function - now using active_hl_config fixture
 

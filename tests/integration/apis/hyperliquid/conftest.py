@@ -8,7 +8,7 @@ Uses test configuration from tests/config/test_config.yaml.
 # Uses test configuration from tests/config/test_config.yaml
 
 from collections.abc import Callable
-from typing import Any, Literal
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -16,7 +16,6 @@ import pytest
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.config.config_models import AppSettings, ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets, SecretsConfig
-from cyberdelta.enums.exchange_names import ExchangeName
 
 
 @pytest.fixture(scope="session")

@@ -9,7 +9,6 @@ from typing import Any
 from unittest.mock import ANY, AsyncMock, Mock, patch
 
 import pytest
-from pydantic import SecretStr
 
 # Mark all tests in this file as integration tests
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
@@ -20,7 +19,6 @@ from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
 )
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
-from cyberdelta.enums.exchange_names import ExchangeName
 
 # Mark all tests in this file as integration tests
 pytestmark = pytest.mark.integration
@@ -217,7 +215,9 @@ class TestHyperliquidAPIWebSocketSubscriptionIntegration:
             "cyberdelta.apis.connectivity.ws_manager.WebSocketManager",
             return_value=mock_ws_manager,
         ):
-            api = HyperliquidAPI(exchange_config=active_hl_config, exchange_secrets=active_hl_secrets)
+            api = HyperliquidAPI(
+                exchange_config=active_hl_config, exchange_secrets=active_hl_secrets,
+            )
             # Use object.__setattr__ to bypass protection for integration testing setup
             object.__setattr__(api, "_ws_manager", mock_ws_manager)
             return api
